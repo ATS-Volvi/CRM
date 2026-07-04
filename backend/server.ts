@@ -2,6 +2,7 @@ import express, { Express } from "express";
 import cors from "cors";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
+import v1Router from "./src/routes/v1";
 
 export function createServer(): Express {
   const app = express();
@@ -15,7 +16,6 @@ export function createServer(): Express {
     res.json({ status: "ok", service: "nexus-crm-backend" });
   });
 
-  import v1Router from "./src/routes/v1";
   app.use("/api/v1", v1Router);
 
   return app;
