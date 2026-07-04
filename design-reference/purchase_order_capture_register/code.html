@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>CRM Console | PO Capture &amp; Register</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "surface-tint": "#006a61",
+                    "surface-container-highest": "#d3e4fe",
+                    "surface-bright": "#f8f9ff",
+                    "primary-container": "#008378",
+                    "outline-variant": "#bcc9c6",
+                    "on-tertiary-fixed-variant": "#773215",
+                    "background": "#f8f9ff",
+                    "inverse-primary": "#6bd8cb",
+                    "inverse-on-surface": "#eaf1ff",
+                    "outline": "#6d7a77",
+                    "on-tertiary-container": "#fffbff",
+                    "on-primary-fixed": "#00201d",
+                    "on-error": "#ffffff",
+                    "primary-fixed": "#89f5e7",
+                    "surface": "#f8f9ff",
+                    "primary-fixed-dim": "#6bd8cb",
+                    "error": "#ba1a1a",
+                    "on-error-container": "#93000a",
+                    "on-secondary-fixed-variant": "#004b74",
+                    "secondary-fixed-dim": "#94ccff",
+                    "on-tertiary-fixed": "#370e00",
+                    "on-secondary": "#ffffff",
+                    "on-surface": "#0b1c30",
+                    "surface-container-low": "#eff4ff",
+                    "tertiary-fixed": "#ffdbce",
+                    "surface-container-high": "#dce9ff",
+                    "on-primary-container": "#f4fffc",
+                    "tertiary-fixed-dim": "#ffb59a",
+                    "surface-variant": "#d3e4fe",
+                    "secondary": "#006399",
+                    "on-surface-variant": "#3d4947",
+                    "on-secondary-fixed": "#001d32",
+                    "surface-container-lowest": "#ffffff",
+                    "inverse-surface": "#213145",
+                    "surface-dim": "#cbdbf5",
+                    "surface-container": "#e5eeff",
+                    "on-tertiary": "#ffffff",
+                    "secondary-container": "#7bc2ff",
+                    "error-container": "#ffdad6",
+                    "on-background": "#0b1c30",
+                    "secondary-fixed": "#cde5ff",
+                    "primary": "#00685f",
+                    "tertiary-container": "#b05e3d",
+                    "on-primary": "#ffffff",
+                    "on-primary-fixed-variant": "#005049",
+                    "tertiary": "#924628",
+                    "on-secondary-container": "#004f7b"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "spacing": {
+                    "base": "4px",
+                    "md": "16px",
+                    "xl": "32px",
+                    "sm": "8px",
+                    "xs": "4px",
+                    "container-max": "1440px",
+                    "lg": "24px",
+                    "gutter": "20px",
+                    "sidebar-width": "260px"
+            },
+            "fontFamily": {
+                    "title-sm": ["Inter"],
+                    "label-caps": ["Inter"],
+                    "headline-md": ["Inter"],
+                    "display-lg": ["Inter"],
+                    "body-md": ["Inter"],
+                    "data-tabular": ["Inter"],
+                    "body-sm": ["Inter"]
+            },
+            "fontSize": {
+                    "title-sm": ["18px", {"lineHeight": "28px", "fontWeight": "600"}],
+                    "label-caps": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                    "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                    "display-lg": ["36px", {"lineHeight": "44px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "data-tabular": ["13px", {"lineHeight": "18px", "fontWeight": "500"}],
+                    "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      }
+      body {
+        font-family: 'Inter', sans-serif;
+        background-color: #f8f9ff;
+      }
+      .zebra-table tr:nth-child(even) {
+        background-color: #f8faff;
+      }
+      .status-dot {
+        height: 8px;
+        width: 8px;
+        border-radius: 50%;
+        display: inline-block;
+      }
+      .custom-scrollbar::-webkit-scrollbar {
+        width: 6px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: #bcc9c6;
+        border-radius: 10px;
+      }
+    </style>
+</head>
+<body class="flex min-h-screen">
+<!-- Sidebar Navigation Shell -->
+<aside class="w-[260px] h-screen sticky left-0 top-0 bg-surface-container-lowest border-r border-outline-variant flex flex-col py-md px-sm">
+<div class="mb-xl px-sm">
+<h1 class="font-headline-md text-headline-md font-bold text-primary">SalesForce Gulf</h1>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Enterprise CRM</p>
+</div>
+<nav class="flex-1 flex flex-col gap-1">
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-surface-container-low transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-body-md text-body-md">Dashboard</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-surface-container-low transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="inbox">inbox</span>
+<span class="font-body-md text-body-md">Leads Inbox</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-surface-container-low transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="account_tree">account_tree</span>
+<span class="font-body-md text-body-md">Pipeline</span>
+</a>
+<!-- Active Tab: Quotations -->
+<a class="flex items-center gap-md px-md py-sm bg-secondary-container text-on-secondary-container font-bold rounded-lg scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined" data-icon="description">description</span>
+<span class="font-body-md text-body-md">Quotations</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-surface-container-low transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="payments">payments</span>
+<span class="font-body-md text-body-md">Price Book</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-surface-container-low transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="fact_check">fact_check</span>
+<span class="font-body-md text-body-md">Approvals</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-surface-container-low transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="analytics">analytics</span>
+<span class="font-body-md text-body-md">Reports</span>
+</a>
+</nav>
+<div class="mt-auto px-sm pt-md border-t border-outline-variant">
+<button class="w-full flex items-center justify-center gap-sm bg-primary text-on-primary py-sm rounded-lg font-bold hover:opacity-90 active:scale-95 transition-all">
+<span class="material-symbols-outlined" data-icon="sync">sync</span>
+                Quick Sync
+            </button>
+</div>
+</aside>
+<main class="flex-1 flex flex-col min-w-0">
+<!-- Top Navigation Shell -->
+<header class="h-[64px] sticky top-0 z-50 w-full bg-surface border-b border-outline-variant shadow-sm flex justify-between items-center px-lg">
+<div class="flex items-center gap-xl">
+<span class="font-title-sm text-title-sm font-bold text-primary">CRM Console</span>
+<div class="relative w-80 focus-within:ring-2 focus-within:ring-primary rounded-lg overflow-hidden">
+<span class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline" data-icon="search">search</span>
+<input class="w-full pl-10 pr-4 py-2 bg-surface-container border-none text-body-sm font-body-sm focus:outline-none" placeholder="Search POs or Quotations..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-lg">
+<div class="flex items-center gap-xs">
+<span class="status-dot bg-green-500 animate-pulse"></span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Synced</span>
+</div>
+<div class="flex items-center gap-sm">
+<button class="material-symbols-outlined p-2 hover:bg-surface-container-low rounded-full transition-colors text-on-surface-variant" data-icon="notifications">notifications</button>
+<button class="material-symbols-outlined p-2 hover:bg-surface-container-low rounded-full transition-colors text-on-surface-variant" data-icon="help_outline">help_outline</button>
+</div>
+<button class="bg-primary text-on-primary px-md py-1.5 rounded font-body-sm text-body-sm font-bold hover:opacity-90">Add Lead</button>
+<div class="w-8 h-8 rounded-full bg-surface-container-highest overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="A professional headshot of a Middle Eastern male sales director in a crisp white shirt, sitting in a modern office with glass walls overlooking a Dubai-inspired cityscape at twilight. The lighting is soft and corporate, with a shallow depth of field focusing on the subject's confident expression. High-end, professional business aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDGUWCesm7wOrvQPT2uZQUNnb7nHQP-cjIcoeL8MJg1Wz7USc-lvBhGG0MIbBw6rsbzw4dth8lliCvdkzHZ3gg9ylf3KB-1u5aaeyb3Du6qiccz9ZsZfciM6e2_jAqAKZnf-beMK9QZ0xfV9_YyCJYsHeAOhZ7DZbSaghhjR245yFZljddwCS6mgDgbXudrQrnHPlBz4mXDnoeQTVWOZhL_Z51YQBf8gOUH0GPn8PzU4tZ6Xtf0eisPnLc72HZ7aPXapJdT4xTIniP4"/>
+</div>
+</div>
+</header>
+<!-- Main Content Area -->
+<div class="p-lg overflow-y-auto custom-scrollbar">
+<!-- Page Title & Stats -->
+<div class="mb-lg flex justify-between items-end">
+<div>
+<h2 class="font-display-lg text-display-lg text-on-surface">Purchase Order Management</h2>
+<p class="font-body-md text-body-md text-on-surface-variant">Register and reconcile customer POs against issued quotations.</p>
+</div>
+<div class="flex gap-md">
+<div class="bg-surface-container-lowest p-md border border-outline-variant rounded-xl flex items-center gap-md">
+<div class="p-sm bg-primary-container rounded-lg">
+<span class="material-symbols-outlined text-on-primary-container" data-icon="request_quote">request_quote</span>
+</div>
+<div>
+<p class="font-label-caps text-label-caps text-on-surface-variant uppercase">Total PO Value</p>
+<p class="font-title-sm text-title-sm text-primary">AED 1,240,500.00</p>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-md border border-outline-variant rounded-xl flex items-center gap-md">
+<div class="p-sm bg-tertiary-container rounded-lg">
+<span class="material-symbols-outlined text-on-tertiary-container" data-icon="warning">warning</span>
+</div>
+<div>
+<p class="font-label-caps text-label-caps text-on-surface-variant uppercase">Discrepancies</p>
+<p class="font-title-sm text-title-sm text-tertiary">03 Flagged</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Top Half: PO Register Table -->
+<div class="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm mb-xl overflow-hidden">
+<div class="px-lg py-md border-b border-outline-variant flex justify-between items-center">
+<h3 class="font-title-sm text-title-sm text-on-surface">PO Register</h3>
+<div class="flex gap-sm">
+<button class="flex items-center gap-xs px-sm py-1.5 border border-outline text-on-surface-variant rounded font-label-caps uppercase hover:bg-surface-container-low transition-colors">
+<span class="material-symbols-outlined text-[18px]" data-icon="filter_list">filter_list</span> Filter
+                        </button>
+<button class="flex items-center gap-xs px-sm py-1.5 border border-outline text-on-surface-variant rounded font-label-caps uppercase hover:bg-surface-container-low transition-colors">
+<span class="material-symbols-outlined text-[18px]" data-icon="download">download</span> Export
+                        </button>
+</div>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left zebra-table">
+<thead class="bg-surface-container text-on-surface-variant font-label-caps uppercase text-[11px] tracking-wider">
+<tr>
+<th class="px-lg py-md">PO Number</th>
+<th class="px-lg py-md">Issue Date</th>
+<th class="px-lg py-md">Customer / Quote Link</th>
+<th class="px-lg py-md">Total Value</th>
+<th class="px-lg py-md">Sync Status</th>
+<th class="px-lg py-md text-right">Actions</th>
+</tr>
+</thead>
+<tbody class="font-data-tabular text-data-tabular text-on-surface">
+<tr class="hover:bg-surface-container-low transition-colors">
+<td class="px-lg py-md font-bold">PO-DXB-98122</td>
+<td class="px-lg py-md">14 Oct 2023</td>
+<td class="px-lg py-md">
+<div class="flex flex-col">
+<span>Al-Futtaim Logistics</span>
+<span class="text-[11px] text-on-surface-variant">Ref: QTN-2023-441</span>
+</div>
+</td>
+<td class="px-lg py-md">AED 450,000.00</td>
+<td class="px-lg py-md">
+<div class="flex items-center gap-sm text-[12px] font-medium text-primary">
+<span class="status-dot bg-primary"></span>
+                                        Synced to ERP
+                                    </div>
+</td>
+<td class="px-lg py-md text-right">
+<button class="material-symbols-outlined text-outline hover:text-primary transition-colors" data-icon="more_vert">more_vert</button>
+</td>
+</tr>
+<tr class="hover:bg-surface-container-low transition-colors">
+<td class="px-lg py-md font-bold">PO-JED-00211</td>
+<td class="px-lg py-md">12 Oct 2023</td>
+<td class="px-lg py-md">
+<div class="flex flex-col">
+<span>Saudi Aramco</span>
+<span class="text-[11px] text-on-surface-variant">Ref: QTN-2023-509</span>
+</div>
+</td>
+<td class="px-lg py-md text-tertiary">SAR 625,000.00</td>
+<td class="px-lg py-md">
+<div class="flex items-center gap-sm text-[12px] font-medium text-tertiary">
+<span class="status-dot bg-tertiary"></span>
+                                        Pending Reconciliation
+                                    </div>
+</td>
+<td class="px-lg py-md text-right">
+<button class="material-symbols-outlined text-outline hover:text-primary transition-colors" data-icon="more_vert">more_vert</button>
+</td>
+</tr>
+<tr class="hover:bg-surface-container-low transition-colors">
+<td class="px-lg py-md font-bold">PO-DOH-7761</td>
+<td class="px-lg py-md">10 Oct 2023</td>
+<td class="px-lg py-md">
+<div class="flex flex-col">
+<span>Qatar Airways IT</span>
+<span class="text-[11px] text-on-surface-variant">Ref: QTN-2023-388</span>
+</div>
+</td>
+<td class="px-lg py-md">QAR 165,500.00</td>
+<td class="px-lg py-md">
+<div class="flex items-center gap-sm text-[12px] font-medium text-primary">
+<span class="status-dot bg-primary"></span>
+                                        Synced to ERP
+                                    </div>
+</td>
+<td class="px-lg py-md text-right">
+<button class="material-symbols-outlined text-outline hover:text-primary transition-colors" data-icon="more_vert">more_vert</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<!-- Bottom Section: Form & Alert Widget -->
+<div class="grid grid-cols-12 gap-lg">
+<!-- Capture PO Form -->
+<div class="col-span-8 bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm">
+<div class="px-lg py-md border-b border-outline-variant">
+<h3 class="font-title-sm text-title-sm text-on-surface">Capture New Purchase Order</h3>
+</div>
+<form class="p-lg space-y-lg">
+<div class="grid grid-cols-2 gap-lg">
+<div class="space-y-xs">
+<label class="font-body-sm text-body-sm font-bold text-on-surface">PO Number <span class="text-error">*</span></label>
+<input class="w-full border border-outline-variant rounded-lg p-sm focus:ring-2 focus:ring-primary focus:border-primary transition-all" placeholder="e.g. PO-88219" type="text"/>
+</div>
+<div class="space-y-xs">
+<label class="font-body-sm text-body-sm font-bold text-on-surface">PO Date <span class="text-error">*</span></label>
+<input class="w-full border border-outline-variant rounded-lg p-sm focus:ring-2 focus:ring-primary focus:border-primary transition-all" type="date"/>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-lg">
+<div class="space-y-xs">
+<label class="font-body-sm text-body-sm font-bold text-on-surface">Linked Quotation</label>
+<select class="w-full border border-outline-variant rounded-lg p-sm focus:ring-2 focus:ring-primary focus:border-primary transition-all">
+<option>QTN-2023-509 (Saudi Aramco)</option>
+<option>QTN-2023-611 (Emirates NBD)</option>
+<option>New / Unlinked</option>
+</select>
+</div>
+<div class="space-y-xs">
+<label class="font-body-sm text-body-sm font-bold text-on-surface">PO Total Value <span class="text-error">*</span></label>
+<div class="relative">
+<span class="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant font-bold">SAR</span>
+<input class="w-full border border-outline-variant rounded-lg pl-12 pr-sm py-sm focus:ring-2 focus:ring-primary focus:border-primary transition-all" id="po-value-input" type="number" value="625000"/>
+</div>
+</div>
+</div>
+<div class="space-y-xs">
+<label class="font-body-sm text-body-sm font-bold text-on-surface">Upload Signed Document</label>
+<div class="border-2 border-dashed border-outline-variant rounded-xl p-xl flex flex-col items-center justify-center bg-surface-container-low hover:bg-surface-container transition-colors cursor-pointer group">
+<span class="material-symbols-outlined text-4xl text-outline group-hover:text-primary transition-colors" data-icon="cloud_upload">cloud_upload</span>
+<p class="mt-sm font-body-md text-body-md text-on-surface-variant">Drag and drop PO file here, or <span class="text-primary font-bold underline">browse</span></p>
+<p class="text-[12px] text-outline">Supported formats: PDF, PNG, JPG (Max 10MB)</p>
+</div>
+</div>
+<div class="flex justify-end gap-md pt-md">
+<button class="px-xl py-2 border border-outline text-on-surface-variant rounded-lg font-bold hover:bg-surface-container-low transition-colors" type="reset">Discard</button>
+<button class="px-xl py-2 bg-primary text-on-primary rounded-lg font-bold shadow-md hover:opacity-90 active:scale-95 transition-all" type="submit">Save &amp; Reconcile</button>
+</div>
+</form>
+</div>
+<!-- Reconciliation Alert Widget -->
+<div class="col-span-4 space-y-lg">
+<div class="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm p-lg">
+<div class="flex items-center justify-between mb-md">
+<h3 class="font-title-sm text-title-sm text-on-surface">Reconciliation</h3>
+<span class="bg-tertiary/10 text-tertiary px-sm py-1 rounded font-label-caps text-[10px] uppercase font-bold">Alert Active</span>
+</div>
+<div class="space-y-md">
+<div class="flex justify-between items-center text-body-sm font-body-sm">
+<span class="text-on-surface-variant">Quotation Value:</span>
+<span class="text-on-surface font-bold">SAR 600,000.00</span>
+</div>
+<div class="flex justify-between items-center text-body-sm font-body-sm">
+<span class="text-on-surface-variant">Input PO Value:</span>
+<span class="text-on-surface font-bold">SAR 625,000.00</span>
+</div>
+<div class="h-2 bg-surface-container rounded-full overflow-hidden flex">
+<div class="h-full bg-primary" style="width: 85%;"></div>
+<div class="h-full bg-tertiary" style="width: 15%;"></div>
+</div>
+<!-- Alert Box -->
+<div class="bg-tertiary-fixed rounded-lg p-md border-l-4 border-tertiary flex gap-md">
+<span class="material-symbols-outlined text-on-tertiary-fixed shrink-0" data-icon="warning">warning</span>
+<div>
+<p class="font-body-sm text-body-sm font-bold text-on-tertiary-fixed">Value Mismatch Detected</p>
+<p class="text-[12px] text-on-tertiary-fixed-variant leading-tight">The PO value is SAR 25,000.00 (4.1%) higher than the approved quotation. Please verify taxes or scope changes before syncing.</p>
+</div>
+</div>
+<button class="w-full py-2 bg-surface-container-high text-on-surface-variant rounded-lg font-bold text-body-sm hover:bg-surface-container-highest transition-colors flex items-center justify-center gap-sm">
+<span class="material-symbols-outlined text-[18px]" data-icon="history_edu">history_edu</span> View Quote History
+                            </button>
+</div>
+</div>
+<!-- Side Context Card -->
+<div class="relative h-48 rounded-xl overflow-hidden shadow-sm group">
+<div class="absolute inset-0 z-0 transition-transform duration-500 group-hover:scale-105" data-alt="A macro close-up of high-quality fountain pen ink drying on a thick, off-white textured paper with professional blueprints in the background. The lighting is warm and directional, accentuating the luxury of a signed corporate contract. Sophisticated, high-detail business atmosphere with gold and deep teal accents." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCSkskUvlUlfEsCtFLUlSe-SSezvHJNhHYIG_6QqdjwfpSaYongs347Oqr6vKJTil2nCzY_aaJxIHNTmEhdJP_ZthPX9cOkGKMuJiEQyp9Y6Nc0skujK1cn5NIL_Krf1F-fpBCFV_m-DX5fAnGqkGPMw1x9Ly0ZfAxAUNqf9pYR0PrEQUEY6qE078fqYBod0bEwI7HEU1SLFmK-EJwd6rW8XlhO6yDGr_DFX5tUTMg55Tbi1S5JN5CT13P8veSLkoThP_7m9nO78TOk')"></div>
+<div class="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent z-10"></div>
+<div class="absolute bottom-4 left-4 right-4 z-20">
+<p class="text-white font-bold font-title-sm">Regional Compliance</p>
+<p class="text-white/80 text-[12px]">Ensure all POs meet the GCC tax regulation standards for 2024 VAT reporting.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<script>
+        // Micro-interaction for the PO value input
+        const poValueInput = document.getElementById('po-value-input');
+        poValueInput.addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            const alertBox = document.querySelector('.bg-tertiary-fixed');
+            if (val > 600000) {
+                alertBox.classList.remove('hidden');
+                alertBox.classList.add('flex');
+            } else {
+                alertBox.classList.add('hidden');
+                alertBox.classList.remove('flex');
+            }
+        });
+
+        // Simulating the Sync pulse with logic
+        setInterval(() => {
+            const syncIcon = document.querySelector('.status-dot');
+            syncIcon.classList.toggle('bg-green-500');
+            syncIcon.classList.toggle('bg-emerald-300');
+        }, 2000);
+    </script>
+</body></html>

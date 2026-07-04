@@ -1,0 +1,10 @@
+{
+  "name": "@nexus-crm/database",
+  "version": "1.0.0",
+  "main": "index.js",
+  "dependencies": {
+    "sequelize": "^6.37.5",
+    "pg": "^8.13.1",
+    "pg-hstore": "^2.3.4"
+  }
+}

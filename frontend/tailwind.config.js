@@ -1,0 +1,51 @@
+/** @type {import('tailwindcss').Config} */
+export default {
+  content: [
+    "./index.html",
+    "./src/**/*.{js,ts,jsx,tsx}",
+  ],
+  theme: {
+    extend: {
+      colors: {
+        // Design tokens from Stitch "Horizon Enterprise" mockups (design-reference/)
+        surface: '#f8f9ff',
+        'surface-dim': '#cbdbf5',
+        'surface-bright': '#f8f9ff',
+        'surface-container-lowest': '#ffffff',
+        'surface-container-low': '#eff4ff',
+        'surface-container': '#e5eeff',
+        'surface-container-high': '#dce9ff',
+        'surface-container-highest': '#d3e4fe',
+        'on-surface': '#0b1c30',
+        'on-surface-variant': '#3d4947',
+        'inverse-surface': '#213145',
+        'inverse-on-surface': '#eaf1ff',
+        outline: '#6d7a77',
+        'outline-variant': '#bcc9c6',
+        primary: '#00685f',
+        'on-primary': '#ffffff',
+        'primary-container': '#008378',
+        'on-primary-container': '#f4fffc',
+        'inverse-primary': '#6bd8cb',
+        secondary: '#006399',
+        'on-secondary': '#ffffff',
+        'secondary-container': '#7bc2ff',
+        'on-secondary-container': '#004f7b',
+        tertiary: '#924628',
+        'on-tertiary': '#ffffff',
+        'tertiary-container': '#b05e3d',
+        'on-tertiary-container': '#fffbff',
+        error: '#ba1a1a',
+        'on-error': '#ffffff',
+        'error-container': '#ffdad6',
+        'on-error-container': '#93000a',
+        background: '#f8f9ff',
+        'on-background': '#0b1c30',
+      },
+      fontFamily: {
+        sans: ['Inter', 'sans-serif'],
+      },
+    },
+  },
+  plugins: [],
+}

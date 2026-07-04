@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Price Book | Enterprise CRM</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8f9ff;
+        }
+        /* Hide scrollbar for Chrome, Safari and Opera */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        /* Hide scrollbar for IE, Edge and Firefox */
+        .no-scrollbar {
+            -ms-overflow-style: none;  /* IE and Edge */
+            scrollbar-width: none;  /* Firefox */
+        }
+        .bento-grid {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            gap: 24px;
+        }
+        .zebra-table tr:nth-child(even) {
+            background-color: #f1f5f9;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "on-secondary-fixed-variant": "#004b74",
+                      "inverse-surface": "#213145",
+                      "tertiary-container": "#b05e3d",
+                      "tertiary": "#924628",
+                      "surface": "#f8f9ff",
+                      "on-primary-fixed": "#00201d",
+                      "primary-fixed": "#89f5e7",
+                      "outline": "#6d7a77",
+                      "surface-bright": "#f8f9ff",
+                      "on-background": "#0b1c30",
+                      "on-tertiary-fixed": "#370e00",
+                      "on-surface-variant": "#3d4947",
+                      "on-primary-container": "#f4fffc",
+                      "error-container": "#ffdad6",
+                      "background": "#f8f9ff",
+                      "on-primary": "#ffffff",
+                      "outline-variant": "#bcc9c6",
+                      "on-surface": "#0b1c30",
+                      "inverse-primary": "#6bd8cb",
+                      "primary": "#00685f",
+                      "primary-container": "#008378",
+                      "on-primary-fixed-variant": "#005049",
+                      "surface-dim": "#cbdbf5",
+                      "surface-container": "#e5eeff",
+                      "inverse-on-surface": "#eaf1ff",
+                      "tertiary-fixed": "#ffdbce",
+                      "on-secondary-fixed": "#001d32",
+                      "error": "#ba1a1a",
+                      "on-error": "#ffffff",
+                      "surface-container-high": "#dce9ff",
+                      "on-error-container": "#93000a",
+                      "on-tertiary-fixed-variant": "#773215",
+                      "surface-container-lowest": "#ffffff",
+                      "surface-variant": "#d3e4fe",
+                      "secondary": "#006399",
+                      "surface-container-low": "#eff4ff",
+                      "secondary-fixed": "#cde5ff",
+                      "secondary-fixed-dim": "#94ccff",
+                      "secondary-container": "#7bc2ff",
+                      "primary-fixed-dim": "#6bd8cb",
+                      "tertiary-fixed-dim": "#ffb59a",
+                      "on-tertiary-container": "#fffbff",
+                      "on-tertiary": "#ffffff",
+                      "surface-tint": "#006a61",
+                      "surface-container-highest": "#d3e4fe",
+                      "on-secondary-container": "#004f7b"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "spacing": {
+                      "sm": "8px",
+                      "container-max": "1440px",
+                      "lg": "24px",
+                      "xl": "32px",
+                      "md": "16px",
+                      "gutter": "20px",
+                      "base": "4px",
+                      "xs": "4px",
+                      "sidebar-width": "260px"
+              },
+              "fontFamily": {
+                      "display-lg": ["Inter"],
+                      "headline-md": ["Inter"],
+                      "body-md": ["Inter"],
+                      "label-caps": ["Inter"],
+                      "title-sm": ["Inter"],
+                      "data-tabular": ["Inter"],
+                      "body-sm": ["Inter"]
+              },
+              "fontSize": {
+                      "display-lg": ["36px", {"lineHeight": "44px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                      "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                      "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                      "label-caps": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                      "title-sm": ["18px", {"lineHeight": "28px", "fontWeight": "600"}],
+                      "data-tabular": ["13px", {"lineHeight": "18px", "fontWeight": "500"}],
+                      "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}]
+              }
+            }
+          }
+        }
+      </script>
+</head>
+<body class="bg-surface">
+<!-- Sidebar Navigation -->
+<aside class="flex flex-col w-sidebar-width h-full bg-surface dark:bg-inverse-surface border-r border-outline-variant dark:border-outline fixed left-0 top-0 z-40">
+<div class="p-lg">
+<h1 class="text-headline-md font-headline-md font-extrabold text-primary dark:text-inverse-primary tracking-tight">Enterprise CRM</h1>
+<p class="text-body-sm font-body-sm text-on-surface-variant opacity-70">Role: Admin</p>
+</div>
+<nav class="flex-1 px-sm space-y-1">
+<!-- Sidebar Items from JSON -->
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="text-label-caps font-label-caps uppercase">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="inbox">inbox</span>
+<span class="text-label-caps font-label-caps uppercase">Leads Inbox</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="filter_list">filter_list</span>
+<span class="text-label-caps font-label-caps uppercase">Pipeline</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="description">description</span>
+<span class="text-label-caps font-label-caps uppercase">Quotations</span>
+</a>
+<!-- Active State: Price Book -->
+<a class="flex items-center gap-3 px-4 py-3 text-primary dark:text-inverse-primary font-bold border-r-4 border-primary hover:bg-surface-container-high transition-colors duration-200 bg-surface-container-low" href="#">
+<span class="material-symbols-outlined" data-icon="menu_book">menu_book</span>
+<span class="text-label-caps font-label-caps uppercase">Price Book</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="verified_user">verified_user</span>
+<span class="text-label-caps font-label-caps uppercase">Approvals</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="bar_chart">bar_chart</span>
+<span class="text-label-caps font-label-caps uppercase">Reports</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="groups">groups</span>
+<span class="text-label-caps font-label-caps uppercase">Team</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="text-label-caps font-label-caps uppercase">Settings</span>
+</a>
+</nav>
+<div class="p-lg mt-auto">
+<button class="w-full py-3 bg-secondary text-on-secondary rounded-lg font-bold flex items-center justify-center gap-2 hover:opacity-90 transition-all scale-[0.99] active:scale-95">
+<span class="material-symbols-outlined" data-icon="swap_horiz">swap_horiz</span>
+                Role Switcher
+            </button>
+</div>
+</aside>
+<!-- Top Utility Bar -->
+<header class="flex justify-between items-center px-lg w-[calc(100%-260px)] ml-[260px] h-16 bg-surface-container-lowest dark:bg-surface-dim border-b border-outline-variant dark:border-outline fixed top-0 right-0 z-50 shadow-sm">
+<div class="flex items-center gap-xl w-1/2">
+<div class="relative w-full max-w-md">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline" data-icon="search">search</span>
+<input class="w-full pl-10 pr-4 py-2 bg-surface-container-low border border-outline-variant rounded-full text-body-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all" placeholder="Search Price Book, SKUs, or Categories..." type="text"/>
+</div>
+<div class="flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+<span class="text-body-sm font-medium text-on-surface-variant">Live Sync: Active</span>
+</div>
+</div>
+<div class="flex items-center gap-lg">
+<button class="bg-primary text-on-primary px-lg py-2 rounded-lg font-bold hover:opacity-90 active:scale-95 duration-100">+ Quick Add</button>
+<div class="flex items-center gap-sm">
+<button class="p-2 text-on-surface-variant hover:bg-surface-container-high rounded-full relative group transition-colors">
+<span class="material-symbols-outlined" data-icon="sync">sync</span>
+</button>
+<button class="p-2 text-on-surface-variant hover:bg-surface-container-high rounded-full relative group transition-colors">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-error rounded-full"></span>
+</button>
+<div class="flex items-center gap-2 ml-2 pl-4 border-l border-outline-variant">
+<div class="w-8 h-8 rounded-full bg-secondary-container flex items-center justify-center text-on-secondary-container">
+<span class="material-symbols-outlined" data-icon="account_circle">account_circle</span>
+</div>
+<div class="flex flex-col">
+<span class="text-label-caps font-bold text-on-surface leading-none">A. Khurshid</span>
+<span class="text-[10px] text-on-surface-variant uppercase">Regional Admin</span>
+</div>
+</div>
+</div>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="ml-[260px] pt-16 p-lg bg-surface min-h-screen">
+<div class="max-w-[1440px] mx-auto space-y-lg">
+<!-- Page Header & Action Bar -->
+<div class="flex justify-between items-end">
+<div class="space-y-1">
+<h2 class="text-display-lg font-display-lg text-on-surface">Price Book</h2>
+<p class="text-body-md text-on-surface-variant">Manage global product pricing, discounts, and regional adjustments.</p>
+</div>
+<div class="flex gap-md">
+<button class="flex items-center gap-2 px-md py-2 border border-secondary text-secondary rounded-lg hover:bg-secondary-container transition-colors">
+<span class="material-symbols-outlined" data-icon="upload_file">upload_file</span>
+<span class="font-bold">Bulk Update</span>
+</button>
+<button class="flex items-center gap-2 px-md py-2 border border-outline-variant text-on-surface-variant rounded-lg hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined" data-icon="file_download">file_download</span>
+<span class="font-bold">Export .XLSX</span>
+</button>
+</div>
+</div>
+<!-- Bento Grid Stats & Promotions -->
+<div class="bento-grid">
+<!-- Promo Schedule Card -->
+<div class="col-span-8 bg-surface-container-lowest border border-outline-variant rounded-xl p-lg relative overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+<div class="flex justify-between items-start mb-md">
+<div>
+<span class="text-label-caps text-primary font-bold uppercase tracking-widest">Active Promotion</span>
+<h3 class="text-title-sm font-title-sm mt-1">Q4 Middle East Expansion Sale</h3>
+</div>
+<div class="bg-primary/10 text-primary px-3 py-1 rounded-full text-label-caps font-bold">LIVE</div>
+</div>
+<div class="flex items-center gap-xl">
+<div class="flex-1">
+<div class="flex justify-between text-body-sm mb-2">
+<span class="text-on-surface-variant">Progress</span>
+<span class="font-bold">64% Complete</span>
+</div>
+<div class="w-full h-3 bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-primary" style="width: 64%"></div>
+</div>
+</div>
+<div class="flex flex-col">
+<span class="text-label-caps text-on-surface-variant">END DATE</span>
+<span class="text-body-md font-bold">DEC 31, 2024</span>
+</div>
+</div>
+<!-- Background Visual Element (Simulated Shader) -->
+<div class="absolute -right-20 -bottom-20 w-64 h-64 bg-primary/5 rounded-full blur-3xl pointer-events-none"></div>
+</div>
+<!-- Stats Summary -->
+<div class="col-span-4 bg-surface-container-lowest border border-outline-variant rounded-xl p-lg shadow-sm">
+<span class="text-label-caps text-on-surface-variant font-bold uppercase">Inventory Health</span>
+<div class="mt-md space-y-4">
+<div class="flex justify-between items-center">
+<span class="text-body-sm">In Price Book</span>
+<span class="text-body-md font-bold">1,284 SKUs</span>
+</div>
+<div class="flex justify-between items-center">
+<span class="text-body-sm">Below Margin Floor</span>
+<span class="text-body-md font-bold text-error">12 Products</span>
+</div>
+<div class="flex justify-between items-center">
+<span class="text-body-sm">Awaiting Approval</span>
+<span class="text-body-md font-bold text-secondary">48 Updates</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Segment Tabs -->
+<div class="flex border-b border-outline-variant gap-lg">
+<button class="px-md py-3 border-b-2 border-primary text-primary font-bold text-label-caps uppercase">All Products</button>
+<button class="px-md py-3 text-on-surface-variant hover:text-primary transition-colors font-bold text-label-caps uppercase">Standard Tier</button>
+<button class="px-md py-3 text-on-surface-variant hover:text-primary transition-colors font-bold text-label-caps uppercase">Enterprise / VIP</button>
+<button class="px-md py-3 text-on-surface-variant hover:text-primary transition-colors font-bold text-label-caps uppercase">Regional (GCC)</button>
+<button class="px-md py-3 text-on-surface-variant hover:text-primary transition-colors font-bold text-label-caps uppercase">Distributor Book</button>
+</div>
+<!-- Data Table Section -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden shadow-sm">
+<div class="overflow-x-auto no-scrollbar">
+<table class="w-full text-left zebra-table border-collapse">
+<thead class="bg-surface-container-low sticky top-0 border-b border-outline-variant">
+<tr>
+<th class="px-lg py-4 text-label-caps text-on-surface-variant uppercase">SKU / Product Name</th>
+<th class="px-lg py-4 text-label-caps text-on-surface-variant uppercase">Category</th>
+<th class="px-lg py-4 text-label-caps text-on-surface-variant uppercase">MSRP (USD)</th>
+<th class="px-lg py-4 text-label-caps text-on-surface-variant uppercase">Floor Price</th>
+<th class="px-lg py-4 text-label-caps text-on-surface-variant uppercase">GCC Uplift</th>
+<th class="px-lg py-4 text-label-caps text-on-surface-variant uppercase">Status</th>
+<th class="px-lg py-4 text-label-caps text-on-surface-variant uppercase text-right">Actions</th>
+</tr>
+</thead>
+<tbody class="text-body-sm text-on-surface">
+<!-- Row 1 -->
+<tr class="hover:bg-surface-container-high transition-colors">
+<td class="px-lg py-5">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 bg-surface-container flex items-center justify-center rounded">
+<span class="material-symbols-outlined text-outline" data-icon="cloud">cloud</span>
+</div>
+<div>
+<span class="font-bold block">CloudCompute Ultra-9</span>
+<span class="text-xs text-on-surface-variant opacity-70">SKU: CC-U9-2024</span>
+</div>
+</div>
+</td>
+<td class="px-lg py-5">Cloud Services</td>
+<td class="px-lg py-5 font-data-tabular">$1,499.00</td>
+<td class="px-lg py-5 font-data-tabular">$1,250.00</td>
+<td class="px-lg py-5">
+<span class="text-primary font-bold">+12%</span>
+</td>
+<td class="px-lg py-5">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-700">Active</span>
+</td>
+<td class="px-lg py-5 text-right">
+<button class="p-2 hover:bg-surface-container-lowest rounded-full transition-colors text-outline">
+<span class="material-symbols-outlined" data-icon="edit">edit</span>
+</button>
+<button class="p-2 hover:bg-surface-container-lowest rounded-full transition-colors text-outline">
+<span class="material-symbols-outlined" data-icon="more_vert">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-surface-container-high transition-colors">
+<td class="px-lg py-5">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 bg-surface-container flex items-center justify-center rounded">
+<span class="material-symbols-outlined text-outline" data-icon="security">security</span>
+</div>
+<div>
+<span class="font-bold block">Guardian FireWall Pro</span>
+<span class="text-xs text-on-surface-variant opacity-70">SKU: GFW-PRO-X</span>
+</div>
+</div>
+</td>
+<td class="px-lg py-5">Cyber Security</td>
+<td class="px-lg py-5 font-data-tabular">$850.00</td>
+<td class="px-lg py-5 font-data-tabular text-error font-bold">$780.00</td>
+<td class="px-lg py-5">
+<span class="text-on-surface-variant font-bold">+5%</span>
+</td>
+<td class="px-lg py-5">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-700">Review</span>
+</td>
+<td class="px-lg py-5 text-right">
+<button class="p-2 hover:bg-surface-container-lowest rounded-full transition-colors text-outline">
+<span class="material-symbols-outlined" data-icon="edit">edit</span>
+</button>
+<button class="p-2 hover:bg-surface-container-lowest rounded-full transition-colors text-outline">
+<span class="material-symbols-outlined" data-icon="more_vert">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-surface-container-high transition-colors">
+<td class="px-lg py-5">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 bg-surface-container flex items-center justify-center rounded">
+<span class="material-symbols-outlined text-outline" data-icon="memory">memory</span>
+</div>
+<div>
+<span class="font-bold block">Quantum Core Processor</span>
+<span class="text-xs text-on-surface-variant opacity-70">SKU: QC-PROC-M1</span>
+</div>
+</div>
+</td>
+<td class="px-lg py-5">Hardware</td>
+<td class="px-lg py-5 font-data-tabular">$3,200.00</td>
+<td class="px-lg py-5 font-data-tabular">$2,800.00</td>
+<td class="px-lg py-5">
+<span class="text-primary font-bold">+15%</span>
+</td>
+<td class="px-lg py-5">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-700">Active</span>
+</td>
+<td class="px-lg py-5 text-right">
+<button class="p-2 hover:bg-surface-container-lowest rounded-full transition-colors text-outline">
+<span class="material-symbols-outlined" data-icon="edit">edit</span>
+</button>
+<button class="p-2 hover:bg-surface-container-lowest rounded-full transition-colors text-outline">
+<span class="material-symbols-outlined" data-icon="more_vert">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 4 -->
+<tr class="hover:bg-surface-container-high transition-colors">
+<td class="px-lg py-5">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 bg-surface-container flex items-center justify-center rounded">
+<span class="material-symbols-outlined text-outline" data-icon="settings_input_component">settings_input_component</span>
+</div>
+<div>
+<span class="font-bold block">API Gateway Connect</span>
+<span class="text-xs text-on-surface-variant opacity-70">SKU: API-CONN-LT</span>
+</div>
+</div>
+</td>
+<td class="px-lg py-5">SaaS / Integration</td>
+<td class="px-lg py-5 font-data-tabular">$299.00</td>
+<td class="px-lg py-5 font-data-tabular">$240.00</td>
+<td class="px-lg py-5">
+<span class="text-on-surface-variant font-bold">Standard</span>
+</td>
+<td class="px-lg py-5">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-700">Active</span>
+</td>
+<td class="px-lg py-5 text-right">
+<button class="p-2 hover:bg-surface-container-lowest rounded-full transition-colors text-outline">
+<span class="material-symbols-outlined" data-icon="edit">edit</span>
+</button>
+<button class="p-2 hover:bg-surface-container-lowest rounded-full transition-colors text-outline">
+<span class="material-symbols-outlined" data-icon="more_vert">more_vert</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Pagination -->
+<div class="flex justify-between items-center px-lg py-4 border-t border-outline-variant bg-surface-container-low">
+<span class="text-body-sm text-on-surface-variant">Showing 1-10 of 1,284 results</span>
+<div class="flex gap-2">
+<button class="px-3 py-1 border border-outline-variant rounded hover:bg-surface-container-high transition-colors text-on-surface-variant">
+<span class="material-symbols-outlined" data-icon="chevron_left">chevron_left</span>
+</button>
+<button class="px-3 py-1 bg-primary text-on-primary rounded font-bold">1</button>
+<button class="px-3 py-1 border border-outline-variant rounded hover:bg-surface-container-high transition-colors text-on-surface-variant">2</button>
+<button class="px-3 py-1 border border-outline-variant rounded hover:bg-surface-container-high transition-colors text-on-surface-variant">3</button>
+<button class="px-3 py-1 border border-outline-variant rounded hover:bg-surface-container-high transition-colors text-on-surface-variant">
+<span class="material-symbols-outlined" data-icon="chevron_right">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Footer Utilities Section -->
+<div class="grid grid-cols-2 gap-lg">
+<!-- Price Rules Card -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-lg shadow-sm">
+<div class="flex items-center gap-2 mb-md">
+<span class="material-symbols-outlined text-secondary" data-icon="gavel">gavel</span>
+<h4 class="text-title-sm font-title-sm">Global Pricing Rules</h4>
+</div>
+<ul class="space-y-3">
+<li class="flex justify-between items-center p-3 bg-surface-container rounded-lg">
+<span class="text-body-sm">Minimum Margin Threshold</span>
+<span class="text-body-sm font-bold">22.5%</span>
+</li>
+<li class="flex justify-between items-center p-3 bg-surface-container rounded-lg">
+<span class="text-body-sm">Bulk Discount Cap</span>
+<span class="text-body-sm font-bold">15% Max</span>
+</li>
+</ul>
+</div>
+<!-- Last Import Card -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-lg shadow-sm">
+<div class="flex items-center gap-2 mb-md">
+<span class="material-symbols-outlined text-primary" data-icon="history">history</span>
+<h4 class="text-title-sm font-title-sm">Last Master Sync</h4>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex-1">
+<p class="text-body-sm text-on-surface-variant">System-wide update completed today at 04:30 AM (GST)</p>
+<p class="text-xs text-on-surface-variant opacity-60 mt-1">Managed by: Global-Sys-Admin</p>
+</div>
+<button class="text-secondary font-bold text-label-caps hover:underline">RETRY SYNC</button>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Floating Action Button for High-Density Screens (Contextual) -->
+<button class="fixed bottom-lg right-lg w-14 h-14 bg-primary text-on-primary rounded-full shadow-lg flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-50">
+<span class="material-symbols-outlined" data-icon="add">add</span>
+</button>
+<script>
+        // Micro-interaction for row hovering and row clicks
+        document.querySelectorAll('tbody tr').forEach(row => {
+            row.addEventListener('click', (e) => {
+                // Prevent action if clicking a button
+                if (e.target.closest('button')) return;
+                
+                // Visual feedback
+                row.classList.add('bg-primary-container/10');
+                setTimeout(() => {
+                    row.classList.remove('bg-primary-container/10');
+                }, 200);
+                
+                console.log('Row clicked for product:', row.querySelector('.font-bold').innerText);
+            });
+        });
+
+        // Tab Switching Logic (Visual Only)
+        document.querySelectorAll('button[class*="border-b"]').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('button[class*="border-b"]').forEach(t => {
+                    t.classList.remove('border-primary', 'text-primary');
+                    t.classList.add('text-on-surface-variant');
+                });
+                tab.classList.remove('text-on-surface-variant');
+                tab.classList.add('border-primary', 'text-primary');
+            });
+        });
+    </script>
+</body></html>

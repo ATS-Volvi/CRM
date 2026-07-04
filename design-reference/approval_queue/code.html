@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Approval Queue | SalesForce Gulf CRM</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "surface-tint": "#006a61",
+                    "surface-container-highest": "#d3e4fe",
+                    "surface-bright": "#f8f9ff",
+                    "primary-container": "#008378",
+                    "outline-variant": "#bcc9c6",
+                    "on-tertiary-fixed-variant": "#773215",
+                    "background": "#f8f9ff",
+                    "inverse-primary": "#6bd8cb",
+                    "inverse-on-surface": "#eaf1ff",
+                    "outline": "#6d7a77",
+                    "on-tertiary-container": "#fffbff",
+                    "on-primary-fixed": "#00201d",
+                    "on-error": "#ffffff",
+                    "primary-fixed": "#89f5e7",
+                    "surface": "#f8f9ff",
+                    "primary-fixed-dim": "#6bd8cb",
+                    "error": "#ba1a1a",
+                    "on-error-container": "#93000a",
+                    "on-secondary-fixed-variant": "#004b74",
+                    "secondary-fixed-dim": "#94ccff",
+                    "on-tertiary-fixed": "#370e00",
+                    "on-secondary": "#ffffff",
+                    "on-surface": "#0b1c30",
+                    "surface-container-low": "#eff4ff",
+                    "tertiary-fixed": "#ffdbce",
+                    "surface-container-high": "#dce9ff",
+                    "on-primary-container": "#f4fffc",
+                    "tertiary-fixed-dim": "#ffb59a",
+                    "surface-variant": "#d3e4fe",
+                    "secondary": "#006399",
+                    "on-surface-variant": "#3d4947",
+                    "on-secondary-fixed": "#001d32",
+                    "surface-container-lowest": "#ffffff",
+                    "inverse-surface": "#213145",
+                    "surface-dim": "#cbdbf5",
+                    "surface-container": "#e5eeff",
+                    "on-tertiary": "#ffffff",
+                    "secondary-container": "#7bc2ff",
+                    "error-container": "#ffdad6",
+                    "on-background": "#0b1c30",
+                    "secondary-fixed": "#cde5ff",
+                    "primary": "#00685f",
+                    "tertiary-container": "#b05e3d",
+                    "on-primary": "#ffffff",
+                    "on-primary-fixed-variant": "#005049",
+                    "tertiary": "#924628",
+                    "on-secondary-container": "#004f7b"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "spacing": {
+                    "base": "4px",
+                    "md": "16px",
+                    "xl": "32px",
+                    "sm": "8px",
+                    "xs": "4px",
+                    "container-max": "1440px",
+                    "lg": "24px",
+                    "gutter": "20px",
+                    "sidebar-width": "260px"
+            },
+            "fontFamily": {
+                    "title-sm": ["Inter"],
+                    "label-caps": ["Inter"],
+                    "headline-md": ["Inter"],
+                    "display-lg-mobile": ["Inter"],
+                    "display-lg": ["Inter"],
+                    "body-md": ["Inter"],
+                    "data-tabular": ["Inter"],
+                    "body-sm": ["Inter"]
+            },
+            "fontSize": {
+                    "title-sm": ["18px", {"lineHeight": "28px", "fontWeight": "600"}],
+                    "label-caps": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                    "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                    "display-lg-mobile": ["28px", {"lineHeight": "34px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "display-lg": ["36px", {"lineHeight": "44px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "data-tabular": ["13px", {"lineHeight": "18px", "fontWeight": "500"}],
+                    "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #bcc9c6; border-radius: 10px; }
+        .status-pill { padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+    </style>
+</head>
+<body class="bg-background text-on-background flex h-screen overflow-hidden">
+<!-- SideNavBar Component (Source of Truth Applied) -->
+<aside class="w-[260px] h-screen sticky left-0 top-0 border-r border-outline-variant flex flex-col h-full py-md px-sm bg-surface-container-lowest">
+<div class="mb-xl px-sm">
+<h1 class="font-headline-md text-headline-md font-bold text-primary">SalesForce Gulf</h1>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Enterprise CRM</p>
+</div>
+<nav class="flex-1 space-y-1 overflow-y-auto custom-scrollbar">
+<!-- Navigation Items Mapping -->
+<a class="flex items-center gap-md p-sm text-on-surface-variant hover:bg-surface-container-low transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-body-md text-body-md">Dashboard</span>
+</a>
+<a class="flex items-center gap-md p-sm text-on-surface-variant hover:bg-surface-container-low transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="inbox">inbox</span>
+<span class="font-body-md text-body-md">Leads Inbox</span>
+</a>
+<a class="flex items-center gap-md p-sm text-on-surface-variant hover:bg-surface-container-low transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="account_tree">account_tree</span>
+<span class="font-body-md text-body-md">Pipeline</span>
+</a>
+<a class="flex items-center gap-md p-sm text-on-surface-variant hover:bg-surface-container-low transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="description">description</span>
+<span class="font-body-md text-body-md">Quotations</span>
+</a>
+<a class="flex items-center gap-md p-sm bg-secondary-container text-on-secondary-container font-bold rounded-lg transition-transform active:scale-90" href="#">
+<span class="material-symbols-outlined" data-icon="fact_check">fact_check</span>
+<span class="font-body-md text-body-md">Approvals</span>
+</a>
+<a class="flex items-center gap-md p-sm text-on-surface-variant hover:bg-surface-container-low transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="payments">payments</span>
+<span class="font-body-md text-body-md">Price Book</span>
+</a>
+<a class="flex items-center gap-md p-sm text-on-surface-variant hover:bg-surface-container-low transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="analytics">analytics</span>
+<span class="font-body-md text-body-md">Reports</span>
+</a>
+<a class="flex items-center gap-md p-sm text-on-surface-variant hover:bg-surface-container-low transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="group">group</span>
+<span class="font-body-md text-body-md">Team</span>
+</a>
+<a class="flex items-center gap-md p-sm text-on-surface-variant hover:bg-surface-container-low transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-body-md text-body-md">Settings</span>
+</a>
+</nav>
+<div class="mt-auto border-t border-outline-variant pt-md px-sm">
+<button class="w-full bg-primary text-on-primary font-bold py-sm rounded-lg flex items-center justify-center gap-sm active:scale-95 transition-transform">
+<span class="material-symbols-outlined" data-icon="sync">sync</span>
+                Quick Sync
+            </button>
+<div class="mt-md flex items-center gap-sm">
+<img class="w-10 h-10 rounded-full bg-surface-container" data-alt="A professional headshot of a Middle Eastern male executive in business attire, clean-cut, looking directly at the camera with a neutral but confident expression. High-end professional studio lighting with a soft gradient background in slate grey and teal tones to match the CRM corporate aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuACDuZf2u2awr6w6CnH78BfdUkYdmUgYwmmbU_5gqPWtRM4B6zT1ErUpOVanTIxBtMv1qMAfPrz5PpiZ5EsFGvSWuRMm3UrC2SGr1dofMrwqgbePxdrEHobsNHhtwtk_M77mMQQaPyq_b0GI23hevjHbP8xGUmmv3OJ8IVEZGugm07MRDI2RqFQQWSxr67fBfGHD6UxCM_l5pYv5jIZQbrVh7YTkSyMBt5_1q_Y5gYZM-8iHqYwXWz5OSQ1VeiJneWl9B0TxUlziCXX"/>
+<div>
+<p class="font-body-sm font-bold">User Workspace</p>
+<p class="text-[11px] text-on-surface-variant">Regional Lead</p>
+</div>
+</div>
+</div>
+</aside>
+<main class="flex-1 flex flex-col overflow-hidden">
+<!-- TopNavBar Component (Source of Truth Applied) -->
+<header class="h-[64px] sticky top-0 z-50 w-full border-b border-outline-variant bg-surface flex justify-between items-center px-lg shadow-sm">
+<div class="flex items-center gap-xl">
+<span class="font-title-sm text-title-sm font-bold text-primary">CRM Console</span>
+<div class="relative w-80 focus-within:ring-2 focus-within:ring-primary rounded-lg transition-all">
+<span class="material-symbols-outlined absolute left-sm top-1/2 -translate-y-1/2 text-outline" data-icon="search">search</span>
+<input class="w-full bg-surface-container-low border-none rounded-lg pl-xl py-xs text-body-sm focus:ring-0" placeholder="Search approvals, quotes, or requestors..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-lg">
+<div class="flex items-center gap-xs">
+<div class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+<span class="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">Synced</span>
+</div>
+<div class="flex items-center gap-md border-r border-outline-variant pr-md">
+<span class="material-symbols-outlined text-on-surface-variant hover:text-primary cursor-pointer transition-colors" data-icon="notifications">notifications</span>
+<span class="material-symbols-outlined text-on-surface-variant hover:text-primary cursor-pointer transition-colors" data-icon="help_outline">help_outline</span>
+</div>
+<div class="flex items-center gap-md">
+<button class="bg-primary text-on-primary px-md py-xs rounded text-body-sm font-bold active:scale-95 transition-transform">Add Lead</button>
+<button class="text-primary hover:bg-surface-container-low px-md py-xs rounded text-body-sm font-bold transition-colors">Sync</button>
+</div>
+</div>
+</header>
+<!-- Main Content Area -->
+<div class="flex-1 overflow-hidden flex p-lg gap-lg">
+<!-- Approval Queue List -->
+<section class="flex-1 flex flex-col bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm overflow-hidden">
+<div class="p-md border-b border-outline-variant flex justify-between items-center bg-surface-bright">
+<h2 class="font-title-sm text-title-sm flex items-center gap-sm">
+<span class="material-symbols-outlined text-primary" data-icon="pending_actions">pending_actions</span>
+                        Approval Queue
+                        <span class="bg-secondary text-on-secondary text-[12px] px-sm py-xs rounded-full">12 Pending</span>
+</h2>
+<div class="flex gap-sm">
+<button class="flex items-center gap-xs px-sm py-xs border border-outline text-body-sm rounded hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined text-[18px]" data-icon="filter_list">filter_list</span>
+                            Filter
+                        </button>
+</div>
+</div>
+<div class="flex-1 overflow-y-auto custom-scrollbar">
+<table class="w-full text-left border-collapse">
+<thead class="sticky top-0 bg-surface-container-high z-10">
+<tr class="font-label-caps text-label-caps text-on-surface-variant uppercase">
+<th class="p-md font-bold border-b border-outline-variant">Trigger Reason</th>
+<th class="p-md font-bold border-b border-outline-variant">Requestor</th>
+<th class="p-md font-bold border-b border-outline-variant">Quote Summary</th>
+<th class="p-md font-bold border-b border-outline-variant">Value</th>
+<th class="p-md font-bold border-b border-outline-variant text-right">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant">
+<!-- Row 1 -->
+<tr class="hover:bg-surface-container-low transition-colors group">
+<td class="p-md">
+<div class="flex flex-col">
+<span class="text-body-sm font-bold text-on-surface">15% Discount</span>
+<span class="text-[11px] text-on-surface-variant flex items-center gap-xs">
+<span class="material-symbols-outlined text-[12px]" data-icon="warning">warning</span>
+                                            Threshold Breach
+                                        </span>
+</div>
+</td>
+<td class="p-md">
+<div class="flex items-center gap-sm">
+<div class="w-8 h-8 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center font-bold text-[12px]">SM</div>
+<div class="flex flex-col">
+<span class="text-body-sm font-bold">Sameer Malik</span>
+<span class="text-[11px] text-on-surface-variant">Dubai Hub</span>
+</div>
+</div>
+</td>
+<td class="p-md">
+<div class="flex flex-col">
+<span class="text-body-sm font-bold">Etisalat Enterprise Q4</span>
+<span class="text-[12px] text-on-surface-variant truncate w-48 italic">"Standard cloud bundle + 2 years support..."</span>
+</div>
+</td>
+<td class="p-md">
+<div class="flex flex-col">
+<span class="text-body-sm font-bold font-data-tabular text-on-surface">$142,500</span>
+<span class="text-[11px] text-on-surface-variant">Oct 24, 2023</span>
+</div>
+</td>
+<td class="p-md text-right">
+<div class="flex justify-end gap-sm opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-xs text-primary hover:bg-primary-container/20 rounded-lg title=" request="" revision"="">
+<span class="material-symbols-outlined" data-icon="history_edu">history_edu</span>
+</button>
+<button class="p-xs text-error hover:bg-error-container rounded-lg" title="Reject">
+<span class="material-symbols-outlined" data-icon="close">close</span>
+</button>
+<button class="p-xs text-on-primary bg-primary rounded-lg shadow-sm active:scale-95" title="Approve">
+<span class="material-symbols-outlined" data-icon="check">check</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-surface-container-low transition-colors group">
+<td class="p-md">
+<div class="flex flex-col">
+<span class="text-body-sm font-bold text-on-surface">Quote &gt; $100k</span>
+<span class="text-[11px] text-on-surface-variant flex items-center gap-xs">
+<span class="material-symbols-outlined text-[12px]" data-icon="account_balance">account_balance</span>
+                                            High Value Policy
+                                        </span>
+</div>
+</td>
+<td class="p-md">
+<div class="flex items-center gap-sm">
+<div class="w-8 h-8 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center font-bold text-[12px]">FP</div>
+<div class="flex flex-col">
+<span class="text-body-sm font-bold">Fatima P.</span>
+<span class="text-[11px] text-on-surface-variant">Riyadh Office</span>
+</div>
+</div>
+</td>
+<td class="p-md">
+<div class="flex flex-col">
+<span class="text-body-sm font-bold">NEOM Infrastructure Ph1</span>
+<span class="text-[12px] text-on-surface-variant truncate w-48 italic">"Global site license for Phase 1 construction..."</span>
+</div>
+</td>
+<td class="p-md">
+<div class="flex flex-col">
+<span class="text-body-sm font-bold font-data-tabular text-on-surface">$890,000</span>
+<span class="text-[11px] text-on-surface-variant">Oct 23, 2023</span>
+</div>
+</td>
+<td class="p-md text-right">
+<div class="flex justify-end gap-sm opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-xs text-primary hover:bg-primary-container/20 rounded-lg">
+<span class="material-symbols-outlined" data-icon="history_edu">history_edu</span>
+</button>
+<button class="p-xs text-error hover:bg-error-container rounded-lg">
+<span class="material-symbols-outlined" data-icon="close">close</span>
+</button>
+<button class="p-xs text-on-primary bg-primary rounded-lg shadow-sm">
+<span class="material-symbols-outlined" data-icon="check">check</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-surface-container-low transition-colors group bg-error-container/10">
+<td class="p-md">
+<div class="flex flex-col">
+<span class="text-body-sm font-bold text-on-surface">Non-standard Terms</span>
+<span class="text-[11px] text-error font-bold flex items-center gap-xs">
+<span class="material-symbols-outlined text-[12px]" data-icon="gavel">gavel</span>
+                                            Legal Review Required
+                                        </span>
+</div>
+</td>
+<td class="p-md">
+<div class="flex items-center gap-sm">
+<div class="w-8 h-8 rounded-full bg-tertiary-container text-on-tertiary-container flex items-center justify-center font-bold text-[12px]">RJ</div>
+<div class="flex flex-col">
+<span class="text-body-sm font-bold">Rahul J.</span>
+<span class="text-[11px] text-on-surface-variant">Mumbai Hub</span>
+</div>
+</div>
+</td>
+<td class="p-md">
+<div class="flex flex-col">
+<span class="text-body-sm font-bold">Tata Steel Modernization</span>
+<span class="text-[12px] text-on-surface-variant truncate w-48 italic">"Net 90 payment terms requested by client..."</span>
+</div>
+</td>
+<td class="p-md">
+<div class="flex flex-col">
+<span class="text-body-sm font-bold font-data-tabular text-on-surface">$45,000</span>
+<span class="text-[11px] text-on-surface-variant">Oct 23, 2023</span>
+</div>
+</td>
+<td class="p-md text-right">
+<div class="flex justify-end gap-sm opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-xs text-primary hover:bg-primary-container/20 rounded-lg">
+<span class="material-symbols-outlined" data-icon="history_edu">history_edu</span>
+</button>
+<button class="p-xs text-error hover:bg-error-container rounded-lg">
+<span class="material-symbols-outlined" data-icon="close">close</span>
+</button>
+<button class="p-xs text-on-primary bg-primary rounded-lg shadow-sm">
+<span class="material-symbols-outlined" data-icon="check">check</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- More rows for visual density -->
+<tr class="hover:bg-surface-container-low transition-colors group">
+<td class="p-md"><div class="flex flex-col"><span class="text-body-sm font-bold">12% Discount</span><span class="text-[11px] text-on-surface-variant">Standard threshold</span></div></td>
+<td class="p-md"><div class="flex items-center gap-sm"><div class="w-8 h-8 rounded-full bg-surface-container text-on-surface flex items-center justify-center font-bold text-[12px]">AK</div><div class="flex flex-col"><span class="text-body-sm font-bold">Aaliyah K.</span><span class="text-[11px] text-on-surface-variant">Dubai Hub</span></div></div></td>
+<td class="p-md"><div class="flex flex-col"><span class="text-body-sm font-bold">EMAAR Security Refresh</span><span class="text-[12px] text-on-surface-variant">Full hardware update...</span></div></td>
+<td class="p-md"><div class="flex flex-col"><span class="text-body-sm font-bold">$22,400</span><span class="text-[11px] text-on-surface-variant">Oct 22, 2023</span></div></td>
+<td class="p-md text-right"><div class="flex justify-end gap-sm opacity-0 group-hover:opacity-100 transition-opacity"><button class="p-xs text-on-primary bg-primary rounded-lg shadow-sm"><span class="material-symbols-outlined" data-icon="check">check</span></button></div></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<!-- Sidebar: Approval Tiers & Audit Trail -->
+<aside class="w-80 flex flex-col gap-lg">
+<!-- Approval Tiers Card -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-md shadow-sm">
+<h3 class="font-label-caps text-label-caps text-primary border-b border-outline-variant pb-xs mb-md flex items-center justify-between">
+                        Approval Tiers
+                        <span class="material-symbols-outlined text-[16px]" data-icon="info">info</span>
+</h3>
+<div class="space-y-md">
+<div class="flex gap-md">
+<div class="flex flex-col items-center">
+<div class="w-6 h-6 rounded-full bg-primary text-on-primary flex items-center justify-center text-[10px] font-bold">01</div>
+<div class="w-[2px] h-full bg-outline-variant mt-xs"></div>
+</div>
+<div class="pb-sm">
+<p class="text-body-sm font-bold">Direct Manager</p>
+<p class="text-[11px] text-on-surface-variant">Standard Quotes &lt; $50k</p>
+<div class="mt-xs bg-surface-container-low px-sm py-xs rounded border border-outline-variant text-[10px] text-on-surface-variant">
+                                    Auto-approves if within +/- 5% margin
+                                </div>
+</div>
+</div>
+<div class="flex gap-md">
+<div class="flex flex-col items-center">
+<div class="w-6 h-6 rounded-full bg-primary text-on-primary flex items-center justify-center text-[10px] font-bold">02</div>
+<div class="w-[2px] h-full bg-outline-variant mt-xs"></div>
+</div>
+<div class="pb-sm">
+<p class="text-body-sm font-bold">Regional Director</p>
+<p class="text-[11px] text-on-surface-variant">Discounts &gt; 10% or &gt; $100k</p>
+<div class="mt-xs bg-primary-container/10 border-l-2 border-primary px-sm py-xs rounded text-[10px] text-primary font-bold">
+                                    Current Active Tier
+                                </div>
+</div>
+</div>
+<div class="flex gap-md">
+<div class="flex flex-col items-center">
+<div class="w-6 h-6 rounded-full bg-outline-variant text-on-surface-variant flex items-center justify-center text-[10px] font-bold">03</div>
+</div>
+<div>
+<p class="text-body-sm font-bold text-on-surface-variant">Chief Revenue Officer</p>
+<p class="text-[11px] text-on-surface-variant">Strategic Deals &gt; $1M</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Audit Trail Card -->
+<div class="flex-1 bg-surface-container-lowest border border-outline-variant rounded-xl p-md shadow-sm overflow-hidden flex flex-col">
+<h3 class="font-label-caps text-label-caps text-on-surface-variant border-b border-outline-variant pb-xs mb-md flex items-center justify-between">
+                        Recent Decisions
+                        <span class="material-symbols-outlined text-[16px]" data-icon="history">history</span>
+</h3>
+<div class="flex-1 overflow-y-auto custom-scrollbar space-y-md pr-xs">
+<div class="p-sm rounded hover:bg-surface-container-low transition-colors border-l-2 border-green-500">
+<div class="flex justify-between items-start mb-xs">
+<span class="text-[11px] font-bold text-green-700 bg-green-100 px-xs py-[2px] rounded uppercase">Approved</span>
+<span class="text-[10px] text-on-surface-variant">10m ago</span>
+</div>
+<p class="text-body-sm font-bold">Al Futtaim Digital Quote</p>
+<p class="text-[11px] text-on-surface-variant">Approved by Sarah J. (CRO)</p>
+</div>
+<div class="p-sm rounded hover:bg-surface-container-low transition-colors border-l-2 border-primary">
+<div class="flex justify-between items-start mb-xs">
+<span class="text-[11px] font-bold text-primary bg-primary-container/20 px-xs py-[2px] rounded uppercase">Revision</span>
+<span class="text-[10px] text-on-surface-variant">2h ago</span>
+</div>
+<p class="text-body-sm font-bold">Mobily Network Extension</p>
+<p class="text-[11px] text-on-surface-variant">"Please adjust hardware tax rates for SA."</p>
+</div>
+<div class="p-sm rounded hover:bg-surface-container-low transition-colors border-l-2 border-error">
+<div class="flex justify-between items-start mb-xs">
+<span class="text-[11px] font-bold text-error bg-error-container px-xs py-[2px] rounded uppercase">Rejected</span>
+<span class="text-[10px] text-on-surface-variant">5h ago</span>
+</div>
+<p class="text-body-sm font-bold">Standard Chartered Q3</p>
+<p class="text-[11px] text-on-surface-variant">"Discount exceeds regional limit."</p>
+</div>
+<div class="p-sm rounded hover:bg-surface-container-low transition-colors border-l-2 border-green-500">
+<div class="flex justify-between items-start mb-xs">
+<span class="text-[11px] font-bold text-green-700 bg-green-100 px-xs py-[2px] rounded uppercase">Approved</span>
+<span class="text-[10px] text-on-surface-variant">Oct 23</span>
+</div>
+<p class="text-body-sm font-bold">Mawarid Finance ERP</p>
+<p class="text-[11px] text-on-surface-variant">Auto-approved (Margin match)</p>
+</div>
+</div>
+<button class="w-full mt-md text-primary font-bold text-[12px] py-xs hover:bg-surface-container transition-colors rounded">
+                        View Full History
+                    </button>
+</div>
+</aside>
+</div>
+</main>
+<!-- Micro-interaction for row clicks/interactions -->
+<script>
+        document.querySelectorAll('tbody tr').forEach(row => {
+            row.addEventListener('click', (e) => {
+                // Ignore clicks on buttons inside the row
+                if (e.target.closest('button')) return;
+                
+                // Toggle a subtle selection state
+                document.querySelectorAll('tbody tr').forEach(r => r.classList.remove('bg-primary-container/10', 'border-l-4', 'border-primary'));
+                row.classList.add('bg-primary-container/10', 'border-l-4', 'border-primary');
+            });
+        });
+
+        // Simple sync pulse animation restart
+        setInterval(() => {
+            const pulse = document.querySelector('.animate-pulse');
+            if(pulse) {
+                pulse.style.animation = 'none';
+                pulse.offsetHeight; /* trigger reflow */
+                pulse.style.animation = null; 
+            }
+        }, 10000);
+    </script>
+</body></html>

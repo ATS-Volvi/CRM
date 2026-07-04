@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Enterprise CRM - Executive Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-tertiary-container": "#fffbff",
+                        "on-surface-variant": "#3d4947",
+                        "on-background": "#0b1c30",
+                        "surface-container-low": "#eff4ff",
+                        "on-tertiary": "#ffffff",
+                        "surface": "#f8f9ff",
+                        "outline-variant": "#bcc9c6",
+                        "surface-container-high": "#dce9ff",
+                        "on-primary-fixed-variant": "#005049",
+                        "secondary-container": "#7bc2ff",
+                        "surface-container-highest": "#d3e4fe",
+                        "inverse-on-surface": "#eaf1ff",
+                        "secondary-fixed-dim": "#94ccff",
+                        "tertiary-fixed-dim": "#ffb59a",
+                        "inverse-primary": "#6bd8cb",
+                        "surface-bright": "#f8f9ff",
+                        "on-primary-container": "#f4fffc",
+                        "surface-container": "#e5eeff",
+                        "background": "#f8f9ff",
+                        "primary": "#00685f",
+                        "error-container": "#ffdad6",
+                        "on-tertiary-fixed": "#370e00",
+                        "primary-fixed": "#89f5e7",
+                        "tertiary-fixed": "#ffdbce",
+                        "secondary-fixed": "#cde5ff",
+                        "error": "#ba1a1a",
+                        "on-error": "#ffffff",
+                        "on-tertiary-fixed-variant": "#773215",
+                        "on-primary-fixed": "#00201d",
+                        "surface-tint": "#006a61",
+                        "surface-dim": "#cbdbf5",
+                        "surface-variant": "#d3e4fe",
+                        "on-primary": "#ffffff",
+                        "outline": "#6d7a77",
+                        "inverse-surface": "#213145",
+                        "on-secondary-container": "#004f7b",
+                        "on-secondary-fixed": "#001d32",
+                        "on-secondary": "#ffffff",
+                        "tertiary": "#924628",
+                        "secondary": "#006399",
+                        "primary-fixed-dim": "#6bd8cb",
+                        "on-error-container": "#93000a",
+                        "tertiary-container": "#b05e3d",
+                        "surface-container-lowest": "#ffffff",
+                        "primary-container": "#008378",
+                        "on-surface": "#0b1c30",
+                        "on-secondary-fixed-variant": "#004b74"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "sm": "8px",
+                        "base": "4px",
+                        "gutter": "20px",
+                        "lg": "24px",
+                        "sidebar-width": "260px",
+                        "md": "16px",
+                        "xs": "4px",
+                        "xl": "32px",
+                        "container-max": "1440px"
+                    },
+                    "fontFamily": {
+                        "label-caps": ["Inter"],
+                        "display-lg": ["Inter"],
+                        "data-tabular": ["Inter"],
+                        "body-sm": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "display-lg-mobile": ["Inter"],
+                        "title-sm": ["Inter"],
+                        "body-md": ["Inter"]
+                    },
+                    "fontSize": {
+                        "label-caps": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                        "display-lg": ["36px", {"lineHeight": "44px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "data-tabular": ["13px", {"lineHeight": "18px", "fontWeight": "500"}],
+                        "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "display-lg-mobile": ["28px", {"lineHeight": "34px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "title-sm": ["18px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #bcc9c6; border-radius: 10px; }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(8px);
+            border: 1px solid #E2E8F0;
+            transition: all 0.2s ease;
+        }
+        .glass-card:hover {
+            box-shadow: 0px 4px 12px rgba(0,0,0,0.05);
+        }
+        .chart-bar { transition: height 0.6s cubic-bezier(0.4, 0, 0.2, 1); }
+    </style>
+</head>
+<body class="bg-background text-on-surface overflow-hidden">
+<!-- Side Navigation Shell -->
+<aside class="fixed left-0 top-0 h-full w-[260px] bg-surface-container-lowest border-r border-outline-variant flex flex-col py-lg px-md z-50">
+<div class="mb-xl flex items-center gap-sm">
+<div class="w-10 h-10 bg-primary flex items-center justify-center rounded-lg shadow-sm">
+<span class="material-symbols-outlined text-on-primary">hub</span>
+</div>
+<div>
+<h1 class="font-display-lg text-primary text-[20px] leading-tight">Enterprise CRM</h1>
+<p class="font-label-caps text-on-surface-variant text-[10px]">Sales Portfolio</p>
+</div>
+</div>
+<nav class="flex-1 space-y-base">
+<a class="flex items-center gap-md px-md py-sm rounded-lg text-primary font-bold border-r-4 border-primary bg-surface-container-low transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-label-caps">Dashboard</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm rounded-lg text-on-surface-variant font-medium hover:bg-surface-container-low transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="person_search">person_search</span>
+<span class="font-label-caps">Leads</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm rounded-lg text-on-surface-variant font-medium hover:bg-surface-container-low transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="account_tree">account_tree</span>
+<span class="font-label-caps">Pipeline</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm rounded-lg text-on-surface-variant font-medium hover:bg-surface-container-low transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="description">description</span>
+<span class="font-label-caps">Quotations</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm rounded-lg text-on-surface-variant font-medium hover:bg-surface-container-low transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="analytics">analytics</span>
+<span class="font-label-caps">Reports</span>
+</a>
+</nav>
+<button class="mb-xl bg-primary text-on-primary font-label-caps py-sm px-lg rounded-full flex items-center justify-center gap-sm active:scale-95 transition-transform shadow-md">
+<span class="material-symbols-outlined text-[18px]">add</span>
+            New Lead
+        </button>
+<div class="border-t border-outline-variant pt-lg space-y-base">
+<a class="flex items-center gap-md px-md py-sm rounded-lg text-on-surface-variant font-medium hover:bg-surface-container-low transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-label-caps">Settings</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm rounded-lg text-on-surface-variant font-medium hover:bg-surface-container-low transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="help">help</span>
+<span class="font-label-caps">Support</span>
+</a>
+</div>
+</aside>
+<!-- Top Navigation Shell -->
+<header class="fixed top-0 right-0 h-[64px] left-[260px] bg-surface-container-lowest border-b border-outline-variant flex justify-between items-center px-xl z-40">
+<div class="flex items-center gap-xl flex-1 max-w-2xl">
+<div class="relative w-full">
+<span class="material-symbols-outlined absolute left-md top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
+<input class="w-full bg-surface-container border-none rounded-full pl-[48px] pr-md py-sm font-body-sm focus:ring-2 focus:ring-primary/20" placeholder="Search leads, accounts, or deals..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-lg">
+<div class="flex items-center gap-sm">
+<div class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+<span class="font-label-caps text-on-surface-variant text-[10px]">Synced</span>
+</div>
+<div class="flex items-center gap-md">
+<span class="material-symbols-outlined text-on-surface-variant cursor-pointer hover:text-primary transition-colors">notifications</span>
+<div class="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center text-on-primary-container font-bold text-xs">JS</div>
+</div>
+</div>
+</header>
+<!-- Main Content Area -->
+<main class="fixed inset-0 top-[64px] left-[260px] p-lg overflow-y-auto custom-scrollbar">
+<div class="max-w-[1600px] mx-auto space-y-lg">
+<!-- Header Section -->
+<div class="flex justify-between items-end">
+<div>
+<h2 class="text-headline-md text-on-surface">Executive Dashboard</h2>
+<p class="text-body-sm text-on-surface-variant">Quarterly Performance Overview &amp; Sales Insights</p>
+</div>
+<div class="flex gap-sm">
+<button class="bg-surface-container-high text-primary font-label-caps px-md py-sm rounded-lg flex items-center gap-xs">
+<span class="material-symbols-outlined text-[18px]">calendar_today</span>
+                        Q3 FY2024
+                    </button>
+<button class="bg-primary text-on-primary font-label-caps px-md py-sm rounded-lg flex items-center gap-xs shadow-sm">
+<span class="material-symbols-outlined text-[18px]">file_download</span>
+                        Export Report
+                    </button>
+</div>
+</div>
+<!-- Executive KPIs -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-lg">
+<div class="glass-card p-lg rounded-xl flex flex-col gap-sm">
+<div class="flex justify-between items-start">
+<span class="p-base bg-primary-container text-on-primary-container rounded-lg material-symbols-outlined">payments</span>
+<span class="text-primary font-label-caps text-[12px] flex items-center gap-xs">
+<span class="material-symbols-outlined text-[16px]">trending_up</span> +12.5%
+                        </span>
+</div>
+<div>
+<p class="text-label-caps text-on-surface-variant">Total Revenue</p>
+<h3 class="text-headline-md">$4.2M</h3>
+</div>
+</div>
+<div class="glass-card p-lg rounded-xl flex flex-col gap-sm">
+<div class="flex justify-between items-start">
+<span class="p-base bg-secondary-container text-on-secondary-container rounded-lg material-symbols-outlined">group</span>
+<span class="text-primary font-label-caps text-[12px] flex items-center gap-xs">
+<span class="material-symbols-outlined text-[16px]">trending_up</span> +8.2%
+                        </span>
+</div>
+<div>
+<p class="text-label-caps text-on-surface-variant">Active Deals</p>
+<h3 class="text-headline-md">1,284</h3>
+</div>
+</div>
+<div class="glass-card p-lg rounded-xl flex flex-col gap-sm">
+<div class="flex justify-between items-start">
+<span class="p-base bg-tertiary-container text-on-tertiary-container rounded-lg material-symbols-outlined">rocket_launch</span>
+<span class="text-error font-label-caps text-[12px] flex items-center gap-xs">
+<span class="material-symbols-outlined text-[16px]">trending_down</span> -2.4%
+                        </span>
+</div>
+<div>
+<p class="text-label-caps text-on-surface-variant">Conversion Rate</p>
+<h3 class="text-headline-md">24.8%</h3>
+</div>
+</div>
+<div class="glass-card p-lg rounded-xl flex flex-col gap-sm">
+<div class="flex justify-between items-start">
+<span class="p-base bg-surface-container-highest text-on-surface-variant rounded-lg material-symbols-outlined">timer</span>
+<span class="text-primary font-label-caps text-[12px] flex items-center gap-xs">
+<span class="material-symbols-outlined text-[16px]">trending_up</span> +14%
+                        </span>
+</div>
+<div>
+<p class="text-label-caps text-on-surface-variant">Avg. Deal Cycle</p>
+<h3 class="text-headline-md">42 Days</h3>
+</div>
+</div>
+</div>
+<!-- Revenue Forecast & Pipeline Health -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-lg">
+<!-- Revenue Forecast Chart -->
+<div class="lg:col-span-2 glass-card p-lg rounded-xl space-y-lg">
+<div class="flex justify-between items-center">
+<h4 class="text-title-sm">Revenue Forecast</h4>
+<div class="flex items-center gap-md">
+<div class="flex items-center gap-xs">
+<div class="w-3 h-3 bg-primary rounded-full"></div>
+<span class="text-[11px] font-label-caps text-on-surface-variant">Actual</span>
+</div>
+<div class="flex items-center gap-xs">
+<div class="w-3 h-3 bg-secondary-container rounded-full"></div>
+<span class="text-[11px] font-label-caps text-on-surface-variant">Forecast</span>
+</div>
+</div>
+</div>
+<div class="h-[300px] flex items-end justify-between gap-md pt-md">
+<div class="flex-1 flex flex-col items-center gap-sm h-full justify-end">
+<div class="w-full flex gap-1 items-end h-full">
+<div class="w-1/2 bg-primary chart-bar rounded-t-sm" style="height: 65%;"></div>
+<div class="w-1/2 bg-secondary-container chart-bar rounded-t-sm" style="height: 70%;"></div>
+</div>
+<span class="text-[11px] font-label-caps text-on-surface-variant">Jan</span>
+</div>
+<div class="flex-1 flex flex-col items-center gap-sm h-full justify-end">
+<div class="w-full flex gap-1 items-end h-full">
+<div class="w-1/2 bg-primary chart-bar rounded-t-sm" style="height: 75%;"></div>
+<div class="w-1/2 bg-secondary-container chart-bar rounded-t-sm" style="height: 80%;"></div>
+</div>
+<span class="text-[11px] font-label-caps text-on-surface-variant">Feb</span>
+</div>
+<div class="flex-1 flex flex-col items-center gap-sm h-full justify-end">
+<div class="w-full flex gap-1 items-end h-full">
+<div class="w-1/2 bg-primary chart-bar rounded-t-sm" style="height: 85%;"></div>
+<div class="w-1/2 bg-secondary-container chart-bar rounded-t-sm" style="height: 82%;"></div>
+</div>
+<span class="text-[11px] font-label-caps text-on-surface-variant">Mar</span>
+</div>
+<div class="flex-1 flex flex-col items-center gap-sm h-full justify-end">
+<div class="w-full flex gap-1 items-end h-full">
+<div class="w-1/2 bg-primary chart-bar rounded-t-sm" style="height: 95%;"></div>
+<div class="w-1/2 bg-secondary-container chart-bar rounded-t-sm" style="height: 90%;"></div>
+</div>
+<span class="text-[11px] font-label-caps text-on-surface-variant">Apr</span>
+</div>
+<div class="flex-1 flex flex-col items-center gap-sm h-full justify-end">
+<div class="w-full flex gap-1 items-end h-full">
+<div class="w-1/2 bg-primary chart-bar rounded-t-sm" style="height: 70%;"></div>
+<div class="w-1/2 bg-secondary-container chart-bar rounded-t-sm" style="height: 75%;"></div>
+</div>
+<span class="text-[11px] font-label-caps text-on-surface-variant">May</span>
+</div>
+<div class="flex-1 flex flex-col items-center gap-sm h-full justify-end">
+<div class="w-full flex gap-1 items-end h-full">
+<div class="w-1/2 bg-primary chart-bar rounded-t-sm" style="height: 80%;"></div>
+<div class="w-1/2 bg-secondary-container chart-bar rounded-t-sm" style="height: 85%;"></div>
+</div>
+<span class="text-[11px] font-label-caps text-on-surface-variant">Jun</span>
+</div>
+</div>
+</div>
+<!-- Pipeline Health Gauges -->
+<div class="glass-card p-lg rounded-xl space-y-lg">
+<h4 class="text-title-sm">Pipeline Health</h4>
+<div class="space-y-xl">
+<div class="space-y-sm">
+<div class="flex justify-between text-body-sm">
+<span class="text-on-surface-variant">Lead Quality Score</span>
+<span class="font-bold text-primary">82%</span>
+</div>
+<div class="w-full h-2 bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-primary rounded-full" style="width: 82%;"></div>
+</div>
+</div>
+<div class="space-y-sm">
+<div class="flex justify-between text-body-sm">
+<span class="text-on-surface-variant">Pipeline Velocity</span>
+<span class="font-bold text-secondary">64%</span>
+</div>
+<div class="w-full h-2 bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-secondary rounded-full" style="width: 64%;"></div>
+</div>
+</div>
+<div class="space-y-sm">
+<div class="flex justify-between text-body-sm">
+<span class="text-on-surface-variant">Churn Probability</span>
+<span class="font-bold text-error">12%</span>
+</div>
+<div class="w-full h-2 bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-error rounded-full" style="width: 12%;"></div>
+</div>
+</div>
+</div>
+<div class="pt-md border-t border-outline-variant">
+<div class="flex items-center gap-md">
+<div class="p-sm bg-green-100 rounded-full">
+<span class="material-symbols-outlined text-green-600 text-[20px]">check_circle</span>
+</div>
+<p class="text-body-sm text-on-surface-variant leading-tight">Pipeline health is <span class="text-green-600 font-semibold italic">Stable</span>. No critical bottlenecks detected this week.</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Bottom Row: Leaderboard, ROI, Funnel -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-lg pb-xl">
+<!-- Top Performers Leaderboard -->
+<div class="glass-card p-lg rounded-xl flex flex-col">
+<div class="flex justify-between items-center mb-md">
+<h4 class="text-title-sm">Top Performers</h4>
+<span class="material-symbols-outlined text-on-surface-variant cursor-pointer">more_horiz</span>
+</div>
+<div class="space-y-md flex-1">
+<div class="flex items-center justify-between p-sm hover:bg-surface-container-low rounded-lg transition-colors">
+<div class="flex items-center gap-md">
+<div class="w-8 h-8 rounded-full bg-primary-fixed text-on-primary-fixed flex items-center justify-center font-bold text-xs">SM</div>
+<div>
+<p class="text-body-sm font-semibold">Sarah Miller</p>
+<p class="text-[11px] text-on-surface-variant">Mid-Market Sales</p>
+</div>
+</div>
+<span class="text-data-tabular font-bold">$420k</span>
+</div>
+<div class="flex items-center justify-between p-sm hover:bg-surface-container-low rounded-lg transition-colors">
+<div class="flex items-center gap-md">
+<div class="w-8 h-8 rounded-full bg-secondary-fixed text-on-secondary-fixed flex items-center justify-center font-bold text-xs">RW</div>
+<div>
+<p class="text-body-sm font-semibold">Robert Wong</p>
+<p class="text-[11px] text-on-surface-variant">Enterprise Lead</p>
+</div>
+</div>
+<span class="text-data-tabular font-bold">$385k</span>
+</div>
+<div class="flex items-center justify-between p-sm hover:bg-surface-container-low rounded-lg transition-colors">
+<div class="flex items-center gap-md">
+<div class="w-8 h-8 rounded-full bg-tertiary-fixed text-on-tertiary-fixed flex items-center justify-center font-bold text-xs">AK</div>
+<div>
+<p class="text-body-sm font-semibold">Anita Kapoor</p>
+<p class="text-[11px] text-on-surface-variant">SDR Manager</p>
+</div>
+</div>
+<span class="text-data-tabular font-bold">$312k</span>
+</div>
+</div>
+</div>
+<!-- Lead Source ROI -->
+<div class="glass-card p-lg rounded-xl flex flex-col">
+<h4 class="text-title-sm mb-md">Lead Source ROI</h4>
+<div class="space-y-md flex-1">
+<div class="flex flex-col gap-base">
+<div class="flex justify-between text-body-sm">
+<span>Paid Search</span>
+<span class="font-bold">4.2x</span>
+</div>
+<div class="w-full h-1.5 bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-primary" style="width: 85%;"></div>
+</div>
+</div>
+<div class="flex flex-col gap-base">
+<div class="flex justify-between text-body-sm">
+<span>Organic Social</span>
+<span class="font-bold">2.8x</span>
+</div>
+<div class="w-full h-1.5 bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-primary" style="width: 55%;"></div>
+</div>
+</div>
+<div class="flex flex-col gap-base">
+<div class="flex justify-between text-body-sm">
+<span>Email Campaigns</span>
+<span class="font-bold">5.1x</span>
+</div>
+<div class="w-full h-1.5 bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-primary" style="width: 95%;"></div>
+</div>
+</div>
+<div class="flex flex-col gap-base">
+<div class="flex justify-between text-body-sm">
+<span>Referral</span>
+<span class="font-bold">3.4x</span>
+</div>
+<div class="w-full h-1.5 bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-primary" style="width: 65%;"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Conversion Funnel -->
+<div class="glass-card p-lg rounded-xl flex flex-col">
+<h4 class="text-title-sm mb-md">Conversion Funnel</h4>
+<div class="flex-1 flex flex-col items-center justify-center gap-1">
+<div class="w-[80%] h-8 bg-primary/20 flex items-center justify-center rounded-sm relative overflow-hidden">
+<div class="absolute inset-0 bg-primary opacity-10"></div>
+<span class="text-[10px] font-label-caps font-bold">Awareness (5.2k)</span>
+</div>
+<div class="w-[65%] h-8 bg-primary/40 flex items-center justify-center rounded-sm relative overflow-hidden">
+<span class="text-[10px] font-label-caps font-bold">Interest (2.8k)</span>
+</div>
+<div class="w-[45%] h-8 bg-primary/60 flex items-center justify-center rounded-sm relative overflow-hidden text-white">
+<span class="text-[10px] font-label-caps font-bold">Proposal (1.1k)</span>
+</div>
+<div class="w-[25%] h-8 bg-primary flex items-center justify-center rounded-sm relative overflow-hidden text-white">
+<span class="text-[10px] font-label-caps font-bold">Closed (284)</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</body></html>

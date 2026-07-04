@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>SalesForce CRM - Executive Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "primary-container": "#008378",
+                    "outline-variant": "#bcc9c6",
+                    "on-tertiary-fixed-variant": "#773215",
+                    "background": "#f8f9ff",
+                    "inverse-primary": "#6bd8cb",
+                    "inverse-on-surface": "#eaf1ff",
+                    "surface-tint": "#006a61",
+                    "surface-container-highest": "#d3e4fe",
+                    "surface-bright": "#f8f9ff",
+                    "primary-fixed-dim": "#6bd8cb",
+                    "error": "#ba1a1a",
+                    "on-error-container": "#93000a",
+                    "on-secondary-fixed-variant": "#004b74",
+                    "outline": "#6d7a77",
+                    "on-tertiary-container": "#fffbff",
+                    "on-primary-fixed": "#00201d",
+                    "on-error": "#ffffff",
+                    "primary-fixed": "#89f5e7",
+                    "surface": "#f8f9ff",
+                    "tertiary-fixed": "#ffdbce",
+                    "surface-container-high": "#dce9ff",
+                    "on-primary-container": "#f4fffc",
+                    "tertiary-fixed-dim": "#ffb59a",
+                    "surface-variant": "#d3e4fe",
+                    "secondary": "#006399",
+                    "on-surface-variant": "#3d4947",
+                    "on-secondary-fixed": "#001d32",
+                    "surface-container-lowest": "#ffffff",
+                    "inverse-surface": "#213145",
+                    "surface-dim": "#cbdbf5",
+                    "secondary-fixed-dim": "#94ccff",
+                    "on-tertiary-fixed": "#370e00",
+                    "on-secondary": "#ffffff",
+                    "on-surface": "#0b1c30",
+                    "surface-container-low": "#eff4ff",
+                    "secondary-fixed": "#cde5ff",
+                    "primary": "#00685f",
+                    "tertiary-container": "#b05e3d",
+                    "on-primary": "#ffffff",
+                    "on-primary-fixed-variant": "#005049",
+                    "tertiary": "#924628",
+                    "on-secondary-container": "#004f7b",
+                    "surface-container": "#e5eeff",
+                    "on-tertiary": "#ffffff",
+                    "secondary-container": "#7bc2ff",
+                    "error-container": "#ffdad6",
+                    "on-background": "#0b1c30"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "spacing": {
+                    "md": "16px",
+                    "base": "4px",
+                    "sidebar-width": "260px",
+                    "lg": "24px",
+                    "gutter": "20px",
+                    "xs": "4px",
+                    "container-max": "1440px",
+                    "sm": "8px",
+                    "xl": "32px"
+            },
+            "fontFamily": {
+                    "body-sm": ["Inter"],
+                    "data-tabular": ["Inter"],
+                    "title-sm": ["Inter"],
+                    "label-caps": ["Inter"],
+                    "headline-md": ["Inter"],
+                    "display-lg": ["Inter"],
+                    "body-md": ["Inter"]
+            },
+            "fontSize": {
+                    "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "data-tabular": ["13px", {"lineHeight": "18px", "fontWeight": "500"}],
+                    "title-sm": ["18px", {"lineHeight": "28px", "fontWeight": "600"}],
+                    "label-caps": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                    "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                    "display-lg": ["36px", {"lineHeight": "44px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .sidebar-border { border-right: 1px solid #bcc9c6; }
+        .topbar-border { border-bottom: 1px solid #bcc9c6; }
+        .active-tab { border-right: 4px solid #00685f; font-weight: 700; color: #00685f; }
+        .glass-card { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(8px); border: 1px solid #E2E8F0; }
+        .chart-gradient-base { background: linear-gradient(180deg, rgba(0, 104, 95, 0.1) 0%, rgba(0, 104, 95, 0) 100%); }
+        .gauge-track { stroke: #E5EEFF; stroke-width: 8; fill: none; }
+        .gauge-fill { stroke: #00685f; stroke-width: 8; fill: none; stroke-linecap: round; transform-origin: center; transform: rotate(-90deg); transition: stroke-dashoffset 1s ease-out; }
+    </style>
+</head>
+<body class="bg-background text-on-surface font-body-md overflow-x-hidden">
+<!-- Side Navigation Shell -->
+<aside class="w-sidebar-width h-full fixed left-0 top-0 bg-surface-container-lowest sidebar-border flex flex-col py-lg px-md z-[60]">
+<div class="mb-xl">
+<h1 class="text-headline-md font-headline-md text-primary">SalesForce CRM</h1>
+<p class="text-body-sm font-body-sm text-on-surface-variant">Gulf Region Admin</p>
+</div>
+<nav class="flex-grow space-y-base">
+<!-- Overview is Active -->
+<a class="flex items-center gap-md py-md px-md active-tab hover:bg-surface-container-high transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">dashboard</span>
+<span class="font-body-sm text-body-sm">Overview</span>
+</a>
+<a class="flex items-center gap-md py-md px-md text-on-surface-variant hover:bg-surface-container-high transition-colors duration-200" href="#">
+<span class="material-symbols-outlined">analytics</span>
+<span class="font-body-sm text-body-sm">Pipeline</span>
+</a>
+<a class="flex items-center gap-md py-md px-md text-on-surface-variant hover:bg-surface-container-high transition-colors duration-200" href="#">
+<span class="material-symbols-outlined">leaderboard</span>
+<span class="font-body-sm text-body-sm">Leads</span>
+</a>
+<a class="flex items-center gap-md py-md px-md text-on-surface-variant hover:bg-surface-container-high transition-colors duration-200" href="#">
+<span class="material-symbols-outlined">group</span>
+<span class="font-body-sm text-body-sm">Accounts</span>
+</a>
+<a class="flex items-center gap-md py-md px-md text-on-surface-variant hover:bg-surface-container-high transition-colors duration-200" href="#">
+<span class="material-symbols-outlined">assessment</span>
+<span class="font-body-sm text-body-sm">Reports</span>
+</a>
+</nav>
+<div class="mt-auto space-y-base">
+<button class="w-full bg-primary text-on-primary py-md px-lg rounded-lg font-title-sm mb-lg flex items-center justify-center gap-sm">
+<span class="material-symbols-outlined text-[20px]">add_circle</span>
+                Create Deal
+            </button>
+<a class="flex items-center gap-md py-md px-md text-on-surface-variant hover:bg-surface-container-high transition-colors" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-body-sm text-body-sm">Settings</span>
+</a>
+<a class="flex items-center gap-md py-md px-md text-on-surface-variant hover:bg-surface-container-high transition-colors" href="#">
+<span class="material-symbols-outlined">help_outline</span>
+<span class="font-body-sm text-body-sm">Help</span>
+</a>
+</div>
+</aside>
+<!-- Top Navigation Shell -->
+<header class="h-16 fixed top-0 right-0 w-[calc(100%-260px)] bg-surface-container-lowest topbar-border flex items-center justify-between px-xl z-50">
+<div class="flex items-center gap-lg">
+<h2 class="font-headline-md text-headline-md text-on-surface">Dashboard</h2>
+<div class="relative w-80">
+<span class="material-symbols-outlined absolute left-md top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
+<input class="w-full bg-surface-container border-none rounded-full pl-xl pr-md py-xs text-body-sm focus:ring-2 focus:ring-primary" placeholder="Global search..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-xl">
+<div class="flex items-center gap-xs">
+<div class="w-2 h-2 rounded-full bg-[#10B981] animate-pulse"></div>
+<span class="text-label-caps font-label-caps text-on-surface-variant">Synced</span>
+</div>
+<div class="flex items-center gap-md text-on-surface-variant">
+<button class="material-symbols-outlined hover:text-primary transition-colors">sync</button>
+<button class="material-symbols-outlined hover:text-primary transition-colors relative">
+                    notifications
+                    <span class="absolute -top-1 -right-1 w-2 h-2 bg-error rounded-full"></span>
+</button>
+<button class="material-symbols-outlined hover:text-primary transition-colors">apps</button>
+</div>
+<div class="flex items-center gap-md border-l border-outline-variant pl-md">
+<div class="text-right">
+<p class="font-label-caps text-label-caps text-on-surface">Ahmed Khalil</p>
+<p class="font-label-caps text-[10px] text-on-surface-variant uppercase tracking-widest font-bold text-primary">Manager</p>
+</div>
+<img class="w-10 h-10 rounded-full object-cover border border-outline-variant" data-alt="A professional headshot of a Middle Eastern male executive in a well-tailored business suit, looking confident and approachable. The background is a blurred high-end corporate office with soft, warm lighting. The overall aesthetic is professional, sleek, and high-quality, fitting an enterprise SaaS environment." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDonixmVg2Tg90QzcFreKcyB2rJx3HlWuobKzI3x683Wu9P5QKyk3ieLYpTLH36Pm1m_n0A9PaMFhGJxsbQ626NZrGre8j_KajcI8KjGDANepT_q0xaBCC6Z7tVl9dhbS5UITiIJ_I-Z23kITRkZGD9QYPN7NOMa_QGX4wbWAIm3rS1rEOUxkMspjhDxZSGp6NXEskCsgMyAAcqX9IFFZ-0fZMTmRZ1CdJHA-cJKR72WfsGUdGhCZdjHRZ3lsRr1cGlqBbHyvaWtUtD"/>
+</div>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="ml-sidebar-width pt-16 p-xl max-w-container-max mx-auto min-h-screen">
+<!-- Header Actions -->
+<div class="flex justify-between items-end mb-xl">
+<div>
+<p class="text-label-caps font-label-caps text-primary uppercase mb-xs">Executive Overview</p>
+<h3 class="text-display-lg font-display-lg text-on-surface">Global Performance</h3>
+</div>
+<div class="flex gap-md">
+<button class="flex items-center gap-sm px-lg py-md rounded-lg border border-outline-variant bg-surface-container-lowest text-body-sm font-label-caps hover:bg-surface-container transition-colors shadow-sm">
+<span class="material-symbols-outlined text-[20px]">calendar_today</span>
+                    Last 30 Days
+                    <span class="material-symbols-outlined">expand_more</span>
+</button>
+<button class="flex items-center gap-sm px-lg py-md rounded-lg bg-secondary text-on-secondary text-body-sm font-label-caps hover:bg-opacity-90 transition-all shadow-md">
+<span class="material-symbols-outlined text-[20px]">download</span>
+                    Export PDF
+                </button>
+</div>
+</div>
+<!-- Top Stats Bento -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-lg mb-xl">
+<div class="glass-card p-xl rounded-xl">
+<div class="flex justify-between items-start mb-md">
+<p class="text-label-caps font-label-caps text-on-surface-variant">Total Pipeline</p>
+<span class="material-symbols-outlined text-primary bg-primary/10 p-sm rounded-lg">payments</span>
+</div>
+<h4 class="text-[32px] font-bold text-on-surface">$4.8M</h4>
+<div class="flex items-center gap-xs mt-sm text-[#10B981]">
+<span class="material-symbols-outlined text-sm">trending_up</span>
+<span class="text-label-caps font-label-caps">+12% vs LY</span>
+</div>
+</div>
+<div class="glass-card p-xl rounded-xl">
+<div class="flex justify-between items-start mb-md">
+<p class="text-label-caps font-label-caps text-on-surface-variant">Forecasted Revenue</p>
+<span class="material-symbols-outlined text-secondary bg-secondary/10 p-sm rounded-lg">query_stats</span>
+</div>
+<h4 class="text-[32px] font-bold text-on-surface">$1.2M</h4>
+<div class="flex items-center gap-xs mt-sm text-tertiary">
+<span class="material-symbols-outlined text-sm">info</span>
+<span class="text-label-caps font-label-caps">92% Confidence</span>
+</div>
+</div>
+<div class="glass-card p-xl rounded-xl">
+<div class="flex justify-between items-start mb-md">
+<p class="text-label-caps font-label-caps text-on-surface-variant">Avg Win Rate</p>
+<span class="material-symbols-outlined text-primary bg-primary/10 p-sm rounded-lg">star</span>
+</div>
+<h4 class="text-[32px] font-bold text-on-surface">24%</h4>
+<div class="flex items-center gap-xs mt-sm text-[#10B981]">
+<span class="material-symbols-outlined text-sm">trending_up</span>
+<span class="text-label-caps font-label-caps">+2% MoM</span>
+</div>
+</div>
+<div class="glass-card p-xl rounded-xl">
+<div class="flex justify-between items-start mb-md">
+<p class="text-label-caps font-label-caps text-on-surface-variant">Sales Velocity</p>
+<span class="material-symbols-outlined text-secondary bg-secondary/10 p-sm rounded-lg">bolt</span>
+</div>
+<h4 class="text-[32px] font-bold text-on-surface">18 Days</h4>
+<div class="flex items-center gap-xs mt-sm text-[#10B981]">
+<span class="material-symbols-outlined text-sm">trending_down</span>
+<span class="text-label-caps font-label-caps">-3 days faster</span>
+</div>
+</div>
+</div>
+<!-- Main Charts Section -->
+<div class="grid grid-cols-12 gap-lg mb-xl">
+<!-- Revenue Forecast Chart -->
+<div class="col-span-12 lg:col-span-8 glass-card p-xl rounded-xl h-[420px] flex flex-col">
+<div class="flex justify-between items-center mb-xl">
+<h5 class="text-title-sm font-title-sm">Revenue Forecast &amp; Confidence Bands</h5>
+<div class="flex gap-md">
+<span class="flex items-center gap-xs text-label-caps font-label-caps text-on-surface-variant">
+<span class="w-3 h-3 rounded-full bg-primary"></span> Base
+                        </span>
+<span class="flex items-center gap-xs text-label-caps font-label-caps text-on-surface-variant">
+<span class="w-3 h-3 rounded-full bg-secondary"></span> Optimistic
+                        </span>
+</div>
+</div>
+<div class="flex-grow relative mt-md">
+<!-- Faux Line Chart Component -->
+<div class="absolute inset-0 flex items-end justify-between px-md pb-xl">
+<!-- Simplified vertical grid lines -->
+<div class="h-full border-r border-outline-variant/30 w-full"></div>
+<div class="h-full border-r border-outline-variant/30 w-full"></div>
+<div class="h-full border-r border-outline-variant/30 w-full"></div>
+<div class="h-full border-r border-outline-variant/30 w-full"></div>
+<div class="h-full border-r border-outline-variant/30 w-full"></div>
+<div class="h-full w-full"></div>
+</div>
+<svg class="w-full h-full relative z-10" preserveaspectratio="none" viewbox="0 0 800 240">
+<!-- Confidence Band Area -->
+<path d="M0,180 Q100,160 200,120 Q300,100 400,130 Q500,150 600,100 Q700,60 800,20 L800,140 Q700,160 600,180 Q500,200 400,190 Q300,180 200,210 Q100,220 0,200 Z" fill="rgba(0, 104, 95, 0.05)"></path>
+<!-- Main Line -->
+<path d="M0,190 Q100,170 200,135 Q300,120 400,150 Q500,170 600,120 Q700,80 800,40" fill="none" stroke="#00685f" stroke-linecap="round" stroke-width="3"></path>
+<!-- Optimistic Line -->
+<path d="M0,185 Q100,165 200,125 Q300,105 400,135 Q500,155 600,105 Q700,65 800,25" fill="none" stroke="#006399" stroke-dasharray="4 4" stroke-linecap="round" stroke-width="2"></path>
+</svg>
+<div class="flex justify-between mt-md px-md text-label-caps font-label-caps text-on-surface-variant">
+<span>JAN</span><span>FEB</span><span>MAR</span><span>APR</span><span>MAY</span><span>JUN</span>
+</div>
+</div>
+</div>
+<!-- Pipeline Health Gauges -->
+<div class="col-span-12 lg:col-span-4 glass-card p-xl rounded-xl flex flex-col justify-between">
+<h5 class="text-title-sm font-title-sm mb-lg">Pipeline Health</h5>
+<div class="flex flex-col items-center gap-xl">
+<!-- Gauge 1 -->
+<div class="relative w-32 h-32 flex flex-col items-center justify-center">
+<svg class="w-full h-full">
+<circle class="gauge-track" cx="64" cy="64" r="56"></circle>
+<circle class="gauge-fill" cx="64" cy="64" r="56" style="stroke-dasharray: 351; stroke-dashoffset: 70;"></circle>
+</svg>
+<div class="absolute inset-0 flex flex-col items-center justify-center">
+<span class="text-headline-md font-bold">80%</span>
+<span class="text-[10px] uppercase font-bold text-on-surface-variant">Coverage</span>
+</div>
+</div>
+<!-- Gauge 2 -->
+<div class="relative w-32 h-32 flex flex-col items-center justify-center">
+<svg class="w-full h-full">
+<circle class="gauge-track" cx="64" cy="64" r="56"></circle>
+<circle class="gauge-fill" cx="64" cy="64" r="56" style="stroke: #006399; stroke-dasharray: 351; stroke-dashoffset: 120;"></circle>
+</svg>
+<div class="absolute inset-0 flex flex-col items-center justify-center">
+<span class="text-headline-md font-bold">65%</span>
+<span class="text-[10px] uppercase font-bold text-on-surface-variant">Quota Att.</span>
+</div>
+</div>
+</div>
+<div class="mt-xl pt-lg border-t border-outline-variant">
+<div class="flex items-center justify-between text-body-sm mb-xs">
+<span class="text-on-surface-variant">Next Milestone: Q3 Target</span>
+<span class="font-bold">$2.5M Left</span>
+</div>
+<div class="w-full bg-surface-container h-2 rounded-full overflow-hidden">
+<div class="bg-primary h-full w-[65%]"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Lower Section: Funnel, Leaderboard & Table -->
+<div class="grid grid-cols-12 gap-lg">
+<!-- Funnel Chart Card -->
+<div class="col-span-12 lg:col-span-4 glass-card p-xl rounded-xl">
+<h5 class="text-title-sm font-title-sm mb-xl">Conversion Funnel</h5>
+<div class="space-y-md">
+<div class="flex flex-col gap-xs">
+<div class="flex justify-between items-center text-label-caps font-label-caps mb-1">
+<span>1,240 Total Leads</span>
+<span class="text-primary">100%</span>
+</div>
+<div class="h-10 bg-primary-container rounded-lg w-full flex items-center px-md text-on-primary-container font-bold text-body-sm">Lead Generation</div>
+</div>
+<div class="flex flex-col gap-xs pl-8 border-l-2 border-outline-variant">
+<div class="flex justify-between items-center text-label-caps font-label-caps mb-1">
+<span>842 Qualified</span>
+<span class="text-primary">68%</span>
+</div>
+<div class="h-10 bg-primary-container/80 rounded-lg w-[85%] flex items-center px-md text-on-primary-container font-bold text-body-sm">MQL/SQL</div>
+</div>
+<div class="flex flex-col gap-xs pl-16 border-l-2 border-outline-variant">
+<div class="flex justify-between items-center text-label-caps font-label-caps mb-1">
+<span>310 Proposal</span>
+<span class="text-primary">25%</span>
+</div>
+<div class="h-10 bg-primary-container/60 rounded-lg w-[65%] flex items-center px-md text-on-primary-container font-bold text-body-sm">Negotiation</div>
+</div>
+<div class="flex flex-col gap-xs pl-24 border-l-2 border-outline-variant">
+<div class="flex justify-between items-center text-label-caps font-label-caps mb-1">
+<span>74 Won</span>
+<span class="text-primary">6%</span>
+</div>
+<div class="h-10 bg-primary-container/40 rounded-lg w-[40%] flex items-center px-md text-on-primary font-bold text-body-sm">Closed Won</div>
+</div>
+</div>
+</div>
+<!-- Team Leaderboard -->
+<div class="col-span-12 lg:col-span-4 glass-card p-xl rounded-xl">
+<div class="flex justify-between items-center mb-xl">
+<h5 class="text-title-sm font-title-sm">Top Performers</h5>
+<button class="text-primary font-label-caps text-xs hover:underline">View All</button>
+</div>
+<div class="space-y-lg">
+<!-- Rep 1 -->
+<div class="flex items-center gap-md">
+<div class="relative">
+<img class="w-12 h-12 rounded-full object-cover" data-alt="A portrait of a cheerful, successful professional woman in a bright office space. She has a warm smile and is dressed in business casual attire. High-quality lighting and a clean, modern aesthetic reflect a top-tier sales professional's portrait." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDXQFF44h9wNPx-KNy0C_-v9NagNukD6AnJuTF442NteER7bYkKMmhpEg8zNqBHk3I5yMNE67qAGxI_kZ7GeWDgZbp2elocCkS9nMQGBf4UxSHP8nrLq3HB8XGZ9PR0JjFfUGCSEl3QrVfLm1OZGcX9xysCXDGTWyKAc-Sjy4OJrCJEXOl0KrbGCqecKtbA6un4HkfJ5ETBBvUr0TZjqsUUNkX5v1uEDvPCmkit06bOlDRAjLMlg7ArYHTbvzBPV4aBrgt3OhGQLdjX"/>
+<span class="absolute -top-1 -right-1 w-5 h-5 bg-tertiary-container text-on-tertiary-container rounded-full flex items-center justify-center text-[10px] font-bold">1</span>
+</div>
+<div class="flex-grow">
+<p class="font-bold text-body-sm text-on-surface">Layla Mansour</p>
+<p class="text-[10px] text-on-surface-variant uppercase font-bold tracking-tighter">Enterprise Accounts</p>
+</div>
+<div class="text-right">
+<p class="font-bold text-primary">124%</p>
+<p class="text-[10px] text-on-surface-variant font-medium">Quota Att.</p>
+</div>
+</div>
+<!-- Rep 2 -->
+<div class="flex items-center gap-md">
+<div class="relative">
+<img class="w-12 h-12 rounded-full object-cover" data-alt="Close-up headshot of a professional young man with glasses, looking engaged and professional. Neutral background with soft architectural bokeh. High resolution and corporate style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC2AGPmzCaoTByMLUyTtEX-_bjgLKzEmz9zmPF1_RISX4EfcVsSY3ZrJuLFG9oeq452h5zw4msakcIMaa-d-V1lN9faCr_ZzAEj-IvtAfgSKxNVHyfbM9wOAUx3jhMy5oSWIyyaSZ-vz4Sb09dehxBNP80l0A-ZxuoNI3M60QtbESl93lwW4wubtCUSjgrhufYXswaCbT1Vmkwelat8hOfVompGYpBVG_TvI2bhiQQObMULXvDTTqye2S0Rybzoe9G0z82BU6j2ElTx"/>
+<span class="absolute -top-1 -right-1 w-5 h-5 bg-surface-container-highest text-on-surface-variant rounded-full flex items-center justify-center text-[10px] font-bold">2</span>
+</div>
+<div class="flex-grow">
+<p class="font-bold text-body-sm text-on-surface">Omar Farooq</p>
+<p class="text-[10px] text-on-surface-variant uppercase font-bold tracking-tighter">Mid-Market</p>
+</div>
+<div class="text-right">
+<p class="font-bold text-primary">118%</p>
+<p class="text-[10px] text-on-surface-variant font-medium">Quota Att.</p>
+</div>
+</div>
+<!-- Rep 3 -->
+<div class="flex items-center gap-md">
+<div class="relative">
+<img class="w-12 h-12 rounded-full object-cover" data-alt="Professional headshot of a diverse female executive, smiling confidently. Soft corporate lighting in a glass-walled office setting. Crisp, sharp focus with a light and airy professional atmosphere." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD0RA5yZstAFodtrzFpYR8L3iMQVdy4ZHl6jXjBFXmOYROhowNzH3XAyEcSfSlnx6cJKG1K6iAenhyuxzGBOcpZTgfZeECkb2Ehe1yQs76CTyL7pYYh0BE-luAo29-CorbNBcURSCRHIt6DonxFGhNwgr64AjzbPDysLsZZ3y3uOVN_5m__5ItH94ICbTdCBYQEy97IUMWR-XAN-sZKVWtAlcG5DenBZModul6DQeXm3-UQWOX5VgskLM6qd9-HvLC6EBi8nZfMfM0j"/>
+<span class="absolute -top-1 -right-1 w-5 h-5 bg-surface-container-highest text-on-surface-variant rounded-full flex items-center justify-center text-[10px] font-bold">3</span>
+</div>
+<div class="flex-grow">
+<p class="font-bold text-body-sm text-on-surface">Sarah Jamshed</p>
+<p class="text-[10px] text-on-surface-variant uppercase font-bold tracking-tighter">SMB Sales</p>
+</div>
+<div class="text-right">
+<p class="font-bold text-primary">105%</p>
+<p class="text-[10px] text-on-surface-variant font-medium">Quota Att.</p>
+</div>
+</div>
+<!-- Rep 4 -->
+<div class="flex items-center gap-md opacity-80">
+<img class="w-12 h-12 rounded-full object-cover" data-alt="Corporate headshot of an experienced senior male manager, grey hair, warm smile, professional attire, grey background. High-quality professional lighting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCC11twSr_l_W0T33Y3CnuF8Q6ZgqvpuTv9CQvLIR9Pl-a2BssDTPZLvakkMdNTLq3-5WoXKaBKv_3Il4biIQQfXUUeoDWQ5G2i2auLd8khJdUB2_0Cx7LNIpbqPOUjoOjBY5QRsnIgNC_nCpfZsDwINDSetpRTC3sQb0OpWjdvkI-m5SYCcwUl3UyUbwYFHR0bVIoS92uxnlmNnjsatlEJf6At09uVpD8jopYLxDOL_JqbPaLY3lcpHxci1o-OdekTer759jG0XYqo"/>
+<div class="flex-grow">
+<p class="font-bold text-body-sm text-on-surface">Robert Chen</p>
+<p class="text-[10px] text-on-surface-variant uppercase font-bold tracking-tighter">Global Accounts</p>
+</div>
+<div class="text-right">
+<p class="font-bold text-primary">98%</p>
+</div>
+</div>
+<!-- Rep 5 -->
+<div class="flex items-center gap-md opacity-80">
+<img class="w-12 h-12 rounded-full object-cover" data-alt="Modern headshot of a creative marketing-sales professional woman, stylish glasses, casual but professional outfit, bright studio background. High-key lighting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC3c9Xlxp8MczyUZuKRObuf6VYuPd_MtSfxe00CvMneVjCA5qSIxBeonGLmPtu6_hZQqPD2DhXk0CHcaG-cDa14jM6H6lGHCt6o16JkTKbHclv57eatr-ZTsDx3ykn5uYV0FUIgd2wCFiFfvXhaBqUeMFmz7X6PiQsqkXoADAPqdPzpNSlo-ME2_B63oTUixos3g4t9YF9bt9wLhADPbFlfhUyd6XaVd5QvuP7iX27YL3QYnbhMPKIYOuAcqoVCvLj3ZA7R_MDaoD0a"/>
+<div class="flex-grow">
+<p class="font-bold text-body-sm text-on-surface">Maria Silva</p>
+<p class="text-[10px] text-on-surface-variant uppercase font-bold tracking-tighter">New Markets</p>
+</div>
+<div class="text-right">
+<p class="font-bold text-primary">94%</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Lead Source ROI Table -->
+<div class="col-span-12 lg:col-span-4 glass-card p-xl rounded-xl overflow-hidden flex flex-col">
+<h5 class="text-title-sm font-title-sm mb-xl">Lead Source ROI</h5>
+<div class="overflow-x-auto flex-grow">
+<table class="w-full text-left">
+<thead class="bg-surface-container-low">
+<tr>
+<th class="py-md px-md text-label-caps font-label-caps text-on-surface-variant">Source</th>
+<th class="py-md px-md text-label-caps font-label-caps text-on-surface-variant">Conv %</th>
+<th class="py-md px-md text-label-caps font-label-caps text-on-surface-variant">CPL</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant">
+<tr class="hover:bg-surface-container-high transition-colors">
+<td class="py-md px-md font-body-sm flex items-center gap-sm">
+<span class="material-symbols-outlined text-primary text-[18px]">mail</span>
+                                    Email
+                                </td>
+<td class="py-md px-md font-data-tabular">4.2%</td>
+<td class="py-md px-md font-data-tabular">$12.40</td>
+</tr>
+<tr class="hover:bg-surface-container-high transition-colors">
+<td class="py-md px-md font-body-sm flex items-center gap-sm">
+<span class="material-symbols-outlined text-secondary text-[18px]">group_add</span>
+                                    LinkedIn
+                                </td>
+<td class="py-md px-md font-data-tabular">2.8%</td>
+<td class="py-md px-md font-data-tabular">$45.10</td>
+</tr>
+<tr class="hover:bg-surface-container-high transition-colors">
+<td class="py-md px-md font-body-sm flex items-center gap-sm">
+<span class="material-symbols-outlined text-primary text-[18px]">language</span>
+                                    Web
+                                </td>
+<td class="py-md px-md font-data-tabular">5.1%</td>
+<td class="py-md px-md font-data-tabular">$08.90</td>
+</tr>
+<tr class="hover:bg-surface-container-high transition-colors">
+<td class="py-md px-md font-body-sm flex items-center gap-sm">
+<span class="material-symbols-outlined text-secondary text-[18px]">share</span>
+                                    Referral
+                                </td>
+<td class="py-md px-md font-data-tabular">18.4%</td>
+<td class="py-md px-md font-data-tabular">$0.00</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="mt-auto pt-lg">
+<button class="w-full py-md border border-primary text-primary rounded-lg font-label-caps text-xs hover:bg-primary/5 transition-colors">
+                        Analyze Channel Efficiency
+                    </button>
+</div>
+</div>
+</div>
+</main>
+<!-- Micro-interactions Script -->
+<script>
+        // Simple entry animation for gauges and cards
+        document.addEventListener('DOMContentLoaded', () => {
+            const cards = document.querySelectorAll('.glass-card');
+            cards.forEach((card, i) => {
+                card.style.opacity = '0';
+                card.style.transform = 'translateY(20px)';
+                setTimeout(() => {
+                    card.style.transition = 'all 0.6s ease-out';
+                    card.style.opacity = '1';
+                    card.style.transform = 'translateY(0)';
+                }, i * 100);
+            });
+
+            // Re-trigger gauge animations
+            const gauges = document.querySelectorAll('.gauge-fill');
+            gauges.forEach((gauge, i) => {
+                const targetOffset = gauge.style.strokeDashoffset;
+                gauge.style.strokeDashoffset = '351';
+                setTimeout(() => {
+                    gauge.style.strokeDashoffset = targetOffset;
+                }, 500 + (i * 200));
+            });
+        });
+    </script>
+</body></html>

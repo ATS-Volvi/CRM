@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Unified Lead Inbox | Enterprise CRM</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .sync-pulse {
+            animation: pulse-animation 2s infinite;
+        }
+        @keyframes pulse-animation {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 164, 152, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(0, 164, 152, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 164, 152, 0); }
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #bcc9c6; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #6d7a77; }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-container-low": "#eff4ff",
+                        "inverse-surface": "#213145",
+                        "on-secondary": "#ffffff",
+                        "tertiary": "#924628",
+                        "surface-container-highest": "#d3e4fe",
+                        "on-primary": "#ffffff",
+                        "on-surface": "#0b1c30",
+                        "secondary-container": "#7bc2ff",
+                        "on-secondary-fixed": "#001d32",
+                        "on-background": "#0b1c30",
+                        "primary": "#00685f",
+                        "tertiary-fixed": "#ffdbce",
+                        "surface": "#f8f9ff",
+                        "on-secondary-container": "#004f7b",
+                        "surface-tint": "#006a61",
+                        "on-primary-fixed-variant": "#005049",
+                        "on-error-container": "#93000a",
+                        "surface-container-high": "#dce9ff",
+                        "inverse-primary": "#6bd8cb",
+                        "background": "#f8f9ff",
+                        "on-error": "#ffffff",
+                        "on-tertiary-container": "#fffbff",
+                        "on-tertiary-fixed-variant": "#773215",
+                        "on-primary-fixed": "#00201d",
+                        "on-tertiary": "#ffffff",
+                        "error": "#ba1a1a",
+                        "on-tertiary-fixed": "#370e00",
+                        "surface-container-lowest": "#ffffff",
+                        "on-secondary-fixed-variant": "#004b74",
+                        "secondary": "#006399",
+                        "surface-container": "#e5eeff",
+                        "surface-bright": "#f8f9ff",
+                        "secondary-fixed-dim": "#94ccff",
+                        "outline-variant": "#bcc9c6",
+                        "outline": "#6d7a77",
+                        "tertiary-fixed-dim": "#ffb59a",
+                        "primary-fixed-dim": "#6bd8cb",
+                        "on-primary-container": "#f4fffc",
+                        "primary-fixed": "#89f5e7",
+                        "surface-variant": "#d3e4fe",
+                        "surface-dim": "#cbdbf5",
+                        "tertiary-container": "#b05e3d",
+                        "on-surface-variant": "#3d4947",
+                        "primary-container": "#008378",
+                        "secondary-fixed": "#cde5ff",
+                        "inverse-on-surface": "#eaf1ff",
+                        "error-container": "#ffdad6"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "sidebar-width": "260px",
+                        "base": "4px",
+                        "xs": "4px",
+                        "md": "16px",
+                        "sm": "8px",
+                        "lg": "24px",
+                        "xl": "32px",
+                        "container-max": "1440px",
+                        "gutter": "20px"
+                    },
+                    "fontFamily": {
+                        "body-md": ["Inter"],
+                        "title-sm": ["Inter"],
+                        "data-tabular": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "label-caps": ["Inter"],
+                        "body-sm": ["Inter"],
+                        "display-lg": ["Inter"],
+                        "display-lg-mobile": ["Inter"]
+                    },
+                    "fontSize": {
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "title-sm": ["18px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "data-tabular": ["13px", {"lineHeight": "18px", "fontWeight": "500"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "label-caps": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                        "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "display-lg": ["36px", {"lineHeight": "44px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "display-lg-mobile": ["28px", {"lineHeight": "34px", "letterSpacing": "-0.02em", "fontWeight": "700"}]
+                    }
+                },
+            },
+        }
+    </script>
+</head>
+<body class="bg-surface font-body-md text-on-surface">
+<!-- Side Navigation Shell -->
+<aside class="flex flex-col w-sidebar-width h-screen fixed left-0 top-0 bg-surface border-r border-outline-variant z-50">
+<div class="p-lg flex flex-col gap-base">
+<h1 class="text-headline-md font-headline-md font-extrabold text-primary">Enterprise CRM</h1>
+<span class="text-label-caps font-label-caps text-on-surface-variant">Role: Admin</span>
+</div>
+<nav class="flex-1 overflow-y-auto custom-scrollbar mt-sm">
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-label-caps">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-primary font-bold border-r-4 border-primary bg-surface-container-low transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="inbox">inbox</span>
+<span class="font-label-caps">Leads Inbox</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="filter_list">filter_list</span>
+<span class="font-label-caps">Pipeline</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="description">description</span>
+<span class="font-label-caps">Quotations</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="menu_book">menu_book</span>
+<span class="font-label-caps">Price Book</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="verified_user">verified_user</span>
+<span class="font-label-caps">Approvals</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="bar_chart">bar_chart</span>
+<span class="font-label-caps">Reports</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="groups">groups</span>
+<span class="font-label-caps">Team</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-label-caps">Settings</span>
+</a>
+</nav>
+<div class="p-lg border-t border-outline-variant">
+<button class="w-full flex items-center justify-center gap-2 py-sm px-md bg-secondary text-on-secondary font-bold rounded hover:opacity-90 transition-all">
+<span class="material-symbols-outlined" data-icon="sync_alt">sync_alt</span>
+<span class="text-label-caps uppercase">Role Switcher</span>
+</button>
+</div>
+</aside>
+<!-- Main Shell -->
+<main class="ml-[260px] min-h-screen">
+<!-- Top Nav Bar Shell -->
+<header class="flex justify-between items-center px-lg w-[calc(100%-260px)] h-16 bg-surface-container-lowest border-b border-outline-variant fixed top-0 right-0 z-40 shadow-sm">
+<div class="flex items-center flex-1 max-w-xl">
+<div class="relative w-full">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" data-icon="search">search</span>
+<input class="w-full bg-surface border-none rounded-full pl-10 pr-4 py-2 text-body-sm focus:ring-1 focus:ring-primary" placeholder="Search leads, companies or files..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-md">
+<div class="flex items-center gap-sm px-3 py-1 bg-surface-container-high rounded-full">
+<div class="w-2 h-2 bg-primary rounded-full sync-pulse"></div>
+<span class="text-label-caps text-primary">Live Sync</span>
+</div>
+<div class="flex items-center gap-base">
+<button class="p-2 text-on-surface-variant hover:text-primary transition-colors"><span class="material-symbols-outlined" data-icon="sync">sync</span></button>
+<button class="p-2 text-on-surface-variant hover:text-primary transition-colors relative">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+<span class="absolute top-1.5 right-1.5 w-2 h-2 bg-error rounded-full"></span>
+</button>
+</div>
+<button class="flex items-center gap-2 py-2 px-4 bg-primary text-on-primary font-bold rounded-lg shadow-md hover:bg-primary-container transition-all active:scale-95">
+<span class="material-symbols-outlined" data-icon="add">add</span>
+<span class="text-body-sm">+ Quick Add</span>
+</button>
+<div class="flex items-center gap-2 ml-md">
+<img class="w-8 h-8 rounded-full border border-outline-variant" data-alt="Professional headshot of a senior CRM administrator in a corporate setting, with soft studio lighting and a clean neutral background. Professional attire, friendly expression, and high-quality photography." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBFz0A3hNpbrVsjfWMRq729DmmGcbRYozVklvNvHdTx419JF1RWyZ-zntf1TMIJO71l9pbEsEr6oewyNSjKmN9vasF7MEFzyqfxkjMKf6hnupnsgx6xv5zqEJTjoVIO6bgKNFpSlK4PTihIgBQYR5PxeWo_4hGAnEpK2cmJySdSlk8iHPCDEKbN4auUdvsz2W0mf9BWF5wVoAJsMSI0aN7AFk8-dh8IzR7rt0yL0XAK2o9iEx6PxVv3y-f5F9acA7JEpl6mfuiQNE5h"/>
+</div>
+</div>
+</header>
+<!-- Page Content -->
+<div class="pt-20 px-lg pb-lg">
+<!-- Integration Strip -->
+<section class="mb-lg overflow-x-auto">
+<div class="flex gap-md min-w-max pb-2">
+<div class="flex items-center gap-3 px-lg py-4 bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm transition-all hover:border-primary">
+<span class="material-symbols-outlined text-primary text-[28px]" data-icon="mail">mail</span>
+<div>
+<p class="text-label-caps text-on-surface-variant">Email</p>
+<div class="flex items-center gap-1.5">
+<div class="w-2 h-2 bg-primary rounded-full sync-pulse"></div>
+<span class="text-body-sm font-bold">12 New</span>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-3 px-lg py-4 bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm transition-all hover:border-primary">
+<span class="material-symbols-outlined text-[#1877F2] text-[28px]" data-icon="facebook">face_nod</span>
+<div>
+<p class="text-label-caps text-on-surface-variant">Facebook</p>
+<div class="flex items-center gap-1.5">
+<div class="w-2 h-2 bg-primary rounded-full sync-pulse"></div>
+<span class="text-body-sm font-bold">4 New</span>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-3 px-lg py-4 bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm transition-all hover:border-primary">
+<span class="material-symbols-outlined text-[#E1306C] text-[28px]" data-icon="photo_camera">photo_camera</span>
+<div>
+<p class="text-label-caps text-on-surface-variant">Instagram</p>
+<div class="flex items-center gap-1.5">
+<div class="w-2 h-2 bg-primary rounded-full sync-pulse"></div>
+<span class="text-body-sm font-bold">7 New</span>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-3 px-lg py-4 bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm transition-all hover:border-primary">
+<span class="material-symbols-outlined text-[#0A66C2] text-[28px]" data-icon="hub">hub</span>
+<div>
+<p class="text-label-caps text-on-surface-variant">LinkedIn</p>
+<div class="flex items-center gap-1.5">
+<div class="w-2 h-2 bg-primary rounded-full sync-pulse"></div>
+<span class="text-body-sm font-bold">Connected</span>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-3 px-lg py-4 bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm transition-all hover:border-primary">
+<span class="material-symbols-outlined text-primary text-[28px]" data-icon="language">language</span>
+<div>
+<p class="text-label-caps text-on-surface-variant">Website</p>
+<div class="flex items-center gap-1.5">
+<div class="w-2 h-2 bg-primary rounded-full sync-pulse"></div>
+<span class="text-body-sm font-bold">Online</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Duplicate Alert Banner -->
+<div class="mb-lg bg-tertiary-container text-on-tertiary-container px-lg py-3 rounded-lg flex items-center justify-between border-l-4 border-tertiary shadow-sm">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined" data-icon="warning">warning</span>
+<p class="text-body-sm font-medium">We found <span class="font-bold">24 potential duplicate leads</span> in your pipeline. Merge them to maintain data integrity.</p>
+</div>
+<div class="flex gap-md">
+<button class="text-label-caps font-bold underline hover:opacity-80">Review All</button>
+<button class="text-label-caps font-bold hover:opacity-80"><span class="material-symbols-outlined text-[18px]" data-icon="close">close</span></button>
+</div>
+</div>
+<!-- Main Data Table Container -->
+<div class="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm overflow-hidden flex flex-col">
+<!-- Filters Bar -->
+<div class="p-lg border-b border-outline-variant flex flex-wrap items-center justify-between gap-lg bg-surface-bright">
+<div class="flex items-center gap-md flex-wrap">
+<h2 class="text-title-sm font-title-sm pr-lg border-r border-outline-variant">Unified Inbox</h2>
+<div class="flex items-center gap-sm">
+<span class="text-label-caps text-on-surface-variant">Source:</span>
+<select class="bg-surface border-outline-variant rounded px-3 py-1.5 text-body-sm focus:ring-primary">
+<option>All Sources</option>
+<option>Email</option>
+<option>Social Media</option>
+<option>Direct API</option>
+</select>
+</div>
+<div class="flex items-center gap-sm">
+<span class="text-label-caps text-on-surface-variant">Status:</span>
+<select class="bg-surface border-outline-variant rounded px-3 py-1.5 text-body-sm focus:ring-primary">
+<option>New Leads</option>
+<option>In Progress</option>
+<option>Qualified</option>
+</select>
+</div>
+<div class="flex items-center gap-sm">
+<span class="text-label-caps text-on-surface-variant">Date:</span>
+<select class="bg-surface border-outline-variant rounded px-3 py-1.5 text-body-sm focus:ring-primary">
+<option>Last 24 Hours</option>
+<option>Last 7 Days</option>
+<option>Custom Range</option>
+</select>
+</div>
+</div>
+<div class="flex gap-sm">
+<button class="p-2 border border-outline-variant rounded text-on-surface-variant hover:bg-surface-container-low"><span class="material-symbols-outlined" data-icon="download">download</span></button>
+<button class="p-2 border border-outline-variant rounded text-on-surface-variant hover:bg-surface-container-low"><span class="material-symbols-outlined" data-icon="more_vert">more_vert</span></button>
+</div>
+</div>
+<!-- Table Content -->
+<div class="overflow-x-auto custom-scrollbar">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-high border-b border-outline-variant">
+<th class="px-lg py-4 text-label-caps text-on-surface-variant">Source</th>
+<th class="px-lg py-4 text-label-caps text-on-surface-variant">Lead Name</th>
+<th class="px-lg py-4 text-label-caps text-on-surface-variant">Company</th>
+<th class="px-lg py-4 text-label-caps text-on-surface-variant text-center">Score</th>
+<th class="px-lg py-4 text-label-caps text-on-surface-variant">Assigned To</th>
+<th class="px-lg py-4 text-label-caps text-on-surface-variant">Wait Time</th>
+<th class="px-lg py-4 text-label-caps text-on-surface-variant text-right">Action</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant">
+<!-- Row 1 -->
+<tr class="hover:bg-surface-container transition-colors group">
+<td class="px-lg py-4">
+<div class="w-8 h-8 rounded bg-primary/10 flex items-center justify-center text-primary" title="Email">
+<span class="material-symbols-outlined text-[20px]" data-icon="mail">mail</span>
+</div>
+</td>
+<td class="px-lg py-4">
+<div>
+<p class="text-body-sm font-bold text-primary">Ahmed Al-Farsi</p>
+<p class="text-[12px] text-on-surface-variant">ahmed@emirateslogistics.ae</p>
+</div>
+</td>
+<td class="px-lg py-4 text-body-sm">Emirates Logistics Corp</td>
+<td class="px-lg py-4 text-center">
+<div class="inline-flex items-center justify-center px-2 py-1 bg-primary/10 text-primary rounded-full font-bold text-[12px]">
+                                        94
+                                    </div>
+</td>
+<td class="px-lg py-4">
+<div class="flex items-center gap-2">
+<img class="w-6 h-6 rounded-full" data-alt="Headshot of a professional salesperson, young male with a confident smile, wearing a modern blue suit. High quality corporate style photography, bright and professional studio lighting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCKcK_vM0_iAc_UN-W0de_pbkZL9eNfhRZLdFltQtByR0sLzPWZpML3MG3JuPcGXsMmJE3AjjuXiMHCleL_HWI_4h31tyRTQWnSaIKI9TFel_LVpd6HRvja3eb-WFq7dRJRO6LqV7NhurrNGnn3IfrOYg9zAJBI9b0SJP7t4dbidf-AkqhbKzDipBoCVH0nJXE23wvdDcxSKpdx99VVoSNPunLXYhMdVdnVZIhbnhvwMOf2LdkxF1RhRbaoHzBZMH53adkmYKQEbEWq"/>
+<span class="text-body-sm">Zaid Malik</span>
+</div>
+</td>
+<td class="px-lg py-4 text-body-sm text-on-surface-variant">2 mins ago</td>
+<td class="px-lg py-4 text-right">
+<button class="px-4 py-1.5 bg-primary text-on-primary rounded text-label-caps font-bold hover:bg-primary-container transition-all">Claim</button>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-surface-container transition-colors group">
+<td class="px-lg py-4">
+<div class="w-8 h-8 rounded bg-[#1877F2]/10 flex items-center justify-center text-[#1877F2]" title="Facebook">
+<span class="material-symbols-outlined text-[20px]" data-icon="facebook">face_nod</span>
+</div>
+</td>
+<td class="px-lg py-4">
+<div>
+<p class="text-body-sm font-bold text-primary">Sarah Jenkins</p>
+<p class="text-[12px] text-on-surface-variant">Messenger Lead</p>
+</div>
+</td>
+<td class="px-lg py-4 text-body-sm">Jenkins Design Studio</td>
+<td class="px-lg py-4 text-center">
+<div class="inline-flex items-center justify-center px-2 py-1 bg-secondary/10 text-secondary rounded-full font-bold text-[12px]">
+                                        72
+                                    </div>
+</td>
+<td class="px-lg py-4">
+<div class="flex items-center gap-2">
+<span class="w-6 h-6 rounded-full bg-surface-container flex items-center justify-center text-[10px] text-on-surface-variant font-bold border border-outline-variant">UA</span>
+<span class="text-body-sm italic text-on-surface-variant">Unassigned</span>
+</div>
+</td>
+<td class="px-lg py-4 text-body-sm text-on-surface-variant">14 mins ago</td>
+<td class="px-lg py-4 text-right text-primary">
+<button class="p-2 hover:bg-surface-container-high rounded transition-colors"><span class="material-symbols-outlined" data-icon="open_in_new">open_in_new</span></button>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-surface-container transition-colors group">
+<td class="px-lg py-4">
+<div class="w-8 h-8 rounded bg-[#0A66C2]/10 flex items-center justify-center text-[#0A66C2]" title="LinkedIn">
+<span class="material-symbols-outlined text-[20px]" data-icon="hub">hub</span>
+</div>
+</td>
+<td class="px-lg py-4">
+<div>
+<p class="text-body-sm font-bold text-primary">Michael Chen</p>
+<p class="text-[12px] text-on-surface-variant">VP of Operations</p>
+</div>
+</td>
+<td class="px-lg py-4 text-body-sm">Global Tech Solutions</td>
+<td class="px-lg py-4 text-center">
+<div class="inline-flex items-center justify-center px-2 py-1 bg-primary/10 text-primary rounded-full font-bold text-[12px]">
+                                        88
+                                    </div>
+</td>
+<td class="px-lg py-4">
+<div class="flex items-center gap-2">
+<img class="w-6 h-6 rounded-full" data-alt="Corporate headshot of a female sales executive, professional attire, modern minimalist background, neutral studio lighting, high resolution and clean aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBxRKvkdGmkdV1nfKIEKoBXsd5kPvD4dvBxSWgZlKLTSb7TeGZSzaa5Fum2UqcyPqI7z0D0gLcReDpIGaVCVHMIsYNOSIirURGvqm28wfppyYoRKNHc7_qa_-AKKxtvV5VG6TnPwwizUj4fTBeKqo6iRpk-qnWKq69CkE4FOrGGw25gLMIiZRvpe3n5XIuJnK1q0vdr6RESrkLfGqXCWu2UszwatgWQOerGhg-D_CEhPa03MkcziliTJoRkp-kwWsW_S1qzXItt5pql"/>
+<span class="text-body-sm">Priya Sharma</span>
+</div>
+</td>
+<td class="px-lg py-4 text-body-sm text-on-surface-variant">42 mins ago</td>
+<td class="px-lg py-4 text-right text-primary">
+<button class="p-2 hover:bg-surface-container-high rounded transition-colors"><span class="material-symbols-outlined" data-icon="open_in_new">open_in_new</span></button>
+</td>
+</tr>
+<!-- Row 4 -->
+<tr class="hover:bg-surface-container transition-colors group">
+<td class="px-lg py-4">
+<div class="w-8 h-8 rounded bg-primary/10 flex items-center justify-center text-primary" title="Website Form">
+<span class="material-symbols-outlined text-[20px]" data-icon="language">language</span>
+</div>
+</td>
+<td class="px-lg py-4">
+<div>
+<p class="text-body-sm font-bold text-primary">Fatima Zahra</p>
+<p class="text-[12px] text-on-surface-variant">Contact Us Form</p>
+</div>
+</td>
+<td class="px-lg py-4 text-body-sm">Zahra Real Estate</td>
+<td class="px-lg py-4 text-center">
+<div class="inline-flex items-center justify-center px-2 py-1 bg-error/10 text-error rounded-full font-bold text-[12px]">
+                                        35
+                                    </div>
+</td>
+<td class="px-lg py-4">
+<div class="flex items-center gap-2">
+<img class="w-6 h-6 rounded-full" data-alt="Headshot of a middle-aged male sales manager with glasses, professional business casual attire, warm lighting, high quality business photography with blurred office background." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD6CdjkM4tRLLGbsDtRp72StsKzygXASGI6UBmYUWkbil8toSEPAkfcoqsNarwBQV0BcENmCfUsUWauXxfkKgRbZswBt8dhmpnOK99pyMqv-QwO1vcnhR4MUcfsGFvsTQDWc4VtDHsD4eOsRl3ssmswPsXeT1zPYCzJB0rMLW7dHItVJ8xzIa89WUuHkLKK1bacIwMIe3iNFFyT28H9YJNv90sxBj-Hl1wBLAuqKY2xFRI21tcFnx69lvgn0TFe36w8dXPyLOvHhXsp"/>
+<span class="text-body-sm">Robert Kim</span>
+</div>
+</td>
+<td class="px-lg py-4 text-body-sm text-on-surface-variant">1 hour ago</td>
+<td class="px-lg py-4 text-right text-primary">
+<button class="p-2 hover:bg-surface-container-high rounded transition-colors"><span class="material-symbols-outlined" data-icon="open_in_new">open_in_new</span></button>
+</td>
+</tr>
+<!-- Row 5 -->
+<tr class="hover:bg-surface-container transition-colors group">
+<td class="px-lg py-4">
+<div class="w-8 h-8 rounded bg-[#E1306C]/10 flex items-center justify-center text-[#E1306C]" title="Instagram">
+<span class="material-symbols-outlined text-[20px]" data-icon="photo_camera">photo_camera</span>
+</div>
+</td>
+<td class="px-lg py-4">
+<div>
+<p class="text-body-sm font-bold text-primary">Sanjay Gupta</p>
+<p class="text-[12px] text-on-surface-variant">Direct Message</p>
+</div>
+</td>
+<td class="px-lg py-4 text-body-sm">Gupta &amp; Sons Ltd</td>
+<td class="px-lg py-4 text-center">
+<div class="inline-flex items-center justify-center px-2 py-1 bg-secondary/10 text-secondary rounded-full font-bold text-[12px]">
+                                        68
+                                    </div>
+</td>
+<td class="px-lg py-4">
+<div class="flex items-center gap-2">
+<span class="w-6 h-6 rounded-full bg-surface-container flex items-center justify-center text-[10px] text-on-surface-variant font-bold border border-outline-variant">UA</span>
+<span class="text-body-sm italic text-on-surface-variant">Unassigned</span>
+</div>
+</td>
+<td class="px-lg py-4 text-body-sm text-on-surface-variant">2 hours ago</td>
+<td class="px-lg py-4 text-right">
+<button class="px-4 py-1.5 bg-primary text-on-primary rounded text-label-caps font-bold hover:bg-primary-container transition-all">Claim</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Footer / Pagination -->
+<div class="p-lg bg-surface border-t border-outline-variant flex items-center justify-between">
+<p class="text-body-sm text-on-surface-variant">Showing <span class="font-bold">1-10</span> of 482 Leads</p>
+<div class="flex gap-2">
+<button class="px-3 py-1 border border-outline-variant rounded hover:bg-surface-container-low transition-colors disabled:opacity-50" disabled="">
+<span class="material-symbols-outlined" data-icon="chevron_left">chevron_left</span>
+</button>
+<button class="px-3 py-1 border border-primary bg-primary text-on-primary rounded font-bold">1</button>
+<button class="px-3 py-1 border border-outline-variant rounded hover:bg-surface-container-low transition-colors">2</button>
+<button class="px-3 py-1 border border-outline-variant rounded hover:bg-surface-container-low transition-colors">3</button>
+<span class="flex items-center px-2">...</span>
+<button class="px-3 py-1 border border-outline-variant rounded hover:bg-surface-container-low transition-colors">48</button>
+<button class="px-3 py-1 border border-outline-variant rounded hover:bg-surface-container-low transition-colors">
+<span class="material-symbols-outlined" data-icon="chevron_right">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Dashboard micro-stats grid below list -->
+<div class="mt-lg grid grid-cols-1 md:grid-cols-4 gap-lg">
+<div class="bg-surface-container-lowest p-lg rounded-xl border border-outline-variant shadow-sm">
+<p class="text-label-caps text-on-surface-variant mb-2">AVG. RESPONSE TIME</p>
+<div class="flex items-end justify-between">
+<h3 class="text-display-lg font-display-lg text-primary">12m</h3>
+<span class="text-primary font-bold text-body-sm flex items-center"><span class="material-symbols-outlined" data-icon="trending_up">trending_up</span> 14%</span>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-lg rounded-xl border border-outline-variant shadow-sm">
+<p class="text-label-caps text-on-surface-variant mb-2">CONVERSION RATE</p>
+<div class="flex items-end justify-between">
+<h3 class="text-display-lg font-display-lg text-secondary">24.8%</h3>
+<span class="text-error font-bold text-body-sm flex items-center"><span class="material-symbols-outlined" data-icon="trending_down">trending_down</span> 2%</span>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-lg rounded-xl border border-outline-variant shadow-sm">
+<p class="text-label-caps text-on-surface-variant mb-2">PIPELINE VALUE</p>
+<div class="flex items-end justify-between">
+<h3 class="text-display-lg font-display-lg text-on-surface">$1.2M</h3>
+<span class="text-primary font-bold text-body-sm flex items-center"><span class="material-symbols-outlined" data-icon="trending_up">trending_up</span> 8%</span>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-lg rounded-xl border border-outline-variant shadow-sm">
+<p class="text-label-caps text-on-surface-variant mb-2">ACTIVE CAMPAIGNS</p>
+<div class="flex items-end justify-between">
+<h3 class="text-display-lg font-display-lg text-tertiary">08</h3>
+<span class="text-on-surface-variant font-bold text-body-sm">Stable</span>
+</div>
+</div>
+</div>
+</div>
+</main>
+<script>
+        // Simple micro-interaction for rows
+        document.querySelectorAll('tbody tr').forEach(row => {
+            row.addEventListener('click', () => {
+                console.log('Lead row clicked - Navigate to detail view');
+            });
+        });
+
+        // Toggle Sync State visual simulation
+        setInterval(() => {
+            const pulses = document.querySelectorAll('.sync-pulse');
+            pulses.forEach(p => {
+                p.classList.add('opacity-50');
+                setTimeout(() => p.classList.remove('opacity-50'), 500);
+            });
+        }, 5000);
+    </script>
+</body></html>
