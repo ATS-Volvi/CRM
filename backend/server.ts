@@ -15,7 +15,8 @@ export function createServer(): Express {
     res.json({ status: "ok", service: "nexus-crm-backend" });
   });
 
-  // TODO: mount /api/v1 routers here (leads, pipeline, quotes, approvals, etc.)
+  import v1Router from "./src/routes/v1";
+  app.use("/api/v1", v1Router);
 
   return app;
 }
