@@ -60,3 +60,49 @@ export const mockPurchaseOrders = [
   { id: "PO-2023-001", client: "Acme Corp", amount: 45000.00, status: "Verified", date: "2023-10-24" },
   { id: "PO-2023-002", client: "TechStart Inc", amount: 120000.00, status: "Pending", date: "2023-10-23" }
 ];
+
+export const mockPriceBook = [
+  { id: 1, name: "CloudCompute Ultra-9", sku: "CC-U9-2024", category: "Cloud Services", msrp: 1499.00, floor_price: 1250.00, uplift: 12, status: "Active" },
+  { id: 2, name: "Guardian FireWall Pro", sku: "GFW-PRO-X", category: "Cyber Security", msrp: 850.00, floor_price: 780.00, uplift: 5, status: "Review" },
+  { id: 3, name: "Quantum Core Processor", sku: "QC-PROC-M1", category: "Hardware", msrp: 3200.00, floor_price: 2800.00, uplift: 15, status: "Active" },
+  { id: 4, name: "API Gateway Connect", sku: "API-CONN-LT", category: "SaaS / Integration", msrp: 299.00, floor_price: 240.00, uplift: 0, status: "Active" }
+];
+export const mockApprovals = [
+  { 
+    id: "app-1", 
+    reason: "15% Discount", 
+    subReason: "Threshold Breach",
+    isCritical: false,
+    requestor: "Sameer Malik",
+    region: "Dubai Hub",
+    quoteName: "Etisalat Enterprise Q4",
+    notes: "Standard cloud bundle + 2 years support...",
+    value: 142500,
+    date: "Oct 24, 2023"
+  },
+  { 
+    id: "app-2", 
+    reason: "Quote > $100k", 
+    subReason: "High Value Policy",
+    isCritical: false,
+    requestor: "Fatima P.",
+    region: "Riyadh Office",
+    quoteName: "NEOM Infrastructure Ph1",
+    notes: "Global site license for Phase 1 construction...",
+    value: 890000,
+    date: "Oct 23, 2023"
+  },
+  { 
+    id: "app-3", 
+    reason: "Non-standard Terms", 
+    subReason: "Legal Review Required",
+    isCritical: true,
+    requestor: "Rahul J.",
+    region: "Mumbai Hub",
+    quoteName: "Tata Steel Modernization",
+    notes: "Net 90 payment terms requested by client...",
+    value: 45000,
+    date: "Oct 23, 2023"
+  }
+];
+export * from './assignmentRules';

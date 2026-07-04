@@ -23,13 +23,16 @@ router.get("/kpis/management", async (req, res) => {
 // Protect all following routes
 router.use(authMiddleware);
 
-import { mockLeads, mockPipeline, mockQuotes, mockPurchaseOrders } from "../mockData";
+import { mockLeads, mockPipeline, mockQuotes, mockPurchaseOrders, mockPriceBook, mockApprovals, mockAssignmentRules } from "../mockData";
 
 // Mock CRUD routes
 router.get("/leads", (req, res) => { res.json(mockLeads); });
 router.get("/pipeline", (req, res) => { res.json(mockPipeline); });
 router.get("/quotes", (req, res) => { res.json(mockQuotes); });
 router.get("/purchase-orders", (req, res) => { res.json(mockPurchaseOrders); });
+router.get("/price-book", (req, res) => { res.json(mockPriceBook); });
+router.get("/approvals", (req, res) => { res.json(mockApprovals); });
+router.get("/assignment-rules", (req, res) => { res.json(mockAssignmentRules); });
 
 // Generic CRUD factory for quick scaffolding (Database required)
 const createCrudRoutes = (model: any) => {
