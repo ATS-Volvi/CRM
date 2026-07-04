@@ -28,11 +28,16 @@ export default function ManagementDashboard() {
           <h3 className="text-4xl font-bold text-on-surface">Global Performance</h3>
         </div>
         <div className="flex gap-4">
-          <button className="flex items-center gap-2 px-6 py-4 rounded-lg border border-outline-variant bg-surface-container-lowest text-sm font-semibold hover:bg-surface-container transition-colors shadow-sm">
-            <Calendar className="w-5 h-5" />
-            Last 30 Days
-            <ChevronDown className="w-4 h-4" />
-          </button>
+          <div className="relative">
+            <select className="appearance-none flex items-center gap-2 px-6 py-4 pl-12 pr-10 rounded-lg border border-outline-variant bg-surface-container-lowest text-sm font-semibold hover:bg-surface-container transition-colors shadow-sm cursor-pointer outline-none focus:ring-2 focus:ring-primary text-on-surface">
+              <option>Last 30 Days</option>
+              <option>Last 90 Days</option>
+              <option>This Year</option>
+              <option>All Time</option>
+            </select>
+            <Calendar className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface" />
+            <ChevronDown className="w-4 h-4 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface" />
+          </div>
           <button className="flex items-center gap-2 px-6 py-4 rounded-lg bg-secondary text-on-secondary text-sm font-semibold hover:bg-opacity-90 transition-all shadow-md">
             <Download className="w-5 h-5" />
             Export PDF
