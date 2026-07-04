@@ -8,7 +8,7 @@ export default function ManagementDashboard() {
   const { data: kpi, isLoading, error } = useQuery({
     queryKey: ["managementKpi"],
     queryFn: async () => {
-      const res = await fetch("http://localhost:5505/api/v1/kpis/management", {
+      const res = await fetch("/api/v1/kpis/management", {
         headers: {
           // Placeholder for auth token
           "Authorization": "Bearer dummy" 
