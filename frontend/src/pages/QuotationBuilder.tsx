@@ -1,6 +1,20 @@
+import { useQuery } from "@tanstack/react-query";
 import { Search, PlusCircle, Trash2, Lightbulb, ZoomIn, Printer, Maximize, BarChart2, Clock, MessageSquare, History } from "lucide-react";
 
 export default function QuotationBuilder() {
+  const { data: quotes, isLoading } = useQuery({
+    queryKey: ["quotes"],
+    queryFn: async () => {
+      const res = await fetch("/api/v1/quotes", {
+        headers: { "Authorization": "Bearer dummy" }
+      });
+      if (!res.ok) throw new Error("Failed to fetch quotes");
+      return res.json();
+    }
+  });
+
+  const quote = quotes?.[0]; // Show the first one for the builder
+
   return (
     <div className="flex-1 overflow-y-auto p-8 bg-background h-[calc(100vh-64px)]">
       <div className="max-w-[1600px] mx-auto grid grid-cols-12 gap-8 h-full">
@@ -9,19 +23,25 @@ export default function QuotationBuilder() {
           
           {/* Client Header Card */}
           <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 flex justify-between items-center shadow-sm">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-secondary-container rounded-lg flex items-center justify-center text-on-secondary-container">
-                <span className="text-2xl font-bold">H</span>
-              </div>
-              <div>
-                <h2 className="text-2xl font-bold text-on-surface">Horizon Logistics Corp</h2>
-                <p className="text-sm text-on-surface-variant">Opportunity: <span className="font-semibold text-secondary">Q4 Tech Upgrade #882</span> • Owner: Alex Chen</p>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <button className="px-3 py-1.5 border border-outline text-sm font-semibold rounded hover:bg-surface-container transition-colors">Edit Client Info</button>
-              <button className="px-3 py-1.5 border border-primary text-primary text-sm font-semibold rounded hover:bg-primary/5 transition-colors">Select Template</button>
-            </div>
+            {isLoading ? (
+              <div className="animate-pulse flex items-center gap-4 w-full h-12 bg-surface-container-low rounded"></div>
+            ) : (
+              <>
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-secondary-container rounded-lg flex items-center justify-center text-on-secondary-container">
+                    <span className="text-2xl font-bold">{quote?.client.charAt(0)}</span>
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-on-surface">{quote?.client}</h2>
+                    <p className="text-sm text-on-surface-variant">Opportunity: <span className="font-semibold text-secondary">{quote?.opportunity}</span> • Owner: {quote?.owner}</p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button className="px-3 py-1.5 border border-outline text-sm font-semibold rounded hover:bg-surface-container transition-colors">Edit Client Info</button>
+                  <button className="px-3 py-1.5 border border-primary text-primary text-sm font-semibold rounded hover:bg-primary/5 transition-colors">Select Template</button>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Line Items Table */}
@@ -46,34 +66,27 @@ export default function QuotationBuilder() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-outline-variant">
-                  <tr>
-                    <td className="px-4 py-4">
-                      <div className="text-base font-semibold">Enterprise Cloud Suite (Annual)</div>
-                      <div className="text-xs text-on-surface-variant italic">Suggested: Managed Migration Add-on</div>
-                    </td>
-                    <td className="px-4 py-4"><input className="w-full text-center border-outline-variant rounded py-1 text-base focus:ring-primary focus:border-primary" type="number" defaultValue="1" /></td>
-                    <td className="px-4 py-4 text-sm font-medium">$12,500.00</td>
-                    <td className="px-4 py-4"><input className="w-full border-outline-variant rounded py-1 text-base focus:ring-primary focus:border-primary" type="number" defaultValue="5" /></td>
-                    <td className="px-4 py-4 text-sm">15%</td>
-                    <td className="px-4 py-4 text-right font-semibold text-sm">$11,875.00</td>
-                    <td className="px-4 py-4 text-on-surface-variant hover:text-error cursor-pointer">
-                      <Trash2 className="w-5 h-5" />
-                    </td>
-                  </tr>
-                  <tr className="bg-surface-container-low/30">
-                    <td className="px-4 py-4">
-                      <div className="text-base font-semibold">Priority Support - 24/7</div>
-                      <div className="text-xs text-on-surface-variant">Service SKU: SUPPORT-ENT</div>
-                    </td>
-                    <td className="px-4 py-4"><input className="w-full text-center border-outline-variant rounded py-1 text-base focus:ring-primary focus:border-primary" type="number" defaultValue="12" /></td>
-                    <td className="px-4 py-4 text-sm font-medium">$450.00</td>
-                    <td className="px-4 py-4"><input className="w-full border-outline-variant rounded py-1 text-base focus:ring-primary focus:border-primary" type="number" defaultValue="0" /></td>
-                    <td className="px-4 py-4 text-sm">15%</td>
-                    <td className="px-4 py-4 text-right font-semibold text-sm">$5,400.00</td>
-                    <td className="px-4 py-4 text-on-surface-variant hover:text-error cursor-pointer">
-                      <Trash2 className="w-5 h-5" />
-                    </td>
-                  </tr>
+                  {isLoading ? (
+                    <tr>
+                      <td colSpan={7} className="px-4 py-8 text-center text-on-surface-variant animate-pulse">Loading items...</td>
+                    </tr>
+                  ) : (
+                    quote?.items.map((item: any, i: number) => (
+                      <tr key={item.id} className={i % 2 === 1 ? "bg-surface-container-low/30" : ""}>
+                        <td className="px-4 py-4">
+                          <div className="text-base font-semibold">{item.name}</div>
+                        </td>
+                        <td className="px-4 py-4"><input className="w-full text-center border-outline-variant rounded py-1 text-base focus:ring-primary focus:border-primary" type="number" defaultValue={item.qty} /></td>
+                        <td className="px-4 py-4 text-sm font-medium">${item.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        <td className="px-4 py-4"><input className="w-full border-outline-variant rounded py-1 text-base focus:ring-primary focus:border-primary" type="number" defaultValue={item.discount} /></td>
+                        <td className="px-4 py-4 text-sm">{item.tax}%</td>
+                        <td className="px-4 py-4 text-right font-semibold text-sm">${item.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        <td className="px-4 py-4 text-on-surface-variant hover:text-error cursor-pointer">
+                          <Trash2 className="w-5 h-5" />
+                        </td>
+                      </tr>
+                    ))
+                  )}
                   <tr>
                     <td className="px-4 py-4" colSpan={7}>
                       <div className="flex items-center gap-3 p-3 bg-primary-container/10 border border-primary-container rounded-lg">
@@ -105,8 +118,8 @@ export default function QuotationBuilder() {
                 <div className="text-4xl font-extrabold text-primary">CRM.</div>
                 <div className="text-right">
                   <h1 className="text-3xl font-bold uppercase tracking-widest text-on-surface-variant mb-2">Quotation</h1>
-                  <p className="text-sm font-semibold">QT-2023-88219</p>
-                  <p className="text-xs text-on-surface-variant">Date: Oct 24, 2023</p>
+                  <p className="text-sm font-semibold">{quote?.id || "QT-NEW"}</p>
+                  <p className="text-xs text-on-surface-variant">Date: {quote?.date || "Today"}</p>
                 </div>
               </div>
               
@@ -119,7 +132,7 @@ export default function QuotationBuilder() {
                 </div>
                 <div>
                   <h4 className="text-xs font-bold uppercase text-on-surface-variant mb-2">Prepared For:</h4>
-                  <p className="text-sm font-bold">Horizon Logistics Corp</p>
+                  <p className="text-sm font-bold">{quote?.client || "Client Name"}</p>
                   <p className="text-xs">Financial Center Rd, Downtown Dubai</p>
                   <p className="text-xs">Attn: Sarah Jenkins</p>
                 </div>
