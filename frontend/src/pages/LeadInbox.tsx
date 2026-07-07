@@ -44,6 +44,21 @@ export default function LeadInbox() {
     },
   });
 
+  const updateLeadMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string, data: any }) => {
+      const res = await fetch(`/api/v1/leads/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+    },
+  });
+
   const { data: leads, isLoading } = useQuery({
     queryKey: ["leads"],
     queryFn: async () => {
@@ -262,9 +277,15 @@ export default function LeadInbox() {
                     </td>
                     <td className="px-6 py-4 text-sm text-on-surface-variant">{lead.waitTime || 'N/A'}</td>
                     <td className="px-6 py-4 text-right">
-                      {lead.status === 'New Lead' ? (
+                      {lead.status === 'New Lead' || lead.status === 'New' ? (
                         <div className="flex items-center gap-2 justify-end">
-                          <button className="px-4 py-1.5 bg-primary text-on-primary rounded text-[12px] font-bold hover:bg-primary-container transition-all">Claim</button>
+                          <button 
+                            onClick={() => updateLeadMutation.mutate({ id: lead.id, data: { status: 'Contacted' } })}
+                            disabled={updateLeadMutation.isPending}
+                            className="px-4 py-1.5 bg-primary text-on-primary rounded text-[12px] font-bold hover:bg-primary-container transition-all"
+                          >
+                            Claim
+                          </button>
                           <button 
                             onClick={() => { if(confirm("Are you sure?")) deleteLeadMutation.mutate(lead.id); }}
                             className="p-1.5 text-error hover:bg-error-container rounded transition-colors"
