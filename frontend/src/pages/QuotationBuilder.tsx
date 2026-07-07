@@ -1,16 +1,83 @@
-import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "../context/AuthContext";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { useState } from "react";
 import { Search, PlusCircle, Trash2, Lightbulb, ZoomIn, Printer, Maximize, BarChart2, Clock, MessageSquare, History } from "lucide-react";
 import { formatCurrency, formatCurrencyCompact } from "../utils/currency";
 
 export default function QuotationBuilder() {
+  const { token } = useAuth();
+
   const { data: quotes, isLoading } = useQuery({
     queryKey: ["quotes"],
     queryFn: async () => {
       const res = await fetch("/api/v1/quotes", {
-        headers: { "Authorization": "Bearer dummy" }
+        headers: { "Authorization": `Bearer ${token}` }
       });
       if (!res.ok) throw new Error("Failed to fetch quotes");
       return res.json();
+    }
+  });
+
+  const { data: deals } = useQuery({
+    queryKey: ["pipeline"],
+    queryFn: async () => {
+      const res = await fetch("/api/v1/pipeline", { headers: { "Authorization": `Bearer ${token}` } });
+      if (!res.ok) return [];
+      const pipeline = await res.json();
+      return pipeline.flatMap((col: any) => col.deals);
+    }
+  });
+
+  const { data: products } = useQuery({
+    queryKey: ["priceBook"],
+    queryFn: async () => {
+      const res = await fetch("/api/v1/price-book", { headers: { "Authorization": `Bearer ${token}` } });
+      if (!res.ok) return [];
+      return res.json();
+    }
+  });
+
+  const [selectedDealId, setSelectedDealId] = useState("");
+  const [items, setItems] = useState<any[]>([]);
+
+  const addItem = () => {
+    setItems([...items, { productId: "", quantity: 1, unitPrice: 0, total: 0 }]);
+  };
+
+  const updateItem = (index: number, field: string, value: any) => {
+    const newItems = [...items];
+    newItems[index][field] = value;
+    if (field === 'productId') {
+      const prod = products?.find((p: any) => p.id === value);
+      if (prod) {
+        newItems[index].unitPrice = parseFloat(prod.msrp || prod.listPrice || 0);
+      }
+    }
+    newItems[index].total = newItems[index].quantity * newItems[index].unitPrice;
+    setItems(newItems);
+  };
+
+  const removeItem = (index: number) => {
+    setItems(items.filter((_: any, i: number) => i !== index));
+  };
+
+  const saveMutation = useMutation({
+    mutationFn: async (status: string) => {
+      const res = await fetch("/api/v1/quotes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({
+          dealId: selectedDealId,
+          items,
+          status
+        })
+      });
+      if (!res.ok) throw new Error("Failed to save quote");
+      return res.json();
+    },
+    onSuccess: () => {
+      alert("Quote saved!");
+      window.location.href = "/quotes";
     }
   });
 
@@ -29,17 +96,26 @@ export default function QuotationBuilder() {
             ) : (
               <>
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-secondary-container rounded-lg flex items-center justify-center text-on-secondary-container">
-                    <span className="text-2xl font-bold">{quote?.client.charAt(0)}</span>
-                  </div>
                   <div>
-                    <h2 className="text-2xl font-bold text-on-surface">{quote?.client}</h2>
-                    <p className="text-sm text-on-surface-variant">Opportunity: <span className="font-semibold text-secondary">{quote?.opportunity}</span> • Owner: {quote?.owner}</p>
+                    <h2 className="text-2xl font-bold text-on-surface">New Quotation</h2>
+                    <div className="flex items-center gap-2 mt-2">
+                      <span className="text-sm font-semibold text-on-surface-variant">Select Deal:</span>
+                      <select 
+                        className="bg-surface border border-outline-variant rounded p-1 text-sm"
+                        value={selectedDealId}
+                        onChange={e => setSelectedDealId(e.target.value)}
+                      >
+                        <option value="">-- Choose Deal --</option>
+                        {deals?.map((d: any) => (
+                          <option key={d.id} value={d.id}>{d.name} ({d.client || 'Unknown Client'})</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <button className="px-3 py-1.5 border border-outline text-sm font-semibold rounded hover:bg-surface-container transition-colors">Edit Client Info</button>
-                  <button className="px-3 py-1.5 border border-primary text-primary text-sm font-semibold rounded hover:bg-primary/5 transition-colors">Select Template</button>
+                  <button onClick={() => saveMutation.mutate("Draft")} disabled={saveMutation.isPending || !selectedDealId} className="px-3 py-1.5 border border-outline text-sm font-semibold rounded hover:bg-surface-container transition-colors disabled:opacity-50">Save as Draft</button>
+                  <button onClick={() => saveMutation.mutate("Pending")} disabled={saveMutation.isPending || !selectedDealId} className="px-3 py-1.5 bg-primary text-white text-sm font-semibold rounded hover:bg-primary/90 transition-colors disabled:opacity-50">Send for Approval</button>
                 </div>
               </>
             )}
@@ -49,7 +125,7 @@ export default function QuotationBuilder() {
           <div className="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden shadow-sm">
             <div className="p-4 border-b border-outline-variant flex justify-between items-center">
               <span className="text-[12px] font-bold text-on-surface-variant uppercase tracking-wider">Line Items</span>
-              <button className="text-primary font-semibold text-sm flex items-center gap-1">
+              <button onClick={addItem} className="text-primary font-semibold text-sm flex items-center gap-1">
                 <PlusCircle className="w-4 h-4" /> Add Product
               </button>
             </div>
@@ -67,22 +143,31 @@ export default function QuotationBuilder() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-outline-variant">
-                  {isLoading ? (
+                  {items.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-4 py-8 text-center text-on-surface-variant animate-pulse">Loading items...</td>
+                      <td colSpan={7} className="px-4 py-8 text-center text-on-surface-variant">No items added. Click "Add Product" to begin.</td>
                     </tr>
                   ) : (
-                    quote?.items.map((item: any, i: number) => (
-                      <tr key={item.id} className={i % 2 === 1 ? "bg-surface-container-low/30" : ""}>
+                    items.map((item: any, i: number) => (
+                      <tr key={i} className={i % 2 === 1 ? "bg-surface-container-low/30" : ""}>
                         <td className="px-4 py-4">
-                          <div className="text-base font-semibold">{item.name}</div>
+                          <select 
+                            className="w-full border border-outline-variant rounded p-1 text-sm bg-transparent"
+                            value={item.productId}
+                            onChange={(e) => updateItem(i, 'productId', e.target.value)}
+                          >
+                            <option value="">Select Product...</option>
+                            {products?.map((p: any) => (
+                              <option key={p.id} value={p.id}>{p.name}</option>
+                            ))}
+                          </select>
                         </td>
-                        <td className="px-4 py-4"><input className="w-full text-center border-outline-variant rounded py-1 text-base focus:ring-primary focus:border-primary" type="number" defaultValue={item.qty} /></td>
-                        <td className="px-4 py-4 text-sm font-medium">{formatCurrency(item.price)}</td>
-                        <td className="px-4 py-4"><input className="w-full border-outline-variant rounded py-1 text-base focus:ring-primary focus:border-primary" type="number" defaultValue={item.discount} /></td>
-                        <td className="px-4 py-4 text-sm">{item.tax}%</td>
+                        <td className="px-4 py-4"><input className="w-full text-center border-outline-variant rounded py-1 text-base focus:ring-primary focus:border-primary" type="number" min="1" value={item.quantity} onChange={(e) => updateItem(i, 'quantity', parseInt(e.target.value) || 0)} /></td>
+                        <td className="px-4 py-4 text-sm font-medium"><input className="w-full text-center border-outline-variant rounded py-1 text-base focus:ring-primary focus:border-primary" type="number" value={item.unitPrice} onChange={(e) => updateItem(i, 'unitPrice', parseFloat(e.target.value) || 0)} /></td>
+                        <td className="px-4 py-4"><input className="w-full border-outline-variant rounded py-1 text-base focus:ring-primary focus:border-primary" type="number" value={item.discount || 0} onChange={(e) => updateItem(i, 'discount', parseFloat(e.target.value) || 0)} /></td>
+                        <td className="px-4 py-4 text-sm">0%</td>
                         <td className="px-4 py-4 text-right font-semibold text-sm">{formatCurrency(item.total)}</td>
-                        <td className="px-4 py-4 text-on-surface-variant hover:text-error cursor-pointer">
+                        <td className="px-4 py-4 text-on-surface-variant hover:text-error cursor-pointer" onClick={() => removeItem(i)}>
                           <Trash2 className="w-5 h-5" />
                         </td>
                       </tr>

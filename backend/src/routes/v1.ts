@@ -32,7 +32,7 @@ import { getPipeline, moveDealStage, createDeal } from "../controllers/pipelineC
 import { getLeadActivities, createActivity, togglePinActivity } from "../controllers/activityController";
 import { getLeads, createLead, deleteLead } from '../controllers/leadController';
 import { getPriceBookEntries, createPriceBookEntry, updatePriceBookEntry, deletePriceBookEntry } from '../controllers/priceBookController';
-import { getQuotes } from '../controllers/quoteController';
+import { getQuotes, createQuote } from '../controllers/quoteController';
 
 // ==========================================
 // LEADS
@@ -51,6 +51,7 @@ router.put("/pipeline/deals/:id/stage", authMiddleware, moveDealStage);
 // QUOTES
 // ==========================================
 router.get("/quotes", authMiddleware, getQuotes);
+router.post("/quotes", authMiddleware, createQuote);
 
 // ==========================================
 // PRICE BOOK
