@@ -33,6 +33,7 @@ import { getLeadActivities, createActivity, togglePinActivity } from "../control
 import { getLeads, createLead, deleteLead } from '../controllers/leadController';
 import { getPriceBookEntries, createPriceBookEntry, updatePriceBookEntry, deletePriceBookEntry } from '../controllers/priceBookController';
 import { getQuotes, createQuote } from '../controllers/quoteController';
+import { getPurchaseOrders } from '../controllers/purchaseOrderController';
 
 // ==========================================
 // LEADS
@@ -59,9 +60,11 @@ router.post("/quotes", authMiddleware, createQuote);
 router.get("/price-book", authMiddleware, getPriceBookEntries);
 router.post("/price-book", authMiddleware, createPriceBookEntry);
 router.put("/price-book/:id", authMiddleware, updatePriceBookEntry);
-router.delete("/price-book/:id", authMiddleware, deletePriceBookEntry);
+// ==========================================
+// PURCHASE ORDERS
+// ==========================================
+router.get("/purchase-orders", authMiddleware, getPurchaseOrders);
 
-router.get("/purchase-orders", (req, res) => { res.json(mockPurchaseOrders); });
 router.get("/approvals", (req, res) => { res.json(mockApprovals); });
 router.get("/assignment-rules", (req, res) => { res.json(mockAssignmentRules); });
 

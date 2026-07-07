@@ -1,13 +1,16 @@
+import { useAuth } from "../context/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { FileText, Download, MoreVertical, Plus } from "lucide-react";
 import { formatCurrency } from "../utils/currency";
 
 export default function PurchaseOrders() {
+  const { token } = useAuth();
+
   const { data: pos, isLoading } = useQuery({
     queryKey: ["purchase-orders"],
     queryFn: async () => {
       const res = await fetch("/api/v1/purchase-orders", {
-        headers: { "Authorization": "Bearer dummy" }
+        headers: { "Authorization": `Bearer ${token}` }
       });
       if (!res.ok) throw new Error("Failed to fetch purchase orders");
       return res.json();
@@ -47,10 +50,17 @@ export default function PurchaseOrders() {
                   <td colSpan={5} className="px-6 py-8 text-center text-on-surface-variant animate-pulse">Loading purchase orders...</td>
                 </tr>
               ) : (
-                pos?.map((po: any) => (
+                pos?.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-8 text-center text-on-surface-variant">No purchase orders found.</td>
+                  </tr>
+                ) : (
+                pos?.map((po: any) => {
+                  const clientName = po.quote?.deal?.lead?.company || po.quote?.deal?.lead?.firstName + " " + po.quote?.deal?.lead?.lastName || "Unknown Client";
+                  return (
                   <tr key={po.id} className="hover:bg-surface-container transition-colors">
-                    <td className="px-6 py-4 font-bold text-primary">{po.id}</td>
-                    <td className="px-6 py-4">{po.client}</td>
+                    <td className="px-6 py-4 font-bold text-primary">{po.poNumber || po.id.substring(0,8)}</td>
+                    <td className="px-6 py-4">{clientName}</td>
                     <td className="px-6 py-4 font-medium">{formatCurrency(po.amount)}</td>
                     <td className="px-6 py-4">
                       <span className={`px-2 py-1 text-[10px] font-bold rounded uppercase ${po.status === 'Verified' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
@@ -62,7 +72,9 @@ export default function PurchaseOrders() {
                       <button className="p-2 text-on-surface-variant hover:text-primary"><MoreVertical className="w-4 h-4" /></button>
                     </td>
                   </tr>
-                ))
+                  );
+                })
+                )
               )}
             </tbody>
           </table>
