@@ -46,6 +46,58 @@ export const createLead = async (req: Request, res: Response) => {
   }
 };
 
+export const updateLead = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
+    const lead = await sequelize.models.Lead.findByPk(id);
+    if (!lead) return res.status(404).json({ error: "Lead not found" });
+    
+    await lead.update(updateData);
+    res.json(lead);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const getDuplicateLeads = async (req: Request, res: Response) => {
+  try {
+    // A simple heuristic: Group leads by exact email OR exact company
+    const leads = await sequelize.models.Lead.findAll();
+    
+    const groups: { [key: string]: any[] } = {};
+    leads.forEach((l: any) => {
+      const emailDomain = l.email ? l.email.split('@')[1] : null;
+      // Key can be exact email or domain, here we just do exact email for simplicity if it exists
+      const key = l.email ? l.email.toLowerCase() : l.company ? l.company.toLowerCase() : l.id;
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(l);
+    });
+
+    // Return only groups that have > 1 lead
+    const duplicateGroups = Object.values(groups).filter(g => g.length > 1);
+    res.json(duplicateGroups);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const mergeLeads = async (req: Request, res: Response) => {
+  try {
+    const { masterId, duplicateIds } = req.body;
+    
+    // In a real app, we would re-assign Deals, Activities, etc to masterId.
+    // For this prototype, we'll just delete the duplicates.
+    await sequelize.models.Lead.destroy({
+      where: { id: duplicateIds }
+    });
+
+    res.json({ success: true, message: `Merged ${duplicateIds.length} duplicates into master ${masterId}` });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 export const deleteLead = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;

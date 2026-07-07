@@ -1,5 +1,7 @@
 import { Database, sequelize } from "@nexus-crm/database";
 import { mockLeads, mockPipeline, mockQuotes, mockPurchaseOrders, mockPriceBook, mockApprovals, mockAssignmentRules } from "./index";
+import bcrypt from "bcrypt";
+import crypto from "crypto";
 
 async function seedDatabase() {
   try {
@@ -9,17 +11,18 @@ async function seedDatabase() {
     
     const models = sequelize.models;
     
-    // Create a mock user since many records depend on owners
     let mockUser: any;
     if (models.User) {
       console.log("Creating Mock User...");
-      mockUser = await models.User.create({
-        id: "mock-user",
+      const hashedPassword = await bcrypt.hash("password123", 10);
+      const adminUser = await models.User.create({
+        id: crypto.randomUUID(),
         name: "Admin User",
-        email: "admin@nexus.test",
-        password: "hashedpassword",
+        email: "admin@nexus.com",
+        password: hashedPassword,
         role: "admin"
       });
+      mockUser = adminUser;
     }
 
     if (models.Lead) {
@@ -30,7 +33,7 @@ async function seedDatabase() {
         const lastName = parts.slice(1).join(' ') || 'Unknown';
         
         return {
-          id: l.id,
+          id: crypto.randomUUID(),
           firstName,
           lastName,
           company: l.name,
@@ -51,14 +54,14 @@ async function seedDatabase() {
       const stageRecords = [];
       for (let i = 0; i < stages.length; i++) {
         stageRecords.push(await models.PipelineStage.create({
-          id: `stage-${i + 1}`,
+          id: crypto.randomUUID(),
           name: stages[i],
           order: i + 1
         }));
       }
 
       mockDeal = await models.Deal.create({
-        id: "deal-1",
+        id: crypto.randomUUID(),
         name: "Mock Deal",
         amount: 10000,
         stageId: (stageRecords[0] as any).id,
@@ -69,7 +72,7 @@ async function seedDatabase() {
     if (models.Quote && mockDeal) {
       console.log("Seeding Quotes...");
       await models.Quote.bulkCreate(mockQuotes.map((q: any) => ({
-        id: q.id,
+        id: crypto.randomUUID(),
         dealId: mockDeal.id,
         status: q.status,
         totalAmount: q.items ? q.items.reduce((acc: number, item: any) => acc + item.total, 0) : 0,
@@ -79,7 +82,7 @@ async function seedDatabase() {
     if (models.PriceBookEntry) {
       console.log("Seeding PriceBook...");
       await models.PriceBookEntry.bulkCreate(mockPriceBook.map(p => ({
-        id: p.id.toString(),
+        id: crypto.randomUUID(),
         name: p.name,
         sku: p.sku,
         category: p.category,

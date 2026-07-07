@@ -1,0 +1,334 @@
+
+--- App.tsx ---
+
+--- Layout.tsx ---
+L29: <Link
+  key={item.path}
+  to={item.path}
+L64: <button className="p-2 text-on-surface-variant hover:text-primary transition-colors relative">
+  <Bell className="w-5 h-5" />
+  <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-error rounded-full"></span>
+L69: <button className="flex items-center gap-2 py-2 px-4 bg-primary text-on-primary font-bold rounded-lg shadow-md hover:bg-primary-container transition-all active:scale-95">
+  <Plus className="w-5 h-5" />
+  <span className="text-sm">+ Quick Add</span>
+
+--- AuthContext.tsx ---
+
+--- main.tsx ---
+
+--- ApprovalQueue.tsx ---
+L50: <button className="flex items-center gap-1 px-3 py-1.5 border border-outline text-sm rounded hover:bg-surface-container transition-colors">
+  <Filter className="w-4 h-4" /> Filter
+  </button>
+L113: <button onClick={() => updateMutation.mutate({ id: item.id, status: 'Rejected' })} className="p-1 text-error hover:bg-error-container rounded-lg" title="Reject">
+  <X className="w-5 h-5" />
+  </button>
+L116: <button onClick={() => updateMutation.mutate({ id: item.id, status: 'Approved' })} className="p-1 text-on-primary bg-primary rounded-lg shadow-sm hover:scale-105 active:scale-95" title="Approve">
+  <Check className="w-5 h-5" />
+  </button>
+L217: <button className="w-full mt-4 text-primary font-bold text-[12px] py-2 hover:bg-surface-container transition-colors rounded">
+  View Full History
+  </button>
+
+--- AssignmentRules.tsx ---
+L39: <button className="bg-primary text-on-primary px-4 py-2 rounded-lg text-[12px] font-bold shadow-sm hover:opacity-90 transition-all">+ Quick Add</button>
+  </div>
+  </header>
+L53: <button className="px-4 py-2 text-secondary font-bold text-[12px] uppercase border border-secondary rounded-lg hover:bg-surface-container">Export Logic</button>
+  <button className="px-4 py-2 bg-primary text-on-primary font-bold text-[12px] uppercase rounded-lg flex items-center gap-2">
+  <Plus className="w-4 h-4" /> Create New Rule
+L54: <button className="px-4 py-2 bg-primary text-on-primary font-bold text-[12px] uppercase rounded-lg flex items-center gap-2">
+  <Plus className="w-4 h-4" /> Create New Rule
+  </button>
+L143: <button className="text-primary font-bold text-[12px] uppercase">Edit Strategy</button>
+  </div>
+  </div>
+L197: <button className="w-full mt-6 py-2 text-primary font-bold text-[12px] uppercase border border-primary/20 rounded-lg hover:bg-primary/5 transition-colors">Balance All Limits</button>
+  </section>
+  
+
+--- KpiDashboard.tsx ---
+L127: <button
+  onClick={() => setActiveModal("planWeek")}
+  className="flex items-center gap-2 px-4 py-2 bg-white border border-outline-variant rounded-lg font-bold text-on-surface hover:shadow-md transition-all"
+L134: <button
+  onClick={() => setActiveModal("dailyReport")}
+  className="flex items-center gap-2 px-4 py-2 bg-secondary text-white rounded-lg font-bold hover:opacity-90 transition-all shadow-md"
+L173: <button
+  onClick={() => setActiveModal("allTasks")}
+  className="w-full py-3 bg-surface-container-lowest border-t border-outline-variant text-[12px] font-bold text-primary hover:bg-primary hover:text-white transition-all uppercase"
+L229: <button
+  onClick={() => setActiveModal("calendar")}
+  className="w-full py-3 bg-surface-container-lowest border-t border-outline-variant text-[12px] font-bold text-secondary hover:bg-secondary hover:text-white transition-all uppercase"
+L264: <button
+  onClick={handleClearUrgent}
+  className="w-full py-3 bg-surface-container-lowest border-t border-outline-variant text-[12px] font-bold text-error hover:bg-error hover:text-white transition-all uppercase"
+L281: <button className="px-4 py-1.5 bg-white rounded shadow-sm text-[10px] font-bold text-primary uppercase">MTD</button>
+  <button className="px-4 py-1.5 rounded text-[10px] font-bold text-on-surface-variant uppercase">Q3</button>
+  </div>
+L282: <button className="px-4 py-1.5 rounded text-[10px] font-bold text-on-surface-variant uppercase">Q3</button>
+  </div>
+  </div>
+L347: <button
+  onClick={() => setActiveModal(null)}
+  className="p-2 hover:bg-surface-container rounded-full text-on-surface-variant transition-colors"
+L446: <button
+  onClick={handleAddTask}
+  disabled={!newTaskTitle.trim()}
+L456: <button onClick={() => setActiveModal(null)} className="px-6 py-2.5 bg-primary text-white font-bold rounded-lg hover:opacity-90 shadow-md transition-all whitespace-nowrap ml-4">Save Weekly Plan</button>
+  </div>
+  </div>
+L480: <button onClick={() => setActiveModal(null)} className="px-6 py-2.5 bg-surface-container text-on-surface font-bold rounded-lg hover:bg-surface-container-high transition-colors">Cancel</button>
+  <button onClick={() => setActiveModal(null)} className="px-6 py-2.5 bg-secondary text-white font-bold rounded-lg hover:bg-secondary/90 shadow-md flex items-center gap-2 transition-all">
+  <Send className="w-4 h-4" /> Send Report
+L481: <button onClick={() => setActiveModal(null)} className="px-6 py-2.5 bg-secondary text-white font-bold rounded-lg hover:bg-secondary/90 shadow-md flex items-center gap-2 transition-all">
+  <Send className="w-4 h-4" /> Send Report
+  </button>
+L518: <button onClick={() => setActiveModal(null)} className="px-6 py-2.5 bg-surface-container text-on-surface font-bold rounded-lg hover:bg-surface-container-high transition-colors">
+  Go to Settings
+  </button>
+
+--- LeadDetail.tsx ---
+L111: <button
+  onClick={() => {
+  setNoteType("call");
+L123: <button
+  onClick={() => {
+  setNoteType("email");
+L135: <button
+  onClick={() => window.location.href = "/quotes/new"}
+  className="flex items-center gap-2 px-4 py-2 border border-secondary text-secondary font-bold rounded-lg hover:bg-secondary-container/20 transition-all"
+L142: <button
+  onClick={() => alert("Auto-enrichment requires Phase 13 backend completion.")}
+  className="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary font-bold rounded hover:bg-primary/20 transition-colors text-sm"
+L149: <button
+  onClick={() => alert("Schedule Meeting integration not configured.")}
+  className="flex items-center gap-2 px-4 py-2 bg-primary text-on-primary font-bold rounded-lg hover:opacity-90 transition-all"
+L244: <button className="p-2 text-on-surface-variant hover:text-primary transition-colors">
+  <Repeat className="w-5 h-5" />
+  </button>
+L257: <button
+  onClick={() => setFilterType("All")}
+  className={`text-[12px] font-semibold tracking-wider uppercase px-3 py-1.5 rounded-full ${filterType === "All" ? 'bg-surface-container-high text-primary' : 'text-on-surface-variant hover:bg-surface-container'}`}
+L261: <button
+  onClick={() => setFilterType("Communications")}
+  className={`text-[12px] font-semibold tracking-wider uppercase px-3 py-1.5 rounded-full ${filterType === "Communications" ? 'bg-surface-container-high text-primary' : 'text-on-surface-variant hover:bg-surface-container'}`}
+L265: <button
+  onClick={() => setFilterType("Notes")}
+  className={`text-[12px] font-semibold tracking-wider uppercase px-3 py-1.5 rounded-full ${filterType === "Notes" ? 'bg-surface-container-high text-primary' : 'text-on-surface-variant hover:bg-surface-container'}`}
+L286: <button
+  onClick={handleAddNote}
+  disabled={addActivityMutation.isPending || !newNote.trim()}
+L299: <button
+  onClick={() => { setNoteType('note'); setNewNote(''); }}
+  className="text-xs text-on-surface-variant hover:text-on-surface underline"
+L344: <button
+  onClick={() => togglePinMutation.mutate(act.id)}
+  className={`p-1 rounded transition-colors ${act.pinned ? 'text-secondary bg-secondary-container hover:bg-secondary-container/80' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'}`}
+
+--- LeadInbox.tsx ---
+L146: <Linkedin className="text-[#0A66C2] w-8 h-8" />
+  <div>
+  <p className="text-[12px] font-semibold tracking-wider text-on-surface-variant">LinkedIn</p>
+L174: <button className="text-[12px] font-bold tracking-wider underline hover:opacity-80">Review All</button>
+  <button className="text-[12px] font-bold hover:opacity-80"><X className="w-5 h-5" /></button>
+  </div>
+L175: <button className="text-[12px] font-bold hover:opacity-80"><X className="w-5 h-5" /></button>
+  </div>
+  </div>
+L186: <button
+  onClick={() => setShowAddLeadModal(true)}
+  className="bg-primary text-on-primary px-3 py-1.5 rounded text-sm font-bold shadow-sm hover:opacity-90 transition-all"
+L220: <button className="p-2 border border-outline-variant rounded text-on-surface-variant hover:bg-surface-container-low"><Download className="w-5 h-5" /></button>
+  <button className="p-2 border border-outline-variant rounded text-on-surface-variant hover:bg-surface-container-low"><MoreVertical className="w-5 h-5" /></button>
+  </div>
+L221: <button className="p-2 border border-outline-variant rounded text-on-surface-variant hover:bg-surface-container-low"><MoreVertical className="w-5 h-5" /></button>
+  </div>
+  </div>
+L248: {lead.source === 'linkedin' && <div className="w-8 h-8 rounded bg-[#0A66C2]/10 flex items-center justify-center text-[#0A66C2]" title="LinkedIn"><Linkedin className="w-5 h-5" /></div>}
+  {(!['email', 'facebook', 'linkedin'].includes(lead.source)) && <div className="w-8 h-8 rounded bg-surface-variant flex items-center justify-center text-on-surface-variant" title={lead.source}><Globe className="w-5 h-5" /></div>}
+  </td>
+L252: <Link to={`/leads/${lead.id}`} className="hover:underline">
+  <p className="text-sm font-bold text-primary">{lead.firstName} {lead.lastName}</p>
+  <p className="text-[12px] text-on-surface-variant">{lead.email}</p>
+L282: <button
+  onClick={() => updateLeadMutation.mutate({ id: lead.id, data: { status: 'Contacted' } })}
+  disabled={updateLeadMutation.isPending}
+L289: <button
+  onClick={() => { if(confirm("Are you sure?")) deleteLeadMutation.mutate(lead.id); }}
+  className="p-1.5 text-error hover:bg-error-container rounded transition-colors"
+L298: <button className="p-2 text-primary hover:bg-surface-container-high rounded transition-colors"><ExternalLink className="w-5 h-5" /></button>
+  <button
+  onClick={() => { if(confirm("Are you sure?")) deleteLeadMutation.mutate(lead.id); }}
+L299: <button
+  onClick={() => { if(confirm("Are you sure?")) deleteLeadMutation.mutate(lead.id); }}
+  className="p-1.5 text-error hover:bg-error-container rounded transition-colors"
+L349: <button onClick={() => setShowAddLeadModal(false)} className="px-4 py-2 font-bold text-on-surface-variant">Cancel</button>
+  <button
+  onClick={() => createLeadMutation.mutate(newLead)}
+L350: <button
+  onClick={() => createLeadMutation.mutate(newLead)}
+  disabled={createLeadMutation.isPending || !newLead.email}
+
+--- Login.tsx ---
+L109: <button
+  type="submit"
+  disabled={loading}
+
+--- ManagementDashboard.tsx ---
+L44: <button className="flex items-center gap-2 px-6 py-4 rounded-lg bg-secondary text-on-secondary text-sm font-semibold hover:bg-opacity-90 transition-all shadow-md">
+  <Download className="w-5 h-5" />
+  Export PDF
+L152: <button className="text-primary font-semibold text-xs hover:underline">View All</button>
+  </div>
+  <div className="space-y-6">
+
+--- PipelineKanban.tsx ---
+L106: <button
+  onClick={() => setViewMode("kanban")}
+  className={`px-4 py-1.5 rounded text-sm font-semibold flex items-center gap-2 transition-all ${viewMode === "kanban" ? "bg-surface-container-lowest shadow-sm text-primary" : "text-on-surface-variant hover:text-primary"}`}
+L112: <button
+  onClick={() => setViewMode("list")}
+  className={`px-4 py-1.5 rounded text-sm font-semibold flex items-center gap-2 transition-all ${viewMode === "list" ? "bg-surface-container-lowest shadow-sm text-primary" : "text-on-surface-variant hover:text-primary"}`}
+L131: <button
+  onClick={() => alert("Filter panel coming soon.")}
+  className="p-2 text-on-surface-variant hover:bg-surface-container-high rounded transition-all"
+L137: <button
+  onClick={() => alert("Pipeline settings coming soon.")}
+  className="p-2 text-on-surface-variant hover:bg-surface-container-high rounded transition-all"
+L162: <button
+  onClick={() => setShowAddDealModal(true)}
+  className="text-on-surface-variant hover:text-primary transition-colors"
+L215: <button
+  onClick={() => setTransitionModal(null)}
+  className="absolute top-4 right-4 text-on-surface-variant hover:text-on-surface transition-colors"
+L250: <button
+  onClick={() => setTransitionModal(null)}
+  className="px-4 py-2 rounded text-sm font-bold text-on-surface-variant hover:bg-surface-container transition-colors"
+L256: <button
+  onClick={submitStageChange}
+  disabled={!reason || (transitionModal.toStageName === "On Hold" && !recontactDate) || updateStageMutation.isPending}
+L273: <button
+  onClick={() => setShowAddDealModal(false)}
+  className="absolute top-4 right-4 text-on-surface-variant hover:text-on-surface transition-colors"
+L305: <button
+  onClick={() => setShowAddDealModal(false)}
+  className="px-4 py-2 rounded text-sm font-bold text-on-surface-variant hover:bg-surface-container transition-colors"
+L311: <button
+  onClick={() => createDealMutation.mutate({ name: newDeal.name, amount: Number(newDeal.amount) })}
+  disabled={createDealMutation.isPending || !newDeal.name || !newDeal.amount}
+
+--- PriceBook.tsx ---
+L80: <button onClick={() => alert("Bulk Update not yet implemented.")} className="flex items-center gap-2 px-4 py-2 border border-secondary text-secondary rounded-lg hover:bg-secondary-container transition-colors">
+  <Upload className="w-5 h-5" />
+  <span className="font-bold">Bulk Update</span>
+L84: <button onClick={() => alert("Export functionality not yet implemented.")} className="flex items-center gap-2 px-4 py-2 border border-outline-variant text-on-surface-variant rounded-lg hover:bg-surface-container-high transition-colors">
+  <Download className="w-5 h-5" />
+  <span className="font-bold">Export .XLSX</span>
+L144: <button
+  key={tab}
+  onClick={() => setActiveTab(tab)}
+L205: <button
+  onClick={() => {
+  setFormData(item);
+L214: <button
+  onClick={() => {
+  if(confirm("Are you sure you want to delete this item?")) {
+L235: <button className="px-3 py-1 border border-outline-variant rounded hover:bg-surface-container-high transition-colors text-on-surface-variant">
+  <ChevronLeft className="w-5 h-5" />
+  </button>
+L238: <button className="px-3 py-1 bg-primary text-on-primary rounded font-bold">1</button>
+  <button className="px-3 py-1 border border-outline-variant rounded hover:bg-surface-container-high transition-colors text-on-surface-variant">2</button>
+  <button className="px-3 py-1 border border-outline-variant rounded hover:bg-surface-container-high transition-colors text-on-surface-variant">3</button>
+L239: <button className="px-3 py-1 border border-outline-variant rounded hover:bg-surface-container-high transition-colors text-on-surface-variant">2</button>
+  <button className="px-3 py-1 border border-outline-variant rounded hover:bg-surface-container-high transition-colors text-on-surface-variant">3</button>
+  <button className="px-3 py-1 border border-outline-variant rounded hover:bg-surface-container-high transition-colors text-on-surface-variant">
+L240: <button className="px-3 py-1 border border-outline-variant rounded hover:bg-surface-container-high transition-colors text-on-surface-variant">3</button>
+  <button className="px-3 py-1 border border-outline-variant rounded hover:bg-surface-container-high transition-colors text-on-surface-variant">
+  <ChevronRight className="w-5 h-5" />
+L241: <button className="px-3 py-1 border border-outline-variant rounded hover:bg-surface-container-high transition-colors text-on-surface-variant">
+  <ChevronRight className="w-5 h-5" />
+  </button>
+L279: <button className="text-secondary font-bold text-[12px] uppercase tracking-wider hover:underline">RETRY SYNC</button>
+  </div>
+  </div>
+L286: <button
+  onClick={() => {
+  setFormData({ name: "", sku: "", category: "Standard Tier", msrp: "", floor_price: "", uplift: "0", status: "Active" });
+L300: <button onClick={() => setShowModal(false)} className="absolute top-4 right-4 text-on-surface-variant hover:text-on-surface transition-colors">
+  <span className="font-bold">X</span>
+  </button>
+L333: <button onClick={() => setShowModal(false)} className="px-4 py-2 text-sm font-bold">Cancel</button>
+  <button onClick={() => saveMutation.mutate(formData)} disabled={saveMutation.isPending} className="px-4 py-2 bg-primary text-white rounded text-sm font-bold">
+  {saveMutation.isPending ? "Saving..." : "Save"}
+L334: <button onClick={() => saveMutation.mutate(formData)} disabled={saveMutation.isPending} className="px-4 py-2 bg-primary text-white rounded text-sm font-bold">
+  {saveMutation.isPending ? "Saving..." : "Save"}
+  </button>
+
+--- PublicQuoteRequest.tsx ---
+L66: <button
+  onClick={() => window.location.reload()}
+  className="w-full py-3 px-4 bg-primary text-on-primary rounded-xl font-semibold shadow-sm hover:bg-primary/90 transition-colors"
+L183: <button
+  type="submit"
+  disabled={isSubmitting}
+
+--- PurchaseOrders.tsx ---
+L27: <button className="flex items-center gap-2 px-4 py-2 bg-primary text-on-primary rounded-lg font-bold hover:opacity-90">
+  <Plus className="w-5 h-5" /> New PO
+  </button>
+L71: <button className="p-2 text-on-surface-variant hover:text-primary"><Download className="w-4 h-4" /></button>
+  <button className="p-2 text-on-surface-variant hover:text-primary"><MoreVertical className="w-4 h-4" /></button>
+  </td>
+L72: <button className="p-2 text-on-surface-variant hover:text-primary"><MoreVertical className="w-4 h-4" /></button>
+  </td>
+  </tr>
+
+--- QuotationBuilder.tsx ---
+L117: <button onClick={() => saveMutation.mutate("Draft")} disabled={saveMutation.isPending || !selectedDealId} className="px-3 py-1.5 border border-outline text-sm font-semibold rounded hover:bg-surface-container transition-colors disabled:opacity-50">Save as Draft</button>
+  <button onClick={() => saveMutation.mutate("Pending")} disabled={saveMutation.isPending || !selectedDealId} className="px-3 py-1.5 bg-primary text-white text-sm font-semibold rounded hover:bg-primary/90 transition-colors disabled:opacity-50">Send for Approval</button>
+  </div>
+L118: <button onClick={() => saveMutation.mutate("Pending")} disabled={saveMutation.isPending || !selectedDealId} className="px-3 py-1.5 bg-primary text-white text-sm font-semibold rounded hover:bg-primary/90 transition-colors disabled:opacity-50">Send for Approval</button>
+  </div>
+  </>
+L128: <button onClick={addItem} className="text-primary font-semibold text-sm flex items-center gap-1">
+  <PlusCircle className="w-4 h-4" /> Add Product
+  </button>
+L196: <button className="bg-white/80 backdrop-blur p-2 rounded shadow-sm hover:bg-white"><ZoomIn className="w-5 h-5" /></button>
+  <button className="bg-white/80 backdrop-blur p-2 rounded shadow-sm hover:bg-white"><Printer className="w-5 h-5" /></button>
+  <button className="bg-white/80 backdrop-blur p-2 rounded shadow-sm hover:bg-white"><Maximize className="w-5 h-5" /></button>
+L197: <button className="bg-white/80 backdrop-blur p-2 rounded shadow-sm hover:bg-white"><Printer className="w-5 h-5" /></button>
+  <button className="bg-white/80 backdrop-blur p-2 rounded shadow-sm hover:bg-white"><Maximize className="w-5 h-5" /></button>
+  </div>
+L198: <button className="bg-white/80 backdrop-blur p-2 rounded shadow-sm hover:bg-white"><Maximize className="w-5 h-5" /></button>
+  </div>
+  
+L297: <button className="w-full p-3 text-sm font-semibold text-secondary hover:bg-surface-container transition-colors rounded-b-xl">View Full History</button>
+  </div>
+  
+
+--- QuoteHistory.tsx ---
+L96: <button className="bg-surface border border-outline-variant rounded-lg py-1.5 px-3 text-sm flex items-center gap-2 hover:bg-surface-container-low transition-colors">
+  <Calendar className="w-4 h-4" /> Date Range
+  </button>
+L101: <button className="text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1 text-sm font-medium">
+  <Download className="w-4 h-4" /> Export
+  </button>
+L104: <button className="bg-surface border border-outline-variant text-on-surface px-4 py-1.5 rounded-lg text-sm font-semibold hover:bg-surface-container-low transition-all">
+  Apply Filters
+  </button>
+L107: <button
+  onClick={() => window.location.href = '/quotes/new'}
+  className="bg-primary text-on-primary px-6 py-1.5 rounded-lg text-sm font-semibold hover:opacity-90 active:scale-95 transition-all flex items-center gap-2"
+L187: <button className="p-1 hover:bg-surface-variant rounded transition-colors text-outline group-hover:text-primary">
+  <MoreVertical className="w-5 h-5" />
+  </button>
+L202: <button className="w-8 h-8 rounded bg-primary text-on-primary text-sm font-bold flex items-center justify-center">1</button>
+  <button className="w-8 h-8 rounded hover:bg-surface-variant text-sm flex items-center justify-center transition-colors">2</button>
+  <span className="text-outline mx-1">...</span>
+L203: <button className="w-8 h-8 rounded hover:bg-surface-variant text-sm flex items-center justify-center transition-colors">2</button>
+  <span className="text-outline mx-1">...</span>
+  </div>
+L238: <button className="w-full py-2 text-center text-[12px] font-bold tracking-wider uppercase text-primary border-t border-outline-variant hover:bg-primary-container/10 transition-colors">
+  View Full Audit Trail
+  </button>

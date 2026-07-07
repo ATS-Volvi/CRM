@@ -38,6 +38,19 @@ export default function QuotationBuilder() {
   });
 
   const [selectedDealId, setSelectedDealId] = useState("");
+
+  const { data: recommendations, isLoading: loadingRecs } = useQuery({
+    queryKey: ["recommendations", selectedDealId],
+    queryFn: async () => {
+      if (!selectedDealId) return [];
+      const res = await fetch(`/api/v1/quotes/recommendations?dealId=${selectedDealId}`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!selectedDealId
+  });
   const [items, setItems] = useState<any[]>([]);
 
   const addItem = () => {
@@ -173,18 +186,39 @@ export default function QuotationBuilder() {
                       </tr>
                     ))
                   )}
-                  <tr>
-                    <td className="px-4 py-4" colSpan={7}>
-                      <div className="flex items-center gap-3 p-3 bg-primary-container/10 border border-primary-container rounded-lg">
-                        <Lightbulb className="w-5 h-5 text-primary" />
-                        <div className="text-sm">
-                          <span className="font-bold text-primary">Price Recommendation:</span> 
-                          Quoted price is in the <span className="text-primary font-bold">Top 15%</span> for similar deals. 
-                          Win rate prediction: <span className="font-bold">68%</span>.
+                  {recommendations && recommendations.length > 0 && (
+                    <tr>
+                      <td className="px-4 py-4" colSpan={7}>
+                        <div className="flex flex-col gap-3 p-4 bg-primary-container/10 border border-primary-container rounded-lg">
+                          <div className="flex items-center gap-2">
+                            <Lightbulb className="w-5 h-5 text-primary" />
+                            <span className="font-bold text-primary">AI Price Recommendations</span> 
+                          </div>
+                          <div className="space-y-3">
+                            {recommendations.map((rec: any, idx: number) => (
+                               <div key={idx} className="flex justify-between items-center bg-white p-3 rounded shadow-sm border border-outline-variant/30">
+                                 <div>
+                                    <p className="font-bold text-sm">{rec.name} <span className="text-[12px] font-normal text-on-surface-variant">({rec.sku})</span></p>
+                                    <p className="text-[12px] text-on-surface-variant italic">{rec.reason}</p>
+                                 </div>
+                                 <div className="flex items-center gap-4">
+                                    <span className="font-bold text-primary text-sm">{formatCurrency(rec.unitPrice)}</span>
+                                    <button 
+                                      onClick={() => {
+                                        setItems([...items, { productId: rec.productId, quantity: rec.quantity, unitPrice: rec.unitPrice, discount: 10, total: rec.unitPrice }]);
+                                      }}
+                                      className="px-3 py-1 bg-primary text-on-primary text-[12px] font-bold rounded hover:opacity-90 transition-colors"
+                                    >
+                                      Apply
+                                    </button>
+                                 </div>
+                               </div>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    </td>
-                  </tr>
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>

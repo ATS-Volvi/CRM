@@ -30,9 +30,10 @@ router.use(authMiddleware);
 import { mockLeads, mockQuotes, mockPurchaseOrders, mockPriceBook, mockApprovals, mockAssignmentRules } from "../mockData";
 import { getPipeline, moveDealStage, createDeal } from "../controllers/pipelineController";
 import { getLeadActivities, createActivity, togglePinActivity } from "../controllers/activityController";
-import { getLeads, createLead, deleteLead } from '../controllers/leadController';
+import { getLeads, createLead, updateLead, deleteLead, getDuplicateLeads, mergeLeads } from '../controllers/leadController';
 import { getPriceBookEntries, createPriceBookEntry, updatePriceBookEntry, deletePriceBookEntry } from '../controllers/priceBookController';
-import { getQuotes, createQuote } from '../controllers/quoteController';
+import { getQuotes, createQuote, getQuoteRecommendations } from '../controllers/quoteController';
+import { getInvoices, createInvoiceFromQuote, updateInvoiceStatus } from '../controllers/invoiceController';
 import { getPurchaseOrders } from '../controllers/purchaseOrderController';
 import { getApprovals, updateApproval } from '../controllers/approvalController';
 import { getKpiDashboard, getManagementDashboard } from '../controllers/dashboardController';
@@ -41,8 +42,11 @@ import { getAssignmentRules } from '../controllers/assignmentRuleController';
 // ==========================================
 // LEADS
 // ==========================================
+router.get("/leads/duplicates", authMiddleware, getDuplicateLeads);
+router.post("/leads/merge", authMiddleware, mergeLeads);
 router.get("/leads", authMiddleware, getLeads);
 router.post("/leads", authMiddleware, createLead);
+router.put("/leads/:id", authMiddleware, updateLead);
 router.delete("/leads/:id", authMiddleware, deleteLead);
 
 // Mock legacy endpoints (keeping just in case, but real ones take precedence above)
@@ -54,8 +58,16 @@ router.put("/pipeline/deals/:id/stage", authMiddleware, moveDealStage);
 // ==========================================
 // QUOTES
 // ==========================================
+router.get("/quotes/recommendations", authMiddleware, getQuoteRecommendations);
 router.get("/quotes", authMiddleware, getQuotes);
 router.post("/quotes", authMiddleware, createQuote);
+
+// ==========================================
+// INVOICES
+// ==========================================
+router.get("/invoices", authMiddleware, getInvoices);
+router.post("/invoices/from-quote", authMiddleware, createInvoiceFromQuote);
+router.put("/invoices/:id/status", authMiddleware, updateInvoiceStatus);
 
 // ==========================================
 // PRICE BOOK

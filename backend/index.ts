@@ -13,7 +13,7 @@ const startServer = async () => {
     await sequelize.sync({ alter: true });
     console.log("Database models synced successfully.");
     
-    app.listen(PORT, () => {
+    app.listen(PORT as number, '0.0.0.0', () => {
       console.log(`Nexus CRM backend running on port ${PORT}`);
     });
   } catch (error) {

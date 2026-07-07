@@ -1,5 +1,5 @@
 import { useAuth } from "../context/AuthContext";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { ChevronRight, FileText, Download, CheckCircle, Clock, AlertTriangle, Plus, Search, Filter, Calendar, MoreVertical, TrendingUp, Timer, Bolt } from "lucide-react";
 import { formatCurrency, formatCurrencyCompact } from "../utils/currency";
 
@@ -14,6 +14,21 @@ export default function QuoteHistory() {
       });
       if (!res.ok) throw new Error("Failed to fetch quotes");
       return res.json();
+    }
+  });
+
+  const invoiceMutation = useMutation({
+    mutationFn: async (quoteId: string) => {
+      const res = await fetch("/api/v1/invoices/from-quote", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({ quoteId })
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: (data) => {
+      window.location.href = `/invoices`;
     }
   });
 
@@ -184,9 +199,20 @@ export default function QuoteHistory() {
                         </div>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <button className="p-1 hover:bg-surface-variant rounded transition-colors text-outline group-hover:text-primary">
-                          <MoreVertical className="w-5 h-5" />
-                        </button>
+                        <div className="flex items-center justify-end gap-2">
+                          {quote.status === 'Approved' && (
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); invoiceMutation.mutate(quote.id); }}
+                              disabled={invoiceMutation.isPending}
+                              className="px-3 py-1 bg-secondary text-white text-[10px] font-bold uppercase rounded hover:opacity-90 transition-all shadow-sm whitespace-nowrap"
+                            >
+                              Generate Invoice
+                            </button>
+                          )}
+                          <button className="p-1 hover:bg-surface-variant rounded transition-colors text-outline group-hover:text-primary">
+                            <MoreVertical className="w-5 h-5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                     );

@@ -9,6 +9,7 @@ export function Layout() {
     { name: "Lead Inbox", path: "/leads", icon: Inbox },
     { name: "Pipeline", path: "/pipeline", icon: Trello },
     { name: "Quotes", path: "/quotes", icon: FileText },
+    { name: "Invoices", path: "/invoices", icon: Receipt },
     { name: "Price Book", path: "/price-book", icon: Receipt },
     { name: "Purchase Orders", path: "/purchase-orders", icon: CheckSquare },
     { name: "Approvals", path: "/approvals", icon: Key },

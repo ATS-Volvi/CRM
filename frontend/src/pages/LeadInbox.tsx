@@ -11,6 +11,7 @@ export default function LeadInbox() {
   const { token } = useAuth();
   const queryClient = useQueryClient();
   const [showAddLeadModal, setShowAddLeadModal] = useState(false);
+  const [showMergeModal, setShowMergeModal] = useState(false);
   const [newLead, setNewLead] = useState({ firstName: "", lastName: "", email: "", company: "", source: "email" });
 
   const createLeadMutation = useMutation({
@@ -67,6 +68,34 @@ export default function LeadInbox() {
       });
       if (!res.ok) throw new Error("Failed to fetch leads");
       return res.json();
+    }
+  });
+
+  const { data: duplicateGroups } = useQuery({
+    queryKey: ["duplicateGroups"],
+    queryFn: async () => {
+      const res = await fetch("/api/v1/leads/duplicates", {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error("Failed to fetch duplicates");
+      return res.json();
+    }
+  });
+
+  const mergeMutation = useMutation({
+    mutationFn: async ({ masterId, duplicateIds }: { masterId: string, duplicateIds: string[] }) => {
+      const res = await fetch("/api/v1/leads/merge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({ masterId, duplicateIds }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+      queryClient.invalidateQueries({ queryKey: ["duplicateGroups"] });
+      setShowMergeModal(false);
     }
   });
 
@@ -166,15 +195,16 @@ export default function LeadInbox() {
       </section>
 
       {/* Duplicate Alert Banner */}
-      <div className="mb-8 bg-tertiary-container text-on-tertiary-container px-6 py-3 rounded-lg flex items-center justify-between border-l-4 border-tertiary shadow-sm">
-        <div className="flex items-center gap-3">
-          <p className="text-sm font-medium">We found <span className="font-bold">24 potential duplicate leads</span> in your pipeline. Merge them to maintain data integrity.</p>
+      {duplicateGroups && duplicateGroups.length > 0 && (
+        <div className="mb-8 bg-tertiary-container text-on-tertiary-container px-6 py-3 rounded-lg flex items-center justify-between border-l-4 border-tertiary shadow-sm">
+          <div className="flex items-center gap-3">
+            <p className="text-sm font-medium">We found <span className="font-bold">{duplicateGroups.length} potential duplicate groups</span> in your pipeline. Merge them to maintain data integrity.</p>
+          </div>
+          <div className="flex gap-4">
+            <button onClick={() => setShowMergeModal(true)} className="text-[12px] font-bold tracking-wider underline hover:opacity-80">Review All</button>
+          </div>
         </div>
-        <div className="flex gap-4">
-          <button className="text-[12px] font-bold tracking-wider underline hover:opacity-80">Review All</button>
-          <button className="text-[12px] font-bold hover:opacity-80"><X className="w-5 h-5" /></button>
-        </div>
-      </div>
+      )}
 
       {/* Main Data Table Container */}
       <div className="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm overflow-hidden flex flex-col">
@@ -355,6 +385,44 @@ export default function LeadInbox() {
                   Save Lead
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {showMergeModal && duplicateGroups && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-surface rounded-xl p-6 w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-bold mb-4">Merge Duplicate Leads</h2>
+            {duplicateGroups.length === 0 ? (
+               <p className="text-sm text-on-surface-variant">No duplicates found.</p>
+            ) : (
+               <div className="space-y-6">
+                 {duplicateGroups.map((group: any[], index: number) => (
+                   <div key={index} className="border border-outline rounded-lg p-4 bg-surface-container-lowest">
+                     <h3 className="font-bold text-sm mb-3">Group {index + 1}: {group[0].email || group[0].company}</h3>
+                     <div className="space-y-2">
+                       {group.map((lead: any) => (
+                         <div key={lead.id} className="flex items-center justify-between bg-surface-container-low p-2 rounded text-sm">
+                           <div>
+                             <p className="font-bold">{lead.firstName} {lead.lastName}</p>
+                             <p className="text-[12px] text-on-surface-variant">{lead.email} | {lead.company}</p>
+                           </div>
+                           <button 
+                             onClick={() => mergeMutation.mutate({ masterId: lead.id, duplicateIds: group.map(l => l.id).filter(id => id !== lead.id) })}
+                             disabled={mergeMutation.isPending}
+                             className="px-3 py-1 bg-primary text-on-primary rounded font-bold text-[12px] hover:opacity-90"
+                           >
+                             Keep as Master
+                           </button>
+                         </div>
+                       ))}
+                     </div>
+                   </div>
+                 ))}
+               </div>
+            )}
+            <div className="flex justify-end pt-6 mt-4 border-t border-outline-variant">
+              <button onClick={() => setShowMergeModal(false)} className="px-4 py-2 font-bold text-on-surface-variant hover:bg-surface-container rounded transition-colors">Close</button>
             </div>
           </div>
         </div>

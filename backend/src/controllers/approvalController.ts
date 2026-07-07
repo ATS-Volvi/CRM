@@ -32,7 +32,7 @@ export const updateApproval = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { status, comments } = req.body;
-    const approval = await sequelize.models.ApprovalRequest.findByPk(id);
+    const approval = await sequelize.models.ApprovalRequest.findByPk(id as string);
     if (!approval) {
       return res.status(404).json({ error: "Approval request not found" });
     }

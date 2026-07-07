@@ -231,6 +231,72 @@ AssignmentRule.init(
   { sequelize, modelName: "AssignmentRule" }
 );
 
+export class Activity extends Model {
+  public id!: string;
+  public leadId!: string;
+  public type!: string;
+  public duration!: number | null;
+  public outcome!: string | null;
+  public mentioned_user_ids!: string; // JSON string array
+  public pinned!: boolean;
+  public createdById!: string;
+}
+
+Activity.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    type: { 
+      type: DataTypes.ENUM, 
+      values: ["call", "email", "meeting", "task", "whatsapp_sms", "note", "stage_change"],
+      allowNull: false 
+    },
+    duration: { type: DataTypes.INTEGER, allowNull: true },
+    outcome: { type: DataTypes.STRING, allowNull: true },
+    mentioned_user_ids: { type: DataTypes.TEXT, defaultValue: "[]" },
+    pinned: { type: DataTypes.BOOLEAN, defaultValue: false },
+  },
+  { sequelize, modelName: "Activity" }
+);
+
+export class Invoice extends Model {
+  public id!: string;
+  public quoteId!: string;
+  public status!: string; // Draft, Sent, Paid, Overdue
+  public totalAmount!: number;
+  public dueDate!: Date;
+  public notes!: string;
+}
+
+Invoice.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    status: { type: DataTypes.STRING, defaultValue: "Draft" },
+    totalAmount: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+    dueDate: { type: DataTypes.DATE, allowNull: true },
+    notes: { type: DataTypes.TEXT, allowNull: true },
+  },
+  { sequelize, modelName: "Invoice" }
+);
+
+export class InvoiceLineItem extends Model {
+  public id!: string;
+  public invoiceId!: string;
+  public productId!: string;
+  public quantity!: number;
+  public unitPrice!: number;
+  public totalPrice!: number;
+}
+
+InvoiceLineItem.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    quantity: { type: DataTypes.INTEGER, allowNull: false },
+    unitPrice: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
+    totalPrice: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
+  },
+  { sequelize, modelName: "InvoiceLineItem" }
+);
+
 // Define Associations
 User.hasMany(Lead, { foreignKey: "assignedToId" });
 Lead.belongsTo(User, { foreignKey: "assignedToId", as: "assignedTo" });
@@ -270,5 +336,20 @@ ApprovalRequest.belongsTo(User, { foreignKey: "approvedById", as: "approvedBy" }
 
 User.hasMany(AssignmentRule, { foreignKey: "assignToId" });
 AssignmentRule.belongsTo(User, { foreignKey: "assignToId", as: "assignTo" });
+
+Lead.hasMany(Activity, { foreignKey: "leadId", as: "activities" });
+Activity.belongsTo(Lead, { foreignKey: "leadId" });
+
+User.hasMany(Activity, { foreignKey: "createdById", as: "activitiesCreated" });
+Activity.belongsTo(User, { foreignKey: "createdById", as: "createdBy" });
+
+Quote.hasOne(Invoice, { foreignKey: "quoteId" });
+Invoice.belongsTo(Quote, { foreignKey: "quoteId", as: "quote" });
+
+Invoice.hasMany(InvoiceLineItem, { foreignKey: "invoiceId", as: "lineItems" });
+InvoiceLineItem.belongsTo(Invoice, { foreignKey: "invoiceId", as: "invoice" });
+
+PriceBookEntry.hasMany(InvoiceLineItem, { foreignKey: "productId" });
+InvoiceLineItem.belongsTo(PriceBookEntry, { foreignKey: "productId", as: "product" });
 
 export { sequelize };
