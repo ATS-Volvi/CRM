@@ -34,6 +34,7 @@ import { getLeads, createLead, deleteLead } from '../controllers/leadController'
 import { getPriceBookEntries, createPriceBookEntry, updatePriceBookEntry, deletePriceBookEntry } from '../controllers/priceBookController';
 import { getQuotes, createQuote } from '../controllers/quoteController';
 import { getPurchaseOrders } from '../controllers/purchaseOrderController';
+import { getApprovals, updateApproval } from '../controllers/approvalController';
 
 // ==========================================
 // LEADS
@@ -65,7 +66,11 @@ router.put("/price-book/:id", authMiddleware, updatePriceBookEntry);
 // ==========================================
 router.get("/purchase-orders", authMiddleware, getPurchaseOrders);
 
-router.get("/approvals", (req, res) => { res.json(mockApprovals); });
+// ==========================================
+// APPROVALS
+// ==========================================
+router.get("/approvals", authMiddleware, getApprovals);
+router.put("/approvals/:id", authMiddleware, updateApproval);
 router.get("/assignment-rules", (req, res) => { res.json(mockAssignmentRules); });
 
 // Activity routes

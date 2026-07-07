@@ -1,4 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "../context/AuthContext";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { 
   Filter, ClipboardList, AlertTriangle, Landmark, 
   Gavel, FileEdit, Check, X, Info, History
@@ -6,15 +7,31 @@ import {
 import { formatCurrency, formatCurrencyCompact } from "../utils/currency";
 
 export default function ApprovalQueue() {
+  const { token } = useAuth();
+  const queryClient = useQueryClient();
+
   const { data: approvals, isLoading } = useQuery({
     queryKey: ["approvals"],
     queryFn: async () => {
       const res = await fetch("/api/v1/approvals", {
-        headers: { "Authorization": "Bearer dummy" }
+        headers: { "Authorization": `Bearer ${token}` }
       });
       if (!res.ok) throw new Error("Failed to fetch approvals");
       return res.json();
     }
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: string, status: string }) => {
+      const res = await fetch(`/api/v1/approvals/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({ status })
+      });
+      if (!res.ok) throw new Error("Failed to update approval");
+      return res.json();
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["approvals"] })
   });
 
   return (
@@ -53,55 +70,58 @@ export default function ApprovalQueue() {
                     <td colSpan={5} className="p-8 text-center text-on-surface-variant animate-pulse">Loading approvals...</td>
                   </tr>
                 ) : (
-                  approvals?.map((item: any, i: number) => (
-                    <tr key={item.id || i} className={`hover:bg-surface-container-low transition-colors group ${item.isCritical ? 'bg-error-container/10' : ''}`}>
+                  approvals?.map((item: any, i: number) => {
+                    const clientName = item.target?.deal?.lead?.company || item.target?.deal?.lead?.firstName + " " + item.target?.deal?.lead?.lastName || "Unknown Client";
+                    const value = item.target?.totalAmount || 0;
+                    return (
+                    <tr key={item.id || i} className={`hover:bg-surface-container-low transition-colors group ${item.status === 'Rejected' ? 'bg-error-container/10' : ''}`}>
                       <td className="p-4">
                         <div className="flex flex-col">
-                          <span className="font-bold text-on-surface">{item.reason}</span>
-                          <span className={`text-[11px] flex items-center gap-1 ${item.isCritical ? 'text-error font-bold' : 'text-on-surface-variant'}`}>
-                            {item.isCritical ? <Gavel className="w-3 h-3" /> : (i % 2 === 0 ? <AlertTriangle className="w-3 h-3" /> : <Landmark className="w-3 h-3" />)}
-                            {item.subReason}
+                          <span className="font-bold text-on-surface">{item.type} Approval</span>
+                          <span className={`text-[11px] flex items-center gap-1 text-on-surface-variant`}>
+                            <AlertTriangle className="w-3 h-3" />
+                            {item.status}
                           </span>
                         </div>
                       </td>
                       <td className="p-4">
                         <div className="flex items-center gap-2">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-[12px] ${i % 3 === 0 ? 'bg-primary-container text-on-primary-container' : i % 3 === 1 ? 'bg-secondary-container text-on-secondary-container' : 'bg-tertiary-container text-on-tertiary-container'}`}>
-                            {item.requestor.split(' ').map((n: string) => n[0]).join('')}
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-[12px] bg-primary-container text-on-primary-container`}>
+                            {item.requestedBy?.name?.[0] || 'U'}
                           </div>
                           <div className="flex flex-col">
-                            <span className="font-bold">{item.requestor}</span>
-                            <span className="text-[11px] text-on-surface-variant">{item.region}</span>
+                            <span className="font-bold">{item.requestedBy?.name || 'Unknown'}</span>
+                            <span className="text-[11px] text-on-surface-variant">Requestor</span>
                           </div>
                         </div>
                       </td>
                       <td className="p-4">
                         <div className="flex flex-col">
-                          <span className="font-bold">{item.quoteName}</span>
-                          <span className="text-[12px] text-on-surface-variant truncate w-48 italic">"{item.notes}"</span>
+                          <span className="font-bold">{clientName}</span>
+                          <span className="text-[12px] text-on-surface-variant truncate w-48 italic">"{item.comments || 'No comments'}"</span>
                         </div>
                       </td>
                       <td className="p-4">
                         <div className="flex flex-col">
-                          <span className="font-bold text-on-surface">{formatCurrency(item.value)}</span>
-                          <span className="text-[11px] text-on-surface-variant">{item.date}</span>
+                          <span className="font-bold text-on-surface">{formatCurrency(value)}</span>
+                          <span className="text-[11px] text-on-surface-variant">{new Date(item.createdAt).toLocaleDateString()}</span>
                         </div>
                       </td>
                       <td className="p-4 text-right">
-                        <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button className="p-1 text-primary hover:bg-primary-container/20 rounded-lg" title="Request Revision">
-                            <FileEdit className="w-5 h-5" />
-                          </button>
-                          <button className="p-1 text-error hover:bg-error-container rounded-lg" title="Reject">
-                            <X className="w-5 h-5" />
-                          </button>
-                          <button className="p-1 text-on-primary bg-primary rounded-lg shadow-sm hover:scale-105 active:scale-95" title="Approve">
-                            <Check className="w-5 h-5" />
-                          </button>
-                        </div>
+                        {item.status === 'Pending' && (
+                          <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => updateMutation.mutate({ id: item.id, status: 'Rejected' })} className="p-1 text-error hover:bg-error-container rounded-lg" title="Reject">
+                              <X className="w-5 h-5" />
+                            </button>
+                            <button onClick={() => updateMutation.mutate({ id: item.id, status: 'Approved' })} className="p-1 text-on-primary bg-primary rounded-lg shadow-sm hover:scale-105 active:scale-95" title="Approve">
+                              <Check className="w-5 h-5" />
+                            </button>
+                          </div>
+                        )}
                       </td>
                     </tr>
-                  ))
+                    );
+                  })
                 )}
               </tbody>
             </table>
