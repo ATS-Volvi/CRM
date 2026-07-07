@@ -1,3 +1,4 @@
+import { useAuth } from "../context/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { 
   TrendingUp, TrendingDown, Info, Calendar, Download, 
@@ -6,13 +7,14 @@ import {
 import { formatCurrency, formatCurrencyCompact } from "../utils/currency";
 
 export default function ManagementDashboard() {
+  const { token } = useAuth();
+
   const { data: kpi, isLoading, error } = useQuery({
     queryKey: ["managementKpi"],
     queryFn: async () => {
-      const res = await fetch("/api/v1/kpis/management", {
+      const res = await fetch("/api/v1/dashboard/management", {
         headers: {
-          // Placeholder for auth token
-          "Authorization": "Bearer dummy" 
+          "Authorization": `Bearer ${token}` 
         }
       });
       if (!res.ok) throw new Error("Failed to fetch KPIs");
@@ -60,7 +62,7 @@ export default function ManagementDashboard() {
                 <div className="text-primary bg-primary/10 p-2 rounded-lg"><DollarSign className="w-5 h-5" /></div>
               </div>
               <h4 className="text-3xl font-bold text-on-surface">
-                {formatCurrencyCompact(kpi?.totalRevenue)}
+                {formatCurrencyCompact(kpi?.totalPipelineValue || 0)}
               </h4>
               <div className="flex items-center gap-1 mt-2 text-emerald-500">
                 <TrendingUp className="w-4 h-4" />
@@ -73,7 +75,7 @@ export default function ManagementDashboard() {
                 <p className="text-[12px] font-semibold text-on-surface-variant">Active Deals</p>
                 <div className="text-secondary bg-secondary/10 p-2 rounded-lg"><Activity className="w-5 h-5" /></div>
               </div>
-              <h4 className="text-3xl font-bold text-on-surface">{kpi?.activeDeals}</h4>
+              <h4 className="text-3xl font-bold text-on-surface">{kpi?.activeDealsCount || 0}</h4>
               <div className="flex items-center gap-1 mt-2 text-tertiary">
                 <Info className="w-4 h-4" />
                 <span className="text-[12px] font-semibold">92% Confidence</span>
@@ -85,7 +87,7 @@ export default function ManagementDashboard() {
                 <p className="text-[12px] font-semibold text-on-surface-variant">Avg Win Rate</p>
                 <div className="text-primary bg-primary/10 p-2 rounded-lg"><Star className="w-5 h-5" /></div>
               </div>
-              <h4 className="text-3xl font-bold text-on-surface">24%</h4>
+              <h4 className="text-3xl font-bold text-on-surface">{Math.round(kpi?.winRate || 0)}%</h4>
               <div className="flex items-center gap-1 mt-2 text-emerald-500">
                 <TrendingUp className="w-4 h-4" />
                 <span className="text-[12px] font-semibold">+2% MoM</span>
@@ -152,10 +154,10 @@ export default function ManagementDashboard() {
               <div className="space-y-6">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 bg-primary/20 text-primary rounded-full flex items-center justify-center font-bold text-lg">
-                    {kpi?.topPerformer.charAt(0)}
+                    {(kpi?.topPerformer || "Sarah Jenkins").charAt(0)}
                   </div>
                   <div className="flex-grow">
-                    <p className="font-bold text-sm text-on-surface">{kpi?.topPerformer}</p>
+                    <p className="font-bold text-sm text-on-surface">{kpi?.topPerformer || "Sarah Jenkins"}</p>
                     <p className="text-[10px] text-on-surface-variant uppercase font-bold tracking-tighter">Enterprise Accounts</p>
                   </div>
                   <div className="text-right">

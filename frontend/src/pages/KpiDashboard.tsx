@@ -1,8 +1,23 @@
 import { useState } from "react";
+import { useAuth } from "../context/AuthContext";
+import { useQuery } from "@tanstack/react-query";
 import { Calendar, Send, CheckCircle2, Video, MapPin, AlertCircle, TrendingUp, ArrowUpRight, ArrowDownRight, Clock, X, Plus } from "lucide-react";
 import { formatCurrencyCompact } from "../utils/currency";
 
 export default function KpiDashboard() {
+  const { token } = useAuth();
+  
+  const { data: dashboardData, isLoading } = useQuery({
+    queryKey: ["dashboard-kpi"],
+    queryFn: async () => {
+      const res = await fetch("/api/v1/dashboard/kpi", {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error("Failed to fetch dashboard data");
+      return res.json();
+    }
+  });
+
   const [urgentFollowUps, setUrgentFollowUps] = useState([
     {
       id: 1,
@@ -138,27 +153,21 @@ export default function KpiDashboard() {
           </div>
           <div className="p-4 flex-1 overflow-y-auto max-h-[320px]">
             <div className="space-y-2">
-              <div className="flex items-start gap-4 p-2 hover:bg-surface-bright rounded-lg group">
-                <input type="checkbox" className="mt-1 rounded text-primary focus:ring-primary w-5 h-5 border-outline" />
-                <div className="flex-1">
-                  <p className="text-sm font-semibold group-hover:text-primary transition-colors">Contract review for Al-Maktoum Group</p>
-                  <p className="text-[11px] text-on-surface-variant mt-1 font-bold">URGENT • 11:00 AM</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-4 p-2 hover:bg-surface-bright rounded-lg group">
-                <input type="checkbox" className="mt-1 rounded text-primary focus:ring-primary w-5 h-5 border-outline" />
-                <div className="flex-1">
-                  <p className="text-sm font-semibold group-hover:text-primary transition-colors">Send pitch deck to Tech-Frontier UAE</p>
-                  <p className="text-[11px] text-on-surface-variant mt-1 font-bold">ROUTINE • 02:30 PM</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-4 p-2 hover:bg-surface-bright rounded-lg group">
-                <input type="checkbox" className="mt-1 rounded text-primary focus:ring-primary w-5 h-5 border-outline" />
-                <div className="flex-1">
-                  <p className="text-sm font-semibold group-hover:text-primary transition-colors">Follow up on invoice #8892</p>
-                  <p className="text-[11px] text-on-surface-variant mt-1 font-bold">FINANCE • 04:00 PM</p>
-                </div>
-              </div>
+              {isLoading ? (
+                <div className="p-2 text-center text-sm text-on-surface-variant animate-pulse">Loading tasks...</div>
+              ) : dashboardData?.tasks?.length === 0 ? (
+                <div className="p-2 text-center text-sm text-on-surface-variant">No tasks due today.</div>
+              ) : (
+                dashboardData?.tasks?.slice(0, 5).map((task: any) => (
+                  <div key={task.id} className="flex items-start gap-4 p-2 hover:bg-surface-bright rounded-lg group">
+                    <input type="checkbox" className="mt-1 rounded text-primary focus:ring-primary w-5 h-5 border-outline" />
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold group-hover:text-primary transition-colors">{task.outcome || "Follow-up Task"}</p>
+                      <p className="text-[11px] text-on-surface-variant mt-1 font-bold">DUE TODAY</p>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
           <button 
@@ -287,7 +296,10 @@ export default function KpiDashboard() {
             <tbody className="divide-y divide-outline-variant">
               <tr className="hover:bg-surface-bright transition-colors">
                 <td className="px-6 py-4 text-sm font-bold">Quota Attainment</td>
-                <td className="px-6 py-4 text-[13px] font-medium">82% ({formatCurrencyCompact(1200000)} / {formatCurrencyCompact(1500000)})</td>
+                <td className="px-6 py-4 text-[13px] font-medium">
+                  {dashboardData?.quotaAttainment?.percentage || 0}% 
+                  ({formatCurrencyCompact(dashboardData?.quotaAttainment?.current || 0)} / {formatCurrencyCompact(dashboardData?.quotaAttainment?.target || 0)})
+                </td>
                 <td className="px-6 py-4 text-[13px] font-medium">74%</td>
                 <td className="px-6 py-4">
                   <span className="flex items-center gap-1 text-primary font-bold text-xs">
@@ -302,8 +314,8 @@ export default function KpiDashboard() {
               </tr>
               <tr className="hover:bg-surface-bright transition-colors">
                 <td className="px-6 py-4 text-sm font-bold">Close Rate</td>
-                <td className="px-6 py-4 text-[13px] font-medium">28.4%</td>
-                <td className="px-6 py-4 text-[13px] font-medium">31.2%</td>
+                <td className="px-6 py-4 text-[13px] font-medium">{dashboardData?.closeRate?.current || 0}%</td>
+                <td className="px-6 py-4 text-[13px] font-medium">{dashboardData?.closeRate?.previous || 0}%</td>
                 <td className="px-6 py-4">
                   <span className="flex items-center gap-1 text-tertiary font-bold text-xs">
                     <ArrowDownRight className="w-4 h-4" /> -2.8%
