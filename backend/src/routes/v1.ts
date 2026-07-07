@@ -36,6 +36,7 @@ import { getQuotes, createQuote } from '../controllers/quoteController';
 import { getPurchaseOrders } from '../controllers/purchaseOrderController';
 import { getApprovals, updateApproval } from '../controllers/approvalController';
 import { getKpiDashboard, getManagementDashboard } from '../controllers/dashboardController';
+import { getAssignmentRules } from '../controllers/assignmentRuleController';
 
 // ==========================================
 // LEADS
@@ -78,7 +79,11 @@ router.put("/approvals/:id", authMiddleware, updateApproval);
 // ==========================================
 router.get("/dashboard/kpi", authMiddleware, getKpiDashboard);
 router.get("/dashboard/management", authMiddleware, getManagementDashboard);
-router.get("/assignment-rules", (req, res) => { res.json(mockAssignmentRules); });
+
+// ==========================================
+// ASSIGNMENT RULES
+// ==========================================
+router.get("/assignment-rules", authMiddleware, getAssignmentRules);
 
 // Activity routes
 router.get("/leads/:leadId/activities", getLeadActivities);

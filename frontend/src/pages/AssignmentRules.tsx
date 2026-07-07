@@ -1,3 +1,4 @@
+import { useAuth } from "../context/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { 
   GripVertical, Package, Globe, RefreshCw, Award, 
@@ -6,11 +7,13 @@ import {
 } from "lucide-react";
 
 export default function AssignmentRules() {
+  const { token } = useAuth();
+
   const { data: rules, isLoading } = useQuery({
     queryKey: ["assignmentRules"],
     queryFn: async () => {
       const res = await fetch("/api/v1/assignment-rules", {
-        headers: { "Authorization": "Bearer dummy" }
+        headers: { "Authorization": `Bearer ${token}` }
       });
       if (!res.ok) throw new Error("Failed to fetch assignment rules");
       return res.json();
@@ -57,48 +60,56 @@ export default function AssignmentRules() {
           {isLoading ? (
             <div className="p-8 text-center text-on-surface-variant animate-pulse">Loading rules...</div>
           ) : (
-            rules?.map((rule: any, i: number) => (
-              <div key={rule.id} className={`bg-surface-container-lowest border ${!rule.active ? 'border-outline-variant/50 opacity-60 bg-surface' : 'border-outline-variant'} rounded-xl p-4 flex items-center gap-4 group hover:shadow-md transition-shadow`}>
-                <div className={`cursor-move ${!rule.active ? 'opacity-20' : 'opacity-40 group-hover:opacity-100'} text-outline`}>
+            rules?.map((rule: any, i: number) => {
+              const isActive = rule.isActive ?? rule.active ?? true;
+              const ruleName = rule.name || `Assignment Rule ${rule.priority || i+1}`;
+              const ruleDesc = rule.description || `Priority: ${rule.priority || 'Standard'}`;
+              const ruleCondition = rule.criteria || rule.condition || 'All Leads';
+              const ruleAction = (rule.assignTo ? `Assign to ${rule.assignTo.name}` : rule.action) || 'No action';
+              const ruleType = rule.type || 'round-robin';
+
+              return (
+              <div key={rule.id} className={`bg-surface-container-lowest border ${!isActive ? 'border-outline-variant/50 opacity-60 bg-surface' : 'border-outline-variant'} rounded-xl p-4 flex items-center gap-4 group hover:shadow-md transition-shadow`}>
+                <div className={`cursor-move ${!isActive ? 'opacity-20' : 'opacity-40 group-hover:opacity-100'} text-outline`}>
                   <GripVertical className="w-6 h-6" />
                 </div>
                 
                 {/* Icon mapping based on rule type */}
                 <div className={`w-10 h-10 rounded flex items-center justify-center 
-                  ${rule.type === 'product' ? 'bg-primary-container/20 text-primary' : 
-                    rule.type === 'geo' ? 'bg-tertiary-container/20 text-tertiary' : 
-                    rule.type === 'round-robin' ? 'bg-secondary/10 text-secondary' : 
+                  ${ruleType === 'product' ? 'bg-primary-container/20 text-primary' : 
+                    ruleType === 'geo' ? 'bg-tertiary-container/20 text-tertiary' : 
+                    ruleType === 'round-robin' ? 'bg-secondary/10 text-secondary' : 
                     'bg-outline-variant/20 text-outline'}`}>
-                  {rule.type === 'product' && <Package className="w-6 h-6" />}
-                  {rule.type === 'geo' && <Globe className="w-6 h-6" />}
-                  {rule.type === 'round-robin' && <RefreshCw className="w-6 h-6" />}
-                  {rule.type === 'skill' && <Award className="w-6 h-6" />}
+                  {ruleType === 'product' && <Package className="w-6 h-6" />}
+                  {ruleType === 'geo' && <Globe className="w-6 h-6" />}
+                  {ruleType === 'round-robin' && <RefreshCw className="w-6 h-6" />}
+                  {ruleType === 'skill' && <Award className="w-6 h-6" />}
                 </div>
 
                 <div className="flex-1 grid grid-cols-12 items-center gap-4">
                   <div className="col-span-4">
-                    <h4 className="text-base font-bold text-on-surface">{rule.name}</h4>
-                    <p className="text-sm text-on-surface-variant">{rule.description}</p>
+                    <h4 className="text-base font-bold text-on-surface">{ruleName}</h4>
+                    <p className="text-sm text-on-surface-variant">{ruleDesc}</p>
                   </div>
                   <div className="col-span-4 flex items-center gap-2">
                     <div className="px-2 py-1 bg-surface-container-low text-on-surface-variant text-[11px] font-bold rounded uppercase border border-outline-variant/30">IF</div>
-                    {rule.active ? (
-                      <span className="text-sm font-medium">{rule.condition}</span>
+                    {isActive ? (
+                      <span className="text-sm font-medium">{ruleCondition}</span>
                     ) : (
                       <span className="text-sm font-medium italic">Disabled</span>
                     )}
                   </div>
                   <div className="col-span-4 flex items-center gap-2">
                     <ArrowRight className="w-5 h-5 text-outline" />
-                    {rule.active ? (
+                    {isActive ? (
                       <div className={`flex items-center gap-1 px-3 py-1 rounded-full text-sm font-bold border
-                        ${rule.type === 'product' ? 'bg-secondary/10 text-secondary border-secondary/20' :
-                          rule.type === 'geo' ? 'bg-secondary/10 text-secondary border-secondary/20' :
+                        ${ruleType === 'product' ? 'bg-secondary/10 text-secondary border-secondary/20' :
+                          ruleType === 'geo' ? 'bg-secondary/10 text-secondary border-secondary/20' :
                           'bg-primary/10 text-primary border-primary/20'}`}>
-                        {rule.type === 'product' && <Users className="w-4 h-4" />}
-                        {rule.type === 'geo' && <Map className="w-4 h-4" />}
-                        {rule.type === 'round-robin' && <Repeat className="w-4 h-4" />}
-                        {rule.action}
+                        {ruleType === 'product' && <Users className="w-4 h-4" />}
+                        {ruleType === 'geo' && <Map className="w-4 h-4" />}
+                        {ruleType === 'round-robin' && <Repeat className="w-4 h-4" />}
+                        {ruleAction}
                       </div>
                     ) : (
                       <span className="text-sm text-outline">No action assigned</span>
@@ -108,15 +119,16 @@ export default function AssignmentRules() {
 
                 <div className="flex items-center gap-4">
                   <label className="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" className="sr-only toggle-switch" defaultChecked={rule.active} />
-                    <div className={`w-11 h-6 rounded-full transition-colors relative ${rule.active ? 'bg-primary' : 'bg-outline-variant'}`}>
-                      <div className={`absolute top-1 bg-white w-4 h-4 rounded-full transition-transform ${rule.active ? 'left-6' : 'left-1'}`}></div>
+                    <input type="checkbox" className="sr-only toggle-switch" defaultChecked={isActive} />
+                    <div className={`w-11 h-6 rounded-full transition-colors relative ${isActive ? 'bg-primary' : 'bg-outline-variant'}`}>
+                      <div className={`absolute top-1 bg-white w-4 h-4 rounded-full transition-transform ${isActive ? 'left-6' : 'left-1'}`}></div>
                     </div>
                   </label>
                   <Delete className="w-6 h-6 text-outline cursor-pointer hover:text-error" />
                 </div>
               </div>
-            ))
+            );
+            })
           )}
 
           {/* Fallback Rule */}
