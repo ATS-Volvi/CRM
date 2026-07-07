@@ -1,16 +1,54 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { Link } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 import { 
   Mail, Facebook, Instagram, Linkedin, Globe, X, 
   Download, MoreVertical, ExternalLink 
 } from "lucide-react";
 
 export default function LeadInbox() {
+  const { token } = useAuth();
+  const queryClient = useQueryClient();
+  const [showAddLeadModal, setShowAddLeadModal] = useState(false);
+  const [newLead, setNewLead] = useState({ firstName: "", lastName: "", email: "", company: "", source: "email" });
+
+  const createLeadMutation = useMutation({
+    mutationFn: async (lead: any) => {
+      const res = await fetch("/api/v1/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify(lead),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+      setShowAddLeadModal(false);
+      setNewLead({ firstName: "", lastName: "", email: "", company: "", source: "email" });
+    },
+  });
+
+  const deleteLeadMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/v1/leads/${id}`, {
+        method: "DELETE",
+        headers: { "Authorization": `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return true;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+    },
+  });
+
   const { data: leads, isLoading } = useQuery({
     queryKey: ["leads"],
     queryFn: async () => {
       const res = await fetch("/api/v1/leads", {
-        headers: { "Authorization": "Bearer dummy" }
+        headers: { "Authorization": `Bearer ${token}` }
       });
       if (!res.ok) throw new Error("Failed to fetch leads");
       return res.json();
@@ -128,7 +166,15 @@ export default function LeadInbox() {
         {/* Filters Bar */}
         <div className="p-6 border-b border-outline-variant flex flex-wrap items-center justify-between gap-6 bg-surface-bright">
           <div className="flex items-center gap-4 flex-wrap">
-            <h2 className="text-lg font-semibold pr-6 border-r border-outline-variant">Unified Inbox</h2>
+            <div className="flex items-center gap-4 pr-6 border-r border-outline-variant">
+              <h2 className="text-lg font-semibold">Unified Inbox</h2>
+              <button 
+                onClick={() => setShowAddLeadModal(true)}
+                className="bg-primary text-on-primary px-3 py-1.5 rounded text-sm font-bold shadow-sm hover:opacity-90 transition-all"
+              >
+                + Add Lead
+              </button>
+            </div>
             <div className="flex items-center gap-2">
               <span className="text-[12px] font-semibold tracking-wider text-on-surface-variant">Source:</span>
               <select className="bg-surface border border-outline-variant rounded px-3 py-1.5 text-sm focus:ring-primary focus:outline-none">
@@ -217,9 +263,25 @@ export default function LeadInbox() {
                     <td className="px-6 py-4 text-sm text-on-surface-variant">{lead.waitTime || 'N/A'}</td>
                     <td className="px-6 py-4 text-right">
                       {lead.status === 'New Lead' ? (
-                        <button className="px-4 py-1.5 bg-primary text-on-primary rounded text-[12px] font-bold hover:bg-primary-container transition-all">Claim</button>
+                        <div className="flex items-center gap-2 justify-end">
+                          <button className="px-4 py-1.5 bg-primary text-on-primary rounded text-[12px] font-bold hover:bg-primary-container transition-all">Claim</button>
+                          <button 
+                            onClick={() => { if(confirm("Are you sure?")) deleteLeadMutation.mutate(lead.id); }}
+                            className="p-1.5 text-error hover:bg-error-container rounded transition-colors"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
                       ) : (
-                        <button className="p-2 text-primary hover:bg-surface-container-high rounded transition-colors"><ExternalLink className="w-5 h-5" /></button>
+                        <div className="flex items-center gap-2 justify-end">
+                          <button className="p-2 text-primary hover:bg-surface-container-high rounded transition-colors"><ExternalLink className="w-5 h-5" /></button>
+                          <button 
+                            onClick={() => { if(confirm("Are you sure?")) deleteLeadMutation.mutate(lead.id); }}
+                            className="p-1.5 text-error hover:bg-error-container rounded transition-colors"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -229,6 +291,53 @@ export default function LeadInbox() {
           </table>
         </div>
       </div>
+
+      {showAddLeadModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-surface rounded-xl p-6 w-full max-w-md shadow-2xl">
+            <h2 className="text-xl font-bold mb-4">Add New Lead</h2>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold mb-1">First Name</label>
+                  <input type="text" className="w-full border rounded p-2 text-sm" value={newLead.firstName} onChange={e => setNewLead({...newLead, firstName: e.target.value})} />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold mb-1">Last Name</label>
+                  <input type="text" className="w-full border rounded p-2 text-sm" value={newLead.lastName} onChange={e => setNewLead({...newLead, lastName: e.target.value})} />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold mb-1">Email</label>
+                <input type="email" className="w-full border rounded p-2 text-sm" value={newLead.email} onChange={e => setNewLead({...newLead, email: e.target.value})} />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold mb-1">Company</label>
+                <input type="text" className="w-full border rounded p-2 text-sm" value={newLead.company} onChange={e => setNewLead({...newLead, company: e.target.value})} />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold mb-1">Source</label>
+                <select className="w-full border rounded p-2 text-sm" value={newLead.source} onChange={e => setNewLead({...newLead, source: e.target.value})}>
+                  <option value="email">Email</option>
+                  <option value="facebook">Facebook</option>
+                  <option value="linkedin">LinkedIn</option>
+                  <option value="website">Website</option>
+                </select>
+              </div>
+              <div className="flex gap-2 justify-end pt-4">
+                <button onClick={() => setShowAddLeadModal(false)} className="px-4 py-2 font-bold text-on-surface-variant">Cancel</button>
+                <button 
+                  onClick={() => createLeadMutation.mutate(newLead)}
+                  disabled={createLeadMutation.isPending || !newLead.email}
+                  className="px-4 py-2 bg-primary text-white font-bold rounded disabled:opacity-50"
+                >
+                  Save Lead
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -29,9 +29,17 @@ router.use(authMiddleware);
 
 import { mockLeads, mockQuotes, mockPurchaseOrders, mockPriceBook, mockApprovals, mockAssignmentRules } from "../mockData";
 import { getPipeline, moveDealStage } from "../controllers/pipelineController";
+import { getLeadActivities, createActivity, togglePinActivity } from "../controllers/activityController";
+import { getLeads, createLead, deleteLead } from '../controllers/leadController';
 
-// Use mock data routes to ensure the UI renders correctly, as the DB schema is currently incomplete.
-router.get("/leads", (req, res) => { res.json(mockLeads); });
+// ==========================================
+// LEADS
+// ==========================================
+router.get("/leads", authMiddleware, getLeads);
+router.post("/leads", authMiddleware, createLead);
+router.delete("/leads/:id", authMiddleware, deleteLead);
+
+// Mock legacy endpoints (keeping just in case, but real ones take precedence above)
 router.get("/deals", (req, res) => { res.json([]); });
 router.get("/pipeline", getPipeline);
 router.put("/pipeline/deals/:id/stage", moveDealStage);
@@ -40,6 +48,11 @@ router.get("/price-book", (req, res) => { res.json(mockPriceBook); });
 router.get("/purchase-orders", (req, res) => { res.json(mockPurchaseOrders); });
 router.get("/approvals", (req, res) => { res.json(mockApprovals); });
 router.get("/assignment-rules", (req, res) => { res.json(mockAssignmentRules); });
+
+// Activity routes
+router.get("/leads/:leadId/activities", getLeadActivities);
+router.post("/leads/:leadId/activities", createActivity);
+router.put("/activities/:id/pin", togglePinActivity);
 
 // Generic CRUD factory for quick scaffolding (Database required)
 const createCrudRoutes = (model: any) => {
