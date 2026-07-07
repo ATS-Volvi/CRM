@@ -1,14 +1,24 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+import { useState } from "react";
 import { 
   ArrowLeft, Mail, Phone, Building2, MapPin, Globe, CheckCircle2, 
   Sparkles, Clock, Calendar, CheckSquare, MessageSquare, Plus, ArrowLeftRight,
-  FileText, Users, DollarSign, Activity, ChevronRight, TrendingUp, Repeat, FileSpreadsheet, ShoppingBag
+  FileText, Users, DollarSign, Activity, ChevronRight, TrendingUp, Repeat, FileSpreadsheet, ShoppingBag, Pin
 } from "lucide-react";
 import { formatCurrency, formatCurrencyCompact } from "../utils/currency";
+import { formatDistanceToNow } from "date-fns";
 
 export default function LeadDetail() {
+  const { token } = useAuth();
+
   const { id } = useParams();
+  const queryClient = useQueryClient();
+
+  const [filterType, setFilterType] = useState<string>("All");
+  const [newNote, setNewNote] = useState("");
+  const [noteType, setNoteType] = useState<"note" | "call" | "email">("note");
 
   // We fetch a mock lead detail from our API
   const { data: lead, isLoading } = useQuery({
@@ -24,6 +34,70 @@ export default function LeadDetail() {
     }
   });
 
+  const { data: activities = [] } = useQuery({
+    queryKey: ["activities", id],
+    queryFn: async () => {
+      const res = await fetch(`/api/v1/leads/${id || 'mock-id'}/activities`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!res.ok) return [];
+      return res.json();
+    }
+  });
+
+  const addActivityMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      const res = await fetch(`/api/v1/leads/${id || 'mock-id'}/activities`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error("Failed to add activity");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["activities"] });
+      setNewNote("");
+    }
+  });
+
+  const togglePinMutation = useMutation({
+    mutationFn: async (activityId: string) => {
+      const res = await fetch(`/api/v1/activities/${activityId}/pin`, {
+        method: "PUT",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error("Failed to pin activity");
+      return res.json();
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["activities"] })
+  });
+
+  const handleAddNote = () => {
+    if (!newNote.trim()) return;
+    
+    // Check for mentions
+    const mentioned_user_ids = [];
+    if (newNote.includes("@")) {
+      // Mock parsing for user ID if a mention is found
+      mentioned_user_ids.push("mock-mentioned-user");
+    }
+
+    addActivityMutation.mutate({
+      type: noteType,
+      outcome: newNote,
+      mentioned_user_ids
+    });
+  };
+
+  const filteredActivities = activities.filter((act: any) => {
+    if (filterType === "All") return true;
+    if (filterType === "Communications" && ["call", "email", "whatsapp_sms", "meeting"].includes(act.type)) return true;
+    if (filterType === "Documents" && act.type === "quote_created") return true; // Just mapping logically
+    if (filterType === "Notes" && act.type === "note") return true;
+    return false;
+  });
+
   return (
     <div className="flex-1 overflow-y-auto bg-background h-[calc(100vh-64px)]">
       {/* Action Bar & Breadcrumbs */}
@@ -34,23 +108,48 @@ export default function LeadDetail() {
           <span className="font-bold text-on-surface">{isLoading ? 'Loading...' : 'Arjun Mehta (Tech Mahindra)'}</span>
         </div>
         <div className="flex items-center gap-3">
-          <button className="flex items-center gap-2 px-4 py-2 border border-outline text-on-surface font-bold rounded-lg hover:bg-surface-container-low transition-all">
+          <button 
+            onClick={() => {
+              setNoteType("call");
+              setNewNote("");
+              const textarea = document.querySelector('textarea');
+              if (textarea) textarea.focus();
+            }}
+            className={`flex items-center gap-2 px-4 py-2 border font-bold rounded-lg transition-all ${noteType === 'call' ? 'bg-error-container text-error border-error' : 'border-outline text-on-surface hover:bg-surface-container-low'}`}
+          >
             <Phone className="w-5 h-5" />
             <span className="text-sm">Log Call</span>
           </button>
-          <button className="flex items-center gap-2 px-4 py-2 border border-outline text-on-surface font-bold rounded-lg hover:bg-surface-container-low transition-all">
+          <button 
+            onClick={() => {
+              setNoteType("email");
+              setNewNote("");
+              const textarea = document.querySelector('textarea');
+              if (textarea) textarea.focus();
+            }}
+            className={`flex items-center gap-2 px-4 py-2 border font-bold rounded-lg transition-all ${noteType === 'email' ? 'bg-tertiary-container text-tertiary border-tertiary' : 'border-outline text-on-surface hover:bg-surface-container-low'}`}
+          >
             <Mail className="w-5 h-5" />
             <span className="text-sm">Send Email</span>
           </button>
-          <button className="flex items-center gap-2 px-4 py-2 border border-secondary text-secondary font-bold rounded-lg hover:bg-secondary-container/20 transition-all">
+          <button 
+            onClick={() => window.location.href = "/quotes/new"}
+            className="flex items-center gap-2 px-4 py-2 border border-secondary text-secondary font-bold rounded-lg hover:bg-secondary-container/20 transition-all"
+          >
             <FileText className="w-5 h-5" />
             <span className="text-sm">Create Quote</span>
           </button>
-                <button className="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary font-bold rounded hover:bg-primary/20 transition-colors text-sm">
-                  <Sparkles className="w-4 h-4" />
-                  Auto-Enrich
-                </button>
-          <button className="flex items-center gap-2 px-4 py-2 bg-primary text-on-primary font-bold rounded-lg hover:opacity-90 transition-all">
+          <button 
+            onClick={() => alert("Auto-enrichment requires Phase 13 backend completion.")}
+            className="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary font-bold rounded hover:bg-primary/20 transition-colors text-sm"
+          >
+            <Sparkles className="w-4 h-4" />
+            Auto-Enrich
+          </button>
+          <button 
+            onClick={() => alert("Schedule Meeting integration not configured.")}
+            className="flex items-center gap-2 px-4 py-2 bg-primary text-on-primary font-bold rounded-lg hover:opacity-90 transition-all"
+          >
             <Calendar className="w-5 h-5" />
             <span className="text-sm">Schedule Meeting</span>
           </button>
@@ -152,104 +251,117 @@ export default function LeadDetail() {
         {/* Right Column: Activity Timeline */}
         <div className="col-span-12 lg:col-span-8">
           <div className="bg-surface-container-lowest p-6 rounded-xl border border-outline-variant shadow-sm h-full">
-            <div className="flex items-center justify-between mb-8">
+              <div className="flex items-center justify-between mb-8">
               <h3 className="text-lg font-semibold text-on-surface">Activity Timeline</h3>
               <div className="flex gap-2">
-                <button className="text-[12px] font-semibold tracking-wider uppercase px-3 py-1.5 rounded-full bg-surface-container-high text-primary">All Activity</button>
-                <button className="text-[12px] font-semibold tracking-wider uppercase px-3 py-1.5 rounded-full text-on-surface-variant hover:bg-surface-container">Communications</button>
-                <button className="text-[12px] font-semibold tracking-wider uppercase px-3 py-1.5 rounded-full text-on-surface-variant hover:bg-surface-container">Documents</button>
+                <button 
+                  onClick={() => setFilterType("All")}
+                  className={`text-[12px] font-semibold tracking-wider uppercase px-3 py-1.5 rounded-full ${filterType === "All" ? 'bg-surface-container-high text-primary' : 'text-on-surface-variant hover:bg-surface-container'}`}
+                >All Activity</button>
+                <button 
+                  onClick={() => setFilterType("Communications")}
+                  className={`text-[12px] font-semibold tracking-wider uppercase px-3 py-1.5 rounded-full ${filterType === "Communications" ? 'bg-surface-container-high text-primary' : 'text-on-surface-variant hover:bg-surface-container'}`}
+                >Communications</button>
+                <button 
+                  onClick={() => setFilterType("Notes")}
+                  className={`text-[12px] font-semibold tracking-wider uppercase px-3 py-1.5 rounded-full ${filterType === "Notes" ? 'bg-surface-container-high text-primary' : 'text-on-surface-variant hover:bg-surface-container'}`}
+                >Notes</button>
               </div>
             </div>
 
+            {/* Quick Add Note */}
+            <div className="mb-8 flex gap-3">
+              <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-on-primary font-bold shadow-sm">
+                ME
+              </div>
+              <div className="flex-1 bg-surface-container-low rounded-lg border border-outline-variant p-2 flex flex-col">
+                <textarea 
+                  className="w-full bg-transparent border-none outline-none resize-none text-sm p-2"
+                  placeholder={noteType === 'call' ? "Summarize the call..." : noteType === 'email' ? "Paste email contents..." : "Leave a note or type @ to mention someone..."}
+                  value={newNote}
+                  onChange={(e) => setNewNote(e.target.value)}
+                  rows={2}
+                />
+                <div className="flex justify-end pt-2">
+                  <button 
+                    onClick={handleAddNote}
+                    disabled={addActivityMutation.isPending || !newNote.trim()}
+                    className="px-4 py-1.5 bg-primary text-white rounded text-sm font-bold hover:bg-primary/90 disabled:opacity-50"
+                  >
+                    {noteType === 'call' ? "Log Call" : noteType === 'email' ? "Log Email" : "Post Note"}
+                  </button>
+                </div>
+              </div>
+            </div>
+            
+            {noteType !== 'note' && (
+              <div className="mb-4 flex justify-end">
+                <button 
+                  onClick={() => { setNoteType('note'); setNewNote(''); }}
+                  className="text-xs text-on-surface-variant hover:text-on-surface underline"
+                >
+                  Cancel {noteType} and return to note
+                </button>
+              </div>
+            )}
+
             <div className="relative space-y-8 before:content-[''] before:absolute before:left-[19px] before:top-2 before:bottom-2 before:w-[2px] before:bg-outline-variant">
               
-              {/* Timeline Item: Stage Change */}
-              <div className="relative pl-12">
-                <div className="absolute left-0 top-0 w-10 h-10 rounded-full bg-primary-container/20 border-4 border-surface flex items-center justify-center z-10 text-primary">
-                  <TrendingUp className="w-5 h-5" />
+              {filteredActivities.length === 0 && (
+                <div className="relative pl-12 text-on-surface-variant italic text-sm">
+                  No activities recorded yet.
                 </div>
-                <div className="bg-surface-container p-4 rounded-lg border border-outline-variant/50">
-                  <div className="flex justify-between items-start mb-2">
-                    <p className="text-sm font-bold">Lead Stage Updated to <span className="text-primary">Proposal</span></p>
-                    <span className="text-[12px] font-semibold tracking-wider uppercase text-on-surface-variant">Just now</span>
-                  </div>
-                  <p className="text-sm text-on-surface-variant">System automatically updated stage based on quotation generation.</p>
-                </div>
-              </div>
+              )}
 
-              {/* Timeline Item: Quote Event */}
-              <div className="relative pl-12">
-                <div className="absolute left-0 top-0 w-10 h-10 rounded-full bg-secondary/10 border-4 border-surface flex items-center justify-center z-10 text-secondary">
-                  <FileText className="w-5 h-5" />
-                </div>
-                <div className="p-4 rounded-lg border border-outline-variant">
-                  <div className="flex justify-between items-start mb-2">
-                    <p className="text-sm font-bold">Quotation Created: #Q-45920</p>
-                    <span className="text-[12px] font-semibold tracking-wider uppercase text-on-surface-variant">2 hours ago</span>
+              {filteredActivities.map((act: any) => (
+                <div key={act.id} className="relative pl-12 group">
+                  <div className={`absolute left-0 top-0 w-10 h-10 rounded-full border-4 border-surface flex items-center justify-center z-10 ${
+                    act.type === 'call' ? 'bg-error-container text-error' :
+                    act.type === 'email' ? 'bg-tertiary-container text-tertiary' :
+                    act.type === 'meeting' ? 'bg-secondary-container text-secondary' :
+                    act.type === 'stage_change' ? 'bg-primary-container text-primary' :
+                    'bg-surface-container-high text-on-surface'
+                  }`}>
+                    {act.type === 'call' && <Phone className="w-5 h-5" />}
+                    {act.type === 'email' && <Mail className="w-5 h-5" />}
+                    {act.type === 'meeting' && <Users className="w-5 h-5" />}
+                    {act.type === 'stage_change' && <TrendingUp className="w-5 h-5" />}
+                    {act.type === 'note' && <MessageSquare className="w-5 h-5" />}
+                    {act.type === 'task' && <CheckSquare className="w-5 h-5" />}
+                    {act.type === 'whatsapp_sms' && <MessageSquare className="w-5 h-5" />}
                   </div>
-                  <div className="flex items-center justify-between bg-surface-bright p-2 rounded border border-outline-variant/30">
-                    <div className="flex items-center gap-3">
-                      <FileSpreadsheet className="w-5 h-5 text-primary" />
-                      <div>
-                        <p className="text-sm font-medium">Enterprise Suite License.pdf</p>
-                        <p className="text-[12px] font-semibold tracking-wider uppercase text-on-surface-variant">{formatCurrency(24500)}</p>
+                  
+                  <div className={`p-4 rounded-lg border transition-all ${act.pinned ? 'bg-secondary-container/10 border-secondary' : 'bg-surface-container border-outline-variant/50 group-hover:border-outline-variant'}`}>
+                    <div className="flex justify-between items-start mb-2">
+                      <p className="text-sm font-bold flex items-center gap-2">
+                        {act.type.replace('_', ' ').toUpperCase()} 
+                        {act.pinned && <Pin className="w-4 h-4 text-secondary fill-secondary" />}
+                      </p>
+                      <div className="flex items-center gap-3">
+                        <span className="text-[12px] font-semibold tracking-wider uppercase text-on-surface-variant">
+                          {formatDistanceToNow(new Date(act.createdAt), { addSuffix: true })}
+                        </span>
+                        <button 
+                          onClick={() => togglePinMutation.mutate(act.id)}
+                          className={`p-1 rounded transition-colors ${act.pinned ? 'text-secondary bg-secondary-container hover:bg-secondary-container/80' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'}`}
+                        >
+                          <Pin className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
-                    <button className="text-primary font-bold text-[12px] tracking-wider uppercase">VIEW</button>
+                    {act.outcome && <p className="text-sm text-on-surface whitespace-pre-wrap">{act.outcome}</p>}
+                    {act.duration && <p className="text-[12px] text-on-surface-variant mt-2 font-medium">Duration: {act.duration} mins</p>}
+                    
+                    {act.mentioned_user_ids && act.mentioned_user_ids !== "[]" && (
+                      <div className="mt-3 flex items-center gap-2">
+                        <span className="bg-primary/20 text-primary text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">
+                          Mentions Sent
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
-              </div>
-
-              {/* Timeline Item: Email */}
-              <div className="relative pl-12">
-                <div className="absolute left-0 top-0 w-10 h-10 rounded-full bg-tertiary-fixed border-4 border-surface flex items-center justify-center z-10 text-tertiary">
-                  <Mail className="w-5 h-5" />
-                </div>
-                <div className="p-4 rounded-lg border border-outline-variant">
-                  <div className="flex justify-between items-start mb-2">
-                    <p className="text-sm font-bold">Outbound Email Sent</p>
-                    <span className="text-[12px] font-semibold tracking-wider uppercase text-on-surface-variant">Yesterday, 4:30 PM</span>
-                  </div>
-                  <p className="text-sm text-on-surface-variant line-clamp-2">"Hi Arjun, Great connecting with you today. As promised, I've attached the case studies for the BFSI sector..."</p>
-                </div>
-              </div>
-
-              {/* Timeline Item: Meeting */}
-              <div className="relative pl-12">
-                  <Users className="w-5 h-5" />
-                <div className="p-4 rounded-lg border border-outline-variant">
-                  <div className="flex justify-between items-start mb-2">
-                    <p className="text-sm font-bold">Discovery Call - Technical Requirements</p>
-                    <span className="text-[12px] font-semibold tracking-wider uppercase text-on-surface-variant">Oct 24, 10:00 AM</span>
-                  </div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-sm text-on-surface-variant">Google Meet</span>
-                  </div>
-                  <p className="text-sm bg-surface-container-low p-2 rounded border-l-4 border-primary">Discussed security compliance and API integration needs for their Mumbai data center.</p>
-                </div>
-              </div>
-
-              {/* Timeline Item: Call */}
-              <div className="relative pl-12">
-                <div className="absolute left-0 top-0 w-10 h-10 rounded-full bg-error-container border-4 border-surface flex items-center justify-center z-10 text-error">
-                  <Phone className="w-5 h-5" />
-                </div>
-                <div className="p-4 rounded-lg border border-outline-variant">
-                  <div className="flex justify-between items-start mb-1">
-                    <p className="text-sm font-bold">Call Missed</p>
-                    <span className="text-[12px] font-semibold tracking-wider uppercase text-on-surface-variant">Oct 22, 2:15 PM</span>
-                  </div>
-                  <p className="text-sm text-on-surface-variant">Inbound call from Arjun Mehta. No voicemail left.</p>
-                </div>
-              </div>
-
-              {/* Timeline Item: PO */}
-              <div className="relative pl-12 opacity-50">
-                  <ShoppingBag className="w-5 h-5" />
-                <div className="p-4 rounded-lg border border-dashed border-outline-variant">
-                  <p className="text-sm italic">No Purchase Orders recorded yet.</p>
-                </div>
-              </div>
+              ))}
 
             </div>
           </div>
