@@ -3,6 +3,7 @@ import {
   TrendingUp, TrendingDown, Info, Calendar, Download, 
   ChevronDown, DollarSign, Activity, Star, Zap, Mail, Users, Globe, Share2 
 } from "lucide-react";
+import { formatCurrency, formatCurrencyCompact } from "../utils/currency";
 
 export default function ManagementDashboard() {
   const { data: kpi, isLoading, error } = useQuery({
@@ -59,7 +60,7 @@ export default function ManagementDashboard() {
                 <div className="text-primary bg-primary/10 p-2 rounded-lg"><DollarSign className="w-5 h-5" /></div>
               </div>
               <h4 className="text-3xl font-bold text-on-surface">
-                ${(kpi?.totalRevenue / 1000000).toFixed(1)}M
+                {formatCurrencyCompact(kpi?.totalRevenue)}
               </h4>
               <div className="flex items-center gap-1 mt-2 text-emerald-500">
                 <TrendingUp className="w-4 h-4" />
@@ -181,22 +182,22 @@ export default function ManagementDashboard() {
                     <tr className="hover:bg-surface-container-high transition-colors">
                       <td className="py-4 px-4 text-sm flex items-center gap-2"><Mail className="w-4 h-4 text-primary" /> Email</td>
                       <td className="py-4 px-4 font-medium text-sm">4.2%</td>
-                      <td className="py-4 px-4 font-medium text-sm">$12.40</td>
+                      <td className="py-4 px-4 font-medium text-sm">{formatCurrency(12.4)}</td>
                     </tr>
                     <tr className="hover:bg-surface-container-high transition-colors">
                       <td className="py-4 px-4 text-sm flex items-center gap-2"><Users className="w-4 h-4 text-secondary" /> LinkedIn</td>
                       <td className="py-4 px-4 font-medium text-sm">2.8%</td>
-                      <td className="py-4 px-4 font-medium text-sm">$45.10</td>
+                      <td className="py-4 px-4 font-medium text-sm">{formatCurrency(45.1)}</td>
                     </tr>
                     <tr className="hover:bg-surface-container-high transition-colors">
                       <td className="py-4 px-4 text-sm flex items-center gap-2"><Globe className="w-4 h-4 text-primary" /> Web</td>
                       <td className="py-4 px-4 font-medium text-sm">5.1%</td>
-                      <td className="py-4 px-4 font-medium text-sm">$08.90</td>
+                      <td className="py-4 px-4 font-medium text-sm">{formatCurrency(8.9)}</td>
                     </tr>
                     <tr className="hover:bg-surface-container-high transition-colors">
                       <td className="py-4 px-4 text-sm flex items-center gap-2"><Share2 className="w-4 h-4 text-secondary" /> Referral</td>
                       <td className="py-4 px-4 font-medium text-sm">18.4%</td>
-                      <td className="py-4 px-4 font-medium text-sm">$0.00</td>
+                      <td className="py-4 px-4 font-medium text-sm">{formatCurrency(0)}</td>
                     </tr>
                   </tbody>
                 </table>

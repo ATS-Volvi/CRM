@@ -14,6 +14,7 @@ import PriceBook from "./pages/PriceBook";
 import PurchaseOrders from "./pages/PurchaseOrders";
 import ApprovalQueue from "./pages/ApprovalQueue";
 import AssignmentRules from "./pages/AssignmentRules";
+import PublicQuoteRequest from "./pages/PublicQuoteRequest";
 
 const queryClient = new QueryClient();
 
@@ -22,6 +23,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <Routes>
+          <Route path="/quote" element={<PublicQuoteRequest />} />
           <Route element={<Layout />}>
             <Route path="/" element={<ManagementDashboard />} />
             <Route path="/kpi" element={<KpiDashboard />} />

@@ -31,6 +31,7 @@ export class Lead extends Model {
   public source!: string;
   public industry!: string;
   public assignedToId!: string | null;
+  public leadScore!: number;
 }
 
 Lead.init(
@@ -44,6 +45,7 @@ Lead.init(
     status: { type: DataTypes.STRING, defaultValue: "New" },
     source: { type: DataTypes.STRING, allowNull: true },
     industry: { type: DataTypes.STRING, allowNull: true },
+    leadScore: { type: DataTypes.INTEGER, defaultValue: 50 },
   },
   { sequelize, modelName: "Lead" }
 );
@@ -58,11 +60,34 @@ export class PipelineStage extends Model {
 PipelineStage.init(
   {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
-    name: { type: DataTypes.STRING, allowNull: false },
+    name: { 
+      type: DataTypes.ENUM, 
+      values: ["New", "Contacted", "Qualified", "Meeting/Demo", "Proposal", "Negotiation", "Won", "Lost", "On Hold"],
+      allowNull: false 
+    },
     order: { type: DataTypes.INTEGER, allowNull: false },
     probability: { type: DataTypes.INTEGER, defaultValue: 0 },
   },
   { sequelize, modelName: "PipelineStage" }
+);
+
+export class LeadStageHistory extends Model {
+  public id!: string;
+  public leadId!: string;
+  public fromStage!: string;
+  public toStage!: string;
+  public changedById!: string;
+  public reason!: string | null;
+}
+
+LeadStageHistory.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    fromStage: { type: DataTypes.STRING, allowNull: false },
+    toStage: { type: DataTypes.STRING, allowNull: false },
+    reason: { type: DataTypes.TEXT, allowNull: true },
+  },
+  { sequelize, modelName: "LeadStageHistory", updatedAt: false } // Only tracks creation date
 );
 
 export class Deal extends Model {
@@ -73,6 +98,8 @@ export class Deal extends Model {
   public stageId!: string;
   public leadId!: string | null;
   public ownerId!: string;
+  public recontactDate!: Date | null;
+  public lossReason!: string | null;
 }
 
 Deal.init(
@@ -81,6 +108,8 @@ Deal.init(
     name: { type: DataTypes.STRING, allowNull: false },
     amount: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
     expectedCloseDate: { type: DataTypes.DATE, allowNull: true },
+    recontactDate: { type: DataTypes.DATE, allowNull: true },
+    lossReason: { type: DataTypes.TEXT, allowNull: true },
   },
   { sequelize, modelName: "Deal" }
 );
@@ -205,6 +234,12 @@ AssignmentRule.init(
 // Define Associations
 User.hasMany(Lead, { foreignKey: "assignedToId" });
 Lead.belongsTo(User, { foreignKey: "assignedToId", as: "assignedTo" });
+
+Lead.hasMany(LeadStageHistory, { foreignKey: "leadId", as: "stageHistory" });
+LeadStageHistory.belongsTo(Lead, { foreignKey: "leadId" });
+
+User.hasMany(LeadStageHistory, { foreignKey: "changedById" });
+LeadStageHistory.belongsTo(User, { foreignKey: "changedById", as: "changedBy" });
 
 PipelineStage.hasMany(Deal, { foreignKey: "stageId" });
 Deal.belongsTo(PipelineStage, { foreignKey: "stageId", as: "stage" });

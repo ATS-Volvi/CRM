@@ -7,8 +7,8 @@ import v1Router from "./src/routes/v1";
 export function createServer(): Express {
   const app = express();
 
-  app.use(helmet());
-  app.use(cors({ origin: process.env.CORS_ORIGIN || "*", credentials: true }));
+  app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
+  app.use(cors({ origin: process.env.CORS_ORIGIN || "http://localhost:5173", credentials: true }));
   app.use(express.json());
   app.use(cookieParser());
 

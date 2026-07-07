@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Search, Plus, Filter, MoreVertical, View, List, CheckCircle2 } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Search, Plus, Filter, MoreVertical, View, List, CheckCircle2, X } from "lucide-react";
+import { formatCurrency, formatCurrencyCompact } from "../utils/currency";
 
 export default function PipelineKanban() {
   const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
@@ -16,6 +17,59 @@ export default function PipelineKanban() {
     }
   });
 
+  const queryClient = useQueryClient();
+  const [transitionModal, setTransitionModal] = useState<{ dealId: string, toStageId: string, toStageName: string } | null>(null);
+  const [reason, setReason] = useState("");
+  const [recontactDate, setRecontactDate] = useState("");
+
+  const updateStageMutation = useMutation({
+    mutationFn: async ({ dealId, toStageId, reason, recontactDate }: any) => {
+      const res = await fetch(`/api/v1/pipeline/deals/${dealId}/stage`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer dummy' },
+        body: JSON.stringify({ toStageId, reason, recontactDate })
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pipeline"] });
+      setTransitionModal(null);
+    }
+  });
+
+  const handleDragStart = (e: React.DragEvent, dealId: string) => {
+    e.dataTransfer.setData("dealId", dealId);
+  };
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+  const handleDrop = (e: React.DragEvent, stageId: string, stageName: string) => {
+    e.preventDefault();
+    const dealId = e.dataTransfer.getData("dealId");
+    if (!dealId) return;
+
+    if (stageName === "Lost" || stageName === "On Hold") {
+      setTransitionModal({ dealId, toStageId: stageId, toStageName: stageName });
+      setReason("");
+      setRecontactDate("");
+    } else {
+      updateStageMutation.mutate({ dealId, toStageId: stageId });
+    }
+  };
+
+  const submitStageChange = () => {
+    if (!transitionModal) return;
+    updateStageMutation.mutate({ 
+      dealId: transitionModal.dealId, 
+      toStageId: transitionModal.toStageId, 
+      reason, 
+      recontactDate 
+    });
+  };
+
+  const totalOpportunityValue = pipelineColumns?.reduce((acc: number, col: any) => acc + col.totalValue, 0) || 0;
+
   return (
     <div className="flex-1 flex flex-col h-[calc(100vh-64px)] overflow-hidden">
       {/* PIPELINE UTILITY BAR */}
@@ -23,7 +77,7 @@ export default function PipelineKanban() {
         <div className="flex items-center gap-8">
           <div>
             <h2 className="text-2xl font-semibold">Global Pipeline</h2>
-            <p className="text-sm text-on-surface-variant mt-1">Total Opportunity Value: <span className="font-bold text-primary">$4,820,000.00</span></p>
+            <p className="text-sm text-on-surface-variant mt-1">Total Opportunity Value: <span className="font-bold text-primary">{formatCurrency(totalOpportunityValue)}</span></p>
           </div>
           
           <div className="flex items-center bg-surface-container border border-outline-variant rounded-lg p-1">
@@ -66,24 +120,35 @@ export default function PipelineKanban() {
         {isLoading ? (
           <div className="w-full h-full flex justify-center items-center text-on-surface-variant animate-pulse">Loading Pipeline...</div>
         ) : pipelineColumns?.map((col: any) => (
-          <div key={col.stage} className="min-w-[300px] max-w-[300px] flex flex-col h-full bg-surface-container border border-outline-variant/30 rounded-xl">
+          <div 
+            key={col.id || col.stage} 
+            className="min-w-[300px] max-w-[300px] flex flex-col h-full bg-surface-container border border-outline-variant/30 rounded-xl"
+            onDragOver={handleDragOver}
+            onDrop={(e) => handleDrop(e, col.id, col.stage)}
+          >
             <div className="p-4 flex items-center justify-between">
               <div>
                 <h3 className="text-[12px] font-semibold text-on-surface-variant uppercase tracking-widest">{col.stage}</h3>
-                <p className="font-bold text-lg">${(col.totalValue / 1000).toFixed(0)}k <span className="text-sm font-normal text-on-surface-variant/60 ml-1">· {col.deals.length} deals</span></p>
+                <p className="font-bold text-lg">{formatCurrencyCompact(col.totalValue)} <span className="text-sm font-normal text-on-surface-variant/60 ml-1">· {col.deals.length} deals</span></p>
               </div>
               <button className="text-on-surface-variant hover:text-primary"><Plus className="w-5 h-5" /></button>
             </div>
             <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-4">
               {col.deals.map((deal: any) => (
-                <div key={deal.id} className={`bg-surface-container-lowest p-4 rounded-lg border ${deal.isUrgent ? 'border-error/50' : 'border-outline-variant'} hover:shadow-md transition-all cursor-pointer`} style={deal.isUrgent ? { borderLeft: "4px solid #ba1a1a" } : {}}>
+                <div 
+                  key={deal.id} 
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, deal.id)}
+                  className={`bg-surface-container-lowest p-4 rounded-lg border ${deal.isUrgent ? 'border-error/50' : 'border-outline-variant'} hover:shadow-md transition-all cursor-grab active:cursor-grabbing`} 
+                  style={deal.isUrgent ? { borderLeft: "4px solid #ba1a1a" } : {}}
+                >
                   <div className="flex justify-between items-start mb-2">
                     <span className="text-sm font-bold text-on-surface leading-tight">{deal.name}</span>
                     {deal.isUrgent ? <span className="text-error"><CheckCircle2 className="w-4 h-4" /></span> : <MoreVertical className="text-tertiary w-4 h-4" />}
                   </div>
                   <div className="flex items-end justify-between">
                     <div>
-                      <p className="text-sm text-primary font-bold">${deal.value.toLocaleString()}</p>
+                      <p className="text-sm text-primary font-bold">{formatCurrency(deal.value)}</p>
                       <p className={`text-[11px] ${deal.isUrgent ? 'text-error font-medium' : 'text-on-surface-variant'}`}>{deal.lastActivity}</p>
                     </div>
                     {deal.tag && (
@@ -107,21 +172,66 @@ export default function PipelineKanban() {
             </div>
           </div>
         ))}
-        {/* Empty Proposal Stage (Mock) */}
-        {!isLoading && (
-          <div className="min-w-[300px] max-w-[300px] flex flex-col h-full bg-surface-container border border-outline-variant/30 rounded-xl opacity-60">
-            <div className="p-4 flex items-center justify-between">
+        {/* Removed Mock Empty stage block since we now fetch from DB dynamically */}
+      </section>
+
+      {/* Transition Modal */}
+      {transitionModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-surface p-6 rounded-xl w-[400px] max-w-full shadow-2xl relative">
+            <button 
+              onClick={() => setTransitionModal(null)}
+              className="absolute top-4 right-4 text-on-surface-variant hover:text-on-surface transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <h3 className="text-xl font-bold mb-2">Move to {transitionModal.toStageName}</h3>
+            <p className="text-sm text-on-surface-variant mb-6">Please provide additional details to update the deal stage.</p>
+            
+            <div className="space-y-4">
+              {transitionModal.toStageName === "On Hold" && (
+                <div>
+                  <label className="block text-sm font-semibold mb-1">Re-contact Date *</label>
+                  <input 
+                    type="date" 
+                    className="w-full bg-surface-container border border-outline-variant rounded p-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                    value={recontactDate}
+                    onChange={(e) => setRecontactDate(e.target.value)}
+                  />
+                </div>
+              )}
+              
               <div>
-                <h3 className="text-[12px] font-semibold text-on-surface-variant uppercase tracking-widest">Proposal</h3>
-                <p className="font-bold text-lg">$940k</p>
+                <label className="block text-sm font-semibold mb-1">
+                  {transitionModal.toStageName === "Lost" ? "Loss Reason *" : "Reason / Notes *"}
+                </label>
+                <textarea 
+                  className="w-full bg-surface-container border border-outline-variant rounded p-2 text-sm h-24 outline-none focus:border-primary focus:ring-1 focus:ring-primary resize-none"
+                  placeholder="Enter details..."
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                />
+              </div>
+
+              <div className="pt-4 flex justify-end gap-3">
+                <button 
+                  onClick={() => setTransitionModal(null)}
+                  className="px-4 py-2 rounded text-sm font-bold text-on-surface-variant hover:bg-surface-container transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={submitStageChange}
+                  disabled={!reason || (transitionModal.toStageName === "On Hold" && !recontactDate) || updateStageMutation.isPending}
+                  className="px-4 py-2 bg-primary text-white rounded text-sm font-bold hover:bg-primary/90 transition-colors disabled:opacity-50"
+                >
+                  {updateStageMutation.isPending ? "Updating..." : "Confirm"}
+                </button>
               </div>
             </div>
-            <div className="flex-1 bg-surface-container-low/50 m-4 border border-dashed border-outline-variant rounded-lg flex flex-col items-center justify-center text-on-surface-variant p-8 text-center">
-              <p className="text-[12px]">Drag deals here to move to Proposal stage</p>
-            </div>
           </div>
-        )}
-      </section>
+        </div>
+      )}
     </div>
   );
 }

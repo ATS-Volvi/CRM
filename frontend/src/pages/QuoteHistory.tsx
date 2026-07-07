@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { Filter, Calendar, Download, MoreVertical, TrendingUp, Schedule, Warning, Timer, Bolt } from "lucide-react";
+import { ChevronRight, FileText, Download, CheckCircle, Clock, AlertTriangle, Plus, Search, Filter, Calendar, MoreVertical, TrendingUp, Timer, Bolt } from "lucide-react";
+import { formatCurrency, formatCurrencyCompact } from "../utils/currency";
 
 export default function QuoteHistory() {
   const { data: quotes, isLoading } = useQuery({
@@ -36,7 +37,7 @@ export default function QuoteHistory() {
               <span className="text-[12px] font-semibold tracking-wider text-outline uppercase">Total Value</span>
               <div className="text-secondary bg-secondary-container/10 p-1.5 rounded-lg"><TrendingUp className="w-5 h-5" /></div>
             </div>
-            <div className="text-4xl font-bold text-on-surface">$2.4M</div>
+            <div className="text-4xl font-bold text-on-surface">{formatCurrencyCompact(2400000)}</div>
             <div className="text-sm font-medium text-secondary flex items-center gap-1">
               <TrendingUp className="w-4 h-4" />
               +8.2% vs last month
@@ -143,7 +144,7 @@ export default function QuoteHistory() {
                       </td>
                       <td className="px-6 py-4">
                         <span className="text-sm font-medium text-on-surface">
-                          ${(quote.items?.reduce((acc: number, item: any) => acc + item.total, 0) || 0).toLocaleString()}
+                          {formatCurrency(quote.items?.reduce((acc: number, item: any) => acc + item.total, 0) || 0)}
                         </span>
                       </td>
                       <td className="px-6 py-4">
@@ -164,7 +165,7 @@ export default function QuoteHistory() {
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-1 text-on-surface-variant">
-                          <Timer className="w-4 h-4" />
+                          <Clock className="w-4 h-4" />
                           <span className="text-sm font-medium">12 Days</span>
                         </div>
                       </td>

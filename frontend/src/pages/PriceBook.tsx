@@ -1,7 +1,18 @@
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { Upload, Download, Edit, MoreVertical, Plus, ChevronLeft, ChevronRight, Gavel, History, Cloud, ShieldCheck, Cpu, Settings } from "lucide-react";
+import { formatCurrency } from "../utils/currency";
 
 export default function PriceBook() {
+  const [activeTab, setActiveTab] = useState("All Products");
+  
+  const tabs = [
+    "All Products",
+    "Standard Tier",
+    "Enterprise / VIP",
+    "Regional (GCC)",
+    "Distributor Book"
+  ];
   const { data: priceBook, isLoading } = useQuery({
     queryKey: ["priceBook"],
     queryFn: async () => {
@@ -87,11 +98,19 @@ export default function PriceBook() {
 
         {/* Segment Tabs */}
         <div className="flex border-b border-outline-variant gap-6 overflow-x-auto">
-          <button className="px-4 py-3 border-b-2 border-primary text-primary font-bold text-[12px] uppercase whitespace-nowrap">All Products</button>
-          <button className="px-4 py-3 text-on-surface-variant hover:text-primary transition-colors font-bold text-[12px] uppercase whitespace-nowrap">Standard Tier</button>
-          <button className="px-4 py-3 text-on-surface-variant hover:text-primary transition-colors font-bold text-[12px] uppercase whitespace-nowrap">Enterprise / VIP</button>
-          <button className="px-4 py-3 text-on-surface-variant hover:text-primary transition-colors font-bold text-[12px] uppercase whitespace-nowrap">Regional (GCC)</button>
-          <button className="px-4 py-3 text-on-surface-variant hover:text-primary transition-colors font-bold text-[12px] uppercase whitespace-nowrap">Distributor Book</button>
+          {tabs.map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-4 py-3 font-bold text-[12px] uppercase whitespace-nowrap transition-colors ${
+                activeTab === tab
+                  ? "border-b-2 border-primary text-primary"
+                  : "text-on-surface-variant hover:text-primary"
+              }`}
+            >
+              {tab}
+            </button>
+          ))}
         </div>
 
         {/* Data Table Section */}
@@ -102,7 +121,7 @@ export default function PriceBook() {
                 <tr>
                   <th className="px-6 py-4 text-[12px] font-semibold text-on-surface-variant uppercase tracking-wider">SKU / Product Name</th>
                   <th className="px-6 py-4 text-[12px] font-semibold text-on-surface-variant uppercase tracking-wider">Category</th>
-                  <th className="px-6 py-4 text-[12px] font-semibold text-on-surface-variant uppercase tracking-wider">MSRP (USD)</th>
+                  <th className="px-6 py-4 text-[12px] font-semibold text-on-surface-variant uppercase tracking-wider">MSRP (SAR)</th>
                   <th className="px-6 py-4 text-[12px] font-semibold text-on-surface-variant uppercase tracking-wider">Floor Price</th>
                   <th className="px-6 py-4 text-[12px] font-semibold text-on-surface-variant uppercase tracking-wider">GCC Uplift</th>
                   <th className="px-6 py-4 text-[12px] font-semibold text-on-surface-variant uppercase tracking-wider">Status</th>
@@ -132,8 +151,8 @@ export default function PriceBook() {
                         </div>
                       </td>
                       <td className="px-6 py-5">{item.category}</td>
-                      <td className="px-6 py-5 font-medium">${item.msrp?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                      <td className="px-6 py-5 font-medium text-error font-bold">${item.floor_price?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                      <td className="px-6 py-5 font-medium">{formatCurrency(item.msrp)}</td>
+                      <td className="px-6 py-5 font-medium text-error font-bold">{formatCurrency(item.floor_price)}</td>
                       <td className="px-6 py-5">
                         <span className="text-primary font-bold">+{item.uplift}%</span>
                       </td>

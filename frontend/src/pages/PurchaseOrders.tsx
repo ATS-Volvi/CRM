@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { FileText, Download, MoreVertical, Plus } from "lucide-react";
+import { formatCurrency } from "../utils/currency";
 
 export default function PurchaseOrders() {
   const { data: pos, isLoading } = useQuery({
@@ -50,7 +51,7 @@ export default function PurchaseOrders() {
                   <tr key={po.id} className="hover:bg-surface-container transition-colors">
                     <td className="px-6 py-4 font-bold text-primary">{po.id}</td>
                     <td className="px-6 py-4">{po.client}</td>
-                    <td className="px-6 py-4 font-medium">${po.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <td className="px-6 py-4 font-medium">{formatCurrency(po.amount)}</td>
                     <td className="px-6 py-4">
                       <span className={`px-2 py-1 text-[10px] font-bold rounded uppercase ${po.status === 'Verified' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
                         {po.status}

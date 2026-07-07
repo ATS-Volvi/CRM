@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { 
-  DragIndicator, Inventory2, Public, Autorenew, MilitaryTech, 
-  ArrowForward, Groups, Map, SyncAlt, Delete, Add, EmergencyHome,
-  Equalizer, EventBusy
+  GripVertical, Package, Globe, RefreshCw, Award, 
+  ArrowRight, Users, Map, Repeat, Delete, Plus, Home,
+  Sliders, CalendarOff
 } from "lucide-react";
 
 export default function AssignmentRules() {
@@ -49,7 +49,7 @@ export default function AssignmentRules() {
             <div className="flex gap-2">
               <button className="px-4 py-2 text-secondary font-bold text-[12px] uppercase border border-secondary rounded-lg hover:bg-surface-container">Export Logic</button>
               <button className="px-4 py-2 bg-primary text-on-primary font-bold text-[12px] uppercase rounded-lg flex items-center gap-2">
-                <Add className="w-4 h-4" /> Create New Rule
+                <Plus className="w-4 h-4" /> Create New Rule
               </button>
             </div>
           </div>
@@ -60,7 +60,7 @@ export default function AssignmentRules() {
             rules?.map((rule: any, i: number) => (
               <div key={rule.id} className={`bg-surface-container-lowest border ${!rule.active ? 'border-outline-variant/50 opacity-60 bg-surface' : 'border-outline-variant'} rounded-xl p-4 flex items-center gap-4 group hover:shadow-md transition-shadow`}>
                 <div className={`cursor-move ${!rule.active ? 'opacity-20' : 'opacity-40 group-hover:opacity-100'} text-outline`}>
-                  <DragIndicator className="w-6 h-6" />
+                  <GripVertical className="w-6 h-6" />
                 </div>
                 
                 {/* Icon mapping based on rule type */}
@@ -69,10 +69,10 @@ export default function AssignmentRules() {
                     rule.type === 'geo' ? 'bg-tertiary-container/20 text-tertiary' : 
                     rule.type === 'round-robin' ? 'bg-secondary/10 text-secondary' : 
                     'bg-outline-variant/20 text-outline'}`}>
-                  {rule.type === 'product' && <Inventory2 className="w-6 h-6" />}
-                  {rule.type === 'geo' && <Public className="w-6 h-6" />}
-                  {rule.type === 'round-robin' && <Autorenew className="w-6 h-6" />}
-                  {rule.type === 'skill' && <MilitaryTech className="w-6 h-6" />}
+                  {rule.type === 'product' && <Package className="w-6 h-6" />}
+                  {rule.type === 'geo' && <Globe className="w-6 h-6" />}
+                  {rule.type === 'round-robin' && <RefreshCw className="w-6 h-6" />}
+                  {rule.type === 'skill' && <Award className="w-6 h-6" />}
                 </div>
 
                 <div className="flex-1 grid grid-cols-12 items-center gap-4">
@@ -89,15 +89,15 @@ export default function AssignmentRules() {
                     )}
                   </div>
                   <div className="col-span-4 flex items-center gap-2">
-                    <ArrowForward className="w-5 h-5 text-outline" />
+                    <ArrowRight className="w-5 h-5 text-outline" />
                     {rule.active ? (
                       <div className={`flex items-center gap-1 px-3 py-1 rounded-full text-sm font-bold border
                         ${rule.type === 'product' ? 'bg-secondary/10 text-secondary border-secondary/20' :
                           rule.type === 'geo' ? 'bg-secondary/10 text-secondary border-secondary/20' :
                           'bg-primary/10 text-primary border-primary/20'}`}>
-                        {rule.type === 'product' && <Groups className="w-4 h-4" />}
+                        {rule.type === 'product' && <Users className="w-4 h-4" />}
                         {rule.type === 'geo' && <Map className="w-4 h-4" />}
-                        {rule.type === 'round-robin' && <SyncAlt className="w-4 h-4" />}
+                        {rule.type === 'round-robin' && <Repeat className="w-4 h-4" />}
                         {rule.action}
                       </div>
                     ) : (
@@ -122,7 +122,7 @@ export default function AssignmentRules() {
           {/* Fallback Rule */}
           <div className="bg-surface-container border-2 border-dashed border-outline-variant rounded-xl p-4 flex items-center gap-4 mt-6">
             <div className="w-10 h-10 rounded-full bg-outline-variant/30 flex items-center justify-center text-on-surface-variant">
-              <EmergencyHome className="w-6 h-6" />
+              <Home className="w-6 h-6" />
             </div>
             <div className="flex-1">
               <h4 className="text-base font-bold text-on-surface">Global Fallback</h4>
@@ -138,7 +138,7 @@ export default function AssignmentRules() {
           <section className="bg-surface-container-lowest border border-outline-variant rounded-xl p-6 shadow-sm">
             <div className="flex justify-between items-center mb-4">
               <h4 className="text-[12px] font-bold uppercase text-on-surface-variant">Agent Capacity</h4>
-              <Equalizer className="w-5 h-5 text-outline" />
+              <Sliders className="w-5 h-5 text-outline" />
             </div>
             <div className="space-y-6">
               {/* Agent Item */}
@@ -189,7 +189,7 @@ export default function AssignmentRules() {
           <section className="bg-surface-container-lowest border border-outline-variant rounded-xl p-6 shadow-sm flex-1">
             <div className="flex justify-between items-center mb-4">
               <h4 className="text-[12px] font-bold uppercase text-on-surface-variant">Availability Toggle</h4>
-              <EventBusy className="w-5 h-5 text-outline" />
+              <CalendarOff className="w-5 h-5 text-outline" />
             </div>
             <div className="space-y-4">
               <div className="flex items-center justify-between py-2 border-b border-outline-variant/30">

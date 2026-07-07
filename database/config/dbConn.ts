@@ -1,7 +1,13 @@
 import { Sequelize } from "sequelize";
 import "dotenv/config";
 
-export const sequelize = process.env.DATABASE_URL
+export const sequelize = process.env.USE_SQLITE === "true"
+  ? new Sequelize({
+      dialect: "sqlite",
+      storage: process.env.SQLITE_PATH || "./nexus_crm.sqlite",
+      logging: false,
+    })
+  : process.env.DATABASE_URL
   ? new Sequelize(process.env.DATABASE_URL, {
       dialect: "postgres",
       dialectOptions: {

@@ -1,8 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { 
-  Filter, PendingActions, Warning, AccountBalance, 
-  Gavel, HistoryEdu, Check, X, Info, History
+  Filter, ClipboardList, AlertTriangle, Landmark, 
+  Gavel, FileEdit, Check, X, Info, History
 } from "lucide-react";
+import { formatCurrency, formatCurrencyCompact } from "../utils/currency";
 
 export default function ApprovalQueue() {
   const { data: approvals, isLoading } = useQuery({
@@ -24,7 +25,7 @@ export default function ApprovalQueue() {
         <section className="flex-1 flex flex-col bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm overflow-hidden h-full">
           <div className="p-4 border-b border-outline-variant flex justify-between items-center bg-surface-bright">
             <h2 className="text-lg font-semibold flex items-center gap-2">
-              <PendingActions className="w-5 h-5 text-primary" />
+              <ClipboardList className="w-5 h-5 text-primary" />
               Approval Queue
               <span className="bg-secondary text-on-secondary text-[12px] px-2 py-0.5 rounded-full">12 Pending</span>
             </h2>
@@ -58,7 +59,7 @@ export default function ApprovalQueue() {
                         <div className="flex flex-col">
                           <span className="font-bold text-on-surface">{item.reason}</span>
                           <span className={`text-[11px] flex items-center gap-1 ${item.isCritical ? 'text-error font-bold' : 'text-on-surface-variant'}`}>
-                            {item.isCritical ? <Gavel className="w-3 h-3" /> : (i % 2 === 0 ? <Warning className="w-3 h-3" /> : <AccountBalance className="w-3 h-3" />)}
+                            {item.isCritical ? <Gavel className="w-3 h-3" /> : (i % 2 === 0 ? <AlertTriangle className="w-3 h-3" /> : <Landmark className="w-3 h-3" />)}
                             {item.subReason}
                           </span>
                         </div>
@@ -82,14 +83,14 @@ export default function ApprovalQueue() {
                       </td>
                       <td className="p-4">
                         <div className="flex flex-col">
-                          <span className="font-bold text-on-surface">${item.value?.toLocaleString()}</span>
+                          <span className="font-bold text-on-surface">{formatCurrency(item.value)}</span>
                           <span className="text-[11px] text-on-surface-variant">{item.date}</span>
                         </div>
                       </td>
                       <td className="p-4 text-right">
                         <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button className="p-1 text-primary hover:bg-primary-container/20 rounded-lg" title="Request Revision">
-                            <HistoryEdu className="w-5 h-5" />
+                            <FileEdit className="w-5 h-5" />
                           </button>
                           <button className="p-1 text-error hover:bg-error-container rounded-lg" title="Reject">
                             <X className="w-5 h-5" />
@@ -124,7 +125,7 @@ export default function ApprovalQueue() {
                 </div>
                 <div className="pb-2">
                   <p className="text-sm font-bold">Direct Manager</p>
-                  <p className="text-[11px] text-on-surface-variant">Standard Quotes &lt; $50k</p>
+                  <p className="text-[11px] text-on-surface-variant">Standard Quotes &lt; {formatCurrencyCompact(50000)}</p>
                   <div className="mt-1 bg-surface-container-low px-2 py-1 rounded border border-outline-variant text-[10px] text-on-surface-variant">
                     Auto-approves if within +/- 5% margin
                   </div>
@@ -138,7 +139,7 @@ export default function ApprovalQueue() {
                 </div>
                 <div className="pb-2">
                   <p className="text-sm font-bold">Regional Director</p>
-                  <p className="text-[11px] text-on-surface-variant">Discounts &gt; 10% or &gt; $100k</p>
+                  <p className="text-[11px] text-on-surface-variant">Discounts &gt; 10% or &gt; {formatCurrencyCompact(100000)}</p>
                   <div className="mt-1 bg-primary-container/10 border-l-2 border-primary px-2 py-1 rounded text-[10px] text-primary font-bold">
                     Current Active Tier
                   </div>
@@ -151,7 +152,7 @@ export default function ApprovalQueue() {
                 </div>
                 <div>
                   <p className="text-sm font-bold text-on-surface-variant">Chief Revenue Officer</p>
-                  <p className="text-[11px] text-on-surface-variant">Strategic Deals &gt; $1M</p>
+                  <p className="text-[11px] text-on-surface-variant">Strategic Deals &gt; {formatCurrencyCompact(1000000)}</p>
                 </div>
               </div>
             </div>

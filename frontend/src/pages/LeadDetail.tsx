@@ -1,10 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
 import { 
-  ChevronRight, Phone, Mail, FileText, Calendar, 
-  Building2, AutoAwesome, SwapHoriz, TrendingUp,
-  FilePresent, Groups, ShoppingCart
+  ArrowLeft, Mail, Phone, Building2, MapPin, Globe, CheckCircle2, 
+  Sparkles, Clock, Calendar, CheckSquare, MessageSquare, Plus, ArrowLeftRight,
+  FileText, Users, DollarSign, Activity, ChevronRight, TrendingUp, Repeat, FileSpreadsheet, ShoppingBag
 } from "lucide-react";
+import { formatCurrency, formatCurrencyCompact } from "../utils/currency";
 
 export default function LeadDetail() {
   const { id } = useParams();
@@ -45,6 +46,10 @@ export default function LeadDetail() {
             <FileText className="w-5 h-5" />
             <span className="text-sm">Create Quote</span>
           </button>
+                <button className="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary font-bold rounded hover:bg-primary/20 transition-colors text-sm">
+                  <Sparkles className="w-4 h-4" />
+                  Auto-Enrich
+                </button>
           <button className="flex items-center gap-2 px-4 py-2 bg-primary text-on-primary font-bold rounded-lg hover:opacity-90 transition-all">
             <Calendar className="w-5 h-5" />
             <span className="text-sm">Schedule Meeting</span>
@@ -96,7 +101,7 @@ export default function LeadDetail() {
             <div className="mt-6 p-4 bg-surface-container-low rounded-lg border border-outline-variant/30">
               <p className="text-[12px] font-semibold tracking-wider uppercase text-on-surface-variant mb-2">Source Campaign</p>
               <div className="flex items-center gap-2">
-                <span className="w-5 h-5 text-secondary flex items-center justify-center">📢</span>
+                <Users className="w-4 h-4 text-secondary" />
                 <span className="text-sm font-bold text-on-surface">Q3 APAC Growth Summit</span>
               </div>
             </div>
@@ -104,9 +109,7 @@ export default function LeadDetail() {
 
           {/* Auto-Enrichment Insights */}
           <div className="bg-surface-container-lowest p-6 rounded-xl border border-outline-variant shadow-sm relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-2">
-              <span className="text-primary/40"><AutoAwesome className="w-6 h-6" /></span>
-            </div>
+              <span className="text-primary/40"><Sparkles className="w-6 h-6" /></span>
             <h3 className="text-[12px] font-semibold tracking-wider uppercase text-on-surface-variant mb-6">Smart Insights</h3>
             <div className="grid grid-cols-2 gap-4">
               <div className="p-4 bg-surface-bright rounded-lg border border-outline-variant">
@@ -123,7 +126,7 @@ export default function LeadDetail() {
               </div>
               <div className="p-4 bg-surface-bright rounded-lg border border-outline-variant">
                 <p className="text-[10px] uppercase font-bold text-on-surface-variant opacity-60 mb-1">Revenue</p>
-                <p className="text-sm font-bold text-on-surface">$5.3B USD</p>
+                <p className="text-sm font-bold text-on-surface">{formatCurrencyCompact(5300000000)}</p>
               </div>
             </div>
           </div>
@@ -140,7 +143,7 @@ export default function LeadDetail() {
                 </div>
               </div>
               <button className="p-2 text-on-surface-variant hover:text-primary transition-colors">
-                <SwapHoriz className="w-5 h-5" />
+                <Repeat className="w-5 h-5" />
               </button>
             </div>
           </div>
@@ -186,10 +189,10 @@ export default function LeadDetail() {
                   </div>
                   <div className="flex items-center justify-between bg-surface-bright p-2 rounded border border-outline-variant/30">
                     <div className="flex items-center gap-3">
-                      <FilePresent className="w-5 h-5 text-primary" />
+                      <FileSpreadsheet className="w-5 h-5 text-primary" />
                       <div>
                         <p className="text-sm font-medium">Enterprise Suite License.pdf</p>
-                        <p className="text-[12px] font-semibold tracking-wider uppercase text-on-surface-variant">$24,500.00</p>
+                        <p className="text-[12px] font-semibold tracking-wider uppercase text-on-surface-variant">{formatCurrency(24500)}</p>
                       </div>
                     </div>
                     <button className="text-primary font-bold text-[12px] tracking-wider uppercase">VIEW</button>
@@ -213,9 +216,7 @@ export default function LeadDetail() {
 
               {/* Timeline Item: Meeting */}
               <div className="relative pl-12">
-                <div className="absolute left-0 top-0 w-10 h-10 rounded-full bg-surface-container-highest border-4 border-surface flex items-center justify-center z-10 text-on-surface">
-                  <Groups className="w-5 h-5" />
-                </div>
+                  <Users className="w-5 h-5" />
                 <div className="p-4 rounded-lg border border-outline-variant">
                   <div className="flex justify-between items-start mb-2">
                     <p className="text-sm font-bold">Discovery Call - Technical Requirements</p>
@@ -244,9 +245,7 @@ export default function LeadDetail() {
 
               {/* Timeline Item: PO */}
               <div className="relative pl-12 opacity-50">
-                <div className="absolute left-0 top-0 w-10 h-10 rounded-full bg-surface border-4 border-outline-variant flex items-center justify-center z-10 text-on-surface-variant">
-                  <ShoppingCart className="w-5 h-5" />
-                </div>
+                  <ShoppingBag className="w-5 h-5" />
                 <div className="p-4 rounded-lg border border-dashed border-outline-variant">
                   <p className="text-sm italic">No Purchase Orders recorded yet.</p>
                 </div>

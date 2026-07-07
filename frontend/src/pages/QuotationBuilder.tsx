@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Search, PlusCircle, Trash2, Lightbulb, ZoomIn, Printer, Maximize, BarChart2, Clock, MessageSquare, History } from "lucide-react";
+import { formatCurrency, formatCurrencyCompact } from "../utils/currency";
 
 export default function QuotationBuilder() {
   const { data: quotes, isLoading } = useQuery({
@@ -77,10 +78,10 @@ export default function QuotationBuilder() {
                           <div className="text-base font-semibold">{item.name}</div>
                         </td>
                         <td className="px-4 py-4"><input className="w-full text-center border-outline-variant rounded py-1 text-base focus:ring-primary focus:border-primary" type="number" defaultValue={item.qty} /></td>
-                        <td className="px-4 py-4 text-sm font-medium">${item.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        <td className="px-4 py-4 text-sm font-medium">{formatCurrency(item.price)}</td>
                         <td className="px-4 py-4"><input className="w-full border-outline-variant rounded py-1 text-base focus:ring-primary focus:border-primary" type="number" defaultValue={item.discount} /></td>
                         <td className="px-4 py-4 text-sm">{item.tax}%</td>
-                        <td className="px-4 py-4 text-right font-semibold text-sm">${item.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        <td className="px-4 py-4 text-right font-semibold text-sm">{formatCurrency(item.total)}</td>
                         <td className="px-4 py-4 text-on-surface-variant hover:text-error cursor-pointer">
                           <Trash2 className="w-5 h-5" />
                         </td>
@@ -160,7 +161,7 @@ export default function QuotationBuilder() {
               <div>
                 <div className="flex justify-between text-[12px] font-bold mb-2">
                   <span>Similar Quote Range</span>
-                  <span>$12k - $24k</span>
+                  <span>{formatCurrencyCompact(12000)} - {formatCurrencyCompact(24000)}</span>
                 </div>
                 <div className="relative h-6 bg-surface-container rounded-full flex items-center px-1">
                   <div className="absolute left-1/4 h-3 w-1 bg-outline rounded-full"></div>
@@ -173,9 +174,9 @@ export default function QuotationBuilder() {
                   </div>
                 </div>
                 <div className="flex justify-between text-[10px] text-on-surface-variant mt-1">
-                  <span>Min: $12.4k</span>
-                  <span>Median: $18.2k</span>
-                  <span>Max: $23.8k</span>
+                  <span>Min: {formatCurrencyCompact(12400)}</span>
+                  <span>Median: {formatCurrencyCompact(18200)}</span>
+                  <span>Max: {formatCurrencyCompact(23800)}</span>
                 </div>
               </div>
               <div className="bg-surface-container-low p-3 rounded-lg border border-primary/20">
@@ -196,7 +197,7 @@ export default function QuotationBuilder() {
                   <span className="text-base font-bold group-hover:text-primary">QT-2022-441</span>
                   <span className="px-2 py-0.5 bg-green-100 text-green-700 text-[10px] font-bold rounded uppercase">Won</span>
                 </div>
-                <p className="text-sm text-on-surface-variant">Jun 12, 2022 • $8,200.00</p>
+                <p className="text-sm text-on-surface-variant">Jun 12, 2022 • {formatCurrency(8200)}</p>
                 <p className="text-xs text-on-surface-variant mt-1">SaaS Starter Pack + Training</p>
               </div>
               <div className="p-4 hover:bg-surface-container-low transition-colors cursor-pointer group">
@@ -204,7 +205,7 @@ export default function QuotationBuilder() {
                   <span className="text-base font-bold group-hover:text-primary">QT-2022-912</span>
                   <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-bold rounded uppercase">Expired</span>
                 </div>
-                <p className="text-sm text-on-surface-variant">Nov 29, 2022 • $14,500.00</p>
+                <p className="text-sm text-on-surface-variant">Nov 29, 2022 • {formatCurrency(14500)}</p>
                 <p className="text-xs text-on-surface-variant mt-1">Legacy Upgrade Bundle</p>
               </div>
             </div>
