@@ -28,7 +28,7 @@ router.use(authMiddleware);
 // Mock CRUD routes removed, replaced by DB routes below
 
 import { mockLeads, mockQuotes, mockPurchaseOrders, mockPriceBook, mockApprovals, mockAssignmentRules } from "../mockData";
-import { getPipeline, moveDealStage } from "../controllers/pipelineController";
+import { getPipeline, moveDealStage, createDeal } from "../controllers/pipelineController";
 import { getLeadActivities, createActivity, togglePinActivity } from "../controllers/activityController";
 import { getLeads, createLead, deleteLead } from '../controllers/leadController';
 
@@ -41,8 +41,9 @@ router.delete("/leads/:id", authMiddleware, deleteLead);
 
 // Mock legacy endpoints (keeping just in case, but real ones take precedence above)
 router.get("/deals", (req, res) => { res.json([]); });
-router.get("/pipeline", getPipeline);
-router.put("/pipeline/deals/:id/stage", moveDealStage);
+router.get("/pipeline", authMiddleware, getPipeline);
+router.post("/pipeline/deals", authMiddleware, createDeal);
+router.put("/pipeline/deals/:id/stage", authMiddleware, moveDealStage);
 router.get("/quotes", (req, res) => { res.json(mockQuotes); });
 router.get("/price-book", (req, res) => { res.json(mockPriceBook); });
 router.get("/purchase-orders", (req, res) => { res.json(mockPurchaseOrders); });

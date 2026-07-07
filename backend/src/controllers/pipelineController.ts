@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { Deal, PipelineStage, LeadStageHistory } from "@nexus-crm/database";
+import { Deal, PipelineStage, LeadStageHistory, Activity } from "@nexus-crm/database";
 
 export const getPipeline = async (req: Request, res: Response) => {
   try {
@@ -33,7 +33,7 @@ export const getPipeline = async (req: Request, res: Response) => {
 
 export const moveDealStage = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const { toStageId, reason, recontactDate } = req.body;
     const userId = (req as any).user?.id || "mock-user"; // Fallback to mock user if auth is bypassed
 
@@ -62,6 +62,14 @@ export const moveDealStage = async (req: Request, res: Response) => {
       reason: reason || null
     });
 
+    // Write Activity
+    await Activity.create({
+      leadId: deal.leadId || id,
+      type: "stage_change",
+      outcome: `Stage updated to ${toStageObj ? toStageObj.name : 'Unknown'}${reason ? ' - Reason: ' + reason : ''}`,
+      createdById: userId
+    });
+
     // Update Deal
     deal.stageId = toStageId;
     if (toStageObj.name === "Lost") deal.lossReason = reason;
@@ -70,6 +78,33 @@ export const moveDealStage = async (req: Request, res: Response) => {
     await deal.save();
 
     res.json({ message: "Stage updated successfully", deal });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const createDeal = async (req: Request, res: Response) => {
+  try {
+    const { name, amount, stageId, leadId } = req.body;
+    
+    // Default to the first stage if no stageId provided
+    let targetStageId = stageId;
+    if (!targetStageId) {
+       const firstStage = await PipelineStage.findOne({ order: [['order', 'ASC']] });
+       if (firstStage) {
+          targetStageId = firstStage.id;
+       }
+    }
+
+    const deal = await Deal.create({
+      id: require('crypto').randomUUID(),
+      name,
+      amount,
+      stageId: targetStageId,
+      leadId: leadId || null
+    });
+
+    res.status(201).json(deal);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

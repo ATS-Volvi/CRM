@@ -1,16 +1,19 @@
+import { useAuth } from "../context/AuthContext";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Search, Plus, Filter, MoreVertical, View, List, CheckCircle2, X } from "lucide-react";
 import { formatCurrency, formatCurrencyCompact } from "../utils/currency";
 
 export default function PipelineKanban() {
+  const { token } = useAuth();
+
   const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
 
   const { data: pipelineColumns, isLoading } = useQuery({
     queryKey: ["pipeline"],
     queryFn: async () => {
       const res = await fetch("/api/v1/pipeline", {
-        headers: { "Authorization": "Bearer dummy" }
+        headers: { "Authorization": `Bearer ${token}` }
       });
       if (!res.ok) throw new Error("Failed to fetch pipeline");
       return res.json();
@@ -19,14 +22,33 @@ export default function PipelineKanban() {
 
   const queryClient = useQueryClient();
   const [transitionModal, setTransitionModal] = useState<{ dealId: string, toStageId: string, toStageName: string } | null>(null);
+  const [showAddDealModal, setShowAddDealModal] = useState(false);
   const [reason, setReason] = useState("");
   const [recontactDate, setRecontactDate] = useState("");
+  const [newDeal, setNewDeal] = useState({ name: "", amount: "" });
+
+  const createDealMutation = useMutation({
+    mutationFn: async (deal: any) => {
+      const res = await fetch("/api/v1/pipeline/deals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify(deal),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pipeline"] });
+      setShowAddDealModal(false);
+      setNewDeal({ name: "", amount: "" });
+    },
+  });
 
   const updateStageMutation = useMutation({
     mutationFn: async ({ dealId, toStageId, reason, recontactDate }: any) => {
       const res = await fetch(`/api/v1/pipeline/deals/${dealId}/stage`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer dummy' },
+        headers: { 'Content-Type': 'application/json', "Authorization": `Bearer ${token}` },
         body: JSON.stringify({ toStageId, reason, recontactDate })
       });
       if (!res.ok) throw new Error(await res.text());
@@ -106,10 +128,16 @@ export default function PipelineKanban() {
             </div>
             <div className="w-8 h-8 rounded-full border-2 border-surface bg-primary flex items-center justify-center text-[10px] font-bold text-on-primary">+8</div>
           </div>
-          <button className="p-2 text-on-surface-variant hover:bg-surface-container-high rounded transition-all">
+          <button 
+            onClick={() => alert("Filter panel coming soon.")}
+            className="p-2 text-on-surface-variant hover:bg-surface-container-high rounded transition-all"
+          >
             <Filter className="w-5 h-5" />
           </button>
-          <button className="p-2 text-on-surface-variant hover:bg-surface-container-high rounded transition-all">
+          <button 
+            onClick={() => alert("Pipeline settings coming soon.")}
+            className="p-2 text-on-surface-variant hover:bg-surface-container-high rounded transition-all"
+          >
             <MoreVertical className="w-5 h-5" />
           </button>
         </div>
@@ -131,7 +159,12 @@ export default function PipelineKanban() {
                 <h3 className="text-[12px] font-semibold text-on-surface-variant uppercase tracking-widest">{col.stage}</h3>
                 <p className="font-bold text-lg">{formatCurrencyCompact(col.totalValue)} <span className="text-sm font-normal text-on-surface-variant/60 ml-1">· {col.deals.length} deals</span></p>
               </div>
-              <button className="text-on-surface-variant hover:text-primary"><Plus className="w-5 h-5" /></button>
+              <button 
+                onClick={() => setShowAddDealModal(true)}
+                className="text-on-surface-variant hover:text-primary transition-colors"
+              >
+                <Plus className="w-5 h-5" />
+              </button>
             </div>
             <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-4">
               {col.deals.map((deal: any) => (
@@ -226,6 +259,61 @@ export default function PipelineKanban() {
                   className="px-4 py-2 bg-primary text-white rounded text-sm font-bold hover:bg-primary/90 transition-colors disabled:opacity-50"
                 >
                   {updateStageMutation.isPending ? "Updating..." : "Confirm"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Deal Modal */}
+      {showAddDealModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-surface p-6 rounded-xl w-[400px] max-w-full shadow-2xl relative">
+            <button 
+              onClick={() => setShowAddDealModal(false)}
+              className="absolute top-4 right-4 text-on-surface-variant hover:text-on-surface transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <h3 className="text-xl font-bold mb-2">Add New Deal</h3>
+            <p className="text-sm text-on-surface-variant mb-6">Enter deal details to add it to the pipeline.</p>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold mb-1">Deal Name</label>
+                <input 
+                  type="text" 
+                  value={newDeal.name}
+                  onChange={(e) => setNewDeal({ ...newDeal, name: e.target.value })}
+                  className="w-full bg-surface-container border border-outline-variant rounded p-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                  placeholder="e.g. Enterprise License - Q4"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold mb-1">Value ($)</label>
+                <input 
+                  type="number" 
+                  value={newDeal.amount}
+                  onChange={(e) => setNewDeal({ ...newDeal, amount: e.target.value })}
+                  className="w-full bg-surface-container border border-outline-variant rounded p-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                  placeholder="10000"
+                />
+              </div>
+              
+              <div className="pt-4 flex justify-end gap-3">
+                <button 
+                  onClick={() => setShowAddDealModal(false)}
+                  className="px-4 py-2 rounded text-sm font-bold text-on-surface-variant hover:bg-surface-container transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={() => createDealMutation.mutate({ name: newDeal.name, amount: Number(newDeal.amount) })}
+                  disabled={createDealMutation.isPending || !newDeal.name || !newDeal.amount}
+                  className="px-4 py-2 bg-primary text-white rounded text-sm font-bold hover:bg-primary/90 transition-colors disabled:opacity-50"
+                >
+                  {createDealMutation.isPending ? "Creating..." : "Create Deal"}
                 </button>
               </div>
             </div>
