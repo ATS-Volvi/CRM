@@ -1,9 +1,12 @@
-import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "../context/AuthContext";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Upload, Download, Edit, MoreVertical, Plus, ChevronLeft, ChevronRight, Gavel, History, Cloud, ShieldCheck, Cpu, Settings } from "lucide-react";
 import { formatCurrency } from "../utils/currency";
 
 export default function PriceBook() {
+  const { token } = useAuth();
+
   const [activeTab, setActiveTab] = useState("All Products");
   
   const tabs = [
@@ -16,12 +19,51 @@ export default function PriceBook() {
   const { data: priceBook, isLoading } = useQuery({
     queryKey: ["priceBook"],
     queryFn: async () => {
-      const res = await fetch("/api/v1/price-book", {
-        headers: { "Authorization": "Bearer dummy" }
+      const url = activeTab === "All Products" ? "/api/v1/price-book" : `/api/v1/price-book?category=${activeTab}`;
+      const res = await fetch(url, {
+        headers: { "Authorization": `Bearer ${token}` }
       });
       if (!res.ok) throw new Error("Failed to fetch price book");
       return res.json();
     }
+  });
+
+  const queryClient = useQueryClient();
+  const [showModal, setShowModal] = useState(false);
+  const [formData, setFormData] = useState<any>({ name: "", sku: "", category: "Standard Tier", msrp: "", floor_price: "", uplift: "0", status: "Active" });
+
+  const saveMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const isEdit = !!data.id;
+      const res = await fetch(isEdit ? `/api/v1/price-book/${data.id}` : "/api/v1/price-book", {
+        method: isEdit ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({
+          ...data,
+          listPrice: data.msrp, 
+          itemCode: data.sku
+        })
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["priceBook"] });
+      setShowModal(false);
+      setFormData({ name: "", sku: "", category: "Standard Tier", msrp: "", floor_price: "", uplift: "0", status: "Active" });
+    }
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/v1/price-book/${id}`, {
+        method: "DELETE",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return true;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["priceBook"] })
   });
 
   return (
@@ -35,11 +77,11 @@ export default function PriceBook() {
             <p className="text-base text-on-surface-variant">Manage global product pricing, discounts, and regional adjustments.</p>
           </div>
           <div className="flex gap-4">
-            <button className="flex items-center gap-2 px-4 py-2 border border-secondary text-secondary rounded-lg hover:bg-secondary-container transition-colors">
+            <button onClick={() => alert("Bulk Update not yet implemented.")} className="flex items-center gap-2 px-4 py-2 border border-secondary text-secondary rounded-lg hover:bg-secondary-container transition-colors">
               <Upload className="w-5 h-5" />
               <span className="font-bold">Bulk Update</span>
             </button>
-            <button className="flex items-center gap-2 px-4 py-2 border border-outline-variant text-on-surface-variant rounded-lg hover:bg-surface-container-high transition-colors">
+            <button onClick={() => alert("Export functionality not yet implemented.")} className="flex items-center gap-2 px-4 py-2 border border-outline-variant text-on-surface-variant rounded-lg hover:bg-surface-container-high transition-colors">
               <Download className="w-5 h-5" />
               <span className="font-bold">Export .XLSX</span>
             </button>
@@ -159,12 +201,25 @@ export default function PriceBook() {
                       <td className="px-6 py-5">
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-700">{item.status}</span>
                       </td>
-                      <td className="px-6 py-5 text-right">
-                        <button className="p-2 hover:bg-surface-container-lowest rounded-full transition-colors text-outline">
+                      <td className="px-6 py-5 text-right flex justify-end gap-2">
+                        <button 
+                          onClick={() => {
+                            setFormData(item);
+                            setShowModal(true);
+                          }}
+                          className="p-2 hover:bg-surface-container-lowest rounded-full transition-colors text-outline"
+                        >
                           <Edit className="w-5 h-5" />
                         </button>
-                        <button className="p-2 hover:bg-surface-container-lowest rounded-full transition-colors text-outline">
-                          <MoreVertical className="w-5 h-5" />
+                        <button 
+                          onClick={() => {
+                            if(confirm("Are you sure you want to delete this item?")) {
+                              deleteMutation.mutate(item.id);
+                            }
+                          }}
+                          className="p-2 hover:bg-error-container rounded-full transition-colors text-error"
+                        >
+                          <span className="font-bold">X</span>
                         </button>
                       </td>
                     </tr>
@@ -228,9 +283,62 @@ export default function PriceBook() {
       </div>
 
       {/* Floating Action Button */}
-      <button className="fixed bottom-8 right-8 w-14 h-14 bg-primary text-on-primary rounded-full shadow-lg flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-50">
+      <button 
+        onClick={() => {
+          setFormData({ name: "", sku: "", category: "Standard Tier", msrp: "", floor_price: "", uplift: "0", status: "Active" });
+          setShowModal(true);
+        }}
+        className="fixed bottom-8 right-8 w-14 h-14 bg-primary text-on-primary rounded-full shadow-lg flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-50"
+      >
         <Plus className="w-6 h-6" />
       </button>
+
+      {/* Add/Edit Modal */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-surface p-6 rounded-xl w-[400px] max-w-full shadow-2xl relative">
+            <button onClick={() => setShowModal(false)} className="absolute top-4 right-4 text-on-surface-variant hover:text-on-surface transition-colors">
+              <span className="font-bold">X</span>
+            </button>
+            <h3 className="text-xl font-bold mb-4">{formData.id ? "Edit Item" : "Add New Item"}</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold mb-1">Product Name</label>
+                <input type="text" className="w-full bg-surface-container border border-outline-variant rounded p-2 text-sm" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold mb-1">SKU</label>
+                <input type="text" className="w-full bg-surface-container border border-outline-variant rounded p-2 text-sm" value={formData.sku} onChange={e => setFormData({...formData, sku: e.target.value})} />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold mb-1">Category</label>
+                <select className="w-full bg-surface-container border border-outline-variant rounded p-2 text-sm" value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})}>
+                  <option>Standard Tier</option>
+                  <option>Enterprise / VIP</option>
+                  <option>Regional (GCC)</option>
+                  <option>Distributor Book</option>
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold mb-1">MSRP ($)</label>
+                  <input type="number" className="w-full bg-surface-container border border-outline-variant rounded p-2 text-sm" value={formData.msrp} onChange={e => setFormData({...formData, msrp: e.target.value})} />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold mb-1">Floor Price ($)</label>
+                  <input type="number" className="w-full bg-surface-container border border-outline-variant rounded p-2 text-sm" value={formData.floor_price} onChange={e => setFormData({...formData, floor_price: e.target.value})} />
+                </div>
+              </div>
+              <div className="pt-4 flex justify-end gap-3">
+                <button onClick={() => setShowModal(false)} className="px-4 py-2 text-sm font-bold">Cancel</button>
+                <button onClick={() => saveMutation.mutate(formData)} disabled={saveMutation.isPending} className="px-4 py-2 bg-primary text-white rounded text-sm font-bold">
+                  {saveMutation.isPending ? "Saving..." : "Save"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -31,6 +31,7 @@ import { mockLeads, mockQuotes, mockPurchaseOrders, mockPriceBook, mockApprovals
 import { getPipeline, moveDealStage, createDeal } from "../controllers/pipelineController";
 import { getLeadActivities, createActivity, togglePinActivity } from "../controllers/activityController";
 import { getLeads, createLead, deleteLead } from '../controllers/leadController';
+import { getPriceBookEntries, createPriceBookEntry, updatePriceBookEntry, deletePriceBookEntry } from '../controllers/priceBookController';
 
 // ==========================================
 // LEADS
@@ -45,7 +46,15 @@ router.get("/pipeline", authMiddleware, getPipeline);
 router.post("/pipeline/deals", authMiddleware, createDeal);
 router.put("/pipeline/deals/:id/stage", authMiddleware, moveDealStage);
 router.get("/quotes", (req, res) => { res.json(mockQuotes); });
-router.get("/price-book", (req, res) => { res.json(mockPriceBook); });
+
+// ==========================================
+// PRICE BOOK
+// ==========================================
+router.get("/price-book", authMiddleware, getPriceBookEntries);
+router.post("/price-book", authMiddleware, createPriceBookEntry);
+router.put("/price-book/:id", authMiddleware, updatePriceBookEntry);
+router.delete("/price-book/:id", authMiddleware, deletePriceBookEntry);
+
 router.get("/purchase-orders", (req, res) => { res.json(mockPurchaseOrders); });
 router.get("/approvals", (req, res) => { res.json(mockApprovals); });
 router.get("/assignment-rules", (req, res) => { res.json(mockAssignmentRules); });
