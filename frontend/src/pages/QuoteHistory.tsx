@@ -1,13 +1,16 @@
+import { useAuth } from "../context/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronRight, FileText, Download, CheckCircle, Clock, AlertTriangle, Plus, Search, Filter, Calendar, MoreVertical, TrendingUp, Timer, Bolt } from "lucide-react";
 import { formatCurrency, formatCurrencyCompact } from "../utils/currency";
 
 export default function QuoteHistory() {
+  const { token } = useAuth();
+
   const { data: quotes, isLoading } = useQuery({
     queryKey: ["quotes"],
     queryFn: async () => {
       const res = await fetch("/api/v1/quotes", {
-        headers: { "Authorization": "Bearer dummy" }
+        headers: { "Authorization": `Bearer ${token}` }
       });
       if (!res.ok) throw new Error("Failed to fetch quotes");
       return res.json();
@@ -98,8 +101,14 @@ export default function QuoteHistory() {
             <button className="text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1 text-sm font-medium">
               <Download className="w-4 h-4" /> Export
             </button>
-            <button className="bg-primary text-on-primary px-6 py-1.5 rounded-lg text-sm font-semibold hover:opacity-90 active:scale-95 transition-all">
+            <button className="bg-surface border border-outline-variant text-on-surface px-4 py-1.5 rounded-lg text-sm font-semibold hover:bg-surface-container-low transition-all">
               Apply Filters
+            </button>
+            <button 
+              onClick={() => window.location.href = '/quotes/new'}
+              className="bg-primary text-on-primary px-6 py-1.5 rounded-lg text-sm font-semibold hover:opacity-90 active:scale-95 transition-all flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" /> New Quote
             </button>
           </div>
         </div>
@@ -125,33 +134,38 @@ export default function QuoteHistory() {
                     <td colSpan={7} className="px-6 py-8 text-center text-on-surface-variant animate-pulse">Loading quote history...</td>
                   </tr>
                 ) : (
-                  quotes?.map((quote: any, idx: number) => (
-                    <tr key={quote.id || idx} className="hover:bg-surface-container-low/50 transition-colors group cursor-pointer">
+                  quotes?.map((quote: any, idx: number) => {
+                    const clientName = quote.deal?.lead?.company || quote.deal?.lead?.firstName + " " + quote.deal?.lead?.lastName || "Unknown Client";
+                    const ownerName = quote.deal?.owner?.name || "Unassigned";
+                    const formattedDate = new Date(quote.createdAt).toLocaleDateString();
+
+                    return (
+                    <tr key={quote.id || idx} className="hover:bg-surface-container-low/50 transition-colors group cursor-pointer" onClick={() => window.location.href=`/quotes/${quote.id}`}>
                       <td className="px-6 py-4">
-                        <span className="text-sm font-bold text-primary">{quote.id}</span>
-                        <p className="text-[10px] text-outline mt-1">v3.4 · Created 2h ago</p>
+                        <span className="text-sm font-bold text-primary">{quote.id.substring(0,8)}</span>
+                        <p className="text-[10px] text-outline mt-1">Created: {formattedDate}</p>
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           <div className="h-8 w-8 rounded-full bg-secondary-fixed text-on-secondary-fixed flex items-center justify-center font-bold text-xs">
-                            {quote.client.charAt(0)}
+                            {clientName.charAt(0)}
                           </div>
                           <div>
-                            <div className="text-sm font-semibold text-on-surface">{quote.client}</div>
-                            <div className="text-[12px] text-outline">{quote.owner}</div>
+                            <div className="text-sm font-semibold text-on-surface">{clientName}</div>
+                            <div className="text-[12px] text-outline">{ownerName}</div>
                           </div>
                         </div>
                       </td>
                       <td className="px-6 py-4">
                         <span className="text-sm font-medium text-on-surface">
-                          {formatCurrency(quote.items?.reduce((acc: number, item: any) => acc + item.total, 0) || 0)}
+                          {formatCurrency(quote.totalAmount)}
                         </span>
                       </td>
                       <td className="px-6 py-4">
                         <div className="w-32 h-1.5 bg-surface-variant rounded-full overflow-hidden flex">
                           <div className="h-full bg-primary w-2/3"></div>
                         </div>
-                        <p className="text-[10px] text-outline mt-1 uppercase">Negotiation Phase</p>
+                        <p className="text-[10px] text-outline mt-1 uppercase">{quote.deal?.stage?.name || 'In Progress'}</p>
                       </td>
                       <td className="px-6 py-4">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
@@ -166,7 +180,7 @@ export default function QuoteHistory() {
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-1 text-on-surface-variant">
                           <Clock className="w-4 h-4" />
-                          <span className="text-sm font-medium">12 Days</span>
+                          <span className="text-sm font-medium">{quote.expirationDate ? new Date(quote.expirationDate).toLocaleDateString() : 'N/A'}</span>
                         </div>
                       </td>
                       <td className="px-6 py-4 text-right">
@@ -175,7 +189,8 @@ export default function QuoteHistory() {
                         </button>
                       </td>
                     </tr>
-                  ))
+                    );
+                  })
                 )}
               </tbody>
             </table>
