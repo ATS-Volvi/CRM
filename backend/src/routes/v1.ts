@@ -14,6 +14,7 @@ import { getKpiDashboard, getManagementDashboard, getMyTodayDashboard } from '..
 import { getAssignmentRules, createAssignmentRule, updateAssignmentRule, deleteAssignmentRule } from '../controllers/assignmentRuleController';
 import { getBundleTemplates, createBundleTemplate, deleteBundleTemplate } from '../controllers/bundleController';
 import { exportLeads, exportQuotes, exportPurchaseOrders } from '../controllers/exportController';
+import { getSalespersonsPerformance } from '../controllers/salespersonController';
 
 const router = Router();
 
@@ -90,6 +91,7 @@ router.delete("/approval-tiers/:id", authMiddleware, deleteApprovalTier);
 router.get("/dashboard/kpi", authMiddleware, getKpiDashboard);
 router.get("/dashboard/management", authMiddleware, getManagementDashboard);
 router.get("/dashboard/today", authMiddleware, getMyTodayDashboard);
+router.get("/salespersons/performance", authMiddleware, getSalespersonsPerformance);
 
 // ==========================================
 // ASSIGNMENT RULES

@@ -1,11 +1,12 @@
 import { Outlet, Link, useLocation } from "react-router-dom";
-import { LayoutDashboard, Inbox, Trello, Receipt, FileText, Settings, Key, CheckSquare, BarChart, Search, Bell, Plus } from "lucide-react";
+import { LayoutDashboard, Inbox, Trello, Receipt, FileText, Settings, Key, CheckSquare, BarChart, Search, Bell, Plus, Users } from "lucide-react";
 
 export function Layout() {
   const location = useLocation();
   const navItems = [
     { name: "Management Dashboard", path: "/", icon: LayoutDashboard },
     { name: "KPI Dashboard", path: "/kpi", icon: BarChart },
+    { name: "Sales Representatives", path: "/salespersons", icon: Users },
     { name: "Lead Inbox", path: "/leads", icon: Inbox },
     { name: "Pipeline", path: "/pipeline", icon: Trello },
     { name: "Quotes", path: "/quotes", icon: FileText },
