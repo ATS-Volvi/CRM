@@ -53,6 +53,27 @@ async function seedDatabase() {
       maxOpenLeads: 30
     }) as any;
 
+    const reps = [
+      { name: "Olivia Davis", email: "olivia@nexus.com", max: 25, avail: true },
+      { name: "Ethan Hunt", email: "ethan@nexus.com", max: 35, avail: false },
+      { name: "Sophia Loren", email: "sophia.l@nexus.com", max: 20, avail: true },
+      { name: "Jackson Pollock", email: "jackson@nexus.com", max: 40, avail: true },
+      { name: "Ava Gardner", email: "ava@nexus.com", max: 30, avail: true },
+      { name: "Lucas Vance", email: "lucas@nexus.com", max: 30, avail: false }
+    ];
+
+    for (const r of reps) {
+      await models.User.create({
+        id: crypto.randomUUID(),
+        name: r.name,
+        email: r.email,
+        password: hashedPassword,
+        role: "sales_rep",
+        isAvailable: r.avail,
+        maxOpenLeads: r.max
+      });
+    }
+
     console.log("Seeding PriceBook Catalog...");
     const products = [
       { name: "Enterprise Cloud Suite Premium", sku: "SKU-CLOUD-ENT", category: "Enterprise VIP", unitPrice: 25000, minPrice: 19000, maxPrice: 35000 },
