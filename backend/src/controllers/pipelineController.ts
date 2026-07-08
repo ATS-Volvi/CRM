@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { Deal, PipelineStage, LeadStageHistory, Activity, User } from "@nexus-crm/database";
+import { Deal, PipelineStage, LeadStageHistory, Activity, User, sequelize } from "@nexus-crm/database";
 import { createNotification } from "../services/notificationService";
 
 export const getPipeline = async (req: Request, res: Response) => {
@@ -86,6 +86,22 @@ export const moveDealStage = async (req: Request, res: Response) => {
         `Congratulations! The deal ${deal.name} was marked as Won.`,
         `/pipeline`
       );
+    } else if (toStageObj.name === "Lost" && deal.leadId) {
+      const existing = await sequelize.models.ScheduledEmail.findOne({
+        where: { leadId: deal.leadId, templateName: "deal_lost_feedback", sentAt: null }
+      });
+      
+      if (!existing) {
+        const sendAfterDate = new Date();
+        sendAfterDate.setDate(sendAfterDate.getDate() + 2); // 2 days from now
+        
+        await sequelize.models.ScheduledEmail.create({
+          id: require('crypto').randomUUID(),
+          leadId: deal.leadId,
+          templateName: "deal_lost_feedback",
+          sendAfter: sendAfterDate
+        });
+      }
     }
 
     res.json({ message: "Stage updated successfully", deal });

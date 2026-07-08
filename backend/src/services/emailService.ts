@@ -81,8 +81,96 @@ export const triggerTemplatedEmail = async (templateName: string, to: string, da
     const bodyContent = renderTemplate((template as any).body, dataObj);
     const html = getBaseHtmlTemplate(bodyContent);
     
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`\n=== RENDERED EMAIL BODY ===\n${bodyContent}\n===========================\n`);
+    }
+
     await sendEmail(to, subject, html);
   } catch (error) {
     console.error("Error triggering templated email:", error);
+  }
+};
+
+export const processScheduledEmails = async () => {
+  try {
+    const { Op } = require("sequelize");
+    const now = new Date();
+    
+    // Find scheduled emails where sendAfter has passed and sentAt is null
+    const pendingEmails = await sequelize.models.ScheduledEmail.findAll({
+      where: {
+        sentAt: null,
+        sendAfter: { [Op.lte]: now }
+      },
+      include: [{ model: sequelize.models.Lead, as: 'lead' }]
+    });
+
+    for (const record of pendingEmails) {
+      const emailRecord = record as any;
+      const lead = emailRecord.lead;
+      if (lead && lead.email) {
+        await triggerTemplatedEmail(emailRecord.templateName, lead.email, {
+          lead_name: lead.firstName || 'there',
+          sender_company_name: process.env.COMPANY_NAME || "Our Company"
+        }).catch(err => console.error("Scheduled email send failed:", err));
+        
+        emailRecord.sentAt = new Date();
+        await emailRecord.save();
+        console.log(`Sent scheduled email ${emailRecord.templateName} to ${lead.email}`);
+      } else {
+        // Mark as sent anyway so it doesn't get stuck in a retry loop if there's no email
+        emailRecord.sentAt = new Date();
+        await emailRecord.save();
+      }
+    }
+  } catch (error) {
+    console.error("Error processing scheduled emails:", error);
+  }
+};
+
+export const processQuoteFollowUps = async () => {
+  try {
+    const { Op } = require("sequelize");
+    
+    const followUpDays = parseInt(process.env.QUOTE_FOLLOWUP_DAYS || "5", 10);
+    const staleDate = new Date();
+    staleDate.setDate(staleDate.getDate() - followUpDays);
+
+    const staleQuotes = await sequelize.models.Quote.findAll({
+      where: {
+        status: "Sent",
+        statusChangedAt: { [Op.lte]: staleDate },
+        followUpSentAt: null
+      },
+      include: [{ 
+        model: sequelize.models.Deal, 
+        as: "deal",
+        include: [{ model: sequelize.models.Lead, as: "lead" }]
+      }]
+    });
+
+    for (const record of staleQuotes) {
+      const quote = record as any;
+      const lead = quote.deal?.lead;
+      if (lead && lead.email) {
+        const formattedAmount = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'SAR' }).format(Number(quote.totalAmount || 0));
+        
+        await triggerTemplatedEmail("quote_no_response_followup", lead.email, {
+          lead_name: lead.firstName || 'there',
+          quote_amount: formattedAmount,
+          sender_company_name: process.env.COMPANY_NAME || "Our Company"
+        }).catch(err => console.error("Quote followup email failed:", err));
+        
+        quote.followUpSentAt = new Date();
+        await quote.save();
+        console.log(`Sent quote follow-up for Quote ${quote.id} to ${lead.email}`);
+      } else {
+        // Mark as sent to avoid endless retries on quotes without valid lead emails
+        quote.followUpSentAt = new Date();
+        await quote.save();
+      }
+    }
+  } catch (error) {
+    console.error("Error processing quote follow-ups:", error);
   }
 };

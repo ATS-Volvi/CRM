@@ -2,6 +2,7 @@ import "dotenv/config";
 import { createServer } from "./server";
 import { Database, sequelize } from "@nexus-crm/database";
 import { checkOverdueTasks } from "./src/services/notificationService";
+import { processScheduledEmails, processQuoteFollowUps } from "./src/services/emailService";
 
 const PORT = process.env.PORT || 5505;
 
@@ -21,6 +22,8 @@ const startServer = async () => {
       // (Using 1 hour = 3600000 ms)
       setInterval(() => {
         checkOverdueTasks().catch(console.error);
+        processScheduledEmails().catch(console.error);
+        processQuoteFollowUps().catch(console.error);
       }, 3600000);
     });
   } catch (error) {

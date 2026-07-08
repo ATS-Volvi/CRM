@@ -120,6 +120,8 @@ export class Quote extends Model {
   public status!: string;
   public totalAmount!: number;
   public expirationDate!: Date;
+  public statusChangedAt!: Date;
+  public followUpSentAt!: Date | null;
 }
 
 Quote.init(
@@ -128,6 +130,8 @@ Quote.init(
     status: { type: DataTypes.STRING, defaultValue: "Draft" },
     totalAmount: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
     expirationDate: { type: DataTypes.DATE, allowNull: true },
+    statusChangedAt: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
+    followUpSentAt: { type: DataTypes.DATE, allowNull: true },
   },
   { sequelize, modelName: "Quote" }
 );
@@ -322,22 +326,41 @@ Notification.init(
 export class MessageTemplate extends Model {
   public id!: string;
   public name!: string;
-  public channel!: string; // e.g. 'email', 'sms', 'in-app'
-  public subject!: string | null;
+  public channel!: string; // email, sms, in_app
+  public subject!: string;
   public body!: string;
-  public triggerEvent!: string | null;
+  public triggerEvent!: string; // e.g. "deal_won", "lead_created"
 }
 
 MessageTemplate.init(
   {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
-    name: { type: DataTypes.STRING, allowNull: false },
-    channel: { type: DataTypes.STRING, allowNull: false },
+    name: { type: DataTypes.STRING, allowNull: false, unique: true },
+    channel: { type: DataTypes.STRING, allowNull: false, defaultValue: "email" },
     subject: { type: DataTypes.STRING, allowNull: true },
     body: { type: DataTypes.TEXT, allowNull: false },
     triggerEvent: { type: DataTypes.STRING, allowNull: true },
   },
   { sequelize, modelName: "MessageTemplate" }
+);
+
+export class ScheduledEmail extends Model {
+  public id!: string;
+  public leadId!: string;
+  public templateName!: string;
+  public sendAfter!: Date;
+  public sentAt!: Date | null;
+}
+
+ScheduledEmail.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    leadId: { type: DataTypes.UUID, allowNull: false },
+    templateName: { type: DataTypes.STRING, allowNull: false },
+    sendAfter: { type: DataTypes.DATE, allowNull: false },
+    sentAt: { type: DataTypes.DATE, allowNull: true },
+  },
+  { sequelize, modelName: "ScheduledEmail" }
 );
 
 // Define Associations
@@ -397,5 +420,11 @@ InvoiceLineItem.belongsTo(PriceBookEntry, { foreignKey: "productId", as: "produc
 
 User.hasMany(Notification, { foreignKey: "userId", as: "notifications" });
 Notification.belongsTo(User, { foreignKey: "userId", as: "user" });
+
+MessageTemplate.hasMany(Notification, { foreignKey: "templateId" });
+Notification.belongsTo(MessageTemplate, { foreignKey: "templateId" });
+
+Lead.hasMany(ScheduledEmail, { foreignKey: "leadId", as: "scheduledEmails" });
+ScheduledEmail.belongsTo(Lead, { foreignKey: "leadId", as: "lead" });
 
 export { sequelize };

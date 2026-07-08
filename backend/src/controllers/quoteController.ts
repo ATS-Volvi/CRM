@@ -47,6 +47,29 @@ export const createQuote = async (req: Request, res: Response) => {
   }
 };
 
+export const updateQuote = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { status, expirationDate } = req.body;
+    
+    const quote = await sequelize.models.Quote.findByPk(String(id));
+    if (!quote) return res.status(404).json({ error: "Quote not found" });
+
+    const q = quote as any;
+    if (status && status !== q.status) {
+      q.status = status;
+      q.statusChangedAt = new Date();
+    }
+    
+    if (expirationDate) q.expirationDate = expirationDate;
+
+    await q.save();
+    res.json(q);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 export const getQuoteRecommendations = async (req: Request, res: Response) => {
   try {
     const { dealId } = req.query;

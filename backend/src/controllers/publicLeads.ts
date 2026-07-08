@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { Lead, AssignmentRule } from "@nexus-crm/database";
-import { createNotification } from "../services/notificationService";
+import { triggerTemplatedEmail } from "../services/emailService";
+import { assignLeadToSalesperson } from "../services/leadAssignmentService";
 
 export const createPublicLead = async (req: Request, res: Response) => {
   try {
@@ -46,17 +47,20 @@ export const createPublicLead = async (req: Request, res: Response) => {
       company,
       source: source || "Website",
       status: "New",
-      assignedToId
+      assignedToId: null // We will set this via the assignment service to trigger the hooks
     });
 
     if (assignedToId) {
-      await createNotification(
-        assignedToId,
-        'info',
-        'New Lead Assigned',
-        `A new lead from ${company} (${firstName} ${lastName}) was assigned to you by the auto-routing rules.`,
-        `/leads/${(lead as any).id}`
-      );
+      await assignLeadToSalesperson(lead, assignedToId);
+    }
+
+    // 1. LEAD ACKNOWLEDGEMENT AUTOMATION
+    if (email) {
+      const slaHours = process.env.LEAD_RESPONSE_SLA_HOURS || "24";
+      triggerTemplatedEmail("lead_acknowledgement", email, { 
+        lead_name: firstName, 
+        sla_hours: slaHours 
+      }).catch(err => console.error("Email send failed:", err));
     }
 
     res.status(201).json({ message: "Lead captured successfully", leadId: (lead as any).id });

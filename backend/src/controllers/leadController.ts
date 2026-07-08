@@ -1,5 +1,7 @@
 import { Request, Response } from "express";
 import { sequelize } from "@nexus-crm/database";
+import { triggerTemplatedEmail } from "../services/emailService";
+import { assignLeadToSalesperson } from "../services/leadAssignmentService";
 
 export const getLeads = async (req: Request, res: Response) => {
   try {
@@ -40,6 +42,15 @@ export const createLead = async (req: Request, res: Response) => {
       leadScore: Math.floor(Math.random() * 100), // Mock score
     });
 
+    // 1. LEAD ACKNOWLEDGEMENT AUTOMATION
+    if (email) {
+      const slaHours = process.env.LEAD_RESPONSE_SLA_HOURS || "24";
+      triggerTemplatedEmail("lead_acknowledgement", email, { 
+        lead_name: firstName, 
+        sla_hours: slaHours 
+      }).catch(err => console.error("Email send failed:", err));
+    }
+
     res.status(201).json(lead);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -53,6 +64,11 @@ export const updateLead = async (req: Request, res: Response) => {
     const lead = await sequelize.models.Lead.findByPk(String(id));
     if (!lead) return res.status(404).json({ error: "Lead not found" });
     
+    if (updateData.assignedToId && updateData.assignedToId !== (lead as any).assignedToId) {
+      await assignLeadToSalesperson(lead, updateData.assignedToId);
+      delete updateData.assignedToId; // Prevent overwriting during the main update below
+    }
+
     await lead.update(updateData);
     res.json(lead);
   } catch (error: any) {
