@@ -79,7 +79,6 @@ export const moveDealStage = async (req: Request, res: Response) => {
     await deal.save();
 
     if (toStageObj.name === "Won") {
-      const owner = await User.findByPk(deal.ownerId);
       await createNotification(
         deal.ownerId,
         'success',
