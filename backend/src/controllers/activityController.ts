@@ -20,10 +20,16 @@ export const getLeadActivities = async (req: Request, res: Response) => {
 export const createActivity = async (req: Request, res: Response) => {
   try {
     const { leadId } = req.params;
-    const { type, duration, outcome, mentioned_user_ids, pinned, notes } = req.body;
+    const { type, duration, outcome, mentioned_user_ids, pinned, dueDate, priority, isCompleted } = req.body;
     const userId = (req as any).user?.id || "mock-user";
 
+    // Validate tasks have a due date
+    if (type === "task" && !dueDate) {
+      return res.status(400).json({ error: "Tasks must have a due date." });
+    }
+
     const activity = await Activity.create({
+      id: require('crypto').randomUUID(),
       leadId,
       type,
       duration,
@@ -31,7 +37,9 @@ export const createActivity = async (req: Request, res: Response) => {
       mentioned_user_ids: mentioned_user_ids ? JSON.stringify(mentioned_user_ids) : "[]",
       pinned: pinned || false,
       createdById: userId,
-      // If we had a generic text content field, we'd map notes there. We use outcome for now.
+      dueDate: dueDate || null,
+      priority: priority || null,
+      isCompleted: isCompleted || false
     });
 
     res.status(201).json(activity);
@@ -54,3 +62,39 @@ export const togglePinActivity = async (req: Request, res: Response) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+export const completeTask = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const task = await Activity.findByPk(id as string);
+    if (!task) return res.status(404).json({ error: "Task not found" });
+    if ((task as any).type !== "task") {
+      return res.status(400).json({ error: "This activity is not a task" });
+    }
+
+    await task.update({ isCompleted: true });
+    res.json(task);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const getOverdueTasks = async (req: Request, res: Response) => {
+  try {
+    const { Op } = require("sequelize");
+    const overdue = await Activity.findAll({
+      where: {
+        type: "task",
+        isCompleted: false,
+        dueDate: {
+          [Op.lt]: new Date()
+        }
+      },
+      order: [["dueDate", "ASC"]]
+    });
+    res.json(overdue);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+

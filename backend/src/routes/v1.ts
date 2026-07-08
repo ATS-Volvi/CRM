@@ -1,11 +1,19 @@
-import { Router, Request, Response } from "express";
+import { Router } from "express";
 import { register, login } from "../controllers/auth";
 import { createPublicLead } from "../controllers/publicLeads";
 import { authMiddleware } from "../middleware/auth";
-import { 
-  Lead, Deal, Quote, PriceBookEntry, 
-  PurchaseOrder, ApprovalRequest, AssignmentRule 
-} from "@nexus-crm/database";
+import { getPipeline, moveDealStage, createDeal } from "../controllers/pipelineController";
+import { getLeadActivities, createActivity, togglePinActivity, completeTask, getOverdueTasks } from "../controllers/activityController";
+import { getLeads, createLead, updateLead, deleteLead, getDuplicateLeads, mergeLeads } from '../controllers/leadController';
+import { getPriceBookEntries, createPriceBookEntry, updatePriceBookEntry, deletePriceBookEntry, importPriceBookEntries } from '../controllers/priceBookController';
+import { getQuotes, createQuote, getQuoteRecommendations, sendQuote, getPublicQuote, generateQuotePdf } from '../controllers/quoteController';
+import { getInvoices, createInvoiceFromQuote, updateInvoiceStatus } from '../controllers/invoiceController';
+import { getPurchaseOrders, createPurchaseOrder, updatePurchaseOrder } from '../controllers/purchaseOrderController';
+import { getApprovals, updateApproval, getApprovalTiers, createApprovalTier, deleteApprovalTier } from '../controllers/approvalController';
+import { getKpiDashboard, getManagementDashboard, getMyTodayDashboard } from '../controllers/dashboardController';
+import { getAssignmentRules, createAssignmentRule, updateAssignmentRule, deleteAssignmentRule } from '../controllers/assignmentRuleController';
+import { getBundleTemplates, createBundleTemplate, deleteBundleTemplate } from '../controllers/bundleController';
+import { exportLeads, exportQuotes, exportPurchaseOrders } from '../controllers/exportController';
 
 const router = Router();
 
@@ -13,31 +21,10 @@ const router = Router();
 router.post("/auth/register", register);
 router.post("/auth/login", login);
 router.post("/public/leads", createPublicLead);
-
-// Special KPI endpoints for dashboard mock (Public for preview)
-router.get("/kpis/salesperson", async (req, res) => {
-  res.json({ sales: 12000, pipeline: 45000, meetings: 4, winRate: 65 });
-});
-router.get("/kpis/management", async (req, res) => {
-  res.json({ totalRevenue: 1200000, activeDeals: 34, topPerformer: "Jane Doe" });
-});
+router.get("/public/quotes/:id", getPublicQuote);
 
 // Protect all following routes
 router.use(authMiddleware);
-
-// Mock CRUD routes removed, replaced by DB routes below
-
-import { mockLeads, mockQuotes, mockPurchaseOrders, mockPriceBook, mockApprovals, mockAssignmentRules } from "../mockData";
-import { getPipeline, moveDealStage, createDeal } from "../controllers/pipelineController";
-import { getLeadActivities, createActivity, togglePinActivity } from "../controllers/activityController";
-import { getLeads, createLead, updateLead, deleteLead, getDuplicateLeads, mergeLeads } from '../controllers/leadController';
-import { getPriceBookEntries, createPriceBookEntry, updatePriceBookEntry, deletePriceBookEntry } from '../controllers/priceBookController';
-import { getQuotes, createQuote, getQuoteRecommendations } from '../controllers/quoteController';
-import { getInvoices, createInvoiceFromQuote, updateInvoiceStatus } from '../controllers/invoiceController';
-import { getPurchaseOrders } from '../controllers/purchaseOrderController';
-import { getApprovals, updateApproval } from '../controllers/approvalController';
-import { getKpiDashboard, getManagementDashboard } from '../controllers/dashboardController';
-import { getAssignmentRules } from '../controllers/assignmentRuleController';
 
 // ==========================================
 // LEADS
@@ -49,7 +36,6 @@ router.post("/leads", authMiddleware, createLead);
 router.put("/leads/:id", authMiddleware, updateLead);
 router.delete("/leads/:id", authMiddleware, deleteLead);
 
-// Mock legacy endpoints (keeping just in case, but real ones take precedence above)
 router.get("/deals", (req, res) => { res.json([]); });
 router.get("/pipeline", authMiddleware, getPipeline);
 router.post("/pipeline/deals", authMiddleware, createDeal);
@@ -61,6 +47,8 @@ router.put("/pipeline/deals/:id/stage", authMiddleware, moveDealStage);
 router.get("/quotes/recommendations", authMiddleware, getQuoteRecommendations);
 router.get("/quotes", authMiddleware, getQuotes);
 router.post("/quotes", authMiddleware, createQuote);
+router.post("/quotes/:id/send", authMiddleware, sendQuote);
+router.get("/quotes/:id/pdf", authMiddleware, generateQuotePdf);
 
 // ==========================================
 // INVOICES
@@ -74,11 +62,14 @@ router.put("/invoices/:id/status", authMiddleware, updateInvoiceStatus);
 // ==========================================
 router.get("/price-book", authMiddleware, getPriceBookEntries);
 router.post("/price-book", authMiddleware, createPriceBookEntry);
+router.post("/price-book/import", authMiddleware, importPriceBookEntries);
 router.put("/price-book/:id", authMiddleware, updatePriceBookEntry);
 // ==========================================
 // PURCHASE ORDERS
 // ==========================================
 router.get("/purchase-orders", authMiddleware, getPurchaseOrders);
+router.post("/purchase-orders", authMiddleware, createPurchaseOrder);
+router.put("/purchase-orders/:id", authMiddleware, updatePurchaseOrder);
 
 // ==========================================
 // APPROVALS
@@ -87,42 +78,48 @@ router.get("/approvals", authMiddleware, getApprovals);
 router.put("/approvals/:id", authMiddleware, updateApproval);
 
 // ==========================================
+// APPROVAL TIERS
+// ==========================================
+router.get("/approval-tiers", authMiddleware, getApprovalTiers);
+router.post("/approval-tiers", authMiddleware, createApprovalTier);
+router.delete("/approval-tiers/:id", authMiddleware, deleteApprovalTier);
+
+// ==========================================
 // DASHBOARDS
 // ==========================================
 router.get("/dashboard/kpi", authMiddleware, getKpiDashboard);
 router.get("/dashboard/management", authMiddleware, getManagementDashboard);
+router.get("/dashboard/today", authMiddleware, getMyTodayDashboard);
 
 // ==========================================
 // ASSIGNMENT RULES
 // ==========================================
 router.get("/assignment-rules", authMiddleware, getAssignmentRules);
+router.post("/assignment-rules", authMiddleware, createAssignmentRule);
+router.put("/assignment-rules/:id", authMiddleware, updateAssignmentRule);
+router.delete("/assignment-rules/:id", authMiddleware, deleteAssignmentRule);
 
-// Activity routes
+// ==========================================
+// BUNDLE TEMPLATES
+// ==========================================
+router.get("/bundle-templates", authMiddleware, getBundleTemplates);
+router.post("/bundle-templates", authMiddleware, createBundleTemplate);
+router.delete("/bundle-templates/:id", authMiddleware, deleteBundleTemplate);
+
+// ==========================================
+// EXPORTS
+// ==========================================
+router.get("/exports/leads", authMiddleware, exportLeads);
+router.get("/exports/quotes", authMiddleware, exportQuotes);
+router.get("/exports/purchase-orders", authMiddleware, exportPurchaseOrders);
+
+// Activity/Task routes
 router.get("/leads/:leadId/activities", getLeadActivities);
 router.post("/leads/:leadId/activities", createActivity);
 router.put("/activities/:id/pin", togglePinActivity);
+router.put("/activities/:id/complete", authMiddleware, completeTask);
+router.get("/activities/overdue", authMiddleware, getOverdueTasks);
 
-// Generic CRUD factory for quick scaffolding (Database required)
-const createCrudRoutes = (model: any) => {
-  const r = Router();
-  r.get("/", async (req: Request, res: Response) => {
-    try {
-      const items = await model.findAll();
-      res.json(items);
-    } catch (e: any) { 
-      res.status(500).json({ error: e.message }); 
-    }
-  });
-  return r;
-};
 
-// Database-backed routes (Disabled for now to use mock data)
-// router.use("/leads", createCrudRoutes(Lead));
-// router.use("/deals", createCrudRoutes(Deal));
-// router.use("/quotes", createCrudRoutes(Quote));
-// router.use("/price-book", createCrudRoutes(PriceBookEntry));
-// router.use("/purchase-orders", createCrudRoutes(PurchaseOrder));
-// router.use("/approvals", createCrudRoutes(ApprovalRequest));
-// router.use("/assignment-rules", createCrudRoutes(AssignmentRule));
 
 export default router;

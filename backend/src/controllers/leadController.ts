@@ -25,10 +25,21 @@ export const getLeads = async (req: Request, res: Response) => {
   }
 };
 
+import { assignLead } from "../services/assignmentEngine";
+
 export const createLead = async (req: Request, res: Response) => {
   try {
-    const { firstName, lastName, email, company, source, status } = req.body;
+    const { firstName, lastName, email, company, source, status, industry } = req.body;
     
+    const assignedToId = await assignLead({
+      firstName,
+      lastName,
+      email,
+      company,
+      source: source || 'email',
+      industry
+    });
+
     const lead = await sequelize.models.Lead.create({
       id: require('crypto').randomUUID(),
       firstName,
@@ -36,8 +47,9 @@ export const createLead = async (req: Request, res: Response) => {
       email,
       company,
       source: source || 'email',
-      status: status || 'New Lead',
-      leadScore: Math.floor(Math.random() * 100), // Mock score
+      status: status || 'New',
+      leadScore: Math.floor(Math.random() * 100),
+      assignedToId,
     });
 
     res.status(201).json(lead);
@@ -50,7 +62,7 @@ export const updateLead = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const updateData = req.body;
-    const lead = await sequelize.models.Lead.findByPk(id);
+    const lead = await sequelize.models.Lead.findByPk(id as string);
     if (!lead) return res.status(404).json({ error: "Lead not found" });
     
     await lead.update(updateData);

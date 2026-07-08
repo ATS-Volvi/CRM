@@ -7,6 +7,8 @@ export class User extends Model {
   public email!: string;
   public password!: string;
   public role!: string;
+  public maxOpenLeads!: number;
+  public isAvailable!: boolean;
 }
 
 User.init(
@@ -16,6 +18,8 @@ User.init(
     email: { type: DataTypes.STRING, allowNull: false, unique: true },
     password: { type: DataTypes.STRING, allowNull: false },
     role: { type: DataTypes.STRING, defaultValue: "sales_rep" },
+    maxOpenLeads: { type: DataTypes.INTEGER, defaultValue: 20 },
+    isAvailable: { type: DataTypes.BOOLEAN, defaultValue: true },
   },
   { sequelize, modelName: "User" }
 );
@@ -47,7 +51,13 @@ Lead.init(
     industry: { type: DataTypes.STRING, allowNull: true },
     leadScore: { type: DataTypes.INTEGER, defaultValue: 50 },
   },
-  { sequelize, modelName: "Lead" }
+  { 
+    sequelize, 
+    modelName: "Lead",
+    indexes: [
+      { fields: ["assignedToId"] }
+    ]
+  }
 );
 
 export class PipelineStage extends Model {
@@ -100,6 +110,7 @@ export class Deal extends Model {
   public ownerId!: string;
   public recontactDate!: Date | null;
   public lossReason!: string | null;
+  public competitors!: string | null;
 }
 
 Deal.init(
@@ -110,6 +121,7 @@ Deal.init(
     expectedCloseDate: { type: DataTypes.DATE, allowNull: true },
     recontactDate: { type: DataTypes.DATE, allowNull: true },
     lossReason: { type: DataTypes.TEXT, allowNull: true },
+    competitors: { type: DataTypes.TEXT, allowNull: true },
   },
   { sequelize, modelName: "Deal" }
 );
@@ -120,6 +132,11 @@ export class Quote extends Model {
   public status!: string;
   public totalAmount!: number;
   public expirationDate!: Date;
+  public quoteNumber!: string | null;
+  public version!: number;
+  public sentAt!: Date | null;
+  public viewedAt!: Date | null;
+  public acceptedAt!: Date | null;
 }
 
 Quote.init(
@@ -128,6 +145,11 @@ Quote.init(
     status: { type: DataTypes.STRING, defaultValue: "Draft" },
     totalAmount: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
     expirationDate: { type: DataTypes.DATE, allowNull: true },
+    quoteNumber: { type: DataTypes.STRING, allowNull: true },
+    version: { type: DataTypes.INTEGER, defaultValue: 1 },
+    sentAt: { type: DataTypes.DATE, allowNull: true },
+    viewedAt: { type: DataTypes.DATE, allowNull: true },
+    acceptedAt: { type: DataTypes.DATE, allowNull: true },
   },
   { sequelize, modelName: "Quote" }
 );
@@ -139,6 +161,11 @@ export class PriceBookEntry extends Model {
   public description!: string;
   public unitPrice!: number;
   public category!: string;
+  public minPrice!: number | null;
+  public maxPrice!: number | null;
+  public segmentPricing!: string | null; // JSON String
+  public startDate!: Date | null;
+  public endDate!: Date | null;
 }
 
 PriceBookEntry.init(
@@ -149,6 +176,11 @@ PriceBookEntry.init(
     description: { type: DataTypes.TEXT, allowNull: true },
     unitPrice: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
     category: { type: DataTypes.STRING, allowNull: true },
+    minPrice: { type: DataTypes.DECIMAL(10, 2), allowNull: true },
+    maxPrice: { type: DataTypes.DECIMAL(10, 2), allowNull: true },
+    segmentPricing: { type: DataTypes.TEXT, defaultValue: "{}" },
+    startDate: { type: DataTypes.DATE, allowNull: true },
+    endDate: { type: DataTypes.DATE, allowNull: true }
   },
   { sequelize, modelName: "PriceBookEntry" }
 );
@@ -219,6 +251,7 @@ export class AssignmentRule extends Model {
   public assignToId!: string;
   public priority!: number;
   public isActive!: boolean;
+  public ruleType!: string;
 }
 
 AssignmentRule.init(
@@ -227,6 +260,7 @@ AssignmentRule.init(
     criteria: { type: DataTypes.TEXT, allowNull: false },
     priority: { type: DataTypes.INTEGER, defaultValue: 0 },
     isActive: { type: DataTypes.BOOLEAN, defaultValue: true },
+    ruleType: { type: DataTypes.STRING, defaultValue: "Round-robin" },
   },
   { sequelize, modelName: "AssignmentRule" }
 );
@@ -240,6 +274,9 @@ export class Activity extends Model {
   public mentioned_user_ids!: string; // JSON string array
   public pinned!: boolean;
   public createdById!: string;
+  public dueDate!: Date | null;
+  public priority!: string | null;
+  public isCompleted!: boolean;
 }
 
 Activity.init(
@@ -254,6 +291,9 @@ Activity.init(
     outcome: { type: DataTypes.STRING, allowNull: true },
     mentioned_user_ids: { type: DataTypes.TEXT, defaultValue: "[]" },
     pinned: { type: DataTypes.BOOLEAN, defaultValue: false },
+    dueDate: { type: DataTypes.DATE, allowNull: true },
+    priority: { type: DataTypes.STRING, allowNull: true },
+    isCompleted: { type: DataTypes.BOOLEAN, defaultValue: false },
   },
   { sequelize, modelName: "Activity" }
 );
@@ -352,4 +392,82 @@ InvoiceLineItem.belongsTo(Invoice, { foreignKey: "invoiceId", as: "invoice" });
 PriceBookEntry.hasMany(InvoiceLineItem, { foreignKey: "productId" });
 InvoiceLineItem.belongsTo(PriceBookEntry, { foreignKey: "productId", as: "product" });
 
+export class BundleTemplate extends Model {
+  public id!: string;
+  public name!: string;
+  public description!: string | null;
+}
+
+BundleTemplate.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    name: { type: DataTypes.STRING, allowNull: false },
+    description: { type: DataTypes.TEXT, allowNull: true }
+  },
+  { sequelize, modelName: "BundleTemplate" }
+);
+
+export class BundleItem extends Model {
+  public id!: string;
+  public bundleTemplateId!: string;
+  public productId!: string;
+  public quantity!: number;
+}
+
+BundleItem.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    quantity: { type: DataTypes.INTEGER, defaultValue: 1 }
+  },
+  { sequelize, modelName: "BundleItem" }
+);
+
+// Define Bundle Associations
+BundleTemplate.hasMany(BundleItem, { foreignKey: "bundleTemplateId", as: "items" });
+BundleItem.belongsTo(BundleTemplate, { foreignKey: "bundleTemplateId" });
+
+PriceBookEntry.hasMany(BundleItem, { foreignKey: "productId" });
+BundleItem.belongsTo(PriceBookEntry, { foreignKey: "productId", as: "product" });
+
+export class ApprovalTier extends Model {
+  public id!: string;
+  public name!: string;
+  public thresholdValue!: number;
+  public requiredRole!: string;
+}
+
+ApprovalTier.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    name: { type: DataTypes.STRING, allowNull: false },
+    thresholdValue: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
+    requiredRole: { type: DataTypes.STRING, defaultValue: "sales_manager" }
+  },
+  { sequelize, modelName: "ApprovalTier" }
+);
+
+export class KpiTarget extends Model {
+  public id!: string;
+  public userId!: string;
+  public kpiName!: string;
+  public targetValue!: number;
+  public period!: string; // 'monthly', 'quarterly', etc.
+}
+
+KpiTarget.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    userId: { type: DataTypes.UUID, allowNull: false },
+    kpiName: { type: DataTypes.STRING, allowNull: false },
+    targetValue: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
+    period: { type: DataTypes.STRING, defaultValue: "monthly" }
+  },
+  { sequelize, modelName: "KpiTarget" }
+);
+
+// Define KPI Associations
+User.hasMany(KpiTarget, { foreignKey: "userId", as: "kpiTargets" });
+KpiTarget.belongsTo(User, { foreignKey: "userId", as: "user" });
+
 export { sequelize };
+

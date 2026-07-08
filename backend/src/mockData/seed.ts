@@ -50,13 +50,24 @@ async function seedDatabase() {
     let mockDeal: any;
     if (models.PipelineStage && models.Deal) {
       console.log("Seeding Pipeline Stages...");
-      const stages = ["New", "Contacted", "Qualified", "Meeting/Demo", "Proposal", "Negotiation", "Won", "Lost", "On Hold"];
+      const stages = [
+        { name: "New", probability: 10 },
+        { name: "Contacted", probability: 20 },
+        { name: "Qualified", probability: 40 },
+        { name: "Meeting/Demo", probability: 60 },
+        { name: "Proposal", probability: 70 },
+        { name: "Negotiation", probability: 80 },
+        { name: "Won", probability: 100 },
+        { name: "Lost", probability: 0 },
+        { name: "On Hold", probability: 5 }
+      ];
       const stageRecords = [];
       for (let i = 0; i < stages.length; i++) {
         stageRecords.push(await models.PipelineStage.create({
           id: crypto.randomUUID(),
-          name: stages[i],
-          order: i + 1
+          name: stages[i].name,
+          order: i + 1,
+          probability: stages[i].probability
         }));
       }
 

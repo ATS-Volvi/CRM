@@ -63,3 +63,48 @@ export const updateApproval = async (req: Request, res: Response) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+export const getApprovalTiers = async (req: Request, res: Response) => {
+  try {
+    const tiers = await sequelize.models.ApprovalTier.findAll({
+      order: [["thresholdValue", "ASC"]]
+    });
+    res.json(tiers);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const createApprovalTier = async (req: Request, res: Response) => {
+  try {
+    const { name, thresholdValue, requiredRole } = req.body;
+    if (!name || thresholdValue === undefined) {
+      return res.status(400).json({ error: "name and thresholdValue are required." });
+    }
+
+    const tier = await sequelize.models.ApprovalTier.create({
+      id: require('crypto').randomUUID(),
+      name,
+      thresholdValue,
+      requiredRole: requiredRole || "sales_manager"
+    });
+
+    res.status(201).json(tier);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const deleteApprovalTier = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const tier = await sequelize.models.ApprovalTier.findByPk(id as string);
+    if (!tier) return res.status(404).json({ error: "Approval tier not found." });
+
+    await tier.destroy();
+    res.json({ message: "Approval tier deleted successfully." });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+

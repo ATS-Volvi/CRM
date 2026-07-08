@@ -74,6 +74,7 @@ export const moveDealStage = async (req: Request, res: Response) => {
     deal.stageId = toStageId;
     if (toStageObj.name === "Lost") deal.lossReason = reason;
     if (toStageObj.name === "On Hold") deal.recontactDate = recontactDate;
+    if (req.body.competitors !== undefined) deal.competitors = req.body.competitors;
 
     await deal.save();
 
@@ -85,7 +86,7 @@ export const moveDealStage = async (req: Request, res: Response) => {
 
 export const createDeal = async (req: Request, res: Response) => {
   try {
-    const { name, amount, stageId, leadId } = req.body;
+    const { name, amount, stageId, leadId, competitors } = req.body;
     
     // Default to the first stage if no stageId provided
     let targetStageId = stageId;
@@ -101,7 +102,8 @@ export const createDeal = async (req: Request, res: Response) => {
       name,
       amount,
       stageId: targetStageId,
-      leadId: leadId || null
+      leadId: leadId || null,
+      competitors: competitors || null
     });
 
     res.status(201).json(deal);
