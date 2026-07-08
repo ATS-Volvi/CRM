@@ -5,20 +5,21 @@ export const getSalespersonsPerformance = async (req: Request, res: Response) =>
   try {
     // 1. Fetch all users who are salespersons
     const users = await sequelize.models.User.findAll({
-      attributes: ["id", "username", "role", "isAvailable", "maxOpenLeads"]
+      attributes: ["id", "name", "role", "isAvailable", "maxOpenLeads"]
     });
 
     const salespersonStats = [];
 
     for (const user of users) {
+      const u = user as any;
       // 2. Fetch all leads assigned to this user
       const leads = await sequelize.models.Lead.findAll({
-        where: { assignedToId: user.id }
+        where: { assignedToId: u.id }
       });
 
       // 3. Fetch all deals owned by this user
       const deals = await sequelize.models.Deal.findAll({
-        where: { ownerId: user.id },
+        where: { ownerId: u.id },
         include: [{ model: sequelize.models.PipelineStage, as: "stage" }]
       });
 
@@ -73,11 +74,11 @@ export const getSalespersonsPerformance = async (req: Request, res: Response) =>
       }));
 
       salespersonStats.push({
-        id: user.id,
-        name: user.username,
-        role: user.role,
-        isAvailable: user.isAvailable,
-        maxOpenLeads: user.maxOpenLeads,
+        id: u.id,
+        name: u.name,
+        role: u.role,
+        isAvailable: u.isAvailable,
+        maxOpenLeads: u.maxOpenLeads,
         totalLeads: leads.length,
         totalDeals: deals.length,
         purchaseOrders,
