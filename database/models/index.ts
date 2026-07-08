@@ -297,6 +297,49 @@ InvoiceLineItem.init(
   { sequelize, modelName: "InvoiceLineItem" }
 );
 
+export class Notification extends Model {
+  public id!: string;
+  public userId!: string;
+  public type!: string;
+  public title!: string;
+  public message!: string;
+  public link!: string | null;
+  public isRead!: boolean;
+}
+
+Notification.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    type: { type: DataTypes.STRING, allowNull: false },
+    title: { type: DataTypes.STRING, allowNull: false },
+    message: { type: DataTypes.TEXT, allowNull: false },
+    link: { type: DataTypes.STRING, allowNull: true },
+    isRead: { type: DataTypes.BOOLEAN, defaultValue: false },
+  },
+  { sequelize, modelName: "Notification" }
+);
+
+export class MessageTemplate extends Model {
+  public id!: string;
+  public name!: string;
+  public channel!: string; // e.g. 'email', 'sms', 'in-app'
+  public subject!: string | null;
+  public body!: string;
+  public triggerEvent!: string | null;
+}
+
+MessageTemplate.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    name: { type: DataTypes.STRING, allowNull: false },
+    channel: { type: DataTypes.STRING, allowNull: false },
+    subject: { type: DataTypes.STRING, allowNull: true },
+    body: { type: DataTypes.TEXT, allowNull: false },
+    triggerEvent: { type: DataTypes.STRING, allowNull: true },
+  },
+  { sequelize, modelName: "MessageTemplate" }
+);
+
 // Define Associations
 User.hasMany(Lead, { foreignKey: "assignedToId" });
 Lead.belongsTo(User, { foreignKey: "assignedToId", as: "assignedTo" });
@@ -351,5 +394,8 @@ InvoiceLineItem.belongsTo(Invoice, { foreignKey: "invoiceId", as: "invoice" });
 
 PriceBookEntry.hasMany(InvoiceLineItem, { foreignKey: "productId" });
 InvoiceLineItem.belongsTo(PriceBookEntry, { foreignKey: "productId", as: "product" });
+
+User.hasMany(Notification, { foreignKey: "userId", as: "notifications" });
+Notification.belongsTo(User, { foreignKey: "userId", as: "user" });
 
 export { sequelize };

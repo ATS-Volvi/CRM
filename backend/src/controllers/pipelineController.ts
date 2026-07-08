@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
-import { Deal, PipelineStage, LeadStageHistory, Activity } from "@nexus-crm/database";
+import { Deal, PipelineStage, LeadStageHistory, Activity, User } from "@nexus-crm/database";
+import { createNotification } from "../services/notificationService";
 
 export const getPipeline = async (req: Request, res: Response) => {
   try {
@@ -76,6 +77,17 @@ export const moveDealStage = async (req: Request, res: Response) => {
     if (toStageObj.name === "On Hold") deal.recontactDate = recontactDate;
 
     await deal.save();
+
+    if (toStageObj.name === "Won") {
+      const owner = await User.findByPk(deal.ownerId);
+      await createNotification(
+        deal.ownerId,
+        'success',
+        'Deal Won! 🎉',
+        `Congratulations! The deal ${deal.name} was marked as Won.`,
+        `/pipeline`
+      );
+    }
 
     res.json({ message: "Stage updated successfully", deal });
   } catch (error: any) {

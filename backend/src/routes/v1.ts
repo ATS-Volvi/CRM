@@ -34,10 +34,12 @@ import { getLeads, createLead, updateLead, deleteLead, getDuplicateLeads, mergeL
 import { getPriceBookEntries, createPriceBookEntry, updatePriceBookEntry, deletePriceBookEntry } from '../controllers/priceBookController';
 import { getQuotes, createQuote, getQuoteRecommendations } from '../controllers/quoteController';
 import { getInvoices, createInvoiceFromQuote, updateInvoiceStatus } from '../controllers/invoiceController';
-import { getPurchaseOrders } from '../controllers/purchaseOrderController';
-import { getApprovals, updateApproval } from '../controllers/approvalController';
+import { getPurchaseOrders, createPurchaseOrder } from '../controllers/purchaseOrderController';
+import { getApprovals, updateApproval, createApproval } from '../controllers/approvalController';
 import { getKpiDashboard, getManagementDashboard } from '../controllers/dashboardController';
 import { getAssignmentRules } from '../controllers/assignmentRuleController';
+import { getNotifications, markAsRead, markAllAsRead } from '../controllers/notificationController';
+import { getMessageTemplates, getMessageTemplateById, createMessageTemplate, updateMessageTemplate, deleteMessageTemplate } from '../controllers/messageTemplateController';
 
 // ==========================================
 // LEADS
@@ -79,11 +81,13 @@ router.put("/price-book/:id", authMiddleware, updatePriceBookEntry);
 // PURCHASE ORDERS
 // ==========================================
 router.get("/purchase-orders", authMiddleware, getPurchaseOrders);
+router.post("/purchase-orders", authMiddleware, createPurchaseOrder);
 
 // ==========================================
 // APPROVALS
 // ==========================================
 router.get("/approvals", authMiddleware, getApprovals);
+router.post("/approvals", authMiddleware, createApproval);
 router.put("/approvals/:id", authMiddleware, updateApproval);
 
 // ==========================================
@@ -96,6 +100,22 @@ router.get("/dashboard/management", authMiddleware, getManagementDashboard);
 // ASSIGNMENT RULES
 // ==========================================
 router.get("/assignment-rules", authMiddleware, getAssignmentRules);
+
+// ==========================================
+// NOTIFICATIONS
+// ==========================================
+router.get("/notifications", authMiddleware, getNotifications);
+router.put("/notifications/:id/read", authMiddleware, markAsRead);
+router.post("/notifications/read-all", authMiddleware, markAllAsRead);
+
+// ==========================================
+// MESSAGE TEMPLATES
+// ==========================================
+router.get("/message-templates", authMiddleware, getMessageTemplates);
+router.get("/message-templates/:id", authMiddleware, getMessageTemplateById);
+router.post("/message-templates", authMiddleware, createMessageTemplate);
+router.put("/message-templates/:id", authMiddleware, updateMessageTemplate);
+router.delete("/message-templates/:id", authMiddleware, deleteMessageTemplate);
 
 // Activity routes
 router.get("/leads/:leadId/activities", getLeadActivities);

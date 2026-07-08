@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { Lead, AssignmentRule } from "@nexus-crm/database";
+import { createNotification } from "../services/notificationService";
 
 export const createPublicLead = async (req: Request, res: Response) => {
   try {
@@ -48,7 +49,17 @@ export const createPublicLead = async (req: Request, res: Response) => {
       assignedToId
     });
 
-    res.status(201).json({ success: true, leadId: lead.id });
+    if (assignedToId) {
+      await createNotification(
+        assignedToId,
+        'info',
+        'New Lead Assigned',
+        `A new lead from ${company} (${firstName} ${lastName}) was assigned to you by the auto-routing rules.`,
+        `/leads/${(lead as any).id}`
+      );
+    }
+
+    res.status(201).json({ message: "Lead captured successfully", leadId: (lead as any).id });
   } catch (error: any) {
     console.error("Error creating public lead:", error);
     res.status(500).json({ error: "Failed to create lead" });

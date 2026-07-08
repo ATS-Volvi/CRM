@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { sequelize } from "@nexus-crm/database";
+import { createNotification } from "../services/notificationService";
 
 export const getApprovals = async (req: Request, res: Response) => {
   try {
@@ -59,6 +60,37 @@ export const updateApproval = async (req: Request, res: Response) => {
     }
 
     res.json(approval);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const createApproval = async (req: Request, res: Response) => {
+  try {
+    const { targetId, type, requestedById, comments } = req.body;
+
+    const approval = await sequelize.models.ApprovalRequest.create({
+      id: require('crypto').randomUUID(),
+      targetId,
+      type,
+      requestedById,
+      status: "Pending",
+      comments
+    });
+
+    // Mock notify the designated approver (we'll assume admin user for now)
+    const admin = await sequelize.models.User.findOne({ where: { role: 'admin' } });
+    if (admin) {
+      await createNotification(
+        (admin as any).id,
+        'alert',
+        'New Approval Request',
+        `A new ${type} approval request requires your attention.`,
+        `/approvals`
+      );
+    }
+
+    res.status(201).json(approval);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
