@@ -15,7 +15,7 @@ export const getMessageTemplates = async (req: Request, res: Response) => {
 export const getMessageTemplateById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const template = await sequelize.models.MessageTemplate.findByPk(id);
+    const template = await sequelize.models.MessageTemplate.findByPk(String(id));
     if (!template) return res.status(404).json({ error: "Template not found" });
     res.json(template);
   } catch (error: any) {
@@ -43,7 +43,7 @@ export const createMessageTemplate = async (req: Request, res: Response) => {
 export const updateMessageTemplate = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const template = await sequelize.models.MessageTemplate.findByPk(id);
+    const template = await sequelize.models.MessageTemplate.findByPk(String(id));
     if (!template) return res.status(404).json({ error: "Template not found" });
 
     await template.update(req.body);
@@ -56,7 +56,7 @@ export const updateMessageTemplate = async (req: Request, res: Response) => {
 export const deleteMessageTemplate = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const template = await sequelize.models.MessageTemplate.findByPk(id);
+    const template = await sequelize.models.MessageTemplate.findByPk(String(id));
     if (!template) return res.status(404).json({ error: "Template not found" });
 
     await template.destroy();

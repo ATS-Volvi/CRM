@@ -50,7 +50,7 @@ export const updateLead = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const updateData = req.body;
-    const lead = await sequelize.models.Lead.findByPk(id);
+    const lead = await sequelize.models.Lead.findByPk(String(id));
     if (!lead) return res.status(404).json({ error: "Lead not found" });
     
     await lead.update(updateData);

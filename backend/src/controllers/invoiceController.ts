@@ -67,7 +67,7 @@ export const updateInvoiceStatus = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
-    const invoice = await sequelize.models.Invoice.findByPk(id);
+    const invoice = await sequelize.models.Invoice.findByPk(String(id));
     if (!invoice) return res.status(404).json({ error: "Invoice not found" });
     
     await invoice.update({ status });

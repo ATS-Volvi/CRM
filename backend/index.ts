@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { createServer } from "./server";
 import { Database, sequelize } from "@nexus-crm/database";
-import { checkOverdueTasks } from "./services/notificationService";
+import { checkOverdueTasks } from "./src/services/notificationService";
 
 const PORT = process.env.PORT || 5505;
 
