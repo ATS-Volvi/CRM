@@ -224,14 +224,13 @@ router.put("/assignment-rules/:id", authMiddleware, updateAssignmentRule);
 router.delete("/assignment-rules/:id", authMiddleware, deleteAssignmentRule);
 
 // ==========================================
-<<<<<<< HEAD
+// ==========================================
 // NOTIFICATIONS
 // ==========================================
 router.get("/notifications", authMiddleware, getNotifications);
 router.put("/notifications/:id/read", authMiddleware, markAsRead);
 router.post("/notifications/read-all", authMiddleware, markAllAsRead);
 
-// ==========================================
 // MESSAGE TEMPLATES
 // ==========================================
 router.get("/message-templates", authMiddleware, getMessageTemplates);
@@ -241,13 +240,6 @@ router.post("/message-templates/:id/declare-winner", authMiddleware, declareWinn
 router.post("/message-templates", authMiddleware, createMessageTemplate);
 router.put("/message-templates/:id", authMiddleware, updateMessageTemplate);
 router.delete("/message-templates/:id", authMiddleware, deleteMessageTemplate);
-
-// ==========================================
-// NOTIFICATIONS
-// ==========================================
-router.get("/notifications", authMiddleware, getNotifications);
-router.put("/notifications/:id/read", authMiddleware, markAsRead);
-router.post("/notifications/read-all", authMiddleware, markAllAsRead);
 
 // ==========================================
 // BUNDLE TEMPLATES
