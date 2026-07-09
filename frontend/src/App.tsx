@@ -18,6 +18,7 @@ import PublicQuoteRequest from "./pages/PublicQuoteRequest";
 import Invoices from "./pages/Invoices";
 import InvoiceDetail from "./pages/InvoiceDetail";
 import Login from "./pages/Login";
+import SalespersonTracker from "./pages/SalespersonTracker";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { Navigate, Outlet } from "react-router-dom";
 
@@ -52,6 +53,7 @@ function App() {
                 <Route path="/purchase-orders" element={<PurchaseOrders />} />
                 <Route path="/approvals" element={<ApprovalQueue />} />
                 <Route path="/rules" element={<AssignmentRules />} />
+                <Route path="/salespersons" element={<SalespersonTracker />} />
               </Route>
             </Route>
           </Routes>

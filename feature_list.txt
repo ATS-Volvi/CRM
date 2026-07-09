@@ -1,0 +1,839 @@
+=== PAGE 1 ===
+Proposed CRM Solution — 15 Core Features
+The following section provides a detailed specification of all fifteen features proposed for Face
+Contracting's CRM platform. Each feature is described in terms of its business purpose,
+functional behaviour, configuration options, and data outputs.
+Feature 1: Multi-Channel Lead Capture & Integration
+The CRM aggregates leads from every digital touchpoint into a single, unified inbox. Instead of
+sales teams checking email, social DMs, website forms, and ad platforms separately, every
+inbound enquiry lands in one place — timestamped, source-tagged, and ready for assignment.
+1.1 Email Integration
+The system connects to corporate email inboxes via IMAP/OAuth and continuously monitors for
+new messages. Emails from unknown senders are parsed and converted to leads automatically;
+emails from existing contacts are threaded onto that contact'sactivity timeline.
+ Two-way sync — outbound replies sent from inside the CRM are logged against the lead
+ Intelligent parsing — extracts sender name, company, phone and pre-fills the lead card
+ Spam and duplicate filtering — automated rules suppress known spam and internal
+addresses
+ Email templates — salespeople send pre-approved, personalized templates with
+open/click/bounce tracking
+ Attachment handling — files attached to inbound enquiries are stored against the lead
+record
+1.2 Social Media Integration
+The CRM connects natively to Facebook, Instagram, and LinkedIn through their official APIs,
+pulling lead data in real time from multiple sources on each platform.
+Facebook
+ Lead Ads — form submissions from Facebook Lead Ads are pushed to the CRM instantly
+via webhook; no manual CSV download required.
+ Page messages — direct messages sent to the company's Facebook Page are converted
+to leads, with the conversation thread preserved and visible in the CRM.
+ Comment capture — comments on specified posts (e.g. "DM us for a quote" campaigns)
+that match configured keywords trigger automatic lead creation.
+ Ad campaign tagging — every Facebook lead is tagged with the originating ad set and
+campaign, enabling cost-per-lead reporting inside the CRM.
+Instagram
+=== PAGE 2 ===
+ DM capture — Instagram Direct Messages to the business account are pulled in and
+treated identically to Facebook messages.
+ Story reply leads — replies to Instagram Stories that match lead-intent keywords are
+converted to leads.
+ Lead form integration — Instagram Lead Ads (run through Meta's Ads Manager) feed
+into the same lead pipeline as Facebook Lead Ads.
+ Profile link tracking — UTM-tagged profile link clicks route to the website integration
+layer described in 1.3.
+LinkedIn
+ Lead Gen Forms — LinkedIn Lead Gen Form submissions (from Sponsored Content or
+InMail campaigns) sync to the CRM in real time.
+ InMail replies — replies to outbound InMail campaigns managed through LinkedIn Sales
+Navigator are logged as lead activities.
+ Company enrichment — when a LinkedIn lead is created, the CRM auto-enriches the
+lead card with the prospect's job title, company size, and industry from their public
+LinkedIn profile.
+ Connection request tracking — connection requests sent by the salesperson to a lead
+are logged as touch-points on the activity timeline
+1.3 Website Integration
+The CRM provides a JavaScript snippet that is embedded in the company website. Once installed,
+it captures all lead-intent interactions without requiring a developer for each new form or page.
+ Contact and enquiry forms — any form submission on the website (contact, get a quote,
+request a demo, download a brochure) is captured as a lead with the form fields mapped
+to CRM fields.
+ Live chat integration — if a live chat widget is deployed, chat conversations are stored
+against the lead record; if the chat ends without conversion, the partially-filled contact
+details are still captured.
+ Visitor tracking — for returning visitors from email links or social clicks, the CRM tracks
+pages visited, time spent, and content downloaded, enriching the lead's interest profile.
+1.4 Unified Lead Inbox
+Regardless of source, every lead arrives in the same unified inbox with a consistent card format.
+Duplicate detection runs automatically, flagging and prompting merges rather than creating
+duplicate records.
+Lead Field Populated From Notes
+Full name Form / social profile Required; flagged if missing
+=== PAGE 3 ===
+Email Form / email header Used for deduplication
+Phone Form / email signature parser Optional at capture stage
+Company Form / LinkedIn enrichment Auto-enriched where available
+Email / Facebook / Instagram / LinkedIn /
+Source System-assigned
+Website / API
+Campaign / ad UTM / ad platform tag Used for ROI reporting
+Based on source, page visits, form
+Lead score Auto-calculated
+completeness
+Populated immediately after creation
+Assigned to Auto-assignment engine
+(Feature 2)
+Feature 2: Automatic Lead Assignment
+The auto-assignment engine distributes incoming leads to the right salesperson within seconds
+of creation, using configurable rules, without any human intervention required.
+2.1 Assignment Logic
+Rule Type Configuration Example
+Map enquiry type →
+Product/service All AMC enquiries → Service team
+salesperson / team
+Pincode/city/state → territory
+Geography All Riyadh leads → Central KSA team
+owner
+Source Platform → team All LinkedIn leads → Enterprise team
+All website leads → rotate across
+Round-robin Team group
+salespeople
+Assign to person with < 20 open leads,
+Capacity-based Max open leads per person
+lowest count first
+=== PAGE 4 ===
+Assign to highest-converting salesperson
+Skill-based Historical conversion rate
+for this lead type
+Fallback Default assignee If no rule matches → Team Lead queue
+2.2 Availability & Capacity Controls
+ Out-of-office flag — salespeople can mark themselves unavailable; leads skip them
+automatically
+ Maximum open lead cap — configurable per salesperson; no new assignments once at
+cap
+ Working hours — leads can be queued and assigned at the start of the next working day
+ Auto-reassignment — leads not contacted within SLA window are automatically
+reassigned with manager notification
+2.3 Assignment Notifications
+ Push notification — mobile app alert to the assigned salesperson within seconds
+ Email notification — assignment email with lead summary and one-click link to lead card
+ In-app alert — badge and notification in the web CRM dashboard
+ Manager escalation — if salesperson does not open the lead within SLA, manager
+receives escalation alert
+Rule type Configuration Example
+Map enquiry type → salesperson All "Annual Maintenance Contract"
+Product/service
+/ team enquiries → Service team
+Pincode/city/state → territory All Bengaluru leads → South India
+Geography
+owner team
+Source Platform → team All LinkedIn leads → Enterprise team
+All website leads → rotate across 6
+Round-robin Team group
+salespeople
+=== PAGE 5 ===
+Assign to person with < 20 open leads,
+Capacity-based Max open leads per person
+lowest count first
+If no rule matches → Team Lead
+Fallback Default assignee
+queue
+Feature 3: Sales Follow-Up Pipeline
+=== PAGE 6 ===
+The follow-up pipeline converts a raw lead into a structured, trackable sales journey. Every
+interaction is logged on the lead's timeline, giving the salesperson a complete chronological
+record and giving management full visibility of where every deal stands.
+3.1 Pipeline Stages
+Definition Key Actions
+Stage
+New Lead assigned, not yet contacted First call / email to qualify
+First outreach made; prospect Qualify budget, authority, need, timeline
+Contacted
+responded (BANT)
+Qualified Confirmed as a genuine opportunity Schedule demo / site visit / presentation
+Meeting / Capture notes, agreed next steps, send
+Presentation or demo conducted
+Demo follow-up summary
+Follow up on quote status; handle
+Proposal Quotation has been issued
+objections
+Log counter-offers; get approvals for
+Negotiation Prospect engaged, negotiating terms
+discounts
+Update PO; hand off to delivery; trigger
+Won PO received / contract signed
+onboarding
+Capture loss reason; schedule re-
+Lost Opportunity closed without conversion
+engagement if applicable
+Set re-contact date; auto-reminder at that
+On Hold Active but deferred by prospect
+date
+3.2 Activity Types & Logging
+Call log — date/time, duration, direction, outcome, and summary notes
+Email log —automatically captured from email integration; manually loggable for ext
+emails
+Meeting — date/time/location,, agenda, and outcome notes with calendar integration
+Task — to-do items with due date and reminder; overdue tasks surface as alerts
+WhatsApp / SMS — manual log with WhatsApp Business API integration for automatic
+capture
+=== PAGE 7 ===
+Note — free-text observation with @mention capability to notify colleagues
+Stage change — automatically logged whenever a lead moves between pipeline stages
+3.3 Negotiation & Deal Management
+ Revision tracking — each quote revision is preserved with reason and requestor
+ Discount approval workflow — discounts beyond authority level route to designated
+approver
+ Competitor tracking — salespeople log competing bids, building competitive intelligence
+ Deal probability — stage-based win probability with salesperson override for revenue
+forecasting
+Feature 4: KPI Tracking for Sales Teams
+The KPI module turns every interaction, stage movement, and outcome into quantified
+performance data for individuals and teams, with configurable targets and automated alerts.
+4.1 Individual Salesperson KPIs
+KPI Definition Typical target
+Set by management
+Leads assigned Total leads assigned in period
+per role
+First response time Avg. time from lead creation to first contact attempt < 1 hour
+Contact rate % of assigned leads where contact was made > 70%
+Qualification rate % of contacted leads progressed to Qualified stage > 40%
+Demo / meeting rate % of qualified leads that reached Meeting stage > 60%
+Proposal rate % of meetings that resulted in a quotation issued > 70%
+Conversion rate
+% of assigned leads that were Won Industry-specific
+(overall)
+Average deal value Mean value of Won deals in period Set by management
+Sum of deal values of all active (non-Won, non-
+Pipeline value Set by management
+Lost) leads
+Activities per lead Avg. number of logged activities per lead > 5
+=== PAGE 8 ===
+Follow-up
+% of leads with no activity gap > 3 days > 85%
+compliance
+Quota attainment % of monthly revenue target achieved 100%
+4.2 Team & Organisation-Level KPIs
+ Total pipeline value — aggregate of all active opportunities, segmented by stage
+ Win/loss ratio — team-wide percentage of closed leads Won vs. Lost
+ Average sales cycle length — mean days from lead creation to Won/Lost
+ Lead source effectiveness — conversion rate and average deal value by channel
+ Revenue forecast — sum of (deal value × stage probability) rolling 30/60/90 days
+ Leaderboard — ranked view of all salespeople by any configurable KPI
+4.3 KPI Configuration and Alerts
+ Target setting — managers set monthly/quarterly targets per KPI per salesperson or per
+team from a configuration screen, not by editing code.
+ Real-time dashboards — KPIs update in real time as activities are logged; no overnight
+batch required.
+ Threshold alerts — if a salesperson's first-response-time average crosses the configured
+threshold, the manager receives an automatic alert.
+ Period comparison — every KPI is viewable as current period vs. previous period vs.
+same period last year, with trend arrows.
+ Export — KPI reports are exportable as PDF or Excel for management review meetings.
+Feature 5: Automatic Quotation Generation
+The quotation module eliminates the manual process of building quotes in Word or Excel,
+generating professional, consistently formatted quotations directly from the CRM in minutes.
+Every quotation is linked to the originating lead, automatically versioned, and sent to the
+prospect with a single click.
+The quotation module eliminates the time-consuming manual process of building quotes from
+scratch in Word or Excel, instead generating professional, consistently formatted quotations
+directly from the CRM in minutes. Every quotation is linked to the originating lead, automatically
+versioned, and sent to the prospect with a single click.
+5.1 Quotation Creation Workflow
+7. Trigger — the salesperson clicks "Generate Quote" from a lead card at any pipeline stage
+from Qualified onwards.
+=== PAGE 9 ===
+8. Line item population — the system auto-suggests line items based on the lead's enquiry
+type, the prospect's industry, and historical quotes for similar requirements (Feature 8
+covers the auto-line-item logic in detail).
+9. Pricing — the system suggests prices from the configured price book, adjusted by the
+prospect's segment (SME / Enterprise / Government) and any pre-approved discounts for
+this account type. The salesperson can override within their permitted discount limit;
+overrides above their limit trigger an approval workflow (Feature 9).
+10. Terms and conditions — standard T&C blocks are auto-inserted based on the
+product/service type; the salesperson selects the applicable block from a library or edits
+within permitted fields.
+11. Review and send — the salesperson previews the rendered PDF, makes final
+adjustments, and sends directly to the prospect's email from within the CRM. The quote is
+simultaneously stored in the lead's document history.
+12. E-signature (optional) — if configured, the quote is sent via a DocuSign/equivalent
+integration, allowing the prospect to sign and return without printing.
+5.2 Quotation Template Engine
+ Branded templates — the company logo, colour scheme, fonts, and address block are
+defined once in the template library; all generated quotes inherit them automatically.
+ Multiple templates — different templates for different product lines, service types, or
+customer segments (e.g. a "Formal RFQ response" template vs. a "Quick price indication"
+template).
+ Dynamic fields — all customer-specific details (name, company, address, reference
+number, validity date) are auto-populated from the CRM lead/contact record; there are no
+blanks for the salesperson to remember to fill.
+ Cover letter — an auto-generated cover paragraph references the prospect's specific
+enquiry, using merge fields from the lead record and a customisable template body.
+ Validity and payment terms — default validity period (e.g. 30 days) and payment terms
+are inserted from the configuration, overridable by the salesperson within their authority.
+5.3 Quotation Numbering and Version Control
+ Automatic quote number — every quotation receives a unique, sequential reference
+number in the configured format (e.g. QT-2026-04821).
+ Version numbering — if a quote is revised, the version suffix increments (QT-2026-
+04821-v2, -v3, etc.). The original version is preserved and accessible.
+ Status tracking — each quotation has a status: Draft, Sent, Viewed (if e-delivery tracking
+is enabled), Accepted, Rejected, Expired.
+ Expiry management — a day before a quote expires, the system auto-notifies the
+salesperson to follow up or issue a revised quote.
+ Lead linkage — every quotation is permanently linked to its originating lead; navigating
+from the lead record to all its quotes (current and historical) is a single click.
+=== PAGE 10 ===
+5.3 Version Control & Status Tracking
+Status Definition
+Draft Quote built but not yet sent to prospect
+Sent Quote dispatched to prospect
+Viewed Prospect opened the quote (if e-delivery tracking enabled)
+Accepted Prospect confirmed acceptance
+Rejected Prospect declined the quote
+Expired Validity period elapsed without response
+Feature 6: Historic Quotation View
+Before pricing a new quote, a salesperson needs two reference points: what was quoted to this
+same client before, and what was quoted to other clients for similar scope. The historic
+quotation view provides both, surfaced in context at the moment the new quote is being built.
+6.1 Same-Client Historical Quotes
+=== PAGE 11 ===
+When building a quotation for a prospect or customer, the CRM automatically surfaces all
+previous quotations issued to the same contact or company in a side panel. For each historical
+quote, the salesperson sees:
+ Quote reference and date — when the quote was issued and its version history.
+ Services/products quoted — the line items in the historical quote, with quantities and
+units.
+ Pricing — the price quoted per line item, the total, and any discounts applied.
+ Outcome — whether the quote was Won, Lost, Expired, or Still Open, and if Lost, the
+recorded loss reason.
+ Salesperson — who prepared the previous quote, enabling the current salesperson to
+seek context if needed.
+ Annotations — any notes attached to the quote or to the final outcome (e.g. "Client said
+our price was 15% above competitor X").
+💡 This view is especially valuable when a client returns after a gap — the new salesperson can see
+exactly what was offered previously, at what price, and why it succeeded or failed, without
+interrogating colleagues or searching email archives.
+6.2 Similar-Client and Similar-Scope Quotes
+Beyond the same client, the CRM maintains a searchable quote intelligence database that shows
+what comparable quotes looked like across all clients. Similarity matching uses two dimensions:
+ Service/product similarity — quotes that contain the same or overlapping line items or
+service categories as the current quote being built.
+ Client profile similarity — quotes issued to clients in the same industry vertical, company
+size band, or geography as the current prospect.
+The resulting "similar quotes" panel shows a range — minimum price, median price, maximum price — for
+each line item type, drawn from the last 12 months of Won quotes (Won quotes only, so the benchmark
+reflects prices the market actually accepted). The salesperson can click into any individual similar quote to
+see the full detail if needed.
+6.3 Quote Search and Filter
+ Full-text search — search across all quotation content (client name, service description,
+line item text) from a global search bar.
+ Filter by outcome — view only Won quotes, only Lost quotes, or quotes in a specific
+status.
+ Filter by date range, salesperson, product category, or deal value band — slice the
+quote history by any combination of these dimensions.
+ Export — the filtered quote list is exportable to Excel for offline analysis.
+Feature 7: Intelligent Price Recommendation
+=== PAGE 12 ===
+The smart pricing engine synthesises historical quote outcomes, current price book values, and
+competitive signals to recommend the most appropriate price for each line item. It is a decision-
+support tool — it makes a recommendation with supporting data; the salesperson makes the
+final call.
+7.1 Price Book Management
+ Centralised price list — all standard products and services are maintained in a master price book
+with list price, minimum price (floor), and standard discount limits per salesperson tier.
+ Segment-based pricing — different price lists for different customer segments (SME, Enterprise,
+Government, Partner) are maintained independently and applied automatically based on the lead's
+segment tag.
+ Time-based pricing — prices can be set to expire (e.g. promotional pricing for Q2) and revert to
+standard pricing automatically on the configured end date.
+ Bulk update — the entire price book can be updated via Excel upload, with a preview-and-confirm
+step before changes go live.
+7.2 Win-Rate-Based Price Optimisation
+For each line item in the current quote, the engine analyses the history of similar quotes (from
+Feature 6) and calculates the price range that historically produced the highest win rates. It
+presents:
+Signal What it shows How salesperson uses it
+The price point with the highest historical Starting point for the quote; deviate if
+Suggested price
+win rate for this item in this client segment there is a good reason
+How win rate changes as price Understand the trade-off: a lower
+Win rate curve increases/decreases (shown as a simple price increases win probability but
+low/med/high range) reduces margin
+Competitor Known competitor prices for this item, Sanity-check whether the suggested
+benchmark logged during lost-dealdebrief price is competitive
+Minimum allowed price from the price Hard limit — system blocks pricing
+Floor price
+book for this item below floor even with approval
+💡 The win-rate optimisation requires a minimum of 30–50 historical quotes per line item category to be
+statistically meaningful. During the initial months of CRM use, the system shows the price book value and
+historical range with a note that optimisation data is still accumulating.
+7.3 Client-Specific Pricing Rules
+ Contracted rates — for clients on an annual framework or long-term agreement, their
+contracted rates are stored against their CRM account and auto-applied whenever a new
+quote is built for them — the salesperson does not need to remember or look them up.
+=== PAGE 13 ===
+ Loyalty discounts — clients with more than a configurable number of Won deals
+automatically qualify for a configured loyalty discount tier, applied transparently in the
+quote.
+ Payment term adjustment — the system can automatically adjust the base price based
+on payment terms (e.g. 2% premium for 90-day credit terms vs. 30-day standard).
+ Currency handling — if the client is an export customer, the system converts the base
+INR price to the agreed foreign currency at the current or fixed exchange rate, clearly
+shown in the quotation.
+Feature 8: Automatic Line Item Generation
+The auto line item engine constructs a suggested line item list the moment a quote is initiated,
+using the context of the current lead. This eliminates the risk of forgotten items, inconsistent
+descriptions, and unclear scope.
+8.1 How Line Items Are Suggested
+Lead context — the system reads the lead's enquiry type, the services/products flagged during
+qualification, and any keywords in the lead's notes or email thread.
+Service/product catalogue matching — it matches these signals against the configured
+product and service catalogue, selecting items whose descriptions or tags match the enquiry
+context.
+Bundle templates — if a matching service bundle template exists (e.g. "Annual Maintenance
+Contract — HVAC" is a bundle of 4 line items), the entire bundle is suggested as a group.
+Historical pattern — it checks quotes for similar clients that were Won and identifies line items
+that almost always appear together (association rules), adding commonly co-included items as
+suggested additions.
+Salesperson review — the suggested line items appear in the quote editor as a pre-filled but
+editable list. The salesperson can add, remove, reorder, and adjust quantities before finalising.
+8.2 Line Item Data Structure
+Field Source Editable by salesperson?
+Line item code Product/service catalogue No (links to catalogue item)
+Yes — customisable for this
+Description Catalogue + auto-enriched from enquiry
+quote
+Unit of measure Catalogue Yes
+=== PAGE 14 ===
+Auto-suggested from enquiry context /
+Quantity Yes
+scope
+Unit price Price book (see Feature 7) Yes, within authority limits
+Discount % Auto-applied if segment discount applies Yes, within authority limits
+Auto-calculated: qty × unit price × (1 –
+Line total No — calculated field
+discount)
+Auto-applied from tax configuration for No — set by finance admin
+Tax rate
+this item only
+Yes — scope clarifications,
+Notes Blank
+delivery notes, etc.
+8.3 Service Bundle Templates
+Bundle templates allow the organisation to pre-define common scope combinations so that
+salespeople consistently quote the right scope every time, without relying on memory:
+ Template library — a library of pre-built bundles, maintained by the sales admin or pre-
+sales team, each containing a set of line items with default quantities and descriptions.
+ Quick-select — when creating a quote, the salesperson can pick a bundle from the library
+as a starting point and then customise it for the specific client.
+ Optional items within a bundle — items within a bundle can be marked as optional; they
+are included in the quote but visually distinguished and separately totalled so the client
+can choose to include or exclude them.
+ Bundle versioning — when a bundle template is updated, existing quotes using the old
+version are not affected; only new quotes use the updated template.
+Feature 9: Approval Level Configuration for Quotations
+The approval workflow gives finance and management systematic, auditable control over what
+prices and terms salespeople can commit to, without creating a bottleneck that slows down the
+sales cycle.
+9.1 Approval Tiers
+Trigger Condition Example Threshold Required Approver
+Discount % on any line item > 5% up to 10% Sales Team Lead
+=== PAGE 15 ===
+Discount % on any line item > 10% up to 20% Sales Manager
+Discount % on any line item > 20% Director / VP Sales
+Total quote value > SAR 100,000 Sales Manager
+Total quote value > SAR 500,000 Director + Finance Head
+Non-standard payment terms Credit > 60 days Finance Head
+Any line item not in price
+Non-catalogue item included Pre-Sales + Sales Manager
+book
+Customer flagged in
+Quote to a flagged account Director only
+system
+9.2 Approval Workflow
+ Salesperson submits quote for approval — 'Send to Client' button disabled, replaced
+with 'Submit for Approval'
+ Approver notification — email and in-app notification with quote summary and one-click
+approve/reject
+ Approver review — sees full quote, historical context, and salesperson's reason for
+exception
+ Decision — Approve, Reject, or Request Revision from CRM or email (one-click for low-
+risk quotes)
+ Salesperson notification — immediately notified of decision with approver comments
+ Audit trail — every approval request, decision, timestamp, and comment permanently
+stored.
+9.3 Delegation & Escalation
+ Approver delegation — on-leave approvers delegate to a named substitute; system
+routes automatically
+ Escalation timer — unactioned requests escalate to the approver's manager after a
+configurable window
+ Concurrent approvals — multiple required approvers can review in parallel; quote
+released only when all approve
+ Pre-approved discount bank — strategic accounts can hold a standing discount level,
+bypassing per-quote approval
+Feature 10: Purchase Order (PO) Updating
+=== PAGE 16 ===
+When a client accepts a quote and raises a Purchase Order, the CRM transitions from a sales
+tool to a delivery-handoff tool: the PO is recorded, linked to the winning quotation, and the deal
+is formally closed.
+10.1 PO Capture
+ Manual PO entry — the salesperson records the PO number, PO date, PO value, and
+PO document (PDF/scan) directly on the lead card when the client sends it.
+ Email auto-detection — if the client's PO arrives as an email attachment to the
+integrated inbox, the system flags the email as a potential PO and prompts the
+salesperson to confirm and link it to the relevant lead.
+ PO value vs. quote reconciliation — the system compares the received PO value
+against the accepted quotation value and flags discrepancies (partial POs, PO with
+revised scope) for the salesperson to acknowledge.
+ Multi-PO support — large deals may result in multiple POs against the same agreement
+(e.g. phased delivery or multi-year contracts); each PO is captured and linked individually,
+and the cumulative PO value is tracked against the total deal value.
+10.2 Post-PO Actions
+ Lead status update — recording a PO automatically moves the lead to "Won" status if
+not already there, with the PO date recorded as the close date.
+ Delivery team notification — a configured notification is sent to the operations or
+delivery team (by email or internal tool integration) with the PO details and linked
+quotation, initiating the delivery process.
+ Invoice trigger — if the CRM is integrated with the accounting system (Tally, Zoho
+Books, SAP), the PO record can automatically create a proforma invoice or sales order in
+the accounting system, eliminating re-entry.
+ Revenue recognition — the deal value is recorded against the salesperson's quota
+attainment for the month/quarter in which the PO is received.
+10.3 PO Tracking and Reporting
+ PO register — a filterable list of all received POs, searchable by client, salesperson, date
+range, or value band. Exportable to Excel.
+ Outstanding PO follow-up — when a deal is marked Won but no PO has been received
+within a configured number of days, the system prompts the salesperson to follow up with
+the client.
+ PO-to-invoice status — if integrated with accounting, the CRM can show whether the
+invoice for a given PO has been raised and paid, giving the salesperson visibility of the
+full order lifecycle.
+Feature 11: Activity Tracking
+=== PAGE 17 ===
+Activity tracking turns every interaction a salesperson has with a prospect — every call made,
+email sent, meeting held, or note written — into structured, queryable data. This data serves three
+purposes: it gives the salesperson a complete relationship history, it enables management to
+coach based on facts rather than impressions, and it forms the input dataset for KPI reporting and
+forecasting.
+11.1 Activity Feed (Lead Timeline)
+Every lead card has a chronological activity feed — the single, complete record of everything that
+has ever happened on this lead. The feed shows:
+ All logged activities in reverse-chronological order: calls, emails, meetings, notes, tasks,
+stage changes, quote events (sent, viewed, approved, rejected), and PO received.
+ Who did what — every entry records the CRM user responsible, enabling managers to
+review any team member's activity on any lead.
+ Filters — the timeline is filterable by activity type so the salesperson can quickly jump to,
+for example, all emails without scrolling past every note.
+ Pinned notes — important notes (e.g. "Client has a Q4 budget freeze") can be pinned to
+the top of the timeline so they are visible without scrolling.
+ Linked documents — quotations, PO documents, meeting attachments, and email
+attachments are all accessible from the timeline without navigating to a separate
+document store.
+11.2 Task and Reminder System
+ Task creation — tasks can be created from any lead card, assigned to self or a
+colleague, with a due date and priority level.
+ Recurring tasks — for standard follow-up sequences (e.g. call 2 days after sending a
+quote, follow up again at 7 days), recurring task templates automate the creation of the
+follow-up sequence when a quote is sent.
+ Overdue task alerts — the CRM notifies the salesperson (and, after a configurable grace
+period, their manager) when a task is past its due date.
+ Daily task digest — each morning, the CRM sends the salesperson a summary email of
+all tasks due today and all leads with no recent activity.
+ Calendar sync — tasks and meetings created in the CRM sync to the salesperson's
+Google Calendar or Outlook Calendar, and vice versa.
+11.3 Activity Reports for Management
+Report What it shows Audience
+Total calls, emails, meetings per
+Activity volume report Sales Manager, Director
+salesperson per period
+=== PAGE 18 ===
+Leads with no logged activity in > N
+No-activity leads report Sales Manager
+days, by salesperson
+Correlation between activity volume
+Activity-to-outcome analysis Sales Manager, Director
+and conversion rate
+% of leads with timely follow-up per
+Follow-up compliance report Sales Manager
+salesperson
+Breakdown of call outcomes
+Call outcome distribution (contacted / no answer / callback) per Sales Manager
+salesperson
+% of meetings that progressed to
+Meeting conversion report Management
+Proposal stage
+=== PAGE 19 ===
+Feature 12: Mobile Application
+The mobile app gives salespeople full access to their CRM on the go — field visits, client sites,
+travel — without requiring a laptop. It is optimised for one-handed, quick-action use: the most
+common field tasks (logging a call, checking a lead, sending a quote update) take three taps or
+fewer.
+12.1 Core Mobile Screens
+Screen Key content and actions
+Today's tasks, calls due, meetings today, KPI snapshot (deals closed,
+Home / Today
+pipeline value), recent notifications
+Filtered list of assigned leads; sortable by last activity, stage, value,
+My Leads
+priority; search by name/company
+Full lead detail: contact info (tap to call/WhatsApp directly), pipeline
+Lead Card
+stage, activity timeline, linked quotes, tasks
+One-tap call logger: tap "Logged a call," select outcome, add brief note
+Quick Log
+— under 20 seconds to complete
+Real-time push alerts: new lead assigned, task overdue, quote
+Notifications
+approved/rejected, PO received, manager mention
+View all quotes for a lead; see PDF preview; share quote link with
+Quotations
+client via WhatsApp/email from the app
+Personal performance dashboard: activities this week, pipeline value,
+My KPIs
+quota attainment % with trend
+Day/week view of meetings and tasks; create new task or meeting;
+Calendar
+sync status with device calendar
+Search Global search across all leads, contacts, companies, and quotes
+12.2 Mobile-Specific Features
+ Click-to-call — tapping a phone number on a lead card initiates the call directly from the
+device's dialler; on return, a "Log this call?" prompt appears pre-filled with the duration.
+ WhatsApp direct link — tapping the WhatsApp icon opens a pre-filled message to the
+contact in WhatsApp; the salesperson can log the conversation as an activity after.
+=== PAGE 20 ===
+ Business card scanner — the mobile camera scans a physical business card and auto-
+creates a new lead with the captured details, using OCR.
+ Voice note logging — a brief voice note can be recorded and attached to a lead's activity
+feed, transcribed automatically for searchability.
+ Offline mode — the app caches the salesperson's assigned leads and recent data for
+viewing when offline (e.g. in a client's basement or a network-dead zone). Activities logged
+offline sync automatically when connectivity is restored.
+ Quote PDF sharing — the salesperson can share a quote PDF directly from the app to
+WhatsApp, email, or any other sharing channel without downloading first.
+12.3 Mobile Reports and Quick Views
+ Manager view — managers can see their entire team's pipeline, activity feed, and KPIs
+from the mobile app, not just their own.
+ Today's numbers — a single-screen summary of the team's calls made, meetings held,
+deals closed, and pipeline movement today.
+ Leaderboard — the mobile leaderboard shows the team's ranking on a selected KPI,
+updated in real time.
+ Custom report snapshots — up to 3 report snapshots can be pinned to the home screen
+for at-a-glance access to the metrics each user cares about most.
+The mobile app is available for iOS and Android and uses the same authentication as the web
+application. Role-based access is enforced identically on mobile and web — a salesperson on mobile
+sees exactly the same data they see on the web.
+Feature 13: Automated Stakeholder Communication
+The communication automation engine sends the right message to the right person at the right
+time, without the salesperson needing to remember to do it. It covers client-facing
+communications (acknowledgements, follow-ups, quote reminders) and internal communications
+(assignments, escalations, approvals, deal closures), both triggered by CRM events and
+scheduled by time.
+13.1 Client-Facing Automations
+Trigger event Automated action Channel
+Instant acknowledgement: "Thank you for your
+New lead created (any Email +
+enquiry, [Name]. Our team will be in touch within
+source) SMS/WhatsApp
+[X]hours."
+=== PAGE 21 ===
+Introduction email from salesperson: "Hi [Name], I
+Lead assigned to
+am [Salesperson], your point of contact for this Email
+salesperson
+enquiry."
+Cover email with PDF attached; quote validity
+Quote sent to client Email
+reminder at 7 days and 1 day before expiry
+Quote viewed by client (if Internal alert to salesperson: "Client [Name] just Push + email to
+tracking enabled) viewed your quote — good time to follow up." salesperson
+No response to quote after Automated follow-up: "Just checking in on the
+Email
+X days proposal we sent…"
+Thank-you and onboarding next-steps email to
+PO received / deal won Email
+client
+Feedback request email: "We'd love to understand Email (delayed 2
+Deal lost
+what we could have done better." days)
+Client birthday / company Email +
+Relationship-building message
+anniversary (if configured) WhatsApp
+13.2 Internal Stakeholder Automations
+Trigger event Automated action Recipient
+Assignment notification with lead Salesperson (push +
+New lead assigned
+summary email)
+Escalation: "Lead [Name] not
+Lead not contacted within SLA Sales Manager
+contacted for [X] hours"
+Approval request with quote
+Quote submitted for approval summary and one-click Designated approver(s)
+approve/reject
+Approval SLA breached (not
+Escalation to next level Approver's manager
+actioned in X hours)
+Deal-won notification:
+High-value deal moved to Won "[Salesperson] just closed ₹[X] deal Sales team + Director
+with [Client]!"
+=== PAGE 22 ===
+Manager alert: "[Name]'s
+Salesperson KPI drops below
+conversion rate has dropped below Sales Manager
+threshold
+target this week"
+New lead from enterprise account Priority alert: "Strategic account
+Sales Manager + Director
+(by domain/company size) lead received from [Company]"
+Quote expiry in 1 day (not Reminder to salesperson to follow
+Salesperson
+accepted) up
+13.3 Communication Template Management
+ Template library — all automated message templates are managed in a central library by
+the admin; no code changes needed to update message content.
+ Merge fields — templates use dynamic fields ({{lead_name}}, {{salesperson_name}},
+{{quote_value}}, {{company_name}}) populated at send time from the CRM record.
+ Channel selection — each template specifies which channel(s) it sends on: email, SMS,
+WhatsApp Business API, or internal (push + in-app).
+ Opt-out compliance — client-facing email communications include an unsubscribe link;
+opt-outs are recorded in the CRM and honoured by all subsequent automations for that
+contact.
+ Send-time optimisation — automated emails to clients can be scheduled to send during
+business hours only (e.g. not at 2 AM), configurable by the admin.
+ A/B testing — for high-volume automations (e.g. lead acknowledgement), two template
+variants can be A/B tested with win-condition reporting to identify the higher-performing
+message.
+Feature 14: Management Dashboards
+The management dashboard suite gives sales leaders, directors, and executives a real-time,
+visual summary of the entire sales organisation's performance — pipeline health, team activity,
+revenue forecast, and deal quality — from a single screen, without requiring manual reports or
+data exports.
+14.1 Pipeline Overview Dashboard
+=== PAGE 23 ===
+ Pipeline funnel — a visual funnel showing the number and aggregate value of deals at
+each stage, for the whole team or filtered to one person or product line.
+ Stage-to-stage conversion rates — what percentage of deals that enter each stage
+progress to the next, with trend vs. prior period. Identifies where deals are dropping out
+most.
+ Pipeline velocity — average days a deal spends in each stage; spikes indicate stages
+where deals are stalling.
+ Pipeline coverage ratio — pipeline value as a multiple of revenue target (e.g. 3×
+coverage means ₹3 of pipeline for every ₹1 of target). Highlights whether there is enough
+pipeline to hit the target even at normal conversion rates.
+ New vs. progressed vs. stalled — within the current period, how many deals entered the
+pipeline vs. moved forward vs. did not move for > 7 days.
+14.2 Team Performance Dashboard
+Widget Content
+Ranked table of salespeople by Won deals, pipeline value, or quota
+Leaderboard
+attainment for the current period
+Calls + emails + meetings per salesperson per day this week — visual
+Activity heatmap
+grid showing who is most active
+Side-by-side conversion rates for all salespeople: who converts best at
+Conversion rate comparison
+which stage
+Average first-response time per salesperson — highlights who is
+Response time ranking
+fastest to engage new leads
+Gauge or progress bar per salesperson showing % of monthly quota
+Target vs. actuals
+achieved
+Scrollable list of deals closed (Won or Lost) in the last 7 days with deal
+Won/Lost this week
+value and loss reason
+=== PAGE 24 ===
+14.3 Revenue and Forecast Dashboard
+ Revenue booked (current period) — sum of Won deal values where PO has been
+received, broken down by product line, geography, and salesperson.
+ Revenue forecast — probability-weighted pipeline value (deal value × stage probability)
+for the next 30/60/90 days, shown as a range (conservative / base / optimistic scenario).
+ Monthly trend — Won deal values plotted month-by-month for the last 12 months,
+overlaid with the monthly target line.
+ Average deal value trend — are deals getting larger or smaller over time? By
+salesperson, by product line, by lead source.
+ Win rate trend — overall win rate by month for the last 12 months; helps correlate
+pipeline hygiene and coaching effectiveness with outcomes.
+14.4 Lead Source and Marketing ROI Dashboard
+ Leads by source — volume of leads received from each channel (Email, Facebook,
+Instagram, LinkedIn, Website, API) in the current period vs. prior period.
+ Conversion rate by source — which lead source produces the highest-quality leads
+(best conversion from raw lead to Won deal)?
+ Cost per lead by source — if ad spend is entered per campaign, the dashboard shows
+cost-per-lead and cost-per-acquired-deal by channel, enabling data-driven marketing
+budget decisions.
+ Time-to-first-contact by source — are social media leads being contacted as quickly as
+email leads? Identifies source-specific response SLA issues.
+14.5 Dashboard Customisation and Access
+ Role-based views — the Director sees the whole organisation; the Sales Manager sees
+their own team; neither can see data outside their scope by default.
+ Date range picker — all dashboards are filterable by custom date ranges, not just pre-set
+periods.
+ Drill-down — clicking any metric navigates to the underlying list of deals, activities, or
+leads that make up the number.
+ Scheduled email reports — dashboards can be emailed as PDF snapshots to defined
+recipients on a configurable schedule (e.g. every Monday morning, the Sales Director
+receives last week's performance summary).
+ Mobile access — all management dashboards are accessible on the mobile app for on-
+the-go review.
+=== PAGE 25 ===
+Feature 15: Salesperson Dashboards
+The salesperson dashboard is the first screen a salesperson sees when they open the CRM. Its
+job is to answer the question every salesperson faces each morning: "Where do I focus today?"
+It surfaces urgent actions, shows progress against personal targets, and provides a quick view of
+the pipeline — without requiring the salesperson to run any reports.
+15.1 My Today Screen
+ Tasks due today — all pending tasks for today, sorted by priority. One-click to mark
+complete or reschedule.
+ Meetings today — upcoming meetings with time, location/link, and the linked lead card.
+ Leads to follow up — leads with no activity in the last 3 days (configurable), prompting
+the salesperson to check in.
+ New leads assigned today — any leads assigned since last login,for immediate
+attention.
+ Quote follow-ups needed — quotes that were sent & have had no response in > 3 days.
+ Overdue tasks — tasks past their due date that have not been completed, surfaced
+prominently with a reminder to action.
+15.2 My Pipeline View
+ Kanban board — all the salesperson's active leads arranged in columns by pipeline stage
+(New → Contacted → Qualified → Meeting → Proposal → Negotiation → Won/Lost).
+Leads can be dragged between stages.
+ List view —table view of same leads, sortable by value, last activity, expec close
+date/stage.
+ Pipeline value summary — total pipeline value displayed at the top of the board, with a
+breakdown by stage so the salesperson can see where their deals are concentrated.
+ Expected close dates — each deal card shows the expected close date (set by the
+salesperson); deals with a close date in the past that are not yet Won/Lost are highlighted.
+ Stale deal warning — deals with no activity in > 5 days show a visual indicator, prompting
+the salesperson to take action before the deal goes cold.
+15.3 My Performance Widget
+KPI displayed Period shown Benchmark shown
+Leads assigned This month vs. last month
+=== PAGE 26 ===
+Contacted rate This month vs. personal target
+Meetings held This week vs. last week
+Quotes sent This month vs. last month
+Deals won This month vs. quota
+Revenue closed This month Progress bar to monthly target
+Avg. response time This month vs. team average
+Conversion rate Rolling 90 days vs. team average
+15.4 Recent Activity and Notifications
+ Activity feed — a real-time feed of recent events across all the salesperson's leads:
+quote viewed by client, new comment from manager, stage change by colleague, PO
+received.
+ Notification centre — a bell icon showing all unread notifications, each linked to the
+relevant CRM record. Notifications are cleared individually or all-at-once.
+ Manager notes — if a manager has left a coaching note on a deal or activity, it surfaces
+prominently in this section so the salesperson does not miss it.
+ Celebration triggers — when a deal is marked Won, the dashboard shows a brief visual
+celebration and records it in the team's activity feed (visible to the whole team, building
+positive culture).
+15.5 Quick-Action Shortcuts
+ Add lead — create a manual lead from a business card, referral, or inbound call in under
+30 seconds.
+ Log call — immediately record a call outcome without navigating to the lead first (then link
+it to a lead).
+ Create quote — shortcut to begin a new quotation from the dashboard, with lead search
+to link it.
+ Schedule meeting — open the meeting scheduler to book a new client meeting.
+ Send message — compose and send an email or WhatsApp message to any contact
+from the dashboard without opening their full lead card.
+
+Total pages: 26

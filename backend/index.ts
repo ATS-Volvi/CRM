@@ -17,7 +17,6 @@ const startServer = async () => {
     
     app.listen(PORT as number, '0.0.0.0', () => {
       console.log(`Nexus CRM backend running on port ${PORT}`);
-      
       // Setup simple cron job for checking overdue tasks every hour
       // (Using 1 hour = 3600000 ms)
       setInterval(() => {
@@ -26,6 +25,13 @@ const startServer = async () => {
         processQuoteFollowUps().catch(console.error);
       }, 3600000);
 
+      // Start Quote Expiry Scheduler
+      const { startExpiryScheduler } = require("./src/services/expiryScheduler");
+      startExpiryScheduler();
+      
+      // Start Scheduled Weekly Snapshot Reports
+      const { startReportScheduler } = require("./src/services/scheduledReportService");
+      startReportScheduler();
     });
   } catch (error) {
     console.error("Failed to start server:", error);

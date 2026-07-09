@@ -1,7 +1,7 @@
 {
   "name": "@nexus-crm/database",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "index.ts",
   "dependencies": {
     "pg": "^8.13.1",
     "pg-hstore": "^2.3.4",

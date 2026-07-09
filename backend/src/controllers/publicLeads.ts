@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { Lead, AssignmentRule } from "@nexus-crm/database";
 import { triggerTemplatedEmail } from "../services/emailService";
 import { assignLeadToSalesperson } from "../services/leadAssignmentService";
+import { assignLead } from "../services/assignmentEngine";
 
 export const createPublicLead = async (req: Request, res: Response) => {
   try {
@@ -11,33 +12,14 @@ export const createPublicLead = async (req: Request, res: Response) => {
       return res.status(400).json({ error: "First name, last name, and email are required" });
     }
 
-    let assignedToId: string | null = null;
-    
-    try {
-      const rules = await AssignmentRule.findAll({
-        where: { isActive: true },
-        order: [["priority", "DESC"]],
-      });
-
-      for (const rule of rules) {
-        let matches = false;
-        try {
-          const criteriaObj = JSON.parse(rule.criteria);
-          matches = Object.keys(criteriaObj).every(key => {
-            return req.body[key] === criteriaObj[key];
-          });
-        } catch (e) {
-          console.warn("Invalid JSON in rule criteria:", rule.id);
-        }
-
-        if (matches) {
-          assignedToId = rule.assignToId;
-          break;
-        }
-      }
-    } catch (ruleError) {
-      console.error("Error evaluating assignment rules:", ruleError);
-    }
+    const assignedToId = await assignLead({
+      firstName,
+      lastName,
+      email,
+      phone,
+      company,
+      source: source || "Website"
+    });
 
     const lead = await Lead.create({
       firstName,
