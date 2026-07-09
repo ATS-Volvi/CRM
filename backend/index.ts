@@ -11,9 +11,9 @@ const app = createServer();
 const startServer = async () => {
   try {
     await Database.createConnection();
-    // Sync models. In production, use migrations instead of sync()
-    await sequelize.sync({ alter: true });
-    console.log("Database models synced successfully.");
+    // Models are now synced via Sequelize migrations. Do not use sync()!
+    // await sequelize.sync({ alter: true });
+    console.log("Database connection established successfully.");
     
     app.listen(PORT as number, '0.0.0.0', () => {
       console.log(`Nexus CRM backend running on port ${PORT}`);
@@ -25,6 +25,7 @@ const startServer = async () => {
         processScheduledEmails().catch(console.error);
         processQuoteFollowUps().catch(console.error);
       }, 3600000);
+
     });
   } catch (error) {
     console.error("Failed to start server:", error);
