@@ -3,12 +3,27 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
+    const existingTables = await queryInterface.showAllTables();
+    
+    // Helper to safely skip existing tables
+    const createTableSafe = async (tableName, attributes) => {
+      // Postgres returns lowercase table names from showAllTables sometimes depending on quotes,
+      // but let's check case-insensitively just in case.
+      const tableExists = existingTables.some(t => t.toLowerCase() === tableName.toLowerCase());
+      if (!tableExists) {
+        await queryInterface.createTable(tableName, attributes);
+        console.log(`Created table: ${tableName}`);
+      } else {
+        console.log(`Skipped table: ${tableName} (already exists)`);
+      }
+    };
+
     const defaultFields = {
       createdAt: { type: Sequelize.DATE, allowNull: false, defaultValue: Sequelize.literal('CURRENT_TIMESTAMP') },
       updatedAt: { type: Sequelize.DATE, allowNull: false, defaultValue: Sequelize.literal('CURRENT_TIMESTAMP') }
     };
 
-    await queryInterface.createTable('Users', {
+    await createTableSafe('Users', {
       id: { type: Sequelize.UUID, defaultValue: Sequelize.UUIDV4, primaryKey: true },
       name: { type: Sequelize.STRING, allowNull: false },
       email: { type: Sequelize.STRING, allowNull: false, unique: true },
@@ -17,7 +32,7 @@ module.exports = {
       ...defaultFields
     });
 
-    await queryInterface.createTable('Leads', {
+    await createTableSafe('Leads', {
       id: { type: Sequelize.UUID, defaultValue: Sequelize.UUIDV4, primaryKey: true },
       firstName: { type: Sequelize.STRING, allowNull: false },
       lastName: { type: Sequelize.STRING, allowNull: false },
@@ -33,7 +48,7 @@ module.exports = {
       ...defaultFields
     });
 
-    await queryInterface.createTable('PipelineStages', {
+    await createTableSafe('PipelineStages', {
       id: { type: Sequelize.UUID, defaultValue: Sequelize.UUIDV4, primaryKey: true },
       name: { type: Sequelize.ENUM("New", "Contacted", "Qualified", "Meeting/Demo", "Proposal", "Negotiation", "Won", "Lost", "On Hold"), allowNull: false },
       order: { type: Sequelize.INTEGER, allowNull: false },
@@ -41,7 +56,7 @@ module.exports = {
       ...defaultFields
     });
 
-    await queryInterface.createTable('LeadStageHistories', {
+    await createTableSafe('LeadStageHistories', {
       id: { type: Sequelize.UUID, defaultValue: Sequelize.UUIDV4, primaryKey: true },
       leadId: { type: Sequelize.UUID, references: { model: 'Leads', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'CASCADE' },
       fromStage: { type: Sequelize.STRING, allowNull: false },
@@ -51,7 +66,7 @@ module.exports = {
       createdAt: { type: Sequelize.DATE, allowNull: false, defaultValue: Sequelize.literal('CURRENT_TIMESTAMP') }
     });
 
-    await queryInterface.createTable('Deals', {
+    await createTableSafe('Deals', {
       id: { type: Sequelize.UUID, defaultValue: Sequelize.UUIDV4, primaryKey: true },
       name: { type: Sequelize.STRING, allowNull: false },
       amount: { type: Sequelize.DECIMAL(10, 2), allowNull: false },
@@ -64,7 +79,7 @@ module.exports = {
       ...defaultFields
     });
 
-    await queryInterface.createTable('Quotes', {
+    await createTableSafe('Quotes', {
       id: { type: Sequelize.UUID, defaultValue: Sequelize.UUIDV4, primaryKey: true },
       dealId: { type: Sequelize.UUID, references: { model: 'Deals', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'SET NULL' },
       status: { type: Sequelize.STRING, defaultValue: "Draft" },
@@ -76,7 +91,7 @@ module.exports = {
       ...defaultFields
     });
 
-    await queryInterface.createTable('PriceBookEntries', {
+    await createTableSafe('PriceBookEntries', {
       id: { type: Sequelize.UUID, defaultValue: Sequelize.UUIDV4, primaryKey: true },
       sku: { type: Sequelize.STRING, allowNull: false, unique: true },
       name: { type: Sequelize.STRING, allowNull: false },
@@ -86,7 +101,7 @@ module.exports = {
       ...defaultFields
     });
 
-    await queryInterface.createTable('QuoteLineItems', {
+    await createTableSafe('QuoteLineItems', {
       id: { type: Sequelize.UUID, defaultValue: Sequelize.UUIDV4, primaryKey: true },
       quoteId: { type: Sequelize.UUID, references: { model: 'Quotes', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'CASCADE' },
       productId: { type: Sequelize.UUID, references: { model: 'PriceBookEntries', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'SET NULL' },
@@ -96,7 +111,7 @@ module.exports = {
       ...defaultFields
     });
 
-    await queryInterface.createTable('PurchaseOrders', {
+    await createTableSafe('PurchaseOrders', {
       id: { type: Sequelize.UUID, defaultValue: Sequelize.UUIDV4, primaryKey: true },
       quoteId: { type: Sequelize.UUID, references: { model: 'Quotes', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'CASCADE' },
       status: { type: Sequelize.STRING, defaultValue: "Pending" },
@@ -106,7 +121,7 @@ module.exports = {
       ...defaultFields
     });
 
-    await queryInterface.createTable('ApprovalRequests', {
+    await createTableSafe('ApprovalRequests', {
       id: { type: Sequelize.UUID, defaultValue: Sequelize.UUIDV4, primaryKey: true },
       targetId: { type: Sequelize.STRING, allowNull: false },
       type: { type: Sequelize.STRING, allowNull: false },
@@ -117,7 +132,7 @@ module.exports = {
       ...defaultFields
     });
 
-    await queryInterface.createTable('AssignmentRules', {
+    await createTableSafe('AssignmentRules', {
       id: { type: Sequelize.UUID, defaultValue: Sequelize.UUIDV4, primaryKey: true },
       criteria: { type: Sequelize.TEXT, allowNull: false },
       priority: { type: Sequelize.INTEGER, defaultValue: 0 },
@@ -126,7 +141,7 @@ module.exports = {
       ...defaultFields
     });
 
-    await queryInterface.createTable('Activities', {
+    await createTableSafe('Activities', {
       id: { type: Sequelize.UUID, defaultValue: Sequelize.UUIDV4, primaryKey: true },
       type: { type: Sequelize.ENUM("call", "email", "meeting", "task", "whatsapp_sms", "note", "stage_change"), allowNull: false },
       duration: { type: Sequelize.INTEGER, allowNull: true },
@@ -139,7 +154,7 @@ module.exports = {
       ...defaultFields
     });
 
-    await queryInterface.createTable('Invoices', {
+    await createTableSafe('Invoices', {
       id: { type: Sequelize.UUID, defaultValue: Sequelize.UUIDV4, primaryKey: true },
       quoteId: { type: Sequelize.UUID, references: { model: 'Quotes', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'CASCADE' },
       status: { type: Sequelize.STRING, defaultValue: "Draft" },
@@ -149,7 +164,7 @@ module.exports = {
       ...defaultFields
     });
 
-    await queryInterface.createTable('InvoiceLineItems', {
+    await createTableSafe('InvoiceLineItems', {
       id: { type: Sequelize.UUID, defaultValue: Sequelize.UUIDV4, primaryKey: true },
       invoiceId: { type: Sequelize.UUID, references: { model: 'Invoices', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'CASCADE' },
       productId: { type: Sequelize.UUID, references: { model: 'PriceBookEntries', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'SET NULL' },
@@ -159,7 +174,7 @@ module.exports = {
       ...defaultFields
     });
 
-    await queryInterface.createTable('MessageTemplates', {
+    await createTableSafe('MessageTemplates', {
       id: { type: Sequelize.UUID, defaultValue: Sequelize.UUIDV4, primaryKey: true },
       name: { type: Sequelize.STRING, allowNull: false, unique: true },
       channel: { type: Sequelize.STRING, allowNull: false, defaultValue: "email" },
@@ -177,7 +192,7 @@ module.exports = {
       ...defaultFields
     });
 
-    await queryInterface.createTable('Notifications', {
+    await createTableSafe('Notifications', {
       id: { type: Sequelize.UUID, defaultValue: Sequelize.UUIDV4, primaryKey: true },
       type: { type: Sequelize.STRING, allowNull: false },
       title: { type: Sequelize.STRING, allowNull: false },
@@ -189,7 +204,7 @@ module.exports = {
       ...defaultFields
     });
 
-    await queryInterface.createTable('ScheduledEmails', {
+    await createTableSafe('ScheduledEmails', {
       id: { type: Sequelize.UUID, defaultValue: Sequelize.UUIDV4, primaryKey: true },
       leadId: { type: Sequelize.UUID, references: { model: 'Leads', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'CASCADE' },
       templateName: { type: Sequelize.STRING, allowNull: false },
@@ -198,7 +213,7 @@ module.exports = {
       ...defaultFields
     });
 
-    await queryInterface.createTable('WebhookEvents', {
+    await createTableSafe('WebhookEvents', {
       id: { type: Sequelize.UUID, defaultValue: Sequelize.UUIDV4, primaryKey: true },
       source: { type: Sequelize.STRING, allowNull: false },
       payload: { type: Sequelize.TEXT, allowNull: false },
