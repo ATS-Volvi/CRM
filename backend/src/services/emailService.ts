@@ -20,7 +20,12 @@ export const renderTemplate = (templateString: string, dataObj: Record<string, s
   return rendered;
 };
 
-export const getBaseHtmlTemplate = (bodyContent: string): string => {
+export const getBaseHtmlTemplate = (bodyContent: string, leadId?: string): string => {
+  const baseUrl = process.env.BASE_URL || "http://localhost:5505";
+  const unsubscribeHtml = leadId 
+    ? `<p style="margin-top: 10px;">Don't want to receive these emails? <a href="${baseUrl}/api/v1/leads/unsubscribe/${leadId}">Unsubscribe here</a></p>`
+    : '';
+
   return `
 <!DOCTYPE html>
 <html>
@@ -46,6 +51,7 @@ export const getBaseHtmlTemplate = (bodyContent: string): string => {
     <div class="footer">
       <p>&copy; ${new Date().getFullYear()} Nexus Enterprises LLC. All rights reserved.</p>
       <p>123 Tech Corridor, Internet City, Dubai</p>
+      ${unsubscribeHtml}
     </div>
   </div>
 </body>
@@ -69,17 +75,62 @@ export const sendEmail = async (to: string, subject: string, htmlContent: string
   }
 };
 
-export const triggerTemplatedEmail = async (templateName: string, to: string, dataObj: Record<string, string>) => {
+export const triggerTemplatedEmail = async (templateName: string, to: string, dataObj: Record<string, string>, leadId?: string) => {
   try {
+    if (leadId) {
+      const lead = await sequelize.models.Lead.findByPk(leadId);
+      if (lead && (lead as any).optedOutEmail) {
+        console.warn(`[COMPLIANCE] Aborting email send. Lead ${leadId} has opted out of emails.`);
+        return;
+      }
+    }
+
     const template = await sequelize.models.MessageTemplate.findOne({ where: { name: templateName, channel: 'email' } });
     if (!template) {
       console.warn(`Template ${templateName} not found`);
       return;
     }
     
-    const subject = renderTemplate((template as any).subject || "", dataObj);
-    const bodyContent = renderTemplate((template as any).body, dataObj);
-    const html = getBaseHtmlTemplate(bodyContent);
+    const t = template as any;
+    let chosenSubject = t.subject || "";
+    let chosenBody = t.body;
+    let selectedVariant = 'A';
+
+    // A/B Testing Logic
+    if (t.isAbTest) {
+      if (t.winnerVariant === 'A' || t.winnerVariant === 'B') {
+        selectedVariant = t.winnerVariant;
+      } else {
+        selectedVariant = Math.random() < 0.5 ? 'A' : 'B';
+      }
+
+      if (selectedVariant === 'B' && t.variantBBody) {
+        chosenSubject = t.variantBSubject || chosenSubject;
+        chosenBody = t.variantBBody;
+        if (!t.winnerVariant) {
+           t.variantBSends += 1;
+           await t.save();
+        }
+      } else {
+        selectedVariant = 'A'; // fallback to A if B missing
+        if (!t.winnerVariant) {
+           t.variantASends += 1;
+           await t.save();
+        }
+      }
+    }
+
+    const subject = renderTemplate(chosenSubject, dataObj);
+    let bodyContent = renderTemplate(chosenBody, dataObj);
+    
+    // Inject Tracking Pixel for A/B Tests
+    if (t.isAbTest) {
+      const baseUrl = process.env.BASE_URL || "http://localhost:5505";
+      const pixelUrl = `${baseUrl}/api/v1/message-templates/track/${t.id}?variant=${selectedVariant}`;
+      bodyContent += `\n<img src="${pixelUrl}" width="1" height="1" style="display:none;" alt="" />`;
+    }
+
+    const html = getBaseHtmlTemplate(bodyContent, leadId);
     
     if (process.env.NODE_ENV !== 'production') {
       console.log(`\n=== RENDERED EMAIL BODY ===\n${bodyContent}\n===========================\n`);
@@ -112,7 +163,7 @@ export const processScheduledEmails = async () => {
         await triggerTemplatedEmail(emailRecord.templateName, lead.email, {
           lead_name: lead.firstName || 'there',
           sender_company_name: process.env.COMPANY_NAME || "Our Company"
-        }).catch(err => console.error("Scheduled email send failed:", err));
+        }, lead.id).catch(err => console.error("Scheduled email send failed:", err));
         
         emailRecord.sentAt = new Date();
         await emailRecord.save();
@@ -159,7 +210,7 @@ export const processQuoteFollowUps = async () => {
           lead_name: lead.firstName || 'there',
           quote_amount: formattedAmount,
           sender_company_name: process.env.COMPANY_NAME || "Our Company"
-        }).catch(err => console.error("Quote followup email failed:", err));
+        }, lead.id).catch(err => console.error("Quote followup email failed:", err));
         
         quote.followUpSentAt = new Date();
         await quote.save();

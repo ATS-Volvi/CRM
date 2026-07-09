@@ -60,7 +60,7 @@ export const createPublicLead = async (req: Request, res: Response) => {
       triggerTemplatedEmail("lead_acknowledgement", email, { 
         lead_name: firstName, 
         sla_hours: slaHours 
-      }).catch(err => console.error("Email send failed:", err));
+      }, (lead as any).id).catch(err => console.error("Email send failed:", err));
     }
 
     res.status(201).json({ message: "Lead captured successfully", leadId: (lead as any).id });

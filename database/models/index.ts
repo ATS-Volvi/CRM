@@ -32,6 +32,7 @@ export class Lead extends Model {
   public industry!: string;
   public assignedToId!: string | null;
   public leadScore!: number;
+  public optedOutEmail!: boolean;
 }
 
 Lead.init(
@@ -46,6 +47,7 @@ Lead.init(
     source: { type: DataTypes.STRING, allowNull: true },
     industry: { type: DataTypes.STRING, allowNull: true },
     leadScore: { type: DataTypes.INTEGER, defaultValue: 50 },
+    optedOutEmail: { type: DataTypes.BOOLEAN, defaultValue: false },
   },
   { sequelize, modelName: "Lead" }
 );
@@ -122,6 +124,7 @@ export class Quote extends Model {
   public expirationDate!: Date;
   public statusChangedAt!: Date;
   public followUpSentAt!: Date | null;
+  public docusignEnvelopeId!: string | null;
 }
 
 Quote.init(
@@ -132,6 +135,7 @@ Quote.init(
     expirationDate: { type: DataTypes.DATE, allowNull: true },
     statusChangedAt: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
     followUpSentAt: { type: DataTypes.DATE, allowNull: true },
+    docusignEnvelopeId: { type: DataTypes.STRING, allowNull: true },
   },
   { sequelize, modelName: "Quote" }
 );
@@ -241,6 +245,7 @@ export class Activity extends Model {
   public type!: string;
   public duration!: number | null;
   public outcome!: string | null;
+  public notes!: string | null;
   public mentioned_user_ids!: string; // JSON string array
   public pinned!: boolean;
   public createdById!: string;
@@ -256,6 +261,7 @@ Activity.init(
     },
     duration: { type: DataTypes.INTEGER, allowNull: true },
     outcome: { type: DataTypes.STRING, allowNull: true },
+    notes: { type: DataTypes.TEXT, allowNull: true },
     mentioned_user_ids: { type: DataTypes.TEXT, defaultValue: "[]" },
     pinned: { type: DataTypes.BOOLEAN, defaultValue: false },
   },
@@ -330,6 +336,16 @@ export class MessageTemplate extends Model {
   public subject!: string;
   public body!: string;
   public triggerEvent!: string; // e.g. "deal_won", "lead_created"
+  
+  // A/B Testing Fields
+  public isAbTest!: boolean;
+  public variantBSubject!: string | null;
+  public variantBBody!: string | null;
+  public variantASends!: number;
+  public variantAOpens!: number;
+  public variantBSends!: number;
+  public variantBOpens!: number;
+  public winnerVariant!: string | null;
 }
 
 MessageTemplate.init(
@@ -340,6 +356,14 @@ MessageTemplate.init(
     subject: { type: DataTypes.STRING, allowNull: true },
     body: { type: DataTypes.TEXT, allowNull: false },
     triggerEvent: { type: DataTypes.STRING, allowNull: true },
+    isAbTest: { type: DataTypes.BOOLEAN, defaultValue: false },
+    variantBSubject: { type: DataTypes.STRING, allowNull: true },
+    variantBBody: { type: DataTypes.TEXT, allowNull: true },
+    variantASends: { type: DataTypes.INTEGER, defaultValue: 0 },
+    variantAOpens: { type: DataTypes.INTEGER, defaultValue: 0 },
+    variantBSends: { type: DataTypes.INTEGER, defaultValue: 0 },
+    variantBOpens: { type: DataTypes.INTEGER, defaultValue: 0 },
+    winnerVariant: { type: DataTypes.STRING, allowNull: true },
   },
   { sequelize, modelName: "MessageTemplate" }
 );
@@ -361,6 +385,27 @@ ScheduledEmail.init(
     sentAt: { type: DataTypes.DATE, allowNull: true },
   },
   { sequelize, modelName: "ScheduledEmail" }
+);
+
+export class WebhookEvent extends Model {
+  public id!: string;
+  public source!: string;
+  public payload!: string;
+  public status!: string;
+  public retryCount!: number;
+  public errorMessage!: string | null;
+}
+
+WebhookEvent.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    source: { type: DataTypes.STRING, allowNull: false },
+    payload: { type: DataTypes.TEXT, allowNull: false },
+    status: { type: DataTypes.STRING, defaultValue: 'pending' },
+    retryCount: { type: DataTypes.INTEGER, defaultValue: 0 },
+    errorMessage: { type: DataTypes.TEXT, allowNull: true },
+  },
+  { sequelize, modelName: "WebhookEvent" }
 );
 
 // Define Associations

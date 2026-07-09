@@ -48,7 +48,7 @@ export const createLead = async (req: Request, res: Response) => {
       triggerTemplatedEmail("lead_acknowledgement", email, { 
         lead_name: firstName, 
         sla_hours: slaHours 
-      }).catch(err => console.error("Email send failed:", err));
+      }, (lead as any).id).catch(err => console.error("Email send failed:", err));
     }
 
     res.status(201).json(lead);
@@ -126,3 +126,42 @@ export const deleteLead = async (req: Request, res: Response) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+export const handleUnsubscribe = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const lead = await sequelize.models.Lead.findByPk(String(id));
+    if (!lead) {
+      return res.status(404).send("Lead not found.");
+    }
+
+    const l = lead as any;
+    if (!l.optedOutEmail) {
+      l.optedOutEmail = true;
+      await l.save();
+
+      // Log activity
+      await sequelize.models.Activity.create({
+        id: require('crypto').randomUUID(),
+        leadId: l.id,
+        type: "Email",
+        status: "Completed",
+        assignedToId: l.assignedToId,
+        notes: "Client clicked Unsubscribe. All future marketing/templated emails are now blocked."
+      });
+    }
+
+    const html = `
+    <html>
+      <body style="font-family: sans-serif; text-align: center; margin-top: 50px;">
+        <h2>Unsubscribed Successfully</h2>
+        <p>You have been removed from our mailing list. You will no longer receive automated emails from us.</p>
+      </body>
+    </html>
+    `;
+    res.send(html);
+  } catch (error: any) {
+    res.status(500).send("An error occurred processing your request.");
+  }
+};
+

@@ -10,9 +10,88 @@ import {
 const router = Router();
 
 // Public routes
+/**
+ * @swagger
+ * /auth/register:
+ *   post:
+ *     summary: Register a new user
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *               password:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: User registered successfully
+ */
 router.post("/auth/register", register);
+
+/**
+ * @swagger
+ * /auth/login:
+ *   post:
+ *     summary: Login and get a JWT token
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email:
+ *                 type: string
+ *               password:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Successful login
+ */
 router.post("/auth/login", login);
+/**
+ * @swagger
+ * /public/leads:
+ *   post:
+ *     summary: Capture a lead from a public source (e.g. website, social media)
+ *     tags: [Public]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               firstName:
+ *                 type: string
+ *               lastName:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *               source:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Lead captured successfully
+ */
 router.post("/public/leads", createPublicLead);
+
+import { handleUnsubscribe } from "../controllers/leadController";
+router.get("/leads/unsubscribe/:id", handleUnsubscribe);
+
+
+
+
+import { trackEmailOpen, getAbTestStats, declareWinner } from "../controllers/messageTemplateController";
+router.get("/message-templates/track/:id", trackEmailOpen);
 
 // Special KPI endpoints for dashboard mock (Public for preview)
 router.get("/kpis/salesperson", async (req, res) => {
@@ -40,12 +119,47 @@ import { getKpiDashboard, getManagementDashboard } from '../controllers/dashboar
 import { getAssignmentRules } from '../controllers/assignmentRuleController';
 import { getNotifications, markAsRead, markAllAsRead } from '../controllers/notificationController';
 import { getMessageTemplates, getMessageTemplateById, createMessageTemplate, updateMessageTemplate, deleteMessageTemplate } from '../controllers/messageTemplateController';
+import whatsappRoutes from './whatsappRoutes';
+
 
 // ==========================================
 // LEADS
 // ==========================================
 router.get("/leads/duplicates", authMiddleware, getDuplicateLeads);
 router.post("/leads/merge", authMiddleware, mergeLeads);
+/**
+ * @swagger
+ * /leads:
+ *   get:
+ *     summary: Get a list of all leads
+ *     tags: [Leads]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: A list of leads
+ *   post:
+ *     summary: Create a new lead manually
+ *     tags: [Leads]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               firstName:
+ *                 type: string
+ *               lastName:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Lead created
+ */
 router.get("/leads", authMiddleware, getLeads);
 router.post("/leads", authMiddleware, createLead);
 router.put("/leads/:id", authMiddleware, updateLead);
@@ -113,9 +227,21 @@ router.post("/notifications/read-all", authMiddleware, markAllAsRead);
 // ==========================================
 router.get("/message-templates", authMiddleware, getMessageTemplates);
 router.get("/message-templates/:id", authMiddleware, getMessageTemplateById);
+router.get("/message-templates/:id/ab-test-stats", authMiddleware, getAbTestStats);
+router.post("/message-templates/:id/declare-winner", authMiddleware, declareWinner);
 router.post("/message-templates", authMiddleware, createMessageTemplate);
 router.put("/message-templates/:id", authMiddleware, updateMessageTemplate);
 router.delete("/message-templates/:id", authMiddleware, deleteMessageTemplate);
+
+// ==========================================
+// WHATSAPP
+// ==========================================
+router.use("/whatsapp", whatsappRoutes);
+
+// ==========================================
+// DOCUSIGN
+// ==========================================
+
 
 // Activity routes
 router.get("/leads/:leadId/activities", getLeadActivities);

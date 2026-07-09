@@ -64,11 +64,11 @@ export const createPurchaseOrder = async (req: Request, res: Response) => {
     const lead = (quote as any).deal?.lead;
     if (lead && lead.email) {
       triggerTemplatedEmail("po_thank_you", lead.email, {
-        lead_name: lead.firstName,
+        lead_name: lead.firstName || 'there',
         company_name: lead.company || "your company",
         po_number: poNumber,
         sender_company_name: process.env.COMPANY_NAME || "Our Company"
-      }).catch(err => console.error("PO thank you email failed:", err));
+      }, lead.id).catch(err => console.error("Failed to send PO Thank You email", err));
     }
 
     res.status(201).json(po);

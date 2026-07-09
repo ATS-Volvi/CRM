@@ -3,6 +3,7 @@ import cors from "cors";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import v1Router from "./src/routes/v1";
+import { setupSwagger } from "./src/swagger";
 
 export function createServer(): Express {
   const app = express();
@@ -15,6 +16,8 @@ export function createServer(): Express {
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok", service: "nexus-crm-backend" });
   });
+
+  setupSwagger(app);
 
   app.use("/api/v1", v1Router);
 

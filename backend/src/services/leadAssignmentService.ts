@@ -31,9 +31,9 @@ export const assignLeadToSalesperson = async (lead: any, assignedToId: string) =
       const salesperson = await User.findByPk(assignedToId) as any;
       if (salesperson) {
         await triggerTemplatedEmail("assignment_intro", lead.email, {
-          lead_name: lead.firstName,
-          salesperson_name: `${salesperson.firstName} ${salesperson.lastName}`
-        });
+          lead_name: lead.firstName || 'there',
+          rep_name: salesperson.name || 'a representative'
+        }, lead.id).catch(err => console.error("Assignment email failed", err));
       }
     } catch (err) {
       console.error("Assignment intro email failed:", err);
