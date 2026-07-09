@@ -1,10 +1,13 @@
 import { useAuth } from "../context/AuthContext";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { ChevronRight, FileText, Download, CheckCircle, Clock, AlertTriangle, Plus, Search, Filter, Calendar, MoreVertical, TrendingUp, Timer, Bolt } from "lucide-react";
+import { useState } from "react";
+import { ChevronRight, FileText, Download, CheckCircle, Clock, AlertTriangle, Plus, Search, Filter, Calendar, MoreVertical, TrendingUp, Timer, Bolt, X, History } from "lucide-react";
 import { formatCurrency, formatCurrencyCompact } from "../utils/currency";
 
 export default function QuoteHistory() {
   const { token } = useAuth();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [versionQuoteId, setVersionQuoteId] = useState<string | null>(null);
 
   const { data: quotes, isLoading } = useQuery({
     queryKey: ["quotes"],
@@ -93,7 +96,17 @@ export default function QuoteHistory() {
             <Filter className="w-5 h-5 text-outline" />
             <span className="text-[12px] font-semibold tracking-wider text-on-surface uppercase">Filter By</span>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2 items-center w-full">
+            <div className="relative">
+              <Search className="w-4 h-4 text-outline absolute left-3 top-1/2 -translate-y-1/2" />
+              <input 
+                type="text" 
+                placeholder="Search quotes..." 
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="bg-surface border border-outline-variant rounded-lg py-1.5 pl-9 pr-3 text-sm focus:ring-1 focus:ring-primary outline-none"
+              />
+            </div>
             <select className="bg-surface border border-outline-variant rounded-lg py-1.5 px-3 text-sm focus:ring-1 focus:ring-primary outline-none">
               <option>All Statuses</option>
               <option>Draft</option>
@@ -103,10 +116,26 @@ export default function QuoteHistory() {
               <option>Expired</option>
             </select>
             <select className="bg-surface border border-outline-variant rounded-lg py-1.5 px-3 text-sm focus:ring-1 focus:ring-primary outline-none">
-              <option>All Teams</option>
-              <option>Dubai North</option>
-              <option>Riyadh Central</option>
-              <option>Mumbai Corporate</option>
+              <option>All Outcomes</option>
+              <option>Won</option>
+              <option>Lost</option>
+            </select>
+            <select className="bg-surface border border-outline-variant rounded-lg py-1.5 px-3 text-sm focus:ring-1 focus:ring-primary outline-none">
+              <option>All Salespersons</option>
+              <option>Me</option>
+              <option>Sarah J.</option>
+              <option>Ahmed K.</option>
+            </select>
+            <select className="bg-surface border border-outline-variant rounded-lg py-1.5 px-3 text-sm focus:ring-1 focus:ring-primary outline-none">
+              <option>All Categories</option>
+              <option>SaaS Starter</option>
+              <option>Enterprise Suite</option>
+            </select>
+            <select className="bg-surface border border-outline-variant rounded-lg py-1.5 px-3 text-sm focus:ring-1 focus:ring-primary outline-none">
+              <option>Any Value Band</option>
+              <option>&lt; 10k</option>
+              <option>10k - 50k</option>
+              <option>&gt; 50k</option>
             </select>
             <button className="bg-surface border border-outline-variant rounded-lg py-1.5 px-3 text-sm flex items-center gap-2 hover:bg-surface-container-low transition-colors">
               <Calendar className="w-4 h-4" /> Date Range
@@ -114,7 +143,7 @@ export default function QuoteHistory() {
           </div>
           <div className="ml-auto flex items-center gap-4">
             <button className="text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1 text-sm font-medium">
-              <Download className="w-4 h-4" /> Export
+              <Download className="w-4 h-4" /> Export to Excel
             </button>
             <button className="bg-surface border border-outline-variant text-on-surface px-4 py-1.5 rounded-lg text-sm font-semibold hover:bg-surface-container-low transition-all">
               Apply Filters
@@ -189,7 +218,7 @@ export default function QuoteHistory() {
                           quote.status === 'Draft' ? 'bg-outline-variant/30 text-outline border border-outline/20' :
                           'bg-error-container text-error border border-error/20'
                         }`}>
-                          {quote.status}
+                          {quote.status === 'Pending' ? 'Submitted for Approval' : quote.status}
                         </span>
                       </td>
                       <td className="px-6 py-4">
@@ -209,6 +238,13 @@ export default function QuoteHistory() {
                               Generate Invoice
                             </button>
                           )}
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); setVersionQuoteId(quote.id); }}
+                            className="p-1 hover:bg-surface-variant rounded transition-colors text-outline group-hover:text-primary"
+                            title="Version History"
+                          >
+                            <History className="w-5 h-5" />
+                          </button>
                           <button className="p-1 hover:bg-surface-variant rounded transition-colors text-outline group-hover:text-primary">
                             <MoreVertical className="w-5 h-5" />
                           </button>
@@ -267,6 +303,57 @@ export default function QuoteHistory() {
         </div>
 
       </div>
+
+      {/* Version History Modal */}
+      {versionQuoteId && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-surface p-6 rounded-xl w-[500px] max-w-full shadow-2xl relative">
+            <button 
+              onClick={() => setVersionQuoteId(null)}
+              className="absolute top-4 right-4 text-on-surface-variant hover:text-on-surface transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <h3 className="text-xl font-bold mb-2">Version History</h3>
+            <p className="text-sm text-on-surface-variant mb-6">Tracking revisions for {versionQuoteId}</p>
+            
+            <div className="space-y-4">
+              <div className="flex gap-4 items-start relative pl-6 before:content-[''] before:absolute before:left-2 before:top-2 before:bottom-0 before:w-[2px] before:bg-outline-variant">
+                <div className="absolute left-[3px] top-1 w-2.5 h-2.5 rounded-full bg-primary ring-4 ring-surface"></div>
+                <div>
+                  <p className="text-sm font-bold text-on-surface">v1.2 (Current)</p>
+                  <p className="text-xs text-on-surface-variant">Modified by Manager • 2h ago</p>
+                  <p className="text-xs mt-1">Adjusted discount to 15% as per approval conditions.</p>
+                </div>
+              </div>
+              <div className="flex gap-4 items-start relative pl-6 before:content-[''] before:absolute before:left-2 before:top-2 before:bottom-0 before:w-[2px] before:bg-outline-variant">
+                <div className="absolute left-[3px] top-1 w-2.5 h-2.5 rounded-full bg-outline ring-4 ring-surface"></div>
+                <div>
+                  <p className="text-sm font-bold text-on-surface">v1.1</p>
+                  <p className="text-xs text-on-surface-variant">Modified by SalesRep • 5h ago</p>
+                  <p className="text-xs mt-1">Added Priority Support bundle.</p>
+                </div>
+              </div>
+              <div className="flex gap-4 items-start relative pl-6">
+                <div className="absolute left-[3px] top-1 w-2.5 h-2.5 rounded-full bg-outline ring-4 ring-surface"></div>
+                <div>
+                  <p className="text-sm font-bold text-on-surface">v1.0 (Initial Draft)</p>
+                  <p className="text-xs text-on-surface-variant">Created by SalesRep • 1d ago</p>
+                </div>
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end">
+              <button 
+                onClick={() => setVersionQuoteId(null)}
+                className="px-4 py-2 bg-primary text-white rounded text-sm font-bold hover:bg-primary/90"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

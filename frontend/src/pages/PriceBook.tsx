@@ -30,7 +30,8 @@ export default function PriceBook() {
 
   const queryClient = useQueryClient();
   const [showModal, setShowModal] = useState(false);
-  const [formData, setFormData] = useState<any>({ name: "", sku: "", category: "Standard Tier", msrp: "", floor_price: "", uplift: "0", status: "Active" });
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [formData, setFormData] = useState<any>({ name: "", sku: "", category: "Standard Tier", msrp: "", floor_price: "", uplift: "0", status: "Active", promoStart: "", promoEnd: "", segStandard: "", segEnterprise: "", segGCC: "", segDistributor: "" });
 
   const saveMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -50,7 +51,7 @@ export default function PriceBook() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["priceBook"] });
       setShowModal(false);
-      setFormData({ name: "", sku: "", category: "Standard Tier", msrp: "", floor_price: "", uplift: "0", status: "Active" });
+      setFormData({ name: "", sku: "", category: "Standard Tier", msrp: "", floor_price: "", uplift: "0", status: "Active", promoStart: "", promoEnd: "", segStandard: "", segEnterprise: "", segGCC: "", segDistributor: "" });
     }
   });
 
@@ -77,7 +78,7 @@ export default function PriceBook() {
             <p className="text-base text-on-surface-variant">Manage global product pricing, discounts, and regional adjustments.</p>
           </div>
           <div className="flex gap-4">
-            <button onClick={() => alert("Bulk Update not yet implemented.")} className="flex items-center gap-2 px-4 py-2 border border-secondary text-secondary rounded-lg hover:bg-secondary-container transition-colors">
+            <button onClick={() => setShowUploadModal(true)} className="flex items-center gap-2 px-4 py-2 border border-secondary text-secondary rounded-lg hover:bg-secondary-container transition-colors">
               <Upload className="w-5 h-5" />
               <span className="font-bold">Bulk Update</span>
             </button>
@@ -163,8 +164,8 @@ export default function PriceBook() {
                 <tr>
                   <th className="px-6 py-4 text-[12px] font-semibold text-on-surface-variant uppercase tracking-wider">SKU / Product Name</th>
                   <th className="px-6 py-4 text-[12px] font-semibold text-on-surface-variant uppercase tracking-wider">Category</th>
-                  <th className="px-6 py-4 text-[12px] font-semibold text-on-surface-variant uppercase tracking-wider">MSRP (SAR)</th>
-                  <th className="px-6 py-4 text-[12px] font-semibold text-on-surface-variant uppercase tracking-wider">Floor Price</th>
+                  <th className="px-6 py-4 text-[12px] font-semibold text-on-surface-variant uppercase tracking-wider">Min Price</th>
+                  <th className="px-6 py-4 text-[12px] font-semibold text-on-surface-variant uppercase tracking-wider">Max Price</th>
                   <th className="px-6 py-4 text-[12px] font-semibold text-on-surface-variant uppercase tracking-wider">GCC Uplift</th>
                   <th className="px-6 py-4 text-[12px] font-semibold text-on-surface-variant uppercase tracking-wider">Status</th>
                   <th className="px-6 py-4 text-[12px] font-semibold text-on-surface-variant uppercase tracking-wider text-right">Actions</th>
@@ -193,8 +194,8 @@ export default function PriceBook() {
                         </div>
                       </td>
                       <td className="px-6 py-5">{item.category}</td>
-                      <td className="px-6 py-5 font-medium">{formatCurrency(item.msrp)}</td>
-                      <td className="px-6 py-5 font-medium text-error font-bold">{formatCurrency(item.floor_price)}</td>
+                      <td className="px-6 py-5 font-medium text-error font-bold">{formatCurrency(item.floor_price || 0)}</td>
+                      <td className="px-6 py-5 font-medium">{formatCurrency(item.msrp || 0)}</td>
                       <td className="px-6 py-5">
                         <span className="text-primary font-bold">+{item.uplift}%</span>
                       </td>
@@ -285,7 +286,7 @@ export default function PriceBook() {
       {/* Floating Action Button */}
       <button 
         onClick={() => {
-          setFormData({ name: "", sku: "", category: "Standard Tier", msrp: "", floor_price: "", uplift: "0", status: "Active" });
+          setFormData({ name: "", sku: "", category: "Standard Tier", msrp: "", floor_price: "", uplift: "0", status: "Active", promoStart: "", promoEnd: "", segStandard: "", segEnterprise: "", segGCC: "", segDistributor: "" });
           setShowModal(true);
         }}
         className="fixed bottom-8 right-8 w-14 h-14 bg-primary text-on-primary rounded-full shadow-lg flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-50"
@@ -321,12 +322,48 @@ export default function PriceBook() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold mb-1">MSRP ($)</label>
+                  <label className="block text-sm font-semibold mb-1">Max Price (MSRP) ($)</label>
                   <input type="number" className="w-full bg-surface-container border border-outline-variant rounded p-2 text-sm" value={formData.msrp} onChange={e => setFormData({...formData, msrp: e.target.value})} />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold mb-1">Floor Price ($)</label>
+                  <label className="block text-sm font-semibold mb-1">Min Price (Floor) ($)</label>
                   <input type="number" className="w-full bg-surface-container border border-outline-variant rounded p-2 text-sm" value={formData.floor_price} onChange={e => setFormData({...formData, floor_price: e.target.value})} />
+                </div>
+              </div>
+              
+              <div className="border-t border-outline-variant pt-4">
+                <h4 className="text-sm font-bold mb-3 text-primary uppercase tracking-wider">Segment Pricing</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold mb-1">Standard</label>
+                    <input type="number" className="w-full bg-surface-container border border-outline-variant rounded p-1.5 text-sm" value={formData.segStandard || formData.msrp} onChange={e => setFormData({...formData, segStandard: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold mb-1">Enterprise</label>
+                    <input type="number" className="w-full bg-surface-container border border-outline-variant rounded p-1.5 text-sm" value={formData.segEnterprise} onChange={e => setFormData({...formData, segEnterprise: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold mb-1">GCC Regional</label>
+                    <input type="number" className="w-full bg-surface-container border border-outline-variant rounded p-1.5 text-sm" value={formData.segGCC} onChange={e => setFormData({...formData, segGCC: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold mb-1">Distributor</label>
+                    <input type="number" className="w-full bg-surface-container border border-outline-variant rounded p-1.5 text-sm" value={formData.segDistributor} onChange={e => setFormData({...formData, segDistributor: e.target.value})} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t border-outline-variant pt-4">
+                <h4 className="text-sm font-bold mb-3 text-secondary uppercase tracking-wider">Promotional Dates</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold mb-1">Promo Start</label>
+                    <input type="date" className="w-full bg-surface-container border border-outline-variant rounded p-1.5 text-sm" value={formData.promoStart} onChange={e => setFormData({...formData, promoStart: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold mb-1">Promo End</label>
+                    <input type="date" className="w-full bg-surface-container border border-outline-variant rounded p-1.5 text-sm" value={formData.promoEnd} onChange={e => setFormData({...formData, promoEnd: e.target.value})} />
+                  </div>
                 </div>
               </div>
               <div className="pt-4 flex justify-end gap-3">
@@ -335,6 +372,32 @@ export default function PriceBook() {
                   {saveMutation.isPending ? "Saving..." : "Save"}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Upload Modal */}
+      {showUploadModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-surface p-8 rounded-xl w-[500px] max-w-full shadow-2xl relative">
+            <button onClick={() => setShowUploadModal(false)} className="absolute top-4 right-4 text-on-surface-variant hover:text-on-surface transition-colors">
+              <span className="font-bold">X</span>
+            </button>
+            <h3 className="text-xl font-bold mb-2">Bulk Update Price Book</h3>
+            <p className="text-sm text-on-surface-variant mb-6">Upload an Excel (.xlsx) or CSV file with the updated pricing. Ensure the format matches the master template.</p>
+            
+            <div className="border-2 border-dashed border-outline-variant rounded-xl p-10 flex flex-col items-center justify-center bg-surface-container-lowest hover:bg-surface-container transition-colors cursor-pointer mb-6">
+              <Upload className="w-10 h-10 text-primary mb-3" />
+              <p className="font-bold text-on-surface">Click to upload or drag and drop</p>
+              <p className="text-xs text-on-surface-variant mt-1">.XLSX, .CSV (Max 10MB)</p>
+            </div>
+            
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setShowUploadModal(false)} className="px-4 py-2 text-sm font-bold">Cancel</button>
+              <button onClick={() => { alert("Simulated Excel upload"); setShowUploadModal(false); }} className="px-4 py-2 bg-primary text-white rounded text-sm font-bold">
+                Process File
+              </button>
             </div>
           </div>
         </div>

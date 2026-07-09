@@ -1,14 +1,17 @@
 import { useAuth } from "../context/AuthContext";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { 
   Filter, ClipboardList, AlertTriangle, Landmark, 
-  Gavel, FileEdit, Check, X, Info, History
+  Gavel, FileEdit, Check, X, Info, History, Settings
 } from "lucide-react";
 import { formatCurrency, formatCurrencyCompact } from "../utils/currency";
 
 export default function ApprovalQueue() {
   const { token } = useAuth();
   const queryClient = useQueryClient();
+  const [showTiersModal, setShowTiersModal] = useState(false);
+  const [auditQuoteId, setAuditQuoteId] = useState<string | null>(null);
 
   const { data: approvals, isLoading } = useQuery({
     queryKey: ["approvals"],
@@ -108,16 +111,21 @@ export default function ApprovalQueue() {
                         </div>
                       </td>
                       <td className="p-4 text-right">
-                        {item.status === 'Pending' && (
-                          <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button onClick={() => updateMutation.mutate({ id: item.id, status: 'Rejected' })} className="p-1 text-error hover:bg-error-container rounded-lg" title="Reject">
-                              <X className="w-5 h-5" />
-                            </button>
-                            <button onClick={() => updateMutation.mutate({ id: item.id, status: 'Approved' })} className="p-1 text-on-primary bg-primary rounded-lg shadow-sm hover:scale-105 active:scale-95" title="Approve">
-                              <Check className="w-5 h-5" />
-                            </button>
-                          </div>
-                        )}
+                        <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => setAuditQuoteId(item.id)} className="p-1 text-on-surface-variant hover:text-primary hover:bg-surface-container rounded-lg" title="Audit Trail">
+                            <History className="w-5 h-5" />
+                          </button>
+                          {item.status === 'Pending' && (
+                            <>
+                              <button onClick={() => updateMutation.mutate({ id: item.id, status: 'Rejected' })} className="p-1 text-error hover:bg-error-container rounded-lg" title="Reject">
+                                <X className="w-5 h-5" />
+                              </button>
+                              <button onClick={() => updateMutation.mutate({ id: item.id, status: 'Approved' })} className="p-1 text-on-primary bg-primary rounded-lg shadow-sm hover:scale-105 active:scale-95" title="Approve">
+                                <Check className="w-5 h-5" />
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </td>
                     </tr>
                     );
@@ -134,8 +142,10 @@ export default function ApprovalQueue() {
           {/* Approval Tiers Card */}
           <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 shadow-sm">
             <h3 className="text-[12px] font-bold tracking-wider uppercase text-primary border-b border-outline-variant pb-2 mb-4 flex items-center justify-between">
-              Approval Tiers
-              <Info className="w-4 h-4" />
+              <span className="flex items-center gap-1">Approval Tiers <Info className="w-4 h-4" /></span>
+              <button onClick={() => setShowTiersModal(true)} className="text-outline hover:text-primary transition-colors" title="Configure Tiers">
+                <Settings className="w-4 h-4" />
+              </button>
             </h3>
             <div className="space-y-4">
               <div className="flex gap-4">
@@ -221,6 +231,109 @@ export default function ApprovalQueue() {
 
         </aside>
       </div>
+
+      {/* Configure Tiers Modal */}
+      {showTiersModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-surface p-6 rounded-xl w-[600px] max-w-full shadow-2xl relative">
+            <button onClick={() => setShowTiersModal(false)} className="absolute top-4 right-4 text-on-surface-variant hover:text-on-surface transition-colors">
+              <X className="w-5 h-5" />
+            </button>
+            <h3 className="text-xl font-bold mb-4">Configure Approval Tiers</h3>
+            <p className="text-sm text-on-surface-variant mb-6">Define logic for auto-approvals and required manual sign-offs.</p>
+            
+            <div className="space-y-4">
+              <div className="border border-outline-variant rounded p-4 bg-surface-container-lowest">
+                <h4 className="font-bold text-sm mb-2 flex justify-between">Tier 1: Direct Manager <span className="text-primary text-[10px] uppercase font-bold px-2 bg-primary-container rounded">Active</span></h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold mb-1">Max Discount %</label>
+                    <input type="number" defaultValue="5" className="w-full border rounded p-1 text-sm bg-surface" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold mb-1">Max Quote Value ($)</label>
+                    <input type="number" defaultValue="50000" className="w-full border rounded p-1 text-sm bg-surface" />
+                  </div>
+                </div>
+              </div>
+              <div className="border border-outline-variant rounded p-4 bg-surface-container-lowest">
+                <h4 className="font-bold text-sm mb-2 flex justify-between">Tier 2: Regional Director</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold mb-1">Max Discount %</label>
+                    <input type="number" defaultValue="15" className="w-full border rounded p-1 text-sm bg-surface" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold mb-1">Max Quote Value ($)</label>
+                    <input type="number" defaultValue="100000" className="w-full border rounded p-1 text-sm bg-surface" />
+                  </div>
+                </div>
+              </div>
+              <div className="border border-outline-variant rounded p-4 bg-surface-container-lowest">
+                <h4 className="font-bold text-sm mb-2 flex justify-between">Tier 3: Chief Revenue Officer</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold mb-1">Max Discount %</label>
+                    <input type="number" defaultValue="30" className="w-full border rounded p-1 text-sm bg-surface" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold mb-1">Max Quote Value ($)</label>
+                    <input type="number" defaultValue="1000000" className="w-full border rounded p-1 text-sm bg-surface" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button onClick={() => setShowTiersModal(false)} className="px-4 py-2 text-sm font-bold">Cancel</button>
+              <button onClick={() => setShowTiersModal(false)} className="px-4 py-2 bg-primary text-white rounded text-sm font-bold hover:bg-primary/90">Save Configuration</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Audit Trail Modal */}
+      {auditQuoteId && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-surface p-6 rounded-xl w-[500px] max-w-full shadow-2xl relative">
+            <button onClick={() => setAuditQuoteId(null)} className="absolute top-4 right-4 text-on-surface-variant hover:text-on-surface transition-colors">
+              <X className="w-5 h-5" />
+            </button>
+            <h3 className="text-xl font-bold mb-2">Quote Audit Trail</h3>
+            <p className="text-sm text-on-surface-variant mb-6">Approval history for {approvals?.find((a:any) => a.id === auditQuoteId)?.target?.deal?.lead?.company || 'this quote'}</p>
+            
+            <div className="space-y-4">
+              <div className="flex gap-4 items-start relative pl-6 before:content-[''] before:absolute before:left-2 before:top-2 before:bottom-0 before:w-[2px] before:bg-outline-variant">
+                <div className="absolute left-[3px] top-1 w-2.5 h-2.5 rounded-full bg-primary ring-4 ring-surface"></div>
+                <div>
+                  <p className="text-sm font-bold text-on-surface">Submitted for Tier 2 Approval</p>
+                  <p className="text-xs text-on-surface-variant">By System • Just now</p>
+                  <p className="text-xs mt-1">Discount exceeded Tier 1 limits.</p>
+                </div>
+              </div>
+              <div className="flex gap-4 items-start relative pl-6 before:content-[''] before:absolute before:left-2 before:top-2 before:bottom-0 before:w-[2px] before:bg-outline-variant">
+                <div className="absolute left-[3px] top-1 w-2.5 h-2.5 rounded-full bg-outline ring-4 ring-surface"></div>
+                <div>
+                  <p className="text-sm font-bold text-on-surface">Tier 1 Auto-Approved</p>
+                  <p className="text-xs text-on-surface-variant">By System • 1m ago</p>
+                </div>
+              </div>
+              <div className="flex gap-4 items-start relative pl-6">
+                <div className="absolute left-[3px] top-1 w-2.5 h-2.5 rounded-full bg-outline ring-4 ring-surface"></div>
+                <div>
+                  <p className="text-sm font-bold text-on-surface">Quote Draft Submitted</p>
+                  <p className="text-xs text-on-surface-variant">By Requestor • 2m ago</p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="mt-6 flex justify-end">
+              <button onClick={() => setAuditQuoteId(null)} className="px-4 py-2 bg-primary text-white rounded text-sm font-bold hover:bg-primary/90">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

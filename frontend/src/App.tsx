@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Layout } from "./components/Layout";
 
 // Page Imports
+import MyToday from "./pages/MyToday";
 import ManagementDashboard from "./pages/ManagementDashboard";
 import KpiDashboard from "./pages/KpiDashboard";
 import LeadInbox from "./pages/LeadInbox";
@@ -41,6 +42,7 @@ function App() {
             <Route element={<ProtectedRoute />}>
               <Route element={<Layout />}>
                 <Route path="/" element={<ManagementDashboard />} />
+                <Route path="/today" element={<MyToday />} />
                 <Route path="/kpi" element={<KpiDashboard />} />
                 <Route path="/leads" element={<LeadInbox />} />
                 <Route path="/leads/:id" element={<LeadDetail />} />

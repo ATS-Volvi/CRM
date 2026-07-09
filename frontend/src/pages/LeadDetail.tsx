@@ -18,7 +18,10 @@ export default function LeadDetail() {
 
   const [filterType, setFilterType] = useState<string>("All");
   const [newNote, setNewNote] = useState("");
-  const [noteType, setNoteType] = useState<"note" | "call" | "email">("note");
+  const [noteType, setNoteType] = useState<"note" | "call" | "email" | "task">("note");
+  const [dueDate, setDueDate] = useState("");
+  const [priority, setPriority] = useState("Medium");
+  const [assignTo, setAssignTo] = useState("");
 
   // We fetch a mock lead detail from our API
   const { data: lead, isLoading } = useQuery({
@@ -86,7 +89,10 @@ export default function LeadDetail() {
     addActivityMutation.mutate({
       type: noteType,
       outcome: newNote,
-      mentioned_user_ids
+      mentioned_user_ids,
+      dueDate: noteType === 'task' ? dueDate : undefined,
+      priority: noteType === 'task' ? priority : undefined,
+      assignTo: noteType === 'task' ? assignTo : undefined
     });
   };
 
@@ -95,6 +101,7 @@ export default function LeadDetail() {
     if (filterType === "Communications" && ["call", "email", "whatsapp_sms", "meeting"].includes(act.type)) return true;
     if (filterType === "Documents" && act.type === "quote_created") return true; // Just mapping logically
     if (filterType === "Notes" && act.type === "note") return true;
+    if (filterType === "Tasks" && act.type === "task") return true;
     return false;
   });
 
@@ -131,6 +138,18 @@ export default function LeadDetail() {
           >
             <Mail className="w-5 h-5" />
             <span className="text-sm">Send Email</span>
+          </button>
+          <button 
+            onClick={() => {
+              setNoteType("task");
+              setNewNote("");
+              const textarea = document.querySelector('textarea');
+              if (textarea) textarea.focus();
+            }}
+            className={`flex items-center gap-2 px-4 py-2 border font-bold rounded-lg transition-all ${noteType === 'task' ? 'bg-secondary-container text-secondary border-secondary' : 'border-outline text-on-surface hover:bg-surface-container-low'}`}
+          >
+            <CheckSquare className="w-5 h-5" />
+            <span className="text-sm">Create Task</span>
           </button>
           <button 
             onClick={() => window.location.href = "/quotes/new"}
@@ -266,6 +285,10 @@ export default function LeadDetail() {
                   onClick={() => setFilterType("Notes")}
                   className={`text-[12px] font-semibold tracking-wider uppercase px-3 py-1.5 rounded-full ${filterType === "Notes" ? 'bg-surface-container-high text-primary' : 'text-on-surface-variant hover:bg-surface-container'}`}
                 >Notes</button>
+                <button 
+                  onClick={() => setFilterType("Tasks")}
+                  className={`text-[12px] font-semibold tracking-wider uppercase px-3 py-1.5 rounded-full ${filterType === "Tasks" ? 'bg-surface-container-high text-primary' : 'text-on-surface-variant hover:bg-surface-container'}`}
+                >Tasks</button>
               </div>
             </div>
 
@@ -277,18 +300,43 @@ export default function LeadDetail() {
               <div className="flex-1 bg-surface-container-low rounded-lg border border-outline-variant p-2 flex flex-col">
                 <textarea 
                   className="w-full bg-transparent border-none outline-none resize-none text-sm p-2"
-                  placeholder={noteType === 'call' ? "Summarize the call..." : noteType === 'email' ? "Paste email contents..." : "Leave a note or type @ to mention someone..."}
+                  placeholder={noteType === 'call' ? "Summarize the call..." : noteType === 'email' ? "Paste email contents..." : noteType === 'task' ? "Task description..." : "Leave a note or type @ to mention someone..."}
                   value={newNote}
                   onChange={(e) => setNewNote(e.target.value)}
                   rows={2}
                 />
+                {noteType === 'task' && (
+                  <div className="grid grid-cols-3 gap-2 p-2 border-t border-outline-variant mt-2">
+                    <div>
+                      <label className="block text-[10px] font-bold text-on-surface-variant uppercase mb-1">Due Date</label>
+                      <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="w-full bg-surface-container border border-outline-variant rounded p-1 text-sm outline-none focus:border-primary" />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-on-surface-variant uppercase mb-1">Priority</label>
+                      <select value={priority} onChange={(e) => setPriority(e.target.value)} className="w-full bg-surface-container border border-outline-variant rounded p-1 text-sm outline-none focus:border-primary">
+                        <option>Low</option>
+                        <option>Medium</option>
+                        <option>High</option>
+                        <option>Urgent</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-on-surface-variant uppercase mb-1">Assign To</label>
+                      <select value={assignTo} onChange={(e) => setAssignTo(e.target.value)} className="w-full bg-surface-container border border-outline-variant rounded p-1 text-sm outline-none focus:border-primary">
+                        <option value="">Self</option>
+                        <option value="u1">Ahmed K.</option>
+                        <option value="u2">Sarah L.</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
                 <div className="flex justify-end pt-2">
                   <button 
                     onClick={handleAddNote}
-                    disabled={addActivityMutation.isPending || !newNote.trim()}
+                    disabled={addActivityMutation.isPending || !newNote.trim() || (noteType === 'task' && !dueDate)}
                     className="px-4 py-1.5 bg-primary text-white rounded text-sm font-bold hover:bg-primary/90 disabled:opacity-50"
                   >
-                    {noteType === 'call' ? "Log Call" : noteType === 'email' ? "Log Email" : "Post Note"}
+                    {noteType === 'call' ? "Log Call" : noteType === 'email' ? "Log Email" : noteType === 'task' ? "Create Task" : "Post Note"}
                   </button>
                 </div>
               </div>
@@ -313,13 +361,16 @@ export default function LeadDetail() {
                 </div>
               )}
 
-              {filteredActivities.map((act: any) => (
+              {filteredActivities.map((act: any) => {
+                const isOverdue = act.type === 'task' && act.dueDate && new Date(act.dueDate) < new Date() && !act.completed;
+                return (
                 <div key={act.id} className="relative pl-12 group">
                   <div className={`absolute left-0 top-0 w-10 h-10 rounded-full border-4 border-surface flex items-center justify-center z-10 ${
                     act.type === 'call' ? 'bg-error-container text-error' :
                     act.type === 'email' ? 'bg-tertiary-container text-tertiary' :
                     act.type === 'meeting' ? 'bg-secondary-container text-secondary' :
                     act.type === 'stage_change' ? 'bg-primary-container text-primary' :
+                    act.type === 'task' ? 'bg-secondary-container text-secondary' :
                     'bg-surface-container-high text-on-surface'
                   }`}>
                     {act.type === 'call' && <Phone className="w-5 h-5" />}
@@ -331,11 +382,15 @@ export default function LeadDetail() {
                     {act.type === 'whatsapp_sms' && <MessageSquare className="w-5 h-5" />}
                   </div>
                   
-                  <div className={`p-4 rounded-lg border transition-all ${act.pinned ? 'bg-secondary-container/10 border-secondary' : 'bg-surface-container border-outline-variant/50 group-hover:border-outline-variant'}`}>
+                  <div className={`p-4 rounded-lg border transition-all ${act.pinned ? 'bg-secondary-container/10 border-secondary' : isOverdue ? 'bg-error-container/10 border-error' : 'bg-surface-container border-outline-variant/50 group-hover:border-outline-variant'}`}>
                     <div className="flex justify-between items-start mb-2">
                       <p className="text-sm font-bold flex items-center gap-2">
+                        {act.type === 'task' && (
+                          <input type="checkbox" defaultChecked={act.completed} className="mr-1 w-4 h-4 cursor-pointer accent-primary" />
+                        )}
                         {act.type.replace('_', ' ').toUpperCase()} 
                         {act.pinned && <Pin className="w-4 h-4 text-secondary fill-secondary" />}
+                        {isOverdue && <span className="ml-2 text-[10px] bg-error text-white px-1.5 py-0.5 rounded font-bold">OVERDUE</span>}
                       </p>
                       <div className="flex items-center gap-3">
                         <span className="text-[12px] font-semibold tracking-wider uppercase text-on-surface-variant">
@@ -351,6 +406,7 @@ export default function LeadDetail() {
                     </div>
                     {act.outcome && <p className="text-sm text-on-surface whitespace-pre-wrap">{act.outcome}</p>}
                     {act.duration && <p className="text-[12px] text-on-surface-variant mt-2 font-medium">Duration: {act.duration} mins</p>}
+                    {act.type === 'task' && act.dueDate && <p className={`text-[12px] mt-2 font-medium ${isOverdue ? 'text-error' : 'text-on-surface-variant'}`}>Due: {new Date(act.dueDate).toLocaleDateString()}</p>}
                     
                     {act.mentioned_user_ids && act.mentioned_user_ids !== "[]" && (
                       <div className="mt-3 flex items-center gap-2">
@@ -361,7 +417,8 @@ export default function LeadDetail() {
                     )}
                   </div>
                 </div>
-              ))}
+              );
+            })}
 
             </div>
           </div>

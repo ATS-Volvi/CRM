@@ -1,7 +1,7 @@
 import { useAuth } from "../context/AuthContext";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState } from "react";
-import { Search, PlusCircle, Trash2, Lightbulb, ZoomIn, Printer, Maximize, BarChart2, Clock, MessageSquare, History } from "lucide-react";
+import { Search, PlusCircle, Trash2, Lightbulb, ZoomIn, Printer, Maximize, BarChart2, Clock, MessageSquare, History, Download } from "lucide-react";
 import { formatCurrency, formatCurrencyCompact } from "../utils/currency";
 
 export default function QuotationBuilder() {
@@ -126,9 +126,10 @@ export default function QuotationBuilder() {
                     </div>
                   </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex items-center gap-2">
                   <button onClick={() => saveMutation.mutate("Draft")} disabled={saveMutation.isPending || !selectedDealId} className="px-3 py-1.5 border border-outline text-sm font-semibold rounded hover:bg-surface-container transition-colors disabled:opacity-50">Save as Draft</button>
                   <button onClick={() => saveMutation.mutate("Pending")} disabled={saveMutation.isPending || !selectedDealId} className="px-3 py-1.5 bg-primary text-white text-sm font-semibold rounded hover:bg-primary/90 transition-colors disabled:opacity-50">Send for Approval</button>
+                  <button disabled={saveMutation.isPending || !selectedDealId || quote?.status === "Pending"} className="px-3 py-1.5 bg-secondary text-white text-sm font-semibold rounded hover:bg-secondary/90 transition-colors disabled:opacity-50 disabled:bg-surface-container disabled:text-on-surface-variant">Send to Client</button>
                 </div>
               </>
             )}
@@ -136,9 +137,17 @@ export default function QuotationBuilder() {
 
           {/* Line Items Table */}
           <div className="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden shadow-sm">
-            <div className="p-4 border-b border-outline-variant flex justify-between items-center">
-              <span className="text-[12px] font-bold text-on-surface-variant uppercase tracking-wider">Line Items</span>
-              <button onClick={addItem} className="text-primary font-semibold text-sm flex items-center gap-1">
+            <div className="p-4 border-b border-outline-variant flex justify-between items-center bg-surface-bright">
+              <div className="flex items-center gap-4">
+                <span className="text-[12px] font-bold text-on-surface-variant uppercase tracking-wider">Line Items</span>
+                <select className="bg-surface border border-outline-variant rounded p-1 text-sm outline-none focus:border-primary">
+                  <option value="">-- Quick Bundle Select --</option>
+                  <option value="b1">Starter Pack (SaaS + Setup)</option>
+                  <option value="b2">Pro Bundle (SaaS + Training)</option>
+                  <option value="b3">Enterprise (Full Suite)</option>
+                </select>
+              </div>
+              <button onClick={addItem} className="text-primary font-semibold text-sm flex items-center gap-1 hover:opacity-80">
                 <PlusCircle className="w-4 h-4" /> Add Product
               </button>
             </div>
@@ -176,7 +185,19 @@ export default function QuotationBuilder() {
                           </select>
                         </td>
                         <td className="px-4 py-4"><input className="w-full text-center border-outline-variant rounded py-1 text-base focus:ring-primary focus:border-primary" type="number" min="1" value={item.quantity} onChange={(e) => updateItem(i, 'quantity', parseInt(e.target.value) || 0)} /></td>
-                        <td className="px-4 py-4 text-sm font-medium"><input className="w-full text-center border-outline-variant rounded py-1 text-base focus:ring-primary focus:border-primary" type="number" value={item.unitPrice} onChange={(e) => updateItem(i, 'unitPrice', parseFloat(e.target.value) || 0)} /></td>
+                        <td className="px-4 py-4 text-sm font-medium relative group">
+                          <input 
+                            className={`w-full text-center border rounded py-1 text-base focus:ring-1 focus:ring-primary focus:border-primary transition-colors ${
+                              item.productId && item.unitPrice < (products?.find((p: any) => p.id === item.productId)?.floor_price || 0) 
+                              ? 'border-error bg-error-container/10 text-error' 
+                              : 'border-outline-variant'
+                            }`} 
+                            title={`Suggested Range: ${formatCurrencyCompact((products?.find((p: any) => p.id === item.productId)?.floor_price || 0))} - ${formatCurrencyCompact((products?.find((p: any) => p.id === item.productId)?.msrp || 0))}`}
+                            type="number" 
+                            value={item.unitPrice} 
+                            onChange={(e) => updateItem(i, 'unitPrice', parseFloat(e.target.value) || 0)} 
+                          />
+                        </td>
                         <td className="px-4 py-4"><input className="w-full border-outline-variant rounded py-1 text-base focus:ring-primary focus:border-primary" type="number" value={item.discount || 0} onChange={(e) => updateItem(i, 'discount', parseFloat(e.target.value) || 0)} /></td>
                         <td className="px-4 py-4 text-sm">0%</td>
                         <td className="px-4 py-4 text-right font-semibold text-sm">{formatCurrency(item.total)}</td>
@@ -192,7 +213,7 @@ export default function QuotationBuilder() {
                         <div className="flex flex-col gap-3 p-4 bg-primary-container/10 border border-primary-container rounded-lg">
                           <div className="flex items-center gap-2">
                             <Lightbulb className="w-5 h-5 text-primary" />
-                            <span className="font-bold text-primary">AI Price Recommendations</span> 
+                            <span className="font-bold text-primary">Suggested Items</span> 
                           </div>
                           <div className="space-y-3">
                             {recommendations.map((rec: any, idx: number) => (
@@ -227,9 +248,11 @@ export default function QuotationBuilder() {
           {/* PDF Preview Pane */}
           <div className="bg-surface-container border border-outline-variant rounded-xl p-8 relative min-h-[400px] flex flex-col items-center">
             <div className="absolute top-4 right-4 flex gap-2 z-10">
-              <button className="bg-white/80 backdrop-blur p-2 rounded shadow-sm hover:bg-white"><ZoomIn className="w-5 h-5" /></button>
-              <button className="bg-white/80 backdrop-blur p-2 rounded shadow-sm hover:bg-white"><Printer className="w-5 h-5" /></button>
-              <button className="bg-white/80 backdrop-blur p-2 rounded shadow-sm hover:bg-white"><Maximize className="w-5 h-5" /></button>
+              <button className="bg-white/80 backdrop-blur p-2 rounded shadow-sm hover:bg-white text-on-surface-variant"><ZoomIn className="w-5 h-5" /></button>
+              <button className="flex items-center gap-2 bg-white/80 backdrop-blur px-3 py-1.5 rounded shadow-sm hover:bg-white text-on-surface font-bold text-sm">
+                <Download className="w-4 h-4" /> PDF
+              </button>
+              <button className="bg-white/80 backdrop-blur p-2 rounded shadow-sm hover:bg-white text-on-surface-variant"><Maximize className="w-5 h-5" /></button>
             </div>
             
             <div className="bg-white w-[595px] h-[842px] shadow-xl p-8 scale-[0.6] origin-top border border-outline-variant pointer-events-none mt-8">
@@ -279,7 +302,7 @@ export default function QuotationBuilder() {
             <div className="space-y-6">
               <div>
                 <div className="flex justify-between text-[12px] font-bold mb-2">
-                  <span>Similar Quote Range</span>
+                  <span>Similar Scope Matches</span>
                   <span>{formatCurrencyCompact(12000)} - {formatCurrencyCompact(24000)}</span>
                 </div>
                 <div className="relative h-6 bg-surface-container rounded-full flex items-center px-1">
@@ -305,10 +328,11 @@ export default function QuotationBuilder() {
             </div>
           </div>
 
-          {/* Historic Quotes Card */}
+          {/* Same-Client Quotes Card */}
           <div className="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm">
-            <div className="p-4 border-b border-outline-variant">
-              <h3 className="text-lg font-semibold">Historic Quotes</h3>
+            <div className="p-4 border-b border-outline-variant flex justify-between items-center">
+              <h3 className="text-lg font-semibold">Same-Client Quotes</h3>
+              <span className="text-[10px] bg-secondary-container text-secondary px-2 py-0.5 rounded uppercase font-bold">2 Found</span>
             </div>
             <div className="divide-y divide-outline-variant">
               <div className="p-4 hover:bg-surface-container-low transition-colors cursor-pointer group">
