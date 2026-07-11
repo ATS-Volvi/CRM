@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { 
   Mail, Facebook, Instagram, Linkedin, Globe, X, 
-  Download, MoreVertical, ExternalLink 
+  Download, MoreVertical, ExternalLink, Phone 
 } from "lucide-react";
 
 export default function LeadInbox() {
@@ -224,9 +224,12 @@ export default function LeadInbox() {
               <span className="text-[12px] font-semibold tracking-wider text-on-surface-variant">Source:</span>
               <select className="bg-surface border border-outline-variant rounded px-3 py-1.5 text-sm focus:ring-primary focus:outline-none">
                 <option>All Sources</option>
-                <option>Email</option>
-                <option>Social Media</option>
-                <option>Direct API</option>
+                <option value="email">Email</option>
+                <option value="instagram">Instagram</option>
+                <option value="cold_call">Cold Call</option>
+                <option value="website">Website</option>
+                <option value="facebook">Facebook</option>
+                <option value="linkedin">LinkedIn</option>
               </select>
             </div>
             <div className="flex items-center gap-2">
@@ -276,7 +279,9 @@ export default function LeadInbox() {
                       {lead.source === 'email' && <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center text-primary" title="Email"><Mail className="w-5 h-5" /></div>}
                       {lead.source === 'facebook' && <div className="w-8 h-8 rounded bg-[#1877F2]/10 flex items-center justify-center text-[#1877F2]" title="Facebook"><Facebook className="w-5 h-5" /></div>}
                       {lead.source === 'linkedin' && <div className="w-8 h-8 rounded bg-[#0A66C2]/10 flex items-center justify-center text-[#0A66C2]" title="LinkedIn"><Linkedin className="w-5 h-5" /></div>}
-                      {(!['email', 'facebook', 'linkedin'].includes(lead.source)) && <div className="w-8 h-8 rounded bg-surface-variant flex items-center justify-center text-on-surface-variant" title={lead.source}><Globe className="w-5 h-5" /></div>}
+                      {lead.source === 'instagram' && <div className="w-8 h-8 rounded bg-[#E1306C]/10 flex items-center justify-center text-[#E1306C]" title="Instagram"><Instagram className="w-5 h-5" /></div>}
+                      {lead.source === 'cold_call' && <div className="w-8 h-8 rounded bg-secondary/10 flex items-center justify-center text-secondary" title="Cold Call"><Phone className="w-5 h-5" /></div>}
+                      {(!['email', 'facebook', 'linkedin', 'instagram', 'cold_call'].includes(lead.source)) && <div className="w-8 h-8 rounded bg-surface-variant flex items-center justify-center text-on-surface-variant" title={lead.source}><Globe className="w-5 h-5" /></div>}
                     </td>
                     <td className="px-6 py-4">
                       <Link to={`/leads/${lead.id}`} className="hover:underline">
@@ -370,9 +375,11 @@ export default function LeadInbox() {
                 <label className="block text-sm font-semibold mb-1">Source</label>
                 <select className="w-full border rounded p-2 text-sm" value={newLead.source} onChange={e => setNewLead({...newLead, source: e.target.value})}>
                   <option value="email">Email</option>
+                  <option value="instagram">Instagram</option>
+                  <option value="cold_call">Cold Call</option>
+                  <option value="website">Website</option>
                   <option value="facebook">Facebook</option>
                   <option value="linkedin">LinkedIn</option>
-                  <option value="website">Website</option>
                 </select>
               </div>
               <div className="flex gap-2 justify-end pt-4">

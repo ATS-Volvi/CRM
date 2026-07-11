@@ -66,58 +66,92 @@ export default function AssignmentRules() {
               const ruleDesc = rule.description || `Priority: ${rule.priority || 'Standard'}`;
               const ruleCondition = rule.criteria || rule.condition || 'All Leads';
               const ruleAction = (rule.assignTo ? `Assign to ${rule.assignTo.name}` : rule.action) || 'No action';
-              const ruleType = rule.type || 'round-robin';
+              const ruleType = (rule.ruleType || rule.type || 'round-robin').toLowerCase();
+
+              const renderCriteria = (criteriaStr: string) => {
+                if (!criteriaStr) return <span className="text-sm font-medium text-on-surface-variant">All Leads</span>;
+                try {
+                  const parsed = JSON.parse(criteriaStr);
+                  if (Array.isArray(parsed)) {
+                    return parsed.map((c: any, idx: number) => {
+                      const fieldName = c.field 
+                        ? c.field.replace(/([A-Z])/g, ' $1').replace(/^./, (str: string) => str.toUpperCase()) 
+                        : "";
+                      let op = c.operator || "=";
+                      if (op === "equals") op = "=";
+                      if (op === "greaterThan") op = ">";
+                      if (op === "lessThan") op = "<";
+                      
+                      return (
+                        <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-primary-container text-on-primary-container border border-primary/20">
+                          <span className="opacity-80">{fieldName}</span>
+                          <span className="text-primary font-extrabold">{op}</span>
+                          <span className="font-extrabold">"{c.value}"</span>
+                        </span>
+                      );
+                    });
+                  }
+                } catch (e) {
+                  // Fallback if not JSON
+                }
+                return <span className="text-sm font-medium text-on-surface">{criteriaStr}</span>;
+              };
 
               return (
               <div key={rule.id} className={`bg-surface-container-lowest border ${!isActive ? 'border-outline-variant/50 opacity-60 bg-surface' : 'border-outline-variant'} rounded-xl p-4 flex items-center gap-4 group hover:shadow-md transition-shadow`}>
-                <div className={`cursor-move ${!isActive ? 'opacity-20' : 'opacity-40 group-hover:opacity-100'} text-outline`}>
+                <div className={`cursor-move ${!isActive ? 'opacity-20' : 'opacity-40 group-hover:opacity-100'} text-outline flex-shrink-0`}>
                   <GripVertical className="w-6 h-6" />
                 </div>
                 
                 {/* Icon mapping based on rule type */}
-                <div className={`w-10 h-10 rounded flex items-center justify-center 
+                <div className={`w-10 h-10 rounded flex-shrink-0 flex items-center justify-center 
                   ${ruleType === 'product' ? 'bg-primary-container/20 text-primary' : 
                     ruleType === 'geo' ? 'bg-tertiary-container/20 text-tertiary' : 
                     ruleType === 'round-robin' ? 'bg-secondary/10 text-secondary' : 
+                    ruleType === 'criteria' ? 'bg-primary/10 text-primary' :
                     'bg-outline-variant/20 text-outline'}`}>
                   {ruleType === 'product' && <Package className="w-6 h-6" />}
                   {ruleType === 'geo' && <Globe className="w-6 h-6" />}
                   {ruleType === 'round-robin' && <RefreshCw className="w-6 h-6" />}
                   {ruleType === 'skill' && <Award className="w-6 h-6" />}
+                  {ruleType === 'criteria' && <Sliders className="w-6 h-6" />}
                 </div>
 
-                <div className="flex-1 grid grid-cols-12 items-center gap-4">
-                  <div className="col-span-4">
-                    <h4 className="text-base font-bold text-on-surface">{ruleName}</h4>
-                    <p className="text-sm text-on-surface-variant">{ruleDesc}</p>
+                <div className="flex-1 grid grid-cols-12 items-center gap-4 min-w-0">
+                  <div className="col-span-4 min-w-0">
+                    <h4 className="text-base font-bold text-on-surface truncate">{ruleName}</h4>
+                    <p className="text-sm text-on-surface-variant truncate">{ruleDesc}</p>
                   </div>
-                  <div className="col-span-4 flex items-center gap-2">
-                    <div className="px-2 py-1 bg-surface-container-low text-on-surface-variant text-[11px] font-bold rounded uppercase border border-outline-variant/30">IF</div>
+                  <div className="col-span-4 flex items-center gap-2 flex-wrap min-w-0">
+                    <div className="px-2 py-0.5 bg-surface-container-low text-on-surface-variant text-[11px] font-bold rounded uppercase border border-outline-variant/30 flex-shrink-0">IF</div>
                     {isActive ? (
-                      <span className="text-sm font-medium">{ruleCondition}</span>
+                      <div className="flex flex-wrap gap-1.5 items-center min-w-0">
+                        {renderCriteria(ruleCondition)}
+                      </div>
                     ) : (
-                      <span className="text-sm font-medium italic">Disabled</span>
+                      <span className="text-sm font-medium italic text-on-surface-variant">Disabled</span>
                     )}
                   </div>
-                  <div className="col-span-4 flex items-center gap-2">
-                    <ArrowRight className="w-5 h-5 text-outline" />
+                  <div className="col-span-4 flex items-center gap-2 min-w-0">
+                    <ArrowRight className="w-5 h-5 text-outline flex-shrink-0" />
                     {isActive ? (
-                      <div className={`flex items-center gap-1 px-3 py-1 rounded-full text-sm font-bold border
+                      <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-bold border truncate
                         ${ruleType === 'product' ? 'bg-secondary/10 text-secondary border-secondary/20' :
                           ruleType === 'geo' ? 'bg-secondary/10 text-secondary border-secondary/20' :
                           'bg-primary/10 text-primary border-primary/20'}`}>
-                        {ruleType === 'product' && <Users className="w-4 h-4" />}
-                        {ruleType === 'geo' && <Map className="w-4 h-4" />}
-                        {ruleType === 'round-robin' && <Repeat className="w-4 h-4" />}
-                        {ruleAction}
+                        {ruleType === 'product' && <Users className="w-4 h-4 flex-shrink-0" />}
+                        {ruleType === 'geo' && <Map className="w-4 h-4 flex-shrink-0" />}
+                        {ruleType === 'round-robin' && <Repeat className="w-4 h-4 flex-shrink-0" />}
+                        {ruleType === 'criteria' && <Users className="w-4 h-4 flex-shrink-0" />}
+                        <span className="truncate">{ruleAction}</span>
                       </div>
                     ) : (
-                      <span className="text-sm text-outline">No action assigned</span>
+                      <span className="text-sm text-outline truncate">No action assigned</span>
                     )}
                   </div>
                 </div>
 
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-4 flex-shrink-0">
                   <label className="relative inline-flex items-center cursor-pointer">
                     <input type="checkbox" className="sr-only toggle-switch" defaultChecked={isActive} />
                     <div className={`w-11 h-6 rounded-full transition-colors relative ${isActive ? 'bg-primary' : 'bg-outline-variant'}`}>
