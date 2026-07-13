@@ -1,11 +1,45 @@
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Calendar, Send, CheckCircle2, Video, MapPin, AlertCircle, TrendingUp, ArrowUpRight, ArrowDownRight, Clock, X, Plus } from "lucide-react";
 import { formatCurrencyCompact } from "../utils/currency";
 
 export default function KpiDashboard() {
   const { token } = useAuth();
+  const queryClient = useQueryClient();
+  const [targetQuota, setTargetQuota] = useState(100000);
+
+  // Fetch KPI target on mount
+  useQuery({
+    queryKey: ["kpi-target"],
+    queryFn: async () => {
+      const res = await fetch("/api/v1/dashboard/kpi-target", {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setTargetQuota(data.targetValue || 100000);
+        return data;
+      }
+      return { kpiName: "revenue", targetValue: 100000 };
+    }
+  });
+
+  const handleUpdateTargetQuota = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = Number(e.target.value);
+    setTargetQuota(val);
+    
+    await fetch("/api/v1/dashboard/kpi-target", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+      body: JSON.stringify({ targetValue: val })
+    });
+    
+    queryClient.invalidateQueries({ queryKey: ["dashboard-kpi"] });
+  };
   
   const { data: dashboardData, isLoading } = useQuery({
     queryKey: ["dashboard-kpi"],
@@ -277,9 +311,20 @@ export default function KpiDashboard() {
             <h2 className="text-2xl font-semibold text-on-surface">My Performance</h2>
             <p className="text-sm text-on-surface-variant mt-1">Real-time KPI tracking vs. target quotas</p>
           </div>
-          <div className="flex bg-surface-container-low p-1 rounded-lg">
-            <button className="px-4 py-1.5 bg-white rounded shadow-sm text-[10px] font-bold text-primary uppercase">MTD</button>
-            <button className="px-4 py-1.5 rounded text-[10px] font-bold text-on-surface-variant uppercase">Q3</button>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 bg-surface-container-low px-3 py-1.5 rounded-lg border border-outline-variant">
+              <span className="text-[11px] font-semibold text-on-surface-variant">Target Quota (SAR):</span>
+              <input
+                type="number"
+                value={targetQuota}
+                onChange={handleUpdateTargetQuota}
+                className="w-24 bg-transparent text-xs font-bold text-primary border-none outline-none focus:ring-0 p-0 text-right"
+              />
+            </div>
+            <div className="flex bg-surface-container-low p-1 rounded-lg">
+              <button className="px-4 py-1.5 bg-white rounded shadow-sm text-[10px] font-bold text-primary uppercase">MTD</button>
+              <button className="px-4 py-1.5 rounded text-[10px] font-bold text-on-surface-variant uppercase">Q3</button>
+            </div>
           </div>
         </div>
         <div className="overflow-x-auto">

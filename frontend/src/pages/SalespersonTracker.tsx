@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { formatDistanceToNow } from "date-fns";
+import { apiClient } from "../lib/apiClient";
 import {
   User, Phone, Mail, Award, Compass, DollarSign, Briefcase, FileSpreadsheet, Search,
   FileText, Clock, Pin, MessageSquare, TrendingUp, Users, CheckSquare, History,
@@ -80,11 +81,12 @@ export default function SalespersonTracker() {
     password: "",
     role: "sales_rep",
     maxOpenLeads: 20,
-    isAvailable: true
+    isAvailable: true,
+    managerId: ""
   });
 
   const resetForm = () => {
-    setForm({ name: "", email: "", password: "", role: "sales_rep", maxOpenLeads: 20, isAvailable: true });
+    setForm({ name: "", email: "", password: "", role: "sales_rep", maxOpenLeads: 20, isAvailable: true, managerId: "" });
     setFormError("");
   };
 
@@ -97,10 +99,7 @@ export default function SalespersonTracker() {
 
   const fetchSalespersons = async () => {
     try {
-      const token = localStorage.getItem("nexus_token") || "";
-      const res = await fetch("/api/v1/salespersons/performance", {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await apiClient("/api/v1/salespersons/performance");
       const data = await res.json();
       if (Array.isArray(data)) {
         setSalespersons(data);
@@ -121,14 +120,12 @@ export default function SalespersonTracker() {
     setSubmitting(true);
     setFormError("");
     try {
-      const token = localStorage.getItem("nexus_token") || "";
-      const res = await fetch("/api/v1/salespersons", {
+      const res = await apiClient("/api/v1/salespersons", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify(form)
+        body: JSON.stringify({
+          ...form,
+          managerId: form.managerId || null
+        })
       });
       const data = await res.json();
       if (!res.ok) {
@@ -271,6 +268,23 @@ export default function SalespersonTracker() {
                   <option value="sales_manager">Sales Manager</option>
                   <option value="director">Director</option>
                   <option value="admin">Admin</option>
+                </select>
+              </div>
+
+              {/* Manager selection dropdown */}
+              <div className="space-y-1.5">
+                <label className="text-body-sm font-semibold text-on-surface">Manager (Optional)</label>
+                <select
+                  value={form.managerId}
+                  onChange={e => setForm(f => ({ ...f, managerId: e.target.value || "" }))}
+                  className="w-full px-3 py-2 bg-surface border border-outline-variant rounded-lg text-body-sm text-on-surface focus:outline-none focus:border-primary transition-all"
+                >
+                  <option value="">No Manager</option>
+                  {salespersons
+                    .filter(rep => ["sales_manager", "admin", "director"].includes(rep.role))
+                    .map(rep => (
+                      <option key={rep.id} value={rep.id}>{rep.name} ({rep.role})</option>
+                    ))}
                 </select>
               </div>
 

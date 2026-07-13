@@ -1,12 +1,14 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
+import { useState } from "react";
 import { formatDistanceToNow } from "date-fns";
 import {
   ArrowLeft, User, Phone, Mail, Award, Compass, DollarSign, Briefcase, FileSpreadsheet,
   FileText, Clock, Pin, MessageSquare, TrendingUp, Users, CheckSquare, History,
-  Instagram, Globe, Facebook
+  Instagram, Globe, Facebook, CheckCircle2, XCircle, AlertCircle, Sparkles, Filter
 } from "lucide-react";
+import { apiClient } from "../lib/apiClient";
 
 interface Quote {
   id: string;
@@ -38,6 +40,16 @@ interface ActivityEntry {
   priority: string | null;
 }
 
+interface LeadHistoryEntry {
+  id: string;
+  name: string;
+  company: string;
+  dealValue: number;
+  closeDate: string;
+  source: string;
+  type: "won" | "lost";
+}
+
 interface Salesperson {
   id: string;
   name: string;
@@ -64,19 +76,39 @@ interface Salesperson {
   dealTypes: { stage: string; count: number }[];
   quotes: Quote[];
   activities: ActivityEntry[];
+  wonLeads: LeadHistoryEntry[];
+  lostLeads: LeadHistoryEntry[];
+  successRate: number;
+  sourceBreakdown: Record<string, { total: number; won: number; winRate: number }>;
+  bestFitSuggestion: {
+    source: string | null;
+    winRate: number | null;
+    reason?: string;
+  } | null;
+}
+
+function getSourceIcon(source: string) {
+  const src = source.toLowerCase().trim();
+  if (src === "email") return Mail;
+  if (src === "instagram" || src === "ig") return Instagram;
+  if (src === "cold_call" || src === "cold call" || src === "coldcall") return Phone;
+  if (src === "website" || src === "web") return Globe;
+  if (src === "facebook" || src === "fb") return Facebook;
+  return Compass;
 }
 
 export default function SalespersonDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { token } = useAuth();
+  
+  // Local state for active segment filter
+  const [filterSegment, setFilterSegment] = useState<string | null>(null);
 
   const { data: rep, isLoading, error } = useQuery<Salesperson>({
     queryKey: ["salespersonPerformance", id],
     queryFn: async () => {
-      const res = await fetch(`/api/v1/salespersons/${id}/performance`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await apiClient(`/api/v1/salespersons/${id}/performance`);
       if (!res.ok) throw new Error("Failed to load representative profile");
       return res.json();
     },
@@ -108,9 +140,38 @@ export default function SalespersonDetail() {
     );
   }
 
+  // Combine won and lost leads for unified client-side filtering
+  const allHistoryLeads: LeadHistoryEntry[] = [
+    ...(rep.wonLeads || []).map(l => ({ ...l, type: "won" as const })),
+    ...(rep.lostLeads || []).map(l => ({ ...l, type: "lost" as const }))
+  ].sort((a, b) => new Date(b.closeDate).getTime() - new Date(a.closeDate).getTime());
+
+  // Filter based on selected KPI card
+  const filteredHistory = allHistoryLeads.filter(lead => {
+    if (!filterSegment) return true;
+    if (filterSegment === "won") return lead.type === "won";
+    if (filterSegment === "lost") return lead.type === "lost";
+    
+    // Otherwise filter by lead source
+    return lead.source.toLowerCase().trim() === filterSegment.toLowerCase().trim();
+  });
+
+  const leadSourceCounts = rep.leadSources.reduce((acc, curr) => {
+    acc[curr.source] = curr.count;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const channels = [
+    { label: "Email", key: "email", icon: Mail, color: "text-primary bg-primary/10" },
+    { label: "Instagram", key: "instagram", icon: Instagram, color: "text-[#E1306C] bg-[#E1306C]/10" },
+    { label: "Cold Call", key: "cold_call", icon: Phone, color: "text-secondary bg-secondary/10" },
+    { label: "Website", key: "website", icon: Globe, color: "text-primary bg-primary/10" },
+    { label: "Facebook", key: "facebook", icon: Facebook, color: "text-[#1877F2] bg-[#1877F2]/10" },
+  ];
+
   return (
     <div className="p-8 max-w-[1440px] mx-auto space-y-8 animate-fade-in text-on-surface">
-      {/* breadcrumbs & back button */}
+      {/* Breadcrumbs & Back Button */}
       <div className="flex items-center gap-4">
         <button
           onClick={() => navigate("/salespersons")}
@@ -164,48 +225,193 @@ export default function SalespersonDetail() {
           </div>
         </div>
 
-        {/* Lead Source KPI Cards Row */}
-        {(() => {
-          const leadSourceCounts = rep.leadSources.reduce((acc, curr) => {
-            acc[curr.source] = curr.count;
-            return acc;
-          }, {} as Record<string, number>);
+        {/* TOP CLICKABLE KPI CARDS ROW */}
+        <div>
+          <h3 className="text-title-xs font-bold text-on-surface mb-4">Click metrics to filter lead and deal history</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+            
+            {/* Total Leads KPI */}
+            <button
+              onClick={() => setFilterSegment(null)}
+              className={`p-4 rounded-xl border text-left shadow-sm flex flex-col justify-between h-28 hover:shadow-md transition-all ${
+                filterSegment === null ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-outline-variant bg-surface"
+              }`}
+            >
+              <div className="flex items-center justify-between w-full">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Total Leads</span>
+                <div className="p-1.5 rounded-lg bg-surface-container">
+                  <Users className="w-4 h-4 text-on-surface-variant" />
+                </div>
+              </div>
+              <div className="text-2xl font-extrabold text-on-surface mt-2">{rep.totalLeads}</div>
+            </button>
 
-          const channels = [
-            { label: "Email", key: "email", icon: Mail, color: "text-primary bg-primary/10" },
-            { label: "Instagram", key: "instagram", icon: Instagram, color: "text-[#E1306C] bg-[#E1306C]/10" },
-            { label: "Cold Call", key: "cold_call", icon: Phone, color: "text-secondary bg-secondary/10" },
-            { label: "Website", key: "website", icon: Globe, color: "text-primary bg-primary/10" },
-            { label: "Facebook", key: "facebook", icon: Facebook, color: "text-[#1877F2] bg-[#1877F2]/10" },
-          ];
+            {/* Won Leads KPI */}
+            <button
+              onClick={() => setFilterSegment("won")}
+              className={`p-4 rounded-xl border text-left shadow-sm flex flex-col justify-between h-28 hover:shadow-md transition-all ${
+                filterSegment === "won" ? "border-green-500 bg-green-500/5 ring-1 ring-green-500" : "border-outline-variant bg-surface"
+              }`}
+            >
+              <div className="flex items-center justify-between w-full">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-green-600">Won Leads</span>
+                <div className="p-1.5 rounded-lg bg-green-500/10">
+                  <CheckCircle2 className="w-4 h-4 text-green-600" />
+                </div>
+              </div>
+              <div className="text-2xl font-extrabold text-green-600 mt-2">{(rep.wonLeads || []).length}</div>
+            </button>
 
-          const hasOther = typeof leadSourceCounts["other"] === "number" && leadSourceCounts["other"] > 0;
-          const kpis = hasOther 
-            ? [...channels, { label: "Other", key: "other", icon: Compass, color: "text-on-surface-variant bg-surface-variant" }]
-            : channels;
+            {/* Lost Leads KPI */}
+            <button
+              onClick={() => setFilterSegment("lost")}
+              className={`p-4 rounded-xl border text-left shadow-sm flex flex-col justify-between h-28 hover:shadow-md transition-all ${
+                filterSegment === "lost" ? "border-red-500 bg-red-500/5 ring-1 ring-red-500" : "border-outline-variant bg-surface"
+              }`}
+            >
+              <div className="flex items-center justify-between w-full">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-red-600">Lost Leads</span>
+                <div className="p-1.5 rounded-lg bg-red-500/10">
+                  <XCircle className="w-4 h-4 text-red-600" />
+                </div>
+              </div>
+              <div className="text-2xl font-extrabold text-red-600 mt-2">{(rep.lostLeads || []).length}</div>
+            </button>
 
-          const isZero = rep.totalLeads === 0;
-
-          return (
-            <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 ${hasOther ? 'lg:grid-cols-6' : 'lg:grid-cols-5'} gap-4 ${isZero ? "opacity-50" : ""}`}>
-              {kpis.map((ch) => {
-                const Icon = ch.icon;
-                const count = leadSourceCounts[ch.key] || 0;
-                return (
-                  <div key={ch.key} className="bg-surface p-4 rounded-xl border border-outline-variant shadow-sm flex flex-col justify-between h-28 hover:shadow-md transition-shadow">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">{ch.label}</span>
-                      <div className={`p-1.5 rounded-lg ${ch.color}`}>
-                        <Icon className="w-4 h-4" />
-                      </div>
-                    </div>
-                    <div className="text-2xl font-extrabold text-on-surface mt-2">{count}</div>
-                  </div>
-                );
-              })}
+            {/* Success Rate (Not clickable) */}
+            <div className="p-4 rounded-xl border border-outline-variant bg-surface shadow-sm flex flex-col justify-between h-28 select-none">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Success Rate</span>
+                <div className="p-1.5 rounded-lg bg-primary/10">
+                  <TrendingUp className="w-4 h-4 text-primary" />
+                </div>
+              </div>
+              <div className="text-2xl font-extrabold text-on-surface mt-2">{Math.round((rep.successRate || 0) * 100)}%</div>
             </div>
-          );
-        })()}
+
+            {/* Channel Source KPIs */}
+            {channels.map((ch) => {
+              const Icon = ch.icon;
+              const count = leadSourceCounts[ch.key] || 0;
+              const isSelected = filterSegment === ch.key;
+              return (
+                <button
+                  key={ch.key}
+                  onClick={() => setFilterSegment(ch.key)}
+                  className={`p-4 rounded-xl border text-left shadow-sm flex flex-col justify-between h-28 hover:shadow-md transition-all ${
+                    isSelected ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-outline-variant bg-surface"
+                  }`}
+                >
+                  <div className="flex items-center justify-between w-full">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">{ch.label}</span>
+                    <div className={`p-1.5 rounded-lg ${ch.color}`}>
+                      <Icon className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div className="text-2xl font-extrabold text-on-surface mt-2">{count}</div>
+                </button>
+              );
+            })}
+
+          </div>
+        </div>
+
+        {/* BEST FIT CALLOUT BLOCK */}
+        {rep.bestFitSuggestion && (
+          <div className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border border-primary/20 p-6 rounded-xl flex items-start gap-4">
+            <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shrink-0">
+              <Sparkles className="w-6 h-6 text-on-primary" />
+            </div>
+            <div className="space-y-1">
+              <h4 className="font-bold text-body-lg text-primary">Best Fit Lead Source Suggestion</h4>
+              {rep.bestFitSuggestion.source ? (
+                <p className="text-body-sm text-on-surface">
+                  This representative performs exceptionally well with <span className="font-bold uppercase text-primary">{rep.bestFitSuggestion.source}</span> leads, boasting an overall win rate of <span className="font-bold text-primary">{rep.bestFitSuggestion.winRate}%</span>.
+                </p>
+              ) : (
+                <p className="text-body-sm text-on-surface-variant italic">
+                  Recommendation unavailable: {rep.bestFitSuggestion.reason || "insufficient closed deals to recommend"}.
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* LEAD AND DEAL HISTORY SECTION WITH CLIENT-SIDE FILTERING */}
+        <div className="bg-surface p-6 rounded-xl border border-outline-variant space-y-4 shadow-sm">
+          <div className="flex items-center justify-between border-b border-outline-variant pb-3 flex-wrap gap-3">
+            <div className="flex items-center space-x-2">
+              <FileSpreadsheet className="w-5 h-5 text-primary" />
+              <h3 className="font-semibold text-body-lg">Lead & Deal History</h3>
+            </div>
+            
+            {filterSegment && (
+              <div className="flex items-center gap-2">
+                <span className="text-body-xs font-bold bg-primary/10 text-primary px-3 py-1 rounded-full uppercase flex items-center gap-1.5">
+                  <Filter className="w-3 h-3" />
+                  Filter: {filterSegment}
+                </span>
+                <button
+                  onClick={() => setFilterSegment(null)}
+                  className="text-body-xs font-bold text-red-500 hover:underline"
+                >
+                  Clear filter
+                </button>
+              </div>
+            )}
+          </div>
+
+          {filteredHistory.length === 0 ? (
+            <p className="text-body-sm text-on-surface-variant italic py-4">No closed leads/deals found matching this segment.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-body-sm">
+                <thead>
+                  <tr className="border-b border-outline-variant text-on-surface-variant font-medium">
+                    <th className="py-2.5">Lead / Company</th>
+                    <th className="py-2.5">Lead Source</th>
+                    <th className="py-2.5">Deal Status</th>
+                    <th className="py-2.5">Deal Value</th>
+                    <th className="py-2.5">Close Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredHistory.map((item, idx) => {
+                    const SourceIcon = getSourceIcon(item.source);
+                    return (
+                      <tr key={idx} className="border-b border-outline-variant/40 hover:bg-surface-container-high transition-colors">
+                        <td className="py-3">
+                          <div className="font-semibold text-on-surface">{item.name}</div>
+                          <div className="text-body-xs text-on-surface-variant font-medium">{item.company}</div>
+                        </td>
+                        <td className="py-3">
+                          <span className="inline-flex items-center gap-1.5 text-body-xs bg-surface-container px-2.5 py-1 rounded-lg border border-outline-variant/60 font-semibold text-on-surface-variant capitalize">
+                            <SourceIcon className="w-3.5 h-3.5" />
+                            {item.source}
+                          </span>
+                        </td>
+                        <td className="py-3">
+                          <span className={`inline-flex items-center gap-1 text-body-xs font-semibold px-2 py-0.5 rounded-full ${
+                            item.type === "won" ? "bg-green-500/10 text-green-600" : "bg-red-500/10 text-red-600"
+                          }`}>
+                            {item.type === "won" ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+                            {item.type === "won" ? "Won" : "Lost"}
+                          </span>
+                        </td>
+                        <td className="py-3 font-bold">
+                          ${Number(item.dealValue).toLocaleString(undefined, { minimumFractionDigits: 0 })}
+                        </td>
+                        <td className="py-3 text-on-surface-variant">
+                          {new Date(item.closeDate).toLocaleDateString()}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
 
         {/* Subsection grids */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -228,7 +434,7 @@ export default function SalespersonDetail() {
                     <div className="w-full bg-surface-container rounded-full h-2">
                       <div
                         className="bg-primary h-2 rounded-full"
-                        style={{ width: `${(ls.count / rep.totalLeads) * 100}%` }}
+                        style={{ width: `${(ls.count / (rep.totalLeads || 1)) * 100}%` }}
                       ></div>
                     </div>
                   </div>
@@ -256,7 +462,7 @@ export default function SalespersonDetail() {
                     <div className="w-full bg-surface-container rounded-full h-2">
                       <div
                         className="bg-secondary h-2 rounded-full"
-                        style={{ width: `${(dt.count / rep.totalDeals) * 100}%` }}
+                        style={{ width: `${(dt.count / (rep.totalDeals || 1)) * 100}%` }}
                       ></div>
                     </div>
                   </div>

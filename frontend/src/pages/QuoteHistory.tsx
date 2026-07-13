@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { ChevronRight, FileText, Download, CheckCircle, Clock, AlertTriangle, Plus, Search, Filter, Calendar, MoreVertical, TrendingUp, Timer, Bolt } from "lucide-react";
@@ -5,11 +6,25 @@ import { formatCurrency, formatCurrencyCompact } from "../utils/currency";
 
 export default function QuoteHistory() {
   const { token } = useAuth();
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("All Statuses");
+  const [valueBand, setValueBand] = useState("");
+  const [category, setCategory] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
 
-  const { data: quotes, isLoading } = useQuery({
-    queryKey: ["quotes"],
+  const { data: quotes, isLoading, refetch } = useQuery({
+    queryKey: ["quotes", search, status, valueBand, category, startDate, endDate],
     queryFn: async () => {
-      const res = await fetch("/api/v1/quotes", {
+      const params = new URLSearchParams();
+      if (search) params.append("search", search);
+      if (status && status !== "All Statuses") params.append("status", status);
+      if (valueBand) params.append("valueBand", valueBand);
+      if (category) params.append("category", category);
+      if (startDate) params.append("startDate", startDate);
+      if (endDate) params.append("endDate", endDate);
+
+      const res = await fetch(`/api/v1/quotes?${params.toString()}`, {
         headers: { "Authorization": `Bearer ${token}` }
       });
       if (!res.ok) throw new Error("Failed to fetch quotes");
@@ -18,6 +33,7 @@ export default function QuoteHistory() {
   });
 
   const invoiceMutation = useMutation({
+    queryKey: ["invoiceFromQuote"],
     mutationFn: async (quoteId: string) => {
       const res = await fetch("/api/v1/invoices/from-quote", {
         method: "POST",
@@ -27,10 +43,37 @@ export default function QuoteHistory() {
       if (!res.ok) throw new Error(await res.text());
       return res.json();
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       window.location.href = `/invoices`;
     }
-  });
+  } as any);
+
+  const handleExport = async () => {
+    const params = new URLSearchParams();
+    if (search) params.append("search", search);
+    if (status && status !== "All Statuses") params.append("status", status);
+    if (valueBand) params.append("valueBand", valueBand);
+    if (category) params.append("category", category);
+    if (startDate) params.append("startDate", startDate);
+    if (endDate) params.append("endDate", endDate);
+
+    try {
+      const res = await fetch(`/api/v1/exports/quotes?${params.toString()}`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error("Failed to export quotes");
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "quotes_export.csv";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
 
   return (
     <div className="flex-1 overflow-y-auto bg-background h-[calc(100vh-64px)] relative">
@@ -43,10 +86,10 @@ export default function QuoteHistory() {
               <span className="text-[12px] font-semibold tracking-wider text-outline uppercase">Total Quotations</span>
               <div className="text-primary bg-primary-container/10 p-1.5 rounded-lg"><Filter className="w-5 h-5" /></div>
             </div>
-            <div className="text-4xl font-bold text-on-surface">1,284</div>
+            <div className="text-4xl font-bold text-on-surface">{quotes?.length || 0}</div>
             <div className="text-sm font-medium text-primary flex items-center gap-1">
               <TrendingUp className="w-4 h-4" />
-              +12.5% vs last month
+              Active list count
             </div>
           </div>
           
@@ -55,10 +98,12 @@ export default function QuoteHistory() {
               <span className="text-[12px] font-semibold tracking-wider text-outline uppercase">Total Value</span>
               <div className="text-secondary bg-secondary-container/10 p-1.5 rounded-lg"><TrendingUp className="w-5 h-5" /></div>
             </div>
-            <div className="text-4xl font-bold text-on-surface">{formatCurrencyCompact(2400000)}</div>
+            <div className="text-4xl font-bold text-on-surface">
+              {formatCurrencyCompact(quotes?.reduce((acc: number, q: any) => acc + Number(q.totalAmount || 0), 0) || 0)}
+            </div>
             <div className="text-sm font-medium text-secondary flex items-center gap-1">
               <TrendingUp className="w-4 h-4" />
-              +8.2% vs last month
+              Combined value of filtered quotes
             </div>
           </div>
           
@@ -67,22 +112,26 @@ export default function QuoteHistory() {
               <span className="text-[12px] font-semibold tracking-wider text-outline uppercase">Pending Approvals</span>
               <div className="text-tertiary bg-tertiary-container/10 p-1.5 rounded-lg"><Filter className="w-5 h-5" /></div>
             </div>
-            <div className="text-4xl font-bold text-on-surface">24</div>
+            <div className="text-4xl font-bold text-on-surface">
+              {quotes?.filter((q: any) => q.status === "Pending Approval" || q.status === "Pending").length || 0}
+            </div>
             <div className="text-sm font-medium text-tertiary flex items-center gap-1">
               <Timer className="w-4 h-4" />
-              Avg. response: 4.2h
+              Requires action
             </div>
           </div>
           
           <div className="bg-surface-container-lowest p-6 rounded-xl border border-outline-variant shadow-sm flex flex-col gap-2">
             <div className="flex justify-between items-center">
-              <span className="text-[12px] font-semibold tracking-wider text-outline uppercase">Conversion Rate</span>
+              <span className="text-[12px] font-semibold tracking-wider text-outline uppercase">Accepted (Won)</span>
               <div className="text-on-primary-container bg-primary-container p-1.5 rounded-lg"><Filter className="w-5 h-5" /></div>
             </div>
-            <div className="text-4xl font-bold text-on-surface">64%</div>
+            <div className="text-4xl font-bold text-on-surface">
+              {quotes?.filter((q: any) => q.status === "Accepted").length || 0}
+            </div>
             <div className="text-sm font-medium text-primary flex items-center gap-1">
               <TrendingUp className="w-4 h-4" />
-              Target: 70%
+              DocuSigned quotes
             </div>
           </div>
         </div>
@@ -93,31 +142,77 @@ export default function QuoteHistory() {
             <Filter className="w-5 h-5 text-outline" />
             <span className="text-[12px] font-semibold tracking-wider text-on-surface uppercase">Filter By</span>
           </div>
-          <div className="flex gap-2">
-            <select className="bg-surface border border-outline-variant rounded-lg py-1.5 px-3 text-sm focus:ring-1 focus:ring-primary outline-none">
+          
+          <div className="flex flex-wrap gap-2 items-center flex-1">
+            <input 
+              type="text"
+              placeholder="Search Ref / Client..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="bg-surface border border-outline-variant rounded-lg py-1.5 px-3 text-sm focus:ring-1 focus:ring-primary outline-none w-48"
+            />
+            
+            <select 
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              className="bg-surface border border-outline-variant rounded-lg py-1.5 px-3 text-sm focus:ring-1 focus:ring-primary outline-none"
+            >
               <option>All Statuses</option>
               <option>Draft</option>
-              <option>Pending</option>
+              <option>Pending Approval</option>
               <option>Approved</option>
               <option>Rejected</option>
               <option>Expired</option>
+              <option>Accepted</option>
             </select>
-            <select className="bg-surface border border-outline-variant rounded-lg py-1.5 px-3 text-sm focus:ring-1 focus:ring-primary outline-none">
-              <option>All Teams</option>
-              <option>Dubai North</option>
-              <option>Riyadh Central</option>
-              <option>Mumbai Corporate</option>
+            
+            <select 
+              value={valueBand}
+              onChange={(e) => setValueBand(e.target.value)}
+              className="bg-surface border border-outline-variant rounded-lg py-1.5 px-3 text-sm focus:ring-1 focus:ring-primary outline-none"
+            >
+              <option value="">All Value Bands</option>
+              <option value="low">Low (≤ $10k)</option>
+              <option value="medium">Medium ($10k - $50k)</option>
+              <option value="high">High (&gt; $50k)</option>
             </select>
-            <button className="bg-surface border border-outline-variant rounded-lg py-1.5 px-3 text-sm flex items-center gap-2 hover:bg-surface-container-low transition-colors">
-              <Calendar className="w-4 h-4" /> Date Range
-            </button>
+
+            <select 
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="bg-surface border border-outline-variant rounded-lg py-1.5 px-3 text-sm focus:ring-1 focus:ring-primary outline-none"
+            >
+              <option value="">All Categories</option>
+              <option value="Standard Tier">Standard Tier</option>
+              <option value="Enterprise VIP">Enterprise VIP</option>
+              <option value="Premium Modular">Premium Modular</option>
+              <option value="Eco Prefab">Eco Prefab</option>
+            </select>
+
+            <div className="flex items-center gap-1 bg-surface border border-outline-variant rounded-lg px-2 py-1">
+              <span className="text-xs text-outline">From</span>
+              <input 
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="bg-transparent text-sm outline-none"
+              />
+              <span className="text-xs text-outline">To</span>
+              <input 
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="bg-transparent text-sm outline-none"
+              />
+            </div>
           </div>
-          <div className="ml-auto flex items-center gap-4">
-            <button className="text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1 text-sm font-medium">
-              <Download className="w-4 h-4" /> Export
-            </button>
-            <button className="bg-surface border border-outline-variant text-on-surface px-4 py-1.5 rounded-lg text-sm font-semibold hover:bg-surface-container-low transition-all">
-              Apply Filters
+
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={handleExport}
+              className="text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1 text-sm font-medium"
+            >
+              <Download className="w-4 h-4" /> Export CSV
             </button>
             <button 
               onClick={() => window.location.href = '/quotes/new'}
@@ -199,7 +294,39 @@ export default function QuoteHistory() {
                         </div>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
+                        <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              window.open(`/api/v1/quotes/${quote.id}/pdf`, "_blank");
+                            }}
+                            className="px-3 py-1 bg-surface-container border border-outline-variant text-on-surface text-[10px] font-bold uppercase rounded hover:bg-surface-container-high transition-all flex items-center gap-1"
+                          >
+                            <Download className="w-3 h-3" /> PDF
+                          </button>
+                          {quote.status !== 'Accepted' && quote.status !== 'Superseded' && (
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                if (confirm("Simulate client signing this quote via DocuSign?")) {
+                                  const res = await fetch(`/api/v1/public/quotes/${quote.id}/sign`, {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ signedBy: quote.deal?.lead ? `${quote.deal.lead.firstName} ${quote.deal.lead.lastName}` : "Ahmed Al-Farsi" })
+                                  });
+                                  if (res.ok) {
+                                    alert("Quote signed successfully!");
+                                    window.location.reload();
+                                  } else {
+                                    alert("Failed to sign quote");
+                                  }
+                                }
+                              }}
+                              className="px-3 py-1 bg-primary text-on-primary text-[10px] font-bold uppercase rounded hover:opacity-90 transition-all"
+                            >
+                              DocuSign
+                            </button>
+                          )}
                           {quote.status === 'Approved' && (
                             <button 
                               onClick={(e) => { e.stopPropagation(); invoiceMutation.mutate(quote.id); }}
@@ -209,9 +336,6 @@ export default function QuoteHistory() {
                               Generate Invoice
                             </button>
                           )}
-                          <button className="p-1 hover:bg-surface-variant rounded transition-colors text-outline group-hover:text-primary">
-                            <MoreVertical className="w-5 h-5" />
-                          </button>
                         </div>
                       </td>
                     </tr>

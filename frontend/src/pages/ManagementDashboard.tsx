@@ -1,25 +1,36 @@
-import { useAuth } from "../context/AuthContext";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { 
   TrendingUp, TrendingDown, Info, Calendar, Download, 
   ChevronDown, DollarSign, Activity, Star, Zap, Mail, Users, Globe, Share2 
 } from "lucide-react";
 import { formatCurrency, formatCurrencyCompact } from "../utils/currency";
+import { apiClient } from "../lib/apiClient";
 
 export default function ManagementDashboard() {
-  const { token } = useAuth();
+  const queryClient = useQueryClient();
 
-  const { data: kpi, isLoading, error } = useQuery({
+  const { data: kpi, isLoading, error, refetch } = useQuery({
     queryKey: ["managementKpi"],
     queryFn: async () => {
-      const res = await fetch("/api/v1/dashboard/management", {
-        headers: {
-          "Authorization": `Bearer ${token}` 
-        }
-      });
-      if (!res.ok) throw new Error("Failed to fetch KPIs");
+      const res = await apiClient("/api/v1/dashboard/management");
+      if (!res.ok) throw new Error(`Failed to fetch KPIs (${res.status})`);
       return res.json();
-    }
+    },
+    retry: 3,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10000),
+    refetchOnWindowFocus: true,
+  });
+
+  const { data: actReports } = useQuery({
+    queryKey: ["managementActivitiesReports"],
+    queryFn: async () => {
+      const res = await apiClient("/api/v1/dashboard/activities-reports");
+      if (!res.ok) throw new Error(`Failed to fetch activity reports (${res.status})`);
+      return res.json();
+    },
+    retry: 3,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10000),
+    refetchOnWindowFocus: true,
   });
 
   return (
@@ -49,9 +60,27 @@ export default function ManagementDashboard() {
       </div>
 
       {isLoading ? (
-        <div className="flex justify-center py-20 text-on-surface-variant animate-pulse">Loading dashboard data...</div>
+        <div className="flex flex-col items-center justify-center py-20 gap-3">
+          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+          <p className="text-on-surface-variant text-sm font-medium">Loading dashboard data...</p>
+        </div>
       ) : error ? (
-        <div className="text-error bg-error-container p-4 rounded-xl">Error loading KPIs: {(error as Error).message}</div>
+        <div className="flex flex-col items-center justify-center py-20 gap-4">
+          <div className="bg-error-container border border-error/20 rounded-xl p-6 max-w-md w-full text-center">
+            <p className="text-error font-semibold mb-1">Failed to load dashboard</p>
+            <p className="text-on-surface-variant text-sm mb-4">{(error as Error).message}</p>
+            <button
+              onClick={() => {
+                queryClient.invalidateQueries({ queryKey: ["managementKpi"] });
+                queryClient.invalidateQueries({ queryKey: ["managementActivitiesReports"] });
+                refetch();
+              }}
+              className="px-6 py-2 rounded-lg bg-primary text-on-primary text-sm font-semibold hover:bg-primary/90 transition-colors"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
       ) : (
         <>
           {/* Top Stats Bento */}
@@ -207,6 +236,82 @@ export default function ManagementDashboard() {
             </div>
 
           </div>
+
+          {/* Feature 11: Activities Reports */}
+          {actReports && (
+            <div className="mt-8 bg-white/90 backdrop-blur border border-slate-200 p-8 rounded-xl shadow-sm">
+              <h4 className="text-xl font-bold mb-6 text-on-surface">Activity Analytics & Compliance</h4>
+              
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <div className="bg-surface-container-low p-4 rounded-lg">
+                  <p className="text-[12px] font-semibold text-on-surface-variant uppercase">SLA Compliance</p>
+                  <p className="text-2xl font-bold mt-2 text-primary">
+                    {Math.round((actReports.slaCompliance.met / (actReports.slaCompliance.met + actReports.slaCompliance.breached || 1)) * 100)}%
+                  </p>
+                  <p className="text-[11px] text-on-surface-variant mt-1">Met: {actReports.slaCompliance.met} | Breached: {actReports.slaCompliance.breached}</p>
+                </div>
+                <div className="bg-surface-container-low p-4 rounded-lg">
+                  <p className="text-[12px] font-semibold text-on-surface-variant uppercase">Meeting Conversion</p>
+                  <p className="text-2xl font-bold mt-2 text-secondary">{actReports.meetingConversionRate}%</p>
+                  <p className="text-[11px] text-on-surface-variant mt-1">Meetings leading to qualification/deal</p>
+                </div>
+                <div className="bg-surface-container-low p-4 rounded-lg">
+                  <p className="text-[12px] font-semibold text-on-surface-variant uppercase">Leads with No Activity</p>
+                  <p className="text-2xl font-bold mt-2 text-error">{actReports.noActivityLeadsCount}</p>
+                  <p className="text-[11px] text-on-surface-variant mt-1">Requires immediate follow-up</p>
+                </div>
+                <div className="bg-surface-container-low p-4 rounded-lg">
+                  <p className="text-[12px] font-semibold text-on-surface-variant uppercase">Total Logged Activities</p>
+                  <p className="text-2xl font-bold mt-2 text-on-surface">
+                    {Object.values(actReports.activityVolume).reduce((a: any, b: any) => Number(a) + Number(b), 0)}
+                  </p>
+                  <p className="text-[11px] text-on-surface-variant mt-1">Calls, Emails, Meetings, Notes</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div>
+                  <h5 className="text-sm font-bold uppercase tracking-wider text-on-surface-variant mb-4">Volume by Activity Type</h5>
+                  <div className="space-y-3">
+                    {Object.entries(actReports.activityVolume).map(([type, count]: any) => (
+                      <div key={type} className="flex items-center justify-between text-sm">
+                        <span className="capitalize">{type}s</span>
+                        <div className="flex items-center gap-3 w-2/3">
+                          <div className="bg-primary/20 h-2 rounded-full flex-grow">
+                            <div 
+                              className="bg-primary h-2 rounded-full" 
+                              style={{ width: `${Math.min(100, (count / (Object.values(actReports.activityVolume).reduce((a: any, b: any) => Number(a) + Number(b), 0) || 1)) * 100)}%` }}
+                            />
+                          </div>
+                          <span className="font-bold">{count}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <h5 className="text-sm font-bold uppercase tracking-wider text-on-surface-variant mb-4">Call Outcome Distribution</h5>
+                  <div className="space-y-3">
+                    {Object.entries(actReports.callOutcomeDistribution).map(([outcome, count]: any) => (
+                      <div key={outcome} className="flex items-center justify-between text-sm">
+                        <span>{outcome}</span>
+                        <div className="flex items-center gap-3 w-1/2">
+                          <div className="bg-secondary/20 h-2 rounded-full flex-grow">
+                            <div 
+                              className="bg-secondary h-2 rounded-full" 
+                              style={{ width: `${Math.min(100, (count / (Object.values(actReports.callOutcomeDistribution).reduce((a: any, b: any) => Number(a) + Number(b), 0) || 1)) * 100)}%` }}
+                            />
+                          </div>
+                          <span className="font-bold">{count}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>

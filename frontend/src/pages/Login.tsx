@@ -32,7 +32,14 @@ export default function Login() {
       }
 
       login(data.token, data.user);
-      navigate("/");
+      
+      const queryParams = new URLSearchParams(window.location.search);
+      const redirectQuery = queryParams.get("redirect");
+      const redirectSession = sessionStorage.getItem("redirect_to");
+      const targetPath = redirectQuery || redirectSession || "/";
+      
+      sessionStorage.removeItem("redirect_to");
+      navigate(targetPath);
     } catch (err: any) {
       setError(err.message);
     } finally {

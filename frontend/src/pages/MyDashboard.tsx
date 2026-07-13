@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import {
   Users, DollarSign, Inbox, TrendingUp, FileText,
@@ -116,7 +117,24 @@ export default function MyDashboard() {
       if (!res.ok) throw new Error("Failed to fetch dashboard");
       return res.json();
     },
-    enabled: !!token
+    enabled: !!token,
+    retry: 3,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10000),
+    refetchOnWindowFocus: true,
+  });
+
+  const { data: todayData } = useQuery({
+    queryKey: ["todayDashboard"],
+    queryFn: async () => {
+      const res = await fetch("/api/v1/dashboard/today", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error("Failed to fetch today's data");
+      return res.json();
+    },
+    enabled: !!token,
+    retry: 3,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10000),
   });
 
   const handleRangeToggle = (r: "day" | "week") => {
@@ -251,6 +269,49 @@ export default function MyDashboard() {
               <KpiCard key={c.label} {...c} />
             ))}
           </div>
+
+          {/* My Today Widget */}
+          {todayData && (
+            <div className="bg-white/90 backdrop-blur border border-slate-200 p-6 rounded-xl shadow-sm space-y-4">
+              <h3 className="text-lg font-bold text-on-surface flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-primary" />
+                My Today Overview
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="space-y-2 border-r border-outline-variant pr-4">
+                  <h4 className="text-sm font-bold text-on-surface-variant uppercase tracking-wider">Tasks & Alerts</h4>
+                  <div className="space-y-1.5 text-sm">
+                    <div className="flex justify-between">
+                      <span>Tasks Due Today or Overdue:</span>
+                      <span className="font-bold text-primary">{todayData.tasks?.length || 0}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>New Leads Assigned Today:</span>
+                      <span className="font-bold text-secondary">{todayData.newLeadsToday?.length || 0}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2 border-r border-outline-variant pr-4">
+                  <h4 className="text-sm font-bold text-on-surface-variant uppercase tracking-wider">Follow-ups Needed</h4>
+                  <div className="space-y-1.5 text-sm">
+                    <div className="flex justify-between">
+                      <span>Needs Follow-up (&gt;3 days inactive):</span>
+                      <span className="font-bold text-amber-500">{todayData.followUpsNeeded?.length || 0}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <h4 className="text-sm font-bold text-on-surface-variant uppercase tracking-wider">Quick Actions</h4>
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    <Link to="/leads" className="px-3 py-1.5 bg-primary text-white text-xs font-bold rounded hover:opacity-90 transition-all">Add Lead</Link>
+                    <Link to="/quote-builder" className="px-3 py-1.5 bg-secondary text-white text-xs font-bold rounded hover:opacity-90 transition-all">Create Quote</Link>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* ── Body: Client list + Tabbed table + Conversion Widget ─────────── */}
           <div className="grid grid-cols-12 gap-6">

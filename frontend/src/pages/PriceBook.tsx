@@ -31,6 +31,44 @@ export default function PriceBook() {
   const queryClient = useQueryClient();
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState<any>({ name: "", sku: "", category: "Standard Tier", msrp: "", floor_price: "", uplift: "0", status: "Active" });
+  
+  const [showBulkModal, setShowBulkModal] = useState(false);
+  const [bulkText, setBulkText] = useState("");
+  const [bulkPreview, setBulkPreview] = useState<any>(null);
+
+  const previewMutation = useMutation({
+    mutationFn: async (items: any[]) => {
+      const res = await fetch("/api/v1/price-book/import-preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({ items })
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setBulkPreview(data);
+    }
+  } as any);
+
+  const importMutation = useMutation({
+    mutationFn: async (items: any[]) => {
+      const res = await fetch("/api/v1/price-book/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({ items })
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["priceBook"] });
+      setShowBulkModal(false);
+      setBulkText("");
+      setBulkPreview(null);
+      alert("Successfully imported price book entries!");
+    }
+  } as any);
 
   const saveMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -66,6 +104,35 @@ export default function PriceBook() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["priceBook"] })
   });
 
+  const parseBulkData = (text: string) => {
+    const trimmed = text.trim();
+    if (trimmed.startsWith("[")) {
+      try {
+        return JSON.parse(trimmed);
+      } catch (e) {
+        return [];
+      }
+    }
+    const lines = trimmed.split("\n");
+    if (lines.length <= 1) return [];
+    const headers = lines[0].split(",").map(h => h.trim().toLowerCase());
+    return lines.slice(1).map(line => {
+      const values = line.split(",").map(v => v.trim());
+      const item: any = {};
+      headers.forEach((header, idx) => {
+        let val: any = values[idx] || "";
+        if (header === "unitprice" || header === "minprice" || header === "maxprice") {
+          val = isNaN(Number(val)) ? null : Number(val);
+        }
+        if (header === "unitprice") header = "unitPrice";
+        if (header === "minprice") header = "minPrice";
+        if (header === "maxprice") header = "maxPrice";
+        item[header] = val;
+      });
+      return item;
+    });
+  };
+
   return (
     <div className="flex-1 overflow-y-auto bg-surface h-[calc(100vh-64px)] relative">
       <div className="max-w-[1440px] mx-auto p-8 space-y-8">
@@ -77,7 +144,7 @@ export default function PriceBook() {
             <p className="text-base text-on-surface-variant">Manage global product pricing, discounts, and regional adjustments.</p>
           </div>
           <div className="flex gap-4">
-            <button onClick={() => alert("Bulk Update not yet implemented.")} className="flex items-center gap-2 px-4 py-2 border border-secondary text-secondary rounded-lg hover:bg-secondary-container transition-colors">
+            <button onClick={() => setShowBulkModal(true)} className="flex items-center gap-2 px-4 py-2 border border-secondary text-secondary rounded-lg hover:bg-secondary-container transition-colors">
               <Upload className="w-5 h-5" />
               <span className="font-bold">Bulk Update</span>
             </button>
@@ -335,6 +402,92 @@ export default function PriceBook() {
                   {saveMutation.isPending ? "Saving..." : "Save"}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showBulkModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-surface-container-lowest rounded-xl max-w-2xl w-full p-6 border border-outline-variant shadow-xl relative max-h-[90vh] overflow-y-auto">
+            <button onClick={() => { setShowBulkModal(false); setBulkPreview(null); }} className="absolute top-4 right-4 text-on-surface-variant hover:text-on-surface transition-colors font-bold">
+              X
+            </button>
+            <h3 className="text-xl font-bold mb-2">Bulk Import Price Book</h3>
+            <p className="text-sm text-outline mb-4">
+              {"Paste JSON array format: `[{\"sku\": \"SKU-01\", \"name\": \"Prefabs\", \"category\": \"Standard Tier\", \"unitPrice\": 12000}]` or simple CSV (with headers: sku, name, category, unitPrice, minPrice)."}
+            </p>
+            
+            <textarea
+              className="w-full h-40 bg-surface-container border border-outline-variant rounded p-3 text-sm font-mono outline-none mb-4"
+              placeholder="sku,name,category,unitPrice,minPrice&#10;SKU-99,Standard Site Cabin,Standard Tier,15000,12000"
+              value={bulkText}
+              onChange={(e) => setBulkText(e.target.value)}
+            />
+
+            {bulkPreview && (
+              <div className="mb-4 border border-outline-variant rounded-lg overflow-hidden">
+                <div className="bg-surface-container-low p-2 font-bold text-xs border-b border-outline-variant">
+                  Import Preview ({bulkPreview.items?.length || 0} items)
+                </div>
+                <div className="max-h-60 overflow-y-auto divide-y divide-outline-variant">
+                  {bulkPreview.items?.map((item: any, idx: number) => (
+                    <div key={idx} className="p-3 text-xs flex flex-col gap-1 hover:bg-surface-container-low">
+                      <div className="flex justify-between items-center">
+                        <span className="font-bold text-on-surface">{item.name || "Unnamed"} ({item.sku || "No SKU"})</span>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${item.action === "Update" ? "bg-secondary-fixed text-on-secondary-fixed" : "bg-primary/10 text-primary"}`}>
+                          {item.action}
+                        </span>
+                      </div>
+                      <div className="flex gap-4 text-outline mt-1">
+                        <span>Price: ${Number(item.unitPrice || 0).toFixed(2)}</span>
+                        {item.minPrice !== undefined && item.minPrice !== null && <span>Floor: ${Number(item.minPrice).toFixed(2)}</span>}
+                      </div>
+                      {item.errors?.length > 0 && (
+                        <div className="text-error font-semibold mt-1">
+                          ⚠️ {item.errors.join(", ")}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3">
+              <button onClick={() => { setShowBulkModal(false); setBulkPreview(null); }} className="px-4 py-2 text-sm font-bold">
+                Cancel
+              </button>
+              
+              {!bulkPreview ? (
+                <button
+                  onClick={() => {
+                    const parsed = parseBulkData(bulkText);
+                    if (parsed.length === 0) {
+                      alert("Failed to parse input data. Please check formatting.");
+                      return;
+                    }
+                    previewMutation.mutate(parsed);
+                  }}
+                  disabled={previewMutation.isPending}
+                  className="px-4 py-2 bg-secondary text-white rounded text-sm font-bold hover:opacity-90"
+                >
+                  {previewMutation.isPending ? "Generating Preview..." : "Preview Import"}
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    if (!bulkPreview.isValid && !confirm("There are warnings/errors in the preview. Proceed anyway?")) {
+                      return;
+                    }
+                    importMutation.mutate(bulkPreview.items);
+                  }}
+                  disabled={importMutation.isPending}
+                  className="px-4 py-2 bg-primary text-white rounded text-sm font-bold hover:opacity-90"
+                >
+                  {importMutation.isPending ? "Importing..." : "Confirm & Import"}
+                </button>
+              )}
             </div>
           </div>
         </div>

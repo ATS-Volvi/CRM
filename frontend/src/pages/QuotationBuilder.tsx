@@ -37,7 +37,49 @@ export default function QuotationBuilder() {
     }
   });
 
+  const { data: bundles } = useQuery({
+    queryKey: ["bundles"],
+    queryFn: async () => {
+      const res = await fetch("/api/v1/bundle-templates", { headers: { "Authorization": `Bearer ${token}` } });
+      if (!res.ok) return [];
+      return res.json();
+    }
+  });
+
   const [selectedDealId, setSelectedDealId] = useState("");
+  const [focusedIndex, setFocusedIndex] = useState(0);
+
+  const selectedDeal = deals?.find((d: any) => d.id === selectedDealId);
+  const leadId = selectedDeal?.leadId;
+
+  const { data: clientHistory } = useQuery({
+    queryKey: ["clientHistory", leadId],
+    queryFn: async () => {
+      if (!leadId) return [];
+      const res = await fetch(`/api/v1/quotes/history/client/${leadId}`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!leadId
+  });
+
+  const [items, setItems] = useState<any[]>([]);
+  const activeProductId = items[focusedIndex]?.productId;
+
+  const { data: similarStats } = useQuery({
+    queryKey: ["similarStats", activeProductId, leadId],
+    queryFn: async () => {
+      if (!activeProductId) return null;
+      const res = await fetch(`/api/v1/quotes/history/similar/${activeProductId}?leadId=${leadId || ""}`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!activeProductId
+  });
 
   const { data: recommendations, isLoading: loadingRecs } = useQuery({
     queryKey: ["recommendations", selectedDealId],
@@ -51,10 +93,24 @@ export default function QuotationBuilder() {
     },
     enabled: !!selectedDealId
   });
-  const [items, setItems] = useState<any[]>([]);
 
   const addItem = () => {
-    setItems([...items, { productId: "", quantity: 1, unitPrice: 0, total: 0 }]);
+    setItems([...items, { productId: "", quantity: 1, unitPrice: 0, total: 0, isOptional: false }]);
+    setFocusedIndex(items.length);
+  };
+
+  const handleSelectBundle = (bundleId: string) => {
+    if (!bundleId) return;
+    const bundle = bundles?.find((b: any) => b.id === bundleId);
+    if (!bundle) return;
+    const newItems = bundle.items.map((item: any) => ({
+      productId: item.productId,
+      quantity: item.quantity || 1,
+      unitPrice: parseFloat(item.product?.msrp || item.product?.listPrice || item.product?.unitPrice || 0),
+      isOptional: !!item.isOptional,
+      total: (item.quantity || 1) * parseFloat(item.product?.msrp || item.product?.listPrice || item.product?.unitPrice || 0)
+    }));
+    setItems([...items, ...newItems]);
   };
 
   const updateItem = (index: number, field: string, value: any) => {
@@ -111,18 +167,37 @@ export default function QuotationBuilder() {
                 <div className="flex items-center gap-4">
                   <div>
                     <h2 className="text-2xl font-bold text-on-surface">New Quotation</h2>
-                    <div className="flex items-center gap-2 mt-2">
-                      <span className="text-sm font-semibold text-on-surface-variant">Select Deal:</span>
-                      <select 
-                        className="bg-surface border border-outline-variant rounded p-1 text-sm"
-                        value={selectedDealId}
-                        onChange={e => setSelectedDealId(e.target.value)}
-                      >
-                        <option value="">-- Choose Deal --</option>
-                        {deals?.map((d: any) => (
-                          <option key={d.id} value={d.id}>{d.name} ({d.client || 'Unknown Client'})</option>
-                        ))}
-                      </select>
+                    <div className="flex flex-wrap items-center gap-4 mt-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-on-surface-variant">Select Deal:</span>
+                        <select 
+                          className="bg-surface border border-outline-variant rounded p-1 text-sm"
+                          value={selectedDealId}
+                          onChange={e => setSelectedDealId(e.target.value)}
+                        >
+                          <option value="">-- Choose Deal --</option>
+                          {deals?.map((d: any) => (
+                            <option key={d.id} value={d.id}>{d.name} ({d.client || 'Unknown Client'})</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-on-surface-variant">Start from Bundle:</span>
+                        <select 
+                          className="bg-surface border border-outline-variant rounded p-1 text-sm"
+                          defaultValue=""
+                          onChange={e => {
+                            handleSelectBundle(e.target.value);
+                            e.target.value = "";
+                          }}
+                        >
+                          <option value="">-- Choose Bundle --</option>
+                          {bundles?.map((b: any) => (
+                            <option key={b.id} value={b.id}>{b.name}</option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -151,6 +226,7 @@ export default function QuotationBuilder() {
                     <th className="px-4 py-3 text-[12px] font-bold text-on-surface-variant uppercase w-32">Unit Price</th>
                     <th className="px-4 py-3 text-[12px] font-bold text-on-surface-variant uppercase w-24">Disc %</th>
                     <th className="px-4 py-3 text-[12px] font-bold text-on-surface-variant uppercase w-24">Tax</th>
+                    <th className="px-4 py-3 text-[12px] font-bold text-on-surface-variant uppercase w-24 text-center">Optional</th>
                     <th className="px-4 py-3 text-[12px] font-bold text-on-surface-variant uppercase w-32 text-right">Total</th>
                     <th className="px-4 py-3 w-10"></th>
                   </tr>
@@ -158,11 +234,19 @@ export default function QuotationBuilder() {
                 <tbody className="divide-y divide-outline-variant">
                   {items.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-4 py-8 text-center text-on-surface-variant">No items added. Click "Add Product" to begin.</td>
+                      <td colSpan={8} className="px-4 py-8 text-center text-on-surface-variant">No items added. Click "Add Product" to begin.</td>
                     </tr>
                   ) : (
                     items.map((item: any, i: number) => (
-                      <tr key={i} className={i % 2 === 1 ? "bg-surface-container-low/30" : ""}>
+                      <tr 
+                        key={i} 
+                        className={`hover:bg-surface-container-low transition-colors cursor-pointer ${
+                          item.isOptional 
+                            ? "bg-surface-container-lowest/50 border-l-4 border-dashed border-outline-variant" 
+                            : (i === focusedIndex ? "bg-primary-container/20 border-l-4 border-primary" : (i % 2 === 1 ? "bg-surface-container-low/30" : ""))
+                        }`} 
+                        onClick={() => setFocusedIndex(i)}
+                      >
                         <td className="px-4 py-4">
                           <select 
                             className="w-full border border-outline-variant rounded p-1 text-sm bg-transparent"
@@ -179,8 +263,17 @@ export default function QuotationBuilder() {
                         <td className="px-4 py-4 text-sm font-medium"><input className="w-full text-center border-outline-variant rounded py-1 text-base focus:ring-primary focus:border-primary" type="number" value={item.unitPrice} onChange={(e) => updateItem(i, 'unitPrice', parseFloat(e.target.value) || 0)} /></td>
                         <td className="px-4 py-4"><input className="w-full border-outline-variant rounded py-1 text-base focus:ring-primary focus:border-primary" type="number" value={item.discount || 0} onChange={(e) => updateItem(i, 'discount', parseFloat(e.target.value) || 0)} /></td>
                         <td className="px-4 py-4 text-sm">0%</td>
+                        <td className="px-4 py-4 text-center">
+                          <input 
+                            type="checkbox"
+                            checked={!!item.isOptional}
+                            onChange={(e) => updateItem(i, 'isOptional', e.target.checked)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-4 h-4 rounded text-primary focus:ring-primary"
+                          />
+                        </td>
                         <td className="px-4 py-4 text-right font-semibold text-sm">{formatCurrency(item.total)}</td>
-                        <td className="px-4 py-4 text-on-surface-variant hover:text-error cursor-pointer" onClick={() => removeItem(i)}>
+                        <td className="px-4 py-4 text-on-surface-variant hover:text-error cursor-pointer" onClick={(e) => { e.stopPropagation(); removeItem(i); }}>
                           <Trash2 className="w-5 h-5" />
                         </td>
                       </tr>
@@ -218,6 +311,22 @@ export default function QuotationBuilder() {
                         </div>
                       </td>
                     </tr>
+                  )}
+                  {items.length > 0 && (
+                    <>
+                      <tr className="bg-surface-container-low/50">
+                        <td colSpan={6} className="px-4 py-3 text-right font-semibold text-on-surface-variant">Required Subtotal:</td>
+                        <td className="px-4 py-3 text-right font-bold text-on-surface">{formatCurrency(items.filter((item: any) => !item.isOptional).reduce((acc: number, item: any) => acc + (item.total || 0), 0))}</td>
+                        <td></td>
+                      </tr>
+                      {items.some((item: any) => item.isOptional) && (
+                        <tr className="bg-surface-container-low/20">
+                          <td colSpan={6} className="px-4 py-3 text-right font-semibold text-outline">Optional Items Subtotal:</td>
+                          <td className="px-4 py-3 text-right font-bold text-slate-500">{formatCurrency(items.filter((item: any) => item.isOptional).reduce((acc: number, item: any) => acc + (item.total || 0), 0))}</td>
+                          <td></td>
+                        </tr>
+                      )}
+                    </>
                   )}
                 </tbody>
               </table>
@@ -277,30 +386,39 @@ export default function QuotationBuilder() {
               <BarChart2 className="text-primary w-5 h-5" /> Market Benchmarks
             </h3>
             <div className="space-y-6">
-              <div>
-                <div className="flex justify-between text-[12px] font-bold mb-2">
-                  <span>Similar Quote Range</span>
-                  <span>{formatCurrencyCompact(12000)} - {formatCurrencyCompact(24000)}</span>
-                </div>
-                <div className="relative h-6 bg-surface-container rounded-full flex items-center px-1">
-                  <div className="absolute left-1/4 h-3 w-1 bg-outline rounded-full"></div>
-                  <div className="absolute left-1/2 h-3 w-1 bg-outline rounded-full"></div>
-                  <div className="absolute left-3/4 h-3 w-1 bg-outline rounded-full"></div>
-                  <div className="h-4 bg-primary rounded-full" style={{ width: "55%", marginLeft: "15%" }}></div>
-                  <div className="absolute top-[-24px] left-[65%] flex flex-col items-center">
-                    <span className="text-[10px] font-bold text-primary">YOURS</span>
-                    <div className="w-2 h-2 bg-primary rotate-45"></div>
+              {similarStats && similarStats.count > 0 ? (
+                <div>
+                  <div className="flex justify-between text-[12px] font-bold mb-2">
+                    <span>12M Won Quote Range</span>
+                    <span>{formatCurrencyCompact(similarStats.min)} - {formatCurrencyCompact(similarStats.max)}</span>
+                  </div>
+                  <div className="relative h-6 bg-surface-container rounded-full flex items-center px-1">
+                    <div className="absolute left-1/4 h-3 w-1 bg-outline rounded-full"></div>
+                    <div className="absolute left-1/2 h-3 w-1 bg-outline rounded-full"></div>
+                    <div className="absolute left-3/4 h-3 w-1 bg-outline rounded-full"></div>
+                    <div className="h-4 bg-primary rounded-full" style={{ width: "50%", marginLeft: "25%" }}></div>
+                    <div className="absolute top-[-24px] left-[50%] flex flex-col items-center">
+                      <span className="text-[10px] font-bold text-primary">MEDIAN</span>
+                      <div className="w-2 h-2 bg-primary rotate-45"></div>
+                    </div>
+                  </div>
+                  <div className="flex justify-between text-[10px] text-on-surface-variant mt-1">
+                    <span>Min: {formatCurrency(similarStats.min)}</span>
+                    <span>Median: {formatCurrency(similarStats.median)}</span>
+                    <span>Max: {formatCurrency(similarStats.max)}</span>
+                  </div>
+                  <div className="mt-3 text-xs text-outline">
+                    Based on {similarStats.count} similar won deals. Floor limit is enforced at {formatCurrency(similarStats.floorPrice)}.
                   </div>
                 </div>
-                <div className="flex justify-between text-[10px] text-on-surface-variant mt-1">
-                  <span>Min: {formatCurrencyCompact(12400)}</span>
-                  <span>Median: {formatCurrencyCompact(18200)}</span>
-                  <span>Max: {formatCurrencyCompact(23800)}</span>
+              ) : (
+                <div className="text-sm text-outline italic">
+                  Select a product to view 12-month historical pricing benchmarks.
                 </div>
-              </div>
+              )}
               <div className="bg-surface-container-low p-3 rounded-lg border border-primary/20">
                 <div className="text-[12px] font-bold text-primary mb-1 tracking-widest">STRATEGY INSIGHT</div>
-                <p className="text-sm leading-snug">Clients in the <strong>Logistics</strong> sector usually accept quotes 12% higher when <strong>Priority Support</strong> is bundled.</p>
+                <p className="text-sm leading-snug">Clients in similar industries accept pricing closer to the median when bundled with quick deployment options.</p>
               </div>
             </div>
           </div>
@@ -308,27 +426,35 @@ export default function QuotationBuilder() {
           {/* Historic Quotes Card */}
           <div className="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm">
             <div className="p-4 border-b border-outline-variant">
-              <h3 className="text-lg font-semibold">Historic Quotes</h3>
+              <h3 className="text-lg font-semibold">Prior Client History</h3>
             </div>
-            <div className="divide-y divide-outline-variant">
-              <div className="p-4 hover:bg-surface-container-low transition-colors cursor-pointer group">
-                <div className="flex justify-between mb-1">
-                  <span className="text-base font-bold group-hover:text-primary">QT-2022-441</span>
-                  <span className="px-2 py-0.5 bg-green-100 text-green-700 text-[10px] font-bold rounded uppercase">Won</span>
-                </div>
-                <p className="text-sm text-on-surface-variant">Jun 12, 2022 • {formatCurrency(8200)}</p>
-                <p className="text-xs text-on-surface-variant mt-1">SaaS Starter Pack + Training</p>
-              </div>
-              <div className="p-4 hover:bg-surface-container-low transition-colors cursor-pointer group">
-                <div className="flex justify-between mb-1">
-                  <span className="text-base font-bold group-hover:text-primary">QT-2022-912</span>
-                  <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-bold rounded uppercase">Expired</span>
-                </div>
-                <p className="text-sm text-on-surface-variant">Nov 29, 2022 • {formatCurrency(14500)}</p>
-                <p className="text-xs text-on-surface-variant mt-1">Legacy Upgrade Bundle</p>
-              </div>
+            <div className="divide-y divide-outline-variant max-h-80 overflow-y-auto">
+              {!clientHistory || clientHistory.length === 0 ? (
+                <div className="p-4 text-sm text-outline italic">No previous quotations for this client/company.</div>
+              ) : (
+                clientHistory.map((hQuote: any, idx: number) => (
+                  <div key={hQuote.id || idx} className="p-4 hover:bg-surface-container-low transition-colors cursor-pointer group">
+                    <div className="flex justify-between mb-1">
+                      <span className="text-sm font-bold group-hover:text-primary">{hQuote.quoteNumber || hQuote.id.substring(0, 8)}</span>
+                      <span className={`px-2 py-0.5 text-[9px] font-bold rounded uppercase ${
+                        hQuote.status === 'Accepted' ? 'bg-green-100 text-green-700' :
+                        hQuote.status === 'Pending Approval' ? 'bg-amber-100 text-amber-700' :
+                        'bg-gray-100 text-gray-700'
+                      }`}>
+                        {hQuote.status}
+                      </span>
+                    </div>
+                    <p className="text-xs text-on-surface-variant">
+                      {new Date(hQuote.createdAt).toLocaleDateString()} • {formatCurrency(hQuote.totalAmount)}
+                    </p>
+                    <div className="text-[10px] text-outline mt-1 truncate">
+                      Items: {hQuote.QuoteLineItems?.map((li: any) => li.product?.name || "Product").join(", ") || "None"}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
-            <button className="w-full p-3 text-sm font-semibold text-secondary hover:bg-surface-container transition-colors rounded-b-xl">View Full History</button>
+            <button className="w-full p-3 text-sm font-semibold text-secondary hover:bg-surface-container transition-colors rounded-b-xl border-t border-outline-variant">View Full History</button>
           </div>
 
           {/* Quick Tools */}
