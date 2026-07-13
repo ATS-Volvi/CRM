@@ -14,7 +14,7 @@ import { getKpiDashboard, getManagementDashboard, getMyTodayDashboard } from '..
 import { getAssignmentRules, createAssignmentRule, updateAssignmentRule, deleteAssignmentRule } from '../controllers/assignmentRuleController';
 import { getBundleTemplates, createBundleTemplate, deleteBundleTemplate } from '../controllers/bundleController';
 import { exportLeads, exportQuotes, exportPurchaseOrders } from '../controllers/exportController';
-import { getSalespersonsPerformance } from '../controllers/salespersonController';
+import { getSalespersonsPerformance, getSalespersonPerformanceDetails } from '../controllers/salespersonController';
 
 const router = Router();
 
@@ -214,6 +214,7 @@ router.get("/dashboard/kpi", authMiddleware, getKpiDashboard);
 router.get("/dashboard/management", authMiddleware, getManagementDashboard);
 router.get("/dashboard/today", authMiddleware, getMyTodayDashboard);
 router.get("/salespersons/performance", authMiddleware, getSalespersonsPerformance);
+router.get("/salespersons/:id/performance", authMiddleware, getSalespersonPerformanceDetails);
 
 // ==========================================
 // ASSIGNMENT RULES
