@@ -123,3 +123,92 @@ export const getMyTodayDashboard = async (req: Request, res: Response) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+export const getHomeDashboard = async (req: Request, res: Response) => {
+  try {
+    const clientsCount = await sequelize.models.Lead.count({ where: { status: "Qualified" } });
+    
+    // Sum PO amounts
+    const poValue = await sequelize.models.PurchaseOrder.sum("amount") || 0;
+    
+    // Total Leads
+    const leadsCount = await sequelize.models.Lead.count();
+    
+    // Conversion rate: Qualified Leads / Total Leads
+    const qualifiedLeads = await sequelize.models.Lead.count({ where: { status: "Qualified" } });
+    const conversionRate = leadsCount > 0 ? Math.round((qualifiedLeads / leadsCount) * 100) : 0;
+    
+    // Sum Invoices totalAmount
+    const invoicesTotal = await sequelize.models.Invoice.sum("totalAmount") || 0;
+
+    // Clients: Latest 5 qualified leads
+    const dbClients = await sequelize.models.Lead.findAll({
+      where: { status: "Qualified" },
+      limit: 5,
+      order: [["createdAt", "DESC"]]
+    });
+    const clients = dbClients.map((l: any) => ({
+      id: l.id,
+      name: `${l.firstName} ${l.lastName}`,
+      company: l.company || "—",
+      status: l.status,
+      email: l.email
+    }));
+
+    // Leads: Latest 5 leads
+    const dbLeads = await sequelize.models.Lead.findAll({
+      limit: 5,
+      order: [["createdAt", "DESC"]]
+    });
+    const leads = dbLeads.map((l: any) => ({
+      id: l.id,
+      name: `${l.firstName} ${l.lastName}`,
+      company: l.company || "—",
+      amount: 0,
+      status: l.status,
+      source: l.source || "Direct"
+    }));
+
+    // Quotes: Latest 5 quotes with deal info
+    const dbQuotes = await sequelize.models.Quote.findAll({
+      limit: 5,
+      order: [["createdAt", "DESC"]],
+      include: [{ model: sequelize.models.Deal, as: "deal", required: false }]
+    });
+    const quotes = dbQuotes.map((q: any) => ({
+      id: q.id,
+      quoteNumber: q.quoteNumber || "—",
+      dealName: q.deal?.name || "—",
+      amount: Number(q.totalAmount),
+      status: q.status,
+      createdAt: q.createdAt
+    }));
+
+    // Purchase Orders: Latest 5 POs
+    const dbPOs = await sequelize.models.PurchaseOrder.findAll({
+      limit: 5,
+      order: [["createdAt", "DESC"]]
+    });
+    const purchaseOrders = dbPOs.map((p: any) => ({
+      id: p.id,
+      poNumber: p.poNumber,
+      amount: Number(p.amount),
+      status: p.status,
+      createdAt: p.createdAt
+    }));
+
+    res.json({
+      clientsCount,
+      poValue,
+      leadsCount,
+      conversionRate,
+      invoicesTotal,
+      clients,
+      leads,
+      quotes,
+      purchaseOrders
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};

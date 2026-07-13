@@ -13,6 +13,8 @@ export default function LeadInbox() {
   const [showAddLeadModal, setShowAddLeadModal] = useState(false);
   const [showMergeModal, setShowMergeModal] = useState(false);
   const [newLead, setNewLead] = useState({ firstName: "", lastName: "", email: "", company: "", source: "email" });
+  const [sourceFilter, setSourceFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
   
   const [quickLogLeadId, setQuickLogLeadId] = useState<string | null>(null);
   const [quickCallOutcome, setQuickCallOutcome] = useState("Spoke with client");
@@ -120,14 +122,25 @@ export default function LeadInbox() {
     }
   });
 
-  const displayLeads = leads || [];
+  const displayLeads = (leads || []).filter((lead: any) => {
+    const matchesSource = sourceFilter === "all" || lead.source?.toLowerCase() === sourceFilter.toLowerCase();
+    const matchesStatus = statusFilter === "all" || lead.status?.toLowerCase() === statusFilter.toLowerCase();
+    return matchesSource && matchesStatus;
+  });
 
   return (
     <div className="p-8 pb-12 max-w-[1440px] mx-auto min-h-screen">
       {/* Integration Strip */}
       <section className="mb-8 overflow-x-auto">
         <div className="flex gap-4 min-w-max pb-2">
-          <div className="flex items-center gap-3 px-6 py-4 bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm transition-all hover:border-primary">
+          <div 
+            onClick={() => { setSourceFilter(sourceFilter === "email" ? "all" : "email"); setStatusFilter("all"); }}
+            className={`flex items-center gap-3 px-6 py-4 rounded-xl border shadow-sm transition-all cursor-pointer ${
+              sourceFilter === "email" 
+                ? "border-primary bg-primary/5 ring-1 ring-primary" 
+                : "bg-surface-container-lowest border-outline-variant hover:border-primary"
+            }`}
+          >
             <Mail className="text-primary w-8 h-8" />
             <div>
               <p className="text-[12px] font-semibold tracking-wider text-on-surface-variant">Email</p>
@@ -137,7 +150,14 @@ export default function LeadInbox() {
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-3 px-6 py-4 bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm transition-all hover:border-primary">
+          <div 
+            onClick={() => { setSourceFilter(sourceFilter === "facebook" ? "all" : "facebook"); setStatusFilter("all"); }}
+            className={`flex items-center gap-3 px-6 py-4 rounded-xl border shadow-sm transition-all cursor-pointer ${
+              sourceFilter === "facebook" 
+                ? "border-primary bg-primary/5 ring-1 ring-primary" 
+                : "bg-surface-container-lowest border-outline-variant hover:border-primary"
+            }`}
+          >
             <Facebook className="text-[#1877F2] w-8 h-8" />
             <div>
               <p className="text-[12px] font-semibold tracking-wider text-on-surface-variant">Facebook</p>
@@ -147,7 +167,14 @@ export default function LeadInbox() {
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-3 px-6 py-4 bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm transition-all hover:border-primary">
+          <div 
+            onClick={() => { setSourceFilter(sourceFilter === "instagram" ? "all" : "instagram"); setStatusFilter("all"); }}
+            className={`flex items-center gap-3 px-6 py-4 rounded-xl border shadow-sm transition-all cursor-pointer ${
+              sourceFilter === "instagram" 
+                ? "border-primary bg-primary/5 ring-1 ring-primary" 
+                : "bg-surface-container-lowest border-outline-variant hover:border-primary"
+            }`}
+          >
             <Instagram className="text-[#E1306C] w-8 h-8" />
             <div>
               <p className="text-[12px] font-semibold tracking-wider text-on-surface-variant">Instagram</p>
@@ -157,7 +184,14 @@ export default function LeadInbox() {
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-3 px-6 py-4 bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm transition-all hover:border-primary">
+          <div 
+            onClick={() => { setSourceFilter(sourceFilter === "linkedin" ? "all" : "linkedin"); setStatusFilter("all"); }}
+            className={`flex items-center gap-3 px-6 py-4 rounded-xl border shadow-sm transition-all cursor-pointer ${
+              sourceFilter === "linkedin" 
+                ? "border-primary bg-primary/5 ring-1 ring-primary" 
+                : "bg-surface-container-lowest border-outline-variant hover:border-primary"
+            }`}
+          >
             <Linkedin className="text-[#0A66C2] w-8 h-8" />
             <div>
               <p className="text-[12px] font-semibold tracking-wider text-on-surface-variant">LinkedIn</p>
@@ -167,7 +201,14 @@ export default function LeadInbox() {
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-3 px-6 py-4 bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm transition-all hover:border-primary">
+          <div 
+            onClick={() => { setSourceFilter(sourceFilter === "website" ? "all" : "website"); setStatusFilter("all"); }}
+            className={`flex items-center gap-3 px-6 py-4 rounded-xl border shadow-sm transition-all cursor-pointer ${
+              sourceFilter === "website" 
+                ? "border-primary bg-primary/5 ring-1 ring-primary" 
+                : "bg-surface-container-lowest border-outline-variant hover:border-primary"
+            }`}
+          >
             <Globe className="text-primary w-8 h-8" />
             <div>
               <p className="text-[12px] font-semibold tracking-wider text-on-surface-variant">Website</p>
@@ -208,8 +249,12 @@ export default function LeadInbox() {
             </div>
             <div className="flex items-center gap-2">
               <span className="text-[12px] font-semibold tracking-wider text-on-surface-variant">Source:</span>
-              <select className="bg-surface border border-outline-variant rounded px-3 py-1.5 text-sm focus:ring-primary focus:outline-none">
-                <option>All Sources</option>
+              <select 
+                value={sourceFilter}
+                onChange={(e) => setSourceFilter(e.target.value)}
+                className="bg-surface border border-outline-variant rounded px-3 py-1.5 text-sm focus:ring-primary focus:outline-none"
+              >
+                <option value="all">All Sources</option>
                 <option value="email">Email</option>
                 <option value="instagram">Instagram</option>
                 <option value="cold_call">Cold Call</option>
@@ -220,10 +265,15 @@ export default function LeadInbox() {
             </div>
             <div className="flex items-center gap-2">
               <span className="text-[12px] font-semibold tracking-wider text-on-surface-variant">Status:</span>
-              <select className="bg-surface border border-outline-variant rounded px-3 py-1.5 text-sm focus:ring-primary focus:outline-none">
-                <option>New Leads</option>
-                <option>In Progress</option>
-                <option>Qualified</option>
+              <select 
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="bg-surface border border-outline-variant rounded px-3 py-1.5 text-sm focus:ring-primary focus:outline-none"
+              >
+                <option value="all">All Statuses</option>
+                <option value="New Lead">New Leads</option>
+                <option value="In Progress">In Progress</option>
+                <option value="Qualified">Qualified</option>
               </select>
             </div>
             <div className="flex items-center gap-2">

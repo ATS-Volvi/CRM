@@ -10,7 +10,7 @@ import { getQuotes, createQuote, getQuoteRecommendations, sendQuote, getPublicQu
 import { getInvoices, createInvoiceFromQuote, updateInvoiceStatus } from '../controllers/invoiceController';
 import { getPurchaseOrders, createPurchaseOrder, updatePurchaseOrder } from '../controllers/purchaseOrderController';
 import { getApprovals, updateApproval, getApprovalTiers, createApprovalTier, deleteApprovalTier } from '../controllers/approvalController';
-import { getKpiDashboard, getManagementDashboard, getMyTodayDashboard } from '../controllers/dashboardController';
+import { getKpiDashboard, getManagementDashboard, getMyTodayDashboard, getHomeDashboard } from '../controllers/dashboardController';
 import { getAssignmentRules, createAssignmentRule, updateAssignmentRule, deleteAssignmentRule } from '../controllers/assignmentRuleController';
 import { getBundleTemplates, createBundleTemplate, deleteBundleTemplate } from '../controllers/bundleController';
 import { exportLeads, exportQuotes, exportPurchaseOrders } from '../controllers/exportController';
@@ -213,6 +213,7 @@ router.delete("/approval-tiers/:id", authMiddleware, deleteApprovalTier);
 router.get("/dashboard/kpi", authMiddleware, getKpiDashboard);
 router.get("/dashboard/management", authMiddleware, getManagementDashboard);
 router.get("/dashboard/today", authMiddleware, getMyTodayDashboard);
+router.get("/dashboard/home", authMiddleware, getHomeDashboard);
 router.get("/salespersons/performance", authMiddleware, getSalespersonsPerformance);
 router.get("/salespersons/:id/performance", authMiddleware, getSalespersonPerformanceDetails);
 
