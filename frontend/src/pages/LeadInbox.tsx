@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { 
   Mail, Facebook, Instagram, Linkedin, Globe, X, 
-  Download, MoreVertical, ExternalLink 
+  Download, MoreVertical, ExternalLink, Phone 
 } from "lucide-react";
 
 export default function LeadInbox() {
@@ -13,6 +13,27 @@ export default function LeadInbox() {
   const [showAddLeadModal, setShowAddLeadModal] = useState(false);
   const [showMergeModal, setShowMergeModal] = useState(false);
   const [newLead, setNewLead] = useState({ firstName: "", lastName: "", email: "", company: "", source: "email" });
+  
+  const [quickLogLeadId, setQuickLogLeadId] = useState<string | null>(null);
+  const [quickCallOutcome, setQuickCallOutcome] = useState("Spoke with client");
+  const [quickCallNote, setQuickCallNote] = useState("");
+
+  const logCallMutation = useMutation({
+    mutationFn: async ({ leadId, type, outcome }: { leadId: string; type: string; outcome: string }) => {
+      const res = await fetch(`/api/v1/leads/${leadId}/activities`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({ type, outcome, isCompleted: true })
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+      setQuickLogLeadId(null);
+      setQuickCallNote("");
+    }
+  });
 
   const createLeadMutation = useMutation({
     mutationFn: async (lead: any) => {
@@ -99,42 +120,7 @@ export default function LeadInbox() {
     }
   });
 
-  // Fallback to static mock data if DB is empty
-  const displayLeads = leads && leads.length > 0 ? leads : [
-    {
-      id: 1,
-      source: "email",
-      firstName: "Ahmed",
-      lastName: "Al-Farsi",
-      email: "ahmed@emirateslogistics.ae",
-      company: "Emirates Logistics Corp",
-      leadScore: 94,
-      status: "New Lead",
-      waitTime: "2 mins ago"
-    },
-    {
-      id: 2,
-      source: "facebook",
-      firstName: "Sarah",
-      lastName: "Jenkins",
-      email: "Messenger Lead",
-      company: "Jenkins Design Studio",
-      leadScore: 72,
-      status: "In Progress",
-      waitTime: "14 mins ago"
-    },
-    {
-      id: 3,
-      source: "linkedin",
-      firstName: "Michael",
-      lastName: "Chen",
-      email: "VP of Operations",
-      company: "TechFlow Solutions",
-      leadScore: 88,
-      status: "New Lead",
-      waitTime: "1 hour ago"
-    }
-  ];
+  const displayLeads = leads || [];
 
   return (
     <div className="p-8 pb-12 max-w-[1440px] mx-auto min-h-screen">
@@ -224,9 +210,12 @@ export default function LeadInbox() {
               <span className="text-[12px] font-semibold tracking-wider text-on-surface-variant">Source:</span>
               <select className="bg-surface border border-outline-variant rounded px-3 py-1.5 text-sm focus:ring-primary focus:outline-none">
                 <option>All Sources</option>
-                <option>Email</option>
-                <option>Social Media</option>
-                <option>Direct API</option>
+                <option value="email">Email</option>
+                <option value="instagram">Instagram</option>
+                <option value="cold_call">Cold Call</option>
+                <option value="website">Website</option>
+                <option value="facebook">Facebook</option>
+                <option value="linkedin">LinkedIn</option>
               </select>
             </div>
             <div className="flex items-center gap-2">
@@ -276,7 +265,9 @@ export default function LeadInbox() {
                       {lead.source === 'email' && <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center text-primary" title="Email"><Mail className="w-5 h-5" /></div>}
                       {lead.source === 'facebook' && <div className="w-8 h-8 rounded bg-[#1877F2]/10 flex items-center justify-center text-[#1877F2]" title="Facebook"><Facebook className="w-5 h-5" /></div>}
                       {lead.source === 'linkedin' && <div className="w-8 h-8 rounded bg-[#0A66C2]/10 flex items-center justify-center text-[#0A66C2]" title="LinkedIn"><Linkedin className="w-5 h-5" /></div>}
-                      {(!['email', 'facebook', 'linkedin'].includes(lead.source)) && <div className="w-8 h-8 rounded bg-surface-variant flex items-center justify-center text-on-surface-variant" title={lead.source}><Globe className="w-5 h-5" /></div>}
+                      {lead.source === 'instagram' && <div className="w-8 h-8 rounded bg-[#E1306C]/10 flex items-center justify-center text-[#E1306C]" title="Instagram"><Instagram className="w-5 h-5" /></div>}
+                      {lead.source === 'cold_call' && <div className="w-8 h-8 rounded bg-secondary/10 flex items-center justify-center text-secondary" title="Cold Call"><Phone className="w-5 h-5" /></div>}
+                      {(!['email', 'facebook', 'linkedin', 'instagram', 'cold_call'].includes(lead.source)) && <div className="w-8 h-8 rounded bg-surface-variant flex items-center justify-center text-on-surface-variant" title={lead.source}><Globe className="w-5 h-5" /></div>}
                     </td>
                     <td className="px-6 py-4">
                       <Link to={`/leads/${lead.id}`} className="hover:underline">
@@ -310,6 +301,13 @@ export default function LeadInbox() {
                       {lead.status === 'New Lead' || lead.status === 'New' ? (
                         <div className="flex items-center gap-2 justify-end">
                           <button 
+                            onClick={() => setQuickLogLeadId(lead.id)}
+                            className="p-1.5 text-secondary hover:bg-secondary/10 rounded transition-colors"
+                            title="Quick Log Call"
+                          >
+                            <Phone className="w-4 h-4" />
+                          </button>
+                          <button 
                             onClick={() => updateLeadMutation.mutate({ id: lead.id, data: { status: 'Contacted' } })}
                             disabled={updateLeadMutation.isPending}
                             className="px-4 py-1.5 bg-primary text-on-primary rounded text-[12px] font-bold hover:bg-primary-container transition-all"
@@ -325,6 +323,13 @@ export default function LeadInbox() {
                         </div>
                       ) : (
                         <div className="flex items-center gap-2 justify-end">
+                          <button 
+                            onClick={() => setQuickLogLeadId(lead.id)}
+                            className="p-1.5 text-secondary hover:bg-secondary/10 rounded transition-colors"
+                            title="Quick Log Call"
+                          >
+                            <Phone className="w-4 h-4" />
+                          </button>
                           <button className="p-2 text-primary hover:bg-surface-container-high rounded transition-colors"><ExternalLink className="w-5 h-5" /></button>
                           <button 
                             onClick={() => { if(confirm("Are you sure?")) deleteLeadMutation.mutate(lead.id); }}
@@ -370,9 +375,11 @@ export default function LeadInbox() {
                 <label className="block text-sm font-semibold mb-1">Source</label>
                 <select className="w-full border rounded p-2 text-sm" value={newLead.source} onChange={e => setNewLead({...newLead, source: e.target.value})}>
                   <option value="email">Email</option>
+                  <option value="instagram">Instagram</option>
+                  <option value="cold_call">Cold Call</option>
+                  <option value="website">Website</option>
                   <option value="facebook">Facebook</option>
                   <option value="linkedin">LinkedIn</option>
-                  <option value="website">Website</option>
                 </select>
               </div>
               <div className="flex gap-2 justify-end pt-4">
@@ -423,6 +430,53 @@ export default function LeadInbox() {
             )}
             <div className="flex justify-end pt-6 mt-4 border-t border-outline-variant">
               <button onClick={() => setShowMergeModal(false)} className="px-4 py-2 font-bold text-on-surface-variant hover:bg-surface-container rounded transition-colors">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {quickLogLeadId && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-surface rounded-xl p-6 w-full max-w-md shadow-2xl">
+            <h2 className="text-xl font-bold mb-4">Quick Log Call</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-[12px] font-bold text-on-surface-variant uppercase tracking-wider mb-1">Outcome</label>
+                <select 
+                  value={quickCallOutcome}
+                  onChange={(e) => setQuickCallOutcome(e.target.value)}
+                  className="w-full bg-surface border border-outline-variant rounded p-2 text-sm focus:ring-primary focus:outline-none"
+                >
+                  <option value="Spoke with client">Spoke with client</option>
+                  <option value="Left voicemail">Left voicemail</option>
+                  <option value="No response">No response</option>
+                  <option value="Busy">Busy</option>
+                  <option value="Invalid number">Invalid number</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[12px] font-bold text-on-surface-variant uppercase tracking-wider mb-1">Brief Note</label>
+                <textarea 
+                  value={quickCallNote}
+                  onChange={(e) => setQuickCallNote(e.target.value)}
+                  placeholder="e.g. Discussed pricing options, will follow up next Tuesday."
+                  rows={3}
+                  className="w-full bg-surface border border-outline-variant rounded p-2 text-sm focus:ring-primary focus:outline-none"
+                />
+              </div>
+              <div className="flex gap-2 justify-end pt-4">
+                <button onClick={() => setQuickLogLeadId(null)} className="px-4 py-2 font-bold text-on-surface-variant hover:bg-surface-container rounded transition-colors">Cancel</button>
+                <button 
+                  onClick={() => logCallMutation.mutate({ 
+                    leadId: quickLogLeadId, 
+                    type: "call", 
+                    outcome: `${quickCallOutcome}${quickCallNote ? ' - ' + quickCallNote : ''}` 
+                  })}
+                  disabled={logCallMutation.isPending}
+                  className="px-4 py-2 bg-primary text-white font-bold rounded disabled:opacity-50 hover:opacity-90 transition-all"
+                >
+                  Log Call
+                </button>
+              </div>
             </div>
           </div>
         </div>

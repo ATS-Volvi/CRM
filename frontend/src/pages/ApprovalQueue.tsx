@@ -1,14 +1,19 @@
 import { useAuth } from "../context/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { 
   Filter, ClipboardList, AlertTriangle, Landmark, 
-  Gavel, FileEdit, Check, X, Info, History
+  Gavel, FileEdit, Check, X, Info, History, Plus, Trash2
 } from "lucide-react";
 import { formatCurrency, formatCurrencyCompact } from "../utils/currency";
 
 export default function ApprovalQueue() {
   const { token } = useAuth();
   const queryClient = useQueryClient();
+  const [showTierForm, setShowTierForm] = useState(false);
+  const [newTierName, setNewTierName] = useState("");
+  const [newTierThreshold, setNewTierThreshold] = useState("");
+  const [newTierRole, setNewTierRole] = useState("sales_manager");
 
   const { data: approvals, isLoading } = useQuery({
     queryKey: ["approvals"],
@@ -18,6 +23,49 @@ export default function ApprovalQueue() {
       });
       if (!res.ok) throw new Error("Failed to fetch approvals");
       return res.json();
+    }
+  });
+
+  const { data: tiers, refetch: refetchTiers } = useQuery({
+    queryKey: ["approvalTiers"],
+    queryFn: async () => {
+      const res = await fetch("/api/v1/approval-tiers", {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!res.ok) return [];
+      return res.json();
+    }
+  });
+
+  const createTierMutation = useMutation({
+    mutationFn: async (newTier: any) => {
+      const res = await fetch("/api/v1/approval-tiers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify(newTier)
+      });
+      if (!res.ok) throw new Error("Failed to create tier");
+      return res.json();
+    },
+    onSuccess: () => {
+      refetchTiers();
+      setNewTierName("");
+      setNewTierThreshold("");
+      setShowTierForm(false);
+    }
+  });
+
+  const deleteTierMutation = useMutation({
+    mutationFn: async (tierId: string) => {
+      const res = await fetch(`/api/v1/approval-tiers/${tierId}`, {
+        method: "DELETE",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error("Failed to delete tier");
+      return true;
+    },
+    onSuccess: () => {
+      refetchTiers();
     }
   });
 
@@ -44,7 +92,9 @@ export default function ApprovalQueue() {
             <h2 className="text-lg font-semibold flex items-center gap-2">
               <ClipboardList className="w-5 h-5 text-primary" />
               Approval Queue
-              <span className="bg-secondary text-on-secondary text-[12px] px-2 py-0.5 rounded-full">12 Pending</span>
+              <span className="bg-secondary text-on-secondary text-[12px] px-2 py-0.5 rounded-full">
+                {approvals?.filter((item: any) => item.status === 'Pending').length || 0} Pending
+              </span>
             </h2>
             <div className="flex gap-2">
               <button className="flex items-center gap-1 px-3 py-1.5 border border-outline text-sm rounded hover:bg-surface-container transition-colors">
@@ -59,6 +109,7 @@ export default function ApprovalQueue() {
                 <tr className="text-[12px] font-bold tracking-wider text-on-surface-variant uppercase">
                   <th className="p-4 border-b border-outline-variant">Trigger Reason</th>
                   <th className="p-4 border-b border-outline-variant">Requestor</th>
+                  <th className="p-4 border-b border-outline-variant">Assigned Approver</th>
                   <th className="p-4 border-b border-outline-variant">Quote Summary</th>
                   <th className="p-4 border-b border-outline-variant">Value</th>
                   <th className="p-4 border-b border-outline-variant text-right">Actions</th>
@@ -67,7 +118,7 @@ export default function ApprovalQueue() {
               <tbody className="divide-y divide-outline-variant text-sm">
                 {isLoading ? (
                   <tr>
-                    <td colSpan={5} className="p-8 text-center text-on-surface-variant animate-pulse">Loading approvals...</td>
+                    <td colSpan={6} className="p-8 text-center text-on-surface-variant animate-pulse">Loading approvals...</td>
                   </tr>
                 ) : (
                   approvals?.map((item: any, i: number) => {
@@ -93,6 +144,12 @@ export default function ApprovalQueue() {
                             <span className="font-bold">{item.requestedBy?.name || 'Unknown'}</span>
                             <span className="text-[11px] text-on-surface-variant">Requestor</span>
                           </div>
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        <div className="flex flex-col">
+                          <span className="font-semibold text-on-surface">{item.assignedApprover?.name || 'Auto-assigning...'}</span>
+                          <span className="text-[11px] text-outline">{item.assignedApprover?.role || 'Manager'}</span>
                         </div>
                       </td>
                       <td className="p-4">
@@ -135,46 +192,74 @@ export default function ApprovalQueue() {
           <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 shadow-sm">
             <h3 className="text-[12px] font-bold tracking-wider uppercase text-primary border-b border-outline-variant pb-2 mb-4 flex items-center justify-between">
               Approval Tiers
-              <Info className="w-4 h-4" />
+              <button onClick={() => setShowTierForm(!showTierForm)} className="text-secondary hover:text-primary transition-colors flex items-center gap-1 font-bold text-[10px]">
+                <Plus className="w-3.5 h-3.5" /> ADD
+              </button>
             </h3>
+            
+            {showTierForm && (
+              <div className="bg-surface-container-low border border-outline-variant rounded-lg p-3 mb-4 space-y-3">
+                <div className="text-xs font-bold text-on-surface">New Tier Rule</div>
+                <input 
+                  type="text"
+                  placeholder="Tier Name (e.g. Director)"
+                  value={newTierName}
+                  onChange={(e) => setNewTierName(e.target.value)}
+                  className="w-full bg-surface border border-outline-variant rounded p-1.5 text-xs"
+                />
+                <input 
+                  type="number"
+                  placeholder="Threshold Value ($)"
+                  value={newTierThreshold}
+                  onChange={(e) => setNewTierThreshold(e.target.value)}
+                  className="w-full bg-surface border border-outline-variant rounded p-1.5 text-xs"
+                />
+                <select
+                  value={newTierRole}
+                  onChange={(e) => setNewTierRole(e.target.value)}
+                  className="w-full bg-surface border border-outline-variant rounded p-1.5 text-xs"
+                >
+                  <option value="sales_manager">Sales Manager</option>
+                  <option value="director">Regional Director</option>
+                  <option value="cro">Chief Revenue Officer</option>
+                  <option value="admin">Administrator</option>
+                </select>
+                <div className="flex justify-end gap-2 text-xs">
+                  <button onClick={() => setShowTierForm(false)} className="px-2 py-1 font-bold">Cancel</button>
+                  <button 
+                    onClick={() => createTierMutation.mutate({ name: newTierName, thresholdValue: Number(newTierThreshold), requiredRole: newTierRole })}
+                    className="px-2 py-1 bg-primary text-white font-bold rounded"
+                  >
+                    Save
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="space-y-4">
-              <div className="flex gap-4">
-                <div className="flex flex-col items-center">
-                  <div className="w-6 h-6 rounded-full bg-primary text-on-primary flex items-center justify-center text-[10px] font-bold">01</div>
-                  <div className="w-[2px] h-full bg-outline-variant mt-1"></div>
-                </div>
-                <div className="pb-2">
-                  <p className="text-sm font-bold">Direct Manager</p>
-                  <p className="text-[11px] text-on-surface-variant">Standard Quotes &lt; {formatCurrencyCompact(50000)}</p>
-                  <div className="mt-1 bg-surface-container-low px-2 py-1 rounded border border-outline-variant text-[10px] text-on-surface-variant">
-                    Auto-approves if within +/- 5% margin
+              {tiers?.map((tier: any, idx: number) => (
+                <div key={tier.id || idx} className="flex gap-4 group/tier">
+                  <div className="flex flex-col items-center">
+                    <div className="w-6 h-6 rounded-full bg-primary text-on-primary flex items-center justify-center text-[10px] font-bold">{idx + 1}</div>
+                    {idx < tiers.length - 1 && <div className="w-[2px] h-full bg-outline-variant mt-1"></div>}
+                  </div>
+                  <div className="pb-2 flex-1">
+                    <div className="flex justify-between items-start">
+                      <p className="text-sm font-bold text-on-surface">{tier.name}</p>
+                      <button 
+                        onClick={() => deleteTierMutation.mutate(tier.id)}
+                        className="text-error opacity-0 group-hover/tier:opacity-100 transition-opacity hover:scale-105"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-on-surface-variant">Threshold: &gt; {formatCurrency(tier.thresholdValue)}</p>
+                    <div className="mt-1 bg-surface-container-low px-2 py-1 rounded border border-outline-variant text-[10px] text-on-surface-variant">
+                      Assigned to: {tier.requiredRole}
+                    </div>
                   </div>
                 </div>
-              </div>
-              
-              <div className="flex gap-4">
-                <div className="flex flex-col items-center">
-                  <div className="w-6 h-6 rounded-full bg-primary text-on-primary flex items-center justify-center text-[10px] font-bold">02</div>
-                  <div className="w-[2px] h-full bg-outline-variant mt-1"></div>
-                </div>
-                <div className="pb-2">
-                  <p className="text-sm font-bold">Regional Director</p>
-                  <p className="text-[11px] text-on-surface-variant">Discounts &gt; 10% or &gt; {formatCurrencyCompact(100000)}</p>
-                  <div className="mt-1 bg-primary-container/10 border-l-2 border-primary px-2 py-1 rounded text-[10px] text-primary font-bold">
-                    Current Active Tier
-                  </div>
-                </div>
-              </div>
-              
-              <div className="flex gap-4">
-                <div className="flex flex-col items-center">
-                  <div className="w-6 h-6 rounded-full bg-outline-variant text-on-surface-variant flex items-center justify-center text-[10px] font-bold">03</div>
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-on-surface-variant">Chief Revenue Officer</p>
-                  <p className="text-[11px] text-on-surface-variant">Strategic Deals &gt; {formatCurrencyCompact(1000000)}</p>
-                </div>
-              </div>
+              ))}
             </div>
           </div>
 

@@ -1,9 +1,11 @@
+import { useState } from "react";
 import { Outlet, Link, useLocation } from "react-router-dom";
-import { LayoutDashboard, Inbox, Trello, Receipt, FileText, Settings, Key, CheckSquare, BarChart, Search, Bell, Plus, Users } from "lucide-react";
+import { LayoutDashboard, Inbox, Trello, Receipt, FileText, Settings, Key, CheckSquare, BarChart, Search, Bell, Plus, Users, Home, Database, ChevronDown, ChevronRight } from "lucide-react";
 
 export function Layout() {
   const location = useLocation();
   const navItems = [
+    { name: "My Dashboard", path: "/home", icon: Home },
     { name: "Management Dashboard", path: "/", icon: LayoutDashboard },
     { name: "KPI Dashboard", path: "/kpi", icon: BarChart },
     { name: "Sales Representatives", path: "/salespersons", icon: Users },
@@ -16,6 +18,9 @@ export function Layout() {
     { name: "Approvals", path: "/approvals", icon: Key },
     { name: "Assignment Rules", path: "/rules", icon: Settings },
   ];
+
+  const [isMasterExpanded, setIsMasterExpanded] = useState(location.pathname.startsWith("/master-data"));
+  const isMasterActive = location.pathname.startsWith("/master-data");
 
   return (
     <div className="flex h-screen w-full bg-surface text-on-surface">
@@ -42,6 +47,54 @@ export function Layout() {
               </Link>
             );
           })}
+
+          {/* Collapsible Master Data Menu */}
+          <div className="space-y-1 pt-2">
+            <button
+              onClick={() => setIsMasterExpanded(!isMasterExpanded)}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-body-sm transition-colors ${
+                isMasterActive
+                  ? "bg-secondary-container/30 text-secondary font-semibold"
+                  : "text-on-surface-variant hover:bg-surface-container hover:text-on-surface"
+              }`}
+            >
+              <div className="flex items-center space-x-3">
+                <Database className="w-5 h-5" />
+                <span>Master Data</span>
+              </div>
+              {isMasterExpanded ? (
+                <ChevronDown className="w-4 h-4" />
+              ) : (
+                <ChevronRight className="w-4 h-4" />
+              )}
+            </button>
+            
+            {isMasterExpanded && (
+              <div className="pl-4 space-y-1 mt-1 border-l border-outline-variant/60 ml-5">
+                {[
+                  { name: "Requirements", path: "/master-data/requirements" },
+                  { name: "Line Items", path: "/master-data/line-items" },
+                  { name: "Construction Items", path: "/master-data/construction-items" },
+                  { name: "Pricing", path: "/master-data/pricing" }
+                ].map((sub) => {
+                  const isSubActive = location.pathname === sub.path;
+                  return (
+                    <Link
+                      key={sub.path}
+                      to={sub.path}
+                      className={`block px-3 py-1.5 rounded-lg text-body-xs transition-colors ${
+                        isSubActive
+                          ? "text-primary font-bold bg-primary/10"
+                          : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container/50"
+                      }`}
+                    >
+                      {sub.name}
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </nav>
       </aside>
       

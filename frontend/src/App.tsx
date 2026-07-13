@@ -4,6 +4,7 @@ import { Layout } from "./components/Layout";
 
 // Page Imports
 import ManagementDashboard from "./pages/ManagementDashboard";
+import MyDashboard from "./pages/MyDashboard";
 import KpiDashboard from "./pages/KpiDashboard";
 import LeadInbox from "./pages/LeadInbox";
 import LeadDetail from "./pages/LeadDetail";
@@ -19,12 +20,27 @@ import Invoices from "./pages/Invoices";
 import InvoiceDetail from "./pages/InvoiceDetail";
 import Login from "./pages/Login";
 import SalespersonTracker from "./pages/SalespersonTracker";
+import SalespersonDetail from "./pages/SalespersonDetail";
+import Requirements from "./pages/master-data/Requirements";
+import LineItems from "./pages/master-data/LineItems";
+import ConstructionItems from "./pages/master-data/ConstructionItems";
+import Pricing from "./pages/master-data/Pricing";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { Navigate, Outlet } from "react-router-dom";
 
 const ProtectedRoute = () => {
   const { isAuthenticated } = useAuth();
   return isAuthenticated ? <Outlet /> : <Navigate to="/login" replace />;
+};
+
+/** Redirect / to /home for reps, keep ManagementDashboard for admins/directors */
+const RoleBasedHome = () => {
+  const { user } = useAuth();
+  const repRoles = ["sales_rep", "sales_manager"];
+  if (user && repRoles.includes(user.role)) {
+    return <Navigate to="/home" replace />;
+  }
+  return <ManagementDashboard />;
 };
 
 const queryClient = new QueryClient();
@@ -40,7 +56,8 @@ function App() {
             
             <Route element={<ProtectedRoute />}>
               <Route element={<Layout />}>
-                <Route path="/" element={<ManagementDashboard />} />
+                <Route path="/" element={<RoleBasedHome />} />
+                <Route path="/home" element={<MyDashboard />} />
                 <Route path="/kpi" element={<KpiDashboard />} />
                 <Route path="/leads" element={<LeadInbox />} />
                 <Route path="/leads/:id" element={<LeadDetail />} />
@@ -54,6 +71,13 @@ function App() {
                 <Route path="/approvals" element={<ApprovalQueue />} />
                 <Route path="/rules" element={<AssignmentRules />} />
                 <Route path="/salespersons" element={<SalespersonTracker />} />
+                <Route path="/salespersons/:id" element={<SalespersonDetail />} />
+                
+                {/* Master Data Routing */}
+                <Route path="/master-data/requirements" element={<Requirements />} />
+                <Route path="/master-data/line-items" element={<LineItems />} />
+                <Route path="/master-data/construction-items" element={<ConstructionItems />} />
+                <Route path="/master-data/pricing" element={<Pricing />} />
               </Route>
             </Route>
           </Routes>

@@ -1,15 +1,22 @@
+import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useQuery } from "@tanstack/react-query";
-import { FileText, Download, MoreVertical, Plus } from "lucide-react";
+import { FileText, Download, MoreVertical, Plus, Filter, Search } from "lucide-react";
 import { formatCurrency } from "../utils/currency";
 
 export default function PurchaseOrders() {
   const { token } = useAuth();
+  const [search, setSearch] = useState("");
+  const [valueBand, setValueBand] = useState("");
 
   const { data: pos, isLoading } = useQuery({
-    queryKey: ["purchase-orders"],
+    queryKey: ["purchase-orders", search, valueBand],
     queryFn: async () => {
-      const res = await fetch("/api/v1/purchase-orders", {
+      const params = new URLSearchParams();
+      if (search) params.append("search", search);
+      if (valueBand) params.append("valueBand", valueBand);
+      
+      const res = await fetch(`/api/v1/purchase-orders?${params.toString()}`, {
         headers: { "Authorization": `Bearer ${token}` }
       });
       if (!res.ok) throw new Error("Failed to fetch purchase orders");
@@ -17,15 +24,74 @@ export default function PurchaseOrders() {
     }
   });
 
+  const handleExport = async () => {
+    const params = new URLSearchParams();
+    if (search) params.append("search", search);
+    if (valueBand) params.append("valueBand", valueBand);
+
+    try {
+      const res = await fetch(`/api/v1/exports/purchase-orders?${params.toString()}`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error("Failed to export POs");
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "purchase_orders_export.csv";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
   return (
     <div className="p-8 pb-12 max-w-[1440px] mx-auto min-h-[calc(100vh-64px)]">
       <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-on-surface">Purchase Orders</h1>
+          <h1 className="text-3xl font-bold text-on-surface">Purchase Orders Register</h1>
           <p className="text-on-surface-variant">Manage and track POs from clients</p>
         </div>
         <button className="flex items-center gap-2 px-4 py-2 bg-primary text-on-primary rounded-lg font-bold hover:opacity-90">
           <Plus className="w-5 h-5" /> New PO
+        </button>
+      </div>
+
+      {/* Filter Bar */}
+      <div className="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm p-4 mb-6 flex flex-wrap items-center gap-4">
+        <div className="flex items-center gap-2 pr-4 border-r border-outline-variant">
+          <Filter className="w-5 h-5 text-outline" />
+          <span className="text-[12px] font-semibold tracking-wider text-on-surface uppercase font-bold">Filter By</span>
+        </div>
+        
+        <div className="flex flex-wrap gap-2 items-center flex-1">
+          <input 
+            type="text"
+            placeholder="Search PO # or Client..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="bg-surface border border-outline-variant rounded-lg py-1.5 px-3 text-sm focus:ring-1 focus:ring-primary outline-none w-64"
+          />
+          
+          <select 
+            value={valueBand}
+            onChange={(e) => setValueBand(e.target.value)}
+            className="bg-surface border border-outline-variant rounded-lg py-1.5 px-3 text-sm focus:ring-1 focus:ring-primary outline-none"
+          >
+            <option value="">All Value Bands</option>
+            <option value="low">Low (≤ $10k)</option>
+            <option value="medium">Medium ($10k - $50k)</option>
+            <option value="high">High (&gt; $50k)</option>
+          </select>
+        </div>
+
+        <button 
+          onClick={handleExport}
+          className="text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1 text-sm font-medium"
+        >
+          <Download className="w-4 h-4" /> Export CSV
         </button>
       </div>
 

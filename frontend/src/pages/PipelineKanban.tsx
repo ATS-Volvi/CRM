@@ -25,7 +25,7 @@ export default function PipelineKanban() {
   const [showAddDealModal, setShowAddDealModal] = useState(false);
   const [reason, setReason] = useState("");
   const [recontactDate, setRecontactDate] = useState("");
-  const [newDeal, setNewDeal] = useState({ name: "", amount: "" });
+  const [newDeal, setNewDeal] = useState({ name: "", amount: "", competitors: "", probability: "" });
 
   const createDealMutation = useMutation({
     mutationFn: async (deal: any) => {
@@ -40,7 +40,7 @@ export default function PipelineKanban() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pipeline"] });
       setShowAddDealModal(false);
-      setNewDeal({ name: "", amount: "" });
+      setNewDeal({ name: "", amount: "", competitors: "", probability: "" });
     },
   });
 
@@ -190,13 +190,20 @@ export default function PipelineKanban() {
                       </div>
                     )}
                   </div>
-                  {deal.progress !== undefined && (
+                  {deal.competitors && (
+                    <p className="text-[11px] text-on-surface-variant mt-1.5 truncate">
+                      <span className="text-[10px] font-bold text-outline uppercase tracking-wider mr-1">vs:</span>
+                      <span className="font-semibold text-on-surface">{deal.competitors}</span>
+                    </p>
+                  )}
+                  {deal.probability !== undefined && deal.probability !== null && (
                     <div className="mt-3">
                        <div className="flex items-center gap-2 mb-1">
+                        <span className="text-[10px] text-on-surface-variant font-medium">Prob:</span>
                         <div className="flex-1 h-1.5 bg-surface-container rounded-full overflow-hidden">
-                          <div className="h-full bg-primary" style={{ width: `${deal.progress}%` }}></div>
+                          <div className="h-full bg-primary" style={{ width: `${deal.probability}%` }}></div>
                         </div>
-                        <span className="text-[10px] text-on-surface-variant font-medium">{deal.progress}%</span>
+                        <span className="text-[10px] text-primary font-bold">{deal.probability}%</span>
                       </div>
                     </div>
                   )}
@@ -291,13 +298,35 @@ export default function PipelineKanban() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold mb-1">Value ($)</label>
+                <label className="block text-sm font-semibold mb-1">Value (SAR)</label>
                 <input 
                   type="number" 
                   value={newDeal.amount}
                   onChange={(e) => setNewDeal({ ...newDeal, amount: e.target.value })}
                   className="w-full bg-surface-container border border-outline-variant rounded p-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
                   placeholder="10000"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold mb-1">Competitors</label>
+                <input 
+                  type="text" 
+                  value={newDeal.competitors}
+                  onChange={(e) => setNewDeal({ ...newDeal, competitors: e.target.value })}
+                  className="w-full bg-surface-container border border-outline-variant rounded p-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                  placeholder="e.g. Al-Futtaim, Zamil"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold mb-1">Probability (%)</label>
+                <input 
+                  type="number" 
+                  min="0"
+                  max="100"
+                  value={newDeal.probability}
+                  onChange={(e) => setNewDeal({ ...newDeal, probability: e.target.value })}
+                  className="w-full bg-surface-container border border-outline-variant rounded p-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                  placeholder="e.g. 70"
                 />
               </div>
               
@@ -309,7 +338,12 @@ export default function PipelineKanban() {
                   Cancel
                 </button>
                 <button 
-                  onClick={() => createDealMutation.mutate({ name: newDeal.name, amount: Number(newDeal.amount) })}
+                  onClick={() => createDealMutation.mutate({ 
+                    name: newDeal.name, 
+                    amount: Number(newDeal.amount), 
+                    competitors: newDeal.competitors || null,
+                    probability: newDeal.probability ? Number(newDeal.probability) : null
+                  })}
                   disabled={createDealMutation.isPending || !newDeal.name || !newDeal.amount}
                   className="px-4 py-2 bg-primary text-white rounded text-sm font-bold hover:bg-primary/90 transition-colors disabled:opacity-50"
                 >

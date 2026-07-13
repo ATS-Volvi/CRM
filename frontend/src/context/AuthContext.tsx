@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { setLogoutCallback } from "../lib/apiClient";
 
 interface User {
   id: string;
@@ -48,6 +49,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem("nexus_token");
     localStorage.removeItem("nexus_user");
   };
+
+  // Register logout callback for the apiClient
+  useEffect(() => {
+    setLogoutCallback(logout);
+  }, []);
 
   if (isLoading) {
     return null; // Or a loading spinner

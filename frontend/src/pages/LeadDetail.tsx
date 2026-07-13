@@ -18,7 +18,7 @@ export default function LeadDetail() {
 
   const [filterType, setFilterType] = useState<string>("All");
   const [newNote, setNewNote] = useState("");
-  const [noteType, setNoteType] = useState<"note" | "call" | "email">("note");
+  const [noteType, setNoteType] = useState<"note" | "call" | "email" | "meeting" | "task" | "whatsapp_sms">("note");
 
   // We fetch a mock lead detail from our API
   const { data: lead, isLoading } = useQuery({
@@ -93,8 +93,9 @@ export default function LeadDetail() {
   const filteredActivities = activities.filter((act: any) => {
     if (filterType === "All") return true;
     if (filterType === "Communications" && ["call", "email", "whatsapp_sms", "meeting"].includes(act.type)) return true;
-    if (filterType === "Documents" && act.type === "quote_created") return true; // Just mapping logically
     if (filterType === "Notes" && act.type === "note") return true;
+    if (filterType === "Tasks" && act.type === "task") return true;
+    if (filterType === "Documents" && (act.type === "quote_created" || (act.outcome && (act.outcome.includes("Quote") || act.outcome.includes("Purchase Order"))))) return true;
     return false;
   });
 
@@ -131,6 +132,42 @@ export default function LeadDetail() {
           >
             <Mail className="w-5 h-5" />
             <span className="text-sm">Send Email</span>
+          </button>
+          <button 
+            onClick={() => {
+              setNoteType("meeting");
+              setNewNote("");
+              const textarea = document.querySelector('textarea');
+              if (textarea) textarea.focus();
+            }}
+            className={`flex items-center gap-2 px-4 py-2 border font-bold rounded-lg transition-all ${noteType === 'meeting' ? 'bg-secondary-container text-secondary border-secondary' : 'border-outline text-on-surface hover:bg-surface-container-low'}`}
+          >
+            <Users className="w-5 h-5" />
+            <span className="text-sm">Log Meeting</span>
+          </button>
+          <button 
+            onClick={() => {
+              setNoteType("task");
+              setNewNote("");
+              const textarea = document.querySelector('textarea');
+              if (textarea) textarea.focus();
+            }}
+            className={`flex items-center gap-2 px-4 py-2 border font-bold rounded-lg transition-all ${noteType === 'task' ? 'bg-surface-variant text-on-surface border-outline' : 'border-outline text-on-surface hover:bg-surface-container-low'}`}
+          >
+            <CheckSquare className="w-5 h-5" />
+            <span className="text-sm">Add Task</span>
+          </button>
+          <button 
+            onClick={() => {
+              setNoteType("whatsapp_sms");
+              setNewNote("");
+              const textarea = document.querySelector('textarea');
+              if (textarea) textarea.focus();
+            }}
+            className={`flex items-center gap-2 px-4 py-2 border font-bold rounded-lg transition-all ${noteType === 'whatsapp_sms' ? 'bg-green-100 text-green-700 border-green-300' : 'border-outline text-on-surface hover:bg-surface-container-low'}`}
+          >
+            <MessageSquare className="w-5 h-5" />
+            <span className="text-sm">WhatsApp/SMS</span>
           </button>
           <button 
             onClick={() => window.location.href = "/quotes/new"}
@@ -266,6 +303,14 @@ export default function LeadDetail() {
                   onClick={() => setFilterType("Notes")}
                   className={`text-[12px] font-semibold tracking-wider uppercase px-3 py-1.5 rounded-full ${filterType === "Notes" ? 'bg-surface-container-high text-primary' : 'text-on-surface-variant hover:bg-surface-container'}`}
                 >Notes</button>
+                <button 
+                  onClick={() => setFilterType("Tasks")}
+                  className={`text-[12px] font-semibold tracking-wider uppercase px-3 py-1.5 rounded-full ${filterType === "Tasks" ? 'bg-surface-container-high text-primary' : 'text-on-surface-variant hover:bg-surface-container'}`}
+                >Tasks</button>
+                <button 
+                  onClick={() => setFilterType("Documents")}
+                  className={`text-[12px] font-semibold tracking-wider uppercase px-3 py-1.5 rounded-full ${filterType === "Documents" ? 'bg-surface-container-high text-primary' : 'text-on-surface-variant hover:bg-surface-container'}`}
+                >Docs</button>
               </div>
             </div>
 
@@ -277,7 +322,14 @@ export default function LeadDetail() {
               <div className="flex-1 bg-surface-container-low rounded-lg border border-outline-variant p-2 flex flex-col">
                 <textarea 
                   className="w-full bg-transparent border-none outline-none resize-none text-sm p-2"
-                  placeholder={noteType === 'call' ? "Summarize the call..." : noteType === 'email' ? "Paste email contents..." : "Leave a note or type @ to mention someone..."}
+                  placeholder={
+                    noteType === 'call' ? "Summarize the call..." : 
+                    noteType === 'email' ? "Paste email contents..." : 
+                    noteType === 'meeting' ? "Summarize the meeting details..." :
+                    noteType === 'task' ? "Describe the task/to-do..." :
+                    noteType === 'whatsapp_sms' ? "Log WhatsApp message or SMS text..." :
+                    "Leave a note or type @ to mention someone..."
+                  }
                   value={newNote}
                   onChange={(e) => setNewNote(e.target.value)}
                   rows={2}
@@ -288,7 +340,14 @@ export default function LeadDetail() {
                     disabled={addActivityMutation.isPending || !newNote.trim()}
                     className="px-4 py-1.5 bg-primary text-white rounded text-sm font-bold hover:bg-primary/90 disabled:opacity-50"
                   >
-                    {noteType === 'call' ? "Log Call" : noteType === 'email' ? "Log Email" : "Post Note"}
+                    {
+                      noteType === 'call' ? "Log Call" : 
+                      noteType === 'email' ? "Log Email" : 
+                      noteType === 'meeting' ? "Log Meeting" :
+                      noteType === 'task' ? "Add Task" :
+                      noteType === 'whatsapp_sms' ? "Log Message" :
+                      "Post Note"
+                    }
                   </button>
                 </div>
               </div>
@@ -300,7 +359,7 @@ export default function LeadDetail() {
                   onClick={() => { setNoteType('note'); setNewNote(''); }}
                   className="text-xs text-on-surface-variant hover:text-on-surface underline"
                 >
-                  Cancel {noteType} and return to note
+                  Cancel {noteType.replace('_', ' ')} and return to note
                 </button>
               </div>
             )}
