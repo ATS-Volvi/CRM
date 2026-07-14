@@ -2,56 +2,67 @@ import { sequelize } from "@nexus-crm/database";
 import * as nodemailer from "nodemailer";
 
 // Fallback message templates in case DB is not yet populated
-const DEFAULT_TEMPLATES: Record<string, { name: string; channel: string; bodyTemplate: string }> = {
+// Fallback message templates in case DB is not yet populated
+const DEFAULT_TEMPLATES: Record<string, { name: string; channel: string; subject: string; body: string }> = {
   new_lead_acknowledgement: {
     name: "New Lead Acknowledgement",
     channel: "email",
-    bodyTemplate: "Hello {{lead_name}},\n\nThank you for reaching out to {{company_name}}! We have received your enquiry and our representative will contact you shortly.\n\nBest regards,\n{{company_name}} Team"
+    subject: "Thank you for your inquiry",
+    body: "Hello {{lead_name}},\n\nThank you for reaching out to {{company_name}}! We have received your enquiry and our representative will contact you shortly.\n\nBest regards,\n{{company_name}} Team"
   },
   lead_assigned_intro: {
     name: "Lead Assigned Intro",
     channel: "email",
-    bodyTemplate: "Hello {{lead_name}},\n\nMy name is {{salesperson_name}} and I will be your dedicated account manager at {{company_name}}. I look forward to working with you!\n\nBest regards,\n{{salesperson_name}}"
+    subject: "Introduction from your Account Manager",
+    body: "Hello {{lead_name}},\n\nMy name is {{salesperson_name}} and I will be your dedicated account manager at {{company_name}}. I look forward to working with you!\n\nBest regards,\n{{salesperson_name}}"
   },
   quote_sent: {
     name: "Quote Sent",
     channel: "email",
-    bodyTemplate: "Hello {{lead_name}},\n\nWe have prepared a new quotation for you totaling {{quote_value}}. Please review the attached details.\n\nBest regards,\n{{salesperson_name}}"
+    subject: "Your Nexis CRM Quote is Ready",
+    body: "Hello {{lead_name}},\n\nWe have prepared a new quotation for you totaling {{quote_value}}. Please review the attached details.\n\nBest regards,\n{{salesperson_name}}"
   },
   quote_expiry_reminder: {
     name: "Quote Expiry Reminder",
     channel: "email",
-    bodyTemplate: "Hello {{lead_name}},\n\nThis is a friendly reminder that your quotation of value {{quote_value}} is expiring soon. Let us know if you have any questions.\n\nBest regards,\n{{salesperson_name}}"
+    subject: "Action Required: Your quote is expiring soon",
+    body: "Hello {{lead_name}},\n\nThis is a friendly reminder that your quotation of value {{quote_value}} is expiring soon. Let us know if you have any questions.\n\nBest regards,\n{{salesperson_name}}"
   },
   po_received: {
     name: "PO Received Thank-You",
     channel: "email",
-    bodyTemplate: "Hello {{lead_name}},\n\nWe have received your purchase order of {{quote_value}}. Thank you for your business! We will begin processing it immediately.\n\nBest regards,\n{{company_name}} Team"
+    subject: "We received your Purchase Order",
+    body: "Hello {{lead_name}},\n\nWe have received your purchase order of {{quote_value}}. Thank you for your business! We will begin processing it immediately.\n\nBest regards,\n{{company_name}} Team"
   },
   deal_lost_feedback: {
     name: "Deal Lost Feedback Request",
     channel: "email",
-    bodyTemplate: "Hello {{lead_name}},\n\nWe are sorry we couldn't partner with you on this project. We would appreciate if you could share any feedback to help us improve.\n\nBest regards,\n{{company_name}} Team"
+    subject: "Feedback Request",
+    body: "Hello {{lead_name}},\n\nWe are sorry we couldn't partner with you on this project. We would appreciate if you could share any feedback to help us improve.\n\nBest regards,\n{{company_name}} Team"
   },
   new_lead_assigned: {
     name: "New Lead Assigned Alert",
     channel: "email",
-    bodyTemplate: "Hi {{salesperson_name}},\n\nYou have been assigned a new lead: {{lead_name}} from {{company_name}}."
+    subject: "New Lead Assignment",
+    body: "Hi {{salesperson_name}},\n\nYou have been assigned a new lead: {{lead_name}} from {{company_name}}."
   },
   sla_breach_escalation: {
     name: "SLA Breach Escalation",
     channel: "email",
-    bodyTemplate: "Warning: Lead {{lead_name}} assigned to {{salesperson_name}} has breached response SLA limit."
+    subject: "SLA Breach Alert",
+    body: "Warning: Lead {{lead_name}} assigned to {{salesperson_name}} has breached response SLA limit."
   },
   high_value_deal_won: {
     name: "High Value Deal Won Broadcast",
     channel: "email",
-    bodyTemplate: "Celebration! {{salesperson_name}} has successfully closed a deal worth {{quote_value}} with {{company_name}}!"
+    subject: "Deal Closed Successfully!",
+    body: "Celebration! {{salesperson_name}} has successfully closed a deal worth {{quote_value}} with {{company_name}}!"
   },
   kpi_drop_alert: {
     name: "KPI Drop Alert",
     channel: "email",
-    bodyTemplate: "Alert: Salesperson {{salesperson_name}}'s close rate has dropped below target threshold."
+    subject: "Performance Alert: KPI Drop",
+    body: "Alert: Salesperson {{salesperson_name}}'s close rate has dropped below target threshold."
   }
 };
 
@@ -66,7 +77,8 @@ export async function seedDefaultMessageTemplates() {
         name: t.name,
         triggerEvent,
         channel: t.channel,
-        bodyTemplate: t.bodyTemplate,
+        subject: t.subject,
+        body: t.body,
         isActive: true
       }));
       await sequelize.models.MessageTemplate.bulkCreate(templatesToInsert);
@@ -87,7 +99,7 @@ export async function triggerCommunication(
     });
 
     const templateData = template 
-      ? (template.toJSON() as { name: string; bodyTemplate: string; channel: string })
+      ? (template.toJSON() as { name: string; subject?: string; body: string; channel: string })
       : DEFAULT_TEMPLATES[triggerEvent];
 
     if (!templateData) {
@@ -120,14 +132,15 @@ export async function triggerCommunication(
       : "$0.00";
 
     // 3. Perform merge replacement
-    let body = templateData.bodyTemplate
+    const rawBody = templateData.body || "";
+    let body = rawBody
       .replace(/\{\{lead_name\}\}/g, leadName)
       .replace(/\{\{company_name\}\}/g, companyName)
       .replace(/\{\{salesperson_name\}\}/g, salespersonName)
       .replace(/\{\{quote_value\}\}/g, quoteValStr);
 
     // 4. Simulate sending or execute nodemailer
-    const subject = `[Nexus CRM] - ${templateData.name}`;
+    const subject = templateData.subject || `[Nexus CRM] - ${templateData.name}`;
     console.log(`\n--- STAKEHOLDER COMMUNICATION OUTBOX ---`);
     console.log(`Trigger Event: ${triggerEvent}`);
     console.log(`Channel: ${templateData.channel}`);
