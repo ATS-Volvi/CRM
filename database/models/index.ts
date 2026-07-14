@@ -37,6 +37,8 @@ export class Lead extends Model {
   public assignedToId!: string | null;
   public leadScore!: number;
   public optedOutEmail!: boolean;
+  public subject!: string | null;
+  public body!: string | null;
 }
 
 Lead.init(
@@ -52,6 +54,8 @@ Lead.init(
     industry: { type: DataTypes.STRING, allowNull: true },
     leadScore: { type: DataTypes.INTEGER, defaultValue: 50 },
     optedOutEmail: { type: DataTypes.BOOLEAN, defaultValue: false },
+    subject: { type: DataTypes.STRING, allowNull: true },
+    body: { type: DataTypes.TEXT, allowNull: true },
   },
   { 
     sequelize, 

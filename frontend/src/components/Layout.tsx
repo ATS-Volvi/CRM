@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Outlet, Link, useLocation } from "react-router-dom";
-import { LayoutDashboard, Inbox, Trello, Receipt, FileText, Settings, Key, CheckSquare, BarChart, Search, Bell, Plus, Users, Home, Database, ChevronDown, ChevronRight } from "lucide-react";
+import { LayoutDashboard, Inbox, Trello, Receipt, FileText, Settings, Key, CheckSquare, BarChart, Search, Bell, Plus, Users, Home, Database, ChevronDown, ChevronRight, Mail } from "lucide-react";
 
 export function Layout() {
   const location = useLocation();
@@ -10,6 +10,7 @@ export function Layout() {
     { name: "KPI Dashboard", path: "/kpi", icon: BarChart },
     { name: "Sales Representatives", path: "/salespersons", icon: Users },
     { name: "Lead Inbox", path: "/leads", icon: Inbox },
+    { name: "Email Pool", path: "/email-pool", icon: Mail },
     { name: "Pipeline", path: "/pipeline", icon: Trello },
     { name: "Quotes", path: "/quotes", icon: FileText },
     { name: "Invoices", path: "/invoices", icon: Receipt },

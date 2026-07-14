@@ -45,6 +45,8 @@ module.exports = {
       leadScore: { type: Sequelize.INTEGER, defaultValue: 50 },
       optedOutEmail: { type: Sequelize.BOOLEAN, defaultValue: false },
       assignedToId: { type: Sequelize.UUID, references: { model: 'Users', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'SET NULL' },
+      subject: { type: Sequelize.STRING, allowNull: true },
+      body: { type: Sequelize.TEXT, allowNull: true },
       ...defaultFields
     });
 

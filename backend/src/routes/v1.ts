@@ -15,6 +15,7 @@ import { getAssignmentRules, createAssignmentRule, updateAssignmentRule, deleteA
 import { getBundleTemplates, createBundleTemplate, deleteBundleTemplate } from '../controllers/bundleController';
 import { exportLeads, exportQuotes, exportPurchaseOrders } from '../controllers/exportController';
 import { getSalespersonsPerformance, getSalespersonPerformanceDetails } from '../controllers/salespersonController';
+import { receiveInboundEmail } from "../controllers/emailController";
 
 const router = Router();
 
@@ -92,6 +93,7 @@ router.post("/auth/login", login);
  *         description: Lead captured successfully
  */
 router.post("/public/leads", createPublicLead);
+router.post("/emails/inbound", receiveInboundEmail);
 import { handleUnsubscribe } from "../controllers/leadController";
 router.get("/leads/unsubscribe/:id", handleUnsubscribe);
 

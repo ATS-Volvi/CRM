@@ -7,6 +7,7 @@ import ManagementDashboard from "./pages/ManagementDashboard";
 import MyDashboard from "./pages/MyDashboard";
 import KpiDashboard from "./pages/KpiDashboard";
 import LeadInbox from "./pages/LeadInbox";
+import EmailPool from "./pages/EmailPool";
 import LeadDetail from "./pages/LeadDetail";
 import PipelineKanban from "./pages/PipelineKanban";
 import QuotationBuilder from "./pages/QuotationBuilder";
@@ -60,6 +61,7 @@ function App() {
                 <Route path="/home" element={<MyDashboard />} />
                 <Route path="/kpi" element={<KpiDashboard />} />
                 <Route path="/leads" element={<LeadInbox />} />
+                <Route path="/email-pool" element={<EmailPool />} />
                 <Route path="/leads/:id" element={<LeadDetail />} />
                 <Route path="/pipeline" element={<PipelineKanban />} />
                 <Route path="/quotes/new" element={<QuotationBuilder />} />

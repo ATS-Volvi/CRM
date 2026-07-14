@@ -126,24 +126,72 @@ export const getMyTodayDashboard = async (req: Request, res: Response) => {
 
 export const getHomeDashboard = async (req: Request, res: Response) => {
   try {
-    const clientsCount = await sequelize.models.Lead.count({ where: { status: "Qualified" } });
+    const userId = (req as any).user?.id;
+    const isRep = (req as any).user?.role === "sales_rep" || (req as any).user?.role === "sales_manager";
+
+    const leadWhere: any = {};
+    if (isRep && userId) {
+      leadWhere.assignedToId = userId;
+    }
+
+    const clientsCount = await sequelize.models.Lead.count({ 
+      where: { ...leadWhere, status: "Qualified" } 
+    });
     
     // Sum PO amounts
-    const poValue = await sequelize.models.PurchaseOrder.sum("amount") || 0;
+    let poValue = 0;
+    if (isRep && userId) {
+      const pos = await sequelize.models.PurchaseOrder.findAll({
+        include: [{
+          model: sequelize.models.Quote,
+          as: "quote",
+          required: true,
+          include: [{
+            model: sequelize.models.Deal,
+            as: "deal",
+            required: true,
+            where: { ownerId: userId }
+          }]
+        }]
+      });
+      poValue = pos.reduce((sum: number, p: any) => sum + Number(p.amount), 0);
+    } else {
+      poValue = await sequelize.models.PurchaseOrder.sum("amount") || 0;
+    }
     
     // Total Leads
-    const leadsCount = await sequelize.models.Lead.count();
+    const leadsCount = await sequelize.models.Lead.count({ where: leadWhere });
     
     // Conversion rate: Qualified Leads / Total Leads
-    const qualifiedLeads = await sequelize.models.Lead.count({ where: { status: "Qualified" } });
+    const qualifiedLeads = await sequelize.models.Lead.count({ 
+      where: { ...leadWhere, status: "Qualified" } 
+    });
     const conversionRate = leadsCount > 0 ? Math.round((qualifiedLeads / leadsCount) * 100) : 0;
     
     // Sum Invoices totalAmount
-    const invoicesTotal = await sequelize.models.Invoice.sum("totalAmount") || 0;
+    let invoicesTotal = 0;
+    if (isRep && userId) {
+      const invoices = await sequelize.models.Invoice.findAll({
+        include: [{
+          model: sequelize.models.Quote,
+          as: "quote",
+          required: true,
+          include: [{
+            model: sequelize.models.Deal,
+            as: "deal",
+            required: true,
+            where: { ownerId: userId }
+          }]
+        }]
+      });
+      invoicesTotal = invoices.reduce((sum: number, iv: any) => sum + Number(iv.totalAmount), 0);
+    } else {
+      invoicesTotal = await sequelize.models.Invoice.sum("totalAmount") || 0;
+    }
 
     // Clients: Latest 5 qualified leads
     const dbClients = await sequelize.models.Lead.findAll({
-      where: { status: "Qualified" },
+      where: { ...leadWhere, status: "Qualified" },
       limit: 5,
       order: [["createdAt", "DESC"]]
     });
@@ -157,6 +205,7 @@ export const getHomeDashboard = async (req: Request, res: Response) => {
 
     // Leads: Latest 5 leads
     const dbLeads = await sequelize.models.Lead.findAll({
+      where: leadWhere,
       limit: 5,
       order: [["createdAt", "DESC"]]
     });
@@ -170,10 +219,26 @@ export const getHomeDashboard = async (req: Request, res: Response) => {
     }));
 
     // Quotes: Latest 5 quotes with deal info
+    const quoteInclude: any[] = [];
+    if (isRep && userId) {
+      quoteInclude.push({
+        model: sequelize.models.Deal,
+        as: "deal",
+        required: true,
+        where: { ownerId: userId }
+      });
+    } else {
+      quoteInclude.push({
+        model: sequelize.models.Deal,
+        as: "deal",
+        required: false
+      });
+    }
+
     const dbQuotes = await sequelize.models.Quote.findAll({
       limit: 5,
       order: [["createdAt", "DESC"]],
-      include: [{ model: sequelize.models.Deal, as: "deal", required: false }]
+      include: quoteInclude
     });
     const quotes = dbQuotes.map((q: any) => ({
       id: q.id,
@@ -185,9 +250,25 @@ export const getHomeDashboard = async (req: Request, res: Response) => {
     }));
 
     // Purchase Orders: Latest 5 POs
+    const poInclude: any[] = [];
+    if (isRep && userId) {
+      poInclude.push({
+        model: sequelize.models.Quote,
+        as: "quote",
+        required: true,
+        include: [{
+          model: sequelize.models.Deal,
+          as: "deal",
+          required: true,
+          where: { ownerId: userId }
+        }]
+      });
+    }
+
     const dbPOs = await sequelize.models.PurchaseOrder.findAll({
       limit: 5,
-      order: [["createdAt", "DESC"]]
+      order: [["createdAt", "DESC"]],
+      include: poInclude
     });
     const purchaseOrders = dbPOs.map((p: any) => ({
       id: p.id,
@@ -195,6 +276,27 @@ export const getHomeDashboard = async (req: Request, res: Response) => {
       amount: Number(p.amount),
       status: p.status,
       createdAt: p.createdAt
+    }));
+
+    // Assigned Emails: Leads with source === 'email'
+    const emailWhere: any = { source: "email" };
+    if (isRep && userId) {
+      emailWhere.assignedToId = userId;
+    }
+    const dbEmails = await sequelize.models.Lead.findAll({
+      where: emailWhere,
+      limit: 10,
+      order: [["createdAt", "DESC"]]
+    });
+    const assignedEmails = dbEmails.map((l: any) => ({
+      id: l.id,
+      firstName: l.firstName,
+      lastName: l.lastName,
+      email: l.email,
+      subject: l.subject || "No Subject",
+      body: l.body || "",
+      status: l.status,
+      createdAt: l.createdAt
     }));
 
     res.json({
@@ -206,7 +308,8 @@ export const getHomeDashboard = async (req: Request, res: Response) => {
       clients,
       leads,
       quotes,
-      purchaseOrders
+      purchaseOrders,
+      assignedEmails
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
