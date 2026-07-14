@@ -126,7 +126,7 @@ export default function Login() {
         <div className="mt-8 text-center border-t border-outline-variant pt-6">
           <p className="text-sm text-on-surface-variant">
             Default credentials:<br/>
-            <span className="font-mono text-on-surface">sophia@nexus.com / password123</span>
+            <span className="font-mono text-on-surface">admin@nexus.com / password123</span>
           </p>
         </div>
       </div>
