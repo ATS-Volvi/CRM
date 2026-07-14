@@ -15,7 +15,6 @@ import { getAssignmentRules, createAssignmentRule, updateAssignmentRule, deleteA
 import { getBundleTemplates, createBundleTemplate, deleteBundleTemplate } from '../controllers/bundleController';
 import { exportLeads, exportQuotes, exportPurchaseOrders } from '../controllers/exportController';
 import { getSalespersonsPerformance, createSalesperson, getSalespersonPerformanceDetails } from '../controllers/salespersonController';
-import { getMessageTemplates, updateMessageTemplate } from '../controllers/communicationController';
 import {
   getRequirements, createRequirement, updateRequirement, deleteRequirement,
   getLineItems, createLineItem, updateLineItem, deleteLineItem,
@@ -102,7 +101,6 @@ router.post("/auth/login", login);
  *       201:
  *         description: Lead captured successfully
  */
->>>>>>> 96958e6e9332b64984df0c59262a6a56f050dbb2
 router.post("/public/leads", createPublicLead);
 import { handleUnsubscribe } from "../controllers/leadController";
 router.get("/leads/unsubscribe/:id", handleUnsubscribe);
@@ -346,12 +344,6 @@ router.delete("/master-data/construction-items/:id", authMiddleware, deleteConst
 
 router.get("/master-data/pricing", authMiddleware, getPricingGrid);
 router.patch("/master-data/pricing/:id", authMiddleware, updateConstructionItemPricing);
-
-// ==========================================
-// MESSAGE TEMPLATES
-// ==========================================
-router.get("/message-templates", authMiddleware, getMessageTemplates);
-router.put("/message-templates/:id", authMiddleware, updateMessageTemplate);
 
 export default router;
 

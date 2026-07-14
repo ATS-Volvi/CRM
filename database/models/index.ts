@@ -686,26 +686,6 @@ ConstructionItem.init(
   { sequelize, modelName: "ConstructionItem" }
 );
 
-export class MessageTemplate extends Model {
-  public id!: string;
-  public name!: string;
-  public triggerEvent!: string;
-  public channel!: string;
-  public bodyTemplate!: string;
-  public isActive!: boolean;
-}
-
-MessageTemplate.init(
-  {
-    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
-    name: { type: DataTypes.STRING, allowNull: false },
-    triggerEvent: { type: DataTypes.STRING, allowNull: false },
-    channel: { type: DataTypes.STRING, defaultValue: "email" },
-    bodyTemplate: { type: DataTypes.TEXT, allowNull: false },
-    isActive: { type: DataTypes.BOOLEAN, defaultValue: true }
-  },
-  { sequelize, modelName: "MessageTemplate" }
-);
 
 User.hasMany(User, { foreignKey: "managerId", as: "teamMembers" });
 User.belongsTo(User, { foreignKey: "managerId", as: "manager" });
