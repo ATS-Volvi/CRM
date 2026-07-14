@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
-import { Mail, User as UserIcon, Calendar, CheckSquare, RefreshCw, Eye, Search, CheckCircle2 } from "lucide-react";
+import { Mail, User as UserIcon, Calendar, CheckSquare, RefreshCw, Eye, Search, CheckCircle2, Trash2 } from "lucide-react";
 import { formatCurrency } from "../utils/currency";
 
 interface EmailQueryLead {
@@ -81,6 +81,29 @@ export default function EmailPool() {
       }
     }
   });
+
+  // Mutation to delete a lead
+  const deleteLeadMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/v1/leads/${id}`, {
+        method: "DELETE",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error("Failed to delete lead");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+      triggerToast("Email query deleted successfully!");
+      setSelectedEmail(null);
+    }
+  });
+
+  const handleDelete = (leadId: string) => {
+    if (window.confirm("Are you sure you want to delete this email query?")) {
+      deleteLeadMutation.mutate(leadId);
+    }
+  };
 
   const handleClaim = (leadId: string) => {
     if (!user) return;
@@ -321,6 +344,13 @@ export default function EmailPool() {
                             >
                               <Eye className="w-4 h-4" />
                             </button>
+                            <button 
+                              onClick={() => handleDelete(email.id)}
+                              className="p-2 hover:bg-rose-50 text-rose-600 rounded-xl transition-colors flex items-center justify-center"
+                              title="Delete Query"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
                             {!email.assignedToId && (
                               <button 
                                 onClick={() => handleClaim(email.id)}
@@ -391,30 +421,38 @@ export default function EmailPool() {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-end gap-3">
-                  <div className="relative inline-block">
-                    <select 
-                      value={selectedEmail.assignedToId || ""}
-                      onChange={(e) => handleAssign(selectedEmail.id, e.target.value)}
-                      className="appearance-none bg-white border border-outline-variant rounded-xl pl-3 pr-8 py-2 text-xs font-semibold text-on-surface focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none cursor-pointer shadow-sm"
-                    >
-                      <option value="">Unassigned</option>
-                      {salespersons?.map(rep => (
-                        <option key={rep.id} value={rep.id}>Assign: {rep.name}</option>
-                      ))}
-                    </select>
-                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-on-surface-variant">
-                      <svg className="fill-current h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <button 
+                    onClick={() => handleDelete(selectedEmail.id)}
+                    className="border border-rose-200 text-rose-600 hover:bg-rose-50 text-xs font-bold px-3 py-2 rounded-xl transition-all flex items-center gap-1.5 shadow-sm"
+                  >
+                    <Trash2 className="w-4 h-4" /> Delete Query
+                  </button>
+                  <div className="flex items-center gap-3">
+                    <div className="relative inline-block">
+                      <select 
+                        value={selectedEmail.assignedToId || ""}
+                        onChange={(e) => handleAssign(selectedEmail.id, e.target.value)}
+                        className="appearance-none bg-white border border-outline-variant rounded-xl pl-3 pr-8 py-2 text-xs font-semibold text-on-surface focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none cursor-pointer shadow-sm"
+                      >
+                        <option value="">Unassigned</option>
+                        {salespersons?.map(rep => (
+                          <option key={rep.id} value={rep.id}>Assign: {rep.name}</option>
+                        ))}
+                      </select>
+                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-on-surface-variant">
+                        <svg className="fill-current h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                      </div>
                     </div>
+                    {!selectedEmail.assignedToId && (
+                      <button 
+                        onClick={() => { handleClaim(selectedEmail.id); }}
+                        className="bg-primary text-on-primary text-xs font-bold px-4 py-2 rounded-xl hover:opacity-90 active:scale-[0.98] transition-all shadow-md"
+                      >
+                        Claim Query
+                      </button>
+                    )}
                   </div>
-                  {!selectedEmail.assignedToId && (
-                    <button 
-                      onClick={() => { handleClaim(selectedEmail.id); }}
-                      className="bg-primary text-on-primary text-xs font-bold px-4 py-2 rounded-xl hover:opacity-90 active:scale-[0.98] transition-all shadow-md"
-                    >
-                      Claim Query
-                    </button>
-                  )}
                 </div>
               </div>
             </div>
