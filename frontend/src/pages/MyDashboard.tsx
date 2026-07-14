@@ -20,6 +20,7 @@ interface HomeDashboardData {
   leads: { id: string; name: string; company: string; amount: number; status: string; source: string }[];
   quotes: { id: string; quoteNumber: string; dealName: string; amount: number; status: string; createdAt: string }[];
   purchaseOrders: { id: string; poNumber: string; amount: number; status: string; createdAt: string }[];
+  assignedEmails?: { id: string; firstName: string; lastName: string; email: string; subject: string; body: string; status: string; createdAt: string }[];
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -92,7 +93,7 @@ function KpiCard({
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-type TabKey = "leads" | "quotes" | "pos";
+type TabKey = "leads" | "quotes" | "pos" | "emails";
 
 export default function MyDashboard() {
   const { user, token } = useAuth();
@@ -191,7 +192,8 @@ export default function MyDashboard() {
   const tabs: { key: TabKey; label: string; count: number }[] = [
     { key: "leads",  label: "Leads",  count: data?.leads.length  ?? 0 },
     { key: "quotes", label: "Quotes", count: data?.quotes.length ?? 0 },
-    { key: "pos",    label: "POs",    count: data?.purchaseOrders.length ?? 0 }
+    { key: "pos",    label: "POs",    count: data?.purchaseOrders.length ?? 0 },
+    { key: "emails", label: "Emails", count: data?.assignedEmails?.length ?? 0 }
   ];
 
   // Greeting based on time
@@ -457,6 +459,38 @@ export default function MyDashboard() {
                           </td>
                           <td className="py-3 px-4 text-right text-on-surface-variant text-xs">
                             {new Date(po.createdAt).toLocaleDateString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+
+                {/* Emails tab */}
+                {activeTab === "emails" && (
+                  <table className="w-full text-sm">
+                    <thead className="sticky top-0 bg-surface-container-low border-b border-outline-variant">
+                      <tr>
+                        <th className="text-left py-3 px-4 text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">From</th>
+                        <th className="text-left py-3 px-4 text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Subject</th>
+                        <th className="text-center py-3 px-4 text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Status</th>
+                        <th className="text-right py-3 px-4 text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Date</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-outline-variant/40">
+                      {(!data?.assignedEmails || data.assignedEmails.length === 0) ? (
+                        <tr><td colSpan={4} className="py-12 text-center text-on-surface-variant text-sm">No emails assigned to you</td></tr>
+                      ) : data.assignedEmails.map(email => (
+                        <tr key={email.id} className="hover:bg-surface-container-high transition-colors">
+                          <td className="py-3 px-4 font-semibold text-on-surface">{email.firstName} {email.lastName}</td>
+                          <td className="py-3 px-4 text-on-surface-variant truncate max-w-[200px]" title={email.subject}>{email.subject}</td>
+                          <td className="py-3 px-4 text-center">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-surface-variant text-on-surface-variant">
+                              {email.status}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-right text-on-surface-variant text-xs">
+                            {new Date(email.createdAt).toLocaleDateString()}
                           </td>
                         </tr>
                       ))}

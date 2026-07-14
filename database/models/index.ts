@@ -47,6 +47,8 @@ export class Lead extends Model {
   public rawPayload!: string | null;
   public isStrategic!: boolean | null;
   public optedOutEmail!: boolean;
+  public subject!: string | null;
+  public body!: string | null;
 }
 
 Lead.init(
@@ -66,6 +68,8 @@ Lead.init(
     rawPayload: { type: DataTypes.TEXT, allowNull: true },
     isStrategic: { type: DataTypes.BOOLEAN, defaultValue: false },
     optedOutEmail: { type: DataTypes.BOOLEAN, defaultValue: false },
+    subject: { type: DataTypes.STRING, allowNull: true },
+    body: { type: DataTypes.TEXT, allowNull: true },
   },
   { 
     sequelize, 
