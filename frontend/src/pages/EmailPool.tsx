@@ -90,7 +90,7 @@ export default function EmailPool() {
         headers: { "Authorization": `Bearer ${token}` }
       });
       if (!res.ok) throw new Error("Failed to delete lead");
-      return res.json();
+      return null;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["leads"] });
