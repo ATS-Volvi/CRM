@@ -44,7 +44,7 @@ export default function EmailPool() {
   const { data: salespersons } = useQuery<any[]>({
     queryKey: ["salespersons"],
     queryFn: async () => {
-      const res = await fetch("/api/v1/salespersons/performance", {
+      const res = await fetch("/api/v1/salespersons", {
         headers: { "Authorization": `Bearer ${token}` }
       });
       if (!res.ok) throw new Error("Failed to fetch salespersons");

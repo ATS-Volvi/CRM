@@ -590,3 +590,18 @@ export const getSalespersonPerformanceDetails = async (req: Request, res: Respon
     res.status(500).json({ error: error.message });
   }
 };
+
+export const getAllSalespersons = async (req: Request, res: Response) => {
+  try {
+    const users = await sequelize.models.User.findAll({
+      where: {
+        role: { [Op.in]: ["sales_rep", "sales_manager", "admin"] }
+      },
+      attributes: ["id", "name", "role", "email"],
+      order: [["name", "ASC"]]
+    });
+    res.json(users);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
