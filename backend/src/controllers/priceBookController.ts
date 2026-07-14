@@ -116,3 +116,59 @@ export const importPriceBookEntries = async (req: Request, res: Response) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+export const getPriceSuggestion = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { getPriceWinRateSuggestion } = require("../services/pricingEngine");
+    const suggestion = await getPriceWinRateSuggestion(id);
+    res.json(suggestion);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const importPriceBookEntriesPreview = async (req: Request, res: Response) => {
+  try {
+    const { items } = req.body;
+    if (!items || !Array.isArray(items)) {
+      return res.status(400).json({ error: "An array of items is required under the 'items' key." });
+    }
+
+    const previewItems = [];
+    for (const item of items) {
+      const { sku, name, category, unitPrice, minPrice, maxPrice } = item;
+      const errors: string[] = [];
+
+      if (!sku) errors.push("SKU is required.");
+      if (!name) errors.push("Product name is required.");
+      if (unitPrice === undefined || isNaN(Number(unitPrice))) errors.push("Valid unit price is required.");
+      
+      const numMinPrice = minPrice !== undefined && minPrice !== null ? Number(minPrice) : null;
+      const numMaxPrice = maxPrice !== undefined && maxPrice !== null ? Number(maxPrice) : null;
+      const numUnitPrice = Number(unitPrice || 0);
+
+      if (numMinPrice !== null && numUnitPrice < numMinPrice) {
+        errors.push(`Unit price ($${numUnitPrice}) is lower than floor price ($${numMinPrice}).`);
+      }
+      if (numMaxPrice !== null && numUnitPrice > numMaxPrice) {
+        errors.push(`Unit price ($${numUnitPrice}) exceeds ceiling price ($${numMaxPrice}).`);
+      }
+
+      const existing = await sequelize.models.PriceBookEntry.findOne({ where: { sku: sku || "" } });
+      const action = existing ? "Update" : "Create";
+
+      previewItems.push({
+        ...item,
+        action,
+        errors,
+        isValid: errors.length === 0
+      });
+    }
+
+    const isValid = previewItems.every(i => i.isValid);
+    res.json({ items: previewItems, isValid });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};

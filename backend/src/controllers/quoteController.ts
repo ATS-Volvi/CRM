@@ -3,13 +3,110 @@ import { sequelize } from "@nexus-crm/database";
 
 export const getQuotes = async (req: Request, res: Response) => {
   try {
+    const { search, status, startDate, endDate, salespersonId, category, valueBand } = req.query;
+    const { Op } = require("sequelize");
+
+    const where: any = {};
+    if (status && status !== "All Statuses" && status !== "All") {
+      where.status = status;
+    }
+
+    if (startDate || endDate) {
+      where.createdAt = {};
+      if (startDate) {
+        where.createdAt[Op.gte] = new Date(startDate as string);
+      }
+      if (endDate) {
+        where.createdAt[Op.lte] = new Date(endDate as string);
+      }
+    }
+
+    if (valueBand) {
+      if (valueBand === "low") {
+        where.totalAmount = { [Op.lte]: 10000 };
+      } else if (valueBand === "medium") {
+        where.totalAmount = { [Op.gt]: 10000, [Op.lte]: 50000 };
+      } else if (valueBand === "high") {
+        where.totalAmount = { [Op.gt]: 50000 };
+      }
+    }
+
+    const dealWhere: any = {};
+    if (salespersonId) {
+      dealWhere.ownerId = salespersonId;
+    }
+
+    const leadWhere: any = {};
+    if (search) {
+      const searchStr = `%${search}%`;
+      leadWhere[Op.or] = [
+        { firstName: { [Op.like]: searchStr } },
+        { lastName: { [Op.like]: searchStr } },
+        { company: { [Op.like]: searchStr } }
+      ];
+    }
+
+    const lineItemInclude: any = {
+      model: sequelize.models.QuoteLineItem,
+      as: "QuoteLineItems",
+      include: []
+    };
+
+    if (category) {
+      lineItemInclude.include.push({
+        model: sequelize.models.PriceBookEntry,
+        as: "product",
+        where: { category }
+      });
+    } else {
+      lineItemInclude.include.push({
+        model: sequelize.models.PriceBookEntry,
+        as: "product"
+      });
+    }
+
     const quotes = await sequelize.models.Quote.findAll({
+      where,
       include: [
-        { model: sequelize.models.Deal, as: "deal", include: [{ model: sequelize.models.Lead, as: "lead" }] }
+        {
+          model: sequelize.models.Deal,
+          as: "deal",
+          where: Object.keys(dealWhere).length > 0 ? dealWhere : undefined,
+          include: [
+            {
+              model: sequelize.models.Lead,
+              as: "lead",
+              where: Object.keys(leadWhere).length > 0 ? leadWhere : undefined
+            },
+            {
+              model: sequelize.models.User,
+              as: "owner"
+            }
+          ]
+        },
+        lineItemInclude
       ],
       order: [['createdAt', 'DESC']]
     });
-    res.json(quotes);
+
+    // If search term was provided but matched the quoteNumber itself, or if we need to filter:
+    let filteredQuotes = quotes;
+    if (search) {
+      const searchLower = String(search).toLowerCase();
+      filteredQuotes = quotes.filter((q: any) => {
+        const matchesNum = q.quoteNumber && q.quoteNumber.toLowerCase().includes(searchLower);
+        const matchesLead = q.deal && q.deal.lead;
+        return matchesNum || matchesLead;
+      });
+    }
+
+    if (category) {
+      filteredQuotes = filteredQuotes.filter((q: any) => {
+        return q.QuoteLineItems && q.QuoteLineItems.some((li: any) => li.product);
+      });
+    }
+
+    res.json(filteredQuotes);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -39,6 +136,12 @@ export const createQuote = async (req: Request, res: Response) => {
       const seq = String(count + 1).padStart(5, '0');
       quoteNum = `QT-${year}-${seq}`;
     }
+
+    // Fetch associated deal and lead to check strategic account status
+    const deal = await sequelize.models.Deal.findByPk(dealId, {
+      include: [{ model: sequelize.models.Lead, as: "lead" }]
+    });
+    const isStrategic = deal && (deal as any).lead && (deal as any).lead.isStrategic;
 
     // Verify items and check pricing limits
     const verifiedItems = [];
@@ -84,12 +187,21 @@ export const createQuote = async (req: Request, res: Response) => {
           productId: item.productId,
           quantity: item.quantity,
           unitPrice: requestedPrice,
-          totalPrice: item.quantity * requestedPrice
+          totalPrice: item.quantity * requestedPrice,
+          isOptional: item.isOptional || false
         });
       }
     }
 
-    const totalAmount = verifiedItems.reduce((acc, item) => acc + item.totalPrice, 0);
+    // Bypass approval if it's a strategic account
+    if (isStrategic) {
+      approvalRequired = false;
+    }
+
+    // Exclude optional items from the main total amount
+    const totalAmount = verifiedItems
+      .filter(item => !item.isOptional)
+      .reduce((acc, item) => acc + item.totalPrice, 0);
 
     // Create quote
     const quote = await sequelize.models.Quote.create({
@@ -113,13 +225,26 @@ export const createQuote = async (req: Request, res: Response) => {
 
     // Auto-create approval request if threshold is breached
     if (approvalRequired) {
+      let assignedApproverId = null;
+      let commentsExtra = "";
+      
+      const manager = await sequelize.models.User.findOne({ where: { role: "sales_manager" } });
+      if (manager) {
+        assignedApproverId = (manager as any).id;
+        if ((manager as any).onLeave && (manager as any).delegatedUserId) {
+          assignedApproverId = (manager as any).delegatedUserId;
+          commentsExtra = ` (Delegated from ${(manager as any).name} due to leave)`;
+        }
+      }
+
       await sequelize.models.ApprovalRequest.create({
         id: require('crypto').randomUUID(),
         targetId: (quote as any).id,
         type: "Quote",
         status: "Pending",
         requestedById: userId,
-        comments: `Discount limit of ${maxAllowedDiscount}% exceeded by ${userRole}.`
+        assignedApproverId,
+        comments: `Discount limit of ${maxAllowedDiscount}% exceeded by ${userRole}.${commentsExtra}`
       });
     }
 
@@ -139,6 +264,27 @@ export const sendQuote = async (req: Request, res: Response) => {
       status: "Sent",
       sentAt: new Date()
     });
+
+    const deal = await sequelize.models.Deal.findByPk((quote as any).dealId);
+    if (deal && (deal as any).leadId) {
+      await sequelize.models.Activity.create({
+        id: require('crypto').randomUUID(),
+        leadId: (deal as any).leadId,
+        type: "note",
+        outcome: `Quote ${(quote as any).quoteNumber || (quote as any).id} Sent`,
+        mentioned_user_ids: "[]",
+        pinned: false,
+        createdById: (req as any).user?.id || "mock-user"
+      });
+      // Feature 13 trigger: Send Quote Sent email notification
+      const { triggerCommunication } = require("../services/communicationService");
+      await triggerCommunication("quote_sent", {
+        leadId: (deal as any).leadId,
+        salespersonId: (req as any).user?.id || (deal as any).ownerId,
+        quoteValue: (quote as any).totalAmount
+      });
+    }
+
     res.json(quote);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -162,6 +308,18 @@ export const getPublicQuote = async (req: Request, res: Response) => {
         status: "Viewed",
         viewedAt: new Date()
       });
+
+      if ((quote as any).deal?.leadId) {
+        await sequelize.models.Activity.create({
+          id: require('crypto').randomUUID(),
+          leadId: (quote as any).deal.leadId,
+          type: "note",
+          outcome: `Quote ${(quote as any).quoteNumber || (quote as any).id} Viewed by Client`,
+          mentioned_user_ids: "[]",
+          pinned: false,
+          createdById: "system"
+        });
+      }
     }
 
     res.json(quote);
@@ -343,6 +501,146 @@ export const generateQuotePdf = async (req: Request, res: Response) => {
       .text(`Total Amount: $${totalAmount}`, 400, doc.y, { align: "right" });
 
     doc.end();
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const signQuote = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { signedBy } = req.body;
+
+    const quote = await sequelize.models.Quote.findByPk(id as string, {
+      include: [{ model: sequelize.models.Deal, as: "deal" }]
+    });
+    if (!quote) return res.status(404).json({ error: "Quote not found" });
+
+    await quote.update({
+      status: "Accepted",
+      acceptedAt: new Date()
+    });
+
+    // Create Activity Log
+    await sequelize.models.Activity.create({
+      id: require('crypto').randomUUID(),
+      leadId: (quote as any).deal?.leadId || null,
+      type: "note",
+      outcome: `Quote ${(quote as any).quoteNumber} signed via simulated DocuSign by ${signedBy || "Client"}.`,
+      createdById: (req as any).user?.id || "mock-user"
+    });
+
+    res.json({ message: "Quote successfully signed via DocuSign simulation.", quote });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const getQuoteHistoryByClient = async (req: Request, res: Response) => {
+  try {
+    const { leadId } = req.params;
+    const lead = await sequelize.models.Lead.findByPk(String(leadId));
+    if (!lead) return res.status(404).json({ error: "Lead not found" });
+
+    const { Op } = require("sequelize");
+    const matchConditions: any[] = [{ id: leadId }];
+    if ((lead as any).company) {
+      matchConditions.push({ company: { [Op.like]: (lead as any).company } });
+    }
+    if ((lead as any).email) {
+      matchConditions.push({ email: { [Op.like]: (lead as any).email } });
+    }
+
+    const leads = await sequelize.models.Lead.findAll({
+      where: { [Op.or]: matchConditions }
+    });
+    const leadIds = leads.map((l: any) => l.id);
+
+    const quotes = await sequelize.models.Quote.findAll({
+      include: [
+        {
+          model: sequelize.models.Deal,
+          as: "deal",
+          where: { leadId: { [Op.in]: leadIds } },
+          include: [
+            { model: sequelize.models.User, as: "owner" },
+            { model: sequelize.models.Lead, as: "lead" }
+          ]
+        },
+        {
+          model: sequelize.models.QuoteLineItem,
+          as: "QuoteLineItems",
+          include: [{ model: sequelize.models.PriceBookEntry, as: "product" }]
+        }
+      ],
+      order: [['createdAt', 'DESC']]
+    });
+
+    res.json(quotes);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const getSimilarQuotesStats = async (req: Request, res: Response) => {
+  try {
+    const { productId } = req.params;
+    const { leadId } = req.query;
+    const { Op } = require("sequelize");
+
+    const twelveMonthsAgo = new Date();
+    twelveMonthsAgo.setFullYear(twelveMonthsAgo.getFullYear() - 1);
+
+    const lead = leadId ? await sequelize.models.Lead.findByPk(leadId as string) : null;
+    const industry = lead ? (lead as any).industry : null;
+
+    const items = await sequelize.models.QuoteLineItem.findAll({
+      where: { productId },
+      include: [
+        {
+          model: sequelize.models.Quote,
+          as: "quote",
+          where: {
+            status: "Accepted",
+            createdAt: { [Op.gte]: twelveMonthsAgo }
+          },
+          include: [
+            {
+              model: sequelize.models.Deal,
+              as: "deal",
+              include: [{ model: sequelize.models.Lead, as: "lead" }]
+            }
+          ]
+        }
+      ]
+    });
+
+    let filteredItems = items;
+    if (industry) {
+      filteredItems = items.filter((item: any) => {
+        const itemIndustry = item.quote?.deal?.lead?.industry;
+        return itemIndustry && itemIndustry.toLowerCase() === industry.toLowerCase();
+      });
+    }
+
+    if (filteredItems.length === 0) {
+      filteredItems = items;
+    }
+
+    if (filteredItems.length === 0) {
+      return res.json({ min: 0, median: 0, max: 0, count: 0 });
+    }
+
+    const prices = filteredItems.map((item: any) => Number(item.unitPrice)).sort((a, b) => a - b);
+    const min = prices[0];
+    const max = prices[prices.length - 1];
+    
+    const half = Math.floor(prices.length / 2);
+    const median = prices.length % 2 !== 0 
+      ? prices[half] 
+      : (prices[half - 1] + prices[half]) / 2;
+
+    res.json({ min, median, max, count: prices.length });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

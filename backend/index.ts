@@ -10,9 +10,23 @@ const startServer = async () => {
   try {
     await Database.createConnection();
     // Sync models. In production, use migrations instead of sync()
-    await sequelize.sync({ alter: true });
-    console.log("Database models synced successfully.");
+    if (process.env.RUN_SYNC === "true") {
+      if (process.env.USE_SQLITE === "true") {
+        await sequelize.query("PRAGMA foreign_keys = OFF;");
+      }
+      await sequelize.sync({ alter: true });
+      if (process.env.USE_SQLITE === "true") {
+        await sequelize.query("PRAGMA foreign_keys = ON;");
+      }
+      console.log("Database models synced successfully.");
+    } else {
+      console.log("Database auto-sync skipped (RUN_SYNC != true).");
+    }
     
+    // Seed default message templates if not exists
+    const { seedDefaultMessageTemplates } = require("./src/services/communicationService");
+    await seedDefaultMessageTemplates();
+
     app.listen(PORT as number, '0.0.0.0', () => {
       console.log(`Nexus CRM backend running on port ${PORT}`);
       // Start Quote Expiry Scheduler
@@ -22,6 +36,10 @@ const startServer = async () => {
       // Start Scheduled Weekly Snapshot Reports
       const { startReportScheduler } = require("./src/services/scheduledReportService");
       startReportScheduler();
+
+      // Start Lead Connector Scheduler
+      const { startConnectorScheduler } = require("./src/services/connectorScheduler");
+      startConnectorScheduler();
     });
   } catch (error) {
     console.error("Failed to start server:", error);

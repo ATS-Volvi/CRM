@@ -1,0 +1,1 @@
+import { Database } from "@nexus-crm/database"; import { calculateTeamKpis } from "./src/services/kpiService"; async function run() { try { await Database.createConnection(); console.log("DB connected"); const res = await calculateTeamKpis(); console.log("Result:", res); } catch (err) { console.error("Error:", err); } } run();

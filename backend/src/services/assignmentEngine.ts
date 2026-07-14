@@ -28,15 +28,49 @@ export async function assignLead(leadContext: AssignmentContext): Promise<string
 
       try {
         const criteria = JSON.parse(ruleData.criteria);
-        // Standard structural match: verify that every key in criteria matches context values
-        isMatch = Object.keys(criteria).every(key => {
-          const val = criteria[key];
-          const contextVal = leadContext[key];
-          if (typeof val === "string" && typeof contextVal === "string") {
-            return contextVal.toLowerCase() === val.toLowerCase();
-          }
-          return contextVal === val;
-        });
+        
+        if (Array.isArray(criteria)) {
+          // New array-based criteria evaluation: [{"field":"industry","operator":"equals","value":"Technology"}]
+          isMatch = criteria.every((c: any) => {
+            if (!c.field) return true;
+            const contextVal = leadContext[c.field];
+            const op = c.operator || "equals";
+            const targetVal = c.value;
+
+            if (contextVal === undefined || contextVal === null) return false;
+
+            switch (op) {
+              case "equals":
+              case "=":
+                return String(contextVal).trim().toLowerCase() === String(targetVal).trim().toLowerCase();
+              case "greaterThan":
+              case ">":
+                return Number(contextVal) > Number(targetVal);
+              case "lessThan":
+              case "<":
+                return Number(contextVal) < Number(targetVal);
+              case "contains":
+                return String(contextVal).toLowerCase().includes(String(targetVal).toLowerCase());
+              case "in":
+                if (Array.isArray(targetVal)) {
+                  return targetVal.map(v => String(v).toLowerCase()).includes(String(contextVal).toLowerCase());
+                }
+                return String(targetVal).toLowerCase().includes(String(contextVal).toLowerCase());
+              default:
+                return String(contextVal).toLowerCase() === String(targetVal).toLowerCase();
+            }
+          });
+        } else {
+          // Legacy object-based criteria evaluation
+          isMatch = Object.keys(criteria).every(key => {
+            const val = criteria[key];
+            const contextVal = leadContext[key];
+            if (typeof val === "string" && typeof contextVal === "string") {
+              return contextVal.toLowerCase() === val.toLowerCase();
+            }
+            return contextVal === val;
+          });
+        }
       } catch (err) {
         console.error(`Invalid JSON in assignment rule criteria ${ruleData.id}:`, err);
         continue;

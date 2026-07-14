@@ -7,38 +7,27 @@ export async function suggestBundleOrItems(leadId: string): Promise<any[]> {
 
     const industry = (lead as any).industry || "";
     const company = (lead as any).company || "";
+    const rawPayload = (lead as any).rawPayload || "";
+    const { Op } = require("sequelize");
 
     // Step 1: Context-based catalog matching
-    // Find all products matching the lead's industry or company keyword
     const products = await sequelize.models.PriceBookEntry.findAll();
-    
+    const query = `${industry} ${company} ${rawPayload}`.toLowerCase();
+    const keywords = query.split(/[\s,._\-;:"'()\[\]/]+/).filter(w => w.length > 3);
+
     const contextMatches = products.filter((p: any) => {
       const name = (p.name || "").toLowerCase();
       const desc = (p.description || "").toLowerCase();
       const category = (p.category || "").toLowerCase();
       
-      const query = `${industry} ${company}`.toLowerCase();
-      
-      return (
-        name.includes(industry.toLowerCase()) || 
-        desc.includes(industry.toLowerCase()) ||
-        category.includes(industry.toLowerCase())
+      return keywords.some(keyword => 
+        name.includes(keyword) || 
+        desc.includes(keyword) || 
+        category.includes(keyword)
       );
     });
 
-    if (contextMatches.length === 0) {
-      // Fallback: Return top 3 most popular items across all accepted quotes
-      return products.slice(0, 3).map((r: any) => ({
-        productId: r.id,
-        sku: r.sku,
-        name: r.name,
-        unitPrice: Number(r.unitPrice),
-        reason: "Recommended based on general catalog popularity."
-      }));
-    }
-
-    // Step 2: Historical pattern matching
-    // Find other products commonly sold together with these matched items in "Accepted" quotes
+    // Step 2: Historical co-occurrence pattern matching for similar clients (same industry)
     const matchedProductIds = contextMatches.map((p: any) => p.id);
     const coOccurMap: Record<string, number> = {};
 
@@ -46,7 +35,16 @@ export async function suggestBundleOrItems(leadId: string): Promise<any[]> {
       include: [{
         model: sequelize.models.Quote,
         as: "quote",
-        where: { status: "Accepted" }
+        where: { status: "Accepted" },
+        include: [{
+          model: sequelize.models.Deal,
+          as: "deal",
+          include: [{
+            model: sequelize.models.Lead,
+            as: "lead",
+            where: industry ? { industry: { [Op.like]: `%${industry}%` } } : undefined
+          }]
+        }]
       }]
     });
 
@@ -59,7 +57,7 @@ export async function suggestBundleOrItems(leadId: string): Promise<any[]> {
       quoteGroups[li.quoteId].push(li.productId);
     });
 
-    // Count co-occurrences of other products in the same quotes containing our matched items
+    // Count co-occurrences of other products
     Object.values(quoteGroups).forEach(productIds => {
       const containsMatch = productIds.some(pid => matchedProductIds.includes(pid));
       if (containsMatch) {
@@ -73,7 +71,7 @@ export async function suggestBundleOrItems(leadId: string): Promise<any[]> {
 
     // Sort items by count
     const associatedIds = Object.keys(coOccurMap).sort((a, b) => coOccurMap[b] - coOccurMap[a]);
-    const finalItems = [...matchedProductIds, ...associatedIds].slice(0, 3);
+    const finalItems = [...matchedProductIds, ...associatedIds].slice(0, 5);
 
     // Map back to catalog products
     const recommendations = [];
@@ -87,10 +85,21 @@ export async function suggestBundleOrItems(leadId: string): Promise<any[]> {
           name: (prod as any).name,
           unitPrice: Number((prod as any).unitPrice),
           reason: isCoOccur
-            ? `Frequently bought together in successful deals matching your profile.`
-            : `Recommended based on matching industry/domain context: '${industry}'.`
+            ? `Frequently bought together in successful deals for similar ${industry} clients.`
+            : `Recommended based on keywords matching lead details.`
         });
       }
+    }
+
+    // If still empty, return top 3 most popular items overall
+    if (recommendations.length === 0) {
+      return products.slice(0, 3).map((r: any) => ({
+        productId: r.id,
+        sku: r.sku,
+        name: r.name,
+        unitPrice: Number(r.unitPrice),
+        reason: "Recommended based on general catalog popularity."
+      }));
     }
 
     return recommendations;

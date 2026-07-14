@@ -7,6 +7,7 @@ export const getApprovals = async (req: Request, res: Response) => {
       include: [
         { model: sequelize.models.User, as: "requestedBy" },
         { model: sequelize.models.User, as: "approvedBy" },
+        { model: sequelize.models.User, as: "assignedApprover" },
       ],
       order: [['createdAt', 'DESC']]
     });
@@ -56,6 +57,23 @@ export const updateApproval = async (req: Request, res: Response) => {
        if (quote) {
          await quote.update({ status: 'Rejected' });
        }
+    }
+
+    if ((approval as any).type === 'Quote') {
+      const quote = await sequelize.models.Quote.findByPk((approval as any).targetId, {
+        include: [{ model: sequelize.models.Deal, as: "deal" }]
+      });
+      if (quote && (quote as any).deal?.leadId) {
+        await sequelize.models.Activity.create({
+          id: require('crypto').randomUUID(),
+          leadId: (quote as any).deal.leadId,
+          type: "note",
+          outcome: `Quote ${(quote as any).quoteNumber || (quote as any).id} Approval Request: ${status}`,
+          mentioned_user_ids: "[]",
+          pinned: false,
+          createdById: (req as any).user?.id || "system"
+        });
+      }
     }
 
     res.json(approval);

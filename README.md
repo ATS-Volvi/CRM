@@ -23,9 +23,14 @@ nexus-sales-crm/
 ```bash
 npm install
 cp backend/.env.example backend/.env   # fill in DB creds / JWT secret
+# If targeting Postgres, run database migrations:
+npm run migrate --workspace=backend
 npm run dev:backend                    # starts API on :5505
 npm run dev:frontend                   # starts Vite dev server on :5173
 ```
+
+> [!IMPORTANT]
+> Database schema updates on Postgres must only be performed via migrations (`npm run migrate --workspace=backend`). The automatic `sequelize.sync({ alter: true })` call is disabled by default. For local dev convenience, it can be explicitly enabled with `RUN_SYNC=true` in your environment.
 
 ## Design Reference
 The `design-reference/` folder contains static HTML/CSS mockups (Stitch "Horizon Enterprise" design system) for each screen: lead inbox, lead detail, pipeline kanban, quotation builder, price book, purchase orders, approval queue, KPI dashboards, management dashboards, assignment rules. Use these as the visual spec when building out `frontend/src` components/pages. The color palette and typography from `horizon_enterprise/DESIGN.md` are already wired into `frontend/tailwind.config.js`.

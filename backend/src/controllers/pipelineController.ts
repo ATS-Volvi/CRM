@@ -20,7 +20,9 @@ export const getPipeline = async (req: Request, res: Response) => {
           value: Number(d.amount),
           company: d.name, // Mocking company since it's not on Deal right now
           lastActivity: "2 days ago", // Mocking until Activity model
-          isUrgent: false
+          isUrgent: false,
+          competitors: d.competitors,
+          probability: d.probability
         }))
       };
     });
@@ -71,10 +73,11 @@ export const moveDealStage = async (req: Request, res: Response) => {
     });
 
     // Update Deal
-    deal.stageId = toStageId;
-    if (toStageObj.name === "Lost") deal.lossReason = reason;
-    if (toStageObj.name === "On Hold") deal.recontactDate = recontactDate;
+    if (toStageId) deal.stageId = toStageId;
+    if (toStageObj && toStageObj.name === "Lost") deal.lossReason = reason;
+    if (toStageObj && toStageObj.name === "On Hold") deal.recontactDate = recontactDate;
     if (req.body.competitors !== undefined) deal.competitors = req.body.competitors;
+    if (req.body.probability !== undefined) deal.probability = req.body.probability;
 
     await deal.save();
 
@@ -86,7 +89,7 @@ export const moveDealStage = async (req: Request, res: Response) => {
 
 export const createDeal = async (req: Request, res: Response) => {
   try {
-    const { name, amount, stageId, leadId, competitors } = req.body;
+    const { name, amount, stageId, leadId, competitors, probability } = req.body;
     
     // Default to the first stage if no stageId provided
     let targetStageId = stageId;
@@ -103,10 +106,25 @@ export const createDeal = async (req: Request, res: Response) => {
       amount,
       stageId: targetStageId,
       leadId: leadId || null,
-      competitors: competitors || null
+      competitors: competitors || null,
+      probability: probability !== undefined ? probability : null
     });
 
     res.status(201).json(deal);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const getDeals = async (req: Request, res: Response) => {
+  try {
+    const deals = await Deal.findAll({
+      include: [
+        { model: PipelineStage, as: "stage" }
+      ],
+      order: [["createdAt", "DESC"]]
+    });
+    res.json(deals);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

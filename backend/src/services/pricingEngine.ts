@@ -1,8 +1,12 @@
 import { sequelize } from "@nexus-crm/database";
 
-export async function getPriceWinRateSuggestion(productId: string): Promise<{ suggestedPrice: number; winRateCurve: string }> {
+export async function getPriceWinRateSuggestion(productId: string): Promise<{ suggestedPrice: number; winRateCurve: string; floorPrice: number }> {
   try {
-    // Find all quote line items of this product that belong to a closed quote (either Accepted or Rejected)
+    const product = await sequelize.models.PriceBookEntry.findByPk(productId);
+    const listPrice = product ? Number((product as any).unitPrice) : 0;
+    const floorPrice = product ? Number((product as any).minPrice || 0) : 0;
+
+    // Find all quote line items of this product that belong to a closed quote (either Accepted, Rejected, or Superseded)
     const items = await sequelize.models.QuoteLineItem.findAll({
       where: { productId },
       include: [{ 
@@ -11,39 +15,42 @@ export async function getPriceWinRateSuggestion(productId: string): Promise<{ su
       }]
     });
 
-    if (items.length < 5) {
-      // Not enough data yet (requires at least 5 quotes for comparison)
+    const closedItems = items.filter((item: any) => {
+      const status = item.quote?.status;
+      return status === "Accepted" || status === "Rejected" || status === "Superseded";
+    });
+
+    if (closedItems.length < 30) {
+      // Not enough data yet (requires at least 30 quotes for comparison)
       // Return standard catalog price as fallback
-      const product = await sequelize.models.PriceBookEntry.findByPk(productId);
       return {
-        suggestedPrice: product ? Number((product as any).unitPrice) : 0,
-        winRateCurve: "accumulating"
+        suggestedPrice: listPrice,
+        winRateCurve: "insufficient_data",
+        floorPrice
       };
     }
 
     // Group wins/losses by unitPrice
     const priceMap: Record<number, { total: number; wins: number }> = {};
-    items.forEach((item: any) => {
+    closedItems.forEach((item: any) => {
       const price = Number(item.unitPrice);
       const status = item.quote?.status;
 
-      if (status === "Accepted" || status === "Rejected" || status === "Superseded") {
-        if (!priceMap[price]) {
-          priceMap[price] = { total: 0, wins: 0 };
-        }
-        priceMap[price].total++;
-        if (status === "Accepted") {
-          priceMap[price].wins++;
-        }
+      if (!priceMap[price]) {
+        priceMap[price] = { total: 0, wins: 0 };
+      }
+      priceMap[price].total++;
+      if (status === "Accepted") {
+        priceMap[price].wins++;
       }
     });
 
     const prices = Object.keys(priceMap).map(Number);
     if (prices.length === 0) {
-      const product = await sequelize.models.PriceBookEntry.findByPk(productId);
       return {
-        suggestedPrice: product ? Number((product as any).unitPrice) : 0,
-        winRateCurve: "accumulating"
+        suggestedPrice: listPrice,
+        winRateCurve: "insufficient_data",
+        floorPrice
       };
     }
 
@@ -69,10 +76,11 @@ export async function getPriceWinRateSuggestion(productId: string): Promise<{ su
 
     return {
       suggestedPrice: optimalPrice,
-      winRateCurve
+      winRateCurve,
+      floorPrice
     };
   } catch (error) {
     console.error("Pricing win-rate calculation error:", error);
-    return { suggestedPrice: 0, winRateCurve: "accumulating" };
+    return { suggestedPrice: 0, winRateCurve: "error", floorPrice: 0 };
   }
 }

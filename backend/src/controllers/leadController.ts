@@ -25,33 +25,24 @@ export const getLeads = async (req: Request, res: Response) => {
   }
 };
 
-import { assignLead } from "../services/assignmentEngine";
+import { ingestLead } from "../services/leadIngestion";
 
 export const createLead = async (req: Request, res: Response) => {
   try {
-    const { firstName, lastName, email, company, source, status, industry } = req.body;
+    const { firstName, lastName, email, company, source, status, industry, phone } = req.body;
     
-    const assignedToId = await assignLead({
+    const leadId = await ingestLead({
       firstName,
       lastName,
       email,
+      phone,
       company,
       source: source || 'email',
-      industry
+      industry,
+      rawPayload: req.body
     });
 
-    const lead = await sequelize.models.Lead.create({
-      id: require('crypto').randomUUID(),
-      firstName,
-      lastName,
-      email,
-      company,
-      source: source || 'email',
-      status: status || 'New',
-      leadScore: Math.floor(Math.random() * 100),
-      assignedToId,
-    });
-
+    const lead = await sequelize.models.Lead.findByPk(leadId);
     res.status(201).json(lead);
   } catch (error: any) {
     res.status(500).json({ error: error.message });

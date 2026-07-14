@@ -33,7 +33,8 @@ export const createBundleTemplate = async (req: Request, res: Response) => {
         id: require('crypto').randomUUID(),
         bundleTemplateId: (template as any).id,
         productId: item.productId,
-        quantity: item.quantity || 1
+        quantity: item.quantity || 1,
+        isOptional: item.isOptional || false
       }));
       await sequelize.models.BundleItem.bulkCreate(bundleItems);
     }

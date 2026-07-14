@@ -9,6 +9,9 @@ export class User extends Model {
   public role!: string;
   public maxOpenLeads!: number;
   public isAvailable!: boolean;
+  public onLeave!: boolean | null;
+  public delegatedUserId!: string | null;
+  public managerId!: string | null;
 }
 
 User.init(
@@ -20,6 +23,9 @@ User.init(
     role: { type: DataTypes.STRING, defaultValue: "sales_rep" },
     maxOpenLeads: { type: DataTypes.INTEGER, defaultValue: 20 },
     isAvailable: { type: DataTypes.BOOLEAN, defaultValue: true },
+    onLeave: { type: DataTypes.BOOLEAN, defaultValue: false },
+    delegatedUserId: { type: DataTypes.UUID, allowNull: true },
+    managerId: { type: DataTypes.UUID, allowNull: true }
   },
   { sequelize, modelName: "User" }
 );
@@ -36,6 +42,10 @@ export class Lead extends Model {
   public industry!: string;
   public assignedToId!: string | null;
   public leadScore!: number;
+  public sourceDetail!: string | null;
+  public campaign!: string | null;
+  public rawPayload!: string | null;
+  public isStrategic!: boolean | null;
 }
 
 Lead.init(
@@ -50,6 +60,10 @@ Lead.init(
     source: { type: DataTypes.STRING, allowNull: true },
     industry: { type: DataTypes.STRING, allowNull: true },
     leadScore: { type: DataTypes.INTEGER, defaultValue: 50 },
+    sourceDetail: { type: DataTypes.STRING, allowNull: true },
+    campaign: { type: DataTypes.STRING, allowNull: true },
+    rawPayload: { type: DataTypes.TEXT, allowNull: true },
+    isStrategic: { type: DataTypes.BOOLEAN, defaultValue: false }
   },
   { 
     sequelize, 
@@ -111,6 +125,7 @@ export class Deal extends Model {
   public recontactDate!: Date | null;
   public lossReason!: string | null;
   public competitors!: string | null;
+  public probability!: number | null;
 }
 
 Deal.init(
@@ -122,6 +137,7 @@ Deal.init(
     recontactDate: { type: DataTypes.DATE, allowNull: true },
     lossReason: { type: DataTypes.TEXT, allowNull: true },
     competitors: { type: DataTypes.TEXT, allowNull: true },
+    probability: { type: DataTypes.INTEGER, allowNull: true },
   },
   { sequelize, modelName: "Deal" }
 );
@@ -192,6 +208,7 @@ export class QuoteLineItem extends Model {
   public quantity!: number;
   public unitPrice!: number;
   public totalPrice!: number;
+  public isOptional!: boolean;
 }
 
 QuoteLineItem.init(
@@ -200,6 +217,7 @@ QuoteLineItem.init(
     quantity: { type: DataTypes.INTEGER, allowNull: false },
     unitPrice: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
     totalPrice: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
+    isOptional: { type: DataTypes.BOOLEAN, defaultValue: false }
   },
   { sequelize, modelName: "QuoteLineItem" }
 );
@@ -231,6 +249,7 @@ export class ApprovalRequest extends Model {
   public status!: string;
   public requestedById!: string;
   public approvedById!: string | null;
+  public assignedApproverId!: string | null;
   public comments!: string;
 }
 
@@ -240,6 +259,7 @@ ApprovalRequest.init(
     targetId: { type: DataTypes.STRING, allowNull: false },
     type: { type: DataTypes.STRING, allowNull: false },
     status: { type: DataTypes.STRING, defaultValue: "Pending" },
+    assignedApproverId: { type: DataTypes.UUID, allowNull: true },
     comments: { type: DataTypes.TEXT, allowNull: true },
   },
   { sequelize, modelName: "ApprovalRequest" }
@@ -374,6 +394,9 @@ ApprovalRequest.belongsTo(User, { foreignKey: "requestedById", as: "requestedBy"
 User.hasMany(ApprovalRequest, { foreignKey: "approvedById", as: "requestsApproved" });
 ApprovalRequest.belongsTo(User, { foreignKey: "approvedById", as: "approvedBy" });
 
+User.hasMany(ApprovalRequest, { foreignKey: "assignedApproverId", as: "requestsAssigned" });
+ApprovalRequest.belongsTo(User, { foreignKey: "assignedApproverId", as: "assignedApprover" });
+
 User.hasMany(AssignmentRule, { foreignKey: "assignToId" });
 AssignmentRule.belongsTo(User, { foreignKey: "assignToId", as: "assignTo" });
 
@@ -412,12 +435,14 @@ export class BundleItem extends Model {
   public bundleTemplateId!: string;
   public productId!: string;
   public quantity!: number;
+  public isOptional!: boolean;
 }
 
 BundleItem.init(
   {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
-    quantity: { type: DataTypes.INTEGER, defaultValue: 1 }
+    quantity: { type: DataTypes.INTEGER, defaultValue: 1 },
+    isOptional: { type: DataTypes.BOOLEAN, defaultValue: false }
   },
   { sequelize, modelName: "BundleItem" }
 );
@@ -468,6 +493,108 @@ KpiTarget.init(
 // Define KPI Associations
 User.hasMany(KpiTarget, { foreignKey: "userId", as: "kpiTargets" });
 KpiTarget.belongsTo(User, { foreignKey: "userId", as: "user" });
+
+// ── Master Data BOM Hierarchy ───────────────────────────────
+export class Requirement extends Model {
+  public id!: string;
+  public name!: string;
+  public description!: string | null;
+  public category!: string | null;
+  public isActive!: boolean;
+}
+
+Requirement.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    name: { type: DataTypes.STRING, allowNull: false },
+    description: { type: DataTypes.TEXT, allowNull: true },
+    category: { type: DataTypes.STRING, allowNull: true },
+    isActive: { type: DataTypes.BOOLEAN, defaultValue: true }
+  },
+  { sequelize, modelName: "Requirement" }
+);
+
+export class LineItem extends Model {
+  public id!: string;
+  public requirementId!: string;
+  public name!: string;
+  public unit!: string;
+  public description!: string | null;
+  public defaultQuantity!: number;
+}
+
+LineItem.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    requirementId: { type: DataTypes.UUID, allowNull: false },
+    name: { type: DataTypes.STRING, allowNull: false },
+    unit: { type: DataTypes.STRING, allowNull: false },
+    description: { type: DataTypes.TEXT, allowNull: true },
+    defaultQuantity: { type: DataTypes.DECIMAL(10, 2), defaultValue: 1.00 }
+  },
+  { sequelize, modelName: "LineItem" }
+);
+
+export class ConstructionItem extends Model {
+  public id!: string;
+  public lineItemId!: string;
+  public name!: string;
+  public category!: string;
+  public unit!: string;
+  public quantityPerLineItem!: number;
+  public unitCost!: number;
+  public unitPrice!: number;
+  public isActive!: boolean;
+}
+
+ConstructionItem.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    lineItemId: { type: DataTypes.UUID, allowNull: false },
+    name: { type: DataTypes.STRING, allowNull: false },
+    category: { 
+      type: DataTypes.ENUM, 
+      values: ["material", "labor", "equipment"],
+      allowNull: false 
+    },
+    unit: { type: DataTypes.STRING, allowNull: false },
+    quantityPerLineItem: { type: DataTypes.DECIMAL(10, 4), allowNull: false },
+    unitCost: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
+    unitPrice: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
+    isActive: { type: DataTypes.BOOLEAN, defaultValue: true }
+  },
+  { sequelize, modelName: "ConstructionItem" }
+);
+
+export class MessageTemplate extends Model {
+  public id!: string;
+  public name!: string;
+  public triggerEvent!: string;
+  public channel!: string;
+  public bodyTemplate!: string;
+  public isActive!: boolean;
+}
+
+MessageTemplate.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    name: { type: DataTypes.STRING, allowNull: false },
+    triggerEvent: { type: DataTypes.STRING, allowNull: false },
+    channel: { type: DataTypes.STRING, defaultValue: "email" },
+    bodyTemplate: { type: DataTypes.TEXT, allowNull: false },
+    isActive: { type: DataTypes.BOOLEAN, defaultValue: true }
+  },
+  { sequelize, modelName: "MessageTemplate" }
+);
+
+User.hasMany(User, { foreignKey: "managerId", as: "teamMembers" });
+User.belongsTo(User, { foreignKey: "managerId", as: "manager" });
+
+Requirement.hasMany(LineItem, { foreignKey: "requirementId", as: "lineItems", onDelete: "CASCADE" });
+LineItem.belongsTo(Requirement, { foreignKey: "requirementId", as: "requirement" });
+
+LineItem.hasMany(ConstructionItem, { foreignKey: "lineItemId", as: "constructionItems", onDelete: "CASCADE" });
+ConstructionItem.belongsTo(LineItem, { foreignKey: "lineItemId", as: "lineItem" });
 
 export { sequelize };
 

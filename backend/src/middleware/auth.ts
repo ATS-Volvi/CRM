@@ -19,7 +19,13 @@ export const authMiddleware = (req: Request, res: Response, next: NextFunction) 
     const decoded = jwt.verify(token, process.env.JWT_SECRET || "default_secret");
     (req as any).user = decoded;
     next();
-  } catch (err) {
-    res.status(401).json({ error: "Unauthorized: Invalid token" });
+  } catch (err: any) {
+    if (err.name === "TokenExpiredError") {
+      res.status(401).json({ error: "TokenExpired" });
+    } else {
+      res.status(401).json({ error: "Unauthorized: Invalid token" });
+    }
   }
 };
+
+

@@ -2,6 +2,7 @@ import express, { Express } from "express";
 import cors from "cors";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
+import path from "path";
 import v1Router from "./src/routes/v1";
 
 export function createServer(): Express {
@@ -11,6 +12,7 @@ export function createServer(): Express {
   app.use(cors({ origin: process.env.CORS_ORIGIN || "http://localhost:5173", credentials: true }));
   app.use(express.json());
   app.use(cookieParser());
+  app.use("/static", express.static(path.join(__dirname, "public")));
 
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok", service: "nexus-crm-backend" });

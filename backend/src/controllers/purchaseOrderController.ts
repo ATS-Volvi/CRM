@@ -3,7 +3,48 @@ import { sequelize } from "@nexus-crm/database";
 
 export const getPurchaseOrders = async (req: Request, res: Response) => {
   try {
-    const purchaseOrders = await sequelize.models.PurchaseOrder.findAll({
+    const { search, salespersonId, startDate, endDate, valueBand } = req.query;
+    const { Op } = require("sequelize");
+
+    const where: any = {};
+
+    if (startDate || endDate) {
+      where.createdAt = {};
+      if (startDate) {
+        where.createdAt[Op.gte] = new Date(startDate as string);
+      }
+      if (endDate) {
+        where.createdAt[Op.lte] = new Date(endDate as string);
+      }
+    }
+
+    if (valueBand) {
+      if (valueBand === "low") {
+        where.amount = { [Op.lte]: 10000 };
+      } else if (valueBand === "medium") {
+        where.amount = { [Op.gt]: 10000, [Op.lte]: 50000 };
+      } else if (valueBand === "high") {
+        where.amount = { [Op.gt]: 50000 };
+      }
+    }
+
+    const dealWhere: any = {};
+    if (salespersonId) {
+      dealWhere.ownerId = salespersonId;
+    }
+
+    const leadWhere: any = {};
+    if (search) {
+      const searchStr = `%${search}%`;
+      leadWhere[Op.or] = [
+        { firstName: { [Op.like]: searchStr } },
+        { lastName: { [Op.like]: searchStr } },
+        { company: { [Op.like]: searchStr } }
+      ];
+    }
+
+    const pos = await sequelize.models.PurchaseOrder.findAll({
+      where,
       include: [
         { 
           model: sequelize.models.Quote, 
@@ -11,13 +52,33 @@ export const getPurchaseOrders = async (req: Request, res: Response) => {
           include: [{ 
             model: sequelize.models.Deal, 
             as: "deal",
-            include: [{ model: sequelize.models.Lead, as: "lead" }] 
+            where: Object.keys(dealWhere).length > 0 ? dealWhere : undefined,
+            include: [
+              {
+                model: sequelize.models.Lead,
+                as: "lead",
+                where: Object.keys(leadWhere).length > 0 ? leadWhere : undefined
+              },
+              { model: sequelize.models.User, as: "owner" }
+            ] 
           }] 
         }
       ],
       order: [['createdAt', 'DESC']]
     });
-    res.json(purchaseOrders);
+
+    // If search matched PO number directly
+    let filteredPos = pos;
+    if (search) {
+      const searchLower = String(search).toLowerCase();
+      filteredPos = pos.filter((p: any) => {
+        const matchesPO = p.poNumber && p.poNumber.toLowerCase().includes(searchLower);
+        const matchesLead = p.quote?.deal?.lead;
+        return matchesPO || matchesLead;
+      });
+    }
+
+    res.json(filteredPos);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -57,6 +118,26 @@ export const createPurchaseOrder = async (req: Request, res: Response) => {
       });
       if (wonStage) {
         await deal.update({ stageId: (wonStage as any).id });
+      }
+      
+      if ((deal as any).leadId) {
+        await sequelize.models.Activity.create({
+          id: require('crypto').randomUUID(),
+          leadId: (deal as any).leadId,
+          type: "note",
+          outcome: `Purchase Order Received: ${poNumber} (Amount: $${amount}) - Status: ${mismatch ? "Flagged/Mismatch" : "Accepted"}`,
+          mentioned_user_ids: "[]",
+          pinned: false,
+          createdById: "system"
+        });
+        
+        // Feature 13 trigger: Send PO Received thank-you
+        const { triggerCommunication } = require("../services/communicationService");
+        await triggerCommunication("po_received", {
+          leadId: (deal as any).leadId,
+          salespersonId: (deal as any).ownerId,
+          quoteValue: amount
+        });
       }
     }
 
