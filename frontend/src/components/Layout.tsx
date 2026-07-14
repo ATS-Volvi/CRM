@@ -28,6 +28,7 @@ export function Layout() {
 
   const [isMasterExpanded, setIsMasterExpanded] = useState(location.pathname.startsWith("/master-data"));
   const isMasterActive = location.pathname.startsWith("/master-data");
+  const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
 
   return (
     <div className="flex h-screen w-full bg-surface text-on-surface">
@@ -38,75 +39,89 @@ export function Layout() {
         <nav className="flex-1 overflow-y-auto p-4 space-y-2">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const isActive = location.pathname === item.path || (location.pathname.startsWith(item.path) && item.path !== "/");
+            const isActive = location.pathname === item.path;
             return (
               <Link
-                key={item.path}
+                key={item.name}
                 to={item.path}
-                className={`flex items-center space-x-3 px-3 py-2 rounded-lg text-body-sm transition-colors ${
+                className={`flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all ${
                   isActive
-                    ? "bg-primary-container text-on-primary-container font-medium"
+                    ? "bg-primary/10 text-primary"
                     : "text-on-surface-variant hover:bg-surface-container hover:text-on-surface"
                 }`}
               >
                 <Icon className="w-5 h-5" />
-                <span>{item.name}</span>
+                {item.name}
               </Link>
             );
           })}
-
-          {/* Collapsible Master Data Menu */}
-          <div className="space-y-1 pt-2">
+          
+          <div>
             <button
               onClick={() => setIsMasterExpanded(!isMasterExpanded)}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-body-sm transition-colors ${
+              className={`w-full flex items-center justify-between px-4 py-2.5 rounded-lg text-sm font-semibold transition-all ${
                 isMasterActive
-                  ? "bg-secondary-container/30 text-secondary font-semibold"
+                  ? "bg-primary/5 text-primary"
                   : "text-on-surface-variant hover:bg-surface-container hover:text-on-surface"
               }`}
             >
-              <div className="flex items-center space-x-3">
+              <div className="flex items-center gap-3">
                 <Database className="w-5 h-5" />
                 <span>Master Data</span>
               </div>
-              {isMasterExpanded ? (
-                <ChevronDown className="w-4 h-4" />
-              ) : (
-                <ChevronRight className="w-4 h-4" />
-              )}
+              {isMasterExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
             </button>
             
             {isMasterExpanded && (
-              <div className="pl-4 space-y-1 mt-1 border-l border-outline-variant/60 ml-5">
-                {[
-                  { name: "Requirements", path: "/master-data/requirements" },
-                  { name: "Line Items", path: "/master-data/line-items" },
-                  { name: "Construction Items", path: "/master-data/construction-items" },
-                  { name: "Pricing", path: "/master-data/pricing" }
-                ].map((sub) => {
-                  const isSubActive = location.pathname === sub.path;
-                  return (
-                    <Link
-                      key={sub.path}
-                      to={sub.path}
-                      className={`block px-3 py-1.5 rounded-lg text-body-xs transition-colors ${
-                        isSubActive
-                          ? "text-primary font-bold bg-primary/10"
-                          : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container/50"
-                      }`}
-                    >
-                      {sub.name}
-                    </Link>
-                  );
-                })}
+              <div className="pl-11 mt-1 space-y-1">
+                <Link
+                  to="/master-data/requirements"
+                  className={`block px-4 py-2 rounded-lg text-xs font-semibold ${
+                    location.pathname === "/master-data/requirements"
+                      ? "text-primary bg-primary/5"
+                      : "text-on-surface-variant hover:bg-surface-container hover:text-on-surface"
+                  }`}
+                >
+                  Requirements
+                </Link>
+                <Link
+                  to="/master-data/line-items"
+                  className={`block px-4 py-2 rounded-lg text-xs font-semibold ${
+                    location.pathname === "/master-data/line-items"
+                      ? "text-primary bg-primary/5"
+                      : "text-on-surface-variant hover:bg-surface-container hover:text-on-surface"
+                  }`}
+                >
+                  Line Items
+                </Link>
+                <Link
+                  to="/master-data/construction-items"
+                  className={`block px-4 py-2 rounded-lg text-xs font-semibold ${
+                    location.pathname === "/master-data/construction-items"
+                      ? "text-primary bg-primary/5"
+                      : "text-on-surface-variant hover:bg-surface-container hover:text-on-surface"
+                  }`}
+                >
+                  Construction Items
+                </Link>
+                <Link
+                  to="/master-data/pricing"
+                  className={`block px-4 py-2 rounded-lg text-xs font-semibold ${
+                    location.pathname === "/master-data/pricing"
+                      ? "text-primary bg-primary/5"
+                      : "text-on-surface-variant hover:bg-surface-container hover:text-on-surface"
+                  }`}
+                >
+                  Pricing Grid
+                </Link>
               </div>
             )}
           </div>
         </nav>
       </aside>
-      
+
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-[64px] bg-surface-container-lowest border-b border-outline-variant flex items-center justify-between px-6 z-40 sticky top-0">
+        <header className="h-[72px] border-b border-outline-variant bg-surface-container-lowest px-8 flex items-center justify-between gap-4">
           <div className="flex items-center flex-1 max-w-xl">
             <div className="relative w-full">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant w-5 h-5" />
@@ -118,20 +133,61 @@ export function Layout() {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 px-3 py-1 bg-surface-container-high rounded-full">
-              <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
-              <span className="text-[12px] font-semibold tracking-wider text-primary">Live Sync</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <button className="p-2 text-on-surface-variant hover:text-primary transition-colors relative">
-                <Bell className="w-5 h-5" />
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-error rounded-full"></span>
-              </button>
-            </div>
-            <button className="flex items-center gap-2 py-2 px-4 bg-primary text-on-primary font-bold rounded-lg shadow-md hover:bg-primary-container transition-all active:scale-95">
-              <Plus className="w-5 h-5" />
-              <span className="text-sm">+ Quick Add</span>
+            <button className="p-2 text-on-surface-variant hover:text-primary transition-colors relative">
+              <Bell className="w-5 h-5" />
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-error rounded-full"></span>
             </button>
+            
+            <div className="relative">
+              <button 
+                onClick={() => setIsQuickAddOpen(!isQuickAddOpen)}
+                className="flex items-center gap-2 py-2 px-4 bg-primary text-on-primary font-bold rounded-lg shadow-md hover:bg-primary-container transition-all active:scale-95"
+              >
+                <Plus className="w-5 h-5" />
+                <span className="text-sm">+ Quick Add</span>
+              </button>
+
+              {isQuickAddOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setIsQuickAddOpen(false)} />
+                  <div className="absolute right-0 mt-2 w-56 bg-white border border-outline-variant rounded-xl shadow-xl z-20 py-2 animate-scale-up">
+                    <Link 
+                      to="/leads" 
+                      onClick={() => setIsQuickAddOpen(false)}
+                      className="flex items-center gap-3 px-4 py-2.5 text-sm font-semibold text-on-surface hover:bg-slate-50 transition-colors"
+                    >
+                      <Inbox className="w-4 h-4 text-primary" />
+                      Add New Lead
+                    </Link>
+                    <Link 
+                      to="/quotes/new" 
+                      onClick={() => setIsQuickAddOpen(false)}
+                      className="flex items-center gap-3 px-4 py-2.5 text-sm font-semibold text-on-surface hover:bg-slate-50 transition-colors"
+                    >
+                      <FileText className="w-4 h-4 text-secondary" />
+                      Build New Quote
+                    </Link>
+                    <Link 
+                      to="/purchase-orders" 
+                      onClick={() => setIsQuickAddOpen(false)}
+                      className="flex items-center gap-3 px-4 py-2.5 text-sm font-semibold text-on-surface hover:bg-slate-50 transition-colors"
+                    >
+                      <CheckSquare className="w-4 h-4 text-emerald-600" />
+                      New Purchase Order
+                    </Link>
+                    <Link 
+                      to="/rules" 
+                      onClick={() => setIsQuickAddOpen(false)}
+                      className="flex items-center gap-3 px-4 py-2.5 text-sm font-semibold text-on-surface hover:bg-slate-50 transition-colors"
+                    >
+                      <Settings className="w-4 h-4 text-amber-500" />
+                      Add Assignment Rule
+                    </Link>
+                  </div>
+                </>
+              )}
+            </div>
+
             <div className="flex items-center ml-2">
               <div className="w-8 h-8 rounded-full border border-outline-variant bg-surface-variant flex items-center justify-center text-primary font-bold" title={user?.name || "User"}>
                 {initials}
