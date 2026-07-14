@@ -143,16 +143,49 @@ export default function PipelineKanban() {
         </div>
       </section>
 
-      {/* KANBAN CANVAS */}
-      <section className="flex-1 overflow-x-auto overflow-y-hidden bg-surface-container-low flex p-8 gap-6 items-start">
+      {/* MAIN VIEW */}
+      <section className="flex-1 overflow-auto bg-surface-container-low flex p-8 gap-6 items-start">
         {isLoading ? (
           <div className="w-full h-full flex justify-center items-center text-on-surface-variant animate-pulse">Loading Pipeline...</div>
-        ) : pipelineColumns?.map((col: any) => (
+        ) : viewMode === "list" ? (
+          <div className="w-full bg-surface rounded-xl shadow-sm border border-outline-variant/30 overflow-hidden">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-surface-container-lowest border-b border-outline-variant/30 text-on-surface-variant text-xs uppercase tracking-wider">
+                  <th className="p-4 font-semibold">Deal Name</th>
+                  <th className="p-4 font-semibold">Stage</th>
+                  <th className="p-4 font-semibold">Value (SAR)</th>
+                  <th className="p-4 font-semibold">Probability</th>
+                  <th className="p-4 font-semibold">Competitors</th>
+                  <th className="p-4 font-semibold">Last Activity</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pipelineColumns?.flatMap((col: any) => col.deals.map((deal: any) => ({ ...deal, stageName: col.stage }))).map((deal: any) => (
+                  <tr key={deal.id} className="border-b border-outline-variant/20 hover:bg-surface-container-lowest transition-colors">
+                    <td className="p-4 font-medium">{deal.name} {deal.isUrgent && <CheckCircle2 className="inline w-4 h-4 text-error ml-2" />}</td>
+                    <td className="p-4">
+                      <span className="px-2 py-1 bg-surface-container rounded text-xs font-semibold text-on-surface-variant">{deal.stageName}</span>
+                    </td>
+                    <td className="p-4 font-bold text-primary">{formatCurrency(deal.value)}</td>
+                    <td className="p-4 text-sm">{deal.probability != null ? `${deal.probability}%` : '-'}</td>
+                    <td className="p-4 text-sm text-on-surface-variant">{deal.competitors || '-'}</td>
+                    <td className="p-4 text-sm text-on-surface-variant">{deal.lastActivity}</td>
+                  </tr>
+                ))}
+                {pipelineColumns?.flatMap((col: any) => col.deals).length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="p-8 text-center text-on-surface-variant">No deals found in pipeline.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          pipelineColumns?.map((col: any) => (
           <div 
             key={col.id || col.stage} 
             className="min-w-[300px] max-w-[300px] flex flex-col h-full bg-surface-container border border-outline-variant/30 rounded-xl"
-            onDragOver={handleDragOver}
-            onDrop={(e) => handleDrop(e, col.id, col.stage)}
           >
             <div className="p-4 flex items-center justify-between">
               <div>
@@ -170,14 +203,30 @@ export default function PipelineKanban() {
               {col.deals.map((deal: any) => (
                 <div 
                   key={deal.id} 
-                  draggable
-                  onDragStart={(e) => handleDragStart(e, deal.id)}
-                  className={`bg-surface-container-lowest p-4 rounded-lg border ${deal.isUrgent ? 'border-error/50' : 'border-outline-variant'} hover:shadow-md transition-all cursor-grab active:cursor-grabbing`} 
+                  className={`bg-surface-container-lowest p-4 rounded-lg border ${deal.isUrgent ? 'border-error/50' : 'border-outline-variant'} hover:shadow-md transition-all`} 
                   style={deal.isUrgent ? { borderLeft: "4px solid #ba1a1a" } : {}}
                 >
-                  <div className="flex justify-between items-start mb-2">
+                  <div className="flex justify-between items-start mb-2 gap-2">
                     <span className="text-sm font-bold text-on-surface leading-tight">{deal.name}</span>
-                    {deal.isUrgent ? <span className="text-error"><CheckCircle2 className="w-4 h-4" /></span> : <MoreVertical className="text-tertiary w-4 h-4" />}
+                    <select
+                      value={col.id}
+                      onChange={(e) => {
+                        const stageId = e.target.value;
+                        const stageName = e.target.options[e.target.selectedIndex].text;
+                        if (stageName === "Lost" || stageName === "On Hold") {
+                          setTransitionModal({ dealId: deal.id, toStageId: stageId, toStageName: stageName });
+                          setReason("");
+                          setRecontactDate("");
+                        } else {
+                          updateStageMutation.mutate({ dealId: deal.id, toStageId: stageId });
+                        }
+                      }}
+                      className="text-[10px] bg-surface border border-outline-variant rounded px-1.5 py-0.5 outline-none focus:border-primary text-on-surface-variant max-w-[90px] truncate cursor-pointer hover:bg-surface-container-high transition-colors"
+                    >
+                      {pipelineColumns?.map((stageCol: any) => (
+                        <option key={stageCol.id} value={stageCol.id}>{stageCol.stage}</option>
+                      ))}
+                    </select>
                   </div>
                   <div className="flex items-end justify-between">
                     <div>
@@ -211,8 +260,7 @@ export default function PipelineKanban() {
               ))}
             </div>
           </div>
-        ))}
-        {/* Removed Mock Empty stage block since we now fetch from DB dynamically */}
+        )))}
       </section>
 
       {/* Transition Modal */}

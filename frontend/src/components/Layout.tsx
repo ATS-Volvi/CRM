@@ -1,9 +1,15 @@
 import { useState } from "react";
 import { Outlet, Link, useLocation } from "react-router-dom";
-import { LayoutDashboard, Inbox, Trello, Receipt, FileText, Settings, Key, CheckSquare, BarChart, Search, Bell, Plus, Users, Home, Database, ChevronDown, ChevronRight } from "lucide-react";
+import { LayoutDashboard, Inbox, Trello, Receipt, FileText, Settings, Key, CheckSquare, BarChart, Search, Bell, Plus, Users, Home, Database, ChevronDown, ChevronRight, LogOut } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
 
 export function Layout() {
   const location = useLocation();
+  const { user, logout } = useAuth();
+  const initials = user?.name 
+    ? user.name.split(" ").map(n => n[0]).join("").substring(0, 2).toUpperCase() 
+    : "U";
+
   const navItems = [
     { name: "My Dashboard", path: "/home", icon: Home },
     { name: "Management Dashboard", path: "/", icon: LayoutDashboard },
@@ -126,8 +132,20 @@ export function Layout() {
               <span className="text-sm">+ Quick Add</span>
             </button>
             <div className="flex items-center ml-2">
-              <div className="w-8 h-8 rounded-full border border-outline-variant bg-surface-variant flex items-center justify-center text-primary font-bold">AK</div>
+              <div className="w-8 h-8 rounded-full border border-outline-variant bg-surface-variant flex items-center justify-center text-primary font-bold" title={user?.name || "User"}>
+                {initials}
+              </div>
             </div>
+            <button 
+              onClick={() => {
+                logout();
+                window.location.href = "/login";
+              }}
+              className="ml-2 flex items-center gap-1 p-2 text-on-surface-variant hover:text-error transition-colors rounded-lg"
+              title="Logout"
+            >
+              <LogOut className="w-5 h-5" />
+            </button>
           </div>
         </header>
 
