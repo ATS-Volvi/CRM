@@ -1,6 +1,8 @@
 import "dotenv/config";
 import { createServer } from "./server";
 import { Database, sequelize } from "@nexus-crm/database";
+import { checkOverdueTasks } from "./src/services/notificationService";
+import { processScheduledEmails, processQuoteFollowUps } from "./src/services/emailService";
 
 const PORT = process.env.PORT || 5505;
 
@@ -9,19 +11,8 @@ const app = createServer();
 const startServer = async () => {
   try {
     await Database.createConnection();
-    // Sync models. In production, use migrations instead of sync()
-    if (process.env.RUN_SYNC === "true") {
-      if (process.env.USE_SQLITE === "true") {
-        await sequelize.query("PRAGMA foreign_keys = OFF;");
-      }
-      await sequelize.sync({ alter: true });
-      if (process.env.USE_SQLITE === "true") {
-        await sequelize.query("PRAGMA foreign_keys = ON;");
-      }
-      console.log("Database models synced successfully.");
-    } else {
-      console.log("Database auto-sync skipped (RUN_SYNC != true).");
-    }
+    // Models are now synced via Sequelize migrations. Do not use sync()!
+    console.log("Database connection established successfully.");
     
     // Seed default message templates if not exists
     const { seedDefaultMessageTemplates } = require("./src/services/communicationService");
@@ -29,6 +20,14 @@ const startServer = async () => {
 
     app.listen(PORT as number, '0.0.0.0', () => {
       console.log(`Nexus CRM backend running on port ${PORT}`);
+      // Setup simple cron job for checking overdue tasks every hour
+      // (Using 1 hour = 3600000 ms)
+      setInterval(() => {
+        checkOverdueTasks().catch(console.error);
+        processScheduledEmails().catch(console.error);
+        processQuoteFollowUps().catch(console.error);
+      }, 3600000);
+
       // Start Quote Expiry Scheduler
       const { startExpiryScheduler } = require("./src/services/expiryScheduler");
       startExpiryScheduler();

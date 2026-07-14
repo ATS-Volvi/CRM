@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { ingestLead } from "../services/leadIngestion";
+import { triggerTemplatedEmail } from "../services/emailService";
 
 export const createPublicLead = async (req: Request, res: Response) => {
   try {
@@ -22,6 +23,15 @@ export const createPublicLead = async (req: Request, res: Response) => {
       message,
       rawPayload: rawPayload || req.body
     });
+
+    // 1. LEAD ACKNOWLEDGEMENT AUTOMATION
+    if (email) {
+      const slaHours = process.env.LEAD_RESPONSE_SLA_HOURS || "24";
+      triggerTemplatedEmail("lead_acknowledgement", email, { 
+        lead_name: firstName, 
+        sla_hours: slaHours 
+      }, leadId).catch(err => console.error("Email send failed:", err));
+    }
 
     res.status(201).json({ success: true, leadId });
   } catch (error: any) {

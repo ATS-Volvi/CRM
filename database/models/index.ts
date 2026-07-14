@@ -46,6 +46,7 @@ export class Lead extends Model {
   public campaign!: string | null;
   public rawPayload!: string | null;
   public isStrategic!: boolean | null;
+  public optedOutEmail!: boolean;
 }
 
 Lead.init(
@@ -63,7 +64,8 @@ Lead.init(
     sourceDetail: { type: DataTypes.STRING, allowNull: true },
     campaign: { type: DataTypes.STRING, allowNull: true },
     rawPayload: { type: DataTypes.TEXT, allowNull: true },
-    isStrategic: { type: DataTypes.BOOLEAN, defaultValue: false }
+    isStrategic: { type: DataTypes.BOOLEAN, defaultValue: false },
+    optedOutEmail: { type: DataTypes.BOOLEAN, defaultValue: false },
   },
   { 
     sequelize, 
@@ -148,6 +150,9 @@ export class Quote extends Model {
   public status!: string;
   public totalAmount!: number;
   public expirationDate!: Date;
+  public statusChangedAt!: Date;
+  public followUpSentAt!: Date | null;
+  public docusignEnvelopeId!: string | null;
   public quoteNumber!: string | null;
   public version!: number;
   public sentAt!: Date | null;
@@ -161,6 +166,9 @@ Quote.init(
     status: { type: DataTypes.STRING, defaultValue: "Draft" },
     totalAmount: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
     expirationDate: { type: DataTypes.DATE, allowNull: true },
+    statusChangedAt: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
+    followUpSentAt: { type: DataTypes.DATE, allowNull: true },
+    docusignEnvelopeId: { type: DataTypes.STRING, allowNull: true },
     quoteNumber: { type: DataTypes.STRING, allowNull: true },
     version: { type: DataTypes.INTEGER, defaultValue: 1 },
     sentAt: { type: DataTypes.DATE, allowNull: true },
@@ -291,6 +299,7 @@ export class Activity extends Model {
   public type!: string;
   public duration!: number | null;
   public outcome!: string | null;
+  public notes!: string | null;
   public mentioned_user_ids!: string; // JSON string array
   public pinned!: boolean;
   public createdById!: string;
@@ -309,6 +318,7 @@ Activity.init(
     },
     duration: { type: DataTypes.INTEGER, allowNull: true },
     outcome: { type: DataTypes.STRING, allowNull: true },
+    notes: { type: DataTypes.TEXT, allowNull: true },
     mentioned_user_ids: { type: DataTypes.TEXT, defaultValue: "[]" },
     pinned: { type: DataTypes.BOOLEAN, defaultValue: false },
     dueDate: { type: DataTypes.DATE, allowNull: true },
@@ -355,6 +365,107 @@ InvoiceLineItem.init(
     totalPrice: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
   },
   { sequelize, modelName: "InvoiceLineItem" }
+);
+
+export class Notification extends Model {
+  public id!: string;
+  public userId!: string;
+  public type!: string;
+  public title!: string;
+  public message!: string;
+  public link!: string | null;
+  public isRead!: boolean;
+}
+
+Notification.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    type: { type: DataTypes.STRING, allowNull: false },
+    title: { type: DataTypes.STRING, allowNull: false },
+    message: { type: DataTypes.TEXT, allowNull: false },
+    link: { type: DataTypes.STRING, allowNull: true },
+    isRead: { type: DataTypes.BOOLEAN, defaultValue: false },
+  },
+  { sequelize, modelName: "Notification" }
+);
+
+export class MessageTemplate extends Model {
+  public id!: string;
+  public name!: string;
+  public channel!: string; // email, sms, in_app
+  public subject!: string;
+  public body!: string;
+  public triggerEvent!: string; // e.g. "deal_won", "lead_created"
+  
+  // A/B Testing Fields
+  public isAbTest!: boolean;
+  public variantBSubject!: string | null;
+  public variantBBody!: string | null;
+  public variantASends!: number;
+  public variantAOpens!: number;
+  public variantBSends!: number;
+  public variantBOpens!: number;
+  public winnerVariant!: string | null;
+}
+
+MessageTemplate.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    name: { type: DataTypes.STRING, allowNull: false, unique: true },
+    channel: { type: DataTypes.STRING, allowNull: false, defaultValue: "email" },
+    subject: { type: DataTypes.STRING, allowNull: true },
+    body: { type: DataTypes.TEXT, allowNull: false },
+    triggerEvent: { type: DataTypes.STRING, allowNull: true },
+    isAbTest: { type: DataTypes.BOOLEAN, defaultValue: false },
+    variantBSubject: { type: DataTypes.STRING, allowNull: true },
+    variantBBody: { type: DataTypes.TEXT, allowNull: true },
+    variantASends: { type: DataTypes.INTEGER, defaultValue: 0 },
+    variantAOpens: { type: DataTypes.INTEGER, defaultValue: 0 },
+    variantBSends: { type: DataTypes.INTEGER, defaultValue: 0 },
+    variantBOpens: { type: DataTypes.INTEGER, defaultValue: 0 },
+    winnerVariant: { type: DataTypes.STRING, allowNull: true },
+  },
+  { sequelize, modelName: "MessageTemplate" }
+);
+
+export class ScheduledEmail extends Model {
+  public id!: string;
+  public leadId!: string;
+  public templateName!: string;
+  public sendAfter!: Date;
+  public sentAt!: Date | null;
+}
+
+ScheduledEmail.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    leadId: { type: DataTypes.UUID, allowNull: false },
+    templateName: { type: DataTypes.STRING, allowNull: false },
+    sendAfter: { type: DataTypes.DATE, allowNull: false },
+    sentAt: { type: DataTypes.DATE, allowNull: true },
+  },
+  { sequelize, modelName: "ScheduledEmail" }
+);
+
+export class WebhookEvent extends Model {
+  public id!: string;
+  public source!: string;
+  public payload!: string;
+  public status!: string;
+  public retryCount!: number;
+  public errorMessage!: string | null;
+}
+
+WebhookEvent.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    source: { type: DataTypes.STRING, allowNull: false },
+    payload: { type: DataTypes.TEXT, allowNull: false },
+    status: { type: DataTypes.STRING, defaultValue: 'pending' },
+    retryCount: { type: DataTypes.INTEGER, defaultValue: 0 },
+    errorMessage: { type: DataTypes.TEXT, allowNull: true },
+  },
+  { sequelize, modelName: "WebhookEvent" }
 );
 
 // Define Associations
@@ -414,6 +525,15 @@ InvoiceLineItem.belongsTo(Invoice, { foreignKey: "invoiceId", as: "invoice" });
 
 PriceBookEntry.hasMany(InvoiceLineItem, { foreignKey: "productId" });
 InvoiceLineItem.belongsTo(PriceBookEntry, { foreignKey: "productId", as: "product" });
+
+User.hasMany(Notification, { foreignKey: "userId", as: "notifications" });
+Notification.belongsTo(User, { foreignKey: "userId", as: "user" });
+
+MessageTemplate.hasMany(Notification, { foreignKey: "templateId" });
+Notification.belongsTo(MessageTemplate, { foreignKey: "templateId" });
+
+Lead.hasMany(ScheduledEmail, { foreignKey: "leadId", as: "scheduledEmails" });
+ScheduledEmail.belongsTo(Lead, { foreignKey: "leadId", as: "lead" });
 
 export class BundleTemplate extends Model {
   public id!: string;

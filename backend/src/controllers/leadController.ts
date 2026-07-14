@@ -1,5 +1,7 @@
 import { Request, Response } from "express";
 import { sequelize } from "@nexus-crm/database";
+import { triggerTemplatedEmail } from "../services/emailService";
+import { assignLeadToSalesperson } from "../services/leadAssignmentService";
 
 export const getLeads = async (req: Request, res: Response) => {
   try {
@@ -43,6 +45,14 @@ export const createLead = async (req: Request, res: Response) => {
     });
 
     const lead = await sequelize.models.Lead.findByPk(leadId);
+    // 1. LEAD ACKNOWLEDGEMENT AUTOMATION
+    if (email) {
+      const slaHours = process.env.LEAD_RESPONSE_SLA_HOURS || "24";
+      triggerTemplatedEmail("lead_acknowledgement", email, { 
+        lead_name: firstName, 
+        sla_hours: slaHours 
+      }, (lead as any).id).catch(err => console.error("Email send failed:", err));
+    }
     res.status(201).json(lead);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -56,6 +66,11 @@ export const updateLead = async (req: Request, res: Response) => {
     const lead = await sequelize.models.Lead.findByPk(id as string);
     if (!lead) return res.status(404).json({ error: "Lead not found" });
     
+    if (updateData.assignedToId && updateData.assignedToId !== (lead as any).assignedToId) {
+      await assignLeadToSalesperson(lead, updateData.assignedToId);
+      delete updateData.assignedToId; // Prevent overwriting during the main update below
+    }
+
     await lead.update(updateData);
     res.json(lead);
   } catch (error: any) {
@@ -113,3 +128,42 @@ export const deleteLead = async (req: Request, res: Response) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+export const handleUnsubscribe = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const lead = await sequelize.models.Lead.findByPk(String(id));
+    if (!lead) {
+      return res.status(404).send("Lead not found.");
+    }
+
+    const l = lead as any;
+    if (!l.optedOutEmail) {
+      l.optedOutEmail = true;
+      await l.save();
+
+      // Log activity
+      await sequelize.models.Activity.create({
+        id: require('crypto').randomUUID(),
+        leadId: l.id,
+        type: "Email",
+        status: "Completed",
+        assignedToId: l.assignedToId,
+        notes: "Client clicked Unsubscribe. All future marketing/templated emails are now blocked."
+      });
+    }
+
+    const html = `
+    <html>
+      <body style="font-family: sans-serif; text-align: center; margin-top: 50px;">
+        <h2>Unsubscribed Successfully</h2>
+        <p>You have been removed from our mailing list. You will no longer receive automated emails from us.</p>
+      </body>
+    </html>
+    `;
+    res.send(html);
+  } catch (error: any) {
+    res.status(500).send("An error occurred processing your request.");
+  }
+};
+

@@ -10,7 +10,7 @@ import { getQuotes, createQuote, getQuoteRecommendations, sendQuote, getPublicQu
 import { getInvoices, createInvoiceFromQuote, updateInvoiceStatus } from '../controllers/invoiceController';
 import { getPurchaseOrders, createPurchaseOrder, updatePurchaseOrder } from '../controllers/purchaseOrderController';
 import { getApprovals, updateApproval, getApprovalTiers, createApprovalTier, deleteApprovalTier } from '../controllers/approvalController';
-import { getKpiDashboard, getManagementDashboard, getMyTodayDashboard, getMyHomeDashboard, getKpiTarget, updateKpiTarget, getActivitiesReports } from '../controllers/dashboardController';
+import { getKpiDashboard, getManagementDashboard, getMyTodayDashboard, getMyHomeDashboard, getKpiTarget, updateKpiTarget, getActivitiesReports, getHomeDashboard } from '../controllers/dashboardController';
 import { getAssignmentRules, createAssignmentRule, updateAssignmentRule, deleteAssignmentRule } from '../controllers/assignmentRuleController';
 import { getBundleTemplates, createBundleTemplate, deleteBundleTemplate } from '../controllers/bundleController';
 import { exportLeads, exportQuotes, exportPurchaseOrders } from '../controllers/exportController';
@@ -28,7 +28,96 @@ const router = Router();
 // ==========================================
 // PUBLIC ROUTES
 // ==========================================
+
+// Public routes
+/**
+ * @swagger
+ * /auth/register:
+ *   post:
+ *     summary: Register a new user
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *               password:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: User registered successfully
+ */
+router.post("/auth/register", register);
+
+/**
+ * @swagger
+ * /auth/login:
+ *   post:
+ *     summary: Login and get a JWT token
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email:
+ *                 type: string
+ *               password:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Successful login
+ */
+router.post("/auth/login", login);
+/**
+ * @swagger
+ * /public/leads:
+ *   post:
+ *     summary: Capture a lead from a public source (e.g. website, social media)
+ *     tags: [Public]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               firstName:
+ *                 type: string
+ *               lastName:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *               source:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Lead captured successfully
+ */
+>>>>>>> 96958e6e9332b64984df0c59262a6a56f050dbb2
 router.post("/public/leads", createPublicLead);
+import { handleUnsubscribe } from "../controllers/leadController";
+router.get("/leads/unsubscribe/:id", handleUnsubscribe);
+
+import { trackEmailOpen, getAbTestStats, declareWinner } from "../controllers/messageTemplateController";
+router.get("/message-templates/track/:id", trackEmailOpen);
+
+// Special KPI endpoints for dashboard mock (Public for preview)
+router.get("/kpis/salesperson", async (req, res) => {
+  res.json({ sales: 12000, pipeline: 45000, meetings: 4, winRate: 65 });
+});
+router.get("/kpis/management", async (req, res) => {
+  res.json({ totalRevenue: 1200000, activeDeals: 34, topPerformer: "Jane Doe" });
+});
+
 router.get("/public/quotes/:id", getPublicQuote);
 router.post("/public/quotes/:id/sign", signQuote);
 
@@ -75,11 +164,48 @@ router.post("/auth/login", login);
 // Protect all following routes
 router.use(authMiddleware);
 
+import { createApproval } from '../controllers/approvalController';
+import { getNotifications, markAsRead, markAllAsRead } from '../controllers/notificationController';
+import { getMessageTemplates, getMessageTemplateById, createMessageTemplate, updateMessageTemplate, deleteMessageTemplate } from '../controllers/messageTemplateController';
+import whatsappRoutes from './whatsappRoutes';
 // ==========================================
 // LEADS
 // ==========================================
 router.get("/leads/duplicates", authMiddleware, getDuplicateLeads);
 router.post("/leads/merge", authMiddleware, mergeLeads);
+/**
+ * @swagger
+ * /leads:
+ *   get:
+ *     summary: Get a list of all leads
+ *     tags: [Leads]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: A list of leads
+ *   post:
+ *     summary: Create a new lead manually
+ *     tags: [Leads]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               firstName:
+ *                 type: string
+ *               lastName:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Lead created
+ */
 router.get("/leads", authMiddleware, getLeads);
 router.post("/leads", authMiddleware, createLead);
 router.put("/leads/:id", authMiddleware, updateLead);
@@ -128,6 +254,7 @@ router.put("/purchase-orders/:id", authMiddleware, updatePurchaseOrder);
 // APPROVALS
 // ==========================================
 router.get("/approvals", authMiddleware, getApprovals);
+router.post("/approvals", authMiddleware, createApproval);
 router.put("/approvals/:id", authMiddleware, updateApproval);
 
 // ==========================================
@@ -158,6 +285,24 @@ router.get("/assignment-rules", authMiddleware, getAssignmentRules);
 router.post("/assignment-rules", authMiddleware, createAssignmentRule);
 router.put("/assignment-rules/:id", authMiddleware, updateAssignmentRule);
 router.delete("/assignment-rules/:id", authMiddleware, deleteAssignmentRule);
+
+// ==========================================
+// ==========================================
+// NOTIFICATIONS
+// ==========================================
+router.get("/notifications", authMiddleware, getNotifications);
+router.put("/notifications/:id/read", authMiddleware, markAsRead);
+router.post("/notifications/read-all", authMiddleware, markAllAsRead);
+
+// MESSAGE TEMPLATES
+// ==========================================
+router.get("/message-templates", authMiddleware, getMessageTemplates);
+router.get("/message-templates/:id", authMiddleware, getMessageTemplateById);
+router.get("/message-templates/:id/ab-test-stats", authMiddleware, getAbTestStats);
+router.post("/message-templates/:id/declare-winner", authMiddleware, declareWinner);
+router.post("/message-templates", authMiddleware, createMessageTemplate);
+router.put("/message-templates/:id", authMiddleware, updateMessageTemplate);
+router.delete("/message-templates/:id", authMiddleware, deleteMessageTemplate);
 
 // ==========================================
 // BUNDLE TEMPLATES
@@ -209,3 +354,8 @@ router.get("/message-templates", authMiddleware, getMessageTemplates);
 router.put("/message-templates/:id", authMiddleware, updateMessageTemplate);
 
 export default router;
+
+// ==========================================
+// WHATSAPP
+// ==========================================
+router.use("/whatsapp", whatsappRoutes);
