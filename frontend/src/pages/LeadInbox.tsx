@@ -12,13 +12,41 @@ export default function LeadInbox() {
   const queryClient = useQueryClient();
   const [showAddLeadModal, setShowAddLeadModal] = useState(false);
   const [showMergeModal, setShowMergeModal] = useState(false);
-  const [newLead, setNewLead] = useState({ firstName: "", lastName: "", email: "", company: "", source: "email" });
+  const [newLead, setNewLead] = useState({ firstName: "", lastName: "", email: "", company: "", source: "email", budgetRange: "" });
   const [sourceFilter, setSourceFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [selectedCompanyLead, setSelectedCompanyLead] = useState<any | null>(null);
   
   const [quickLogLeadId, setQuickLogLeadId] = useState<string | null>(null);
   const [quickCallOutcome, setQuickCallOutcome] = useState("Spoke with client");
   const [quickCallNote, setQuickCallNote] = useState("");
+
+  // Fetch salespersons to populate assignment dropdowns
+  const { data: salespersons } = useQuery<any[]>({
+    queryKey: ["salespersons"],
+    queryFn: async () => {
+      const res = await fetch("/api/v1/salespersons", {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error("Failed to fetch salespersons");
+      return res.json();
+    },
+    enabled: !!token
+  });
+
+  // Query to fetch quotation details for the selected company detail lookup modal
+  const { data: companyQuotes, isLoading: isLoadingQuotes } = useQuery({
+    queryKey: ["companyQuotes", selectedCompanyLead?.id],
+    queryFn: async () => {
+      if (!selectedCompanyLead?.id) return [];
+      const res = await fetch(`/api/v1/quotes/history/client/${selectedCompanyLead.id}`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error("Failed to fetch quotes");
+      return res.json();
+    },
+    enabled: !!selectedCompanyLead?.id && !!token
+  });
 
   const logCallMutation = useMutation({
     mutationFn: async ({ leadId, type, outcome }: { leadId: string; type: string; outcome: string }) => {
@@ -91,7 +119,8 @@ export default function LeadInbox() {
       });
       if (!res.ok) throw new Error("Failed to fetch leads");
       return res.json();
-    }
+    },
+    enabled: !!token
   });
 
   const { data: duplicateGroups } = useQuery({
@@ -102,7 +131,8 @@ export default function LeadInbox() {
       });
       if (!res.ok) throw new Error("Failed to fetch duplicates");
       return res.json();
-    }
+    },
+    enabled: !!token
   });
 
   const mergeMutation = useMutation({
@@ -296,9 +326,9 @@ export default function LeadInbox() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-surface-container-high border-b border-outline-variant">
-                <th className="px-6 py-4 text-[12px] font-semibold tracking-wider text-on-surface-variant">Source</th>
-                <th className="px-6 py-4 text-[12px] font-semibold tracking-wider text-on-surface-variant">Lead Name</th>
                 <th className="px-6 py-4 text-[12px] font-semibold tracking-wider text-on-surface-variant">Company</th>
+                <th className="px-6 py-4 text-[12px] font-semibold tracking-wider text-on-surface-variant">Account Manager</th>
+                <th className="px-6 py-4 text-[12px] font-semibold tracking-wider text-on-surface-variant">Budget Range</th>
                 <th className="px-6 py-4 text-[12px] font-semibold tracking-wider text-on-surface-variant text-center">Score</th>
                 <th className="px-6 py-4 text-[12px] font-semibold tracking-wider text-on-surface-variant">Assigned To</th>
                 <th className="px-6 py-4 text-[12px] font-semibold tracking-wider text-on-surface-variant">Wait Time</th>
@@ -308,42 +338,60 @@ export default function LeadInbox() {
             <tbody className="divide-y divide-outline-variant">
               {isLoading ? (
                 <tr><td colSpan={7} className="px-6 py-8 text-center text-on-surface-variant">Loading leads...</td></tr>
+              ) : displayLeads.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-6 py-12 text-center text-on-surface-variant font-medium">
+                    No leads found matching the active filters.
+                  </td>
+                </tr>
               ) : (
                 displayLeads.map((lead: any) => (
                   <tr key={lead.id} className="hover:bg-surface-container transition-colors group">
                     <td className="px-6 py-4">
-                      {lead.source === 'email' && <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center text-primary" title="Email"><Mail className="w-5 h-5" /></div>}
-                      {lead.source === 'facebook' && <div className="w-8 h-8 rounded bg-[#1877F2]/10 flex items-center justify-center text-[#1877F2]" title="Facebook"><Facebook className="w-5 h-5" /></div>}
-                      {lead.source === 'linkedin' && <div className="w-8 h-8 rounded bg-[#0A66C2]/10 flex items-center justify-center text-[#0A66C2]" title="LinkedIn"><Linkedin className="w-5 h-5" /></div>}
-                      {lead.source === 'instagram' && <div className="w-8 h-8 rounded bg-[#E1306C]/10 flex items-center justify-center text-[#E1306C]" title="Instagram"><Instagram className="w-5 h-5" /></div>}
-                      {lead.source === 'cold_call' && <div className="w-8 h-8 rounded bg-secondary/10 flex items-center justify-center text-secondary" title="Cold Call"><Phone className="w-5 h-5" /></div>}
-                      {(!['email', 'facebook', 'linkedin', 'instagram', 'cold_call'].includes(lead.source)) && <div className="w-8 h-8 rounded bg-surface-variant flex items-center justify-center text-on-surface-variant" title={lead.source}><Globe className="w-5 h-5" /></div>}
+                      <div className="flex items-center gap-3">
+                        {lead.source === 'email' && <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center text-primary shrink-0" title="Email"><Mail className="w-5 h-5" /></div>}
+                        {lead.source === 'facebook' && <div className="w-8 h-8 rounded bg-[#1877F2]/10 flex items-center justify-center text-[#1877F2] shrink-0" title="Facebook"><Facebook className="w-5 h-5" /></div>}
+                        {lead.source === 'linkedin' && <div className="w-8 h-8 rounded bg-[#0A66C2]/10 flex items-center justify-center text-[#0A66C2] shrink-0" title="LinkedIn"><Linkedin className="w-5 h-5" /></div>}
+                        {lead.source === 'instagram' && <div className="w-8 h-8 rounded bg-[#E1306C]/10 flex items-center justify-center text-[#E1306C] shrink-0" title="Instagram"><Instagram className="w-5 h-5" /></div>}
+                        {lead.source === 'cold_call' && <div className="w-8 h-8 rounded bg-secondary/10 flex items-center justify-center text-secondary shrink-0" title="Cold Call"><Phone className="w-5 h-5" /></div>}
+                        {(!['email', 'facebook', 'linkedin', 'instagram', 'cold_call'].includes(lead.source)) && <div className="w-8 h-8 rounded bg-surface-variant flex items-center justify-center text-on-surface-variant shrink-0" title={lead.source}><Globe className="w-5 h-5" /></div>}
+                        <button 
+                          onClick={() => setSelectedCompanyLead(lead)}
+                          className="hover:underline font-bold text-primary text-sm text-left truncate max-w-[150px]"
+                        >
+                          {lead.company || "N/A"}
+                        </button>
+                      </div>
                     </td>
                     <td className="px-6 py-4">
                       <Link to={`/leads/${lead.id}`} className="hover:underline">
-                        <p className="text-sm font-bold text-primary">{lead.firstName} {lead.lastName}</p>
+                        <p className="text-sm font-bold text-on-surface">{lead.firstName} {lead.lastName}</p>
                         <p className="text-[12px] text-on-surface-variant">{lead.email}</p>
                       </Link>
                     </td>
-                    <td className="px-6 py-4 text-sm">{lead.company}</td>
+                    <td className="px-6 py-4 text-sm text-on-surface-variant font-semibold">
+                      {lead.budgetRange || "Not specified"}
+                    </td>
                     <td className="px-6 py-4 text-center">
                       <div className={`inline-flex items-center justify-center px-2 py-1 rounded-full font-bold text-[12px] ${lead.leadScore > 80 ? 'bg-primary/10 text-primary' : 'bg-secondary/10 text-secondary'}`}>
                         {lead.leadScore}
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        {lead.status === 'New Lead' ? (
-                           <>
-                             <div className="w-6 h-6 rounded-full bg-surface-variant text-primary flex items-center justify-center font-bold text-[10px]">ZM</div>
-                             <span className="text-sm">Zaid Malik</span>
-                           </>
-                        ) : (
-                           <>
-                             <span className="w-6 h-6 rounded-full bg-surface-container flex items-center justify-center text-[10px] text-on-surface-variant font-bold border border-outline-variant">UA</span>
-                             <span className="text-sm italic text-on-surface-variant">Unassigned</span>
-                           </>
-                        )}
+                      <div className="relative inline-block">
+                        <select 
+                          value={lead.assignedToId || ""}
+                          onChange={(e) => updateLeadMutation.mutate({ id: lead.id, data: { assignedToId: e.target.value || null } })}
+                          className="appearance-none bg-surface border border-outline-variant rounded-xl pl-3 pr-8 py-1.5 text-xs font-semibold text-on-surface focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none cursor-pointer shadow-sm"
+                        >
+                          <option value="">Unassigned</option>
+                          {salespersons?.map(rep => (
+                            <option key={rep.id} value={rep.id}>{rep.name}</option>
+                          ))}
+                        </select>
+                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-on-surface-variant">
+                          <svg className="fill-current h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                        </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 text-sm text-on-surface-variant">{lead.waitTime || 'N/A'}</td>
@@ -420,6 +468,10 @@ export default function LeadInbox() {
               <div>
                 <label className="block text-sm font-semibold mb-1">Company</label>
                 <input type="text" className="w-full border rounded p-2 text-sm" value={newLead.company} onChange={e => setNewLead({...newLead, company: e.target.value})} />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold mb-1">Budget Range</label>
+                <input type="text" placeholder="e.g. $10k–$50k" className="w-full border rounded p-2 text-sm" value={newLead.budgetRange} onChange={e => setNewLead({...newLead, budgetRange: e.target.value})} />
               </div>
               <div>
                 <label className="block text-sm font-semibold mb-1">Source</label>
@@ -528,6 +580,82 @@ export default function LeadInbox() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+      {selectedCompanyLead && (
+        <div className="fixed inset-0 bg-black/55 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setSelectedCompanyLead(null)}>
+          <div 
+            className="bg-surface border border-outline-variant rounded-2xl p-6 w-full max-w-2xl shadow-2xl max-h-[85vh] overflow-y-auto relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button 
+              onClick={() => setSelectedCompanyLead(null)}
+              className="absolute top-4 right-4 p-1.5 rounded-full hover:bg-surface-container-high transition-colors text-on-surface-variant"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <h2 className="text-2xl font-bold text-primary mb-1">{selectedCompanyLead.company || "N/A"}</h2>
+            <p className="text-sm text-on-surface-variant mb-6">Company quotation requests and lead details</p>
+
+            <div className="grid grid-cols-2 gap-4 mb-6 bg-surface-container-low p-4 rounded-xl border border-outline-variant">
+              <div>
+                <p className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">Account Manager</p>
+                <p className="text-sm font-bold text-on-surface">{selectedCompanyLead.firstName} {selectedCompanyLead.lastName}</p>
+                <p className="text-[12px] text-on-surface-variant">{selectedCompanyLead.email}</p>
+              </div>
+              <div>
+                <p className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">Budget Range</p>
+                <p className="text-sm font-bold text-primary">{selectedCompanyLead.budgetRange || "Not specified"}</p>
+              </div>
+            </div>
+
+            <h3 className="text-sm font-bold text-on-surface uppercase tracking-wider mb-3">Quotation Details</h3>
+            {isLoadingQuotes ? (
+              <div className="py-8 text-center text-on-surface-variant text-sm">Loading quotation history...</div>
+            ) : (!companyQuotes || companyQuotes.length === 0) ? (
+              <div className="py-8 text-center text-on-surface-variant bg-surface-container-lowest border border-dashed border-outline-variant rounded-xl text-sm">
+                No quotation details submitted yet
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {companyQuotes.map((quote: any) => (
+                  <div key={quote.id} className="border border-outline-variant rounded-xl p-4 bg-surface-container-lowest">
+                    <div className="flex items-center justify-between border-b border-outline-variant pb-2.5 mb-3">
+                      <div>
+                        <p className="text-sm font-bold text-on-surface">Quote #{quote.quoteNumber || "Draft"}</p>
+                        <p className="text-[11px] text-on-surface-variant">Submitted on: {new Date(quote.createdAt).toLocaleDateString()}</p>
+                      </div>
+                      <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                        quote.status === "Approved" ? "bg-primary/10 text-primary" : "bg-secondary/10 text-secondary"
+                      }`}>{quote.status}</span>
+                    </div>
+
+                    <div className="space-y-2">
+                      <p className="text-[12px] font-bold text-on-surface-variant uppercase tracking-wider">Scope of Work & Quantities</p>
+                      {quote.QuoteLineItems && quote.QuoteLineItems.length > 0 ? (
+                        <div className="divide-y divide-outline-variant/60">
+                          {quote.QuoteLineItems.map((item: any) => (
+                            <div key={item.id} className="py-2 flex items-center justify-between text-xs">
+                              <div>
+                                <p className="font-bold text-on-surface">{item.product?.name || "Product Name"}</p>
+                                <p className="text-[10px] text-on-surface-variant font-medium">{item.product?.description || "No description provided."}</p>
+                              </div>
+                              <div className="text-right">
+                                <p className="font-semibold text-on-surface">Qty: {item.quantity}</p>
+                                <p className="text-[10px] text-on-surface-variant">SAR {parseFloat(item.totalAmount).toLocaleString()}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs italic text-on-surface-variant">No items specified on this quote.</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

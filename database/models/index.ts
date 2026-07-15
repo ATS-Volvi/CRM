@@ -49,6 +49,7 @@ export class Lead extends Model {
   public optedOutEmail!: boolean;
   public subject!: string | null;
   public body!: string | null;
+  public budgetRange!: string | null;
 }
 
 Lead.init(
@@ -70,6 +71,7 @@ Lead.init(
     optedOutEmail: { type: DataTypes.BOOLEAN, defaultValue: false },
     subject: { type: DataTypes.STRING, allowNull: true },
     body: { type: DataTypes.TEXT, allowNull: true },
+    budgetRange: { type: DataTypes.STRING, allowNull: true },
   },
   { 
     sequelize, 

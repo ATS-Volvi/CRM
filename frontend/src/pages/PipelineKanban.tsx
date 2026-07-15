@@ -27,6 +27,32 @@ export default function PipelineKanban() {
   const [recontactDate, setRecontactDate] = useState("");
   const [newDeal, setNewDeal] = useState({ name: "", amount: "", competitors: "", probability: "" });
 
+  const groups = ["Prospecting", "Active Deal", "Closed"];
+  const groupMappings: { [key: string]: string[] } = {
+    "Prospecting": ["New", "Contacted", "Qualified"],
+    "Active Deal": ["Meeting/Demo", "Proposal", "Negotiation"],
+    "Closed": ["Won", "Lost", "On Hold"]
+  };
+
+  const [expandedStages, setExpandedStages] = useState<{ [key: string]: boolean }>({
+    "New": true,
+    "Contacted": true,
+    "Qualified": true,
+    "Meeting/Demo": true,
+    "Proposal": true,
+    "Negotiation": true,
+    "Won": true,
+    "Lost": true,
+    "On Hold": true
+  });
+
+  const toggleStage = (stageName: string) => {
+    setExpandedStages(prev => ({
+      ...prev,
+      [stageName]: !prev[stageName]
+    }));
+  };
+
   const createDealMutation = useMutation({
     mutationFn: async (deal: any) => {
       const res = await fetch("/api/v1/pipeline/deals", {
@@ -182,85 +208,130 @@ export default function PipelineKanban() {
             </table>
           </div>
         ) : (
-          pipelineColumns?.map((col: any) => (
-          <div 
-            key={col.id || col.stage} 
-            className="min-w-[300px] max-w-[300px] flex flex-col h-full bg-surface-container border border-outline-variant/30 rounded-xl"
-          >
-            <div className="p-4 flex items-center justify-between">
-              <div>
-                <h3 className="text-[12px] font-semibold text-on-surface-variant uppercase tracking-widest">{col.stage}</h3>
-                <p className="font-bold text-lg">{formatCurrencyCompact(col.totalValue)} <span className="text-sm font-normal text-on-surface-variant/60 ml-1">· {col.deals.length} deals</span></p>
-              </div>
-              <button 
-                onClick={() => setShowAddDealModal(true)}
-                className="text-on-surface-variant hover:text-primary transition-colors"
+          groups.map((group) => {
+            const stageNames = groupMappings[group];
+            const groupStages = pipelineColumns?.filter((col: any) => stageNames.includes(col.stage)) || [];
+            const totalValue = groupStages.reduce((acc: number, col: any) => acc + col.totalValue, 0);
+            const totalDealsCount = groupStages.reduce((acc: number, col: any) => acc + col.deals.length, 0);
+
+            return (
+              <div 
+                key={group} 
+                className="flex-1 min-w-[340px] max-w-[420px] flex flex-col h-full bg-surface-container border border-outline-variant/30 rounded-xl"
               >
-                <Plus className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-4">
-              {col.deals.map((deal: any) => (
-                <div 
-                  key={deal.id} 
-                  className={`bg-surface-container-lowest p-4 rounded-lg border ${deal.isUrgent ? 'border-error/50' : 'border-outline-variant'} hover:shadow-md transition-all`} 
-                  style={deal.isUrgent ? { borderLeft: "4px solid #ba1a1a" } : {}}
-                >
-                  <div className="flex justify-between items-start mb-2 gap-2">
-                    <span className="text-sm font-bold text-on-surface leading-tight">{deal.name}</span>
-                    <select
-                      value={col.id}
-                      onChange={(e) => {
-                        const stageId = e.target.value;
-                        const stageName = e.target.options[e.target.selectedIndex].text;
-                        if (stageName === "Lost" || stageName === "On Hold") {
-                          setTransitionModal({ dealId: deal.id, toStageId: stageId, toStageName: stageName });
-                          setReason("");
-                          setRecontactDate("");
-                        } else {
-                          updateStageMutation.mutate({ dealId: deal.id, toStageId: stageId });
-                        }
-                      }}
-                      className="text-[10px] bg-surface border border-outline-variant rounded px-1.5 py-0.5 outline-none focus:border-primary text-on-surface-variant max-w-[90px] truncate cursor-pointer hover:bg-surface-container-high transition-colors"
-                    >
-                      {pipelineColumns?.map((stageCol: any) => (
-                        <option key={stageCol.id} value={stageCol.id}>{stageCol.stage}</option>
-                      ))}
-                    </select>
+                <div className="p-5 border-b border-outline-variant/20 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-[12px] font-bold text-on-surface-variant uppercase tracking-widest">{group}</h3>
+                    <p className="font-bold text-lg text-primary">{formatCurrencyCompact(totalValue)} <span className="text-sm font-normal text-on-surface-variant/60 ml-1">· {totalDealsCount} deals</span></p>
                   </div>
-                  <div className="flex items-end justify-between">
-                    <div>
-                      <p className="text-sm text-primary font-bold">{formatCurrency(deal.value)}</p>
-                      <p className={`text-[11px] ${deal.isUrgent ? 'text-error font-medium' : 'text-on-surface-variant'}`}>{deal.lastActivity}</p>
-                    </div>
-                    {deal.tag && (
-                      <div className={`px-2 py-0.5 ${deal.isUrgent ? 'bg-error-container/20 text-error' : 'bg-secondary-container/20 text-secondary'} font-semibold text-[10px] rounded`}>
-                        {deal.tag}
-                      </div>
-                    )}
-                  </div>
-                  {deal.competitors && (
-                    <p className="text-[11px] text-on-surface-variant mt-1.5 truncate">
-                      <span className="text-[10px] font-bold text-outline uppercase tracking-wider mr-1">vs:</span>
-                      <span className="font-semibold text-on-surface">{deal.competitors}</span>
-                    </p>
-                  )}
-                  {deal.probability !== undefined && deal.probability !== null && (
-                    <div className="mt-3">
-                       <div className="flex items-center gap-2 mb-1">
-                        <span className="text-[10px] text-on-surface-variant font-medium">Prob:</span>
-                        <div className="flex-1 h-1.5 bg-surface-container rounded-full overflow-hidden">
-                          <div className="h-full bg-primary" style={{ width: `${deal.probability}%` }}></div>
-                        </div>
-                        <span className="text-[10px] text-primary font-bold">{deal.probability}%</span>
-                      </div>
-                    </div>
-                  )}
+                  <button 
+                    onClick={() => setShowAddDealModal(true)}
+                    className="p-1.5 hover:bg-surface-container-high rounded-full text-on-surface-variant hover:text-primary transition-colors"
+                  >
+                    <Plus className="w-5 h-5" />
+                  </button>
                 </div>
-              ))}
-            </div>
-          </div>
-        )))}
+
+                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                  {groupStages.map((stageCol: any) => {
+                    const isExpanded = expandedStages[stageCol.stage] !== false;
+
+                    return (
+                      <div key={stageCol.id} className="border border-outline-variant/40 rounded-xl bg-surface-container-low overflow-hidden transition-all shadow-sm">
+                        {/* Sub-Stage Accordion Header */}
+                        <div 
+                          onClick={() => toggleStage(stageCol.stage)}
+                          className="px-4 py-3 bg-surface-container-lowest/80 border-b border-outline-variant/25 flex items-center justify-between cursor-pointer hover:bg-surface-container-lowest transition-colors select-none"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-on-surface-variant font-bold text-xs">
+                              {isExpanded ? "▼" : "▶"}
+                            </span>
+                            <span className="text-xs font-bold text-on-surface uppercase tracking-wider">{stageCol.stage}</span>
+                            <span className="px-2 py-0.5 rounded-full bg-surface-container-high text-[10px] font-bold text-on-surface-variant">
+                              {stageCol.deals.length}
+                            </span>
+                          </div>
+                          <span className="text-xs font-bold text-primary">{formatCurrencyCompact(stageCol.totalValue)}</span>
+                        </div>
+
+                        {/* Collapsible Area */}
+                        {isExpanded && (
+                          <div 
+                            onDragOver={handleDragOver}
+                            onDrop={(e) => handleDrop(e, stageCol.id, stageCol.stage)}
+                            className="p-3 space-y-3 min-h-[80px]"
+                          >
+                            {stageCol.deals.length === 0 ? (
+                              <p className="text-[11px] text-center text-on-surface-variant/65 py-4 italic">Drag deals here to assign to {stageCol.stage}</p>
+                            ) : (
+                              stageCol.deals.map((deal: any) => (
+                                <div 
+                                  key={deal.id} 
+                                  draggable
+                                  onDragStart={(e) => handleDragStart(e, deal.id)}
+                                  className={`bg-surface-container-lowest p-3 rounded-lg border ${deal.isUrgent ? 'border-error/50' : 'border-outline-variant'} hover:shadow-md transition-all cursor-grab active:cursor-grabbing`} 
+                                  style={deal.isUrgent ? { borderLeft: "4px solid #ba1a1a" } : {}}
+                                >
+                                  <div className="flex justify-between items-start mb-2 gap-2">
+                                    <span className="text-sm font-bold text-on-surface leading-tight">{deal.name}</span>
+                                    <select
+                                      value={stageCol.id}
+                                      onChange={(e) => {
+                                        const stageId = e.target.value;
+                                        const stageName = e.target.options[e.target.selectedIndex].text;
+                                        if (stageName === "Lost" || stageName === "On Hold") {
+                                          setTransitionModal({ dealId: deal.id, toStageId: stageId, toStageName: stageName });
+                                          setReason("");
+                                          setRecontactDate("");
+                                        } else {
+                                          updateStageMutation.mutate({ dealId: deal.id, toStageId: stageId });
+                                        }
+                                      }}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="text-[10px] bg-surface border border-outline-variant rounded px-1.5 py-0.5 outline-none focus:border-primary text-on-surface-variant max-w-[90px] truncate cursor-pointer hover:bg-surface-container-high transition-colors"
+                                    >
+                                      {pipelineColumns?.map((sc: any) => (
+                                        <option key={sc.id} value={sc.id}>{sc.stage}</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                  <div className="flex items-end justify-between">
+                                    <div>
+                                      <p className="text-sm text-primary font-bold">{formatCurrency(deal.value)}</p>
+                                      <p className={`text-[11px] ${deal.isUrgent ? 'text-error font-medium' : 'text-on-surface-variant'}`}>{deal.lastActivity}</p>
+                                    </div>
+                                  </div>
+                                  {deal.competitors && (
+                                    <p className="text-[11px] text-on-surface-variant mt-1.5 truncate">
+                                      <span className="text-[10px] font-bold text-outline uppercase tracking-wider mr-1">vs:</span>
+                                      <span className="font-semibold text-on-surface">{deal.competitors}</span>
+                                    </p>
+                                  )}
+                                  {deal.probability !== undefined && deal.probability !== null && (
+                                    <div className="mt-3">
+                                       <div className="flex items-center gap-2 mb-1">
+                                        <span className="text-[10px] text-on-surface-variant font-medium">Prob:</span>
+                                        <div className="flex-1 h-1.5 bg-surface-container rounded-full overflow-hidden">
+                                          <div className="h-full bg-primary" style={{ width: `${deal.probability}%` }}></div>
+                                        </div>
+                                        <span className="text-[10px] text-primary font-bold">{deal.probability}%</span>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })
+        )}
       </section>
 
       {/* Transition Modal */}

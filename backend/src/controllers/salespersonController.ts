@@ -605,3 +605,26 @@ export const getAllSalespersons = async (req: Request, res: Response) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+export const updateSalespersonCapacity = async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const { maxOpenLeads } = req.body;
+    
+    if (typeof maxOpenLeads !== "number" || maxOpenLeads < 0) {
+      res.status(400).json({ error: "maxOpenLeads must be a non-negative number" });
+      return;
+    }
+
+    const user = await sequelize.models.User.findByPk(id);
+    if (!user) {
+      res.status(404).json({ error: "Representative not found" });
+      return;
+    }
+
+    await user.update({ maxOpenLeads });
+    res.json({ message: "Capacity updated successfully", maxOpenLeads });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};

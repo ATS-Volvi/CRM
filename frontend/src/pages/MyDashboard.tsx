@@ -308,7 +308,7 @@ export default function MyDashboard() {
                   <h4 className="text-sm font-bold text-on-surface-variant uppercase tracking-wider">Quick Actions</h4>
                   <div className="flex flex-wrap gap-2 pt-1">
                     <Link to="/leads" className="px-3 py-1.5 bg-primary text-white text-xs font-bold rounded hover:opacity-90 transition-all">Add Lead</Link>
-                    <Link to="/quote-builder" className="px-3 py-1.5 bg-secondary text-white text-xs font-bold rounded hover:opacity-90 transition-all">Create Quote</Link>
+                    <Link to="/quotes/new" className="px-3 py-1.5 bg-secondary text-white text-xs font-bold rounded hover:opacity-90 transition-all">Create Quote</Link>
                   </div>
                 </div>
               </div>

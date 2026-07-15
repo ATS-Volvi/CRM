@@ -15,6 +15,7 @@ interface LeadPayload {
   industry?: string;
   message?: string;
   rawPayload?: any;
+  budgetRange?: string;
 }
 
 /**
@@ -70,6 +71,7 @@ export async function ingestLead(payload: LeadPayload) {
         leadScore: Math.max(existingLead.leadScore || 0, leadScore),
         sourceDetail: payload.sourceDetail || existingLead.sourceDetail,
         campaign: payload.campaign || existingLead.campaign,
+        budgetRange: payload.budgetRange || existingLead.budgetRange,
         rawPayload: payload.rawPayload ? JSON.stringify(payload.rawPayload) : existingLead.rawPayload
       };
       await existingLead.update(updates);
@@ -113,6 +115,7 @@ export async function ingestLead(payload: LeadPayload) {
         industry: payload.industry || null,
         leadScore,
         assignedToId,
+        budgetRange: payload.budgetRange || null,
         rawPayload: payload.rawPayload ? JSON.stringify(payload.rawPayload) : null
       });
 

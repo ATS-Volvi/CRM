@@ -7,6 +7,18 @@ export const getPipeline = async (req: Request, res: Response) => {
     const stages = await PipelineStage.findAll({ order: [['order', 'ASC']] });
     const deals = await Deal.findAll();
 
+    const stageToGroupMap: { [key: string]: string } = {
+      "New": "Prospecting",
+      "Contacted": "Prospecting",
+      "Qualified": "Prospecting",
+      "Meeting/Demo": "Active Deal",
+      "Proposal": "Active Deal",
+      "Negotiation": "Active Deal",
+      "Won": "Closed",
+      "Lost": "Closed",
+      "On Hold": "Closed"
+    };
+
     const pipeline = stages.map(stage => {
       const stageDeals = deals.filter((d: any) => d.stageId === stage.id);
       const totalValue = stageDeals.reduce((sum: number, d: any) => sum + Number(d.amount), 0);
@@ -14,6 +26,7 @@ export const getPipeline = async (req: Request, res: Response) => {
       return {
         id: stage.id,
         stage: stage.name,
+        group: stageToGroupMap[stage.name] || "Prospecting",
         totalValue,
         deals: stageDeals.map((d: any) => ({
           id: d.id,
@@ -23,7 +36,8 @@ export const getPipeline = async (req: Request, res: Response) => {
           lastActivity: "2 days ago", // Mocking until Activity model
           isUrgent: false,
           competitors: d.competitors,
-          probability: d.probability
+          probability: d.probability,
+          group: stageToGroupMap[stage.name] || "Prospecting"
         }))
       };
     });

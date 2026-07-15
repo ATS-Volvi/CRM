@@ -1,12 +1,12 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { formatDistanceToNow } from "date-fns";
 import {
   ArrowLeft, User, Phone, Mail, Award, Compass, DollarSign, Briefcase, FileSpreadsheet,
   FileText, Clock, Pin, MessageSquare, TrendingUp, Users, CheckSquare, History,
-  Instagram, Globe, Facebook, CheckCircle2, XCircle, AlertCircle, Sparkles, Filter
+  Instagram, Globe, Facebook, CheckCircle2, XCircle, AlertCircle, Sparkles, Filter, Minus, Plus
 } from "lucide-react";
 import { apiClient } from "../lib/apiClient";
 
@@ -101,9 +101,25 @@ export default function SalespersonDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { token } = useAuth();
+  const queryClient = useQueryClient();
   
   // Local state for active segment filter
   const [filterSegment, setFilterSegment] = useState<string | null>(null);
+  const [localCap, setLocalCap] = useState<number>(0);
+
+  const updateCapMutation = useMutation({
+    mutationFn: async (newCap: number) => {
+      const res = await apiClient(`/api/v1/salespersons/${id}/capacity`, {
+        method: "PUT",
+        body: JSON.stringify({ maxOpenLeads: newCap })
+      });
+      if (!res.ok) throw new Error("Failed to update capacity limit");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["salespersonPerformance", id] });
+    }
+  });
 
   const { data: rep, isLoading, error } = useQuery<Salesperson>({
     queryKey: ["salespersonPerformance", id],
@@ -114,6 +130,12 @@ export default function SalespersonDetail() {
     },
     enabled: !!id && !!token
   });
+
+  useEffect(() => {
+    if (rep) {
+      setLocalCap(rep.maxOpenLeads);
+    }
+  }, [rep]);
 
   if (isLoading) {
     return (
@@ -218,9 +240,44 @@ export default function SalespersonDetail() {
               <div className="text-body-xs text-on-surface-variant font-bold uppercase tracking-wide">Clients</div>
               <div className="text-display-xs font-extrabold text-secondary mt-1">{rep.wonClients.length}</div>
             </div>
-            <div className="bg-surface p-5 rounded-xl border border-outline-variant text-center col-span-2 md:col-span-1 shadow-sm">
+            <div className="bg-surface p-5 rounded-xl border border-outline-variant text-center col-span-2 md:col-span-1 shadow-sm flex flex-col items-center justify-between min-h-[135px]">
               <div className="text-body-xs text-on-surface-variant font-bold uppercase tracking-wide">Leads Cap</div>
-              <div className="text-display-xs font-extrabold mt-1">{rep.maxOpenLeads}</div>
+              <div className="flex items-center gap-4 mt-2">
+                <button
+                  disabled={localCap <= 0}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setLocalCap(c => Math.max(0, c - 5));
+                  }}
+                  className="p-1.5 bg-surface-container-high border border-outline-variant rounded-lg text-on-surface-variant hover:bg-surface-container-highest transition-all disabled:opacity-50 active:scale-90"
+                  title="Decrease Capacity"
+                >
+                  <Minus className="w-3.5 h-3.5" />
+                </button>
+                <span className="text-display-xs font-extrabold">{localCap}</span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setLocalCap(c => c + 5);
+                  }}
+                  className="p-1.5 bg-surface-container-high border border-outline-variant rounded-lg text-on-surface-variant hover:bg-surface-container-highest transition-all disabled:opacity-50 active:scale-90"
+                  title="Increase Capacity"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              {localCap !== rep.maxOpenLeads && (
+                <button
+                  disabled={updateCapMutation.isPending}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    updateCapMutation.mutate(localCap);
+                  }}
+                  className="mt-2.5 text-[10px] font-bold uppercase tracking-wider px-3 py-1 bg-primary text-white rounded hover:opacity-90 transition-all shadow active:scale-95"
+                >
+                  {updateCapMutation.isPending ? "Saving..." : "Save"}
+                </button>
+              )}
             </div>
           </div>
         </div>

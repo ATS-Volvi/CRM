@@ -14,7 +14,7 @@ import { getKpiDashboard, getManagementDashboard, getMyTodayDashboard, getMyHome
 import { getAssignmentRules, createAssignmentRule, updateAssignmentRule, deleteAssignmentRule } from '../controllers/assignmentRuleController';
 import { getBundleTemplates, createBundleTemplate, deleteBundleTemplate } from '../controllers/bundleController';
 import { exportLeads, exportQuotes, exportPurchaseOrders } from '../controllers/exportController';
-import { getSalespersonsPerformance, createSalesperson, getSalespersonPerformanceDetails, getAllSalespersons } from '../controllers/salespersonController';
+import { getSalespersonsPerformance, createSalesperson, getSalespersonPerformanceDetails, getAllSalespersons, updateSalespersonCapacity } from '../controllers/salespersonController';
 import {
   getRequirements, createRequirement, updateRequirement, deleteRequirement,
   getLineItems, createLineItem, updateLineItem, deleteLineItem,
@@ -278,6 +278,7 @@ router.get("/salespersons", authMiddleware, getAllSalespersons);
 router.get("/salespersons/performance", authMiddleware, getSalespersonsPerformance);
 router.get("/salespersons/:id/performance", authMiddleware, getSalespersonPerformanceDetails);
 router.post("/salespersons", authMiddleware, createSalesperson);
+router.put("/salespersons/:id/capacity", authMiddleware, updateSalespersonCapacity);
 
 // ==========================================
 // ASSIGNMENT RULES

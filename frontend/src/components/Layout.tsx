@@ -16,7 +16,6 @@ export function Layout() {
     { name: "KPI Dashboard", path: "/kpi", icon: BarChart },
     { name: "Sales Representatives", path: "/salespersons", icon: Users },
     { name: "Lead Inbox", path: "/leads", icon: Inbox },
-    { name: "Email Pool", path: "/email-pool", icon: Mail },
     { name: "Pipeline", path: "/pipeline", icon: Trello },
     { name: "Quotes", path: "/quotes", icon: FileText },
     { name: "Invoices", path: "/invoices", icon: Receipt },

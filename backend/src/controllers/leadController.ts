@@ -31,7 +31,7 @@ import { ingestLead } from "../services/leadIngestion";
 
 export const createLead = async (req: Request, res: Response) => {
   try {
-    const { firstName, lastName, email, company, source, status, industry, phone } = req.body;
+    const { firstName, lastName, email, company, source, status, industry, phone, budgetRange } = req.body;
     
     const leadId = await ingestLead({
       firstName,
@@ -41,6 +41,7 @@ export const createLead = async (req: Request, res: Response) => {
       company,
       source: source || 'email',
       industry,
+      budgetRange,
       rawPayload: req.body
     });
 

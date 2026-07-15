@@ -4,7 +4,7 @@ import { triggerTemplatedEmail } from "../services/emailService";
 
 export const createPublicLead = async (req: Request, res: Response) => {
   try {
-    const { firstName, lastName, email, phone, company, message, source, sourceDetail, campaign, industry, rawPayload } = req.body;
+    const { firstName, lastName, email, phone, company, message, source, sourceDetail, campaign, industry, budgetRange, rawPayload } = req.body;
 
     if (!firstName || !lastName || !email) {
       return res.status(400).json({ error: "First name, last name, and email are required" });
@@ -21,6 +21,7 @@ export const createPublicLead = async (req: Request, res: Response) => {
       campaign: campaign || "Organic Search",
       industry,
       message,
+      budgetRange,
       rawPayload: rawPayload || req.body
     });
 
