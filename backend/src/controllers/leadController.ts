@@ -105,9 +105,31 @@ export const mergeLeads = async (req: Request, res: Response) => {
   try {
     const { masterId, duplicateIds } = req.body;
     
-    // In a real app, we would re-assign Deals, Activities, etc to masterId.
-    // For this prototype, we'll just delete the duplicates.
-    await sequelize.models.Lead.destroy({
+    // Re-assign all related records to the masterId
+    const models = sequelize.models;
+    
+    await models.Deal.update(
+      { leadId: masterId },
+      { where: { leadId: duplicateIds } }
+    );
+    
+    await models.Activity.update(
+      { leadId: masterId },
+      { where: { leadId: duplicateIds } }
+    );
+    
+    await models.LeadStageHistory.update(
+      { leadId: masterId },
+      { where: { leadId: duplicateIds } }
+    );
+    
+    await models.ScheduledEmail.update(
+      { leadId: masterId },
+      { where: { leadId: duplicateIds } }
+    );
+
+    // Now safely delete the duplicates
+    await models.Lead.destroy({
       where: { id: duplicateIds }
     });
 

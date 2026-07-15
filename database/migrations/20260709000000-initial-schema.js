@@ -191,6 +191,7 @@ module.exports = {
       variantBSends: { type: Sequelize.INTEGER, defaultValue: 0 },
       variantBOpens: { type: Sequelize.INTEGER, defaultValue: 0 },
       winnerVariant: { type: Sequelize.STRING, allowNull: true },
+      isActive: { type: Sequelize.BOOLEAN, defaultValue: true },
       ...defaultFields
     });
 

@@ -86,7 +86,7 @@ function main() {
       for (const m of migrationFiles) {
         // Match table name and field name in either createTable or addColumn
         const hasCreateTableField = m.content.includes(tableName) && 
-          new RegExp(`createTable\\s*\\(\\s*['"\`]${tableName}['"\`][\\s\\S]*?\\b${field}\\s*:`, 'i').test(m.content);
+          new RegExp(`createTable(Safe)?\\s*\\(\\s*['"\`]${tableName}['"\`][\\s\\S]*?\\b${field}\\s*:`, 'i').test(m.content);
         
         const hasAddColumnField = m.content.includes(tableName) && 
           new RegExp(`addColumn\\s*\\(\\s*['"\`]${tableName}['"\`]\\s*,\\s*['"\`]${field}['"\`]`, 'i').test(m.content);

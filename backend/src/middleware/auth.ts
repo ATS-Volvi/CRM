@@ -10,10 +10,7 @@ export const authMiddleware = (req: Request, res: Response, next: NextFunction) 
 
   const token = authHeader.split(" ")[1];
   
-  if (token === "dummy") {
-    (req as any).user = { id: "mock-user", role: "admin" };
-    return next();
-  }
+
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || "default_secret");

@@ -11,6 +11,29 @@ async function testQuoteFollowUp() {
   const dealId = require('crypto').randomUUID();
   const quoteId = require('crypto').randomUUID();
 
+  // Find or create a User
+  let user = await sequelize.models.User.findOne();
+  if (!user) {
+    user = await sequelize.models.User.create({
+      id: require('crypto').randomUUID(),
+      name: "Test User",
+      email: "testuser@example.com",
+      password: "password",
+      role: "sales_rep"
+    });
+  }
+
+  // Find or create a PipelineStage
+  let stage = await sequelize.models.PipelineStage.findOne();
+  if (!stage) {
+    stage = await sequelize.models.PipelineStage.create({
+      id: require('crypto').randomUUID(),
+      name: "New",
+      order: 1,
+      probability: 10
+    });
+  }
+
   // Create Lead
   await sequelize.models.Lead.create({
     id: leadId,
@@ -27,7 +50,8 @@ async function testQuoteFollowUp() {
     id: dealId,
     name: "Quote Followup Deal",
     amount: 5000,
-    stageId: null,
+    stageId: (stage as any).id,
+    ownerId: (user as any).id,
     leadId: leadId
   });
 

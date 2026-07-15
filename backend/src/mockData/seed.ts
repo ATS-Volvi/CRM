@@ -6,7 +6,19 @@ async function seedDatabase() {
   try {
     await Database.createConnection();
     console.log("Syncing database...");
-    await sequelize.sync({ force: true });
+    console.log("Truncating data...");
+    const tables = [
+      'WebhookEvents', 'ScheduledEmails', 'Notifications', 'MessageTemplates',
+      'InvoiceLineItems', 'Invoices', 'Activities', 'AssignmentRules',
+      'ApprovalRequests', 'PurchaseOrders', 'QuoteLineItems', 'PriceBookEntries',
+      'Quotes', 'Deals', 'LeadStageHistories', 'PipelineStages', 'Leads', 'Users',
+      'Requirements', 'LineItems', 'ConstructionItems'
+    ];
+    for (const table of tables) {
+      try {
+        await sequelize.query(`DELETE FROM ${table};`);
+      } catch (e) {}
+    }
     
     const models = sequelize.models;
 

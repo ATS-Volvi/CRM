@@ -357,7 +357,7 @@ export const getSalespersonPerformanceDetails = async (req: Request, res: Respon
             as: "deal",
             include: [{ model: sequelize.models.Lead, as: "lead" }]
           },
-          { model: sequelize.models.PurchaseOrder, as: "purchaseOrder" }
+          { model: sequelize.models.PurchaseOrder }
         ],
         order: [["createdAt", "DESC"]]
       });
@@ -377,13 +377,13 @@ export const getSalespersonPerformanceDetails = async (req: Request, res: Respon
       }
 
       rawQuotes.forEach((q: any) => {
-        if (q.purchaseOrder) {
+        if (q.PurchaseOrder) {
           purchaseOrders.push({
-            id: q.purchaseOrder.id,
-            poNumber: q.purchaseOrder.poNumber,
-            amount: q.purchaseOrder.amount,
-            status: q.purchaseOrder.status,
-            createdAt: q.purchaseOrder.createdAt
+            id: q.PurchaseOrder.id,
+            poNumber: q.PurchaseOrder.poNumber,
+            amount: q.PurchaseOrder.amount,
+            status: q.PurchaseOrder.status,
+            createdAt: q.PurchaseOrder.createdAt
           });
         }
 

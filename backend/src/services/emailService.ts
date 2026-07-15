@@ -21,7 +21,7 @@ export const renderTemplate = (templateString: string, dataObj: Record<string, s
 };
 
 export const getBaseHtmlTemplate = (bodyContent: string, leadId?: string): string => {
-  const baseUrl = process.env.BASE_URL || "http://localhost:5505";
+  const baseUrl = process.env.BASE_URL || "http://localhost:5506";
   const unsubscribeHtml = leadId 
     ? `<p style="margin-top: 10px;">Don't want to receive these emails? <a href="${baseUrl}/api/v1/leads/unsubscribe/${leadId}">Unsubscribe here</a></p>`
     : '';

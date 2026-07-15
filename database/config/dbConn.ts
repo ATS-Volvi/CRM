@@ -1,10 +1,13 @@
 import { Sequelize } from "sequelize";
+import * as path from "path";
 import "dotenv/config";
+
+const sqlitePath = path.resolve(__dirname, "../../nexus_crm.sqlite");
 
 export const sequelize = process.env.USE_SQLITE === "true"
   ? new Sequelize({
       dialect: "sqlite",
-      storage: process.env.SQLITE_PATH || "./nexus_crm.sqlite",
+      storage: sqlitePath,
       logging: false,
     })
   : process.env.DATABASE_URL

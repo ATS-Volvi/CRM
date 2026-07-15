@@ -412,6 +412,7 @@ export class MessageTemplate extends Model {
   public variantBSends!: number;
   public variantBOpens!: number;
   public winnerVariant!: string | null;
+  public isActive!: boolean;
 }
 
 MessageTemplate.init(
@@ -430,6 +431,7 @@ MessageTemplate.init(
     variantBSends: { type: DataTypes.INTEGER, defaultValue: 0 },
     variantBOpens: { type: DataTypes.INTEGER, defaultValue: 0 },
     winnerVariant: { type: DataTypes.STRING, allowNull: true },
+    isActive: { type: DataTypes.BOOLEAN, defaultValue: true },
   },
   { sequelize, modelName: "MessageTemplate" }
 );

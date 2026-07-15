@@ -30,6 +30,9 @@ module.exports = {
       sourceDetail: { type: Sequelize.STRING, allowNull: true },
       campaign: { type: Sequelize.STRING, allowNull: true },
       rawPayload: { type: Sequelize.TEXT, allowNull: true },
+      optedOutEmail: { type: Sequelize.BOOLEAN, defaultValue: false },
+      subject: { type: Sequelize.STRING, allowNull: true },
+      body: { type: Sequelize.TEXT, allowNull: true },
       assignedToId: {
         type: Sequelize.UUID,
         allowNull: true,
@@ -126,6 +129,9 @@ module.exports = {
       sentAt: { type: Sequelize.DATE, allowNull: true },
       viewedAt: { type: Sequelize.DATE, allowNull: true },
       acceptedAt: { type: Sequelize.DATE, allowNull: true },
+      statusChangedAt: { type: Sequelize.DATE, defaultValue: Sequelize.literal('CURRENT_TIMESTAMP') },
+      followUpSentAt: { type: Sequelize.DATE, allowNull: true },
+      docusignEnvelopeId: { type: Sequelize.STRING, allowNull: true },
       dealId: {
         type: Sequelize.UUID,
         allowNull: false,
@@ -248,6 +254,7 @@ module.exports = {
       },
       duration: { type: Sequelize.INTEGER, allowNull: true },
       outcome: { type: Sequelize.STRING, allowNull: true },
+      notes: { type: Sequelize.TEXT, allowNull: true },
       mentioned_user_ids: { type: Sequelize.TEXT, defaultValue: "[]" },
       pinned: { type: Sequelize.BOOLEAN, defaultValue: false },
       dueDate: { type: Sequelize.DATE, allowNull: true },
