@@ -278,9 +278,12 @@ export default function LeadDetail() {
         </div>
       </div>
 
-      {/* Two Column Detail Cards */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
+      {/* Detail Cards Grid */}
+      <div className="grid grid-cols-12 gap-6">
+
+        {/* Left Column: Detail + Client Cards */}
+        <div className="col-span-12 lg:col-span-4 flex flex-col gap-6">
+
         {/* Card 1: Lead Details (with inline pencil edit toggle) */}
         <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-6 shadow-sm space-y-4 relative">
           <div className="flex justify-between items-center border-b border-outline-variant pb-3">
@@ -456,7 +459,8 @@ export default function LeadDetail() {
               </div>
             </div>
           )}
-          </div>
+        </div>
+        {/* End Left Column */}
         </div>
 
         {/* Right Column: Stacked Activity Timeline & Quotation Summary */}
