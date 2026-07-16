@@ -100,6 +100,45 @@ export default function QuotationBuilder() {
   const [items, setItems] = useState<any[]>([]);
   const activeProductId = items[focusedIndex]?.productId;
 
+  const uniqueProductIds = Array.from(new Set(items.map((i: any) => i.productId).filter(Boolean)));
+  const productIdsQuery = uniqueProductIds.join(",");
+
+  const { data: similarClientQuotes } = useQuery({
+    queryKey: ["similarClientQuotes", productIdsQuery, leadId],
+    queryFn: async () => {
+      if (!productIdsQuery) return [];
+      const res = await fetch(`/api/v1/quotes/history/similar-clients?productIds=${productIdsQuery}&leadId=${leadId || ""}`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!productIdsQuery
+  });
+
+  const handleUseQuote = (historicalQuote: any) => {
+    const hasUnsavedItems = items.some((i: any) => i.productId || i.quantity > 1 || i.unitPrice > 0);
+    if (hasUnsavedItems) {
+      const confirmOverwrite = window.confirm(
+        "Are you sure you want to overwrite your current unsaved quotation items with this historical quote?"
+      );
+      if (!confirmOverwrite) return;
+    }
+    
+    const newItems = (historicalQuote.QuoteLineItems || []).map((li: any) => {
+      const qty = Number(li.quantity || 1);
+      const price = parseFloat(li.unitPrice || 0);
+      return {
+        productId: li.productId,
+        quantity: qty,
+        unitPrice: price,
+        total: qty * price,
+        isOptional: !!li.isOptional
+      };
+    });
+    setItems(newItems);
+  };
+
   const { data: similarStats } = useQuery({
     queryKey: ["similarStats", activeProductId, leadId],
     queryFn: async () => {
@@ -510,7 +549,7 @@ export default function QuotationBuilder() {
                     <div className="p-6 text-sm text-outline italic text-center">No previous quotations for this client/company.</div>
                   ) : (
                     clientHistory.map((hQuote: any, idx: number) => (
-                      <div key={hQuote.id || idx} className="p-4 hover:bg-surface-container-low transition-colors cursor-pointer group">
+                      <div key={hQuote.id || idx} className="p-4 hover:bg-surface-container-low transition-colors cursor-pointer group flex flex-col gap-1.5">
                         <div className="flex justify-between mb-1">
                           <span className="text-sm font-bold group-hover:text-primary">{hQuote.quoteNumber || hQuote.id.substring(0, 8)}</span>
                           <span className={`px-2 py-0.5 text-[9px] font-bold rounded uppercase ${
@@ -521,12 +560,21 @@ export default function QuotationBuilder() {
                             {hQuote.status}
                           </span>
                         </div>
-                        <p className="text-xs text-on-surface-variant">
+                        <p className="text-xs text-on-surface-variant font-medium">
                           {new Date(hQuote.createdAt).toLocaleDateString()} • {formatCurrency(hQuote.totalAmount)}
                         </p>
-                        <div className="text-[10px] text-outline mt-1 truncate">
+                        <div className="text-[10px] text-outline truncate">
                           Items: {hQuote.QuoteLineItems?.map((li: any) => li.product?.name || "Product").join(", ") || "None"}
                         </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleUseQuote(hQuote);
+                          }}
+                          className="mt-1 text-[11px] font-bold text-primary hover:underline bg-primary/10 px-2 py-1 rounded self-start"
+                        >
+                          Use This Quote
+                        </button>
                       </div>
                     ))
                   )}
@@ -536,44 +584,16 @@ export default function QuotationBuilder() {
               {/* Tab 2: Similar Clients */}
               {activeHistoryTab === "similar" && (
                 <div className="p-4 space-y-4">
-                  {/* Market Insights Strip */}
-                  {similarStats && similarStats.count > 0 ? (
-                    <div className="bg-surface-container-low p-3.5 rounded-xl border border-outline-variant/60 space-y-3">
-                      <div className="flex justify-between text-[11px] font-bold">
-                        <span className="text-on-surface-variant">12M Won Quote Range</span>
-                        <span className="text-primary">{formatCurrencyCompact(similarStats.min)} - {formatCurrencyCompact(similarStats.max)}</span>
-                      </div>
-                      <div className="relative h-4 bg-surface-container rounded-full flex items-center px-1">
-                        <div className="absolute left-1/4 h-2.5 w-1 bg-outline rounded-full"></div>
-                        <div className="absolute left-1/2 h-2.5 w-1 bg-outline rounded-full"></div>
-                        <div className="absolute left-3/4 h-2.5 w-1 bg-outline rounded-full"></div>
-                        <div className="h-2.5 bg-primary rounded-full" style={{ width: "50%", marginLeft: "25%" }}></div>
-                      </div>
-                      <div className="flex justify-between text-[10px] text-on-surface-variant font-medium">
-                        <span>Min: {formatCurrency(similarStats.min)}</span>
-                        <span>Median: {formatCurrency(similarStats.median)}</span>
-                        <span>Max: {formatCurrency(similarStats.max)}</span>
-                      </div>
-                      <div className="text-[10px] text-outline leading-normal border-t border-outline-variant/40 pt-2">
-                        Based on {similarStats.count} similar won deals. Floor limit is {formatCurrency(similarStats.floorPrice)}.
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="text-xs text-outline italic text-center py-2">
-                      Select a product to view 12-month historical pricing benchmarks.
-                    </div>
-                  )}
-
                   {/* Comparable Quote Cards */}
                   <div className="space-y-3.5">
-                    {!similarStats?.quotes || similarStats.quotes.length === 0 ? (
+                    {!similarClientQuotes || similarClientQuotes.length === 0 ? (
                       <div className="text-xs text-outline italic text-center py-4">No matching historical quote records found.</div>
                     ) : (
-                      similarStats.quotes.map((sQuote: any, idx: number) => (
-                        <div key={sQuote.quoteId || idx} className="p-3.5 rounded-xl bg-surface-container-lowest border border-outline-variant hover:border-primary transition-all flex flex-col gap-2">
+                      similarClientQuotes.map((sQuote: any, idx: number) => (
+                        <div key={sQuote.id || idx} className="p-3.5 rounded-xl bg-surface-container-lowest border border-outline-variant hover:border-primary transition-all flex flex-col gap-2">
                           <div className="flex justify-between items-start">
                             <div>
-                              <h4 className="text-xs font-bold text-on-surface">{sQuote.companyName}</h4>
+                              <h4 className="text-xs font-bold text-on-surface">{sQuote.deal?.lead?.company || sQuote.deal?.lead?.firstName + " " + sQuote.deal?.lead?.lastName || "N/A"}</h4>
                               <p className="text-[10px] text-on-surface-variant font-semibold mt-0.5">{sQuote.quoteNumber}</p>
                             </div>
                             <span className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
@@ -586,10 +606,10 @@ export default function QuotationBuilder() {
                             </span>
                           </div>
 
-                          <div className="text-[10px] text-on-surface-variant font-medium leading-relaxed bg-surface-container-low p-2 rounded-lg border border-outline-variant/40">
-                            {sQuote.requestedItems?.map((li: any, lIdx: number) => (
+                          <div className="text-[10px] text-on-surface-variant font-medium leading-relaxed bg-surface-container-low p-2 rounded-lg border border-outline-variant/40 space-y-0.5">
+                            {sQuote.QuoteLineItems?.map((li: any, lIdx: number) => (
                               <div key={lIdx} className="truncate">
-                                {li.productName} ({li.quantity}x @ {formatCurrency(li.unitPrice)})
+                                {li.product?.name || "Product"} ({li.quantity}x @ {formatCurrency(li.unitPrice)})
                               </div>
                             ))}
                           </div>
@@ -598,6 +618,16 @@ export default function QuotationBuilder() {
                             <span>{new Date(sQuote.createdAt).toLocaleDateString()}</span>
                             <span className="font-bold text-primary text-xs">{formatCurrency(sQuote.totalAmount)}</span>
                           </div>
+
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleUseQuote(sQuote);
+                            }}
+                            className="text-[11px] font-bold text-primary hover:underline bg-primary/10 px-2 py-1 rounded self-start mt-1"
+                          >
+                            Use This Quote
+                          </button>
                         </div>
                       ))
                     )}

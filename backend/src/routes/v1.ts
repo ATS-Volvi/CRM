@@ -6,7 +6,7 @@ import { getPipeline, moveDealStage, createDeal, getDeals } from "../controllers
 import { getLeadActivities, createActivity, togglePinActivity, completeTask, getOverdueTasks } from "../controllers/activityController";
 import { getLeads, getLead, createLead, updateLead, deleteLead, getDuplicateLeads, mergeLeads, reassignLead, getLeadReassignmentHistory, getLeadDealForQuote } from '../controllers/leadController';
 import { getPriceBookEntries, createPriceBookEntry, updatePriceBookEntry, deletePriceBookEntry, importPriceBookEntries, getPriceSuggestion, importPriceBookEntriesPreview } from '../controllers/priceBookController';
-import { getQuotes, createQuote, getQuoteRecommendations, sendQuote, getPublicQuote, generateQuotePdf, signQuote, getQuoteHistoryByClient, getSimilarQuotesStats } from '../controllers/quoteController';
+import { getQuotes, createQuote, getQuoteRecommendations, sendQuote, getPublicQuote, generateQuotePdf, signQuote, getQuoteHistoryByClient, getSimilarQuotesStats, getSimilarClientQuotes } from '../controllers/quoteController';
 import { getInvoices, createInvoiceFromQuote, updateInvoiceStatus } from '../controllers/invoiceController';
 import { getPurchaseOrders, createPurchaseOrder, updatePurchaseOrder } from '../controllers/purchaseOrderController';
 import { getApprovals, updateApproval, getApprovalTiers, createApprovalTier, deleteApprovalTier } from '../controllers/approvalController';
@@ -229,6 +229,7 @@ router.put("/pipeline/deals/:id/stage", authMiddleware, moveDealStage);
 // QUOTES
 // ==========================================
 router.get("/quotes/recommendations", authMiddleware, getQuoteRecommendations);
+router.get("/quotes/history/similar-clients", authMiddleware, getSimilarClientQuotes);
 router.get("/quotes/history/client/:leadId", authMiddleware, getQuoteHistoryByClient);
 router.get("/quotes/history/similar/:productId", authMiddleware, getSimilarQuotesStats);
 router.get("/quotes", authMiddleware, getQuotes);

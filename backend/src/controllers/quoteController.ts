@@ -701,3 +701,89 @@ export const getSimilarQuotesStats = async (req: Request, res: Response) => {
   }
 };
 
+export const getSimilarClientQuotes = async (req: Request, res: Response) => {
+  try {
+    const { productIds, leadId } = req.query;
+    const { Op } = require("sequelize");
+
+    if (!productIds) {
+      return res.json([]);
+    }
+
+    const idList = String(productIds)
+      .split(",")
+      .map(id => id.trim())
+      .filter(Boolean);
+
+    if (idList.length === 0) {
+      return res.json([]);
+    }
+
+    let currentLeadCompany: string | null = null;
+    if (leadId) {
+      const lead = await sequelize.models.Lead.findByPk(String(leadId));
+      if (lead) {
+        currentLeadCompany = (lead as any).company;
+      }
+    }
+
+    // 1. Find quoteIds containing at least one of the productIds
+    const matchingItems = await sequelize.models.QuoteLineItem.findAll({
+      where: { productId: { [Op.in]: idList } },
+      attributes: ["quoteId"],
+      raw: true
+    });
+    const quoteIds = Array.from(new Set(matchingItems.map((item: any) => item.quoteId).filter(Boolean)));
+
+    if (quoteIds.length === 0) {
+      return res.json([]);
+    }
+
+    // 2. Fetch full quotes with all associations
+    const quotes = await sequelize.models.Quote.findAll({
+      where: { id: { [Op.in]: quoteIds } },
+      include: [
+        {
+          model: sequelize.models.Deal,
+          as: "deal",
+          include: [
+            {
+              model: sequelize.models.Lead,
+              as: "lead"
+            },
+            {
+              model: sequelize.models.User,
+              as: "owner"
+            }
+          ]
+        },
+        {
+          model: sequelize.models.QuoteLineItem,
+          as: "QuoteLineItems",
+          include: [
+            {
+              model: sequelize.models.PriceBookEntry,
+              as: "product"
+            }
+          ]
+        }
+      ],
+      order: [["createdAt", "DESC"]]
+    });
+
+    // 3. Filter out same lead or same company quotes
+    const filteredQuotes = quotes.filter((q: any) => {
+      const deal = q.deal;
+      const lead = deal?.lead;
+      if (!lead) return true;
+      if (leadId && lead.id === String(leadId)) return false;
+      if (currentLeadCompany && lead.company && lead.company.toLowerCase() === currentLeadCompany.toLowerCase()) return false;
+      return true;
+    });
+
+    res.json(filteredQuotes);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
