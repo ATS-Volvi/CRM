@@ -4,8 +4,14 @@ import { createNotification } from "../services/notificationService";
 
 export const getPipeline = async (req: Request, res: Response) => {
   try {
+    const { ownerId } = req.query;
     const stages = await PipelineStage.findAll({ order: [['order', 'ASC']] });
-    const deals = await Deal.findAll();
+    
+    const dealWhere: any = {};
+    if (ownerId) {
+      dealWhere.ownerId = ownerId;
+    }
+    const deals = await Deal.findAll({ where: dealWhere });
 
     const stageToGroupMap: { [key: string]: string } = {
       "New": "Prospecting",
@@ -37,7 +43,9 @@ export const getPipeline = async (req: Request, res: Response) => {
           isUrgent: false,
           competitors: d.competitors,
           probability: d.probability,
-          group: stageToGroupMap[stage.name] || "Prospecting"
+          group: stageToGroupMap[stage.name] || "Prospecting",
+          leadId: d.leadId,
+          customerId: d.customerId
         }))
       };
     });

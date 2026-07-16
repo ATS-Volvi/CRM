@@ -283,3 +283,14 @@ export const getLeadDealForQuote = async (req: Request, res: Response) => {
   }
 };
 
+export const getLead = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const lead = await sequelize.models.Lead.findByPk(String(id));
+    if (!lead) return res.status(404).json({ error: "Lead not found" });
+    res.json(lead);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+

@@ -93,7 +93,7 @@ export default function ConstructionItems() {
 
   const handleTabChange = (liId: string) => {
     setSearchParams({ lineItemId: liId });
-    setFormData(prev => ({
+    setFormData((prev: any) => ({
       ...prev,
       lineItemId: liId === "All" ? "" : liId
     }));

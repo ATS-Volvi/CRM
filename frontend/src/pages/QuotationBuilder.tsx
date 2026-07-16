@@ -83,6 +83,19 @@ export default function QuotationBuilder() {
     enabled: !!leadId
   });
 
+  const { data: leadData } = useQuery({
+    queryKey: ["lead", leadId],
+    queryFn: async () => {
+      if (!leadId) return null;
+      const res = await fetch(`/api/v1/leads/${leadId}`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!leadId
+  });
+
   const [items, setItems] = useState<any[]>([]);
   const activeProductId = items[focusedIndex]?.productId;
 
@@ -115,6 +128,23 @@ export default function QuotationBuilder() {
   const addItem = () => {
     setItems([...items, { productId: "", quantity: 1, unitPrice: 0, total: 0, isOptional: false }]);
     setFocusedIndex(items.length);
+  };
+
+  const applyAllRecommendations = () => {
+    if (!recommendations || recommendations.length === 0) return;
+    const toAdd = recommendations
+      .filter((rec: any) => rec.productId)
+      .map((rec: any) => ({
+        productId: rec.productId,
+        quantity: rec.quantity || 1,
+        unitPrice: rec.unitPrice,
+        discount: 0,
+        total: (rec.quantity || 1) * rec.unitPrice,
+        isOptional: false
+      }));
+    if (toAdd.length > 0) {
+      setItems([...items, ...toAdd]);
+    }
   };
 
   const handleSelectBundle = (bundleId: string) => {
@@ -311,9 +341,17 @@ export default function QuotationBuilder() {
                     <tr>
                       <td className="px-4 py-4" colSpan={7}>
                         <div className="flex flex-col gap-3 p-4 bg-primary-container/10 border border-primary-container rounded-lg">
-                          <div className="flex items-center gap-2">
-                            <Lightbulb className="w-5 h-5 text-primary" />
-                            <span className="font-bold text-primary">AI Price Recommendations</span> 
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <Lightbulb className="w-5 h-5 text-primary" />
+                              <span className="font-bold text-primary">Requirements-based Recommendations</span> 
+                            </div>
+                            <button 
+                              onClick={applyAllRecommendations}
+                              className="px-3 py-1 bg-primary text-white text-xs font-bold rounded hover:opacity-90 transition-colors"
+                            >
+                              Apply All to Quote
+                            </button>
                           </div>
                           <div className="space-y-3">
                             {recommendations.map((rec: any, idx: number) => (
@@ -408,6 +446,33 @@ export default function QuotationBuilder() {
         {/* Right: Sidebars (Historic & Benchmarks) */}
         <div className="col-span-4 space-y-8">
           
+          {/* Requirements from Lead */}
+          {leadData?.categoriesData && Array.isArray(leadData.categoriesData) && leadData.categoriesData.length > 0 && (
+            <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 shadow-sm">
+              <h3 className="text-lg font-semibold mb-3 flex items-center gap-2 text-primary">
+                <Lightbulb className="w-5 h-5" /> Requirements from Lead
+              </h3>
+              <p className="text-xs text-on-surface-variant mb-4">
+                These requirements were configured during the lead stage. Use them to construct this quotation.
+              </p>
+              <div className="space-y-4">
+                {leadData.categoriesData.map((cat: any, idx: number) => (
+                  <div key={idx} className="bg-surface-container-low p-3 rounded-lg border border-outline-variant/30">
+                    <h4 className="text-sm font-bold text-on-surface mb-2">{cat.categoryName}</h4>
+                    <div className="space-y-1">
+                      {cat.items?.map((item: any, i: number) => (
+                        <div key={i} className="flex justify-between text-xs text-on-surface-variant">
+                          <span>• {item.name}</span>
+                          <span className="font-semibold text-on-surface">{item.quantity} {item.unit || 'units'}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Benchmarking Card */}
           <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 shadow-sm">
             <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">

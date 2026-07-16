@@ -263,7 +263,7 @@ export default function ManagementDashboard() {
                 <div className="bg-surface-container-low p-4 rounded-lg">
                   <p className="text-[12px] font-semibold text-on-surface-variant uppercase">Total Logged Activities</p>
                   <p className="text-2xl font-bold mt-2 text-on-surface">
-                    {Object.values(actReports.activityVolume).reduce((a: any, b: any) => Number(a) + Number(b), 0)}
+                    {String(Object.values(actReports.activityVolume).reduce((a: any, b: any) => Number(a) + Number(b), 0) as number)}
                   </p>
                   <p className="text-[11px] text-on-surface-variant mt-1">Calls, Emails, Meetings, Notes</p>
                 </div>
@@ -280,7 +280,7 @@ export default function ManagementDashboard() {
                           <div className="bg-primary/20 h-2 rounded-full flex-grow">
                             <div 
                               className="bg-primary h-2 rounded-full" 
-                              style={{ width: `${Math.min(100, (count / (Object.values(actReports.activityVolume).reduce((a: any, b: any) => Number(a) + Number(b), 0) || 1)) * 100)}%` }}
+                              style={{ width: `${Math.min(100, (Number(count) / ((Object.values(actReports.activityVolume).reduce((a: any, b: any) => Number(a) + Number(b), 0) as number) || 1)) * 100)}%` }}
                             />
                           </div>
                           <span className="font-bold">{count}</span>
@@ -300,7 +300,7 @@ export default function ManagementDashboard() {
                           <div className="bg-secondary/20 h-2 rounded-full flex-grow">
                             <div 
                               className="bg-secondary h-2 rounded-full" 
-                              style={{ width: `${Math.min(100, (count / (Object.values(actReports.callOutcomeDistribution).reduce((a: any, b: any) => Number(a) + Number(b), 0) || 1)) * 100)}%` }}
+                              style={{ width: `${Math.min(100, (Number(count) / ((Object.values(actReports.callOutcomeDistribution).reduce((a: any, b: any) => Number(a) + Number(b), 0) as number) || 1)) * 100)}%` }}
                             />
                           </div>
                           <span className="font-bold">{count}</span>

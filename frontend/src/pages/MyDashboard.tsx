@@ -308,8 +308,9 @@ export default function MyDashboard() {
                 <div className="space-y-2">
                   <h4 className="text-sm font-bold text-on-surface-variant uppercase tracking-wider">Quick Actions</h4>
                   <div className="flex flex-wrap gap-2 pt-1">
-                    <Link to="/leads" className="px-3 py-1.5 bg-primary text-white text-xs font-bold rounded hover:opacity-90 transition-all">Add Lead</Link>
+                    <Link to="/leads/new" className="px-3 py-1.5 bg-primary text-white text-xs font-bold rounded hover:opacity-90 transition-all">Add Lead</Link>
                     <Link to="/quotes/new" className="px-3 py-1.5 bg-secondary text-white text-xs font-bold rounded hover:opacity-90 transition-all">Create Quote</Link>
+                    <Link to={`/pipeline?ownerId=${user?.id}`} className="px-3 py-1.5 bg-surface-container-high border border-outline-variant text-on-surface text-xs font-bold rounded hover:bg-surface-container transition-all">View My Pipeline</Link>
                   </div>
                 </div>
               </div>

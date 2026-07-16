@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import { 
   ArrowLeft, Mail, Phone, Building2, Pencil, Check, X, History, UserCheck, 
   ChevronRight, Calendar, DollarSign, Activity, ShoppingBag, FileText, ChevronDown, Loader2,
-  Users, TrendingUp, MessageSquare, CheckSquare
+  Users, TrendingUp, MessageSquare, CheckSquare, AlertCircle
 } from "lucide-react";
 import { formatCurrency } from "../utils/currency";
 import { formatDistanceToNow } from "date-fns";
@@ -65,7 +65,7 @@ export default function LeadDetail() {
     enabled: !!id && !!token
   });
 
-  const { data: pipelineStages } = useQuery<any[]>({
+  const { data: pipelineStages, isLoading: isLoadingStages, isError: isErrorStages } = useQuery<any[]>({
     queryKey: ["pipelineStages"],
     queryFn: async () => {
       const res = await fetch("/api/v1/pipeline", { headers: { "Authorization": `Bearer ${token}` } });
@@ -191,7 +191,7 @@ export default function LeadDetail() {
   }
 
   // Segmented progress helper
-  const stages = pipelineStages?.map(s => s.stage) || ["New", "Contacted", "Qualified", "Proposal", "Won"];
+  const stages = pipelineStages?.map(s => s.stage) || [];
   const currentStageIndex = stages.indexOf(lead.status);
 
   // Parse specifications
@@ -245,37 +245,51 @@ export default function LeadDetail() {
 
       {/* Segmented Stages Progress Bar */}
       <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-6 shadow-sm">
-        <div className="flex items-center justify-between mb-4">
-          <span className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Pipeline Stage Progress</span>
-          <select 
-            value={lead.status}
-            onChange={(e) => updateStatusMutation.mutate(e.target.value)}
-            className="bg-surface border border-outline rounded-lg px-3 py-1.5 text-xs font-bold focus:ring-primary focus:outline-none cursor-pointer"
-          >
-            {stages.map(st => (
-              <option key={st} value={st}>{st}</option>
-            ))}
-          </select>
-        </div>
-        
-        <div className="grid grid-cols-5 md:grid-cols-9 gap-2">
-          {stages.map((st, idx) => {
-            const isCompleted = idx <= currentStageIndex;
-            const isCurrent = idx === currentStageIndex;
-            return (
-              <div key={st} className="flex flex-col gap-1.5">
-                <div className={`h-2.5 rounded-full transition-all ${
-                  isCurrent ? "bg-primary animate-pulse" : isCompleted ? "bg-primary/75" : "bg-outline-variant/40"
-                }`} />
-                <span className={`text-[10px] font-bold text-center truncate ${
-                  isCurrent ? "text-primary font-black" : isCompleted ? "text-on-surface" : "text-on-surface-variant opacity-60"
-                }`}>
-                  {st}
-                </span>
-              </div>
-            );
-          })}
-        </div>
+        {isLoadingStages ? (
+          <div className="flex items-center justify-center gap-2 py-4 text-xs font-semibold text-on-surface-variant">
+            <Loader2 className="w-4 h-4 animate-spin text-primary" />
+            <span>Loading pipeline stages...</span>
+          </div>
+        ) : isErrorStages || !stages.length ? (
+          <div className="flex items-center gap-2 py-4 text-xs font-semibold text-error">
+            <AlertCircle className="w-4 h-4" />
+            <span>Failed to load pipeline stages. Cannot display progress bar.</span>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Pipeline Stage Progress</span>
+              <select 
+                value={lead.status}
+                onChange={(e) => updateStatusMutation.mutate(e.target.value)}
+                className="bg-surface border border-outline rounded-lg px-3 py-1.5 text-xs font-bold focus:ring-primary focus:outline-none cursor-pointer"
+              >
+                {stages.map(st => (
+                  <option key={st} value={st}>{st}</option>
+                ))}
+              </select>
+            </div>
+            
+            <div className="grid grid-cols-5 md:grid-cols-9 gap-2">
+              {stages.map((st, idx) => {
+                const isCompleted = idx <= currentStageIndex;
+                const isCurrent = idx === currentStageIndex;
+                return (
+                  <div key={st} className="flex flex-col gap-1.5">
+                    <div className={`h-2.5 rounded-full transition-all ${
+                      isCurrent ? "bg-primary animate-pulse" : isCompleted ? "bg-primary/75" : "bg-outline-variant/40"
+                    }`} />
+                    <span className={`text-[10px] font-bold text-center truncate ${
+                      isCurrent ? "text-primary font-black" : isCompleted ? "text-on-surface" : "text-on-surface-variant opacity-60"
+                    }`}>
+                      {st}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Detail Cards Grid */}

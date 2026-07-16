@@ -259,7 +259,7 @@ export default function QuoteHistory() {
                     const formattedDate = new Date(quote.createdAt).toLocaleDateString();
 
                     return (
-                    <tr key={quote.id || idx} className="hover:bg-surface-container-low/50 transition-colors group cursor-pointer" onClick={() => window.location.href=`/quotes/${quote.id}`}>
+                    <tr key={quote.id || idx} className="hover:bg-surface-container-low/50 transition-colors group cursor-pointer" onClick={() => window.open(`/api/v1/quotes/${quote.id}/pdf`, "_blank")}>
                       <td className="px-6 py-4">
                         <span className="text-sm font-bold text-primary">{quote.id.substring(0,8)}</span>
                         <p className="text-[10px] text-outline mt-1">Created: {formattedDate}</p>

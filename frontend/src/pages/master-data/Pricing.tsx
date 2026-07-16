@@ -170,12 +170,12 @@ export default function Pricing() {
                   
                   {/* Cost Cell (Inline input on click) */}
                   <td className="px-6 py-3 text-right">
-                    {editCell?.id === item.id && editCell.field === "unitCost" ? (
+                    {editCell && editCell.id === item.id && editCell.field === "unitCost" ? (
                       <input 
                         type="number"
                         step="any"
                         value={editCell.value}
-                        onChange={e => setEditCell({ ...editCell, value: e.target.value })}
+                        onChange={e => setEditCell({ id: editCell.id, field: editCell.field, value: e.target.value })}
                         onBlur={() => handleBlur(item.id, "unitCost")}
                         onKeyDown={e => handleKeyDown(e, item.id, "unitCost")}
                         className="w-20 bg-surface border border-primary rounded p-1 text-right text-xs font-bold"
@@ -193,12 +193,12 @@ export default function Pricing() {
 
                   {/* Price Cell (Inline input on click) */}
                   <td className="px-6 py-3 text-right">
-                    {editCell?.id === item.id && editCell.field === "unitPrice" ? (
+                    {editCell && editCell.id === item.id && editCell.field === "unitPrice" ? (
                       <input 
                         type="number"
                         step="any"
                         value={editCell.value}
-                        onChange={e => setEditCell({ ...editCell, value: e.target.value })}
+                        onChange={e => setEditCell({ id: editCell.id, field: editCell.field, value: e.target.value })}
                         onBlur={() => handleBlur(item.id, "unitPrice")}
                         onKeyDown={e => handleKeyDown(e, item.id, "unitPrice")}
                         className="w-20 bg-surface border border-primary rounded p-1 text-right text-xs font-bold"

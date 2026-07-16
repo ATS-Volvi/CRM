@@ -4,7 +4,7 @@ import { createPublicLead } from "../controllers/publicLeads";
 import { authMiddleware } from "../middleware/auth";
 import { getPipeline, moveDealStage, createDeal, getDeals } from "../controllers/pipelineController";
 import { getLeadActivities, createActivity, togglePinActivity, completeTask, getOverdueTasks } from "../controllers/activityController";
-import { getLeads, createLead, updateLead, deleteLead, getDuplicateLeads, mergeLeads, reassignLead, getLeadReassignmentHistory, getLeadDealForQuote } from '../controllers/leadController';
+import { getLeads, getLead, createLead, updateLead, deleteLead, getDuplicateLeads, mergeLeads, reassignLead, getLeadReassignmentHistory, getLeadDealForQuote } from '../controllers/leadController';
 import { getPriceBookEntries, createPriceBookEntry, updatePriceBookEntry, deletePriceBookEntry, importPriceBookEntries, getPriceSuggestion, importPriceBookEntriesPreview } from '../controllers/priceBookController';
 import { getQuotes, createQuote, getQuoteRecommendations, sendQuote, getPublicQuote, generateQuotePdf, signQuote, getQuoteHistoryByClient, getSimilarQuotesStats } from '../controllers/quoteController';
 import { getInvoices, createInvoiceFromQuote, updateInvoiceStatus } from '../controllers/invoiceController';
@@ -213,6 +213,7 @@ router.post("/leads/merge", authMiddleware, mergeLeads);
  */
 router.get("/leads", authMiddleware, getLeads);
 router.post("/leads", authMiddleware, createLead);
+router.get("/leads/:id", authMiddleware, getLead);
 router.put("/leads/:id", authMiddleware, updateLead);
 router.delete("/leads/:id", authMiddleware, deleteLead);
 router.put("/leads/:id/reassign", authMiddleware, reassignLead);

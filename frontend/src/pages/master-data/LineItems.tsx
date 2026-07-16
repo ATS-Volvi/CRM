@@ -87,7 +87,7 @@ export default function LineItems() {
 
   const handleTabChange = (reqId: string) => {
     setSearchParams({ requirementId: reqId });
-    setFormData(prev => ({
+    setFormData((prev: any) => ({
       ...prev,
       requirementId: reqId === "All" ? "" : reqId
     }));

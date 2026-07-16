@@ -10,12 +10,64 @@ export async function suggestBundleOrItems(leadId: string): Promise<any[]> {
     const rawPayload = (lead as any).rawPayload || "";
     const { Op } = require("sequelize");
 
-    // Step 1: Context-based catalog matching
+    // ── Step 0: categoriesData-first matching ──────────────────
+    // If the lead has explicit master-data requirements, use them as the
+    // PRIMARY source of recommendation before any generic keyword pass.
+    const categoriesData = (lead as any).categoriesData;
     const products = await sequelize.models.PriceBookEntry.findAll();
+
+    if (categoriesData && Array.isArray(categoriesData) && categoriesData.length > 0) {
+      const directRecs: any[] = [];
+      const seenProductIds = new Set<string>();
+
+      for (const group of categoriesData) {
+        const items = Array.isArray(group.items) ? group.items : [];
+        for (const lineItem of items) {
+          const itemNameLower = (lineItem.name || "").toLowerCase();
+          if (!itemNameLower) continue;
+
+          // Fuzzy match: check if a PriceBookEntry name contains this LineItem name or vice versa
+          const nameTokens = itemNameLower.split(/[\s,\-_]+/).filter((t: string) => t.length > 2);
+          const match = (products as any[]).find((p: any) => {
+            const pNameLower = (p.name || "").toLowerCase();
+            return nameTokens.some((token: string) => pNameLower.includes(token)) ||
+                   itemNameLower.includes(pNameLower.split(/[\s,\-_]+/).find((t: string) => t.length > 2) || "___NOMATCH___");
+          });
+
+          if (match && !seenProductIds.has((match as any).id)) {
+            seenProductIds.add((match as any).id);
+            directRecs.push({
+              productId: (match as any).id,
+              sku: (match as any).sku,
+              name: (match as any).name,
+              unitPrice: Number((match as any).unitPrice),
+              quantity: lineItem.quantity || 1,
+              reason: `Directly specified in lead requirements: "${group.categoryName}" → "${lineItem.name}".`
+            });
+          } else if (!match) {
+            // No price-book match: surface as a placeholder with zero price so rep knows it needs manual pricing
+            directRecs.push({
+              productId: null,
+              sku: null,
+              name: lineItem.name,
+              unitPrice: 0,
+              quantity: lineItem.quantity || 1,
+              reason: `Required by lead (no catalog match yet): "${group.categoryName}" → "${lineItem.name}". Please add price manually.`
+            });
+          }
+        }
+      }
+
+      if (directRecs.length > 0) {
+        return directRecs;
+      }
+    }
+
+    // Step 1: Context-based catalog matching (fallback when no categoriesData)
     const query = `${industry} ${company} ${rawPayload}`.toLowerCase();
     const keywords = query.split(/[\s,._\-;:"'()\[\]/]+/).filter(w => w.length > 3);
 
-    const contextMatches = products.filter((p: any) => {
+    const contextMatches = (products as any[]).filter((p: any) => {
       const name = (p.name || "").toLowerCase();
       const desc = (p.description || "").toLowerCase();
       const category = (p.category || "").toLowerCase();
@@ -50,7 +102,7 @@ export async function suggestBundleOrItems(leadId: string): Promise<any[]> {
 
     // Group items by quoteId
     const quoteGroups: Record<string, string[]> = {};
-    lineItems.forEach((li: any) => {
+    (lineItems as any[]).forEach((li: any) => {
       if (!quoteGroups[li.quoteId]) {
         quoteGroups[li.quoteId] = [];
       }
@@ -76,7 +128,7 @@ export async function suggestBundleOrItems(leadId: string): Promise<any[]> {
     // Map back to catalog products
     const recommendations = [];
     for (const pid of finalItems) {
-      const prod = products.find((p: any) => p.id === pid);
+      const prod = (products as any[]).find((p: any) => p.id === pid);
       if (prod) {
         const isCoOccur = !matchedProductIds.includes(pid);
         recommendations.push({
@@ -93,7 +145,7 @@ export async function suggestBundleOrItems(leadId: string): Promise<any[]> {
 
     // If still empty, return top 3 most popular items overall
     if (recommendations.length === 0) {
-      return products.slice(0, 3).map((r: any) => ({
+      return (products as any[]).slice(0, 3).map((r: any) => ({
         productId: r.id,
         sku: r.sku,
         name: r.name,

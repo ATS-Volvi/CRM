@@ -46,7 +46,7 @@ export default function PriceBook() {
       if (!res.ok) throw new Error(await res.text());
       return res.json();
     },
-    onSuccess: (data) => {
+    onSuccess: (data: any) => {
       setBulkPreview(data);
     }
   } as any);
