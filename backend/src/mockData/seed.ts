@@ -7,17 +7,24 @@ async function seedDatabase() {
     await Database.createConnection();
     console.log("Syncing database...");
     console.log("Truncating data...");
+    
+    // Ordered to prevent foreign key constraint violations
     const tables = [
-      'WebhookEvents', 'ScheduledEmails', 'Notifications', 'MessageTemplates',
-      'InvoiceLineItems', 'Invoices', 'Activities', 'AssignmentRules',
+      'LeadReassignmentHistories', 'WebhookEvents', 'ScheduledEmails', 'Notifications', 
+      'MessageTemplates', 'InvoiceLineItems', 'Invoices', 'Activities', 'AssignmentRules',
       'ApprovalRequests', 'PurchaseOrders', 'QuoteLineItems', 'PriceBookEntries',
       'Quotes', 'Deals', 'LeadStageHistories', 'PipelineStages', 'Leads', 'Users',
-      'Requirements', 'LineItems', 'ConstructionItems'
+      'ConstructionItems', 'LineItems', 'Requirements', 'Customers', 'LeadSources'
     ];
     for (const table of tables) {
       try {
-        await sequelize.query(`DELETE FROM ${table};`);
-      } catch (e) {}
+        await sequelize.query(`DELETE FROM "${table}";`);
+      } catch (e) {
+        // Fallback for SQLite table name wrapping differences
+        try {
+          await sequelize.query(`DELETE FROM ${table};`);
+        } catch (e2) {}
+      }
     }
     
     const models = sequelize.models;
@@ -125,6 +132,39 @@ async function seedDatabase() {
       maxOpenLeads: 40
     }) as any;
 
+    console.log("Seeding Lead Sources...");
+    const sources = ["Website", "Referral", "Cold Call", "LinkedIn", "Social Media", "Trade Show"];
+    const sourceRecords: any[] = [];
+    for (const name of sources) {
+      sourceRecords.push(await models.LeadSource.create({
+        id: crypto.randomUUID(),
+        name,
+        isActive: true
+      }));
+    }
+
+    console.log("Seeding Customers...");
+    const companies = [
+      { name: "Alibaba Global", primaryContactName: "Robert Chen", email: "robert@alibaba.com", phone: "1-555-0192", industry: "Technology" },
+      { name: "Tesla Motors", primaryContactName: "Sarah Jenkins", email: "s.jenkins@tesla.com", phone: "1-555-0183", industry: "Automotive" },
+      { name: "SpaceX Inc.", primaryContactName: "James Morgan", email: "jmorgan@spacex.com", phone: "1-555-0211", industry: "Aerospace" },
+      { name: "Adobe Systems", primaryContactName: "Charlotte King", email: "cking@adobe.com", phone: "1-555-0198", industry: "Software" },
+      { name: "Walmart Inc.", primaryContactName: "David Miller", email: "david.miller@walmart.com", phone: "1-555-0144", industry: "Retail" },
+      { name: "Netflix Studios", primaryContactName: "Sophia Loren", email: "loren@netflix.com", phone: "1-555-0112", industry: "Entertainment" },
+      { name: "Dunder Mifflin", primaryContactName: "Michael Scott", email: "mscott@dundermifflin.com", phone: "1-555-0166", industry: "Manufacturing" },
+      { name: "BMW Group", primaryContactName: "Oliver Kahn", email: "kahn@bmw.de", phone: "1-555-0177", industry: "Automotive" },
+      { name: "Infosys Ltd.", primaryContactName: "Priya Sharma", email: "p.sharma@infosys.com", phone: "1-555-0201", industry: "Technology" },
+      { name: "SAP SE", primaryContactName: "Leo Fischer", email: "leo.f@sap.com", phone: "1-555-0215", industry: "Software" }
+    ];
+    const customerRecords: any[] = [];
+    for (const c of companies) {
+      customerRecords.push(await models.Customer.create({
+        id: crypto.randomUUID(),
+        ...c,
+        address: "HQ Office Boulevard"
+      }));
+    }
+
     console.log("Seeding PriceBook Catalog...");
     const products = [
       { name: "Enterprise Cloud Suite Premium", sku: "SKU-CLOUD-ENT", category: "Enterprise VIP", unitPrice: 25000, minPrice: 19000, maxPrice: 35000 },
@@ -144,6 +184,136 @@ async function seedDatabase() {
         ...p,
         segmentPricing: JSON.stringify({ SME: p.unitPrice * 0.95, Enterprise: p.unitPrice, Government: p.unitPrice * 1.05 })
       }));
+    }
+
+    console.log("Seeding Requirements, LineItems, ConstructionItems (Face Contracting)...");
+    
+    // Top-Level Requirements
+    const reqsData = [
+      { name: "Prefab Structures", category: "Structural", description: "Portable cabins, site offices, and security units" },
+      { name: "Site Utilities & MEP", category: "Utility", description: "Electrical wiring, air conditioning, and water systems" },
+      { name: "Manpower Supply", category: "Manpower", description: "Skilled carpenters, electricians, and supervisors" },
+      { name: "Material Trading", category: "Trading", description: "Supply of steel framing, plywood, and cement" },
+      { name: "Equipment Rental", category: "Rental", description: "Generators, excavators, and dump trucks" }
+    ];
+
+    const reqRecords: any[] = [];
+    for (const r of reqsData) {
+      reqRecords.push(await models.Requirement.create({
+        id: crypto.randomUUID(),
+        ...r,
+        isActive: true
+      }));
+    }
+
+    // LineItems & ConstructionItems nested
+    const prefabLines = [
+      { name: "Portable Site Office", unit: "unit", description: "12m x 3m standard portable office cabin", defaultQuantity: 1 },
+      { name: "Labor Accommodation Cabin", unit: "unit", description: "Standard bunk house cabin for 8 workers", defaultQuantity: 2 },
+      { name: "Security Guard Cabin", unit: "unit", description: "2m x 2m guard house unit", defaultQuantity: 1 }
+    ];
+    for (const line of prefabLines) {
+      const lineItem = await models.LineItem.create({
+        id: crypto.randomUUID(),
+        requirementId: reqRecords[0].id,
+        ...line
+      }) as any;
+
+      // Construction Items BOM
+      await models.ConstructionItem.create({
+        id: crypto.randomUUID(),
+        lineItemId: lineItem.id,
+        name: "Heavy Steel Panel Frame",
+        category: "material",
+        unit: "pcs",
+        quantityPerLineItem: 8,
+        unitCost: 450,
+        unitPrice: 585,
+        isActive: true
+      });
+      await models.ConstructionItem.create({
+        id: crypto.randomUUID(),
+        lineItemId: lineItem.id,
+        name: "1.5 Ton Split AC Unit",
+        category: "equipment",
+        unit: "nos",
+        quantityPerLineItem: 2,
+        unitCost: 320,
+        unitPrice: 415,
+        isActive: true
+      });
+      await models.ConstructionItem.create({
+        id: crypto.randomUUID(),
+        lineItemId: lineItem.id,
+        name: "Cabin Assembly Labor",
+        category: "labor",
+        unit: "hrs",
+        quantityPerLineItem: 24,
+        unitCost: 15,
+        unitPrice: 20,
+        isActive: true
+      });
+    }
+
+    // Site Utilities MEP
+    const mepLines = [
+      { name: "Electrical Distribution Panel Setup", unit: "set", description: "Main DB and distribution setup", defaultQuantity: 1 },
+      { name: "AC Setup & Ventilation", unit: "nos", description: "AC unit mounts, exhausts, and cabling", defaultQuantity: 4 }
+    ];
+    for (const line of mepLines) {
+      const lineItem = await models.LineItem.create({
+        id: crypto.randomUUID(),
+        requirementId: reqRecords[1].id,
+        ...line
+      }) as any;
+
+      await models.ConstructionItem.create({
+        id: crypto.randomUUID(),
+        lineItemId: lineItem.id,
+        name: "Copper Cabling Roll",
+        category: "material",
+        unit: "mtrs",
+        quantityPerLineItem: 100,
+        unitCost: 4,
+        unitPrice: 5.5,
+        isActive: true
+      });
+      await models.ConstructionItem.create({
+        id: crypto.randomUUID(),
+        lineItemId: lineItem.id,
+        name: "MEP Engineer Labor",
+        category: "labor",
+        unit: "hrs",
+        quantityPerLineItem: 8,
+        unitCost: 35,
+        unitPrice: 48,
+        isActive: true
+      });
+    }
+
+    // Manpower lines
+    const manpowerLines = [
+      { name: "Skilled Carpentry Team", unit: "man-day", description: "Experienced wood/framing carpenters", defaultQuantity: 10 },
+      { name: "Industrial Electrician Crew", unit: "man-day", description: "Certified electrical installers", defaultQuantity: 5 }
+    ];
+    for (const line of manpowerLines) {
+      const lineItem = await models.LineItem.create({
+        id: crypto.randomUUID(),
+        requirementId: reqRecords[2].id,
+        ...line
+      }) as any;
+
+      await models.ConstructionItem.create({
+        id: crypto.randomUUID(),
+        lineItemId: lineItem.id,
+        name: "Daily Carpenter Shift",
+        category: "labor",
+        unit: "hrs",
+        quantityPerLineItem: 8,
+        unitCost: 12,
+        unitPrice: 16,
+        isActive: true
+      });
     }
 
     console.log("Seeding Pipeline Stages...");
@@ -180,28 +350,16 @@ async function seedDatabase() {
 
     console.log("Seeding Leads...");
     const leadsData = [
-      { firstName: "Robert", lastName: "Chen", company: "Alibaba Global", email: "robert@alibaba.com", phone: "1-555-0192", status: "Qualified", source: "Website", leadScore: 88, assignedToId: rep1.id, industry: "Technology" },
-      { firstName: "Sarah", lastName: "Jenkins", company: "Tesla Motors", email: "s.jenkins@tesla.com", phone: "1-555-0183", status: "Contacted", source: "Referral", leadScore: 95, assignedToId: rep1.id, industry: "Automotive" },
-      { firstName: "James", lastName: "Morgan", company: "SpaceX Inc.", email: "jmorgan@spacex.com", phone: "1-555-0211", status: "Qualified", source: "Cold Call", leadScore: 72, assignedToId: rep1.id, industry: "Aerospace" },
-      { firstName: "Charlotte", lastName: "King", company: "Adobe Systems", email: "cking@adobe.com", phone: "1-555-0198", status: "New", source: "LinkedIn", leadScore: 61, assignedToId: rep1.id, industry: "Software" },
-      { firstName: "David", lastName: "Miller", company: "Walmart Inc.", email: "david.miller@walmart.com", phone: "1-555-0144", status: "Qualified", source: "Cold Call", leadScore: 79, assignedToId: rep2.id, industry: "Retail" },
-      { firstName: "Sophia", lastName: "Loren", company: "Netflix Studios", email: "loren@netflix.com", phone: "1-555-0112", status: "Qualified", source: "Website", leadScore: 90, assignedToId: rep2.id, industry: "Entertainment" },
-      { firstName: "Michael", lastName: "Scott", company: "Dunder Mifflin", email: "mscott@dundermifflin.com", phone: "1-555-0166", status: "Contacted", source: "Trade Show", leadScore: 55, assignedToId: rep2.id, industry: "Manufacturing" },
-      { firstName: "Oliver", lastName: "Kahn", company: "BMW Group", email: "kahn@bmw.de", phone: "1-555-0177", status: "New", source: "Social Media", leadScore: 60, assignedToId: rep3.id, industry: "Automotive" },
-      { firstName: "Priya", lastName: "Sharma", company: "Infosys Ltd.", email: "p.sharma@infosys.com", phone: "1-555-0201", status: "Qualified", source: "Referral", leadScore: 85, assignedToId: rep3.id, industry: "Technology" },
-      { firstName: "Leo", lastName: "Fischer", company: "SAP SE", email: "leo.f@sap.com", phone: "1-555-0215", status: "Contacted", source: "Website", leadScore: 74, assignedToId: rep3.id, industry: "Software" },
-      { firstName: "Hannah", lastName: "Kim", company: "Samsung Electronics", email: "h.kim@samsung.com", phone: "1-555-0188", status: "New", source: "Cold Call", leadScore: 48, assignedToId: rep4.id, industry: "Electronics" },
-      { firstName: "Lucas", lastName: "Pierre", company: "LVMH Group", email: "l.pierre@lvmh.com", phone: "1-555-0225", status: "Contacted", source: "LinkedIn", leadScore: 77, assignedToId: rep4.id, industry: "Luxury Goods" },
-      { firstName: "Aisha", lastName: "Patel", company: "Reliance Industries", email: "a.patel@reliance.com", phone: "1-555-0234", status: "Qualified", source: "Referral", leadScore: 92, assignedToId: rep5.id, industry: "Energy" },
-      { firstName: "Connor", lastName: "Walsh", company: "Boston Dynamics", email: "cwalsh@bostondynamics.com", phone: "1-555-0241", status: "New", source: "Trade Show", leadScore: 66, assignedToId: rep5.id, industry: "Robotics" },
-      { firstName: "Elena", lastName: "Musk", company: "Boring Company", email: "elena@boring.co", phone: "1-555-0253", status: "Contacted", source: "Social Media", leadScore: 83, assignedToId: rep5.id, industry: "Infrastructure" },
-      { firstName: "Marcus", lastName: "Webb", company: "Goldman Sachs", email: "m.webb@gs.com", phone: "1-555-0262", status: "Qualified", source: "Referral", leadScore: 89, assignedToId: rep6.id, industry: "Finance" },
-      { firstName: "Sofia", lastName: "Greco", company: "Ferrari S.p.A", email: "s.greco@ferrari.com", phone: "1-555-0271", status: "New", source: "Website", leadScore: 70, assignedToId: rep6.id, industry: "Automotive" },
-      { firstName: "Tyler", lastName: "Brooks", company: "Shopify Inc.", email: "t.brooks@shopify.com", phone: "1-555-0279", status: "Contacted", source: "Cold Call", leadScore: 58, assignedToId: rep7.id, industry: "E-commerce" },
-      { firstName: "Nadia", lastName: "Volkov", company: "Kaspersky Lab", email: "n.volkov@kaspersky.com", phone: "1-555-0287", status: "Qualified", source: "LinkedIn", leadScore: 76, assignedToId: rep7.id, industry: "Cybersecurity" },
-      { firstName: "Ahmed", lastName: "Al-Rashid", company: "ADNOC Group", email: "a.rashid@adnoc.ae", phone: "1-555-0296", status: "Qualified", source: "Referral", leadScore: 94, assignedToId: rep8.id, industry: "Energy" },
-      { firstName: "Yuki", lastName: "Tanaka", company: "Toyota Motor Corp.", email: "y.tanaka@toyota.co.jp", phone: "1-555-0304", status: "Contacted", source: "Trade Show", leadScore: 81, assignedToId: rep8.id, industry: "Automotive" },
-      { firstName: "Grace", lastName: "O'Brien", company: "Stripe Inc.", email: "g.obrien@stripe.com", phone: "1-555-0312", status: "New", source: "Website", leadScore: 69, assignedToId: rep8.id, industry: "FinTech" },
+      { firstName: "Robert", lastName: "Chen", company: "Alibaba Global", email: "robert@alibaba.com", phone: "1-555-0192", status: "Qualified", source: "Website", leadScore: 88, assignedToId: rep1.id, industry: "Technology", leadNumber: "LD-2026-00001", customerId: customerRecords[0].id },
+      { firstName: "Sarah", lastName: "Jenkins", company: "Tesla Motors", email: "s.jenkins@tesla.com", phone: "1-555-0183", status: "Contacted", source: "Referral", leadScore: 95, assignedToId: rep1.id, industry: "Automotive", leadNumber: "LD-2026-00002", customerId: customerRecords[1].id },
+      { firstName: "James", lastName: "Morgan", company: "SpaceX Inc.", email: "jmorgan@spacex.com", phone: "1-555-0211", status: "Qualified", source: "Cold Call", leadScore: 72, assignedToId: rep1.id, industry: "Aerospace", leadNumber: "LD-2026-00003", customerId: customerRecords[2].id },
+      { firstName: "Charlotte", lastName: "King", company: "Adobe Systems", email: "cking@adobe.com", phone: "1-555-0198", status: "New", source: "LinkedIn", leadScore: 61, assignedToId: rep1.id, industry: "Software", leadNumber: "LD-2026-00004", customerId: customerRecords[3].id },
+      { firstName: "David", lastName: "Miller", company: "Walmart Inc.", email: "david.miller@walmart.com", phone: "1-555-0144", status: "Qualified", source: "Cold Call", leadScore: 79, assignedToId: rep2.id, industry: "Retail", leadNumber: "LD-2026-00005", customerId: customerRecords[4].id },
+      { firstName: "Sophia", lastName: "Loren", company: "Netflix Studios", email: "loren@netflix.com", phone: "1-555-0112", status: "Qualified", source: "Website", leadScore: 90, assignedToId: rep2.id, industry: "Entertainment", leadNumber: "LD-2026-00006", customerId: customerRecords[5].id },
+      { firstName: "Michael", lastName: "Scott", company: "Dunder Mifflin", email: "mscott@dundermifflin.com", phone: "1-555-0166", status: "Contacted", source: "Trade Show", leadScore: 55, assignedToId: rep2.id, industry: "Manufacturing", leadNumber: "LD-2026-00007", customerId: customerRecords[6].id },
+      { firstName: "Oliver", lastName: "Kahn", company: "BMW Group", email: "kahn@bmw.de", phone: "1-555-0177", status: "New", source: "Social Media", leadScore: 60, assignedToId: rep3.id, industry: "Automotive", leadNumber: "LD-2026-00008", customerId: customerRecords[7].id },
+      { firstName: "Priya", lastName: "Sharma", company: "Infosys Ltd.", email: "p.sharma@infosys.com", phone: "1-555-0201", status: "Qualified", source: "Referral", leadScore: 85, assignedToId: rep3.id, industry: "Technology", leadNumber: "LD-2026-00009", customerId: customerRecords[8].id },
+      { firstName: "Leo", lastName: "Fischer", company: "SAP SE", email: "leo.f@sap.com", phone: "1-555-0215", status: "Contacted", source: "Website", leadScore: 74, assignedToId: rep3.id, industry: "Software", leadNumber: "LD-2026-00010", customerId: customerRecords[9].id }
     ];
 
     const seededLeads: any[] = [];
@@ -212,24 +370,31 @@ async function seedDatabase() {
       }));
     }
 
+    console.log("Seeding Reassignment History...");
+    await models.LeadReassignmentHistory.create({
+      id: crypto.randomUUID(),
+      leadId: seededLeads[0].id,
+      oldAssignedToId: rep2.id,
+      newAssignedToId: rep1.id,
+      changedByUserId: admin.id,
+      reason: "Initial assignment correction for tech account."
+    });
+    await models.LeadReassignmentHistory.create({
+      id: crypto.randomUUID(),
+      leadId: seededLeads[1].id,
+      oldAssignedToId: rep3.id,
+      newAssignedToId: rep1.id,
+      changedByUserId: admin.id,
+      reason: "Account representative workload balance."
+    });
+
     console.log("Seeding Deals...");
     const dealsData = [
-      { name: "Alibaba Cloud Expansion", amount: 48000, stageId: stageProposal.id, ownerId: rep1.id, leadId: seededLeads[0].id },
-      { name: "Tesla Advanced Data Suite", amount: 25000, stageId: stageDemo.id, ownerId: rep1.id, leadId: seededLeads[1].id },
-      { name: "SpaceX Mission Analytics", amount: 75000, stageId: stageNegotiation.id, ownerId: rep1.id, leadId: seededLeads[2].id },
-      { name: "Walmart CRM Rollout", amount: 150000, stageId: stageWon.id, ownerId: rep2.id, leadId: seededLeads[4].id },
-      { name: "Netflix Analytics Sync", amount: 35000, stageId: stageWon.id, ownerId: rep2.id, leadId: seededLeads[5].id },
-      { name: "Dunder Mifflin CRM Pilot", amount: 12500, stageId: stageContacted.id, ownerId: rep2.id, leadId: seededLeads[6].id },
-      { name: "BMW Group Enterprise Suite", amount: 95000, stageId: stageProposal.id, ownerId: rep3.id, leadId: seededLeads[7].id },
-      { name: "Infosys Platform Integration", amount: 42000, stageId: stageWon.id, ownerId: rep3.id, leadId: seededLeads[8].id },
-      { name: "Samsung Mobile CRM Fleet", amount: 55000, stageId: stageQualified.id, ownerId: rep4.id, leadId: seededLeads[10].id },
-      { name: "Reliance Energy Dashboard", amount: 88000, stageId: stageNegotiation.id, ownerId: rep5.id, leadId: seededLeads[12].id },
-      { name: "Boston Dynamics Field Suite", amount: 32000, stageId: stageDemo.id, ownerId: rep5.id, leadId: seededLeads[13].id },
-      { name: "Goldman Sachs Analytics Hub", amount: 120000, stageId: stageWon.id, ownerId: rep6.id, leadId: seededLeads[15].id },
-      { name: "Ferrari Custom CRM Build", amount: 45000, stageId: stageProposal.id, ownerId: rep6.id, leadId: seededLeads[16].id },
-      { name: "Shopify Commerce Integration", amount: 28000, stageId: stageOnHold.id, ownerId: rep7.id, leadId: seededLeads[17].id },
-      { name: "ADNOC Enterprise Bundle", amount: 185000, stageId: stageWon.id, ownerId: rep8.id, leadId: seededLeads[19].id },
-      { name: "Toyota Dealer Network CRM", amount: 67000, stageId: stageProposal.id, ownerId: rep8.id, leadId: seededLeads[20].id },
+      { name: "Alibaba Prefab Site Setup", amount: 48000, stageId: stageProposal.id, ownerId: rep1.id, leadId: seededLeads[0].id, customerId: customerRecords[0].id },
+      { name: "Tesla Factory Cabins", amount: 25000, stageId: stageDemo.id, ownerId: rep1.id, leadId: seededLeads[1].id, customerId: customerRecords[1].id },
+      { name: "SpaceX Launchpad MEP Setup", amount: 75000, stageId: stageNegotiation.id, ownerId: rep1.id, leadId: seededLeads[2].id, customerId: customerRecords[2].id },
+      { name: "Walmart Supply Depot Offices", amount: 150000, stageId: stageWon.id, ownerId: rep2.id, leadId: seededLeads[4].id, customerId: customerRecords[4].id },
+      { name: "Netflix Production Cabins", amount: 35000, stageId: stageWon.id, ownerId: rep2.id, leadId: seededLeads[5].id, customerId: customerRecords[5].id }
     ];
 
     const seededDeals: any[] = [];
@@ -250,42 +415,12 @@ async function seedDatabase() {
     await models.QuoteLineItem.create({ id: crypto.randomUUID(), quoteId: quote2.id, productId: seededProducts[2].id, quantity: 7, unitPrice: 5000, totalPrice: 35000 });
     await models.PurchaseOrder.create({ id: crypto.randomUUID(), quoteId: quote2.id, poNumber: "PO-NFX-8842", amount: 35000, status: "Verified" });
 
-    const quote3 = await models.Quote.create({ id: crypto.randomUUID(), dealId: seededDeals[0].id, status: "Sent", totalAmount: 48000, quoteNumber: "QT-2026-00003", version: 1, sentAt: new Date() }) as any;
-    await models.QuoteLineItem.create({ id: crypto.randomUUID(), quoteId: quote3.id, productId: seededProducts[1].id, quantity: 4, unitPrice: 12000, totalPrice: 48000 });
-
-    const quote4 = await models.Quote.create({ id: crypto.randomUUID(), dealId: seededDeals[7].id, status: "Accepted", totalAmount: 42000, quoteNumber: "QT-2026-00004", version: 1, acceptedAt: new Date() }) as any;
-    await models.QuoteLineItem.create({ id: crypto.randomUUID(), quoteId: quote4.id, productId: seededProducts[6].id, quantity: 5, unitPrice: 8400, totalPrice: 42000 });
-    await models.PurchaseOrder.create({ id: crypto.randomUUID(), quoteId: quote4.id, poNumber: "PO-INFO-7731", amount: 42000, status: "Verified" });
-
-    const quote5 = await models.Quote.create({ id: crypto.randomUUID(), dealId: seededDeals[11].id, status: "Accepted", totalAmount: 120000, quoteNumber: "QT-2026-00005", version: 1, acceptedAt: new Date() }) as any;
-    await models.QuoteLineItem.create({ id: crypto.randomUUID(), quoteId: quote5.id, productId: seededProducts[5].id, quantity: 6, unitPrice: 20000, totalPrice: 120000 });
-    await models.PurchaseOrder.create({ id: crypto.randomUUID(), quoteId: quote5.id, poNumber: "PO-GS-6612", amount: 120000, status: "Approved" });
-
-    const quote6 = await models.Quote.create({ id: crypto.randomUUID(), dealId: seededDeals[14].id, status: "Accepted", totalAmount: 185000, quoteNumber: "QT-2026-00006", version: 1, acceptedAt: new Date() }) as any;
-    await models.QuoteLineItem.create({ id: crypto.randomUUID(), quoteId: quote6.id, productId: seededProducts[0].id, quantity: 5, unitPrice: 25000, totalPrice: 125000 });
-    await models.QuoteLineItem.create({ id: crypto.randomUUID(), quoteId: quote6.id, productId: seededProducts[4].id, quantity: 4, unitPrice: 15000, totalPrice: 60000 });
-    await models.PurchaseOrder.create({ id: crypto.randomUUID(), quoteId: quote6.id, poNumber: "PO-ADNOC-5503", amount: 185000, status: "Verified" });
-
-    const quote7 = await models.Quote.create({ id: crypto.randomUUID(), dealId: seededDeals[2].id, status: "Draft", totalAmount: 75000, quoteNumber: "QT-2026-00007", version: 2 }) as any;
-    await models.QuoteLineItem.create({ id: crypto.randomUUID(), quoteId: quote7.id, productId: seededProducts[5].id, quantity: 3, unitPrice: 18000, totalPrice: 54000 });
-    await models.QuoteLineItem.create({ id: crypto.randomUUID(), quoteId: quote7.id, productId: seededProducts[1].id, quantity: 1, unitPrice: 8500, totalPrice: 8500 });
-
-    const quote8 = await models.Quote.create({ id: crypto.randomUUID(), dealId: seededDeals[9].id, status: "Pending Approval", totalAmount: 88000, quoteNumber: "QT-2026-00008", version: 1 }) as any;
-    await models.QuoteLineItem.create({ id: crypto.randomUUID(), quoteId: quote8.id, productId: seededProducts[0].id, quantity: 3, unitPrice: 25000, totalPrice: 75000 });
-    await models.ApprovalRequest.create({ id: crypto.randomUUID(), targetId: quote8.id, type: "Quote", status: "Pending", requestedById: rep5.id, comments: "Needs 12% discount approval for strategic account." });
-
     console.log("Seeding Activities & Tasks...");
     const activityData = [
       { leadId: seededLeads[0].id, createdById: rep1.id, type: "task", outcome: "Send cloud suite proposal to Robert Chen at Alibaba", dueDate: new Date(Date.now() + 86400000), priority: "high", isCompleted: false },
       { leadId: seededLeads[1].id, createdById: rep1.id, type: "meeting", outcome: "Show advanced analytics presentation to Sarah Jenkins", isCompleted: true },
       { leadId: seededLeads[2].id, createdById: rep1.id, type: "call", outcome: "Follow up with SpaceX on data suite pricing", dueDate: new Date(Date.now() + 172800000), priority: "medium", isCompleted: false },
-      { leadId: seededLeads[4].id, createdById: rep2.id, type: "note", outcome: "Walmart PO signed and submitted to finance team", isCompleted: true, pinned: true },
-      { leadId: seededLeads[8].id, createdById: rep3.id, type: "task", outcome: "Schedule product demo with Infosys procurement", dueDate: new Date(Date.now() + 259200000), priority: "high", isCompleted: false },
-      { leadId: seededLeads[12].id, createdById: rep5.id, type: "call", outcome: "Negotiate final pricing with Reliance Energy", dueDate: new Date(Date.now() + 86400000), priority: "high", isCompleted: false },
-      { leadId: seededLeads[15].id, createdById: rep6.id, type: "note", outcome: "Goldman Sachs contract finalized, PO received", isCompleted: true, pinned: true },
-      { leadId: seededLeads[19].id, createdById: rep8.id, type: "meeting", outcome: "ADNOC executive presentation and contract sign-off", isCompleted: true },
-      { leadId: seededLeads[5].id, createdById: rep2.id, type: "email", outcome: "Sent revised pricing deck to Netflix Studios procurement team", isCompleted: true },
-      { leadId: seededLeads[9].id, createdById: rep3.id, type: "call", outcome: "Initial discovery call with SAP SE — good fit for analytics module", isCompleted: true },
+      { leadId: seededLeads[4].id, createdById: rep2.id, type: "note", outcome: "Walmart PO signed and submitted to finance team", isCompleted: true, pinned: true }
     ];
     for (const a of activityData) {
       await models.Activity.create({ id: crypto.randomUUID(), ...a });
@@ -295,14 +430,7 @@ async function seedDatabase() {
     const kpiData = [
       { userId: rep1.id, kpiName: "revenue", targetValue: 80000, period: "monthly" },
       { userId: rep1.id, kpiName: "deals_closed", targetValue: 5, period: "monthly" },
-      { userId: rep2.id, kpiName: "revenue", targetValue: 120000, period: "monthly" },
-      { userId: rep2.id, kpiName: "deals_closed", targetValue: 6, period: "monthly" },
-      { userId: rep3.id, kpiName: "revenue", targetValue: 75000, period: "monthly" },
-      { userId: rep4.id, kpiName: "revenue", targetValue: 60000, period: "monthly" },
-      { userId: rep5.id, kpiName: "revenue", targetValue: 90000, period: "monthly" },
-      { userId: rep6.id, kpiName: "revenue", targetValue: 100000, period: "monthly" },
-      { userId: rep7.id, kpiName: "revenue", targetValue: 55000, period: "monthly" },
-      { userId: rep8.id, kpiName: "revenue", targetValue: 150000, period: "monthly" },
+      { userId: rep2.id, kpiName: "revenue", targetValue: 120000, period: "monthly" }
     ];
     for (const k of kpiData) {
       await models.KpiTarget.create({ id: crypto.randomUUID(), ...k });
@@ -311,7 +439,6 @@ async function seedDatabase() {
     console.log("Seeding Approval Tiers...");
     await models.ApprovalTier.create({ id: crypto.randomUUID(), name: "Level 1 - Manager", thresholdValue: 50000, requiredRole: "sales_manager" });
     await models.ApprovalTier.create({ id: crypto.randomUUID(), name: "Level 2 - Director", thresholdValue: 150000, requiredRole: "admin" });
-    await models.ApprovalTier.create({ id: crypto.randomUUID(), name: "Level 3 - Executive", thresholdValue: 9999999, requiredRole: "admin" });
 
     console.log("Seeding Assignment Rules...");
     await models.AssignmentRule.create({
@@ -322,22 +449,97 @@ async function seedDatabase() {
       isActive: true,
       ruleType: "Criteria"
     });
-    await models.AssignmentRule.create({
-      id: crypto.randomUUID(),
-      criteria: JSON.stringify([{ field: "leadScore", operator: "greaterThan", value: 85 }]),
-      assignToId: rep8.id,
-      priority: 2,
-      isActive: true,
-      ruleType: "Criteria"
-    });
-    await models.AssignmentRule.create({
-      id: crypto.randomUUID(),
-      criteria: JSON.stringify([{ field: "industry", operator: "equals", value: "Automotive" }]),
-      assignToId: rep2.id,
-      priority: 3,
-      isActive: true,
-      ruleType: "Criteria"
-    });
+
+    console.log("Seeding Message Templates...");
+    const messageTemplatesData = [
+      {
+        name: "New Lead Acknowledgement",
+        triggerEvent: "new_lead_acknowledgement",
+        channel: "email",
+        subject: "Thank you for your inquiry",
+        body: "Hello {{lead_name}},\n\nThank you for reaching out to {{company_name}}! We have received your enquiry and our representative will contact you shortly.\n\nBest regards,\n{{company_name}} Team",
+        isActive: true
+      },
+      {
+        name: "Lead Assigned Intro",
+        triggerEvent: "lead_assigned_intro",
+        channel: "email",
+        subject: "Introduction from your Account Manager",
+        body: "Hello {{lead_name}},\n\nMy name is {{salesperson_name}} and I will be your dedicated account manager at {{company_name}}. I look forward to working with you!\n\nBest regards,\n{{salesperson_name}}",
+        isActive: true
+      },
+      {
+        name: "Quote Sent",
+        triggerEvent: "quote_sent",
+        channel: "email",
+        subject: "Your Nexis CRM Quote is Ready",
+        body: "Hello {{lead_name}},\n\nWe have prepared a new quotation for you totaling {{quote_value}}. Please review the attached details.\n\nBest regards,\n{{salesperson_name}}",
+        isActive: true
+      },
+      {
+        name: "Quote Expiry Reminder",
+        triggerEvent: "quote_expiry_reminder",
+        channel: "email",
+        subject: "Action Required: Your quote is expiring soon",
+        body: "Hello {{lead_name}},\n\nThis is a friendly reminder that your quotation of value {{quote_value}} is expiring soon. Let us know if you have any questions.\n\nBest regards,\n{{salesperson_name}}",
+        isActive: true
+      },
+      {
+        name: "PO Received Thank-You",
+        triggerEvent: "po_received",
+        channel: "email",
+        subject: "We received your Purchase Order",
+        body: "Hello {{lead_name}},\n\nWe have received your purchase order of {{quote_value}}. Thank you for your business! We will begin processing it immediately.\n\nBest regards,\n{{company_name}} Team",
+        isActive: true
+      },
+      {
+        name: "Deal Lost Feedback Request",
+        triggerEvent: "deal_lost_feedback",
+        channel: "email",
+        subject: "Feedback Request",
+        body: "Hello {{lead_name}},\n\nWe are sorry we couldn't partner with you on this project. We would appreciate if you could share any feedback to help us improve.\n\nBest regards,\n{{company_name}} Team",
+        isActive: true
+      },
+      {
+        name: "New Lead Assigned Alert",
+        triggerEvent: "new_lead_assigned",
+        channel: "email",
+        subject: "New Lead Assignment",
+        body: "Hi {{salesperson_name}},\n\nYou have been assigned a new lead: {{lead_name}} from {{company_name}}.",
+        isActive: true
+      },
+      {
+        name: "SLA Breach Escalation",
+        triggerEvent: "sla_breach_escalation",
+        channel: "email",
+        subject: "SLA Breach Alert",
+        body: "Warning: Lead {{lead_name}} assigned to {{salesperson_name}} has breached response SLA limit.",
+        isActive: true
+      },
+      {
+        name: "High Value Deal Won Broadcast",
+        triggerEvent: "high_value_deal_won",
+        channel: "email",
+        subject: "Deal Closed Successfully!",
+        body: "Celebration! {{salesperson_name}} has successfully closed a deal worth {{quote_value}} with {{company_name}}!",
+        isActive: true
+      },
+      {
+        name: "KPI Drop Alert",
+        triggerEvent: "kpi_drop_alert",
+        channel: "email",
+        subject: "Performance Alert: KPI Drop",
+        body: "Alert: Salesperson {{salesperson_name}}'s close rate has dropped below target threshold.",
+        isActive: true
+      }
+    ];
+
+    for (const temp of messageTemplatesData) {
+      await models.MessageTemplate.create({
+        id: crypto.randomUUID(),
+        ...temp
+      });
+    }
 
     console.log("Seeding complete successfully!");
     process.exit(0);
@@ -348,4 +550,3 @@ async function seedDatabase() {
 }
 
 seedDatabase();
-

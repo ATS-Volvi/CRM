@@ -16,6 +16,7 @@ interface LeadPayload {
   message?: string;
   rawPayload?: any;
   budgetRange?: string;
+  categoriesData?: any;
 }
 
 /**
@@ -29,6 +30,37 @@ export async function ingestLead(payload: LeadPayload) {
 
     if (!payload.firstName || !payload.lastName || !email) {
       throw new Error("First name, last name, and email are required for ingestion");
+    }
+
+    // Find or create Customer
+    const CustomerModel = sequelize.models.Customer;
+    let customerId: string | null = null;
+    let existingCustomer: any = null;
+
+    if (email) {
+      existingCustomer = await CustomerModel.findOne({
+        where: { email: { [Op.like]: email } }
+      });
+    }
+
+    if (!existingCustomer && company) {
+      existingCustomer = await CustomerModel.findOne({
+        where: { name: { [Op.like]: company } }
+      });
+    }
+
+    if (existingCustomer) {
+      customerId = (existingCustomer as any).id;
+    } else {
+      const newCustomer = await CustomerModel.create({
+        id: crypto.randomUUID(),
+        name: company || `${payload.firstName} ${payload.lastName}`,
+        primaryContactName: `${payload.firstName} ${payload.lastName}`,
+        email: email,
+        phone: payload.phone || null,
+        industry: payload.industry || null
+      });
+      customerId = (newCustomer as any).id;
     }
 
     // 1. Duplicate Detection (checks email or company)
@@ -72,6 +104,8 @@ export async function ingestLead(payload: LeadPayload) {
         sourceDetail: payload.sourceDetail || existingLead.sourceDetail,
         campaign: payload.campaign || existingLead.campaign,
         budgetRange: payload.budgetRange || existingLead.budgetRange,
+        customerId: existingLead.customerId || customerId,
+        categoriesData: payload.categoriesData || existingLead.categoriesData,
         rawPayload: payload.rawPayload ? JSON.stringify(payload.rawPayload) : existingLead.rawPayload
       };
       await existingLead.update(updates);
@@ -101,6 +135,11 @@ export async function ingestLead(payload: LeadPayload) {
 
       // 4. Create New Lead
       targetLeadId = crypto.randomUUID();
+      const year = new Date().getFullYear();
+      const count = await LeadModel.count();
+      const seq = String(count + 1).padStart(5, '0');
+      const leadNumber = `LD-${year}-${seq}`;
+
       const newLead = await LeadModel.create({
         id: targetLeadId,
         firstName: payload.firstName,
@@ -116,6 +155,9 @@ export async function ingestLead(payload: LeadPayload) {
         leadScore,
         assignedToId,
         budgetRange: payload.budgetRange || null,
+        customerId,
+        leadNumber,
+        categoriesData: payload.categoriesData || null,
         rawPayload: payload.rawPayload ? JSON.stringify(payload.rawPayload) : null
       });
 

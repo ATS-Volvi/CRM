@@ -190,3 +190,96 @@ export const handleUnsubscribe = async (req: Request, res: Response) => {
   }
 };
 
+export const reassignLead = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { newAssignedToId, reason } = req.body;
+    const caller = (req as any).user;
+
+    if (!caller) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const lead = await sequelize.models.Lead.findByPk(String(id));
+    if (!lead) {
+      return res.status(404).json({ error: "Lead not found" });
+    }
+
+    const oldAssignedToId = (lead as any).assignedToId;
+
+    // Update lead
+    await lead.update({ assignedToId: newAssignedToId || null });
+
+    // Log in LeadReassignmentHistory
+    await sequelize.models.LeadReassignmentHistory.create({
+      id: require("crypto").randomUUID(),
+      leadId: id,
+      oldAssignedToId: oldAssignedToId || null,
+      newAssignedToId: newAssignedToId || null,
+      changedByUserId: caller.id,
+      reason: reason || null
+    });
+
+    res.json({ message: "Lead reassigned successfully", lead });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const getLeadReassignmentHistory = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const history = await sequelize.models.LeadReassignmentHistory.findAll({
+      where: { leadId: id },
+      include: [
+        { model: sequelize.models.User, as: "oldAssignee", attributes: ["id", "name", "email"] },
+        { model: sequelize.models.User, as: "newAssignee", attributes: ["id", "name", "email"] },
+        { model: sequelize.models.User, as: "changedByUser", attributes: ["id", "name", "email"] }
+      ],
+      order: [["createdAt", "DESC"]]
+    });
+    res.json(history);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const getLeadDealForQuote = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const lead = await sequelize.models.Lead.findByPk(String(id));
+    if (!lead) return res.status(404).json({ error: "Lead not found" });
+
+    // Look for an existing Deal where Deal.leadId matches
+    let deal = await sequelize.models.Deal.findOne({ where: { leadId: (lead as any).id } });
+    if (deal) {
+      return res.json(deal);
+    }
+
+    // None exists: create one using sensible defaults
+    // stageId: PipelineStage matching lead's status
+    let stage = await sequelize.models.PipelineStage.findOne({ where: { name: (lead as any).status } });
+    if (!stage) {
+      stage = await sequelize.models.PipelineStage.findOne({ order: [['order', 'ASC']] });
+    }
+
+    const ownerId = (lead as any).assignedToId || (req as any).user?.id;
+    const name = (lead as any).company || `${(lead as any).firstName} ${(lead as any).lastName} Deal`;
+    const amount = (lead as any).leadScore ? (lead as any).leadScore * 100 : 0;
+
+    deal = await sequelize.models.Deal.create({
+      id: require('crypto').randomUUID(),
+      name,
+      amount,
+      stageId: stage ? (stage as any).id : null,
+      leadId: (lead as any).id,
+      ownerId,
+      customerId: (lead as any).customerId || null
+    });
+
+    res.status(201).json(deal);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+

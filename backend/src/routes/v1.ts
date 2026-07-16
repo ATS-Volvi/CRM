@@ -4,7 +4,7 @@ import { createPublicLead } from "../controllers/publicLeads";
 import { authMiddleware } from "../middleware/auth";
 import { getPipeline, moveDealStage, createDeal, getDeals } from "../controllers/pipelineController";
 import { getLeadActivities, createActivity, togglePinActivity, completeTask, getOverdueTasks } from "../controllers/activityController";
-import { getLeads, createLead, updateLead, deleteLead, getDuplicateLeads, mergeLeads } from '../controllers/leadController';
+import { getLeads, createLead, updateLead, deleteLead, getDuplicateLeads, mergeLeads, reassignLead, getLeadReassignmentHistory, getLeadDealForQuote } from '../controllers/leadController';
 import { getPriceBookEntries, createPriceBookEntry, updatePriceBookEntry, deletePriceBookEntry, importPriceBookEntries, getPriceSuggestion, importPriceBookEntriesPreview } from '../controllers/priceBookController';
 import { getQuotes, createQuote, getQuoteRecommendations, sendQuote, getPublicQuote, generateQuotePdf, signQuote, getQuoteHistoryByClient, getSimilarQuotesStats } from '../controllers/quoteController';
 import { getInvoices, createInvoiceFromQuote, updateInvoiceStatus } from '../controllers/invoiceController';
@@ -22,6 +22,11 @@ import {
   getRequirementRollup, getPricingGrid, updateConstructionItemPricing
 } from '../controllers/masterDataController';
 import { receiveInboundEmail } from "../controllers/emailController";
+import { getCustomers, getCustomerById } from "../controllers/customerController";
+import { getLeadSources, createLeadSource, updateLeadSource, deleteLeadSource } from "../controllers/leadSourceController";
+import { queryAiReport } from "../controllers/aiReportController";
+import { parseVoiceLead } from "../controllers/voiceLeadController";
+import { getMySettings, updateMySettings, getMyTeam, reassignTeamManager } from "../controllers/userSettingsController";
 
 const router = Router();
 
@@ -210,6 +215,9 @@ router.get("/leads", authMiddleware, getLeads);
 router.post("/leads", authMiddleware, createLead);
 router.put("/leads/:id", authMiddleware, updateLead);
 router.delete("/leads/:id", authMiddleware, deleteLead);
+router.put("/leads/:id/reassign", authMiddleware, reassignLead);
+router.get("/leads/:id/reassignment-history", authMiddleware, getLeadReassignmentHistory);
+router.get("/leads/:id/deal-for-quote", authMiddleware, getLeadDealForQuote);
 
 router.get("/deals", authMiddleware, getDeals);
 router.get("/pipeline", authMiddleware, getPipeline);
@@ -348,6 +356,38 @@ router.delete("/master-data/construction-items/:id", authMiddleware, deleteConst
 
 router.get("/master-data/pricing", authMiddleware, getPricingGrid);
 router.patch("/master-data/pricing/:id", authMiddleware, updateConstructionItemPricing);
+
+// ==========================================
+// CUSTOMERS
+// ==========================================
+router.get("/customers", authMiddleware, getCustomers);
+router.get("/customers/:id", authMiddleware, getCustomerById);
+
+// ==========================================
+// LEAD SOURCES
+// ==========================================
+router.get("/lead-sources", authMiddleware, getLeadSources);
+router.post("/lead-sources", authMiddleware, createLeadSource);
+router.put("/lead-sources/:id", authMiddleware, updateLeadSource);
+router.delete("/lead-sources/:id", authMiddleware, deleteLeadSource);
+
+// ==========================================
+// AI REPORTS
+// ==========================================
+router.post("/ai-reports/query", authMiddleware, queryAiReport);
+
+// ==========================================
+// VOICE LEAD CAPTURE
+// ==========================================
+router.post("/leads/parse-voice", authMiddleware, parseVoiceLead);
+
+// ==========================================
+// SETTINGS & TEAM
+// ==========================================
+router.get("/users/me/settings", authMiddleware, getMySettings);
+router.put("/users/me/settings", authMiddleware, updateMySettings);
+router.get("/users/me/team", authMiddleware, getMyTeam);
+router.put("/users/team/reassign", authMiddleware, reassignTeamManager);
 
 export default router;
 

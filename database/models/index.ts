@@ -50,6 +50,9 @@ export class Lead extends Model {
   public subject!: string | null;
   public body!: string | null;
   public budgetRange!: string | null;
+  public customerId!: string | null;
+  public leadNumber!: string | null;
+  public categoriesData!: any | null;
 }
 
 Lead.init(
@@ -72,6 +75,9 @@ Lead.init(
     subject: { type: DataTypes.STRING, allowNull: true },
     body: { type: DataTypes.TEXT, allowNull: true },
     budgetRange: { type: DataTypes.STRING, allowNull: true },
+    customerId: { type: DataTypes.UUID, allowNull: true },
+    leadNumber: { type: DataTypes.STRING, allowNull: true, unique: true },
+    categoriesData: { type: DataTypes.JSON, allowNull: true },
   },
   { 
     sequelize, 
@@ -134,6 +140,7 @@ export class Deal extends Model {
   public lossReason!: string | null;
   public competitors!: string | null;
   public probability!: number | null;
+  public customerId!: string | null;
 }
 
 Deal.init(
@@ -146,6 +153,7 @@ Deal.init(
     lossReason: { type: DataTypes.TEXT, allowNull: true },
     competitors: { type: DataTypes.TEXT, allowNull: true },
     probability: { type: DataTypes.INTEGER, allowNull: true },
+    customerId: { type: DataTypes.UUID, allowNull: true },
   },
   { sequelize, modelName: "Deal" }
 );
@@ -703,6 +711,79 @@ LineItem.belongsTo(Requirement, { foreignKey: "requirementId", as: "requirement"
 
 LineItem.hasMany(ConstructionItem, { foreignKey: "lineItemId", as: "constructionItems", onDelete: "CASCADE" });
 ConstructionItem.belongsTo(LineItem, { foreignKey: "lineItemId", as: "lineItem" });
+
+export class Customer extends Model {
+  public id!: string;
+  public name!: string;
+  public primaryContactName!: string | null;
+  public email!: string | null;
+  public phone!: string | null;
+  public address!: string | null;
+  public industry!: string | null;
+}
+
+Customer.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    name: { type: DataTypes.STRING, allowNull: false },
+    primaryContactName: { type: DataTypes.STRING, allowNull: true },
+    email: { type: DataTypes.STRING, allowNull: true },
+    phone: { type: DataTypes.STRING, allowNull: true },
+    address: { type: DataTypes.TEXT, allowNull: true },
+    industry: { type: DataTypes.STRING, allowNull: true }
+  },
+  { sequelize, modelName: "Customer" }
+);
+
+export class LeadSource extends Model {
+  public id!: string;
+  public name!: string;
+  public isActive!: boolean;
+}
+
+LeadSource.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    name: { type: DataTypes.STRING, allowNull: false, unique: true },
+    isActive: { type: DataTypes.BOOLEAN, defaultValue: true }
+  },
+  { sequelize, modelName: "LeadSource" }
+);
+
+Customer.hasMany(Lead, { foreignKey: "customerId", as: "leads" });
+Lead.belongsTo(Customer, { foreignKey: "customerId", as: "customer" });
+
+Customer.hasMany(Deal, { foreignKey: "customerId", as: "deals" });
+Deal.belongsTo(Customer, { foreignKey: "customerId", as: "customer" });
+
+export class LeadReassignmentHistory extends Model {
+  public id!: string;
+  public leadId!: string;
+  public oldAssignedToId!: string | null;
+  public newAssignedToId!: string | null;
+  public changedByUserId!: string;
+  public reason!: string | null;
+  public createdAt!: Date;
+}
+
+LeadReassignmentHistory.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    leadId: { type: DataTypes.UUID, allowNull: false },
+    oldAssignedToId: { type: DataTypes.UUID, allowNull: true },
+    newAssignedToId: { type: DataTypes.UUID, allowNull: true },
+    changedByUserId: { type: DataTypes.UUID, allowNull: false },
+    reason: { type: DataTypes.TEXT, allowNull: true }
+  },
+  { sequelize, modelName: "LeadReassignmentHistory" }
+);
+
+LeadReassignmentHistory.belongsTo(Lead, { foreignKey: "leadId", as: "lead" });
+Lead.hasMany(LeadReassignmentHistory, { foreignKey: "leadId", as: "reassignmentHistory" });
+
+LeadReassignmentHistory.belongsTo(User, { foreignKey: "oldAssignedToId", as: "oldAssignee" });
+LeadReassignmentHistory.belongsTo(User, { foreignKey: "newAssignedToId", as: "newAssignee" });
+LeadReassignmentHistory.belongsTo(User, { foreignKey: "changedByUserId", as: "changedByUser" });
 
 export { sequelize };
 

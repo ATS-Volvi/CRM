@@ -131,7 +131,9 @@ export const moveDealStage = async (req: Request, res: Response) => {
 export const createDeal = async (req: Request, res: Response) => {
   try {
     const { name, amount, stageId, leadId, competitors, probability } = req.body;
-    
+    const adminUser = await sequelize.models.User.findOne({ where: { role: 'admin' } });
+    const userId = (req as any).user?.id || (adminUser ? (adminUser as any).id : null);
+
     // Default to the first stage if no stageId provided
     let targetStageId = stageId;
     if (!targetStageId) {
@@ -141,6 +143,14 @@ export const createDeal = async (req: Request, res: Response) => {
        }
     }
 
+    let customerId: string | null = null;
+    if (leadId) {
+      const lead = await sequelize.models.Lead.findByPk(leadId);
+      if (lead) {
+        customerId = (lead as any).customerId;
+      }
+    }
+
     const deal = await Deal.create({
       id: require('crypto').randomUUID(),
       name,
@@ -148,7 +158,9 @@ export const createDeal = async (req: Request, res: Response) => {
       stageId: targetStageId,
       leadId: leadId || null,
       competitors: competitors || null,
-      probability: probability !== undefined ? probability : null
+      probability: probability !== undefined ? probability : null,
+      ownerId: userId,
+      customerId
     });
 
     res.status(201).json(deal);

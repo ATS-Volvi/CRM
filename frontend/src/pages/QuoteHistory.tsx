@@ -243,6 +243,15 @@ export default function QuoteHistory() {
                   <tr>
                     <td colSpan={7} className="px-6 py-8 text-center text-on-surface-variant animate-pulse">Loading quote history...</td>
                   </tr>
+                ) : !quotes || quotes.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-6 py-16 text-center space-y-3">
+                      <p className="font-bold text-on-surface-variant">No quotes built yet — start pitching your proposals!</p>
+                      <button onClick={() => window.location.href = '/quotes/new'} className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary text-white text-xs font-bold rounded-lg shadow-sm hover:opacity-90">
+                        + Create First Quote
+                      </button>
+                    </td>
+                  </tr>
                 ) : (
                   quotes?.map((quote: any, idx: number) => {
                     const clientName = quote.deal?.lead?.company || quote.deal?.lead?.firstName + " " + quote.deal?.lead?.lastName || "Unknown Client";

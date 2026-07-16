@@ -1,9 +1,8 @@
 import { useAuth } from "../../context/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { useSearchParams } from "react-router-dom";
-import { Plus, Edit2, Trash2, Sliders, CheckCircle, XCircle } from "lucide-react";
-import { formatCurrency } from "../../utils/currency";
+import { useState, useEffect } from "react";
+import { useSearchParams, Link } from "react-router-dom";
+import { Plus, Edit2, Trash2, Sliders, Check, X } from "lucide-react";
 
 export default function LineItems() {
   const { token } = useAuth();
@@ -11,11 +10,11 @@ export default function LineItems() {
   const [searchParams, setSearchParams] = useSearchParams();
   const filterReqId = searchParams.get("requirementId") || "All";
 
-  const [showModal, setShowModal] = useState(false);
+  const [isFormOpen, setIsFormOpen] = useState(false);
   const [formData, setFormData] = useState<any>({ name: "", requirementId: "", unit: "nos", description: "", defaultQuantity: 1 });
 
-  // Fetch all requirements for selection dropdown and filtering
-  const { data: requirements } = useQuery({
+  // Fetch all requirements for tabs and selection dropdown
+  const { data: requirements } = useQuery<any[]>({
     queryKey: ["requirementsDropdown"],
     queryFn: async () => {
       const res = await fetch("/api/v1/master-data/requirements", {
@@ -26,17 +25,21 @@ export default function LineItems() {
     }
   });
 
-  // Fetch line items based on filter
-  const { data: lineItems, isLoading } = useQuery({
-    queryKey: ["lineItems", filterReqId],
+  // Fetch all line items (we filter client-side or fetch via query)
+  const { data: allLineItems, isLoading } = useQuery<any[]>({
+    queryKey: ["lineItemsAll"],
     queryFn: async () => {
-      const url = filterReqId === "All" ? "/api/v1/master-data/line-items" : `/api/v1/master-data/line-items?requirementId=${filterReqId}`;
-      const res = await fetch(url, {
+      const res = await fetch("/api/v1/master-data/line-items", {
         headers: { "Authorization": `Bearer ${token}` }
       });
       if (!res.ok) throw new Error("Failed to fetch line items");
       return res.json();
     }
+  });
+
+  // Filter line items based on selected tab requirementId
+  const filteredLineItems = allLineItems?.filter((item: any) => {
+    return filterReqId === "All" || item.requirementId === filterReqId;
   });
 
   const saveMutation = useMutation({
@@ -51,8 +54,8 @@ export default function LineItems() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["lineItems"] });
-      setShowModal(false);
+      queryClient.invalidateQueries({ queryKey: ["lineItemsAll"] });
+      setIsFormOpen(false);
       setFormData({ name: "", requirementId: filterReqId !== "All" ? filterReqId : "", unit: "nos", description: "", defaultQuantity: 1 });
     }
   });
@@ -67,13 +70,13 @@ export default function LineItems() {
       return true;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["lineItems"] });
+      queryClient.invalidateQueries({ queryKey: ["lineItemsAll"] });
     }
   });
 
   const handleEdit = (item: any) => {
     setFormData(item);
-    setShowModal(true);
+    setIsFormOpen(true);
   };
 
   const handleDelete = (id: string) => {
@@ -82,188 +85,220 @@ export default function LineItems() {
     }
   };
 
+  const handleTabChange = (reqId: string) => {
+    setSearchParams({ requirementId: reqId });
+    setFormData(prev => ({
+      ...prev,
+      requirementId: reqId === "All" ? "" : reqId
+    }));
+  };
+
   return (
-    <div className="flex-1 overflow-y-auto bg-surface h-[calc(100vh-64px)] relative">
-      <div className="max-w-[1440px] mx-auto p-8 space-y-8">
-        
-        {/* Page Header */}
-        <div className="flex justify-between items-end">
-          <div className="space-y-1">
-            <h2 className="text-4xl font-bold text-on-surface">Line Items</h2>
-            <p className="text-base text-on-surface-variant">Manage sub-components that form a Requirement (e.g. Doors, Windows, Exhaust fans).</p>
+    <div className="max-w-[1000px] mx-auto p-8 space-y-8 animate-fade-in">
+      
+      {/* Page Header */}
+      <div className="flex justify-between items-center">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-primary/10 rounded-xl">
+            <Sliders className="w-5 h-5 text-primary" />
           </div>
+          <div>
+            <h2 className="text-lg font-bold text-on-surface">Line Items</h2>
+            <p className="text-xs text-on-surface-variant">Manage sub-components that form a Requirement (e.g. Doors, Windows, Exhaust fans).</p>
+          </div>
+        </div>
+        {!isFormOpen && (
           <button 
             onClick={() => {
-              setFormData({ name: "", requirementId: filterReqId !== "All" ? filterReqId : (requirements?.[0]?.id || ""), unit: "nos", description: "", defaultQuantity: 1 });
-              setShowModal(true);
+              setFormData({ 
+                name: "", 
+                requirementId: filterReqId !== "All" ? filterReqId : (requirements?.[0]?.id || ""), 
+                unit: "nos", 
+                description: "", 
+                defaultQuantity: 1 
+              });
+              setIsFormOpen(true);
             }} 
-            className="flex items-center gap-2 px-6 py-4 bg-primary text-on-primary rounded-lg hover:opacity-90 font-bold transition-all shadow-md"
+            className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white text-xs font-bold rounded-lg hover:opacity-90 transition-all shadow-sm"
           >
-            <Plus className="w-5 h-5" />
-            <span>Add Line Item</span>
+            <span>+ Add Line Item</span>
           </button>
-        </div>
-
-        {/* Filters Bar */}
-        <div className="flex items-center gap-4 bg-surface-container-lowest p-6 rounded-xl border border-outline-variant shadow-sm">
-          <div className="flex items-center gap-2">
-            <span className="text-[12px] font-semibold tracking-wider text-on-surface-variant">Filter by Requirement:</span>
-            <select 
-              value={filterReqId} 
-              onChange={e => setSearchParams({ requirementId: e.target.value })}
-              className="bg-surface border border-outline-variant rounded px-3 py-1.5 text-sm focus:ring-primary focus:outline-none"
-            >
-              <option value="All">All Requirements</option>
-              {requirements?.map((req: any) => (
-                <option key={req.id} value={req.id}>{req.name}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* Data Table */}
-        <div className="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead className="bg-surface-container-low sticky top-0 border-b border-outline-variant">
-                <tr>
-                  <th className="px-6 py-4 text-[12px] font-semibold text-on-surface-variant uppercase tracking-wider">Line Item Name</th>
-                  <th className="px-6 py-4 text-[12px] font-semibold text-on-surface-variant uppercase tracking-wider">Parent Requirement</th>
-                  <th className="px-6 py-4 text-[12px] font-semibold text-on-surface-variant uppercase tracking-wider">Unit</th>
-                  <th className="px-6 py-4 text-[12px] font-semibold text-on-surface-variant uppercase tracking-wider text-center">Default Qty</th>
-                  <th className="px-6 py-4 text-[12px] font-semibold text-on-surface-variant uppercase tracking-wider">Est. Cost</th>
-                  <th className="px-6 py-4 text-[12px] font-semibold text-on-surface-variant uppercase tracking-wider">Sell Price</th>
-                  <th className="px-6 py-4 text-[12px] font-semibold text-on-surface-variant uppercase tracking-wider text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="text-sm text-on-surface divide-y divide-outline-variant">
-                {isLoading ? (
-                  <tr>
-                    <td colSpan={7} className="px-6 py-8 text-center text-on-surface-variant animate-pulse">Loading line items...</td>
-                  </tr>
-                ) : !lineItems || lineItems.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="px-6 py-8 text-center text-on-surface-variant italic">No line items found. Choose another requirement or click "Add Line Item" to create one.</td>
-                  </tr>
-                ) : (
-                  lineItems.map((item: any) => (
-                    <tr key={item.id} className="hover:bg-surface-container-high transition-colors group">
-                      <td className="px-6 py-5">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-secondary/10 flex items-center justify-center rounded text-secondary">
-                            <Sliders className="w-5 h-5" />
-                          </div>
-                          <div>
-                            <span className="font-bold block">{item.name}</span>
-                            <span className="text-xs text-on-surface-variant">{item.description || "No description"}</span>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-5 font-semibold text-on-surface-variant">{item.requirement?.name || "—"}</td>
-                      <td className="px-6 py-5 text-on-surface-variant uppercase font-medium">{item.unit}</td>
-                      <td className="px-6 py-5 text-center font-bold">{item.defaultQuantity}</td>
-                      <td className="px-6 py-5 font-medium text-secondary">{formatCurrency(item.totalCost || 0)}</td>
-                      <td className="px-6 py-5 font-extrabold text-primary">{formatCurrency(item.totalPrice || 0)}</td>
-                      <td className="px-6 py-5 text-right flex justify-end gap-2">
-                        <button 
-                          onClick={() => handleEdit(item)}
-                          className="p-2 hover:bg-surface-container-lowest rounded-full transition-colors text-outline"
-                        >
-                          <Edit2 className="w-5 h-5" />
-                        </button>
-                        <button 
-                          onClick={() => handleDelete(item.id)}
-                          className="p-2 hover:bg-error-container rounded-full transition-colors text-error"
-                        >
-                          <Trash2 className="w-5 h-5" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Modal Form */}
-        {showModal && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-surface rounded-xl p-6 w-full max-w-md shadow-2xl">
-              <h2 className="text-xl font-bold mb-4">{formData.id ? "Edit Line Item" : "Add Line Item"}</h2>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-semibold mb-1">Parent Requirement</label>
-                  <select 
-                    className="w-full border rounded p-2 text-sm" 
-                    value={formData.requirementId}
-                    onChange={e => setFormData({ ...formData, requirementId: e.target.value })}
-                  >
-                    <option value="" disabled>Select Requirement</option>
-                    {requirements?.map((req: any) => (
-                      <option key={req.id} value={req.id}>{req.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold mb-1">Name</label>
-                  <input 
-                    type="text" 
-                    className="w-full border rounded p-2 text-sm" 
-                    value={formData.name} 
-                    onChange={e => setFormData({ ...formData, name: e.target.value })} 
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-semibold mb-1">Unit</label>
-                    <input 
-                      type="text" 
-                      className="w-full border rounded p-2 text-sm" 
-                      placeholder="e.g. nos, sqft, set"
-                      value={formData.unit} 
-                      onChange={e => setFormData({ ...formData, unit: e.target.value })} 
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold mb-1">Default Quantity</label>
-                    <input 
-                      type="number" 
-                      step="0.01"
-                      className="w-full border rounded p-2 text-sm" 
-                      value={formData.defaultQuantity} 
-                      onChange={e => setFormData({ ...formData, defaultQuantity: parseFloat(e.target.value) || 1 })} 
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold mb-1">Description</label>
-                  <textarea 
-                    className="w-full border rounded p-2 text-sm h-24 resize-none" 
-                    value={formData.description} 
-                    onChange={e => setFormData({ ...formData, description: e.target.value })}
-                  />
-                </div>
-                <div className="flex gap-2 justify-end pt-4">
-                  <button 
-                    onClick={() => setShowModal(false)} 
-                    className="px-4 py-2 font-bold text-on-surface-variant"
-                  >
-                    Cancel
-                  </button>
-                  <button 
-                    onClick={() => saveMutation.mutate(formData)}
-                    disabled={saveMutation.isPending || !formData.name || !formData.requirementId}
-                    className="px-6 py-2 bg-primary text-on-primary rounded font-bold shadow-md hover:opacity-90 disabled:opacity-50"
-                  >
-                    {saveMutation.isPending ? "Saving..." : "Save"}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
         )}
       </div>
+
+      {/* Requirement tabs navigation */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 border-b border-outline-variant">
+        <button
+          onClick={() => handleTabChange("All")}
+          className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${
+            filterReqId === "All"
+              ? "bg-primary text-white shadow-sm"
+              : "text-on-surface-variant hover:bg-surface-container"
+          }`}
+        >
+          All Items ({allLineItems?.length || 0})
+        </button>
+        {requirements?.map(req => {
+          const count = allLineItems?.filter(li => li.requirementId === req.id).length || 0;
+          return (
+            <button
+              key={req.id}
+              onClick={() => handleTabChange(req.id)}
+              className={`px-4 py-2 text-xs font-bold rounded-lg whitespace-nowrap transition-all ${
+                filterReqId === req.id
+                  ? "bg-primary text-white shadow-sm"
+                  : "text-on-surface-variant hover:bg-surface-container"
+              }`}
+            >
+              {req.name} ({count})
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Inline Form Card above table */}
+      {isFormOpen && (
+        <div className="bg-surface-container-lowest border border-outline rounded-2xl p-6 shadow-sm space-y-4 animate-slide-down">
+          <h3 className="text-sm font-bold text-on-surface">{formData.id ? "Edit Line Item" : "Add New Line Item"}</h3>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Line Item Name</label>
+              <input 
+                type="text" 
+                value={formData.name}
+                onChange={e => setFormData({ ...formData, name: e.target.value })}
+                placeholder="e.g. Single Leaf Flush Door"
+                className="w-full bg-surface border border-outline rounded-lg p-2.5 text-xs font-semibold focus:outline-none"
+                autoFocus
+              />
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Deliverable (Requirement Category)</label>
+              <select 
+                value={formData.requirementId}
+                onChange={e => setFormData({ ...formData, requirementId: e.target.value })}
+                className="w-full bg-surface border border-outline rounded-lg p-2.5 text-xs font-semibold focus:outline-none cursor-pointer"
+              >
+                <option value="">Select Requirement</option>
+                {requirements?.map(r => (
+                  <option key={r.id} value={r.id}>{r.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Unit</label>
+              <input 
+                type="text" 
+                value={formData.unit}
+                onChange={e => setFormData({ ...formData, unit: e.target.value })}
+                placeholder="e.g. nos, sqm, set"
+                className="w-full bg-surface border border-outline rounded-lg p-2.5 text-xs font-semibold focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Default Quantity</label>
+              <input 
+                type="number" 
+                value={formData.defaultQuantity}
+                onChange={e => setFormData({ ...formData, defaultQuantity: parseInt(e.target.value) || 1 })}
+                className="w-full bg-surface border border-outline rounded-lg p-2.5 text-xs font-semibold focus:outline-none"
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Description</label>
+              <textarea 
+                rows={2}
+                value={formData.description}
+                onChange={e => setFormData({ ...formData, description: e.target.value })}
+                placeholder="Spec details (dimensions, material specifications)..."
+                className="w-full bg-surface border border-outline rounded-lg p-2.5 text-xs font-semibold focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-2 justify-end pt-2">
+            <button 
+              onClick={() => setIsFormOpen(false)}
+              className="px-4 py-2 border border-outline rounded-lg text-xs font-bold text-on-surface-variant"
+            >
+              Cancel
+            </button>
+            <button 
+              onClick={() => saveMutation.mutate(formData)}
+              className="px-4 py-2 bg-primary text-white rounded-lg text-xs font-bold"
+            >
+              {formData.id ? "Save Changes" : "Create Line Item"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Table Card Container */}
+      <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl overflow-hidden shadow-sm">
+        <table className="w-full text-left border-collapse">
+          <thead>
+            <tr className="border-b border-outline-variant bg-surface-container-low text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">
+              <th className="px-6 py-3.5">Name</th>
+              <th className="px-6 py-3.5">Category</th>
+              <th className="px-6 py-3.5">Unit</th>
+              <th className="px-6 py-3.5 text-center">Default Qty</th>
+              <th className="px-6 py-3.5 text-right"></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-outline-variant/40 text-sm">
+            {isLoading ? (
+              <tr>
+                <td colSpan={5} className="px-6 py-8 text-center text-xs font-bold text-on-surface-variant italic">Loading line items...</td>
+              </tr>
+            ) : filteredLineItems?.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="px-6 py-8 text-center text-xs font-bold text-on-surface-variant italic">No line items defined in this category.</td>
+              </tr>
+            ) : (
+              filteredLineItems?.map((li: any) => (
+                <tr 
+                  key={li.id} 
+                  className="group hover:bg-surface-container-low/30 transition-colors"
+                >
+                  <td className="px-6 py-3">
+                    <Link to={`/master-data/construction-items?lineItemId=${li.id}`} className="font-bold text-primary hover:underline">
+                      {li.name}
+                    </Link>
+                    {li.description && (
+                      <p className="text-xs text-on-surface-variant font-medium mt-0.5">{li.description}</p>
+                    )}
+                  </td>
+                  <td className="px-6 py-3 font-semibold text-on-surface-variant text-xs">{li.requirement?.name || "—"}</td>
+                  <td className="px-6 py-3 text-on-surface-variant text-xs font-medium">{li.unit}</td>
+                  <td className="px-6 py-3 text-center text-on-surface font-semibold">{li.defaultQuantity}</td>
+                  <td className="px-6 py-3 text-right">
+                    <div className="flex gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button 
+                        onClick={() => handleEdit(li)} 
+                        className="p-1 hover:bg-surface-container rounded text-on-surface-variant"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button 
+                        onClick={() => handleDelete(li.id)}
+                        className="p-1 hover:bg-error-container hover:text-on-error-container rounded text-error"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
     </div>
   );
 }

@@ -38,9 +38,11 @@ export default function InvoiceDetail() {
 
   return (
     <div className="p-8 pb-20 max-w-[1000px] mx-auto min-h-screen">
-      <Link to="/invoices" className="inline-flex items-center gap-2 text-on-surface-variant hover:text-primary mb-6 transition-colors font-semibold text-sm">
-        <ArrowLeft className="w-4 h-4" /> Back to Invoices
-      </Link>
+      <div className="flex items-center gap-1.5 text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-6">
+        <Link to="/invoices" className="hover:text-primary">Invoices</Link>
+        <span className="opacity-50">/</span>
+        <span>Invoice Details</span>
+      </div>
 
       <div className="flex justify-between items-start mb-8">
         <div>

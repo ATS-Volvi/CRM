@@ -24,7 +24,10 @@ const tableMap: Record<string, string> = {
   Requirement: 'Requirements',
   LineItem: 'LineItems',
   ConstructionItem: 'ConstructionItems',
-  MessageTemplate: 'MessageTemplates'
+  MessageTemplate: 'MessageTemplates',
+  Customer: 'Customers',
+  LeadSource: 'LeadSources',
+  LeadReassignmentHistory: 'LeadReassignmentHistories'
 };
 
 const modelsPath = path.resolve(__dirname, '../../database/models/index.ts');

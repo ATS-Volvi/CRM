@@ -1,6 +1,7 @@
 import { useAuth } from "../context/AuthContext";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams, Link } from "react-router-dom";
 import { Search, PlusCircle, Trash2, Lightbulb, ZoomIn, Printer, Maximize, BarChart2, Clock, MessageSquare, History } from "lucide-react";
 import { formatCurrency, formatCurrencyCompact } from "../utils/currency";
 
@@ -24,7 +25,8 @@ export default function QuotationBuilder() {
       const res = await fetch("/api/v1/pipeline", { headers: { "Authorization": `Bearer ${token}` } });
       if (!res.ok) return [];
       const pipeline = await res.json();
-      return pipeline.flatMap((col: any) => col.deals);
+      if (!Array.isArray(pipeline)) return [];
+      return pipeline.flatMap((col: any) => col.deals || []);
     }
   });
 
@@ -46,8 +48,24 @@ export default function QuotationBuilder() {
     }
   });
 
+  const [searchParams] = useSearchParams();
+  const dealIdParam = searchParams.get("dealId");
+
   const [selectedDealId, setSelectedDealId] = useState("");
   const [focusedIndex, setFocusedIndex] = useState(0);
+  const [dealIdError, setDealIdError] = useState("");
+
+  useEffect(() => {
+    if (dealIdParam && deals && deals.length > 0) {
+      const match = deals.find((d: any) => d.id === dealIdParam);
+      if (match) {
+        setSelectedDealId(dealIdParam);
+        setDealIdError("");
+      } else {
+        setDealIdError(`Deal ID "${dealIdParam}" provided in the URL does not exist or has been deleted.`);
+      }
+    }
+  }, [dealIdParam, deals]);
 
   const selectedDeal = deals?.find((d: any) => d.id === selectedDealId);
   const leadId = selectedDeal?.leadId;
@@ -154,6 +172,11 @@ export default function QuotationBuilder() {
 
   return (
     <div className="flex-1 overflow-y-auto p-8 bg-background h-[calc(100vh-64px)]">
+      <div className="flex items-center gap-1.5 text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-6">
+        <Link to="/quotes" className="hover:text-primary">Quotes</Link>
+        <span className="opacity-50">/</span>
+        <span>New Quotation</span>
+      </div>
       <div className="max-w-[1600px] mx-auto grid grid-cols-12 gap-8 h-full">
         {/* Left: Builder Core (Line Items & Totals) */}
         <div className="col-span-8 space-y-8">
@@ -167,6 +190,11 @@ export default function QuotationBuilder() {
                 <div className="flex items-center gap-4">
                   <div>
                     <h2 className="text-2xl font-bold text-on-surface">New Quotation</h2>
+                    {dealIdError && (
+                      <div className="text-xs text-error font-semibold bg-error-container text-error border border-error/20 px-3 py-1.5 rounded-lg mt-2 max-w-md">
+                        {dealIdError}
+                      </div>
+                    )}
                     <div className="flex flex-wrap items-center gap-4 mt-2">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-semibold text-on-surface-variant">Select Deal:</span>

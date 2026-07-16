@@ -63,7 +63,12 @@ export default function Invoices() {
             <tbody className="divide-y divide-outline-variant">
               {invoices?.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-on-surface-variant">No invoices found. Generate one from an approved quote.</td>
+                  <td colSpan={6} className="px-6 py-16 text-center space-y-3">
+                    <p className="font-bold text-on-surface-variant">No invoices found. Invoices are generated from approved quotes.</p>
+                    <Link to="/quotes" className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary text-white text-xs font-bold rounded-lg shadow-sm hover:opacity-90">
+                      View Approved Quotes
+                    </Link>
+                  </td>
                 </tr>
               ) : (
                 invoices?.map((invoice: any) => (

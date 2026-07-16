@@ -118,7 +118,12 @@ export default function PurchaseOrders() {
               ) : (
                 pos?.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-8 text-center text-on-surface-variant">No purchase orders found.</td>
+                    <td colSpan={5} className="px-6 py-16 text-center space-y-3">
+                      <p className="font-bold text-on-surface-variant">No purchase orders registered yet — upload or verify client PO documents.</p>
+                      <Link to="/quotes" className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary text-white text-xs font-bold rounded-lg shadow-sm hover:opacity-90">
+                        View Approved Quotes
+                      </Link>
+                    </td>
                   </tr>
                 ) : (
                 pos?.map((po: any) => {

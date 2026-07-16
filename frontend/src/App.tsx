@@ -25,6 +25,11 @@ import Requirements from "./pages/master-data/Requirements";
 import LineItems from "./pages/master-data/LineItems";
 import ConstructionItems from "./pages/master-data/ConstructionItems";
 import Pricing from "./pages/master-data/Pricing";
+import LeadSources from "./pages/master-data/LeadSources";
+import Customers from "./pages/Customers";
+import AIReports from "./pages/AIReports";
+import Settings from "./pages/Settings";
+import LeadCreate from "./pages/LeadCreate";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { Navigate, Outlet } from "react-router-dom";
 
@@ -60,6 +65,7 @@ function App() {
                 <Route path="/home" element={<MyDashboard />} />
                 <Route path="/kpi" element={<KpiDashboard />} />
                 <Route path="/leads" element={<LeadInbox />} />
+                <Route path="/leads/new" element={<LeadCreate />} />
                 <Route path="/leads/:id" element={<LeadDetail />} />
                 <Route path="/pipeline" element={<PipelineKanban />} />
                 <Route path="/quotes/new" element={<QuotationBuilder />} />
@@ -72,12 +78,16 @@ function App() {
                 <Route path="/rules" element={<AssignmentRules />} />
                 <Route path="/salespersons" element={<SalespersonTracker />} />
                 <Route path="/salespersons/:id" element={<SalespersonDetail />} />
+                <Route path="/customers" element={<Customers />} />
+                <Route path="/ai-reports" element={<AIReports />} />
+                <Route path="/settings" element={<Settings />} />
                 
                 {/* Master Data Routing */}
                 <Route path="/master-data/requirements" element={<Requirements />} />
                 <Route path="/master-data/line-items" element={<LineItems />} />
                 <Route path="/master-data/construction-items" element={<ConstructionItems />} />
                 <Route path="/master-data/pricing" element={<Pricing />} />
+                <Route path="/master-data/lead-sources" element={<LeadSources />} />
               </Route>
             </Route>
           </Routes>
