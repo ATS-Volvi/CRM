@@ -54,9 +54,7 @@ export default function QuotationBuilder() {
   const [selectedDealId, setSelectedDealId] = useState("");
   const [focusedIndex, setFocusedIndex] = useState(0);
   const [dealIdError, setDealIdError] = useState("");
-  const [debugLogs, setDebugLogs] = useState<string[]>([]);
   const logDebug = (msg: string) => {
-    setDebugLogs(prev => [...prev, `${new Date().toLocaleTimeString()}: ${msg}`]);
     console.log(msg);
   };
   const [activeHistoryTab, setActiveHistoryTab] = useState<"client" | "similar">("client");
@@ -808,24 +806,6 @@ export default function QuotationBuilder() {
 
         </div>
       </div>
-
-      {/* Visual Debug Console Panel */}
-      <div className="fixed bottom-4 right-4 z-[9999] bg-slate-900/90 text-green-400 font-mono text-[10px] p-4 rounded-xl border border-green-500/30 max-w-md max-h-60 overflow-y-auto shadow-2xl pointer-events-auto">
-        <div className="font-bold border-b border-green-500/20 pb-1 mb-1.5 flex justify-between items-center text-xs">
-          <span>DEBUG LOGS</span>
-          <button type="button" onClick={() => setDebugLogs([])} className="text-red-400 hover:text-red-300 font-semibold px-1">Clear</button>
-        </div>
-        {debugLogs.length === 0 ? (
-          <div className="text-slate-500 italic">No logs yet. Click sidebar buttons to test.</div>
-        ) : (
-          <div className="space-y-1">
-            {debugLogs.map((log, lIdx) => (
-              <div key={lIdx} className="whitespace-pre-wrap break-all leading-normal border-b border-slate-800/40 pb-0.5">{log}</div>
-            ))}
-          </div>
-        )}
-      </div>
-
     </div>
   );
 }
