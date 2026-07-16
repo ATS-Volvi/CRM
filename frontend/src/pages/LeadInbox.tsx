@@ -355,12 +355,18 @@ export default function LeadInbox() {
                         {lead.source === 'instagram' && <div className="w-8 h-8 rounded bg-[#E1306C]/10 flex items-center justify-center text-[#E1306C] shrink-0" title="Instagram"><Instagram className="w-5 h-5" /></div>}
                         {lead.source === 'cold_call' && <div className="w-8 h-8 rounded bg-secondary/10 flex items-center justify-center text-secondary shrink-0" title="Cold Call"><Phone className="w-5 h-5" /></div>}
                         {(!['email', 'facebook', 'linkedin', 'instagram', 'cold_call'].includes(lead.source)) && <div className="w-8 h-8 rounded bg-surface-variant flex items-center justify-center text-on-surface-variant shrink-0" title={lead.source}><Globe className="w-5 h-5" /></div>}
-                        <button 
-                          onClick={() => setSelectedCompanyLead(lead)}
-                          className="hover:underline font-bold text-primary text-sm text-left truncate max-w-[150px]"
-                        >
-                          {lead.company || "N/A"}
-                        </button>
+                        {lead.company ? (
+                          <button 
+                            onClick={() => setSelectedCompanyLead(lead)}
+                            className="hover:underline font-bold text-primary text-sm text-left truncate max-w-[150px]"
+                          >
+                            {lead.company}
+                          </button>
+                        ) : (
+                          <span className="text-on-surface-variant font-medium text-sm">
+                            N/A
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4">

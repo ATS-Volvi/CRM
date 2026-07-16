@@ -314,53 +314,6 @@ export default function LeadDetail() {
         {/* Right Column: Stacked Activity Timeline & Quotation Summary */}
         <div className="col-span-12 lg:col-span-8 flex flex-col gap-6">
           
-          {/* Activity Timeline Preview Card */}
-          <div 
-            onClick={() => setShowActivityModal(true)}
-            className="bg-surface-container-lowest p-6 rounded-xl border border-outline-variant shadow-sm h-[380px] flex flex-col cursor-pointer hover:border-primary transition-all group overflow-hidden"
-          >
-            <div className="flex items-center justify-between mb-6 flex-wrap gap-2">
-              <h3 className="text-lg font-semibold text-on-surface group-hover:text-primary flex items-center gap-2">
-                Activity Timeline 
-                <span className="text-xs font-normal text-on-surface-variant group-hover:text-primary opacity-70">(Tap to pop out)</span>
-              </h3>
-              <span className="text-xs font-bold text-primary group-hover:underline">View All ({activities.length})</span>
-            </div>
-
-            <div className="flex-1 overflow-y-auto space-y-4 pr-1">
-              {activities.length === 0 ? (
-                <div className="text-on-surface-variant italic text-sm py-8 text-center">
-                  No activities recorded yet.
-                </div>
-              ) : (
-                activities.slice(0, 3).map((act: any) => (
-                  <div key={act.id} className="relative pl-10 border-l-2 border-outline-variant/65 pb-2 last:border-0 last:pb-0">
-                    <div className={`absolute -left-[13px] top-0 w-6 h-6 rounded-full border-2 border-surface flex items-center justify-center ${
-                      act.type === 'call' ? 'bg-error-container text-error' :
-                      act.type === 'email' ? 'bg-tertiary-container text-tertiary' :
-                      act.type === 'meeting' ? 'bg-secondary-container text-secondary' :
-                      act.type === 'stage_change' ? 'bg-primary-container text-primary' :
-                      'bg-surface-container-high text-on-surface'
-                    }`}>
-                      {act.type === 'call' && <Phone className="w-3.5 h-3.5" />}
-                      {act.type === 'email' && <Mail className="w-3.5 h-3.5" />}
-                      {act.type === 'meeting' && <Users className="w-3.5 h-3.5" />}
-                      {act.type === 'stage_change' && <TrendingUp className="w-3.5 h-3.5" />}
-                      {act.type === 'note' && <MessageSquare className="w-3.5 h-3.5" />}
-                      {act.type === 'task' && <CheckSquare className="w-3.5 h-3.5" />}
-                      {act.type === 'whatsapp_sms' && <MessageSquare className="w-3.5 h-3.5" />}
-                    </div>
-                    <div className="flex justify-between items-start text-xs mb-1">
-                      <p className="font-bold text-on-surface uppercase tracking-wider text-[10px]">{act.type.replace('_', ' ')}</p>
-                      <span className="text-[10px] text-on-surface-variant">{formatDistanceToNow(new Date(act.createdAt), { addSuffix: true })}</span>
-                    </div>
-                    {act.outcome && <p className="text-xs text-on-surface truncate font-medium">{act.outcome}</p>}
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
           {/* Quotation Summary Preview Card */}
           <div 
             onClick={() => setShowQuotationModal(true)}
@@ -440,6 +393,53 @@ export default function LeadDetail() {
                   <p className="text-xs font-semibold text-on-surface">No quotation created yet</p>
                   <p className="text-[10px] text-on-surface-variant mt-0.5">Click to generate a quotation proposal.</p>
                 </div>
+              )}
+            </div>
+          </div>
+
+          {/* Activity Timeline Preview Card */}
+          <div 
+            onClick={() => setShowActivityModal(true)}
+            className="bg-surface-container-lowest p-6 rounded-xl border border-outline-variant shadow-sm h-[380px] flex flex-col cursor-pointer hover:border-primary transition-all group overflow-hidden"
+          >
+            <div className="flex items-center justify-between mb-6 flex-wrap gap-2">
+              <h3 className="text-lg font-semibold text-on-surface group-hover:text-primary flex items-center gap-2">
+                Activity Timeline 
+                <span className="text-xs font-normal text-on-surface-variant group-hover:text-primary opacity-70">(Tap to pop out)</span>
+              </h3>
+              <span className="text-xs font-bold text-primary group-hover:underline">View All ({activities.length})</span>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+              {activities.length === 0 ? (
+                <div className="text-on-surface-variant italic text-sm py-8 text-center">
+                  No activities recorded yet.
+                </div>
+              ) : (
+                activities.slice(0, 3).map((act: any) => (
+                  <div key={act.id} className="relative pl-10 border-l-2 border-outline-variant/65 pb-2 last:border-0 last:pb-0">
+                    <div className={`absolute -left-[13px] top-0 w-6 h-6 rounded-full border-2 border-surface flex items-center justify-center ${
+                      act.type === 'call' ? 'bg-error-container text-error' :
+                      act.type === 'email' ? 'bg-tertiary-container text-tertiary' :
+                      act.type === 'meeting' ? 'bg-secondary-container text-secondary' :
+                      act.type === 'stage_change' ? 'bg-primary-container text-primary' :
+                      'bg-surface-container-high text-on-surface'
+                    }`}>
+                      {act.type === 'call' && <Phone className="w-3.5 h-3.5" />}
+                      {act.type === 'email' && <Mail className="w-3.5 h-3.5" />}
+                      {act.type === 'meeting' && <Users className="w-3.5 h-3.5" />}
+                      {act.type === 'stage_change' && <TrendingUp className="w-3.5 h-3.5" />}
+                      {act.type === 'note' && <MessageSquare className="w-3.5 h-3.5" />}
+                      {act.type === 'task' && <CheckSquare className="w-3.5 h-3.5" />}
+                      {act.type === 'whatsapp_sms' && <MessageSquare className="w-3.5 h-3.5" />}
+                    </div>
+                    <div className="flex justify-between items-start text-xs mb-1">
+                      <p className="font-bold text-on-surface uppercase tracking-wider text-[10px]">{act.type.replace('_', ' ')}</p>
+                      <span className="text-[10px] text-on-surface-variant">{formatDistanceToNow(new Date(act.createdAt), { addSuffix: true })}</span>
+                    </div>
+                    {act.outcome && <p className="text-xs text-on-surface truncate font-medium">{act.outcome}</p>}
+                  </div>
+                ))
               )}
             </div>
           </div>
