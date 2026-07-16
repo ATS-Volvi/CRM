@@ -144,7 +144,7 @@ export default function LeadInbox() {
                   </td>
                 </tr>
               ) : (
-                filteredLeads?.map((lead: any) => {
+              filteredLeads?.map((lead: any) => {
                   let servicesStr = "N/A";
                   if (lead.categoriesData) {
                     try {
@@ -177,7 +177,7 @@ export default function LeadInbox() {
                         {lead.industry || "General"}
                       </td>
                       <td className="px-6 py-4 text-right font-bold text-on-surface">
-                        {formatCurrency(lead.leadScore * 100)} {/* Expected value mock or score * 100 */}
+                        {formatCurrency(lead.leadScore * 100)}
                       </td>
                       <td className="px-6 py-4">
                         <span className={`px-2.5 py-1 rounded-full border text-xs font-bold ${getStatusColor(lead.status)}`}>
@@ -190,6 +190,109 @@ export default function LeadInbox() {
                     </tr>
                   );
                 })
+=======
+                displayLeads.map((lead: any) => (
+                  <tr key={lead.id} className="hover:bg-surface-container transition-colors group">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        {lead.source === 'email' && <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center text-primary shrink-0" title="Email"><Mail className="w-5 h-5" /></div>}
+                        {lead.source === 'facebook' && <div className="w-8 h-8 rounded bg-[#1877F2]/10 flex items-center justify-center text-[#1877F2] shrink-0" title="Facebook"><Facebook className="w-5 h-5" /></div>}
+                        {lead.source === 'linkedin' && <div className="w-8 h-8 rounded bg-[#0A66C2]/10 flex items-center justify-center text-[#0A66C2] shrink-0" title="LinkedIn"><Linkedin className="w-5 h-5" /></div>}
+                        {lead.source === 'instagram' && <div className="w-8 h-8 rounded bg-[#E1306C]/10 flex items-center justify-center text-[#E1306C] shrink-0" title="Instagram"><Instagram className="w-5 h-5" /></div>}
+                        {lead.source === 'cold_call' && <div className="w-8 h-8 rounded bg-secondary/10 flex items-center justify-center text-secondary shrink-0" title="Cold Call"><Phone className="w-5 h-5" /></div>}
+                        {(!['email', 'facebook', 'linkedin', 'instagram', 'cold_call'].includes(lead.source)) && <div className="w-8 h-8 rounded bg-surface-variant flex items-center justify-center text-on-surface-variant shrink-0" title={lead.source}><Globe className="w-5 h-5" /></div>}
+                        {lead.company ? (
+                          <button 
+                            onClick={() => setSelectedCompanyLead(lead)}
+                            className="hover:underline font-bold text-primary text-sm text-left truncate max-w-[150px]"
+                          >
+                            {lead.company}
+                          </button>
+                        ) : (
+                          <span className="text-on-surface-variant font-medium text-sm">
+                            N/A
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <Link to={`/leads/${lead.id}`} className="hover:underline">
+                        <p className="text-sm font-bold text-on-surface">{lead.firstName} {lead.lastName}</p>
+                        <p className="text-[12px] text-on-surface-variant">{lead.email}</p>
+                      </Link>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-on-surface-variant font-semibold">
+                      {lead.budgetRange || "Not specified"}
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <div className={`inline-flex items-center justify-center px-2 py-1 rounded-full font-bold text-[12px] ${lead.leadScore > 80 ? 'bg-primary/10 text-primary' : 'bg-secondary/10 text-secondary'}`}>
+                        {lead.leadScore}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="relative inline-block">
+                        <select 
+                          value={lead.assignedToId || ""}
+                          onChange={(e) => updateLeadMutation.mutate({ id: lead.id, data: { assignedToId: e.target.value || null } })}
+                          className="appearance-none bg-surface border border-outline-variant rounded-xl pl-3 pr-8 py-1.5 text-xs font-semibold text-on-surface focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none cursor-pointer shadow-sm"
+                        >
+                          <option value="">Unassigned</option>
+                          {salespersons?.map(rep => (
+                            <option key={rep.id} value={rep.id}>{rep.name}</option>
+                          ))}
+                        </select>
+                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-on-surface-variant">
+                          <svg className="fill-current h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-on-surface-variant">{lead.waitTime || 'N/A'}</td>
+                    <td className="px-6 py-4 text-right">
+                      {lead.status === 'New Lead' || lead.status === 'New' ? (
+                        <div className="flex items-center gap-2 justify-end">
+                          <button 
+                            onClick={() => setQuickLogLeadId(lead.id)}
+                            className="p-1.5 text-secondary hover:bg-secondary/10 rounded transition-colors"
+                            title="Quick Log Call"
+                          >
+                            <Phone className="w-4 h-4" />
+                          </button>
+                          <button 
+                            onClick={() => updateLeadMutation.mutate({ id: lead.id, data: { status: 'Contacted' } })}
+                            disabled={updateLeadMutation.isPending}
+                            className="px-4 py-1.5 bg-primary text-on-primary rounded text-[12px] font-bold hover:bg-primary-container transition-all"
+                          >
+                            Claim
+                          </button>
+                          <button 
+                            onClick={() => { if(confirm("Are you sure?")) deleteLeadMutation.mutate(lead.id); }}
+                            className="p-1.5 text-error hover:bg-error-container rounded transition-colors"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 justify-end">
+                          <button 
+                            onClick={() => setQuickLogLeadId(lead.id)}
+                            className="p-1.5 text-secondary hover:bg-secondary/10 rounded transition-colors"
+                            title="Quick Log Call"
+                          >
+                            <Phone className="w-4 h-4" />
+                          </button>
+                          <button className="p-2 text-primary hover:bg-surface-container-high rounded transition-colors"><ExternalLink className="w-5 h-5" /></button>
+                          <button 
+                            onClick={() => { if(confirm("Are you sure?")) deleteLeadMutation.mutate(lead.id); }}
+                            className="p-1.5 text-error hover:bg-error-container rounded transition-colors"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                ))
+>>>>>>> 0d86ae5fd2cd16f0a4f8abc3041c9116c08fd22e
               )}
             </tbody>
           </table>

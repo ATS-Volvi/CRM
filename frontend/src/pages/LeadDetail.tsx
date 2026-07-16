@@ -4,9 +4,11 @@ import { useAuth } from "../context/AuthContext";
 import { useState, useEffect } from "react";
 import { 
   ArrowLeft, Mail, Phone, Building2, Pencil, Check, X, History, UserCheck, 
-  ChevronRight, Calendar, DollarSign, Activity, ShoppingBag, FileText, ChevronDown, Loader2 
+  ChevronRight, Calendar, DollarSign, Activity, ShoppingBag, FileText, ChevronDown, Loader2,
+  Users, TrendingUp, MessageSquare, CheckSquare
 } from "lucide-react";
 import { formatCurrency } from "../utils/currency";
+import { formatDistanceToNow } from "date-fns";
 
 export default function LeadDetail() {
   const { id } = useParams();
@@ -26,6 +28,8 @@ export default function LeadDetail() {
   const [reassignReason, setReassignReason] = useState("");
   const [showHistoryPanel, setShowHistoryPanel] = useState(false);
   const [isConverting, setIsConverting] = useState(false);
+  const [showQuotationModal, setShowQuotationModal] = useState(false);
+  const [showActivityModal, setShowActivityModal] = useState(false);
 
   const handleConvertToQuotation = async () => {
     if (!lead) return;
@@ -89,6 +93,27 @@ export default function LeadDetail() {
         headers: { "Authorization": `Bearer ${token}` }
       });
       if (!res.ok) throw new Error("Failed to fetch history");
+      return res.json();
+    },
+    enabled: !!id && !!token
+  });
+
+  const { data: quotes = [] } = useQuery<any[]>({
+    queryKey: ["leadQuotes", id],
+    queryFn: async () => {
+      const res = await fetch(`/api/v1/quotes`, { headers: { "Authorization": `Bearer ${token}` } });
+      if (!res.ok) return [];
+      const all = await res.json();
+      return all.filter((q: any) => q.Deal?.leadId === id || q.leadId === id);
+    },
+    enabled: !!id && !!token
+  });
+
+  const { data: activities = [] } = useQuery<any[]>({
+    queryKey: ["leadActivities", id],
+    queryFn: async () => {
+      const res = await fetch(`/api/v1/leads/${id}/activities`, { headers: { "Authorization": `Bearer ${token}` } });
+      if (!res.ok) return [];
       return res.json();
     },
     enabled: !!id && !!token
@@ -431,6 +456,142 @@ export default function LeadDetail() {
               </div>
             </div>
           )}
+          </div>
+        </div>
+
+        {/* Right Column: Stacked Activity Timeline & Quotation Summary */}
+        <div className="col-span-12 lg:col-span-8 flex flex-col gap-6">
+          
+          {/* Quotation Summary Preview Card */}
+          <div 
+            onClick={() => setShowQuotationModal(true)}
+            className="bg-surface-container-lowest p-6 rounded-xl border border-outline-variant shadow-sm h-[380px] flex flex-col cursor-pointer hover:border-primary transition-all group overflow-hidden"
+          >
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+              <h3 className="text-lg font-semibold text-on-surface group-hover:text-primary flex items-center gap-2">
+                Quotation Summary
+                <span className="text-xs font-normal text-on-surface-variant group-hover:text-primary opacity-70">(Tap to pop out)</span>
+              </h3>
+              {quotes && quotes.length > 0 && (
+                <span className="text-xs font-bold text-primary group-hover:underline">View Details</span>
+              )}
+            </div>
+
+            <div className="flex-1 flex flex-col justify-between">
+              {isLoading ? (
+                <div className="flex-1 flex justify-center items-center text-on-surface-variant animate-pulse">Loading Quote...</div>
+              ) : quotes && quotes.length > 0 ? (
+                <div className="space-y-4">
+                  {/* Active Quote details */}
+                  <div className="p-3.5 rounded-lg bg-surface-container-low border border-outline-variant/60 relative">
+                    <div className="flex justify-between items-start mb-2 gap-2">
+                      <div>
+                        <h4 className="text-xs font-bold text-on-surface">{quotes[0].quoteNumber}</h4>
+                        <p className="text-[10px] text-on-surface-variant font-medium">Version {quotes[0].version}</p>
+                      </div>
+                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
+                        quotes[0].status === "Accepted" || quotes[0].status === "Approved" ? "bg-green-100 text-green-700 border border-green-200" :
+                        quotes[0].status === "Sent" ? "bg-blue-100 text-blue-700 border border-blue-200" :
+                        quotes[0].status === "Viewed" ? "bg-purple-100 text-purple-700 border border-purple-200" :
+                        quotes[0].status === "Rejected" ? "bg-red-100 text-red-700 border border-red-200" :
+                        "bg-slate-100 text-slate-700 border border-slate-200"
+                      }`}>
+                        {quotes[0].status}
+                      </span>
+                    </div>
+
+                    <div className="mb-2">
+                      <p className="text-[9px] font-bold uppercase tracking-wider text-on-surface-variant opacity-75">Total Value</p>
+                      <p className="text-lg font-bold text-primary">{formatCurrency(quotes[0].totalAmount)}</p>
+                    </div>
+
+                    {/* Dates milestones */}
+                    <div className="space-y-1 border-t border-outline-variant/40 pt-2 text-[10px] text-on-surface-variant">
+                      {quotes[0].sentAt && (
+                        <div className="flex justify-between">
+                          <span>Date Sent:</span>
+                          <span className="font-semibold">{new Date(quotes[0].sentAt).toLocaleDateString()}</span>
+                        </div>
+                      )}
+                      {quotes[0].acceptedAt && (
+                        <div className="flex justify-between">
+                          <span>Date Signed:</span>
+                          <span className="font-semibold">{new Date(quotes[0].acceptedAt).toLocaleDateString()}</span>
+                        </div>
+                      )}
+                      {quotes[0].expirationDate && (
+                        <div className="flex justify-between">
+                          <span>Expires On:</span>
+                          <span className="font-semibold">{new Date(quotes[0].expirationDate).toLocaleDateString()}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Revisions preview count */}
+                  {quotes.length > 1 && (
+                    <p className="text-[10px] text-on-surface-variant font-medium italic">
+                      + {quotes.length - 1} previous quote versions available in pop out.
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="flex-1 flex flex-col justify-center items-center p-4 text-center border border-dashed border-outline-variant/50 rounded-xl bg-surface-container-low/60">
+                  <FileText className="w-6 h-6 text-on-surface-variant opacity-60 mb-2" />
+                  <p className="text-xs font-semibold text-on-surface">No quotation created yet</p>
+                  <p className="text-[10px] text-on-surface-variant mt-0.5">Click to generate a quotation proposal.</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Activity Timeline Preview Card */}
+          <div 
+            onClick={() => setShowActivityModal(true)}
+            className="bg-surface-container-lowest p-6 rounded-xl border border-outline-variant shadow-sm h-[380px] flex flex-col cursor-pointer hover:border-primary transition-all group overflow-hidden"
+          >
+            <div className="flex items-center justify-between mb-6 flex-wrap gap-2">
+              <h3 className="text-lg font-semibold text-on-surface group-hover:text-primary flex items-center gap-2">
+                Activity Timeline 
+                <span className="text-xs font-normal text-on-surface-variant group-hover:text-primary opacity-70">(Tap to pop out)</span>
+              </h3>
+              <span className="text-xs font-bold text-primary group-hover:underline">View All ({activities.length})</span>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+              {activities.length === 0 ? (
+                <div className="text-on-surface-variant italic text-sm py-8 text-center">
+                  No activities recorded yet.
+                </div>
+              ) : (
+                activities.slice(0, 3).map((act: any) => (
+                  <div key={act.id} className="relative pl-10 border-l-2 border-outline-variant/65 pb-2 last:border-0 last:pb-0">
+                    <div className={`absolute -left-[13px] top-0 w-6 h-6 rounded-full border-2 border-surface flex items-center justify-center ${
+                      act.type === 'call' ? 'bg-error-container text-error' :
+                      act.type === 'email' ? 'bg-tertiary-container text-tertiary' :
+                      act.type === 'meeting' ? 'bg-secondary-container text-secondary' :
+                      act.type === 'stage_change' ? 'bg-primary-container text-primary' :
+                      'bg-surface-container-high text-on-surface'
+                    }`}>
+                      {act.type === 'call' && <Phone className="w-3.5 h-3.5" />}
+                      {act.type === 'email' && <Mail className="w-3.5 h-3.5" />}
+                      {act.type === 'meeting' && <Users className="w-3.5 h-3.5" />}
+                      {act.type === 'stage_change' && <TrendingUp className="w-3.5 h-3.5" />}
+                      {act.type === 'note' && <MessageSquare className="w-3.5 h-3.5" />}
+                      {act.type === 'task' && <CheckSquare className="w-3.5 h-3.5" />}
+                      {act.type === 'whatsapp_sms' && <MessageSquare className="w-3.5 h-3.5" />}
+                    </div>
+                    <div className="flex justify-between items-start text-xs mb-1">
+                      <p className="font-bold text-on-surface uppercase tracking-wider text-[10px]">{act.type.replace('_', ' ')}</p>
+                      <span className="text-[10px] text-on-surface-variant">{formatDistanceToNow(new Date(act.createdAt), { addSuffix: true })}</span>
+                    </div>
+                    {act.outcome && <p className="text-xs text-on-surface truncate font-medium">{act.outcome}</p>}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
         </div>
       </div>
 

@@ -5,7 +5,7 @@ import { useAuth } from "../context/AuthContext";
 import {
   Users, DollarSign, Inbox, TrendingUp, FileText,
   Calendar, ChevronDown, ArrowUp, ArrowDown,
-  Building2, Tag, CheckCircle2, Clock, AlertCircle
+  Building2, Tag, CheckCircle2, Clock, AlertCircle, X
 } from "lucide-react";
 import { formatCurrencyCompact } from "../utils/currency";
 
@@ -106,6 +106,7 @@ export default function MyDashboard() {
   const [startDate, setStartDate] = useState(toLocalISODate(defaultStart));
   const [endDate,   setEndDate]   = useState(toLocalISODate(today));
   const [activeTab, setActiveTab] = useState<TabKey>("leads");
+  const [selectedEmail, setSelectedEmail] = useState<any | null>(null);
 
   // Data fetch
   const { data, isLoading, error } = useQuery<HomeDashboardData>({
@@ -467,35 +468,98 @@ export default function MyDashboard() {
                 )}
 
                 {/* Emails tab */}
+                {/* Emails tab */}
                 {activeTab === "emails" && (
-                  <table className="w-full text-sm">
-                    <thead className="sticky top-0 bg-surface-container-low border-b border-outline-variant">
-                      <tr>
-                        <th className="text-left py-3 px-4 text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">From</th>
-                        <th className="text-left py-3 px-4 text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Subject</th>
-                        <th className="text-center py-3 px-4 text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Status</th>
-                        <th className="text-right py-3 px-4 text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Date</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-outline-variant/40">
-                      {(!data?.assignedEmails || data.assignedEmails.length === 0) ? (
-                        <tr><td colSpan={4} className="py-12 text-center text-on-surface-variant text-sm">No emails assigned to you</td></tr>
-                      ) : data.assignedEmails.map(email => (
-                        <tr key={email.id} className="hover:bg-surface-container-high transition-colors">
-                          <td className="py-3 px-4 font-semibold text-on-surface">{email.firstName} {email.lastName}</td>
-                          <td className="py-3 px-4 text-on-surface-variant truncate max-w-[200px]" title={email.subject}>{email.subject}</td>
-                          <td className="py-3 px-4 text-center">
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-surface-variant text-on-surface-variant">
-                              {email.status}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4 text-right text-on-surface-variant text-xs">
-                            {new Date(email.createdAt).toLocaleDateString()}
-                          </td>
+                  <>
+                    <table className="w-full text-sm">
+                      <thead className="sticky top-0 bg-surface-container-low border-b border-outline-variant">
+                        <tr>
+                          <th className="text-left py-3 px-4 text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">From</th>
+                          <th className="text-left py-3 px-4 text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Subject</th>
+                          <th className="text-center py-3 px-4 text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Status</th>
+                          <th className="text-right py-3 px-4 text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Date</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="divide-y divide-outline-variant/40">
+                        {(!data?.assignedEmails || data.assignedEmails.length === 0) ? (
+                          <tr><td colSpan={4} className="py-12 text-center text-on-surface-variant text-sm">No emails assigned to you</td></tr>
+                        ) : data.assignedEmails.map(email => (
+                          <tr
+                            key={email.id}
+                            onClick={() => setSelectedEmail(email)}
+                            className="hover:bg-surface-container-high transition-colors cursor-pointer"
+                          >
+                            <td className="py-3 px-4 font-semibold text-on-surface">{email.firstName} {email.lastName}</td>
+                            <td className="py-3 px-4 text-on-surface-variant truncate max-w-[200px]" title={email.subject}>{email.subject}</td>
+                            <td className="py-3 px-4 text-center">
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-surface-variant text-on-surface-variant">
+                                {email.status}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-right text-on-surface-variant text-xs">
+                              {new Date(email.createdAt).toLocaleDateString()}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+
+                    {/* Email details modal */}
+                    {selectedEmail && (
+                      <div
+                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs"
+                        onClick={() => setSelectedEmail(null)}
+                      >
+                        <div
+                          className="bg-surface rounded-2xl border border-outline-variant w-full max-w-lg shadow-2xl p-6 space-y-4 text-on-surface"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <div className="flex items-center justify-between pb-3 border-b border-outline-variant">
+                            <div>
+                              <h2 className="font-bold text-title-md text-on-surface">Email Details</h2>
+                              <p className="text-body-xs text-on-surface-variant mt-0.5">
+                                Received {new Date(selectedEmail.createdAt).toLocaleString()}
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => setSelectedEmail(null)}
+                              className="p-1 rounded-lg hover:bg-surface-container text-on-surface-variant hover:text-on-surface transition-colors"
+                            >
+                              <X className="w-5 h-5" />
+                            </button>
+                          </div>
+                          <div className="space-y-3.5">
+                            <div>
+                              <div className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">From</div>
+                              <div className="font-semibold text-on-surface mt-0.5">
+                                {selectedEmail.firstName} {selectedEmail.lastName} &lt;{selectedEmail.email}&gt;
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">Subject</div>
+                              <div className="text-body-md font-bold text-on-surface mt-0.5">
+                                {selectedEmail.subject}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">Message Body</div>
+                              <div className="bg-surface-container p-4 rounded-xl text-body-sm text-on-surface whitespace-pre-wrap mt-1 max-h-60 overflow-y-auto border border-outline-variant/60 font-sans leading-relaxed">
+                                {selectedEmail.body}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex justify-end pt-3 border-t border-outline-variant">
+                            <button
+                              onClick={() => setSelectedEmail(null)}
+                              className="px-4 py-2 bg-surface-container-high border border-outline-variant rounded-lg text-sm font-semibold hover:bg-surface-container-highest transition-colors"
+                            >
+                              Close
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
