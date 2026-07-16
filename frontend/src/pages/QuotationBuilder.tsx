@@ -673,6 +673,7 @@ export default function QuotationBuilder() {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
+                                console.log("[CLICK DEBUG] Edit & Use clicked for Client History quote:", hQuote);
                                 handleUseQuote(hQuote);
                               }}
                               disabled={!hQuote.QuoteLineItems || hQuote.QuoteLineItems.length === 0}
@@ -757,6 +758,7 @@ export default function QuotationBuilder() {
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
+                                  console.log("[CLICK DEBUG] Edit & Use clicked for Similar Clients quote:", sQuote);
                                   handleUseQuote(sQuote);
                                 }}
                                 disabled={!sQuote.QuoteLineItems || sQuote.QuoteLineItems.length === 0}
