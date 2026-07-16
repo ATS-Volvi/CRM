@@ -703,28 +703,43 @@ export const getSimilarQuotesStats = async (req: Request, res: Response) => {
 
 export const getSimilarClientQuotes = async (req: Request, res: Response) => {
   try {
-    const { productIds, leadId } = req.query;
+    const { productIds, leadId, dealId } = req.query;
     const { Op } = require("sequelize");
 
-    if (!productIds) {
-      return res.json([]);
+    let idList: string[] = [];
+
+    if (productIds) {
+      idList = String(productIds)
+        .split(",")
+        .map(id => id.trim())
+        .filter(Boolean);
     }
 
-    const idList = String(productIds)
-      .split(",")
-      .map(id => id.trim())
-      .filter(Boolean);
+    let resolvedLeadId = leadId ? String(leadId) : null;
+    let currentLeadCompany: string | null = null;
+
+    if (dealId && !productIds) {
+      const deal = await sequelize.models.Deal.findByPk(String(dealId));
+      if (deal) {
+        resolvedLeadId = (deal as any).leadId;
+      }
+    }
+
+    if (resolvedLeadId) {
+      const lead = await sequelize.models.Lead.findByPk(resolvedLeadId);
+      if (lead) {
+        currentLeadCompany = (lead as any).company;
+
+        if (idList.length === 0) {
+          const { suggestBundleOrItems } = require("../services/recommendationEngine");
+          const recs = await suggestBundleOrItems(resolvedLeadId);
+          idList = recs.map((r: any) => r.productId).filter(Boolean);
+        }
+      }
+    }
 
     if (idList.length === 0) {
       return res.json([]);
-    }
-
-    let currentLeadCompany: string | null = null;
-    if (leadId) {
-      const lead = await sequelize.models.Lead.findByPk(String(leadId));
-      if (lead) {
-        currentLeadCompany = (lead as any).company;
-      }
     }
 
     // 1. Find quoteIds containing at least one of the productIds

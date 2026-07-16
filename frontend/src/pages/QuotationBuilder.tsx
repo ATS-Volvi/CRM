@@ -55,6 +55,11 @@ export default function QuotationBuilder() {
   const [focusedIndex, setFocusedIndex] = useState(0);
   const [dealIdError, setDealIdError] = useState("");
   const [activeHistoryTab, setActiveHistoryTab] = useState<"client" | "similar">("client");
+  const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
+
+  const toggleCardExpand = (id: string) => {
+    setExpandedCards(prev => ({ ...prev, [id]: !prev[id] }));
+  };
 
   useEffect(() => {
     if (dealIdParam && deals && deals.length > 0) {
@@ -104,16 +109,15 @@ export default function QuotationBuilder() {
   const productIdsQuery = uniqueProductIds.join(",");
 
   const { data: similarClientQuotes } = useQuery({
-    queryKey: ["similarClientQuotes", productIdsQuery, leadId],
+    queryKey: ["similarClientQuotes", productIdsQuery, leadId, selectedDealId],
     queryFn: async () => {
-      if (!productIdsQuery) return [];
-      const res = await fetch(`/api/v1/quotes/history/similar-clients?productIds=${productIdsQuery}&leadId=${leadId || ""}`, {
+      const res = await fetch(`/api/v1/quotes/history/similar-clients?dealId=${selectedDealId || ""}&productIds=${productIdsQuery}&leadId=${leadId || ""}`, {
         headers: { "Authorization": `Bearer ${token}` }
       });
       if (!res.ok) return [];
       return res.json();
     },
-    enabled: !!productIdsQuery
+    enabled: !!selectedDealId
   });
 
   const handleUseQuote = (historicalQuote: any) => {
@@ -137,6 +141,46 @@ export default function QuotationBuilder() {
       };
     });
     setItems(newItems);
+  };
+
+  const handleSendAsIs = async (historicalQuote: any) => {
+    const quoteItems = historicalQuote.QuoteLineItems || [];
+    if (quoteItems.length === 0) return;
+
+    const clientName = historicalQuote.deal?.lead?.company || (historicalQuote.deal?.lead?.firstName + " " + historicalQuote.deal?.lead?.lastName) || "Unknown Client";
+    const totalAmount = historicalQuote.totalAmount || 0;
+    const itemCount = quoteItems.length;
+
+    const confirmSend = window.confirm(
+      `Are you sure you want to send this quote directly to the client as-is?\n\nClient: ${clientName}\nTotal Amount: ${formatCurrency(totalAmount)}\nLine Items: ${itemCount}`
+    );
+    if (!confirmSend) return;
+
+    try {
+      const mappedItems = quoteItems.map((li: any) => ({
+        productId: li.productId,
+        quantity: Number(li.quantity || 1),
+        unitPrice: parseFloat(li.unitPrice || 0),
+        discount: 0,
+        taxRate: 15,
+        isOptional: !!li.isOptional
+      }));
+
+      const res = await fetch("/api/v1/quotes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({
+          dealId: selectedDealId,
+          items: mappedItems,
+          status: "Pending"
+        })
+      });
+      if (!res.ok) throw new Error("Failed to send quote");
+      alert("Quote saved!");
+      window.location.href = "/quotes";
+    } catch (err: any) {
+      alert(err.message || "An error occurred while sending the quote.");
+    }
   };
 
   const { data: similarStats } = useQuery({
@@ -548,35 +592,68 @@ export default function QuotationBuilder() {
                   {!clientHistory || clientHistory.length === 0 ? (
                     <div className="p-6 text-sm text-outline italic text-center">No previous quotations for this client/company.</div>
                   ) : (
-                    clientHistory.map((hQuote: any, idx: number) => (
-                      <div key={hQuote.id || idx} className="p-4 hover:bg-surface-container-low transition-colors cursor-pointer group flex flex-col gap-1.5">
-                        <div className="flex justify-between mb-1">
-                          <span className="text-sm font-bold group-hover:text-primary">{hQuote.quoteNumber || hQuote.id.substring(0, 8)}</span>
-                          <span className={`px-2 py-0.5 text-[9px] font-bold rounded uppercase ${
-                            hQuote.status === 'Accepted' ? 'bg-green-100 text-green-700' :
-                            hQuote.status === 'Pending Approval' ? 'bg-amber-100 text-amber-700' :
-                            'bg-gray-100 text-gray-700'
-                          }`}>
-                            {hQuote.status}
-                          </span>
-                        </div>
-                        <p className="text-xs text-on-surface-variant font-medium">
-                          {new Date(hQuote.createdAt).toLocaleDateString()} • {formatCurrency(hQuote.totalAmount)}
-                        </p>
-                        <div className="text-[10px] text-outline truncate">
-                          Items: {hQuote.QuoteLineItems?.map((li: any) => li.product?.name || "Product").join(", ") || "None"}
-                        </div>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleUseQuote(hQuote);
-                          }}
-                          className="mt-1 text-[11px] font-bold text-primary hover:underline bg-primary/10 px-2 py-1 rounded self-start"
+                    clientHistory.map((hQuote: any, idx: number) => {
+                      const isExpanded = !!expandedCards[hQuote.id];
+                      return (
+                        <div
+                          key={hQuote.id || idx}
+                          onClick={() => toggleCardExpand(hQuote.id)}
+                          className="p-4 hover:bg-surface-container-low transition-colors cursor-pointer group flex flex-col gap-1.5"
                         >
-                          Use This Quote
-                        </button>
-                      </div>
-                    ))
+                          <div className="flex justify-between mb-1">
+                            <span className="text-sm font-bold group-hover:text-primary">{hQuote.quoteNumber || hQuote.id.substring(0, 8)}</span>
+                            <span className={`px-2 py-0.5 text-[9px] font-bold rounded uppercase ${
+                              hQuote.status === 'Accepted' ? 'bg-green-100 text-green-700' :
+                              hQuote.status === 'Pending Approval' ? 'bg-amber-100 text-amber-700' :
+                              'bg-gray-100 text-gray-700'
+                            }`}>
+                              {hQuote.status}
+                            </span>
+                          </div>
+                          <p className="text-xs text-on-surface-variant font-medium">
+                            {new Date(hQuote.createdAt).toLocaleDateString()} • {formatCurrency(hQuote.totalAmount)}
+                          </p>
+
+                          {isExpanded ? (
+                            <div className="text-[11px] text-on-surface-variant font-medium leading-relaxed bg-surface-container-low p-2.5 rounded-lg border border-outline-variant mt-1.5 space-y-1">
+                              {hQuote.QuoteLineItems?.map((li: any, lIdx: number) => (
+                                <div key={lIdx} className="flex justify-between">
+                                  <span>{li.product?.name || "Product"} (x{li.quantity})</span>
+                                  <span className="font-semibold">{formatCurrency(li.unitPrice * li.quantity)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-[10px] text-outline truncate mt-0.5">
+                              Items: {hQuote.QuoteLineItems?.map((li: any) => li.product?.name || "Product").join(", ") || "None"}
+                            </div>
+                          )}
+
+                          <div className="flex gap-2 mt-2">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleUseQuote(hQuote);
+                              }}
+                              disabled={!hQuote.QuoteLineItems || hQuote.QuoteLineItems.length === 0}
+                              className="text-[11px] font-bold text-primary hover:bg-primary/20 bg-primary/10 px-2.5 py-1.5 rounded transition-all disabled:opacity-40"
+                            >
+                              Edit & Use
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSendAsIs(hQuote);
+                              }}
+                              disabled={!hQuote.QuoteLineItems || hQuote.QuoteLineItems.length === 0}
+                              className="text-[11px] font-bold text-white bg-primary hover:bg-primary/95 px-2.5 py-1.5 rounded transition-all disabled:opacity-40"
+                            >
+                              Send As-Is
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
                   )}
                 </>
               )}
@@ -589,47 +666,78 @@ export default function QuotationBuilder() {
                     {!similarClientQuotes || similarClientQuotes.length === 0 ? (
                       <div className="text-xs text-outline italic text-center py-4">No matching historical quote records found.</div>
                     ) : (
-                      similarClientQuotes.map((sQuote: any, idx: number) => (
-                        <div key={sQuote.id || idx} className="p-3.5 rounded-xl bg-surface-container-lowest border border-outline-variant hover:border-primary transition-all flex flex-col gap-2">
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <h4 className="text-xs font-bold text-on-surface">{sQuote.deal?.lead?.company || sQuote.deal?.lead?.firstName + " " + sQuote.deal?.lead?.lastName || "N/A"}</h4>
-                              <p className="text-[10px] text-on-surface-variant font-semibold mt-0.5">{sQuote.quoteNumber}</p>
-                            </div>
-                            <span className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
-                              sQuote.status === "Accepted" || sQuote.status === "Approved" ? "bg-green-100 text-green-700 border border-green-200" :
-                              sQuote.status === "Sent" ? "bg-blue-100 text-blue-700 border border-blue-200" :
-                              sQuote.status === "Viewed" ? "bg-purple-100 text-purple-700 border border-purple-200" :
-                              "bg-slate-100 text-slate-700 border border-slate-200"
-                            }`}>
-                              {sQuote.status}
-                            </span>
-                          </div>
-
-                          <div className="text-[10px] text-on-surface-variant font-medium leading-relaxed bg-surface-container-low p-2 rounded-lg border border-outline-variant/40 space-y-0.5">
-                            {sQuote.QuoteLineItems?.map((li: any, lIdx: number) => (
-                              <div key={lIdx} className="truncate">
-                                {li.product?.name || "Product"} ({li.quantity}x @ {formatCurrency(li.unitPrice)})
-                              </div>
-                            ))}
-                          </div>
-
-                          <div className="flex justify-between items-center text-[10px] text-on-surface-variant mt-0.5 border-t border-outline-variant/30 pt-1.5">
-                            <span>{new Date(sQuote.createdAt).toLocaleDateString()}</span>
-                            <span className="font-bold text-primary text-xs">{formatCurrency(sQuote.totalAmount)}</span>
-                          </div>
-
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleUseQuote(sQuote);
-                            }}
-                            className="text-[11px] font-bold text-primary hover:underline bg-primary/10 px-2 py-1 rounded self-start mt-1"
+                      similarClientQuotes.map((sQuote: any, idx: number) => {
+                        const isExpanded = !!expandedCards[sQuote.id];
+                        return (
+                          <div
+                            key={sQuote.id || idx}
+                            onClick={() => toggleCardExpand(sQuote.id)}
+                            className="p-3.5 rounded-xl bg-surface-container-lowest border border-outline-variant hover:border-primary transition-all flex flex-col gap-2 cursor-pointer"
                           >
-                            Use This Quote
-                          </button>
-                        </div>
-                      ))
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <h4 className="text-xs font-bold text-on-surface">{sQuote.deal?.lead?.company || sQuote.deal?.lead?.firstName + " " + sQuote.deal?.lead?.lastName || "N/A"}</h4>
+                                <p className="text-[10px] text-on-surface-variant font-semibold mt-0.5">{sQuote.quoteNumber}</p>
+                              </div>
+                              <span className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
+                                sQuote.status === "Accepted" || sQuote.status === "Approved" ? "bg-green-100 text-green-700 border border-green-200" :
+                                sQuote.status === "Sent" ? "bg-blue-100 text-blue-700 border border-blue-200" :
+                                sQuote.status === "Viewed" ? "bg-purple-100 text-purple-700 border border-purple-200" :
+                                "bg-slate-100 text-slate-700 border border-slate-200"
+                              }`}>
+                                {sQuote.status}
+                              </span>
+                            </div>
+
+                            {isExpanded ? (
+                              <div className="text-[11px] text-on-surface-variant font-medium leading-relaxed bg-surface-container-low p-2.5 rounded-lg border border-outline-variant mt-1.5 space-y-1">
+                                {sQuote.QuoteLineItems?.map((li: any, lIdx: number) => (
+                                  <div key={lIdx} className="flex justify-between">
+                                    <span>{li.product?.name || "Product"} (x{li.quantity})</span>
+                                    <span className="font-semibold">{formatCurrency(li.unitPrice * li.quantity)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="text-[10px] text-on-surface-variant font-medium leading-relaxed bg-surface-container-low p-2 rounded-lg border border-outline-variant/40 space-y-0.5">
+                                {sQuote.QuoteLineItems?.map((li: any, lIdx: number) => (
+                                  <div key={lIdx} className="truncate">
+                                    {li.product?.name || "Product"} ({li.quantity}x @ {formatCurrency(li.unitPrice)})
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            <div className="flex justify-between items-center text-[10px] text-on-surface-variant mt-0.5 border-t border-outline-variant/30 pt-1.5">
+                              <span>{new Date(sQuote.createdAt).toLocaleDateString()}</span>
+                              <span className="font-bold text-primary text-xs">{formatCurrency(sQuote.totalAmount)}</span>
+                            </div>
+
+                            <div className="flex gap-2 mt-1">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleUseQuote(sQuote);
+                                }}
+                                disabled={!sQuote.QuoteLineItems || sQuote.QuoteLineItems.length === 0}
+                                className="text-[11px] font-bold text-primary hover:bg-primary/20 bg-primary/10 px-2.5 py-1.5 rounded transition-all disabled:opacity-40"
+                              >
+                                Edit & Use
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleSendAsIs(sQuote);
+                                }}
+                                disabled={!sQuote.QuoteLineItems || sQuote.QuoteLineItems.length === 0}
+                                className="text-[11px] font-bold text-white bg-primary hover:bg-primary/95 px-2.5 py-1.5 rounded transition-all disabled:opacity-40"
+                              >
+                                Send As-Is
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })
                     )}
                   </div>
                 </div>
