@@ -30,8 +30,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const storedUser = localStorage.getItem("nexus_user");
 
     if (storedToken && storedUser) {
-      setToken(storedToken);
-      setUser(JSON.parse(storedUser));
+      try {
+        // Decode JWT payload locally to check for expiration
+        const payloadBase64 = storedToken.split(".")[1];
+        const payloadJson = atob(payloadBase64);
+        const payload = JSON.parse(payloadJson);
+        
+        if (payload.exp && Date.now() >= payload.exp * 1000) {
+          console.warn("[AUTH] Stored token has expired. Clearing session.");
+          localStorage.removeItem("nexus_token");
+          localStorage.removeItem("nexus_user");
+        } else {
+          setToken(storedToken);
+          setUser(JSON.parse(storedUser));
+        }
+      } catch (e) {
+        console.error("[AUTH] Error decoding stored token. Clearing session:", e);
+        localStorage.removeItem("nexus_token");
+        localStorage.removeItem("nexus_user");
+      }
     }
     setIsLoading(false);
   }, []);

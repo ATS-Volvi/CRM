@@ -229,8 +229,9 @@ router.put("/pipeline/deals/:id/stage", authMiddleware, moveDealStage);
 // QUOTES
 // ==========================================
 router.get("/quotes/recommendations", authMiddleware, getQuoteRecommendations);
-router.get("/quotes/history/similar-clients", authMiddleware, getSimilarClientQuotes);
-router.get("/quotes/history/client/:leadId", authMiddleware, getQuoteHistoryByClient);
+// Quotes endpoints
+router.get("/quotes/history/similar-clients", getSimilarClientQuotes);
+router.get("/quotes/history/client/:leadId", getQuoteHistoryByClient);
 router.get("/quotes/history/similar/:productId", authMiddleware, getSimilarQuotesStats);
 router.get("/quotes", authMiddleware, getQuotes);
 router.post("/quotes", authMiddleware, createQuote);

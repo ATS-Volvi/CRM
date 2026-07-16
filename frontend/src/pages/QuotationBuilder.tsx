@@ -54,6 +54,11 @@ export default function QuotationBuilder() {
   const [selectedDealId, setSelectedDealId] = useState("");
   const [focusedIndex, setFocusedIndex] = useState(0);
   const [dealIdError, setDealIdError] = useState("");
+  const [debugLogs, setDebugLogs] = useState<string[]>([]);
+  const logDebug = (msg: string) => {
+    setDebugLogs(prev => [...prev, `${new Date().toLocaleTimeString()}: ${msg}`]);
+    console.log(msg);
+  };
   const [activeHistoryTab, setActiveHistoryTab] = useState<"client" | "similar">("client");
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
 
@@ -121,15 +126,22 @@ export default function QuotationBuilder() {
   });
 
   const handleUseQuote = (historicalQuote: any) => {
+    logDebug("handleUseQuote called. Historical quote: " + JSON.stringify(historicalQuote));
     const hasUnsavedItems = items.some((i: any) => i.productId || i.quantity > 1 || i.unitPrice > 0);
     if (hasUnsavedItems) {
       const confirmOverwrite = window.confirm(
         "Are you sure you want to overwrite your current unsaved quotation items with this historical quote?"
       );
-      if (!confirmOverwrite) return;
+      if (!confirmOverwrite) {
+        logDebug("handleUseQuote canceled by user confirm prompt");
+        return;
+      }
     }
     
-    const newItems = (historicalQuote.QuoteLineItems || []).map((li: any) => {
+    const rawItems = historicalQuote.QuoteLineItems || [];
+    logDebug("Raw QuoteLineItems count: " + rawItems.length);
+
+    const newItems = rawItems.map((li: any) => {
       const qty = Number(li.quantity || 1);
       const price = parseFloat(li.unitPrice || 0);
       return {
@@ -140,12 +152,18 @@ export default function QuotationBuilder() {
         isOptional: !!li.isOptional
       };
     });
+    logDebug("Mapped newItems: " + JSON.stringify(newItems));
     setItems(newItems);
+    setFocusedIndex(0);
   };
 
   const handleSendAsIs = async (historicalQuote: any) => {
+    logDebug("handleSendAsIs called. Historical quote: " + JSON.stringify(historicalQuote));
     const quoteItems = historicalQuote.QuoteLineItems || [];
-    if (quoteItems.length === 0) return;
+    if (quoteItems.length === 0) {
+      logDebug("handleSendAsIs aborted: QuoteLineItems is empty");
+      return;
+    }
 
     const clientName = historicalQuote.deal?.lead?.company || (historicalQuote.deal?.lead?.firstName + " " + historicalQuote.deal?.lead?.lastName) || "Unknown Client";
     const totalAmount = historicalQuote.totalAmount || 0;
@@ -154,7 +172,10 @@ export default function QuotationBuilder() {
     const confirmSend = window.confirm(
       `Are you sure you want to send this quote directly to the client as-is?\n\nClient: ${clientName}\nTotal Amount: ${formatCurrency(totalAmount)}\nLine Items: ${itemCount}`
     );
-    if (!confirmSend) return;
+    if (!confirmSend) {
+      logDebug("handleSendAsIs canceled by user confirm prompt");
+      return;
+    }
 
     try {
       const mappedItems = quoteItems.map((li: any) => ({
@@ -164,6 +185,11 @@ export default function QuotationBuilder() {
         discount: 0,
         taxRate: 15,
         isOptional: !!li.isOptional
+      }));
+      logDebug("handleSendAsIs posting payload: " + JSON.stringify({
+        dealId: selectedDealId,
+        items: mappedItems,
+        status: "Pending"
       }));
 
       const res = await fetch("/api/v1/quotes", {
@@ -175,10 +201,26 @@ export default function QuotationBuilder() {
           status: "Pending"
         })
       });
-      if (!res.ok) throw new Error("Failed to send quote");
+      
+      logDebug("POST /api/v1/quotes response status: " + res.status);
+      const resText = await res.text();
+      logDebug("POST /api/v1/quotes raw response: " + resText);
+
+      let resData: any = {};
+      try {
+        resData = JSON.parse(resText);
+      } catch (e) {
+        logDebug("Failed to parse response JSON: " + e);
+      }
+
+      if (!res.ok) {
+        throw new Error(resData.error || "Failed to send quote");
+      }
+      logDebug("Quote saved successfully. Redirecting...");
       alert("Quote saved!");
       window.location.href = "/quotes";
     } catch (err: any) {
+      logDebug("handleSendAsIs error: " + err.message);
       alert(err.message || "An error occurred while sending the quote.");
     }
   };
@@ -766,6 +808,24 @@ export default function QuotationBuilder() {
 
         </div>
       </div>
+
+      {/* Visual Debug Console Panel */}
+      <div className="fixed bottom-4 right-4 z-[9999] bg-slate-900/90 text-green-400 font-mono text-[10px] p-4 rounded-xl border border-green-500/30 max-w-md max-h-60 overflow-y-auto shadow-2xl pointer-events-auto">
+        <div className="font-bold border-b border-green-500/20 pb-1 mb-1.5 flex justify-between items-center text-xs">
+          <span>DEBUG LOGS</span>
+          <button type="button" onClick={() => setDebugLogs([])} className="text-red-400 hover:text-red-300 font-semibold px-1">Clear</button>
+        </div>
+        {debugLogs.length === 0 ? (
+          <div className="text-slate-500 italic">No logs yet. Click sidebar buttons to test.</div>
+        ) : (
+          <div className="space-y-1">
+            {debugLogs.map((log, lIdx) => (
+              <div key={lIdx} className="whitespace-pre-wrap break-all leading-normal border-b border-slate-800/40 pb-0.5">{log}</div>
+            ))}
+          </div>
+        )}
+      </div>
+
     </div>
   );
 }

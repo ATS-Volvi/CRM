@@ -17,6 +17,7 @@ export const authMiddleware = (req: Request, res: Response, next: NextFunction) 
     (req as any).user = decoded;
     next();
   } catch (err: any) {
+    console.error("[DEBUG] JWT verification failed error name:", err.name, "message:", err.message, "token:", token);
     if (err.name === "TokenExpiredError") {
       res.status(401).json({ error: "TokenExpired" });
     } else {
