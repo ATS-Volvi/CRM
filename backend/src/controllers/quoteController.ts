@@ -617,9 +617,16 @@ export const getSimilarQuotesStats = async (req: Request, res: Response) => {
     const lead = leadId ? await sequelize.models.Lead.findByPk(leadId as string) : null;
     const industry = lead ? (lead as any).industry : null;
 
+    const product = await sequelize.models.PriceBookEntry.findByPk(productId as string);
+    const floorPrice = product ? Number((product as any).minPrice || 0) : 0;
+
     const items = await sequelize.models.QuoteLineItem.findAll({
       where: { productId },
       include: [
+        {
+          model: sequelize.models.PriceBookEntry,
+          as: "product"
+        },
         {
           model: sequelize.models.Quote,
           as: "quote",
@@ -651,7 +658,7 @@ export const getSimilarQuotesStats = async (req: Request, res: Response) => {
     }
 
     if (filteredItems.length === 0) {
-      return res.json({ min: 0, median: 0, max: 0, count: 0 });
+      return res.json({ min: 0, median: 0, max: 0, count: 0, floorPrice, quotes: [] });
     }
 
     const prices = filteredItems.map((item: any) => Number(item.unitPrice)).sort((a, b) => a - b);
@@ -663,7 +670,32 @@ export const getSimilarQuotesStats = async (req: Request, res: Response) => {
       ? prices[half] 
       : (prices[half - 1] + prices[half]) / 2;
 
-    res.json({ min, median, max, count: prices.length });
+    const quotesMap: Record<string, any> = {};
+    for (const item of filteredItems as any[]) {
+      const q = item.quote;
+      if (!q) continue;
+      const quoteId = q.id;
+      if (!quotesMap[quoteId]) {
+        const leadVal = q.deal?.lead;
+        quotesMap[quoteId] = {
+          quoteId,
+          quoteNumber: q.quoteNumber,
+          companyName: leadVal ? (leadVal.company || leadVal.name || "N/A") : "N/A",
+          status: q.status,
+          totalAmount: Number(q.totalAmount),
+          createdAt: q.createdAt,
+          requestedItems: []
+        };
+      }
+      quotesMap[quoteId].requestedItems.push({
+        productName: item.product?.name || "Product Details",
+        quantity: Number(item.quantity || 1),
+        unitPrice: Number(item.unitPrice || 0)
+      });
+    }
+    const quotesList = Object.values(quotesMap);
+
+    res.json({ min, median, max, count: prices.length, floorPrice, quotes: quotesList });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

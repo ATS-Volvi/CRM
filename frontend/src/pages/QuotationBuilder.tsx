@@ -54,6 +54,7 @@ export default function QuotationBuilder() {
   const [selectedDealId, setSelectedDealId] = useState("");
   const [focusedIndex, setFocusedIndex] = useState(0);
   const [dealIdError, setDealIdError] = useState("");
+  const [activeHistoryTab, setActiveHistoryTab] = useState<"client" | "similar">("client");
 
   useEffect(() => {
     if (dealIdParam && deals && deals.length > 0) {
@@ -473,81 +474,144 @@ export default function QuotationBuilder() {
             </div>
           )}
 
-          {/* Benchmarking Card */}
-          <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 shadow-sm">
-            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <BarChart2 className="text-primary w-5 h-5" /> Market Benchmarks
-            </h3>
-            <div className="space-y-6">
-              {similarStats && similarStats.count > 0 ? (
-                <div>
-                  <div className="flex justify-between text-[12px] font-bold mb-2">
-                    <span>12M Won Quote Range</span>
-                    <span>{formatCurrencyCompact(similarStats.min)} - {formatCurrencyCompact(similarStats.max)}</span>
-                  </div>
-                  <div className="relative h-6 bg-surface-container rounded-full flex items-center px-1">
-                    <div className="absolute left-1/4 h-3 w-1 bg-outline rounded-full"></div>
-                    <div className="absolute left-1/2 h-3 w-1 bg-outline rounded-full"></div>
-                    <div className="absolute left-3/4 h-3 w-1 bg-outline rounded-full"></div>
-                    <div className="h-4 bg-primary rounded-full" style={{ width: "50%", marginLeft: "25%" }}></div>
-                    <div className="absolute top-[-24px] left-[50%] flex flex-col items-center">
-                      <span className="text-[10px] font-bold text-primary">MEDIAN</span>
-                      <div className="w-2 h-2 bg-primary rotate-45"></div>
-                    </div>
-                  </div>
-                  <div className="flex justify-between text-[10px] text-on-surface-variant mt-1">
-                    <span>Min: {formatCurrency(similarStats.min)}</span>
-                    <span>Median: {formatCurrency(similarStats.median)}</span>
-                    <span>Max: {formatCurrency(similarStats.max)}</span>
-                  </div>
-                  <div className="mt-3 text-xs text-outline">
-                    Based on {similarStats.count} similar won deals. Floor limit is enforced at {formatCurrency(similarStats.floorPrice)}.
-                  </div>
-                </div>
-              ) : (
-                <div className="text-sm text-outline italic">
-                  Select a product to view 12-month historical pricing benchmarks.
-                </div>
-              )}
-              <div className="bg-surface-container-low p-3 rounded-lg border border-primary/20">
-                <div className="text-[12px] font-bold text-primary mb-1 tracking-widest">STRATEGY INSIGHT</div>
-                <p className="text-sm leading-snug">Clients in similar industries accept pricing closer to the median when bundled with quick deployment options.</p>
-              </div>
+          {/* Integrated Quote Reference & History Tabs */}
+          <div className="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm flex flex-col">
+            {/* Tabs Header */}
+            <div className="flex border-b border-outline-variant">
+              <button
+                onClick={() => setActiveHistoryTab("client")}
+                className={`flex-1 py-3.5 text-center text-sm font-semibold border-b-2 transition-colors ${
+                  activeHistoryTab === "client"
+                    ? "border-primary text-primary bg-primary/5"
+                    : "border-transparent text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
+                }`}
+              >
+                Client History
+              </button>
+              <button
+                onClick={() => setActiveHistoryTab("similar")}
+                className={`flex-1 py-3.5 text-center text-sm font-semibold border-b-2 transition-colors ${
+                  activeHistoryTab === "similar"
+                    ? "border-primary text-primary bg-primary/5"
+                    : "border-transparent text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
+                }`}
+              >
+                Similar Clients
+              </button>
             </div>
-          </div>
 
-          {/* Historic Quotes Card */}
-          <div className="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm">
-            <div className="p-4 border-b border-outline-variant">
-              <h3 className="text-lg font-semibold">Prior Client History</h3>
-            </div>
-            <div className="divide-y divide-outline-variant max-h-80 overflow-y-auto">
-              {!clientHistory || clientHistory.length === 0 ? (
-                <div className="p-4 text-sm text-outline italic">No previous quotations for this client/company.</div>
-              ) : (
-                clientHistory.map((hQuote: any, idx: number) => (
-                  <div key={hQuote.id || idx} className="p-4 hover:bg-surface-container-low transition-colors cursor-pointer group">
-                    <div className="flex justify-between mb-1">
-                      <span className="text-sm font-bold group-hover:text-primary">{hQuote.quoteNumber || hQuote.id.substring(0, 8)}</span>
-                      <span className={`px-2 py-0.5 text-[9px] font-bold rounded uppercase ${
-                        hQuote.status === 'Accepted' ? 'bg-green-100 text-green-700' :
-                        hQuote.status === 'Pending Approval' ? 'bg-amber-100 text-amber-700' :
-                        'bg-gray-100 text-gray-700'
-                      }`}>
-                        {hQuote.status}
-                      </span>
-                    </div>
-                    <p className="text-xs text-on-surface-variant">
-                      {new Date(hQuote.createdAt).toLocaleDateString()} • {formatCurrency(hQuote.totalAmount)}
-                    </p>
-                    <div className="text-[10px] text-outline mt-1 truncate">
-                      Items: {hQuote.QuoteLineItems?.map((li: any) => li.product?.name || "Product").join(", ") || "None"}
-                    </div>
-                  </div>
-                ))
+            {/* Tab Body */}
+            <div className="divide-y divide-outline-variant max-h-[500px] overflow-y-auto">
+              
+              {/* Tab 1: Client History */}
+              {activeHistoryTab === "client" && (
+                <>
+                  {!clientHistory || clientHistory.length === 0 ? (
+                    <div className="p-6 text-sm text-outline italic text-center">No previous quotations for this client/company.</div>
+                  ) : (
+                    clientHistory.map((hQuote: any, idx: number) => (
+                      <div key={hQuote.id || idx} className="p-4 hover:bg-surface-container-low transition-colors cursor-pointer group">
+                        <div className="flex justify-between mb-1">
+                          <span className="text-sm font-bold group-hover:text-primary">{hQuote.quoteNumber || hQuote.id.substring(0, 8)}</span>
+                          <span className={`px-2 py-0.5 text-[9px] font-bold rounded uppercase ${
+                            hQuote.status === 'Accepted' ? 'bg-green-100 text-green-700' :
+                            hQuote.status === 'Pending Approval' ? 'bg-amber-100 text-amber-700' :
+                            'bg-gray-100 text-gray-700'
+                          }`}>
+                            {hQuote.status}
+                          </span>
+                        </div>
+                        <p className="text-xs text-on-surface-variant">
+                          {new Date(hQuote.createdAt).toLocaleDateString()} • {formatCurrency(hQuote.totalAmount)}
+                        </p>
+                        <div className="text-[10px] text-outline mt-1 truncate">
+                          Items: {hQuote.QuoteLineItems?.map((li: any) => li.product?.name || "Product").join(", ") || "None"}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </>
               )}
+
+              {/* Tab 2: Similar Clients */}
+              {activeHistoryTab === "similar" && (
+                <div className="p-4 space-y-4">
+                  {/* Market Insights Strip */}
+                  {similarStats && similarStats.count > 0 ? (
+                    <div className="bg-surface-container-low p-3.5 rounded-xl border border-outline-variant/60 space-y-3">
+                      <div className="flex justify-between text-[11px] font-bold">
+                        <span className="text-on-surface-variant">12M Won Quote Range</span>
+                        <span className="text-primary">{formatCurrencyCompact(similarStats.min)} - {formatCurrencyCompact(similarStats.max)}</span>
+                      </div>
+                      <div className="relative h-4 bg-surface-container rounded-full flex items-center px-1">
+                        <div className="absolute left-1/4 h-2.5 w-1 bg-outline rounded-full"></div>
+                        <div className="absolute left-1/2 h-2.5 w-1 bg-outline rounded-full"></div>
+                        <div className="absolute left-3/4 h-2.5 w-1 bg-outline rounded-full"></div>
+                        <div className="h-2.5 bg-primary rounded-full" style={{ width: "50%", marginLeft: "25%" }}></div>
+                      </div>
+                      <div className="flex justify-between text-[10px] text-on-surface-variant font-medium">
+                        <span>Min: {formatCurrency(similarStats.min)}</span>
+                        <span>Median: {formatCurrency(similarStats.median)}</span>
+                        <span>Max: {formatCurrency(similarStats.max)}</span>
+                      </div>
+                      <div className="text-[10px] text-outline leading-normal border-t border-outline-variant/40 pt-2">
+                        Based on {similarStats.count} similar won deals. Floor limit is {formatCurrency(similarStats.floorPrice)}.
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-xs text-outline italic text-center py-2">
+                      Select a product to view 12-month historical pricing benchmarks.
+                    </div>
+                  )}
+
+                  {/* Comparable Quote Cards */}
+                  <div className="space-y-3.5">
+                    {!similarStats?.quotes || similarStats.quotes.length === 0 ? (
+                      <div className="text-xs text-outline italic text-center py-4">No matching historical quote records found.</div>
+                    ) : (
+                      similarStats.quotes.map((sQuote: any, idx: number) => (
+                        <div key={sQuote.quoteId || idx} className="p-3.5 rounded-xl bg-surface-container-lowest border border-outline-variant hover:border-primary transition-all flex flex-col gap-2">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <h4 className="text-xs font-bold text-on-surface">{sQuote.companyName}</h4>
+                              <p className="text-[10px] text-on-surface-variant font-semibold mt-0.5">{sQuote.quoteNumber}</p>
+                            </div>
+                            <span className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
+                              sQuote.status === "Accepted" || sQuote.status === "Approved" ? "bg-green-100 text-green-700 border border-green-200" :
+                              sQuote.status === "Sent" ? "bg-blue-100 text-blue-700 border border-blue-200" :
+                              sQuote.status === "Viewed" ? "bg-purple-100 text-purple-700 border border-purple-200" :
+                              "bg-slate-100 text-slate-700 border border-slate-200"
+                            }`}>
+                              {sQuote.status}
+                            </span>
+                          </div>
+
+                          <div className="text-[10px] text-on-surface-variant font-medium leading-relaxed bg-surface-container-low p-2 rounded-lg border border-outline-variant/40">
+                            {sQuote.requestedItems?.map((li: any, lIdx: number) => (
+                              <div key={lIdx} className="truncate">
+                                {li.productName} ({li.quantity}x @ {formatCurrency(li.unitPrice)})
+                              </div>
+                            ))}
+                          </div>
+
+                          <div className="flex justify-between items-center text-[10px] text-on-surface-variant mt-0.5 border-t border-outline-variant/30 pt-1.5">
+                            <span>{new Date(sQuote.createdAt).toLocaleDateString()}</span>
+                            <span className="font-bold text-primary text-xs">{formatCurrency(sQuote.totalAmount)}</span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+
             </div>
-            <button className="w-full p-3 text-sm font-semibold text-secondary hover:bg-surface-container transition-colors rounded-b-xl border-t border-outline-variant">View Full History</button>
+            
+            {activeHistoryTab === "client" && (
+              <button className="w-full p-3.5 text-sm font-semibold text-secondary hover:bg-surface-container transition-colors rounded-b-xl border-t border-outline-variant">
+                View Full History
+              </button>
+            )}
           </div>
 
           {/* Quick Tools */}

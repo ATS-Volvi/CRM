@@ -258,7 +258,12 @@ export const getLeadDealForQuote = async (req: Request, res: Response) => {
 
     // None exists: create one using sensible defaults
     // stageId: PipelineStage matching lead's status
-    let stage = await sequelize.models.PipelineStage.findOne({ where: { name: (lead as any).status } });
+    const validStages = ["New", "Contacted", "Qualified", "Meeting/Demo", "Proposal", "Negotiation", "Won", "Lost", "On Hold"];
+    const searchStatus = (lead as any).status === "New Lead" ? "New" : (lead as any).status;
+    let stage = null;
+    if (validStages.includes(searchStatus)) {
+      stage = await sequelize.models.PipelineStage.findOne({ where: { name: searchStatus } });
+    }
     if (!stage) {
       stage = await sequelize.models.PipelineStage.findOne({ order: [['order', 'ASC']] });
     }
