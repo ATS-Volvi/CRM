@@ -8,6 +8,8 @@
   ],
   "scripts": {
     "build": "npm run build --workspace=database && npm run build --workspace=frontend && npm run build --workspace=backend",
+    "migrate": "npx sequelize-cli db:migrate",
+    "seed": "node database/scripts/seedSalesReps.js && node database/scripts/seedTransactions.js",
     "build:backend": "npm run build --workspace=backend",
     "start:backend": "npm run start --workspace=backend",
     "dev:frontend": "npm run dev --workspace=frontend",
