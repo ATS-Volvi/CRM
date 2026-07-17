@@ -29,6 +29,9 @@ module.exports = {
     }
 
     // 2. Create KpiTargets table
+    try {
+      await queryInterface.dropTable('KpiTargets');
+    } catch (e) {}
     await queryInterface.createTable('KpiTargets', {
       id: { type: Sequelize.UUID, defaultValue: Sequelize.UUIDV4, primaryKey: true },
       salespersonId: {

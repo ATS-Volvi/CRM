@@ -428,9 +428,9 @@ async function seedDatabase() {
 
     console.log("Seeding KPI Targets...");
     const kpiData = [
-      { userId: rep1.id, kpiName: "revenue", targetValue: 80000, period: "monthly" },
-      { userId: rep1.id, kpiName: "deals_closed", targetValue: 5, period: "monthly" },
-      { userId: rep2.id, kpiName: "revenue", targetValue: 120000, period: "monthly" }
+      { salespersonId: rep1.id, kpiName: "revenue", targetValue: 80000, frequency: "monthly" },
+      { salespersonId: rep1.id, kpiName: "deals_closed", targetValue: 5, frequency: "monthly" },
+      { salespersonId: rep2.id, kpiName: "revenue", targetValue: 120000, frequency: "monthly" }
     ];
     for (const k of kpiData) {
       await models.KpiTarget.create({ id: crypto.randomUUID(), ...k });
