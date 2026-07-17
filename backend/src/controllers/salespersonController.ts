@@ -83,13 +83,32 @@ export const getSalespersonsPerformance = async (req: Request, res: Response) =>
     // 1. Fetch scoped users
     const users = await sequelize.models.User.findAll({
       where: { id: { [Op.in]: scopedUserIds } },
-      attributes: ["id", "name", "role", "isAvailable", "maxOpenLeads"]
+      attributes: ["id", "name", "role", "isAvailable", "maxOpenLeads", "department", "territory", "team"]
     });
 
     const salespersonStats = [];
 
+    // Fetch active KPI Master names once
+    const activeMasters = await sequelize.models.KpiMaster.findAll({ where: { isActive: true }, attributes: ["name"] });
+    const activeKpiNames = activeMasters.map((m: any) => m.name);
+
     for (const user of users) {
       const u = user as any;
+
+      // Fetch KPI Targets summary restricted to active master KPIs
+      const targets = await sequelize.models.KpiTarget.findAll({
+        where: { 
+          salespersonId: u.id,
+          kpiName: { [Op.in]: activeKpiNames }
+        }
+      });
+      const activeKpiCount = targets.filter((t: any) => t.targetValue > 0).length;
+      
+      const revClosedModel = targets.find((t: any) => t.kpiName === "Revenue Closed");
+      const revenueClosed = revClosedModel ? (revClosedModel as any).currentValue : 0;
+      
+      const monthlyAchievementModel = targets.find((t: any) => t.kpiName === "Monthly Achievement");
+      const targetAchievementPct = monthlyAchievementModel ? (monthlyAchievementModel as any).currentValue : 0;
 
       // 2. Fetch all leads assigned to this user
       const leads = await sequelize.models.Lead.findAll({
@@ -235,6 +254,12 @@ export const getSalespersonsPerformance = async (req: Request, res: Response) =>
         role: u.role,
         isAvailable: u.isAvailable,
         maxOpenLeads: u.maxOpenLeads,
+        department: u.department || "Sales",
+        territory: u.territory || "EMEA",
+        team: u.team || "Aces",
+        activeKpiCount,
+        revenueClosed,
+        targetAchievementPct,
         totalLeads: leads.length,
         totalDeals: deals.length,
         purchaseOrders,
@@ -266,7 +291,7 @@ export const createSalesperson = async (req: Request, res: Response) => {
       return;
     }
 
-    const { name, email, password, role, maxOpenLeads, isAvailable, managerId } = req.body;
+    const { name, email, password, role, maxOpenLeads, isAvailable, managerId, department, territory, team } = req.body;
 
     // Validate required fields
     if (!name || !email || !password) {
@@ -297,7 +322,10 @@ export const createSalesperson = async (req: Request, res: Response) => {
       role: role || "sales_rep",
       maxOpenLeads: maxOpenLeads ?? 20,
       isAvailable: isAvailable ?? true,
-      managerId: managerId || null
+      managerId: managerId || null,
+      department: department || "Sales",
+      territory: territory || "EMEA",
+      team: team || "Aces"
     }) as any;
 
     // Return created user without the password
@@ -319,7 +347,7 @@ export const getSalespersonPerformanceDetails = async (req: Request, res: Respon
   try {
     const id = req.params.id as string;
     const user = await sequelize.models.User.findByPk(id, {
-      attributes: ["id", "name", "role", "isAvailable", "maxOpenLeads"]
+      attributes: ["id", "name", "role", "isAvailable", "maxOpenLeads", "department", "territory", "team"]
     });
 
     if (!user) {
@@ -566,6 +594,9 @@ export const getSalespersonPerformanceDetails = async (req: Request, res: Respon
       role: u.role,
       isAvailable: u.isAvailable,
       maxOpenLeads: u.maxOpenLeads,
+      department: u.department || "Sales",
+      territory: u.territory || "EMEA",
+      team: u.team || "Aces",
       totalLeads: leads.length,
       totalDeals: deals.length,
       purchaseOrders,
@@ -628,3 +659,484 @@ export const updateSalespersonCapacity = async (req: Request, res: Response) => 
     res.status(500).json({ error: error.message });
   }
 };
+
+// ──────────────────────────────────────────────────────────────
+// KPI TARGETS & TARGET MANAGEMENT
+// ──────────────────────────────────────────────────────────────
+
+const STANDARD_KPIS = [
+  // Lead Generation
+  { name: "New Leads", category: "Lead Generation", defaultVal: 50, freq: "monthly", weight: 10 },
+  { name: "Qualified Leads", category: "Lead Generation", defaultVal: 20, freq: "monthly", weight: 15 },
+  { name: "Assigned Leads", category: "Lead Generation", defaultVal: 60, freq: "monthly", weight: 5 },
+  // Prospecting
+  { name: "Calls Made", category: "Prospecting", defaultVal: 200, freq: "monthly", weight: 10 },
+  { name: "Follow-ups", category: "Prospecting", defaultVal: 150, freq: "monthly", weight: 10 },
+  { name: "Emails", category: "Prospecting", defaultVal: 300, freq: "monthly", weight: 5 },
+  { name: "Customer Visits", category: "Prospecting", defaultVal: 12, freq: "monthly", weight: 15 },
+  // Meetings
+  { name: "Meetings Scheduled", category: "Meetings", defaultVal: 15, freq: "monthly", weight: 10 },
+  { name: "Meetings Completed", category: "Meetings", defaultVal: 10, freq: "monthly", weight: 15 },
+  { name: "Product Demo", category: "Meetings", defaultVal: 8, freq: "monthly", weight: 10 },
+  { name: "Technical Meeting", category: "Meetings", defaultVal: 4, freq: "monthly", weight: 10 },
+  // Sales
+  { name: "Quotations Sent", category: "Sales", defaultVal: 15, freq: "monthly", weight: 10 },
+  { name: "Quotations Approved", category: "Sales", defaultVal: 5, freq: "monthly", weight: 20 },
+  { name: "Purchase Orders", category: "Sales", defaultVal: 5, freq: "monthly", weight: 20 },
+  { name: "Revenue Closed", category: "Sales", defaultVal: 100000, freq: "monthly", weight: 30 },
+  // Conversion
+  { name: "Lead → Meeting %", category: "Conversion", defaultVal: 20, freq: "monthly", weight: 15 },
+  { name: "Meeting → Proposal %", category: "Conversion", defaultVal: 60, freq: "monthly", weight: 15 },
+  { name: "Proposal → PO %", category: "Conversion", defaultVal: 40, freq: "monthly", weight: 15 },
+  { name: "Lead → Customer %", category: "Conversion", defaultVal: 10, freq: "monthly", weight: 20 },
+  // Finance
+  { name: "Invoice Clearance", category: "Finance", defaultVal: 5, freq: "monthly", weight: 10 },
+  { name: "Payment Collection", category: "Finance", defaultVal: 80000, freq: "monthly", weight: 20 },
+  { name: "Outstanding Collections", category: "Finance", defaultVal: 20000, freq: "monthly", weight: 10 },
+  // Customer
+  { name: "New Clients", category: "Customer", defaultVal: 5, freq: "monthly", weight: 15 },
+  { name: "Repeat Clients", category: "Customer", defaultVal: 2, freq: "monthly", weight: 10 },
+  // Performance
+  { name: "Monthly Achievement", category: "Performance", defaultVal: 80, freq: "monthly", weight: 10 },
+  { name: "Quarterly Achievement", category: "Performance", defaultVal: 85, freq: "quarterly", weight: 10 },
+  { name: "Performance Score", category: "Performance", defaultVal: 75, freq: "monthly", weight: 10 }
+];
+
+export const getSalespersonKpis = async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const salesperson = await sequelize.models.User.findByPk(id);
+    if (!salesperson) {
+      res.status(404).json({ error: "Salesperson not found" });
+      return;
+    }
+
+    // 1. Fetch KPI Master definitions (or auto-populate if none exist)
+    let kpiMasters = await sequelize.models.KpiMaster.findAll({ where: { isActive: true } });
+    if (kpiMasters.length === 0) {
+      const createdMasters = [];
+      for (const kpi of STANDARD_KPIS) {
+        const m = await sequelize.models.KpiMaster.create({
+          id: crypto.randomUUID(),
+          name: kpi.name,
+          category: kpi.category,
+          targetValue: kpi.defaultVal,
+          frequency: kpi.freq,
+          weightage: kpi.weight,
+          isActive: true
+        });
+        createdMasters.push(m);
+      }
+      kpiMasters = createdMasters;
+    }
+
+    // 2. Fetch saved targets for salesperson
+    let targets = await sequelize.models.KpiTarget.findAll({
+      where: { salespersonId: id }
+    });
+
+    // 3. Match targets with current active KPI Masters, auto-initializing missing ones
+    const targetMap = new Map(targets.map((t: any) => [t.kpiName, t]));
+    const matchedTargets = [];
+
+    for (const master of kpiMasters) {
+      const existing = targetMap.get((master as any).name);
+      if (!existing) {
+        const t = await sequelize.models.KpiTarget.create({
+          id: crypto.randomUUID(),
+          salespersonId: id,
+          kpiName: (master as any).name,
+          targetValue: (master as any).targetValue,
+          currentValue: 0,
+          frequency: (master as any).frequency,
+          weightage: (master as any).weightage,
+          effectiveDate: new Date(),
+          expiryDate: new Date(new Date().setFullYear(new Date().getFullYear() + 1)),
+          notes: `Auto-initialized target for ${(master as any).name}`,
+          status: "Active"
+        });
+        matchedTargets.push(t);
+      } else {
+        matchedTargets.push(existing);
+      }
+    }
+    targets = matchedTargets;
+
+    // 2. Perform dynamic calculations of currentValue based on real database entries
+    const leads = await sequelize.models.Lead.findAll({ where: { assignedToId: id } });
+    const deals = await sequelize.models.Deal.findAll({ where: { ownerId: id } });
+    const dealIds = deals.map((d: any) => d.id);
+    
+    const activities = await sequelize.models.Activity.findAll({ where: { createdById: id } });
+    const quotes = dealIds.length > 0 ? await sequelize.models.Quote.findAll({ where: { dealId: { [Op.in]: dealIds } } }) : [];
+    
+    // Invoices and PurchaseOrders
+    const invoices = quotes.length > 0 ? await sequelize.models.Invoice.findAll({ where: { quoteId: { [Op.in]: quotes.map((q: any) => q.id) } } }) : [];
+    const pos = quotes.length > 0 ? await sequelize.models.PurchaseOrder.findAll({ where: { quoteId: { [Op.in]: quotes.map((q: any) => q.id) } } }) : [];
+
+    // Helper counts
+    const newLeadsCount = leads.filter((l: any) => l.status === "New").length;
+    const qualifiedLeadsCount = leads.filter((l: any) => l.status === "Qualified" || l.status === "Contacted").length;
+    const assignedLeadsCount = leads.length;
+
+    const callsCount = activities.filter((a: any) => (a.type || "").toLowerCase() === "call").length;
+    const followupsCount = activities.filter((a: any) => (a.type || "").toLowerCase() === "follow_up").length;
+    const emailsCount = activities.filter((a: any) => (a.type || "").toLowerCase() === "email").length;
+    const visitsCount = activities.filter((a: any) => (a.type || "").toLowerCase() === "visit").length;
+
+    const meetingsScheduled = activities.filter((a: any) => (a.type || "").toLowerCase() === "meeting").length;
+    const meetingsCompleted = activities.filter((a: any) => (a.type || "").toLowerCase() === "meeting" && (a.outcome || "").toLowerCase() === "completed").length;
+    const demoCount = activities.filter((a: any) => (a.type || "").toLowerCase() === "demo").length;
+    const techMeetingsCount = activities.filter((a: any) => (a.type || "").toLowerCase() === "technical").length;
+
+    const quotesSentCount = quotes.filter((q: any) => q.status === "Sent" || q.status === "Accepted").length;
+    const quotesApprovedCount = quotes.filter((q: any) => q.status === "Accepted").length;
+    const posCount = pos.length;
+    const revenueClosedVal = pos.reduce((sum: number, po: any) => sum + (parseFloat(po.amount) || 0), 0);
+
+    const leadToMeetingPct = assignedLeadsCount > 0 ? Math.round((meetingsScheduled / assignedLeadsCount) * 100) : 0;
+    const meetingToProposalPct = meetingsScheduled > 0 ? Math.round((quotesSentCount / meetingsScheduled) * 100) : 0;
+    const proposalToPoPct = quotesSentCount > 0 ? Math.round((posCount / quotesSentCount) * 100) : 0;
+    const leadToCustomerPct = assignedLeadsCount > 0 ? Math.round((qualifiedLeadsCount / assignedLeadsCount) * 100) : 0;
+
+    const invoiceClearanceCount = invoices.filter((inv: any) => inv.status === "Paid").length;
+    const paymentCollectionVal = invoices.filter((inv: any) => inv.status === "Paid").reduce((sum: number, inv: any) => sum + (parseFloat(inv.totalAmount || inv.total || 0)), 0);
+    const outstandingVal = invoices.filter((inv: any) => inv.status === "Sent" || inv.status === "Pending").reduce((sum: number, inv: any) => sum + (parseFloat(inv.totalAmount || inv.total || 0)), 0);
+
+    const newClientsCount = qualifiedLeadsCount;
+    // Repeat clients: clients/companies that appear multiple times in leads/deals
+    const clientCompanies = leads.map((l: any) => l.company).filter(Boolean);
+    const uniqueClients = new Set(clientCompanies);
+    const repeatClientsCount = clientCompanies.length - uniqueClients.size;
+
+    // Get current achievement of all other targets to compute Monthly/Quarterly achievements
+    const getAchievement = (current: number, target: number) => {
+      if (target <= 0) return 0;
+      return Math.min(100, Math.round((current / target) * 100));
+    };
+
+    const targetValMaps: Record<string, number> = {};
+
+    const updatedTargets = await Promise.all(
+      targets.map(async (targetModel: any) => {
+        let current = 0;
+        const name = targetModel.kpiName;
+
+        switch (name) {
+          case "New Leads": current = newLeadsCount; break;
+          case "Qualified Leads": current = qualifiedLeadsCount; break;
+          case "Assigned Leads": current = assignedLeadsCount; break;
+          case "Calls Made": current = callsCount; break;
+          case "Follow-ups": current = followupsCount; break;
+          case "Emails": current = emailsCount; break;
+          case "Customer Visits": current = visitsCount; break;
+          case "Meetings Scheduled": current = meetingsScheduled; break;
+          case "Meetings Completed": current = meetingsCompleted; break;
+          case "Product Demo": current = demoCount; break;
+          case "Technical Meeting": current = techMeetingsCount; break;
+          case "Quotations Sent": current = quotesSentCount; break;
+          case "Quotations Approved": current = quotesApprovedCount; break;
+          case "Purchase Orders": current = posCount; break;
+          case "Revenue Closed": current = revenueClosedVal; break;
+          case "Lead → Meeting %": current = leadToMeetingPct; break;
+          case "Meeting → Proposal %": current = meetingToProposalPct; break;
+          case "Proposal → PO %": current = proposalToPoPct; break;
+          case "Lead → Customer %": current = leadToCustomerPct; break;
+          case "Invoice Clearance": current = invoiceClearanceCount; break;
+          case "Payment Collection": current = paymentCollectionVal; break;
+          case "Outstanding Collections": current = outstandingVal; break;
+          case "New Clients": current = newClientsCount; break;
+          case "Repeat Clients": current = repeatClientsCount; break;
+          default: current = targetModel.currentValue || 0; break;
+        }
+
+        targetValMaps[name] = current;
+
+        // Save current value
+        await targetModel.update({ currentValue: current });
+        return targetModel;
+      })
+    );
+
+    // Compute achievements
+    const avgMonthlyAchievement = Math.round(
+      updatedTargets
+        .filter((t: any) => t.frequency === "monthly" && t.kpiName !== "Monthly Achievement" && t.kpiName !== "Performance Score")
+        .reduce((sum: number, t: any) => sum + getAchievement(t.currentValue, t.targetValue), 0) /
+        (updatedTargets.filter((t: any) => t.frequency === "monthly" && t.kpiName !== "Monthly Achievement" && t.kpiName !== "Performance Score").length || 1)
+    );
+
+    const avgQuarterlyAchievement = Math.round(
+      updatedTargets
+        .filter((t: any) => t.frequency === "quarterly" && t.kpiName !== "Quarterly Achievement")
+        .reduce((sum: number, t: any) => sum + getAchievement(t.currentValue, t.targetValue), 0) /
+        (updatedTargets.filter((t: any) => t.frequency === "quarterly" && t.kpiName !== "Quarterly Achievement").length || 1)
+    );
+
+    const performanceScore = Math.round(
+      updatedTargets
+        .filter((t: any) => t.kpiName !== "Performance Score")
+        .reduce((sum: number, t: any) => sum + (getAchievement(t.currentValue, t.targetValue) * (t.weightage || 10)), 0) /
+        (updatedTargets.filter((t: any) => t.kpiName !== "Performance Score").reduce((sum: number, t: any) => sum + (t.weightage || 10), 0) || 1)
+    );
+
+    // Update performance metrics
+    const finalTargets = await Promise.all(
+      updatedTargets.map(async (t: any) => {
+        if (t.kpiName === "Monthly Achievement") {
+          await t.update({ currentValue: avgMonthlyAchievement });
+        } else if (t.kpiName === "Quarterly Achievement") {
+          await t.update({ currentValue: avgQuarterlyAchievement });
+        } else if (t.kpiName === "Performance Score") {
+          await t.update({ currentValue: performanceScore });
+        }
+        return t;
+      })
+    );
+
+    const masters = await sequelize.models.KpiMaster.findAll({ attributes: ["name", "category"] });
+    const categoryMap = new Map(masters.map((m: any) => [m.name, m.category]));
+
+    const result = finalTargets.map((t: any) => {
+      const json = t.toJSON();
+      json.category = categoryMap.get(t.kpiName) || "Performance";
+      return json;
+    });
+
+    res.json(result);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const editKpiTarget = async (req: Request, res: Response) => {
+  try {
+    const caller = (req as any).user;
+    if (!caller || !["admin", "director", "sales_manager"].includes(caller.role)) {
+      res.status(403).json({ error: "Forbidden: Only Admin or Managers can edit targets" });
+      return;
+    }
+
+    const kpiId = req.params.kpiId as string;
+    const { targetValue, frequency, weightage, effectiveDate, expiryDate, notes, reason } = req.body;
+
+    const kpi = await sequelize.models.KpiTarget.findByPk(kpiId);
+    if (!kpi) {
+      res.status(404).json({ error: "KPI target not found" });
+      return;
+    }
+
+    // Check if target is locked
+    if ((kpi as any).status === "Locked") {
+      res.status(400).json({ error: "Target is locked and cannot be edited" });
+      return;
+    }
+
+    const oldVal = (kpi as any).targetValue;
+
+    // Update target
+    await kpi.update({
+      targetValue: targetValue !== undefined ? Number(targetValue) : (kpi as any).targetValue,
+      frequency: frequency || (kpi as any).frequency,
+      weightage: weightage !== undefined ? Number(weightage) : (kpi as any).weightage,
+      effectiveDate: effectiveDate || (kpi as any).effectiveDate,
+      expiryDate: expiryDate || (kpi as any).expiryDate,
+      notes: notes || (kpi as any).notes,
+      createdBy: caller.id
+    });
+
+    // Write to audit history
+    await sequelize.models.KpiTargetHistory.create({
+      id: crypto.randomUUID(),
+      kpiTargetId: kpiId,
+      oldValue: oldVal,
+      newValue: targetValue !== undefined ? Number(targetValue) : oldVal,
+      changedBy: caller.id,
+      reason: reason || "Manual target update",
+      changeDate: new Date()
+    });
+
+    res.json({ message: "KPI target updated successfully", kpi });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const getKpiHistory = async (req: Request, res: Response) => {
+  try {
+    const kpiId = req.params.kpiId as string;
+    const history = await sequelize.models.KpiTargetHistory.findAll({
+      where: { kpiTargetId: kpiId },
+      include: [{ model: sequelize.models.User, as: "changedByUser", attributes: ["name", "email"] }],
+      order: [["changeDate", "DESC"]]
+    });
+    res.json(history);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const restoreKpiHistory = async (req: Request, res: Response) => {
+  try {
+    const caller = (req as any).user;
+    if (!caller || !["admin", "director"].includes(caller.role)) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+
+    const historyId = req.params.historyId as string;
+    const log = await sequelize.models.KpiTargetHistory.findByPk(historyId);
+    if (!log) {
+      res.status(404).json({ error: "Audit history record not found" });
+      return;
+    }
+
+    const kpi = await sequelize.models.KpiTarget.findByPk((log as any).kpiTargetId);
+    if (!kpi) {
+      res.status(404).json({ error: "KPI target not found" });
+      return;
+    }
+
+    const oldVal = (kpi as any).targetValue;
+
+    // Restore to oldValue of history or newValue
+    await kpi.update({
+      targetValue: (log as any).oldValue,
+      createdBy: caller.id
+    });
+
+    // Write restore log to audit history
+    await sequelize.models.KpiTargetHistory.create({
+      id: crypto.randomUUID(),
+      kpiTargetId: (kpi as any).id,
+      oldValue: oldVal,
+      newValue: (log as any).oldValue,
+      changedBy: caller.id,
+      reason: `Restored to value from audit version dated ${new Date((log as any).changeDate).toLocaleDateString()}`,
+      changeDate: new Date()
+    });
+
+    res.json({ message: "KPI target restored successfully", kpi });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const bulkAssignTargets = async (req: Request, res: Response) => {
+  try {
+    const caller = (req as any).user;
+    if (!caller || !["admin", "director"].includes(caller.role)) {
+      res.status(403).json({ error: "Forbidden: Only admins can bulk assign targets" });
+      return;
+    }
+
+    const { kpiName, targetValue, frequency, weightage, department, team, salespersonIds } = req.body;
+
+    if (!kpiName || targetValue === undefined) {
+      res.status(400).json({ error: "kpiName and targetValue are required" });
+      return;
+    }
+
+    const whereUser: any = {};
+    if (salespersonIds && Array.isArray(salespersonIds) && salespersonIds.length > 0) {
+      whereUser.id = { [Op.in]: salespersonIds };
+    } else {
+      if (department) whereUser.department = department;
+      if (team) whereUser.team = team;
+    }
+
+    // Find all matching users
+    const users = await sequelize.models.User.findAll({ where: whereUser });
+    const count = users.length;
+
+    for (const u of users) {
+      let kpi = await sequelize.models.KpiTarget.findOne({
+        where: { salespersonId: (u as any).id, kpiName }
+      });
+
+      const oldVal = kpi ? (kpi as any).targetValue : 0;
+
+      if (kpi) {
+        await kpi.update({
+          targetValue: Number(targetValue),
+          frequency: frequency || (kpi as any).frequency,
+          weightage: weightage !== undefined ? Number(weightage) : (kpi as any).weightage,
+          createdBy: caller.id
+        });
+      } else {
+        kpi = await sequelize.models.KpiTarget.create({
+          id: crypto.randomUUID(),
+          salespersonId: (u as any).id,
+          kpiName,
+          targetValue: Number(targetValue),
+          currentValue: 0,
+          frequency: frequency || "monthly",
+          weightage: weightage !== undefined ? Number(weightage) : 10,
+          createdBy: caller.id,
+          status: "Active"
+        });
+      }
+
+      await sequelize.models.KpiTargetHistory.create({
+        id: crypto.randomUUID(),
+        kpiTargetId: (kpi as any).id,
+        oldValue: oldVal,
+        newValue: Number(targetValue),
+        changedBy: caller.id,
+        reason: `Bulk assigned target by ${department ? 'department: ' + department : team ? 'team: ' + team : 'admin select'}`,
+        changeDate: new Date()
+      });
+    }
+
+    res.json({ message: `Successfully assigned targets to ${count} salespersons.` });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const lockKpiTargets = async (req: Request, res: Response) => {
+  try {
+    const caller = (req as any).user;
+    if (!caller || !["admin", "director"].includes(caller.role)) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+
+    const { salespersonId, status } = req.body; // status: 'Locked' or 'Active'
+    
+    await sequelize.models.KpiTarget.update(
+      { status: status === "Locked" ? "Locked" : "Active" },
+      { where: { salespersonId } }
+    );
+
+    res.json({ message: `Targets updated to ${status} for salesperson.` });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const approveKpiTargetChange = async (req: Request, res: Response) => {
+  try {
+    const caller = (req as any).user;
+    if (!caller || !["admin", "director"].includes(caller.role)) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+
+    const { kpiId, approve } = req.body;
+    const kpi = await sequelize.models.KpiTarget.findByPk(kpiId as string);
+    if (!kpi) {
+      res.status(404).json({ error: "KPI target not found" });
+      return;
+    }
+
+    await kpi.update({
+      status: approve ? "Active" : "Rejected"
+    });
+
+    res.json({ message: approve ? "Target approved and active" : "Target update rejected", kpi });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+

@@ -26,6 +26,7 @@ import LineItems from "./pages/master-data/LineItems";
 import ConstructionItems from "./pages/master-data/ConstructionItems";
 import Pricing from "./pages/master-data/Pricing";
 import LeadSources from "./pages/master-data/LeadSources";
+import Kpis from "./pages/master-data/Kpis";
 import Customers from "./pages/Customers";
 import AIReports from "./pages/AIReports";
 import Settings from "./pages/Settings";
@@ -88,6 +89,7 @@ function App() {
                 <Route path="/master-data/construction-items" element={<ConstructionItems />} />
                 <Route path="/master-data/pricing" element={<Pricing />} />
                 <Route path="/master-data/lead-sources" element={<LeadSources />} />
+                <Route path="/master-data/kpis" element={<Kpis />} />
               </Route>
             </Route>
           </Routes>

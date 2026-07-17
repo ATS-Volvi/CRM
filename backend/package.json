@@ -6,7 +6,7 @@
     "dev": "ts-node-dev index.ts",
     "check:parity": "ts-node scripts/checkModelMigrationParity.ts",
     "build": "npm run check:parity && tsc",
-    "start": "node build/backend/index.js",
+    "start": "node -e \"const fs = require('fs'); const p = fs.existsSync('./build/backend/index.js') ? './build/backend/index.js' : './build/index.js'; require(p);\"",
     "migrate": "npx sequelize-cli db:migrate",
     "migrate-undo": "npx sequelize-cli db:migrate:undo",
     "test:e2e": "jest --detectOpenHandles --forceExit"

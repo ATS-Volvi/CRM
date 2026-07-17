@@ -14,7 +14,10 @@ import { getKpiDashboard, getManagementDashboard, getMyTodayDashboard, getMyHome
 import { getAssignmentRules, createAssignmentRule, updateAssignmentRule, deleteAssignmentRule } from '../controllers/assignmentRuleController';
 import { getBundleTemplates, createBundleTemplate, deleteBundleTemplate } from '../controllers/bundleController';
 import { exportLeads, exportQuotes, exportPurchaseOrders } from '../controllers/exportController';
-import { getSalespersonsPerformance, createSalesperson, getSalespersonPerformanceDetails, getAllSalespersons, updateSalespersonCapacity } from '../controllers/salespersonController';
+import {
+  getSalespersonsPerformance, createSalesperson, getSalespersonPerformanceDetails, getAllSalespersons, updateSalespersonCapacity,
+  getSalespersonKpis, editKpiTarget, getKpiHistory, restoreKpiHistory, bulkAssignTargets, lockKpiTargets, approveKpiTargetChange
+} from '../controllers/salespersonController';
 import {
   getRequirements, createRequirement, updateRequirement, deleteRequirement,
   getLineItems, createLineItem, updateLineItem, deleteLineItem,
@@ -27,6 +30,7 @@ import { getLeadSources, createLeadSource, updateLeadSource, deleteLeadSource } 
 import { queryAiReport } from "../controllers/aiReportController";
 import { parseVoiceLead } from "../controllers/voiceLeadController";
 import { getMySettings, updateMySettings, getMyTeam, reassignTeamManager } from "../controllers/userSettingsController";
+import { getKpiMasters, createKpiMaster, updateKpiMaster, deleteKpiMaster } from "../controllers/kpiMasterController";
 
 const router = Router();
 
@@ -291,6 +295,15 @@ router.get("/salespersons/:id/performance", authMiddleware, getSalespersonPerfor
 router.post("/salespersons", authMiddleware, createSalesperson);
 router.put("/salespersons/:id/capacity", authMiddleware, updateSalespersonCapacity);
 
+// KPI Target Management
+router.get("/salespersons/:id/kpis", authMiddleware, getSalespersonKpis);
+router.put("/kpis/target/:kpiId", authMiddleware, editKpiTarget);
+router.get("/kpis/target/:kpiId/history", authMiddleware, getKpiHistory);
+router.post("/kpis/history/:historyId/restore", authMiddleware, restoreKpiHistory);
+router.post("/kpis/bulk-assign", authMiddleware, bulkAssignTargets);
+router.post("/kpis/lock", authMiddleware, lockKpiTargets);
+router.post("/kpis/approve", authMiddleware, approveKpiTargetChange);
+
 // ==========================================
 // ASSIGNMENT RULES
 // ==========================================
@@ -359,6 +372,11 @@ router.delete("/master-data/construction-items/:id", authMiddleware, deleteConst
 
 router.get("/master-data/pricing", authMiddleware, getPricingGrid);
 router.patch("/master-data/pricing/:id", authMiddleware, updateConstructionItemPricing);
+
+router.get("/master-data/kpis", authMiddleware, getKpiMasters);
+router.post("/master-data/kpis", authMiddleware, createKpiMaster);
+router.put("/master-data/kpis/:id", authMiddleware, updateKpiMaster);
+router.delete("/master-data/kpis/:id", authMiddleware, deleteKpiMaster);
 
 // ==========================================
 // CUSTOMERS

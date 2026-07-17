@@ -21,6 +21,7 @@ const tableMap: Record<string, string> = {
   BundleItem: 'BundleItems',
   ApprovalTier: 'ApprovalTiers',
   KpiTarget: 'KpiTargets',
+  KpiTargetHistory: 'KpiTargetHistories',
   Requirement: 'Requirements',
   LineItem: 'LineItems',
   ConstructionItem: 'ConstructionItems',

@@ -23,5 +23,22 @@ export function createServer(): Express {
 
   app.use("/api/v1", v1Router);
 
+  // Serve static assets from frontend build if they exist
+  const frontendBuildPath = path.join(process.cwd(), "frontend/dist");
+  app.use(express.static(frontendBuildPath));
+
+  // SPA routing fallback for Client-side react Router paths
+  app.get("*", (req, res, next) => {
+    if (req.path.startsWith("/api") || req.path.startsWith("/static") || req.path.startsWith("/api-docs")) {
+      return next();
+    }
+    res.sendFile(path.join(frontendBuildPath, "index.html"), (err) => {
+      if (err) {
+        // If index.html is missing (e.g. during local backend-only testing), pass to default 404 handler
+        next();
+      }
+    });
+  });
+
   return app;
 }

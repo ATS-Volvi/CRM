@@ -12,6 +12,9 @@ export class User extends Model {
   public onLeave!: boolean | null;
   public delegatedUserId!: string | null;
   public managerId!: string | null;
+  public department!: string | null;
+  public territory!: string | null;
+  public team!: string | null;
 }
 
 User.init(
@@ -25,7 +28,10 @@ User.init(
     isAvailable: { type: DataTypes.BOOLEAN, defaultValue: true },
     onLeave: { type: DataTypes.BOOLEAN, defaultValue: false },
     delegatedUserId: { type: DataTypes.UUID, allowNull: true },
-    managerId: { type: DataTypes.UUID, allowNull: true }
+    managerId: { type: DataTypes.UUID, allowNull: true },
+    department: { type: DataTypes.STRING, allowNull: true },
+    territory: { type: DataTypes.STRING, allowNull: true },
+    team: { type: DataTypes.STRING, allowNull: true }
   },
   { sequelize, modelName: "User" }
 );
@@ -607,29 +613,6 @@ ApprovalTier.init(
   { sequelize, modelName: "ApprovalTier" }
 );
 
-export class KpiTarget extends Model {
-  public id!: string;
-  public userId!: string;
-  public kpiName!: string;
-  public targetValue!: number;
-  public period!: string; // 'monthly', 'quarterly', etc.
-}
-
-KpiTarget.init(
-  {
-    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
-    userId: { type: DataTypes.UUID, allowNull: false },
-    kpiName: { type: DataTypes.STRING, allowNull: false },
-    targetValue: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
-    period: { type: DataTypes.STRING, defaultValue: "monthly" }
-  },
-  { sequelize, modelName: "KpiTarget" }
-);
-
-// Define KPI Associations
-User.hasMany(KpiTarget, { foreignKey: "userId", as: "kpiTargets" });
-KpiTarget.belongsTo(User, { foreignKey: "userId", as: "user" });
-
 // ── Master Data BOM Hierarchy ───────────────────────────────
 export class Requirement extends Model {
   public id!: string;
@@ -785,5 +768,97 @@ LeadReassignmentHistory.belongsTo(User, { foreignKey: "oldAssignedToId", as: "ol
 LeadReassignmentHistory.belongsTo(User, { foreignKey: "newAssignedToId", as: "newAssignee" });
 LeadReassignmentHistory.belongsTo(User, { foreignKey: "changedByUserId", as: "changedByUser" });
 
+export class KpiTarget extends Model {
+  public id!: string;
+  public salespersonId!: string;
+  public kpiName!: string;
+  public targetValue!: number;
+  public currentValue!: number;
+  public frequency!: string;
+  public weightage!: number;
+  public effectiveDate!: Date | null;
+  public expiryDate!: Date | null;
+  public notes!: string | null;
+  public createdBy!: string | null;
+  public status!: string;
+  public createdAt!: Date;
+  public updatedAt!: Date;
+}
+
+KpiTarget.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    salespersonId: { type: DataTypes.UUID, allowNull: false },
+    kpiName: { type: DataTypes.STRING, allowNull: false },
+    targetValue: { type: DataTypes.FLOAT, defaultValue: 0 },
+    currentValue: { type: DataTypes.FLOAT, defaultValue: 0 },
+    frequency: { type: DataTypes.STRING, defaultValue: "monthly" },
+    weightage: { type: DataTypes.INTEGER, defaultValue: 10 },
+    effectiveDate: { type: DataTypes.DATE, allowNull: true },
+    expiryDate: { type: DataTypes.DATE, allowNull: true },
+    notes: { type: DataTypes.TEXT, allowNull: true },
+    createdBy: { type: DataTypes.UUID, allowNull: true },
+    status: { type: DataTypes.STRING, defaultValue: "Active" }
+  },
+  { sequelize, modelName: "KpiTarget" }
+);
+
+export class KpiTargetHistory extends Model {
+  public id!: string;
+  public kpiTargetId!: string;
+  public oldValue!: number;
+  public newValue!: number;
+  public changedBy!: string;
+  public changeDate!: Date;
+  public reason!: string | null;
+  public createdAt!: Date;
+  public updatedAt!: Date;
+}
+
+KpiTargetHistory.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    kpiTargetId: { type: DataTypes.UUID, allowNull: false },
+    oldValue: { type: DataTypes.FLOAT, defaultValue: 0 },
+    newValue: { type: DataTypes.FLOAT, defaultValue: 0 },
+    changedBy: { type: DataTypes.UUID, allowNull: false },
+    changeDate: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
+    reason: { type: DataTypes.TEXT, allowNull: true }
+  },
+  { sequelize, modelName: "KpiTargetHistory" }
+);
+
+User.hasMany(KpiTarget, { foreignKey: "salespersonId", as: "kpiTargets" });
+KpiTarget.belongsTo(User, { foreignKey: "salespersonId", as: "salesperson" });
+
+KpiTarget.hasMany(KpiTargetHistory, { foreignKey: "kpiTargetId", as: "history" });
+KpiTargetHistory.belongsTo(KpiTarget, { foreignKey: "kpiTargetId", as: "kpiTarget" });
+
+KpiTargetHistory.belongsTo(User, { foreignKey: "changedBy", as: "changedByUser" });
+
+export class KpiMaster extends Model {
+  public id!: string;
+  public name!: string;
+  public category!: string;
+  public targetValue!: number;
+  public frequency!: string;
+  public weightage!: number;
+  public isActive!: boolean;
+}
+
+KpiMaster.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    name: { type: DataTypes.STRING, allowNull: false, unique: true },
+    category: { type: DataTypes.STRING, allowNull: false },
+    targetValue: { type: DataTypes.FLOAT, defaultValue: 0 },
+    frequency: { type: DataTypes.STRING, defaultValue: "monthly" },
+    weightage: { type: DataTypes.INTEGER, defaultValue: 10 },
+    isActive: { type: DataTypes.BOOLEAN, defaultValue: true }
+  },
+  { sequelize, modelName: "KpiMaster" }
+);
+
 export { sequelize };
+
 

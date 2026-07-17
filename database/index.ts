@@ -1,2 +1,2 @@
-export * from "./models";
+export * from "./models/index";
 export * from "./config/dbConn";

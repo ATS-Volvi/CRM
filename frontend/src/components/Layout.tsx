@@ -78,6 +78,7 @@ export function Layout() {
     { name: "Construction Items", path: "/master-data/construction-items" },
     { name: "Pricing Grid", path: "/master-data/pricing" },
     { name: "Lead Sources", path: "/master-data/lead-sources" },
+    { name: "KPI Master", path: "/master-data/kpis" },
     { name: "Price Book", path: "/price-book" }
   ];
 
