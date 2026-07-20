@@ -7,11 +7,11 @@ import { getLeadActivities, createActivity, togglePinActivity, completeTask, get
 import { getLeads, getLead, createLead, updateLead, deleteLead, getDuplicateLeads, mergeLeads, reassignLead, getLeadReassignmentHistory, getLeadDealForQuote } from '../controllers/leadController';
 import { getPriceBookEntries, createPriceBookEntry, updatePriceBookEntry, deletePriceBookEntry, importPriceBookEntries, getPriceSuggestion, importPriceBookEntriesPreview } from '../controllers/priceBookController';
 import { getQuotes, createQuote, getQuoteRecommendations, sendQuote, getPublicQuote, generateQuotePdf, signQuote, getQuoteHistoryByClient, getSimilarQuotesStats, getSimilarClientQuotes } from '../controllers/quoteController';
-import { getInvoices, createInvoiceFromQuote, updateInvoiceStatus } from '../controllers/invoiceController';
+import { getInvoices, createInvoiceFromQuote, updateInvoiceStatus, generateInvoicePdf } from '../controllers/invoiceController';
 import { getPurchaseOrders, createPurchaseOrder, updatePurchaseOrder } from '../controllers/purchaseOrderController';
 import { getApprovals, updateApproval, getApprovalTiers, createApprovalTier, deleteApprovalTier } from '../controllers/approvalController';
 import { getKpiDashboard, getManagementDashboard, getMyTodayDashboard, getMyHomeDashboard, getKpiTarget, updateKpiTarget, getActivitiesReports, getHomeDashboard } from '../controllers/dashboardController';
-import { getAssignmentRules, createAssignmentRule, updateAssignmentRule, deleteAssignmentRule } from '../controllers/assignmentRuleController';
+import { getAssignmentRules, createAssignmentRule, updateAssignmentRule, deleteAssignmentRule, getSalespersonsCapacities, balanceSalespersonsCapacities } from '../controllers/assignmentRuleController';
 import { getBundleTemplates, createBundleTemplate, deleteBundleTemplate } from '../controllers/bundleController';
 import { exportLeads, exportQuotes, exportPurchaseOrders } from '../controllers/exportController';
 import {
@@ -249,6 +249,7 @@ router.get("/quotes/:id/pdf", authMiddleware, generateQuotePdf);
 router.get("/invoices", authMiddleware, getInvoices);
 router.post("/invoices/from-quote", authMiddleware, createInvoiceFromQuote);
 router.put("/invoices/:id/status", authMiddleware, updateInvoiceStatus);
+router.get("/invoices/:id/pdf", authMiddleware, generateInvoicePdf);
 
 // ==========================================
 // PRICE BOOK
@@ -308,6 +309,8 @@ router.post("/kpis/approve", authMiddleware, approveKpiTargetChange);
 // ==========================================
 // ASSIGNMENT RULES
 // ==========================================
+router.get("/assignment-rules/capacities", authMiddleware, getSalespersonsCapacities);
+router.post("/assignment-rules/balance-capacity", authMiddleware, balanceSalespersonsCapacities);
 router.get("/assignment-rules", authMiddleware, getAssignmentRules);
 router.post("/assignment-rules", authMiddleware, createAssignmentRule);
 router.put("/assignment-rules/:id", authMiddleware, updateAssignmentRule);

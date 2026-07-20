@@ -14,12 +14,35 @@ export default function AssignmentRules() {
   const [showAddRuleModal, setShowAddRuleModal] = useState(false);
   const [newRule, setNewRule] = useState({ name: "", description: "", ruleType: "round-robin", criteria: "All Leads", action: "" });
   const [fallbackUser, setFallbackUser] = useState("Sales Ops Manager");
-  const [capacities, setCapacities] = useState([
-    { name: "Ahmed K.", current: 14, max: 20 },
-    { name: "Sarah L.", current: 19, max: 20, isError: true },
-    { name: "Rahul M.", current: 5, max: 15 },
-    { name: "Jessica W.", current: 12, max: 12 }
-  ]);
+
+  const { data: capacities = [], isLoading: isLoadingCapacities, refetch: refetchCapacities } = useQuery<any[]>({
+    queryKey: ["salespersonsCapacities"],
+    queryFn: async () => {
+      const res = await fetch("/api/v1/assignment-rules/capacities", {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error("Failed to fetch capacities");
+      return res.json();
+    }
+  });
+
+  const balanceLimitsMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/v1/assignment-rules/balance-capacity", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: (data) => {
+      alert(data.message || "Limits balanced successfully!");
+      refetchCapacities();
+    },
+    onError: (err: any) => {
+      alert("Failed to balance limits: " + err.message);
+    }
+  });
 
   const { data: rules, isLoading } = useQuery({
     queryKey: ["assignmentRules"],
@@ -86,16 +109,6 @@ export default function AssignmentRules() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-  };
-
-  const handleBalanceLimits = () => {
-    setCapacities([
-      { name: "Ahmed K.", current: 12, max: 20 },
-      { name: "Sarah L.", current: 12, max: 20 },
-      { name: "Rahul M.", current: 12, max: 15 },
-      { name: "Jessica W.", current: 10, max: 12 }
-    ]);
-    alert("Limits balanced successfully across active sales representatives!");
   };
 
   return (
@@ -287,36 +300,48 @@ export default function AssignmentRules() {
         {/* Right Sidebar: Capacity & Status */}
         <aside className="w-80 flex flex-col gap-6">
           {/* Capacity Meter Widget */}
-<section className="bg-surface-container-lowest border border-outline-variant rounded-xl p-6 shadow-sm">
+          <section className="bg-surface-container-lowest border border-outline-variant rounded-xl p-6 shadow-sm">
             <div className="flex justify-between items-center mb-4">
               <h4 className="text-[12px] font-bold uppercase text-on-surface-variant">Agent Capacity</h4>
               <Sliders className="w-5 h-5 text-outline" />
             </div>
-            <div className="space-y-6">
-              {capacities.map((cap) => {
-                const percentage = Math.round((cap.current / cap.max) * 100);
-                const barColor = cap.isError ? "bg-error" : percentage > 80 ? "bg-amber-500" : "bg-primary";
-                return (
-                  <div key={cap.name}>
-                    <div className="flex justify-between text-sm mb-1">
-                      <span className="font-bold">{cap.name}</span>
-                      <span className={`${cap.isError ? "text-error font-bold" : "text-on-surface-variant"}`}>
-                        {cap.current} / {cap.max} leads
-                      </span>
-                    </div>
-                    <div className="w-full bg-surface-container h-2 rounded-full overflow-hidden">
-                      <div className={`${barColor} h-full rounded-full`} style={{ width: `${percentage}%` }}></div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            <button 
-              onClick={handleBalanceLimits}
-              className="w-full mt-6 py-2 text-primary font-bold text-[12px] uppercase border border-primary/20 rounded-lg hover:bg-primary/5 transition-colors"
-            >
-              Balance All Limits
-            </button>
+             <div className="space-y-6">
+               {isLoadingCapacities ? (
+                 <div className="text-xs text-on-surface-variant animate-pulse">Loading capacities...</div>
+               ) : capacities.length === 0 ? (
+                 <div className="text-xs text-on-surface-variant">No active salespersons found.</div>
+               ) : (
+                 capacities.map((cap: any) => {
+                   const percentage = Math.min(100, Math.round((cap.current / cap.max) * 100));
+                   const isOverloaded = cap.current >= cap.max;
+                   const barColor = isOverloaded ? "bg-error" : percentage > 80 ? "bg-amber-500" : "bg-primary";
+                   return (
+                     <div key={cap.id || cap.name}>
+                       <div className="flex justify-between text-sm mb-1">
+                         <span className="font-bold">{cap.name}</span>
+                         <span className={`${isOverloaded ? "text-error font-bold" : "text-on-surface-variant"}`}>
+                           {cap.current} / {cap.max} leads
+                         </span>
+                       </div>
+                       <div className="w-full bg-surface-container h-2 rounded-full overflow-hidden">
+                         <div className={`${barColor} h-full rounded-full`} style={{ width: `${percentage}%` }}></div>
+                       </div>
+                     </div>
+                   );
+                 })
+               )}
+             </div>
+             <button 
+               onClick={() => {
+                 if (confirm("Redistribute open leads and balance agent capacities in database?")) {
+                   balanceLimitsMutation.mutate();
+                 }
+               }}
+               disabled={balanceLimitsMutation.isPending}
+               className="w-full mt-6 py-2 text-primary font-bold text-[12px] uppercase border border-primary/20 rounded-lg hover:bg-primary/5 transition-colors disabled:opacity-50"
+             >
+               {balanceLimitsMutation.isPending ? "Balancing..." : "Balance All Limits"}
+             </button>
           </section>
 
           {/* Out of Office Status */}

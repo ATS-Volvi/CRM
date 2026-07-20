@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { formatCurrency } from "../utils/currency";
@@ -7,8 +7,9 @@ import { ArrowLeft, Printer, Download, CreditCard, FileText } from "lucide-react
 export default function InvoiceDetail() {
   const { id } = useParams();
   const { token } = useAuth();
+  const queryClient = useQueryClient();
 
-  const { data: invoices, isLoading } = useQuery({
+  const { data: invoices, isLoading, refetch } = useQuery({
     queryKey: ["invoices"],
     queryFn: async () => {
       const res = await fetch("/api/v1/invoices", {
@@ -16,6 +17,29 @@ export default function InvoiceDetail() {
       });
       if (!res.ok) throw new Error("Failed to fetch invoices");
       return res.json();
+    }
+  });
+
+  const updateStatusMutation = useMutation({
+    mutationFn: async (status: string) => {
+      const res = await fetch(`/api/v1/invoices/${id}/status`, {
+        method: "PUT",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}` 
+        },
+        body: JSON.stringify({ status })
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      refetch();
+      alert("Payment processed successfully! Invoice marked as Paid.");
+    },
+    onError: (err: any) => {
+      alert("Error: " + err.message);
     }
   });
 
@@ -62,14 +86,28 @@ export default function InvoiceDetail() {
           </div>
         </div>
         <div className="flex gap-3">
-          <button className="flex items-center gap-2 px-4 py-2 bg-surface-container border border-outline-variant text-on-surface text-sm font-bold rounded-lg shadow-sm hover:bg-surface-container-high transition-colors">
+          <button 
+            onClick={() => window.print()}
+            className="flex items-center gap-2 px-4 py-2 bg-surface-container border border-outline-variant text-on-surface text-sm font-bold rounded-lg shadow-sm hover:bg-surface-container-high transition-colors"
+          >
             <Printer className="w-4 h-4" /> Print
           </button>
-          <button className="flex items-center gap-2 px-4 py-2 bg-surface-container border border-outline-variant text-on-surface text-sm font-bold rounded-lg shadow-sm hover:bg-surface-container-high transition-colors">
+          <button 
+            onClick={() => window.open(`/api/v1/invoices/${invoice.id}/pdf`, "_blank")}
+            className="flex items-center gap-2 px-4 py-2 bg-surface-container border border-outline-variant text-on-surface text-sm font-bold rounded-lg shadow-sm hover:bg-surface-container-high transition-colors"
+          >
             <Download className="w-4 h-4" /> Download PDF
           </button>
           {invoice.status !== 'Paid' && (
-            <button className="flex items-center gap-2 px-4 py-2 bg-primary text-on-primary text-sm font-bold rounded-lg shadow-sm hover:opacity-90 transition-opacity shadow-primary/30">
+            <button 
+              onClick={() => {
+                if (confirm("Are you sure you want to mark this invoice as Paid?")) {
+                  updateStatusMutation.mutate("Paid");
+                }
+              }}
+              disabled={updateStatusMutation.isPending}
+              className="flex items-center gap-2 px-4 py-2 bg-primary text-on-primary text-sm font-bold rounded-lg shadow-sm hover:opacity-90 transition-opacity shadow-primary/30 disabled:opacity-50"
+            >
               <CreditCard className="w-4 h-4" /> Process Payment
             </button>
           )}
