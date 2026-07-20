@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import { 
   TrendingUp, TrendingDown, Info, Calendar, Download, 
   ChevronDown, DollarSign, Activity, Star, Zap, Mail, Users, Globe, Share2 
@@ -52,7 +53,10 @@ export default function ManagementDashboard() {
             <Calendar className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface" />
             <ChevronDown className="w-4 h-4 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface" />
           </div>
-          <button className="flex items-center gap-2 px-6 py-4 rounded-lg bg-secondary text-on-secondary text-sm font-semibold hover:bg-opacity-90 transition-all shadow-md">
+          <button 
+            onClick={() => window.print()}
+            className="flex items-center gap-2 px-6 py-4 rounded-lg bg-secondary text-on-secondary text-sm font-semibold hover:bg-opacity-90 transition-all shadow-md"
+          >
             <Download className="w-5 h-5" />
             Export PDF
           </button>
@@ -178,7 +182,7 @@ export default function ManagementDashboard() {
             <div className="col-span-12 lg:col-span-4 bg-white/90 backdrop-blur border border-slate-200 p-8 rounded-xl shadow-sm">
               <div className="flex justify-between items-center mb-8">
                 <h5 className="text-lg font-semibold">Top Performers</h5>
-                <button className="text-primary font-semibold text-xs hover:underline">View All</button>
+                <Link to="/salespersons" className="text-primary font-semibold text-xs hover:underline">View All</Link>
               </div>
               <div className="space-y-6">
                 <div className="flex items-center gap-4">

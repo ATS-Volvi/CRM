@@ -526,12 +526,38 @@ export default function QuotationBuilder() {
           {/* PDF Preview Pane */}
           <div className="bg-surface-container border border-outline-variant rounded-xl p-8 relative min-h-[400px] flex flex-col items-center">
             <div className="absolute top-4 right-4 flex gap-2 z-10">
-              <button className="bg-white/80 backdrop-blur p-2 rounded shadow-sm hover:bg-white"><ZoomIn className="w-5 h-5" /></button>
-              <button className="bg-white/80 backdrop-blur p-2 rounded shadow-sm hover:bg-white"><Printer className="w-5 h-5" /></button>
-              <button className="bg-white/80 backdrop-blur p-2 rounded shadow-sm hover:bg-white"><Maximize className="w-5 h-5" /></button>
+              <button 
+                onClick={() => alert("Zooming is simulated. Adjust your browser's zoom context to view detail.")}
+                className="bg-white/80 backdrop-blur p-2 rounded shadow-sm hover:bg-white"
+              >
+                <ZoomIn className="w-5 h-5" />
+              </button>
+              <button 
+                onClick={() => window.print()}
+                className="bg-white/80 backdrop-blur p-2 rounded shadow-sm hover:bg-white"
+              >
+                <Printer className="w-5 h-5" />
+              </button>
+              <button 
+                onClick={() => {
+                  const el = document.getElementById("pdf-preview-box");
+                  if (el) {
+                    if (el.classList.contains("scale-[0.6]")) {
+                      el.classList.remove("scale-[0.6]", "origin-top");
+                      el.classList.add("scale-100");
+                    } else {
+                      el.classList.add("scale-[0.6]", "origin-top");
+                      el.classList.remove("scale-100");
+                    }
+                  }
+                }}
+                className="bg-white/80 backdrop-blur p-2 rounded shadow-sm hover:bg-white"
+              >
+                <Maximize className="w-5 h-5" />
+              </button>
             </div>
             
-            <div className="bg-white w-[595px] h-[842px] shadow-xl p-8 scale-[0.6] origin-top border border-outline-variant pointer-events-none mt-8">
+            <div id="pdf-preview-box" className="bg-white w-[595px] h-[842px] shadow-xl p-8 scale-[0.6] origin-top border border-outline-variant pointer-events-none mt-8 transition-transform">
               {/* Branded Template Visual */}
               <div className="flex justify-between items-start mb-16">
                 <div className="text-4xl font-extrabold text-primary">CRM.</div>
@@ -788,9 +814,9 @@ export default function QuotationBuilder() {
             </div>
             
             {activeHistoryTab === "client" && (
-              <button className="w-full p-3.5 text-sm font-semibold text-secondary hover:bg-surface-container transition-colors rounded-b-xl border-t border-outline-variant">
+              <Link to="/quotes" className="w-full p-3.5 text-sm font-semibold text-secondary hover:bg-surface-container transition-colors rounded-b-xl border-t border-outline-variant text-center block">
                 View Full History
-              </button>
+              </Link>
             )}
           </div>
 

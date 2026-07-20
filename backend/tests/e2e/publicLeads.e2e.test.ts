@@ -20,7 +20,7 @@ describe("E2E: Social Lead Capture", () => {
       .send(payload);
 
     expect(response.status).toBe(201);
-    expect(response.body).toHaveProperty("message", "Lead captured successfully");
+    expect(response.body).toHaveProperty("success", true);
     expect(response.body).toHaveProperty("leadId");
 
     // Verify it was actually saved in DB

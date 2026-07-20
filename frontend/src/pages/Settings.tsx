@@ -1,7 +1,7 @@
 import { useAuth } from "../context/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Settings as SettingsIcon, Shield, CheckCircle, RefreshCw, UserCheck, ToggleLeft, ToggleRight, Users } from "lucide-react";
+import { Settings as SettingsIcon, Shield, CheckCircle, RefreshCw, UserCheck, ToggleLeft, ToggleRight, Users, Mail } from "lucide-react";
 
 export default function Settings() {
   const { token, user } = useAuth();
@@ -10,6 +10,8 @@ export default function Settings() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [message, setMessage] = useState<string | null>(null);
+  const [authCode, setAuthCode] = useState("");
+  const [showCodeInput, setShowCodeInput] = useState(false);
 
   // Fetch current user settings
   const { data: mySettings } = useQuery({
@@ -22,6 +24,99 @@ export default function Settings() {
       return res.json();
     }
   });
+
+  // Fetch Gmail status
+  const { data: gmailConfig, refetch: refetchGmail } = useQuery({
+    queryKey: ["gmailStatus"],
+    queryFn: async () => {
+      const res = await fetch("/api/v1/gmail/status", {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error("Failed to fetch Gmail status");
+      return res.json();
+    }
+  });
+
+  const connectGmailMutation = useMutation({
+    mutationFn: async (code: string) => {
+      const res = await fetch("/api/v1/gmail/connect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({ code })
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["gmailStatus"] });
+      setMessage("Gmail connected successfully!");
+      setAuthCode("");
+      setShowCodeInput(false);
+      setTimeout(() => setMessage(null), 3000);
+    },
+    onError: (err: any) => {
+      alert(err.message || "Failed to connect Gmail");
+    }
+  });
+
+  const syncGmailMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/v1/gmail/sync", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+      queryClient.invalidateQueries({ queryKey: ["gmailStatus"] });
+      setMessage(`Sync complete! Ingested ${data.ingestedCount} new leads.`);
+      setTimeout(() => setMessage(null), 4000);
+    },
+    onError: (err: any) => {
+      alert(err.message || "Sync failed");
+    }
+  });
+
+  const disconnectGmailMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/v1/gmail/disconnect", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["gmailStatus"] });
+      setMessage("Gmail disconnected.");
+      setTimeout(() => setMessage(null), 3000);
+    }
+  });
+
+  const handleStartOAuth = async () => {
+    try {
+      const res = await fetch("/api/v1/gmail/auth-url", {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error("Failed to generate Auth URL");
+      const { url } = await res.json();
+      
+      // If mock client id, open mock prompt
+      if (url.includes("MOCK_CLIENT_ID")) {
+        const mockCode = prompt("Enter mock authorization code (e.g. mock_auth_code_123) to complete simulated integration:");
+        if (mockCode) {
+          connectGmailMutation.mutate(mockCode);
+        }
+      } else {
+        window.open(url, "_blank");
+        setShowCodeInput(true);
+      }
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
 
   // Fetch direct reports (team members)
   const { data: team } = useQuery<any[]>({
@@ -148,6 +243,85 @@ export default function Settings() {
                   )}
                 </button>
               </div>
+            </div>
+
+            {/* Gmail Connector Card */}
+            <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-6 shadow-sm space-y-4">
+              <h3 className="text-lg font-bold text-on-surface flex items-center gap-2">
+                <Mail className="w-5 h-5 text-primary" />
+                Gmail Lead Ingestion
+              </h3>
+              <p className="text-sm text-on-surface-variant">
+                Connect your business Gmail account to automatically monitor and ingest incoming customer emails as leads.
+              </p>
+
+              {gmailConfig?.connected ? (
+                <div className="space-y-4">
+                  <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl space-y-1">
+                    <p className="text-xs font-bold text-emerald-800 uppercase tracking-wider">Connected Account</p>
+                    <p className="text-sm font-bold text-emerald-950">{gmailConfig.email}</p>
+                    <p className="text-[11px] text-emerald-700">
+                      Last Checked: {gmailConfig.lastSyncedAt ? new Date(gmailConfig.lastSyncedAt).toLocaleString() : "Never"}
+                    </p>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => syncGmailMutation.mutate()}
+                      disabled={syncGmailMutation.isPending}
+                      className="flex-1 py-2.5 bg-primary text-white font-bold rounded-lg hover:opacity-90 active:scale-95 transition-all text-xs shadow-sm flex items-center justify-center gap-1.5 disabled:opacity-50"
+                    >
+                      <RefreshCw className={`w-4 h-4 ${syncGmailMutation.isPending ? "animate-spin" : ""}`} />
+                      Sync Now
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirm("Disconnect Gmail account? Lead ingestion for this account will stop.")) {
+                          disconnectGmailMutation.mutate();
+                        }
+                      }}
+                      disabled={disconnectGmailMutation.isPending}
+                      className="py-2.5 px-4 bg-surface-container text-error font-bold rounded-lg hover:bg-surface-container-high transition-colors text-xs"
+                    >
+                      Disconnect
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <button
+                    onClick={handleStartOAuth}
+                    className="w-full py-3 bg-primary text-white font-bold rounded-lg hover:opacity-90 active:scale-95 transition-all shadow-md flex items-center justify-center gap-2"
+                  >
+                    <Mail className="w-5 h-5" />
+                    Connect Gmail Account
+                  </button>
+
+                  {showCodeInput && (
+                    <div className="border border-outline-variant rounded-xl p-4 bg-surface space-y-3">
+                      <p className="text-xs text-on-surface-variant leading-relaxed">
+                        Consent tab opened in a new window. Copy the authorization code from the redirect URL and paste below to complete setup:
+                      </p>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={authCode}
+                          onChange={(e) => setAuthCode(e.target.value)}
+                          placeholder="4/0AdQt8..."
+                          className="flex-1 bg-surface border border-outline rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-primary focus:outline-none"
+                        />
+                        <button
+                          onClick={() => connectGmailMutation.mutate(authCode)}
+                          disabled={connectGmailMutation.isPending || !authCode.trim()}
+                          className="px-4 py-2 bg-secondary text-white text-xs font-bold rounded-lg hover:opacity-90 disabled:opacity-50"
+                        >
+                          Submit
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Profile info & Password change */}

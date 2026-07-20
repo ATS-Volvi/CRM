@@ -31,6 +31,7 @@ import { queryAiReport } from "../controllers/aiReportController";
 import { parseVoiceLead } from "../controllers/voiceLeadController";
 import { getMySettings, updateMySettings, getMyTeam, reassignTeamManager } from "../controllers/userSettingsController";
 import { getKpiMasters, createKpiMaster, updateKpiMaster, deleteKpiMaster } from "../controllers/kpiMasterController";
+import { getGmailAuthUrl, connectGmail, getGmailStatus, disconnectGmail, syncGmail } from "../controllers/gmailController";
 
 const router = Router();
 
@@ -409,6 +410,13 @@ router.get("/users/me/settings", authMiddleware, getMySettings);
 router.put("/users/me/settings", authMiddleware, updateMySettings);
 router.get("/users/me/team", authMiddleware, getMyTeam);
 router.put("/users/team/reassign", authMiddleware, reassignTeamManager);
+
+// Gmail Connector
+router.get("/gmail/auth-url", authMiddleware, getGmailAuthUrl);
+router.post("/gmail/connect", authMiddleware, connectGmail);
+router.get("/gmail/status", authMiddleware, getGmailStatus);
+router.post("/gmail/disconnect", authMiddleware, disconnectGmail);
+router.post("/gmail/sync", authMiddleware, syncGmail);
 
 export default router;
 

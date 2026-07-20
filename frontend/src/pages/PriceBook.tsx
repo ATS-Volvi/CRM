@@ -8,6 +8,8 @@ export default function PriceBook() {
   const { token } = useAuth();
 
   const [activeTab, setActiveTab] = useState("All Products");
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
   
   const tabs = [
     "All Products",
@@ -16,8 +18,8 @@ export default function PriceBook() {
     "Regional (GCC)",
     "Distributor Book"
   ];
-  const { data: priceBook, isLoading } = useQuery({
-    queryKey: ["priceBook"],
+  const { data: priceBook, isLoading } = useQuery<any[]>({
+    queryKey: ["priceBook", activeTab],
     queryFn: async () => {
       const url = activeTab === "All Products" ? "/api/v1/price-book" : `/api/v1/price-book?category=${activeTab}`;
       const res = await fetch(url, {
@@ -27,6 +29,9 @@ export default function PriceBook() {
       return res.json();
     }
   });
+
+  const totalPages = priceBook ? Math.ceil(priceBook.length / pageSize) : 1;
+  const paginatedPriceBook = priceBook?.slice((page - 1) * pageSize, page * pageSize) || [];
 
   const queryClient = useQueryClient();
   const [showModal, setShowModal] = useState(false);
@@ -148,9 +153,29 @@ export default function PriceBook() {
               <Upload className="w-5 h-5" />
               <span className="font-bold">Bulk Update</span>
             </button>
-            <button onClick={() => alert("Export functionality not yet implemented.")} className="flex items-center gap-2 px-4 py-2 border border-outline-variant text-on-surface-variant rounded-lg hover:bg-surface-container-high transition-colors">
+            <button 
+              onClick={async () => {
+                try {
+                  const res = await fetch("/api/v1/exports/leads", {
+                    headers: { "Authorization": `Bearer ${token}` }
+                  });
+                  if (!res.ok) throw new Error("Failed to export products");
+                  const blob = await res.blob();
+                  const url = window.URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = "products_leads_export.csv";
+                  document.body.appendChild(a);
+                  a.click();
+                  a.remove();
+                } catch (err: any) {
+                  alert(err.message);
+                }
+              }}
+              className="flex items-center gap-2 px-4 py-2 border border-outline-variant text-on-surface-variant rounded-lg hover:bg-surface-container-high transition-colors"
+            >
               <Download className="w-5 h-5" />
-              <span className="font-bold">Export .XLSX</span>
+              <span className="font-bold">Export CSV</span>
             </button>
           </div>
         </div>
@@ -210,7 +235,7 @@ export default function PriceBook() {
           {tabs.map((tab) => (
             <button
               key={tab}
-              onClick={() => setActiveTab(tab)}
+              onClick={() => { setActiveTab(tab); setPage(1); }}
               className={`px-4 py-3 font-bold text-[12px] uppercase whitespace-nowrap transition-colors ${
                 activeTab === tab
                   ? "border-b-2 border-primary text-primary"
@@ -243,7 +268,7 @@ export default function PriceBook() {
                     <td colSpan={7} className="px-6 py-8 text-center text-on-surface-variant animate-pulse">Loading price book...</td>
                   </tr>
                 ) : (
-                  priceBook?.map((item: any, i: number) => (
+                  paginatedPriceBook?.map((item: any, i: number) => (
                     <tr key={item.id} className="hover:bg-surface-container-high transition-colors group">
                       <td className="px-6 py-5">
                         <div className="flex items-center gap-3">
@@ -297,15 +322,31 @@ export default function PriceBook() {
           </div>
           {/* Pagination */}
           <div className="flex justify-between items-center px-6 py-4 border-t border-outline-variant bg-surface-container-low">
-            <span className="text-sm text-on-surface-variant">Showing 1-10 of 1,284 results</span>
+            <span className="text-sm text-on-surface-variant">
+              Showing {Math.min((page - 1) * pageSize + 1, priceBook?.length || 0)}-{Math.min(page * pageSize, priceBook?.length || 0)} of {priceBook?.length || 0} results
+            </span>
             <div className="flex gap-2">
-              <button className="px-3 py-1 border border-outline-variant rounded hover:bg-surface-container-high transition-colors text-on-surface-variant">
+              <button 
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="px-3 py-1 border border-outline-variant rounded hover:bg-surface-container-high transition-colors text-on-surface-variant disabled:opacity-50"
+              >
                 <ChevronLeft className="w-5 h-5" />
               </button>
-              <button className="px-3 py-1 bg-primary text-on-primary rounded font-bold">1</button>
-              <button className="px-3 py-1 border border-outline-variant rounded hover:bg-surface-container-high transition-colors text-on-surface-variant">2</button>
-              <button className="px-3 py-1 border border-outline-variant rounded hover:bg-surface-container-high transition-colors text-on-surface-variant">3</button>
-              <button className="px-3 py-1 border border-outline-variant rounded hover:bg-surface-container-high transition-colors text-on-surface-variant">
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+                <button 
+                  key={p}
+                  onClick={() => setPage(p)}
+                  className={`px-3 py-1 rounded font-bold ${page === p ? 'bg-primary text-on-primary' : 'border border-outline-variant hover:bg-surface-container-high transition-colors text-on-surface-variant'}`}
+                >
+                  {p}
+                </button>
+              ))}
+              <button 
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="px-3 py-1 border border-outline-variant rounded hover:bg-surface-container-high transition-colors text-on-surface-variant disabled:opacity-50"
+              >
                 <ChevronRight className="w-5 h-5" />
               </button>
             </div>
@@ -343,7 +384,12 @@ export default function PriceBook() {
                 <p className="text-sm text-on-surface-variant">System-wide update completed today at 04:30 AM (GST)</p>
                 <p className="text-xs text-on-surface-variant opacity-60 mt-1">Managed by: Global-Sys-Admin</p>
               </div>
-              <button className="text-secondary font-bold text-[12px] uppercase tracking-wider hover:underline">RETRY SYNC</button>
+              <button 
+                onClick={() => queryClient.invalidateQueries({ queryKey: ["priceBook"] })}
+                className="text-secondary font-bold text-[12px] uppercase tracking-wider hover:underline"
+              >
+                RETRY SYNC
+              </button>
             </div>
           </div>
         </div>

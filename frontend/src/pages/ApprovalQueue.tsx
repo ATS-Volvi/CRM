@@ -1,6 +1,7 @@
 import { useAuth } from "../context/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { 
   Filter, ClipboardList, AlertTriangle, Landmark, 
   Gavel, FileEdit, Check, X, Info, History, Plus, Trash2
@@ -14,6 +15,7 @@ export default function ApprovalQueue() {
   const [newTierName, setNewTierName] = useState("");
   const [newTierThreshold, setNewTierThreshold] = useState("");
   const [newTierRole, setNewTierRole] = useState("sales_manager");
+  const [filterStatus, setFilterStatus] = useState("All");
 
   const { data: approvals, isLoading } = useQuery({
     queryKey: ["approvals"],
@@ -24,6 +26,11 @@ export default function ApprovalQueue() {
       if (!res.ok) throw new Error("Failed to fetch approvals");
       return res.json();
     }
+  });
+
+  const filteredApprovals = approvals?.filter((item: any) => {
+    if (filterStatus === "All") return true;
+    return item.status === filterStatus;
   });
 
   const { data: tiers, refetch: refetchTiers } = useQuery({
@@ -97,9 +104,16 @@ export default function ApprovalQueue() {
               </span>
             </h2>
             <div className="flex gap-2">
-              <button className="flex items-center gap-1 px-3 py-1.5 border border-outline text-sm rounded hover:bg-surface-container transition-colors">
-                <Filter className="w-4 h-4" /> Filter
-              </button>
+              <select 
+                value={filterStatus} 
+                onChange={(e) => setFilterStatus(e.target.value)} 
+                className="bg-surface border border-outline-variant rounded px-2.5 py-1 text-xs focus:ring-1 focus:ring-primary outline-none"
+              >
+                <option value="All">All Statuses</option>
+                <option value="Pending">Pending</option>
+                <option value="Approved">Approved</option>
+                <option value="Rejected">Rejected</option>
+              </select>
             </div>
           </div>
           
@@ -121,7 +135,7 @@ export default function ApprovalQueue() {
                     <td colSpan={6} className="p-8 text-center text-on-surface-variant animate-pulse">Loading approvals...</td>
                   </tr>
                 ) : (
-                  approvals?.map((item: any, i: number) => {
+                  filteredApprovals?.map((item: any, i: number) => {
                     const clientName = item.target?.deal?.lead?.company || item.target?.deal?.lead?.firstName + " " + item.target?.deal?.lead?.lastName || "Unknown Client";
                     const value = item.target?.totalAmount || 0;
                     return (
@@ -299,9 +313,9 @@ export default function ApprovalQueue() {
               </div>
 
             </div>
-            <button className="w-full mt-4 text-primary font-bold text-[12px] py-2 hover:bg-surface-container transition-colors rounded">
+            <Link to="/quotes" className="w-full mt-4 text-center text-primary font-bold text-[12px] py-2 hover:bg-surface-container transition-colors rounded block border border-primary/20">
               View Full History
-            </button>
+            </Link>
           </div>
 
         </aside>

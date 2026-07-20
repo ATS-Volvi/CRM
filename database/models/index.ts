@@ -859,6 +859,23 @@ KpiMaster.init(
   { sequelize, modelName: "KpiMaster" }
 );
 
+export class GmailConfig extends Model {
+  public id!: string;
+  public connectedEmail!: string;
+  public encryptedRefreshToken!: string;
+  public lastSyncedAt!: Date | null;
+}
+
+GmailConfig.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    connectedEmail: { type: DataTypes.STRING, allowNull: false },
+    encryptedRefreshToken: { type: DataTypes.TEXT, allowNull: false },
+    lastSyncedAt: { type: DataTypes.DATE, allowNull: true }
+  },
+  { sequelize, modelName: "GmailConfig" }
+);
+
 export { sequelize };
 
 

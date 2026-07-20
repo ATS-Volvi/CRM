@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { ChevronRight, FileText, Download, CheckCircle, Clock, AlertTriangle, Plus, Search, Filter, Calendar, MoreVertical, TrendingUp, Timer, Bolt } from "lucide-react";
@@ -13,8 +14,11 @@ export default function QuoteHistory() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [showAuditModal, setShowAuditModal] = useState(false);
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
+  const [showDates, setShowDates] = useState(false);
 
-  const { data: quotes, isLoading, refetch } = useQuery({
+  const { data: quotes, isLoading, refetch } = useQuery<any[]>({
     queryKey: ["quotes", search, status, valueBand, category, startDate, endDate],
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -32,6 +36,9 @@ export default function QuoteHistory() {
       return res.json();
     }
   });
+
+  const totalPages = quotes ? Math.ceil(quotes.length / pageSize) : 1;
+  const paginatedQuotes = quotes?.slice((page - 1) * pageSize, page * pageSize) || [];
 
   const invoiceMutation = useMutation({
     queryKey: ["invoiceFromQuote"],
@@ -190,25 +197,41 @@ export default function QuoteHistory() {
               <option value="Eco Prefab">Eco Prefab</option>
             </select>
 
-            <div className="flex items-center gap-1 bg-surface border border-outline-variant rounded-lg px-2 py-1">
-              <span className="text-xs text-outline">From</span>
-              <input 
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="bg-transparent text-sm outline-none"
-              />
-              <span className="text-xs text-outline">To</span>
-              <input 
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="bg-transparent text-sm outline-none"
-              />
-            </div>
+            <button 
+              onClick={() => setShowDates(!showDates)}
+              className={`bg-surface border border-outline-variant rounded-lg py-1.5 px-3 text-sm flex items-center gap-2 hover:bg-surface-container-low transition-colors ${showDates ? 'bg-primary/15 text-primary border-primary/20' : ''}`}
+            >
+              <Calendar className="w-4 h-4" />
+              <span>Date Range</span>
+            </button>
+
+            {showDates && (
+              <div className="flex items-center gap-1 bg-surface border border-outline-variant rounded-lg px-2 py-1 animate-fade-in">
+                <span className="text-xs text-outline">From</span>
+                <input 
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => { setStartDate(e.target.value); setPage(1); }}
+                  className="bg-transparent text-sm outline-none"
+                />
+                <span className="text-xs text-outline">To</span>
+                <input 
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => { setEndDate(e.target.value); setPage(1); }}
+                  className="bg-transparent text-sm outline-none"
+                />
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-4">
+            <button 
+              onClick={() => refetch()}
+              className="bg-surface border border-outline-variant text-on-surface px-4 py-1.5 rounded-lg text-sm font-semibold hover:bg-surface-container-low transition-all"
+            >
+              Apply Filters
+            </button>
             <button 
               onClick={handleExport}
               className="text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1 text-sm font-medium"
@@ -254,7 +277,7 @@ export default function QuoteHistory() {
                     </td>
                   </tr>
                 ) : (
-                  quotes?.map((quote: any, idx: number) => {
+                  paginatedQuotes?.map((quote: any, idx: number) => {
                     const clientName = quote.deal?.lead?.company || quote.deal?.lead?.firstName + " " + quote.deal?.lead?.lastName || "Unknown Client";
                     const ownerName = quote.deal?.owner?.name || "Unassigned";
                     const formattedDate = new Date(quote.createdAt).toLocaleDateString();
@@ -357,11 +380,33 @@ export default function QuoteHistory() {
           </div>
           {/* Pagination */}
           <div className="bg-surface-container-low px-6 py-3 flex items-center justify-between border-t border-outline-variant">
-            <span className="text-sm text-outline">Showing 1 to {quotes?.length || 0} of 1,284 results</span>
+            <span className="text-sm text-outline">
+              Showing {Math.min((page - 1) * pageSize + 1, quotes?.length || 0)} to {Math.min(page * pageSize, quotes?.length || 0)} of {quotes?.length || 0} results
+            </span>
             <div className="flex items-center gap-2">
-              <button className="w-8 h-8 rounded bg-primary text-on-primary text-sm font-bold flex items-center justify-center">1</button>
-              <button className="w-8 h-8 rounded hover:bg-surface-variant text-sm flex items-center justify-center transition-colors">2</button>
-              <span className="text-outline mx-1">...</span>
+              <button 
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="px-2 py-1 text-xs border border-outline-variant rounded hover:bg-surface-variant transition-colors disabled:opacity-50"
+              >
+                Prev
+              </button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+                <button 
+                  key={p}
+                  onClick={() => setPage(p)}
+                  className={`w-8 h-8 rounded text-sm font-bold flex items-center justify-center transition-colors ${page === p ? 'bg-primary text-on-primary' : 'hover:bg-surface-variant'}`}
+                >
+                  {p}
+                </button>
+              ))}
+              <button 
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="px-2 py-1 text-xs border border-outline-variant rounded hover:bg-surface-variant transition-colors disabled:opacity-50"
+              >
+                Next
+              </button>
             </div>
           </div>
         </div>

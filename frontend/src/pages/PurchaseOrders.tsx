@@ -55,9 +55,9 @@ export default function PurchaseOrders() {
           <h1 className="text-3xl font-bold text-on-surface">Purchase Orders Register</h1>
           <p className="text-on-surface-variant">Manage and track POs from clients</p>
         </div>
-        <button className="flex items-center gap-2 px-4 py-2 bg-primary text-on-primary rounded-lg font-bold hover:opacity-90">
+        <Link to="/quotes" className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg font-bold hover:opacity-90 shadow-sm text-sm">
           <Plus className="w-5 h-5" /> New PO
-        </button>
+        </Link>
       </div>
 
       {/* Filter Bar */}
@@ -140,8 +140,22 @@ export default function PurchaseOrders() {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right flex justify-end gap-2">
-                      <button className="p-2 text-on-surface-variant hover:text-primary"><Download className="w-4 h-4" /></button>
-                      <button className="p-2 text-on-surface-variant hover:text-primary"><MoreVertical className="w-4 h-4" /></button>
+                      <button 
+                        onClick={() => {
+                          if (po.quoteId) window.open(`/api/v1/quotes/${po.quoteId}/pdf`, "_blank");
+                          else alert("No associated quote document found.");
+                        }}
+                        className="p-2 text-on-surface-variant hover:text-primary"
+                        title="Download Associated Quote PDF"
+                      >
+                        <Download className="w-4 h-4" />
+                      </button>
+                      <button 
+                        onClick={() => alert(`PO Detail - Number: ${po.poNumber || po.id.substring(0,8)}\nStatus: ${po.status}\nAmount: $${po.amount}`)}
+                        className="p-2 text-on-surface-variant hover:text-primary"
+                      >
+                        <MoreVertical className="w-4 h-4" />
+                      </button>
                     </td>
                   </tr>
                   );

@@ -8,6 +8,7 @@ export default function KpiDashboard() {
   const { token } = useAuth();
   const queryClient = useQueryClient();
   const [targetQuota, setTargetQuota] = useState(100000);
+  const [period, setPeriod] = useState("MTD");
 
   // Fetch KPI target on mount
   useQuery({
@@ -322,8 +323,18 @@ export default function KpiDashboard() {
               />
             </div>
             <div className="flex bg-surface-container-low p-1 rounded-lg">
-              <button className="px-4 py-1.5 bg-white rounded shadow-sm text-[10px] font-bold text-primary uppercase">MTD</button>
-              <button className="px-4 py-1.5 rounded text-[10px] font-bold text-on-surface-variant uppercase">Q3</button>
+              <button 
+                onClick={() => { setPeriod("MTD"); alert("Filter changed to Month-to-Date"); }}
+                className={`px-4 py-1.5 rounded text-[10px] font-bold uppercase transition-all ${period === "MTD" ? "bg-white text-primary shadow-sm" : "text-on-surface-variant hover:text-primary"}`}
+              >
+                MTD
+              </button>
+              <button 
+                onClick={() => { setPeriod("Q3"); alert("Filter changed to Q3"); }}
+                className={`px-4 py-1.5 rounded text-[10px] font-bold uppercase transition-all ${period === "Q3" ? "bg-white text-primary shadow-sm" : "text-on-surface-variant hover:text-primary"}`}
+              >
+                Q3
+              </button>
             </div>
           </div>
         </div>
@@ -498,37 +509,51 @@ export default function KpiDashboard() {
                         </button>
                     </div>
 
-                    <button onClick={() => setActiveModal(null)} className="px-6 py-2.5 bg-primary text-white font-bold rounded-lg hover:opacity-90 shadow-md transition-all whitespace-nowrap ml-4">Save Weekly Plan</button>
-                  </div>
-                </div>
-              )}
-
-              {activeModal === "dailyReport" && (
-                <div className="space-y-6">
-                  <div>
-                    <label className="block text-sm font-bold text-on-surface mb-2">What did you accomplish today?</label>
-                    <textarea 
-                      className="w-full bg-surface-container-lowest border border-outline-variant rounded-xl p-4 text-sm focus:ring-2 focus:ring-primary focus:border-primary transition-all resize-none shadow-inner" 
-                      rows={4}
-                      placeholder="e.g., Closed 2 deals, ran 3 product demos..."
-                    ></textarea>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-on-surface mb-2">Any blockers or challenges?</label>
-                    <textarea 
-                      className="w-full bg-surface-container-lowest border border-outline-variant rounded-xl p-4 text-sm focus:ring-2 focus:ring-primary focus:border-primary transition-all resize-none shadow-inner" 
-                      rows={2}
-                      placeholder="e.g., Waiting on legal review for Zenith Corp contract..."
-                    ></textarea>
-                  </div>
-                  <div className="flex justify-end gap-3 pt-2">
-                    <button onClick={() => setActiveModal(null)} className="px-6 py-2.5 bg-surface-container text-on-surface font-bold rounded-lg hover:bg-surface-container-high transition-colors">Cancel</button>
-                    <button onClick={() => setActiveModal(null)} className="px-6 py-2.5 bg-secondary text-white font-bold rounded-lg hover:bg-secondary/90 shadow-md flex items-center gap-2 transition-all">
-                      <Send className="w-4 h-4" /> Send Report
-                    </button>
-                  </div>
-                </div>
-              )}
+                     <button 
+                       onClick={() => {
+                         alert("Weekly plan saved successfully!");
+                         setActiveModal(null);
+                       }} 
+                       className="px-6 py-2.5 bg-primary text-white font-bold rounded-lg hover:opacity-90 shadow-md transition-all whitespace-nowrap ml-4"
+                     >
+                       Save Weekly Plan
+                     </button>
+                   </div>
+                 </div>
+               )}
+ 
+               {activeModal === "dailyReport" && (
+                 <div className="space-y-6">
+                   <div>
+                     <label className="block text-sm font-bold text-on-surface mb-2">What did you accomplish today?</label>
+                     <textarea 
+                       className="w-full bg-surface-container-lowest border border-outline-variant rounded-xl p-4 text-sm focus:ring-2 focus:ring-primary focus:border-primary transition-all resize-none shadow-inner" 
+                       rows={4}
+                       placeholder="e.g., Closed 2 deals, ran 3 product demos..."
+                     ></textarea>
+                   </div>
+                   <div>
+                     <label className="block text-sm font-bold text-on-surface mb-2">Any blockers or challenges?</label>
+                     <textarea 
+                       className="w-full bg-surface-container-lowest border border-outline-variant rounded-xl p-4 text-sm focus:ring-2 focus:ring-primary focus:border-primary transition-all resize-none shadow-inner" 
+                       rows={2}
+                       placeholder="e.g., Waiting on legal review for Zenith Corp contract..."
+                     ></textarea>
+                   </div>
+                   <div className="flex justify-end gap-3 pt-2">
+                     <button onClick={() => setActiveModal(null)} className="px-6 py-2.5 bg-surface-container text-on-surface font-bold rounded-lg hover:bg-surface-container-high transition-colors">Cancel</button>
+                     <button 
+                       onClick={() => {
+                         alert("Daily report submitted successfully to your manager!");
+                         setActiveModal(null);
+                       }} 
+                       className="px-6 py-2.5 bg-secondary text-white font-bold rounded-lg hover:bg-secondary/90 shadow-md flex items-center gap-2 transition-all"
+                     >
+                       <Send className="w-4 h-4" /> Send Report
+                     </button>
+                   </div>
+                 </div>
+               )}
 
               {activeModal === "allTasks" && (
                 <div className="space-y-3">

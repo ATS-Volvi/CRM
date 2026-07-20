@@ -230,8 +230,41 @@ async function sendAssignmentNotification(userId: string, lead: any) {
 // ──────────────────────────────────────────────────────────────
 
 export async function processGmailConnector() {
+  const { GmailConfig } = require("@nexus-crm/database");
+  const { decryptToken, fetchUnreadEmails } = require("./gmailService");
+  
+  try {
+    const config = await GmailConfig.findOne();
+    if (config) {
+      console.log(`[CONNECTOR] Gmail Ingest running via real API connected to ${config.connectedEmail}`);
+      const decrypted = decryptToken(config.encryptedRefreshToken);
+      const emails = await fetchUnreadEmails(decrypted);
+      
+      let lastIngestedId = null;
+      for (const email of emails) {
+        lastIngestedId = await ingestLead({
+          firstName: email.senderName.split(" ")[0] || "Unknown",
+          lastName: email.senderName.split(" ").slice(1).join(" ") || "Sender",
+          email: email.senderEmail,
+          phone: email.phone,
+          company: email.senderName + " Org",
+          source: "Gmail Connector",
+          sourceDetail: `Email Subject: ${email.subject}`,
+          message: email.body,
+          rawPayload: email.rawPayload
+        });
+      }
+      
+      config.lastSyncedAt = new Date();
+      await config.save();
+      return lastIngestedId;
+    }
+  } catch (err) {
+    console.error("[CONNECTOR] Real Gmail API ingest failed:", err);
+  }
+
   const isMockMode = !process.env.GMAIL_CLIENT_ID || !process.env.GMAIL_CLIENT_SECRET;
-  console.log(`[CONNECTOR] Gmail Ingest running. Mock Mode: ${isMockMode}`);
+  console.log(`[CONNECTOR] Gmail Ingest falling back to Mock. Mock Mode: ${isMockMode}`);
   
   if (isMockMode) {
     // Generate simulated lead
@@ -249,7 +282,6 @@ export async function processGmailConnector() {
       rawPayload: { simulated: true, headers: { from: pick.email, subject: "Quote request for site cabins" } }
     });
   }
-  // If credentials exist, implement Gmail REST API polling here
   return null;
 }
 

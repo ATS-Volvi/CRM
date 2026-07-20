@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Outlet, Link, useLocation } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { 
   LayoutDashboard, Inbox, Trello, Receipt, FileText, Settings, Key, 
   CheckSquare, BarChart, Search, Bell, Plus, Users, Home, Database, 
@@ -9,7 +10,49 @@ import { useAuth } from "../context/AuthContext";
 
 export function Layout() {
   const location = useLocation();
-  const { user, logout } = useAuth();
+  const { user, logout, token } = useAuth();
+  const queryClient = useQueryClient();
+
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+
+  // Fetch real notifications
+  const { data: notifications, isLoading: isLoadingNotifications } = useQuery<any[]>({
+    queryKey: ["notifications"],
+    queryFn: async () => {
+      if (!token) return [];
+      const res = await fetch("/api/v1/notifications", {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error("Failed to fetch notifications");
+      return res.json();
+    },
+    enabled: !!token
+  });
+
+  const markReadMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await fetch(`/api/v1/notifications/${id}/read`, {
+        method: "PUT",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    }
+  });
+
+  const readAllMutation = useMutation({
+    mutationFn: async () => {
+      await fetch("/api/v1/notifications/read-all", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    }
+  });
+
   const initials = user?.name 
     ? user.name.split(" ").map(n => n[0]).join("").substring(0, 2).toUpperCase() 
     : "U";
@@ -255,10 +298,61 @@ export function Layout() {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <button className="p-2 text-muted-foreground hover:text-primary transition-colors relative">
-              <Bell className="w-4 h-4" />
-              <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-destructive rounded-full"></span>
-            </button>
+            {/* Notifications Popover */}
+            <div className="relative">
+              <button 
+                onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
+                className="p-2 text-muted-foreground hover:text-primary transition-colors relative"
+              >
+                <Bell className="w-4 h-4" />
+                {notifications?.some((n: any) => !n.isRead) && (
+                  <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-destructive rounded-full"></span>
+                )}
+              </button>
+
+              {isNotificationsOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setIsNotificationsOpen(false)} />
+                  <div className="absolute right-0 mt-2 w-80 bg-card border border-border rounded-xl shadow-lg z-20 py-2 animate-scale-up max-h-96 overflow-y-auto">
+                    <div className="px-4 py-2 border-b border-border flex justify-between items-center">
+                      <span className="font-bold text-xs">Notifications</span>
+                      {notifications?.some((n: any) => !n.isRead) && (
+                        <button 
+                          onClick={() => readAllMutation.mutate()}
+                          className="text-[10px] text-primary font-bold hover:underline"
+                        >
+                          Mark all read
+                        </button>
+                      )}
+                    </div>
+                    {isLoadingNotifications ? (
+                      <div className="p-4 text-center text-xs text-muted-foreground animate-pulse">Loading...</div>
+                    ) : !notifications || notifications.length === 0 ? (
+                      <div className="p-4 text-center text-xs text-muted-foreground">No notifications</div>
+                    ) : (
+                      <div className="divide-y divide-border">
+                        {notifications.map((n: any) => (
+                          <div 
+                            key={n.id} 
+                            onClick={() => {
+                              if (!n.isRead) markReadMutation.mutate(n.id);
+                              setIsNotificationsOpen(false);
+                            }}
+                            className={`px-4 py-2.5 hover:bg-muted transition-colors cursor-pointer text-left ${!n.isRead ? 'bg-primary/5' : ''}`}
+                          >
+                            <p className="text-xs font-semibold text-foreground">{n.title || n.message}</p>
+                            {n.body && <p className="text-[10px] text-muted-foreground mt-0.5">{n.body}</p>}
+                            <span className="text-[9px] text-muted-foreground block mt-1">
+                              {new Date(n.createdAt).toLocaleDateString()}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
             
             <div className="relative">
               <button 
