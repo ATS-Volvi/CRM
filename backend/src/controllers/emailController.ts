@@ -29,6 +29,16 @@ function parseSender(fromStr: string) {
 
 export const receiveInboundEmail = async (req: Request, res: Response) => {
   try {
+    // Security verification check
+    const secret = process.env.INBOUND_EMAIL_SECRET;
+    if (secret) {
+      const tokenHeader = req.headers["x-inbound-secret"];
+      const tokenQuery = req.query.auth_token;
+      if (tokenHeader !== secret && tokenQuery !== secret) {
+        return res.status(401).json({ error: "Unauthorized: Invalid or missing INBOUND_EMAIL_SECRET" });
+      }
+    }
+
     // SendGrid/Mailgun/Postmark inbound parse fields
     // We support standard POST fields: "from", "subject", "text" (or "body"), "to" (or "recipient")
     const { from, subject, text, body, sender, to, recipient, To } = req.body;

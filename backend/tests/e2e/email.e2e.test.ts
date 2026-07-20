@@ -19,6 +19,7 @@ describe("E2E: Email Delivery Automation", () => {
   let transporter: any;
 
   beforeAll(async () => {
+    process.env.INBOUND_EMAIL_SECRET = "test_secret";
     nodemailer = require("nodemailer");
     transporter = nodemailer.createTransport();
     
@@ -73,6 +74,22 @@ describe("E2E: Email Delivery Automation", () => {
     expect(sendMailArgs.html).toContain("Hi Email, we have received your request.");
   });
 
+  it("should return 401 when calling inbound email without a valid secret", async () => {
+    const payload = {
+      from: "Client <client@example.com>",
+      to: "sales@nexus.com",
+      subject: "No auth",
+      text: "Unauthenticated request"
+    };
+
+    const response = await request(app)
+      .post("/api/v1/emails/inbound")
+      .send(payload);
+
+    expect(response.status).toBe(401);
+    expect(response.body.error).toContain("Unauthorized");
+  });
+
   it("should assign lead directly to salesperson if email is addressed to their email address", async () => {
     // Create a known salesperson
     const userEmail = `sales_rep_${require('crypto').randomUUID()}@nexus.com`;
@@ -93,7 +110,7 @@ describe("E2E: Email Delivery Automation", () => {
     };
 
     const response = await request(app)
-      .post("/api/v1/emails/inbound")
+      .post("/api/v1/emails/inbound?auth_token=test_secret")
       .send(payload);
 
     expect(response.status).toBe(201);
@@ -117,7 +134,7 @@ describe("E2E: Email Delivery Automation", () => {
     };
 
     const response = await request(app)
-      .post("/api/v1/emails/inbound")
+      .post("/api/v1/emails/inbound?auth_token=test_secret")
       .send(payload);
 
     expect(response.status).toBe(201);
