@@ -1,262 +1,195 @@
-# UI Interaction Audit: Nexus CRM Monorepo
+# UI Interaction Audit: Nexus CRM & QuoteFlow Pro
 
-This document outlines the interactive components, buttons, tabs, navigation items, and actions for both the **Nexus CRM** (`frontend/`) and **QuoteFlow Pro** (`quote-flow-pro-18/`) applications.
+This document maps all interactive elements (navigation items, buttons, links, form submissions, and modals) across the two frontend applications in the CRM monorepo.
 
 ---
 
-## 1. Global Navigation Summary
+## 1. Global Navigation Structure
 
 ### App: frontend (Nexus CRM)
 
-#### Sidebar items (Layout.tsx)
-1. **My Dashboard** (Link to `/home`): Visible to all.
-2. **Lead Inbox** (Link to `/leads`): Visible to all.
-3. **Quotes** (Link to `/quotes`): Visible to all.
-4. **Purchase Orders** (Link to `/purchase-orders`): Visible to all.
-5. **Customers** (Link to `/customers`): Visible to all.
-6. **Reports Group** (Collapsible header / Toggle button):
-   - **Pipeline** (Link to `/pipeline`): Visible to all.
-   - **Management Dashboard** (Link to `/`): Manager/Admin/Director only.
-   - **KPI Dashboard** (Link to `/kpi`): Manager/Admin/Director only.
-   - **Sales Representatives** (Link to `/salespersons`): Manager/Admin/Director only.
-   - **AI Reports** (Link to `/ai-reports`): Manager/Admin/Director only.
-7. **Master Data Group** (Collapsible header / Toggle button, Manager/Admin only):
-   - **Requirements** (Link to `/master-data/requirements`)
-   - **Line Items** (Link to `/master-data/line-items`)
-   - **Construction Items** (Link to `/master-data/construction-items`)
-   - **Pricing Grid** (Link to `/master-data/pricing`)
-   - **Lead Sources** (Link to `/master-data/lead-sources`)
-   - **KPI Master** (Link to `/master-data/kpis`)
-   - **Price Book** (Link to `/price-book`)
-8. **Sign Out** (Button): Calls `logout()` and redirects to `/login`.
-9. **Collapse Sidebar** (Button): Toggles sidebar collapse width between 64px and 260px.
-
-#### Header Items (Layout.tsx)
-- **Global Search Bar**: Input field, explicitly `disabled` ("coming soon").
-- **Notification Bell** (Icon Button): Static icon with mock red indicator dot.
-- **Quick Add** (Dropdown Button):
-  - **Add New Lead** (Link to `/leads/new`).
-  - **Build New Quote** (Link to `/quotes/new`).
-  - **New Purchase Order** (Link to `/purchase-orders`).
-  - **Add Assignment Rule** (Link to `/rules`): Visible to Managers/Admins only.
-- **User Avatar** (Initial Circle): Display only.
+#### Navigation Sidebar / Layout (`frontend/src/components/Layout.tsx`)
+- **Collapse/Expand Sidebar Toggle**: Minimizes/restores the left side navigation panel.
+- **My Dashboard Link**: Navigates to `/`.
+- **Lead Inbox Link**: Navigates to `/leads`.
+- **Quotes Link**: Navigates to `/quotes`.
+- **Purchase Orders Link**: Navigates to `/purchase-orders`.
+- **Customers Link**: Navigates to `/customers`.
+- **Reports Section**:
+  - **Pipeline Link**: Navigates to `/pipeline`.
+  - **Management Dashboard Link**: Navigates to `/management`. (Visible to `sales_manager` and `admin` only).
+  - **KPI Dashboard Link**: Navigates to `/kpi`.
+  - **Sales Representatives Link**: Navigates to `/salespersons`. (Visible to `sales_manager` and `admin` only).
+  - **AI Reports Link**: Navigates to `/ai-reports`.
+- **Master Data Section** (Visible to `admin` only):
+  - **Requirements Link**: Navigates to `/master-data/requirements`.
+  - **Line Items Link**: Navigates to `/master-data/line-items`.
+  - **Construction Items Link**: Navigates to `/master-data/construction-items`.
+  - **Pricing Grid Link**: Navigates to `/master-data/pricing`.
+  - **Lead Sources Link**: Navigates to `/master-data/lead-sources`.
+  - **KPI Master Link**: Navigates to `/master-data/kpis`.
+  - **Price Book Link**: Navigates to `/price-book`.
+- **Quick Add Dropdown**:
+  - **New Lead**: Navigates to `/leads/new`.
+  - **New Quotation**: Navigates to `/quotes/new`.
+- **Notifications Icon (Bell)**: Displays unread system notifications dropdown.
+- **User Avatar Profile Icon**: Opens setting/profile configuration popover.
+- **Sign Out Button**: Clears JWT token from `localStorage` and redirects to `/login`.
 
 ---
 
 ### App: quote-flow-pro-18 (QuoteFlow Pro)
 
-#### Sidebar Items (AppSidebar.tsx)
-1. **Dashboard** (Link to `/`): Visible to all.
-2. **Leads** (Link to `/leads`): Visible to all.
-3. **Quotations** (Link to `/quotations`): Visible to all.
-4. **Purchase Orders** (Link to `/purchase-orders`): Visible to all.
-5. **Customers** (Link to `/customers`): Visible to all.
-6. **Reports Group** (Collapsible Header / Button):
-   - **Pipeline** (Link to `/pipeline`)
-   - **Analytics** (Link to `/analytics`)
-   - **Sales KPI** (Link to `/salesperson-kpi`)
-   - **AI Reports** (Link to `/ai-reports`)
-7. **Master Data Group** (Collapsible Header / Button):
-   - **Service Items** (Link to `/master/service-items`)
-   - **Service Types** (Link to `/master/service-types`)
-   - **RFQ Sources** (Link to `/master/rfq-sources`)
-   - **Salespersons** (Link to `/master/salespersons`)
-8. **Settings** (Link to `/settings`): Visible to all.
-9. **Sign Out** (Button): Calls Supabase/auth `signOut()` handler.
-10. **Collapse Sidebar** (Button): Toggles sidebar expand state.
-
-#### Header Items (AppLayout.tsx)
-- **Search Input**: Local filter search bar for RFQs and customers.
-- **Notification Bell** (Icon Button): Static indicator.
-- **User Profile Info**: Displays mock User Name and role (e.g. Khalid Nasser, Coordinator).
+#### Navigation Sidebar (`quote-flow-pro-18/src/components/AppSidebar.tsx`)
+- **Dashboard**: Navigates to `/`.
+- **Leads**: Navigates to `/leads`.
+- **Quotations**: Navigates to `/quotations`.
+- **Customers**: Navigates to `/customers`.
+- **Purchase Orders**: Navigates to `/purchase-orders`.
+- **Analytics**: Navigates to `/analytics`.
+- **AI Coach**: Navigates to `/ai-reports`.
+- **Master Data Dropdown**:
+  - **Service Types**: Navigates to `/master-data/service-types`.
+  - **Line Items**: Navigates to `/master-data/service-items`.
+  - **Salespersons**: Navigates to `/master-data/salespersons`.
+  - **RFQ Sources**: Navigates to `/master-data/rfq-sources`.
+- **Settings**: Navigates to `/settings`.
+- **Sign Out Button**: Performs Supabase auth sign-out, clears local user session, and redirects to `/auth`.
 
 ---
 
-## 2. Interaction Map: frontend
+## 2. Page-by-Page Audit: `frontend` (Nexus CRM)
 
 ### Route: `/login` (Component: `Login.tsx`)
-- **Role visibility**: All visitors
-- **Purpose**: Authenticate users and store JWT token
+- **Submit Form** (L77):
+  - Click / Enter → Submits credentials (email and password) to POST `/api/v1/auth/login`. Sets authorization headers, stores JWT in localStorage, and redirects to root `/`.
 
-#### Buttons & Controls
-- **Email & Password Input Fields** (Lines 76-96)
-  - Click/Type: Updates form state (`email`, `password`).
-- **Sign In Button** (Line 109)
-  - Click: Fires POST to `/api/v1/auth/login`. On success, stores `nexus_token` and `nexus_user` in `localStorage`, updates `AuthContext` state, and navigates to `/`.
-
----
-
-### Route: `/` (Component: `ManagementDashboard.tsx`)
-- **Role visibility**: Manager, Admin, Director (`RoleBasedHome` redirects sales reps to `/home`)
-- **Purpose**: Executive dashboard displaying business health and stats
-
-#### Buttons & Controls
-- **Export PDF Button** (Line 179)
-  - Click: Triggers client-side PDF export logic (Stubbed placeholder).
-- **View All Leads/Deals Link** (Line 182)
-  - Click: Navigates to `/leads` (Lead Inbox).
-
----
-
-### Route: `/home` (Component: `MyDashboard.tsx`)
-- **Role visibility**: All roles (Default home for sales reps)
-- **Purpose**: Personalized agent dashboard containing task lists, pipeline summaries, and recent activity logs
-
-#### Buttons & Controls
-- **Task Complete Checkboxes** (Line 230)
-  - Click: Calls PATCH `/api/v1/tasks/:id` via controller to toggle status.
-- **Add Task Button** (Line 245)
-  - Click: Opens simple modal/input. Fires POST `/api/v1/tasks` to create a task for the current logged-in user.
-- **Quick Links**: Clicking cards navigates to `/quotes/new` or `/leads`.
-
----
+### Route: `/` (Component: `MyDashboard.tsx`)
+- **Range Toggle Buttons** (L226):
+  - Click → Changes the local query range filter state (`range` = "weekly" | "monthly" | "yearly"). Re-triggers TanStack query for dashboard analytics.
+- **Add Lead Link** (L311):
+  - Click → Navigates to `/leads/new`.
+- **Create Quote Link** (L312):
+  - Click → Navigates to `/quotes/new`.
+- **View My Pipeline Link** (L313):
+  - Click → Navigates to `/pipeline?ownerId={userId}`.
+- **Tab Selection Controls** (L367):
+  - Click → Switches the active tab layout (`activeTab` = "overview" | "recent_quotes" | "incoming_emails").
+- **Close Email Modal Button** (L526 / L554):
+  - Click → Clears selected email detail overlay state (`setSelectedEmail(null)`).
 
 ### Route: `/leads` (Component: `LeadInbox.tsx`)
-- **Role visibility**: All roles
-- **Purpose**: Displays active lead pipelines and allows creation/deletion of leads
-
-#### Buttons & Controls
-- **Add Lead Button** (Line 186)
-  - Click: Opens "Add Lead" modal.
-  - **Cancel Button** (Line 349): Closes modal.
-  - **Save Lead Button** (Line 350): Fires POST to `/api/v1/leads` to create a lead, then refreshes query.
-- **Download Excel Button** (Line 220)
-  - Click: Exports filtered leads to local Excel file using `xlsx`.
-- **Lead Row Name Link** (Line 252)
-  - Click: Navigates to `/leads/:id` (Lead Detail page).
-- **Update Status Button ("Mark Contacted")** (Line 282)
-  - Click: Fires PATCH `/api/v1/leads/:id` to transition status to "Contacted".
-- **Trash Icon (Delete Lead)** (Line 289)
-  - Click: Shows native `confirm()`. If OK, fires DELETE `/api/v1/leads/:id`.
-
----
-
-### Route: `/leads/:id` (Component: `LeadDetail.tsx`)
-- **Role visibility**: All roles
-- **Purpose**: 360-degree timeline view of a single lead with notes, activity logs, and edit functions
-
-#### Buttons & Controls
-- **Call/Email Note Toggles** (Lines 111-123)
-  - Click: Toggles active note category type state.
-- **Build Quote Button** (Line 135)
-  - Click: Navigates to `/quotes/new?leadId=:id`.
-- **Auto-enrichment Button** (Line 142)
-  - Click: Triggers alert ("Auto-enrichment requires Phase 13 backend completion.").
-- **Schedule Meeting Button** (Line 149)
-  - Click: Triggers alert ("Schedule Meeting integration not configured.").
-- **Timeline Filters (All / Notes / Comm)** (Lines 257-265)
-  - Click: Filters list rendering locally.
-- **Save Note Button** (Line 286)
-  - Click: Fires POST `/api/v1/activities` (attaching `leadId`, note type, and description) to record a timeline event.
-- **Pin Timeline Item Button** (Line 344)
-  - Click: Fires PATCH `/api/v1/activities/:id/pin` to pin note to top of page.
-
----
-
-### Route: `/pipeline` (Component: `PipelineKanban.tsx`)
-- **Role visibility**: All roles
-- **Purpose**: Drag-and-drop kanban board representing deal pipelines and stages
-
-#### Buttons & Controls
-- **Kanban / List Toggle Tabs** (Lines 106-112)
-  - Click: Toggles local view mode state.
-- **Add Deal Button** (Line 162)
-  - Click: Opens "Create Deal" modal.
-  - **Submit Button** (Line 311): Fires POST `/api/v1/pipeline` to create new deal.
-- **Drag-and-Drop Deal Card**:
-  - Dragging card to another column opens the Stage Transition modal.
-  - **Reason input & Recontact Date**: Required fields.
-  - **Confirm Stage Transition Button** (Line 256): Fires PATCH `/api/v1/pipeline/deals/:id` to update deal stage and log transition reason.
-
----
-
-### Route: `/quotes/new` (Component: `QuotationBuilder.tsx`)
-- **Role visibility**: All roles
-- **Purpose**: Advanced quote builder containing recommendation engines, price book catalog rules, and comparative sidebar tabs
-
-#### Tabs & Sub-navigation
-- **Client History Tab**: Displays previous quotes submitted under the current Lead ID.
-- **Similar Clients Tab**: Queries similar deals by requirements type.
-
-#### Buttons & Controls
-- **Select Deal Dropdown** (Line 54)
-  - Change: Sets selected deal and queries recommendations and historical comparative quotes.
-- **Save as Draft Button** (Line 117)
-  - Click: Fires POST `/api/v1/quotes` with status set to `Draft`.
-- **Send for Approval Button** (Line 118)
-  - Click: Fires POST `/api/v1/quotes` with status set to `Pending` (triggers approval routing workflow in the backend).
-- **Add Product Link** (Line 128)
-  - Click: Appends empty item row to items table state.
-- **Trash Icon (Delete line item)** (Line 540)
-  - Click: Removes the specific item index from local items state.
-- **"Edit & Use" Button (Sidebar Cards)** (Line 673 & Line 758)
-  - Click: Prompts confirmation, parses selected historical quote items, and overwrites local builder table items.
-- **"Send As-Is" Button (Sidebar Cards)** (Line 158)
-  - Click: Prompts confirmation, clones historical line items, and fires POST `/api/v1/quotes` directly with `Pending` status.
-
----
-
-### Route: `/quotes` (Component: `QuoteHistory.tsx`)
-- **Role visibility**: All roles
-- **Purpose**: Repository containing all historical quotations, versions, and validation workflows
-
-#### Buttons & Controls
-- **Create Quote Button** (Line 107)
-  - Click: Navigates to `/quotes/new`.
-- **Row Action Menu Indicator** (Line 187)
-  - Click: Displays options (View, Edit, Export).
-- **Export button** (Line 101)
-  - Click: Generates CSV list of quotes.
-
----
-
-### Route: `/master-data/*`
-- **Role visibility**: Manager, Admin
-- **Purpose**: Manage system parameters, RFQ sources, construction items, and requirements definitions
-
----
-
-## 3. Interaction Map: quote-flow-pro-18
-
-This application operates on a separate frontend framework and communicates directly with **Supabase** tables.
-
-### Route: `/auth` (Component: `AuthPage.tsx`)
-- **Role visibility**: Public
-- **Purpose**: User login via Supabase credentials
-
-#### Buttons & Controls
-- **Auth Submit Button**: Calls Supabase `auth.signInWithPassword()`.
-
-### Route: `/` (Component: `Dashboard.tsx`)
-- **Role visibility**: All roles
-- **Purpose**: Supabase CRM analytics overview
-
-#### Buttons & Controls
-- **Date Range Toggles**: Filters local display metrics.
-
-### Route: `/leads` (Component: `LeadList.tsx`)
-- **Role visibility**: All roles
-- **Purpose**: List leads fetched directly from the `leads` table in Supabase
-
-#### Buttons & Controls
-- **Lead Number Link**: Navigates to `/leads/:id`.
-- **New Lead Button**: Navigates to `/leads/new`.
+- **Create Lead Link** (L69 / L141):
+  - Click → Navigates to `/leads/new`.
+- **Lead ID Row Link** (L162):
+  - Click → Navigates to the Lead details view `/leads/{leadId}`.
 
 ### Route: `/leads/new` (Component: `LeadCreate.tsx`)
-- **Role visibility**: All roles
-- **Purpose**: Create a new lead directly in Supabase
+- **Save as Draft Button** (L299):
+  - Click → Submits lead details with status `"Draft"` to POST `/api/v1/leads`.
+- **Save & Mark Contacted Button** (L306):
+  - Click → Submits lead details with status `"Contacted"` to POST `/api/v1/leads`.
+- **Voice Assistant Toggle** (L336):
+  - Click → Activates browser Web Speech API for voice transcript capture.
+- **Parse Transcript Button** (L347):
+  - Click → Sends recorded transcript to AI Parser endpoint POST `/api/v1/voice-leads/parse` to extract fields.
+- **Fill Fields Button** (L358):
+  - Click → Populates fields on the page with parsed AI response metadata.
+- **New Customer Inline Form Button** (L399):
+  - Click → Toggles visibility of the new customer inline registration form.
+- **Save Customer Button** (L447):
+  - Click → Submits new inline customer to POST `/api/v1/customers`.
+- **Remove Group Button** (L574):
+  - Click → Deletes selected line items group from active state list.
 
-#### Buttons & Controls
-- **Submit Form**: Inserts record into `leads` table in Supabase.
+### Route: `/leads/:id` (Component: `LeadDetail.tsx`)
+- **Convert to Quotation Button** (L230):
+  - Click → Converts lead to active quotation, creating pipeline deal mapping via POST `/api/v1/quotes` and redirecting.
+- **Edit/X details Toggle** (L306):
+  - Click → Enables inline form inputs for updating lead metadata attributes.
+- **Save Changes Button** (L353):
+  - Click → Submits changes to PUT `/api/v1/leads/{id}`.
+- **Reassign Representative Icon** (L399):
+  - Click → Toggles dropdown selection to reassign lead representative.
+- **Reassign Lead Button** (L443):
+  - Click → Submits changes to PUT `/api/v1/leads/{id}/reassign`.
+- **Activity Feed Card Box** (L568):
+  - Click → Launches activity feed modal to record tasks or communication logs.
 
-### Route: `/quotations/new` (Component: `QuotationCreate.tsx`)
-- **Role visibility**: All roles
-- **Purpose**: Advanced quotation generator utilizing Supabase database bindings
+### Route: `/quotes` (Component: `QuoteHistory.tsx`)
+- **Export CSV Button** (L213):
+  - Click → Downloads CSV file containing all filtered quote lists from GET `/api/v1/exports/quotes`.
+- **New Quote Button** (L219 / L251):
+  - Click → Navigates to `/quotes/new`.
+- **Simulate DocuSign Button** (L319):
+  - Click → Calls Mock DocuSign endpoint GET `/api/v1/public/quotes/{id}/sign` to mark status as "Accepted".
+- **Convert to Invoice Button** (L342):
+  - Click → Submits POST `/api/v1/invoices/from-quote` and redirects to `/invoices` page on success.
+- **View Full Audit Trail Button** (L399):
+  - Click → Opens overlay popup containing complete system activity logs.
 
-#### Buttons & Controls
-- **Add Custom Item Button** (Line 318)
-  - Click: Adds custom empty item input row.
-- **Save Draft Button** (Line 243)
-  - Click: Inserts record to `quotations` table with status `draft`.
-- **Submit for Approval Button** (Line 246)
-  - Click: Inserts record to `quotations` with status `pending_approval_l1`.
+### Route: `/quotes/new` (Component: `QuotationBuilder.tsx`)
+- **Save as Draft Button** (L387):
+  - Click → Submits quote items with status `"Draft"` to POST `/api/v1/quotes`.
+- **Send for Approval Button** (L388):
+  - Click → Submits quote items with status `"Pending"` to POST `/api/v1/quotes`.
+- **Add Product Button** (L398):
+  - Click → Appends empty line item row to quote collection.
+- **Trash Icon Button** (L458):
+  - Click → Removes product row from active quotation builder form.
+- **Apply All Recommendations** (L474):
+  - Click → Adds all AI suggestion products to active items list.
+- **Tab Navigation** (L615):
+  - Click → Toggles historical quotes sidebar tabs (`client` history or `similar` products).
+- **Edit & Use Button** (L674 / L759):
+  - Click → Overwrites active quote builder fields with products and values from selected historical template quote.
+- **Send As-Is Button** (L685 / L770):
+  - Click → Sends selected historical quote layout directly to the client without changes.
+
+---
+
+## 3. Page-by-Page Audit: `quote-flow-pro-18` (QuoteFlow Pro)
+
+### Route: `/auth` (Component: `AuthPage.tsx`)
+- **Submit Form** (L66):
+  - Click / Enter → Triggers Supabase authentication signUp / signIn flow.
+- **Toggle Mode Link** (L123):
+  - Click → Toggles between Login and Registration views.
+
+### Route: `/` (Component: `Dashboard.tsx`)
+- **Lead / Quotation Cards** (L273 / L306):
+  - Click → Navigates to `/leads/{id}` or `/quotations/{id}`.
+
+### Route: `/leads` (Component: `LeadList.tsx`)
+- **New Lead Link** (L623):
+  - Click → Navigates to `/leads/new`.
+
+### Route: `/leads/new` (Component: `LeadCreate.tsx`)
+- **Save Button** (L183):
+  - Click → Saves lead details as draft.
+- **Save & Mark Contacted Button** (L187):
+  - Click → Saves lead details and marks status as contacted.
+- **Add Service Button** (L276):
+  - Click → Opens category configuration popup.
+
+### Route: `/leads/:id` (Component: `LeadDetail.tsx`)
+- **Convert to Quotation Button** (L212):
+  - Click → Creates quotation configuration mapped to lead and updates DB state.
+
+### Route: `/quotations` (Component: `QuotationList.tsx`)
+- **New Quotation Link** (L811):
+  - Click → Navigates to `/quotations/new`.
+- **Status Filter buttons** (L815):
+  - Click → Toggles local list filter status.
+
+### Route: `/master-data/service-types` (Component: `MasterServiceTypes.tsx`)
+- **Save / Create Button** (L83):
+  - Click → Saves or updates service type taxonomy in Supabase.
+- **Active / Off Toggle** (L125):
+  - Click → Toggles active state boolean.
+
+### Route: `/master-data/service-items` (Component: `MasterServiceItems.tsx`)
+- **Add Line Item** (L185):
+  - Click → Adds new line item definition.
+- **Add Field** (L238):
+  - Click → Appends custom metadata input field parameter definition.
