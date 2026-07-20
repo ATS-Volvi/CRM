@@ -59,6 +59,7 @@ export class Lead extends Model {
   public customerId!: string | null;
   public leadNumber!: string | null;
   public categoriesData!: any | null;
+  public recipientEmail!: string | null;
 }
 
 Lead.init(
@@ -84,6 +85,7 @@ Lead.init(
     customerId: { type: DataTypes.UUID, allowNull: true },
     leadNumber: { type: DataTypes.STRING, allowNull: true, unique: true },
     categoriesData: { type: DataTypes.JSON, allowNull: true },
+    recipientEmail: { type: DataTypes.STRING, allowNull: true },
   },
   { 
     sequelize, 

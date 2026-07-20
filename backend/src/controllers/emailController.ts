@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { Lead } from "@nexus-crm/database";
+import { Lead, User } from "@nexus-crm/database";
 import { assignLead } from "../services/assignmentEngine";
 import { assignLeadToSalesperson } from "../services/leadAssignmentService";
 
@@ -30,8 +30,8 @@ function parseSender(fromStr: string) {
 export const receiveInboundEmail = async (req: Request, res: Response) => {
   try {
     // SendGrid/Mailgun/Postmark inbound parse fields
-    // We support standard POST fields: "from", "subject", "text" (or "body")
-    const { from, subject, text, body, sender } = req.body;
+    // We support standard POST fields: "from", "subject", "text" (or "body"), "to" (or "recipient")
+    const { from, subject, text, body, sender, to, recipient, To } = req.body;
     
     const rawFrom = from || sender;
     if (!rawFrom) {
@@ -42,15 +42,34 @@ export const receiveInboundEmail = async (req: Request, res: Response) => {
     const emailSubject = subject || "No Subject";
     const emailBody = text || body || "No message body provided.";
 
-    // Route the lead/query via assignment engine
-    const assignedToId = await assignLead({
-      firstName,
-      lastName,
-      email,
-      phone: "",
-      company: "",
-      source: "email"
-    });
+    const rawTo = to || recipient || To;
+    let assignedToId = null;
+    let recipientEmail = null;
+
+    if (rawTo) {
+      const parsedRecipient = parseSender(rawTo);
+      recipientEmail = parsedRecipient.email;
+      
+      const matchedUser = await User.findOne({
+        where: { email: recipientEmail }
+      }) as any;
+
+      if (matchedUser && ["sales_rep", "sales_manager", "admin"].includes(matchedUser.role)) {
+        assignedToId = matchedUser.id;
+      }
+    }
+
+    // Fallback to engine
+    if (!assignedToId) {
+      assignedToId = await assignLead({
+        firstName,
+        lastName,
+        email,
+        phone: "",
+        company: "",
+        source: "email"
+      });
+    }
 
     const lead = await Lead.create({
       firstName,
@@ -62,7 +81,8 @@ export const receiveInboundEmail = async (req: Request, res: Response) => {
       status: "New Lead",
       subject: emailSubject,
       body: emailBody,
-      assignedToId: null
+      assignedToId: null,
+      recipientEmail
     });
 
     if (assignedToId) {
