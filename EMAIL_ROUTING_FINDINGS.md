@@ -1,26 +1,34 @@
 # Email Routing Verification & Custom Salesperson Matching Findings
 
-## Step 1 — Verification of Live / Default State
-1. **Assignment Rules Mapping**:
-   - Querying the active rules from GET `/api/v1/assignment-rules` returned:
+## Step 1 — Verification of Live Deployed State
+1. **Deployed Backend URL**:
+   - Confirmed deployed backend URL via `vercel.json` and API response: `https://crm-k8g4.onrender.com`
+2. **Assignment Rules Mapping (Live Deployed)**:
+   - Querying the active rules from GET `https://crm-k8g4.onrender.com/api/v1/assignment-rules` returned:
      ```json
      [
        {
-         "id": "161ba032-008a-450f-ac6a-cb2b0531a726",
+         "id": "8130502e-37f1-4c6d-80a2-20811f405d04",
          "criteria": "[{\"field\":\"industry\",\"operator\":\"equals\",\"value\":\"Technology\"}]",
          "priority": 1,
          "isActive": true,
          "ruleType": "Criteria",
-         "assignToId": "2f80ceda-f0c5-4ddb-97f0-bd335e0ed6ac"
+         "assignToId": "a27424bc-973c-4665-9804-a408542e7657"
        }
      ]
      ```
    - Only a single criteria rule existed (assigning to Liam Carter if the industry equals `"Technology"`).
-2. **Deployed Backend URL**:
-   - Extracted destination endpoint proxy from `vercel.json` pointing to `https://crm-k8g4.onrender.com`.
-3. **Inbound Webhook Hook Evaluation**:
-   - Sending an inbound webhook test POST to `/api/v1/emails/inbound` with text `"addressed to Saud"` resolved `assignedToId` to the default system Admin (`Sophia Martinez` / `admin@nexus.com`).
-   - **Conclusion**: There was no prior route or logic that parsed the email recipient (`to` field) or attempted matching against salesperson email addresses. Any assignment matching was purely fallback-based.
+3. **Inbound Webhook Live Test**:
+   - Sent a POST request to `https://crm-k8g4.onrender.com/api/v1/emails/inbound` with text `"addressed to Saud"`:
+     ```json
+     {
+       "message": "Inbound email ingested successfully",
+       "leadId": "6f05798b-12dd-4fef-aaa5-ddd1020224f0",
+       "assignedToId": "792c1cab-ebed-4501-b756-de3de370b201"
+     }
+     ```
+   - The `assignedToId` belongs to `Sophia Martinez` (default admin/manager).
+   - **Conclusion**: There was no prior route or logic that parsed the email recipient (`to` field) or attempted matching against salesperson email addresses on the deployed server. Any assignment matching was purely fallback-based.
 
 ---
 
