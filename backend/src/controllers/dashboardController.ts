@@ -167,7 +167,7 @@ export const getMyHomeDashboard = async (req: Request, res: Response) => {
     const rawQuotes: any[] = dealIds.length > 0
       ? (await sequelize.models.Quote.findAll({
           where: { dealId: { [Op.in]: dealIds }, createdAt: dateFilter },
-          include: [{ model: sequelize.models.Deal, as: "deal", include: [{ model: sequelize.models.Lead, as: "lead" }] }, { model: sequelize.models.PurchaseOrder, as: "purchaseOrder" }],
+          include: [{ model: sequelize.models.Deal, as: "deal", include: [{ model: sequelize.models.Lead, as: "lead" }] }, { model: sequelize.models.PurchaseOrder, as: "PurchaseOrder" }],
           order: [["createdAt","DESC"]], limit: 20
         })) as any[]
       : [];
@@ -178,7 +178,7 @@ export const getMyHomeDashboard = async (req: Request, res: Response) => {
 
     const allPOs: any[] = allQuoteIds.length > 0
       ? (await sequelize.models.PurchaseOrder.findAll({ where: { quoteId: { [Op.in]: allQuoteIds } } })) as any[] : [];
-    const recentPOs: any[] = rawQuotes.map((q: any) => q.purchaseOrder).filter(Boolean);
+    const recentPOs: any[] = rawQuotes.map((q: any) => q.PurchaseOrder).filter(Boolean);
     const poValue = allPOs.reduce((s: number, po: any) => s + (parseFloat(po.amount)||0), 0);
 
     const invoices: any[] = allQuoteIds.length > 0

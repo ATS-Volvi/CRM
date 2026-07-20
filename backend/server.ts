@@ -10,7 +10,10 @@ export function createServer(): Express {
   const app = express();
 
   app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
-  app.use(cors({ origin: process.env.CORS_ORIGIN || "http://localhost:5173", credentials: true }));
+  const corsOrigins = process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(",").map(o => o.trim())
+    : ["http://localhost:5173", "https://crm-frontend-9xq4.vercel.app"];
+  app.use(cors({ origin: corsOrigins, credentials: true }));
   app.use(express.json());
   app.use(cookieParser());
   app.use("/static", express.static(path.join(__dirname, "public")));
