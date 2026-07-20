@@ -54,7 +54,7 @@ export const receiveInboundEmail = async (req: Request, res: Response) => {
         where: { email: recipientEmail }
       }) as any;
 
-      if (matchedUser && ["sales_rep", "sales_manager", "admin"].includes(matchedUser.role)) {
+      if (matchedUser && ["sales_rep", "sales_manager", "admin", "director"].includes(matchedUser.role)) {
         assignedToId = matchedUser.id;
       }
     }
