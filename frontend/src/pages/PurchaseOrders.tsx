@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { FileText, Download, MoreVertical, Plus, Filter, Search } from "lucide-react";
 import { formatCurrency } from "../utils/currency";
 
@@ -9,6 +9,25 @@ export default function PurchaseOrders() {
   const { token } = useAuth();
   const [search, setSearch] = useState("");
   const [valueBand, setValueBand] = useState("");
+
+  const invoiceMutation = useMutation({
+    mutationFn: async (quoteId: string) => {
+      const res = await fetch("/api/v1/invoices/from-quote", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({ quoteId })
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: () => {
+      alert("Invoice created successfully!");
+      window.location.href = `/invoices`;
+    },
+    onError: (err: any) => {
+      alert("Error creating invoice: " + err.message);
+    }
+  });
 
   const { data: pos, isLoading } = useQuery({
     queryKey: ["purchase-orders", search, valueBand],
@@ -139,7 +158,17 @@ export default function PurchaseOrders() {
                         {po.status}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-right flex justify-end gap-2">
+                    <td className="px-6 py-4 text-right flex justify-end gap-2 items-center">
+                      {po.quoteId && (
+                        <button
+                          onClick={() => invoiceMutation.mutate(po.quoteId)}
+                          disabled={invoiceMutation.isPending}
+                          className="px-2.5 py-1 bg-primary text-white text-[10px] font-bold uppercase rounded hover:opacity-90 transition-all shadow-sm"
+                          title="Generate Invoice from associated Quote"
+                        >
+                          Create Invoice
+                        </button>
+                      )}
                       <button 
                         onClick={() => {
                           if (po.quoteId) window.open(`/api/v1/quotes/${po.quoteId}/pdf`, "_blank");

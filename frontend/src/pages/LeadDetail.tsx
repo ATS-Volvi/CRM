@@ -243,6 +243,77 @@ export default function LeadDetail() {
         </div>
       </div>
 
+      {/* Dynamic Workflow "What's Next" Action Banner */}
+      <div className="bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="space-y-1.5">
+          <span className="bg-primary/25 text-primary text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 rounded">Next Recommended Action</span>
+          <h4 className="text-lg font-bold text-on-surface">
+            {lead.status === "New" && "Step 1: Contact client and log engagement notes"}
+            {["Contacted", "Meeting/Demo", "Qualified"].includes(lead.status) && "Step 2: Generate commercial quotation from requirement details"}
+            {["Proposal", "Negotiation"].includes(lead.status) && "Step 3: Monitor quote status and negotiate purchase order"}
+            {lead.status === "Won" && "Workflow Complete: Manage client's purchase orders and invoices"}
+            {!["New", "Contacted", "Meeting/Demo", "Qualified", "Proposal", "Negotiation", "Won"].includes(lead.status) && "Review lead details or update current status"}
+          </h4>
+          <p className="text-xs text-on-surface-variant max-w-xl">
+            {lead.status === "New" && "Reach out to the lead via phone or email to qualify requirements. Once done, mark as Contacted to proceed."}
+            {["Contacted", "Meeting/Demo", "Qualified"].includes(lead.status) && "Lead has been contacted and qualified. Convert the specifications into a professional quotation proposal now."}
+            {["Proposal", "Negotiation"].includes(lead.status) && "The quote proposal has been delivered to the client. Follow up to obtain purchase order (PO) signature."}
+            {lead.status === "Won" && "Opportunity successfully closed! Visit the Purchase Orders register to verify customer PO and generate the invoice."}
+            {!["New", "Contacted", "Meeting/Demo", "Qualified", "Proposal", "Negotiation", "Won"].includes(lead.status) && "Update lead info or change reassignment rules to route the deal to other agents."}
+          </p>
+        </div>
+
+        <div className="flex-shrink-0">
+          {lead.status === "New" && (
+            <button
+              onClick={() => {
+                updateStatusMutation.mutate("Contacted");
+                // Focus on note section
+                const noteInput = document.getElementById("new-note-textarea");
+                if (noteInput) noteInput.focus();
+              }}
+              className="px-6 py-3 bg-primary text-white font-bold text-xs uppercase tracking-wider rounded-lg shadow hover:opacity-95 transition-all"
+            >
+              Contact Now & Log Call
+            </button>
+          )}
+          {["Contacted", "Meeting/Demo", "Qualified"].includes(lead.status) && (
+            <button
+              onClick={handleConvertToQuotation}
+              disabled={isConverting}
+              className="px-6 py-3 bg-primary text-white font-bold text-xs uppercase tracking-wider rounded-lg shadow hover:opacity-95 transition-all flex items-center gap-2"
+            >
+              {isConverting && <Loader2 className="w-4 h-4 animate-spin" />}
+              Create Quotation
+            </button>
+          )}
+          {["Proposal", "Negotiation"].includes(lead.status) && (
+            <Link
+              to="/quotes"
+              className="px-6 py-3 bg-secondary text-white font-bold text-xs uppercase tracking-wider rounded-lg shadow hover:opacity-95 transition-all block text-center"
+            >
+              Track Sent Quotes
+            </Link>
+          )}
+          {lead.status === "Won" && (
+            <Link
+              to="/purchase-orders"
+              className="px-6 py-3 bg-emerald-600 text-white font-bold text-xs uppercase tracking-wider rounded-lg shadow hover:opacity-95 transition-all block text-center"
+            >
+              Manage Orders & Invoices
+            </Link>
+          )}
+          {!["New", "Contacted", "Meeting/Demo", "Qualified", "Proposal", "Negotiation", "Won"].includes(lead.status) && (
+            <button
+              onClick={() => updateStatusMutation.mutate("Contacted")}
+              className="px-6 py-3 bg-surface-container text-on-surface font-bold text-xs uppercase tracking-wider rounded-lg border border-outline-variant hover:bg-surface-container-high transition-colors"
+            >
+              Reset to Contacted
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Segmented Stages Progress Bar */}
       <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-6 shadow-sm">
         {isLoadingStages ? (

@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { 
   TrendingUp, TrendingDown, Info, Calendar, Download, 
-  ChevronDown, DollarSign, Activity, Star, Zap, Mail, Users, Globe, Share2 
+  ChevronDown, DollarSign, Activity, Star, Zap, Mail, Users, Globe, Share2, AlertCircle 
 } from "lucide-react";
 import { formatCurrency, formatCurrencyCompact } from "../utils/currency";
 import { apiClient } from "../lib/apiClient";
@@ -239,6 +239,62 @@ export default function ManagementDashboard() {
               </div>
             </div>
 
+          </div>
+
+          {/* Today's Action Priorities */}
+          <div className="mt-8 bg-slate-900 text-white p-8 rounded-xl shadow-lg border border-slate-800">
+            <div className="flex items-center gap-2 mb-4">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+              </span>
+              <h4 className="text-lg font-bold tracking-wide uppercase text-slate-200">Management Dashboard Priorities (Today)</h4>
+            </div>
+            <p className="text-xs text-slate-400 mb-6">Immediate attention items detected across leads, deals, and SLA metrics.</p>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="bg-slate-800 border border-slate-700/50 p-5 rounded-lg flex flex-col justify-between">
+                <div>
+                  <div className="flex justify-between items-start mb-2">
+                    <span className="text-[10px] font-bold text-red-400 uppercase tracking-widest bg-red-400/10 px-2 py-0.5 rounded">Action Required</span>
+                    <AlertCircle className="w-5 h-5 text-red-400" />
+                  </div>
+                  <h5 className="font-bold text-sm text-slate-100 mb-1">Unassigned Leads / No Activity</h5>
+                  <p className="text-xs text-slate-400">There are currently {actReports?.noActivityLeadsCount || 0} leads that have had no rep engagement logged in over 48 hours.</p>
+                </div>
+                <Link to="/leads" className="mt-4 text-xs font-bold text-primary-fixed-dim hover:underline flex items-center gap-1">
+                  Route & Reassign Leads &rarr;
+                </Link>
+              </div>
+
+              <div className="bg-slate-800 border border-slate-700/50 p-5 rounded-lg flex flex-col justify-between">
+                <div>
+                  <div className="flex justify-between items-start mb-2">
+                    <span className="text-[10px] font-bold text-amber-400 uppercase tracking-widest bg-amber-400/10 px-2 py-0.5 rounded">SLA Check</span>
+                    <Activity className="w-5 h-5 text-amber-400" />
+                  </div>
+                  <h5 className="font-bold text-sm text-slate-100 mb-1">SLA Compliance Alert</h5>
+                  <p className="text-xs text-slate-400">Current SLA compliance is at {actReports ? Math.round((actReports.slaCompliance.met / (actReports.slaCompliance.met + actReports.slaCompliance.breached || 1)) * 100) : 0}%. {actReports?.slaCompliance.breached || 0} quotes breached standard response SLAs.</p>
+                </div>
+                <Link to="/approvals" className="mt-4 text-xs font-bold text-primary-fixed-dim hover:underline flex items-center gap-1">
+                  Escalate Pending Approvals &rarr;
+                </Link>
+              </div>
+
+              <div className="bg-slate-800 border border-slate-700/50 p-5 rounded-lg flex flex-col justify-between">
+                <div>
+                  <div className="flex justify-between items-start mb-2">
+                    <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest bg-emerald-400/10 px-2 py-0.5 rounded">Pipeline</span>
+                    <DollarSign className="w-5 h-5 text-emerald-400" />
+                  </div>
+                  <h5 className="font-bold text-sm text-slate-100 mb-1">Stalled Deal Audit</h5>
+                  <p className="text-xs text-slate-400">Total pipeline value stands at {formatCurrencyCompact(kpi?.totalPipelineValue || 0)} with {kpi?.activeDealsCount || 0} active deals in negotiation.</p>
+                </div>
+                <Link to="/quotes" className="mt-4 text-xs font-bold text-primary-fixed-dim hover:underline flex items-center gap-1">
+                  Audit Open Proposals &rarr;
+                </Link>
+              </div>
+            </div>
           </div>
 
           {/* Feature 11: Activities Reports */}

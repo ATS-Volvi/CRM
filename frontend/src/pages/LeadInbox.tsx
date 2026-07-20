@@ -11,6 +11,7 @@ export default function LeadInbox() {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [isSimpleView, setIsSimpleView] = useState(true);
 
   // Fetch leads
   const { data: leads, isLoading } = useQuery<any[]>({
@@ -90,26 +91,43 @@ export default function LeadInbox() {
           />
         </div>
 
-        {/* Status Dropdown */}
-        <div className="flex items-center gap-3 w-full md:w-auto">
-          <Filter className="w-4 h-4 text-on-surface-variant" />
-          <span className="text-sm font-semibold text-on-surface-variant">Status:</span>
-          <select 
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="bg-surface border border-outline rounded-xl px-4 py-3 text-sm focus:ring-primary focus:outline-none cursor-pointer"
-          >
-            <option value="all">All Statuses</option>
-            <option value="New">New</option>
-            <option value="Contacted">Contacted</option>
-            <option value="Qualified">Qualified</option>
-            <option value="Meeting/Demo">Meeting/Demo</option>
-            <option value="Proposal">Proposal</option>
-            <option value="Negotiation">Negotiation</option>
-            <option value="Won">Won</option>
-            <option value="Lost">Lost</option>
-            <option value="On Hold">On Hold</option>
-          </select>
+        {/* Status Dropdown & Toggle View */}
+        <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
+          <div className="flex items-center gap-3">
+            <Filter className="w-4 h-4 text-on-surface-variant" />
+            <span className="text-sm font-semibold text-on-surface-variant">Status:</span>
+            <select 
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="bg-surface border border-outline rounded-xl px-4 py-3 text-sm focus:ring-primary focus:outline-none cursor-pointer"
+            >
+              <option value="all">All Statuses</option>
+              <option value="New">New</option>
+              <option value="Contacted">Contacted</option>
+              <option value="Qualified">Qualified</option>
+              <option value="Meeting/Demo">Meeting/Demo</option>
+              <option value="Proposal">Proposal</option>
+              <option value="Negotiation">Negotiation</option>
+              <option value="Won">Won</option>
+              <option value="Lost">Lost</option>
+              <option value="On Hold">On Hold</option>
+            </select>
+          </div>
+
+          <div className="flex border border-outline-variant rounded-xl overflow-hidden p-0.5 bg-surface-container">
+            <button 
+              onClick={() => setIsSimpleView(true)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${isSimpleView ? 'bg-primary text-white shadow-sm' : 'text-on-surface hover:bg-surface-variant'}`}
+            >
+              Simple
+            </button>
+            <button 
+              onClick={() => setIsSimpleView(false)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${!isSimpleView ? 'bg-primary text-white shadow-sm' : 'text-on-surface hover:bg-surface-variant'}`}
+            >
+              Full
+            </button>
+          </div>
         </div>
       </div>
 
@@ -121,9 +139,9 @@ export default function LeadInbox() {
               <tr className="border-b border-outline-variant bg-surface-container-low text-xs font-bold text-on-surface-variant uppercase tracking-wider">
                 <th className="px-6 py-4">Lead #</th>
                 <th className="px-6 py-4">Client</th>
-                <th className="px-6 py-4">Services/Category</th>
-                <th className="px-6 py-4">Salesperson</th>
-                <th className="px-6 py-4">Lead Type</th>
+                {!isSimpleView && <th className="px-6 py-4">Services/Category</th>}
+                {!isSimpleView && <th className="px-6 py-4">Salesperson</th>}
+                {!isSimpleView && <th className="px-6 py-4">Lead Type</th>}
                 <th className="px-6 py-4 text-right">Expected Value</th>
                 <th className="px-6 py-4">Status</th>
                 <th className="px-6 py-4">Date</th>
@@ -132,11 +150,11 @@ export default function LeadInbox() {
             <tbody className="divide-y divide-outline-variant text-sm">
               {isLoading ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-12 text-center font-bold text-on-surface-variant">Loading leads...</td>
+                  <td colSpan={isSimpleView ? 5 : 8} className="px-6 py-12 text-center font-bold text-on-surface-variant">Loading leads...</td>
                 </tr>
               ) : filteredLeads && filteredLeads.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-16 text-center space-y-3">
+                  <td colSpan={isSimpleView ? 5 : 8} className="px-6 py-16 text-center space-y-3">
                     <p className="font-bold text-on-surface-variant">No leads yet — capture your first business opportunity!</p>
                     <Link to="/leads/new" className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary text-white text-xs font-bold rounded-lg shadow-sm hover:opacity-90">
                       + Create First Lead
@@ -167,15 +185,21 @@ export default function LeadInbox() {
                         <p className="font-bold text-on-surface">{lead.firstName} {lead.lastName}</p>
                         <p className="text-xs text-on-surface-variant">{lead.company || "No Company"}</p>
                       </td>
-                      <td className="px-6 py-4 max-w-[200px] truncate" title={servicesStr}>
-                        {servicesStr}
-                      </td>
-                      <td className="px-6 py-4 font-semibold text-on-surface-variant">
-                        {lead.assignedTo?.name || "Unassigned"}
-                      </td>
-                      <td className="px-6 py-4 font-semibold text-on-surface-variant">
-                        {lead.industry || "General"}
-                      </td>
+                      {!isSimpleView && (
+                        <td className="px-6 py-4 max-w-[200px] truncate" title={servicesStr}>
+                          {servicesStr}
+                        </td>
+                      )}
+                      {!isSimpleView && (
+                        <td className="px-6 py-4 font-semibold text-on-surface-variant">
+                          {lead.assignedTo?.name || "Unassigned"}
+                        </td>
+                      )}
+                      {!isSimpleView && (
+                        <td className="px-6 py-4 font-semibold text-on-surface-variant">
+                          {lead.industry || "General"}
+                        </td>
+                      )}
                       <td className="px-6 py-4 text-right font-bold text-on-surface">
                         {formatCurrency(lead.leadScore * 100)}
                       </td>

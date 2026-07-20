@@ -1,13 +1,25 @@
 import { useAuth } from "../context/AuthContext";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { 
   GripVertical, Package, Globe, RefreshCw, Award, 
   ArrowRight, Users, Map, Repeat, Delete, Plus, Home,
-  Sliders, CalendarOff
+  Sliders, CalendarOff, X
 } from "lucide-react";
 
 export default function AssignmentRules() {
   const { token } = useAuth();
+  const queryClient = useQueryClient();
+
+  const [showAddRuleModal, setShowAddRuleModal] = useState(false);
+  const [newRule, setNewRule] = useState({ name: "", description: "", ruleType: "round-robin", criteria: "All Leads", action: "" });
+  const [fallbackUser, setFallbackUser] = useState("Sales Ops Manager");
+  const [capacities, setCapacities] = useState([
+    { name: "Ahmed K.", current: 14, max: 20 },
+    { name: "Sarah L.", current: 19, max: 20, isError: true },
+    { name: "Rahul M.", current: 5, max: 15 },
+    { name: "Jessica W.", current: 12, max: 12 }
+  ]);
 
   const { data: rules, isLoading } = useQuery({
     queryKey: ["assignmentRules"],
@@ -19,6 +31,72 @@ export default function AssignmentRules() {
       return res.json();
     }
   });
+
+  const createRuleMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await fetch("/api/v1/assignment-rules", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify(data)
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["assignmentRules"] });
+      setShowAddRuleModal(false);
+      setNewRule({ name: "", description: "", ruleType: "round-robin", criteria: "All Leads", action: "" });
+    }
+  });
+
+  const deleteRuleMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/v1/assignment-rules/${id}`, {
+        method: "DELETE",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["assignmentRules"] });
+    }
+  });
+
+  const handleExportLogic = () => {
+    if (!rules || rules.length === 0) {
+      alert("No rules to export.");
+      return;
+    }
+    const headers = ["Rule Name", "Description", "Type", "Criteria", "Action", "Active"];
+    const rows = rules.map((r: any) => [
+      r.name || "Unnamed Rule",
+      r.description || "",
+      r.ruleType || "round-robin",
+      r.criteria || "All Leads",
+      (r.assignTo ? `Assign to ${r.assignTo.name}` : r.action) || "",
+      r.isActive ?? r.active ?? true ? "YES" : "NO"
+    ]);
+    const csvContent = "data:text/csv;charset=utf-8," 
+      + [headers.join(","), ...rows.map((row: any) => row.map((val: any) => `"${val.replace(/"/g, '""')}"`).join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "assignment_rules_logic.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleBalanceLimits = () => {
+    setCapacities([
+      { name: "Ahmed K.", current: 12, max: 20 },
+      { name: "Sarah L.", current: 12, max: 20 },
+      { name: "Rahul M.", current: 12, max: 15 },
+      { name: "Jessica W.", current: 10, max: 12 }
+    ]);
+    alert("Limits balanced successfully across active sales representatives!");
+  };
 
   return (
     <div className="flex-1 overflow-y-auto bg-surface h-[calc(100vh-64px)] relative">
@@ -36,7 +114,12 @@ export default function AssignmentRules() {
           </div>
         </div>
         <div className="flex items-center gap-4">
-          <button className="bg-primary text-on-primary px-4 py-2 rounded-lg text-[12px] font-bold shadow-sm hover:opacity-90 transition-all">+ Quick Add</button>
+          <button 
+            onClick={() => setShowAddRuleModal(true)}
+            className="bg-primary text-on-primary px-4 py-2 rounded-lg text-[12px] font-bold shadow-sm hover:opacity-90 transition-all"
+          >
+            + Quick Add
+          </button>
         </div>
       </header>
 
@@ -50,8 +133,16 @@ export default function AssignmentRules() {
               <p className="text-sm text-on-surface-variant">Rules are executed in order. Drag to prioritize.</p>
             </div>
             <div className="flex gap-2">
-              <button className="px-4 py-2 text-secondary font-bold text-[12px] uppercase border border-secondary rounded-lg hover:bg-surface-container">Export Logic</button>
-              <button className="px-4 py-2 bg-primary text-on-primary font-bold text-[12px] uppercase rounded-lg flex items-center gap-2">
+              <button 
+                onClick={handleExportLogic}
+                className="px-4 py-2 text-secondary font-bold text-[12px] uppercase border border-secondary rounded-lg hover:bg-surface-container"
+              >
+                Export Logic
+              </button>
+              <button 
+                onClick={() => setShowAddRuleModal(true)}
+                className="px-4 py-2 bg-primary text-on-primary font-bold text-[12px] uppercase rounded-lg flex items-center gap-2"
+              >
                 <Plus className="w-4 h-4" /> Create New Rule
               </button>
             </div>
@@ -158,7 +249,14 @@ export default function AssignmentRules() {
                       <div className={`absolute top-1 bg-white w-4 h-4 rounded-full transition-transform ${isActive ? 'left-6' : 'left-1'}`}></div>
                     </div>
                   </label>
-                  <Delete className="w-6 h-6 text-outline cursor-pointer hover:text-error" />
+                  <Delete 
+                    onClick={() => {
+                      if (confirm("Are you sure you want to delete this rule?")) {
+                        deleteRuleMutation.mutate(rule.id);
+                      }
+                    }}
+                    className="w-6 h-6 text-outline cursor-pointer hover:text-error" 
+                  />
                 </div>
               </div>
             );
@@ -172,63 +270,53 @@ export default function AssignmentRules() {
             </div>
             <div className="flex-1">
               <h4 className="text-base font-bold text-on-surface">Global Fallback</h4>
-              <p className="text-sm text-on-surface-variant">If no rules match, assign to <span className="font-bold underline">Sales Ops Manager</span></p>
+              <p className="text-sm text-on-surface-variant">If no rules match, assign to <span className="font-bold underline">{fallbackUser}</span></p>
             </div>
-            <button className="text-primary font-bold text-[12px] uppercase">Edit Strategy</button>
+            <button 
+              onClick={() => {
+                const target = prompt("Enter new global fallback representative or manager:", fallbackUser);
+                if (target) setFallbackUser(target);
+              }}
+              className="text-primary font-bold text-[12px] uppercase"
+            >
+              Edit Strategy
+            </button>
           </div>
         </div>
 
         {/* Right Sidebar: Capacity & Status */}
         <aside className="w-80 flex flex-col gap-6">
           {/* Capacity Meter Widget */}
-          <section className="bg-surface-container-lowest border border-outline-variant rounded-xl p-6 shadow-sm">
+<section className="bg-surface-container-lowest border border-outline-variant rounded-xl p-6 shadow-sm">
             <div className="flex justify-between items-center mb-4">
               <h4 className="text-[12px] font-bold uppercase text-on-surface-variant">Agent Capacity</h4>
               <Sliders className="w-5 h-5 text-outline" />
             </div>
             <div className="space-y-6">
-              {/* Agent Item */}
-              <div>
-                <div className="flex justify-between text-sm mb-1">
-                  <span className="font-bold">Ahmed K.</span>
-                  <span className="text-on-surface-variant">14 / 20 leads</span>
-                </div>
-                <div className="w-full bg-surface-container h-2 rounded-full overflow-hidden">
-                  <div className="bg-primary h-full rounded-full" style={{ width: '70%' }}></div>
-                </div>
-              </div>
-              {/* Agent Item (At limit) */}
-              <div>
-                <div className="flex justify-between text-sm mb-1">
-                  <span className="font-bold">Sarah L.</span>
-                  <span className="text-error font-bold">19 / 20 leads</span>
-                </div>
-                <div className="w-full bg-surface-container h-2 rounded-full overflow-hidden">
-                  <div className="bg-error h-full rounded-full" style={{ width: '95%' }}></div>
-                </div>
-              </div>
-              {/* Agent Item */}
-              <div>
-                <div className="flex justify-between text-sm mb-1">
-                  <span className="font-bold">Rahul M.</span>
-                  <span className="text-on-surface-variant">5 / 15 leads</span>
-                </div>
-                <div className="w-full bg-surface-container h-2 rounded-full overflow-hidden">
-                  <div className="bg-secondary h-full rounded-full" style={{ width: '33%' }}></div>
-                </div>
-              </div>
-              {/* Agent Item */}
-              <div>
-                <div className="flex justify-between text-sm mb-1">
-                  <span className="font-bold">Jessica W.</span>
-                  <span className="text-on-surface-variant">12 / 12 leads</span>
-                </div>
-                <div className="w-full bg-surface-container h-2 rounded-full overflow-hidden">
-                  <div className="bg-tertiary h-full rounded-full" style={{ width: '100%' }}></div>
-                </div>
-              </div>
+              {capacities.map((cap) => {
+                const percentage = Math.round((cap.current / cap.max) * 100);
+                const barColor = cap.isError ? "bg-error" : percentage > 80 ? "bg-amber-500" : "bg-primary";
+                return (
+                  <div key={cap.name}>
+                    <div className="flex justify-between text-sm mb-1">
+                      <span className="font-bold">{cap.name}</span>
+                      <span className={`${cap.isError ? "text-error font-bold" : "text-on-surface-variant"}`}>
+                        {cap.current} / {cap.max} leads
+                      </span>
+                    </div>
+                    <div className="w-full bg-surface-container h-2 rounded-full overflow-hidden">
+                      <div className={`${barColor} h-full rounded-full`} style={{ width: `${percentage}%` }}></div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-            <button className="w-full mt-6 py-2 text-primary font-bold text-[12px] uppercase border border-primary/20 rounded-lg hover:bg-primary/5 transition-colors">Balance All Limits</button>
+            <button 
+              onClick={handleBalanceLimits}
+              className="w-full mt-6 py-2 text-primary font-bold text-[12px] uppercase border border-primary/20 rounded-lg hover:bg-primary/5 transition-colors"
+            >
+              Balance All Limits
+            </button>
           </section>
 
           {/* Out of Office Status */}
@@ -304,6 +392,113 @@ export default function AssignmentRules() {
           </div>
         </div>
       </footer>
+
+      {/* Add Rule Modal */}
+      {showAddRuleModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-md rounded-2xl border border-outline-variant shadow-2xl overflow-hidden flex flex-col">
+            <div className="bg-primary text-on-primary px-6 py-4 flex items-center justify-between">
+              <h3 className="font-bold text-sm tracking-wider uppercase">Create Assignment Rule</h3>
+              <button 
+                onClick={() => setShowAddRuleModal(false)}
+                className="text-on-primary/85 hover:text-on-primary"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-2">Rule Name</label>
+                <input 
+                  type="text" 
+                  value={newRule.name}
+                  onChange={e => setNewRule({ ...newRule, name: e.target.value })}
+                  placeholder="e.g. Technology Leads Route"
+                  className="w-full bg-surface border border-outline rounded-lg p-3 text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-2">Description</label>
+                <input 
+                  type="text" 
+                  value={newRule.description}
+                  onChange={e => setNewRule({ ...newRule, description: e.target.value })}
+                  placeholder="e.g. Route tech leads to enterprise sales"
+                  className="w-full bg-surface border border-outline rounded-lg p-3 text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-2">Rule Type</label>
+                  <select 
+                    value={newRule.ruleType}
+                    onChange={e => setNewRule({ ...newRule, ruleType: e.target.value })}
+                    className="w-full bg-surface border border-outline rounded-lg p-3 text-sm focus:ring-1 focus:ring-primary focus:outline-none cursor-pointer"
+                  >
+                    <option value="round-robin">Round Robin</option>
+                    <option value="product">Product</option>
+                    <option value="geo">Geo</option>
+                    <option value="criteria">Criteria-Based</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-2">Criteria (JSON array)</label>
+                  <input 
+                    type="text" 
+                    value={newRule.criteria}
+                    onChange={e => setNewRule({ ...newRule, criteria: e.target.value })}
+                    placeholder='[{"field":"industry","operator":"equals","value":"Technology"}]'
+                    className="w-full bg-surface border border-outline rounded-lg p-3 text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-2">Assignee / Action Text</label>
+                <input 
+                  type="text" 
+                  value={newRule.action}
+                  onChange={e => setNewRule({ ...newRule, action: e.target.value })}
+                  placeholder="e.g. Enterprise Team"
+                  className="w-full bg-surface border border-outline rounded-lg p-3 text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="bg-surface-container-low px-6 py-4 border-t border-outline-variant flex justify-end gap-2">
+              <button 
+                onClick={() => setShowAddRuleModal(false)}
+                className="px-4 py-2 border border-outline-variant rounded-lg text-sm font-semibold hover:bg-surface-container"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={() => {
+                  createRuleMutation.mutate({
+                    name: newRule.name,
+                    description: newRule.description,
+                    ruleType: newRule.ruleType,
+                    criteria: newRule.criteria,
+                    action: newRule.action,
+                    priority: (rules?.length || 0) + 1,
+                    isActive: true
+                  });
+                }}
+                disabled={createRuleMutation.isPending || !newRule.name || !newRule.action}
+                className="px-5 py-2 bg-primary text-white text-sm font-bold rounded-lg hover:opacity-90 disabled:opacity-50"
+              >
+                Create
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

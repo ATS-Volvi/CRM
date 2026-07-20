@@ -17,6 +17,7 @@ export default function QuoteHistory() {
   const [page, setPage] = useState(1);
   const pageSize = 10;
   const [showDates, setShowDates] = useState(false);
+  const [isSimpleView, setIsSimpleView] = useState(true);
 
   const { data: quotes, isLoading, refetch } = useQuery<any[]>({
     queryKey: ["quotes", search, status, valueBand, category, startDate, endDate],
@@ -55,6 +56,25 @@ export default function QuoteHistory() {
       window.location.href = `/invoices`;
     }
   } as any);
+
+  const recordPoMutation = useMutation({
+    mutationFn: async ({ quoteId, amount, poNumber }: { quoteId: string; amount: number; poNumber: string }) => {
+      const res = await fetch("/api/v1/purchase-orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({ quoteId, amount, poNumber })
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: () => {
+      alert("Purchase Order recorded successfully!");
+      refetch();
+    },
+    onError: (err: any) => {
+      alert("Error: " + err.message);
+    }
+  });
 
   const handleExport = async () => {
     const params = new URLSearchParams();
@@ -238,6 +258,20 @@ export default function QuoteHistory() {
             >
               <Download className="w-4 h-4" /> Export CSV
             </button>
+            <div className="flex border border-outline-variant rounded-xl overflow-hidden p-0.5 bg-surface-container">
+              <button 
+                onClick={() => setIsSimpleView(true)}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${isSimpleView ? 'bg-primary text-white shadow-sm' : 'text-on-surface hover:bg-surface-variant'}`}
+              >
+                Simple
+              </button>
+              <button 
+                onClick={() => setIsSimpleView(false)}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${!isSimpleView ? 'bg-primary text-white shadow-sm' : 'text-on-surface hover:bg-surface-variant'}`}
+              >
+                Full
+              </button>
+            </div>
             <button 
               onClick={() => window.location.href = '/quotes/new'}
               className="bg-primary text-on-primary px-6 py-1.5 rounded-lg text-sm font-semibold hover:opacity-90 active:scale-95 transition-all flex items-center gap-2"
@@ -256,20 +290,20 @@ export default function QuoteHistory() {
                   <th className="px-6 py-4 text-[12px] font-bold text-outline uppercase tracking-wider">Ref ID</th>
                   <th className="px-6 py-4 text-[12px] font-bold text-outline uppercase tracking-wider">Customer / Lead</th>
                   <th className="px-6 py-4 text-[12px] font-bold text-outline uppercase tracking-wider">Value</th>
-                  <th className="px-6 py-4 text-[12px] font-bold text-outline uppercase tracking-wider">Stage</th>
+                  {!isSimpleView && <th className="px-6 py-4 text-[12px] font-bold text-outline uppercase tracking-wider">Stage</th>}
                   <th className="px-6 py-4 text-[12px] font-bold text-outline uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-4 text-[12px] font-bold text-outline uppercase tracking-wider">Expires In</th>
+                  {!isSimpleView && <th className="px-6 py-4 text-[12px] font-bold text-outline uppercase tracking-wider">Expires In</th>}
                   <th className="px-6 py-4 text-[12px] font-bold text-outline uppercase tracking-wider text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-outline-variant">
                 {isLoading ? (
                   <tr>
-                    <td colSpan={7} className="px-6 py-8 text-center text-on-surface-variant animate-pulse">Loading quote history...</td>
+                    <td colSpan={isSimpleView ? 5 : 7} className="px-6 py-8 text-center text-on-surface-variant animate-pulse">Loading quote history...</td>
                   </tr>
                 ) : !quotes || quotes.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-6 py-16 text-center space-y-3">
+                    <td colSpan={isSimpleView ? 5 : 7} className="px-6 py-16 text-center space-y-3">
                       <p className="font-bold text-on-surface-variant">No quotes built yet — start pitching your proposals!</p>
                       <button onClick={() => window.location.href = '/quotes/new'} className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary text-white text-xs font-bold rounded-lg shadow-sm hover:opacity-90">
                         + Create First Quote
@@ -304,12 +338,14 @@ export default function QuoteHistory() {
                           {formatCurrency(quote.totalAmount)}
                         </span>
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="w-32 h-1.5 bg-surface-variant rounded-full overflow-hidden flex">
-                          <div className="h-full bg-primary w-2/3"></div>
-                        </div>
-                        <p className="text-[10px] text-outline mt-1 uppercase">{quote.deal?.stage?.name || 'In Progress'}</p>
-                      </td>
+                      {!isSimpleView && (
+                        <td className="px-6 py-4">
+                          <div className="w-32 h-1.5 bg-surface-variant rounded-full overflow-hidden flex">
+                            <div className="h-full bg-primary w-2/3"></div>
+                          </div>
+                          <p className="text-[10px] text-outline mt-1 uppercase">{quote.deal?.stage?.name || 'In Progress'}</p>
+                        </td>
+                      )}
                       <td className="px-6 py-4">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
                           quote.status === 'Approved' ? 'bg-primary/10 text-primary border border-primary/20' :
@@ -320,12 +356,14 @@ export default function QuoteHistory() {
                           {quote.status}
                         </span>
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-1 text-on-surface-variant">
-                          <Clock className="w-4 h-4" />
-                          <span className="text-sm font-medium">{quote.expirationDate ? new Date(quote.expirationDate).toLocaleDateString() : 'N/A'}</span>
-                        </div>
-                      </td>
+                      {!isSimpleView && (
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-1 text-on-surface-variant">
+                            <Clock className="w-4 h-4" />
+                            <span className="text-sm font-medium">{quote.expirationDate ? new Date(quote.expirationDate).toLocaleDateString() : 'N/A'}</span>
+                          </div>
+                        </td>
+                      )}
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
                           <button
@@ -360,14 +398,29 @@ export default function QuoteHistory() {
                               DocuSign
                             </button>
                           )}
-                          {quote.status === 'Approved' && (
-                            <button 
-                              onClick={(e) => { e.stopPropagation(); invoiceMutation.mutate(quote.id); }}
-                              disabled={invoiceMutation.isPending}
-                              className="px-3 py-1 bg-secondary text-white text-[10px] font-bold uppercase rounded hover:opacity-90 transition-all shadow-sm whitespace-nowrap"
-                            >
-                              Generate Invoice
-                            </button>
+                           {quote.status === 'Approved' && (
+                            <>
+                              <button 
+                                onClick={(e) => { 
+                                  e.stopPropagation(); 
+                                  const poNum = prompt("Enter Purchase Order (PO) Number:");
+                                  if (poNum) {
+                                    recordPoMutation.mutate({ quoteId: quote.id, amount: quote.totalAmount, poNumber: poNum });
+                                  }
+                                }}
+                                disabled={recordPoMutation.isPending}
+                                className="px-3 py-1 bg-amber-600 text-white text-[10px] font-bold uppercase rounded hover:opacity-90 transition-all shadow-sm whitespace-nowrap"
+                              >
+                                Record PO
+                              </button>
+                              <button 
+                                onClick={(e) => { e.stopPropagation(); invoiceMutation.mutate(quote.id); }}
+                                disabled={invoiceMutation.isPending}
+                                className="px-3 py-1 bg-secondary text-white text-[10px] font-bold uppercase rounded hover:opacity-90 transition-all shadow-sm whitespace-nowrap"
+                              >
+                                Generate Invoice
+                              </button>
+                            </>
                           )}
                         </div>
                       </td>
