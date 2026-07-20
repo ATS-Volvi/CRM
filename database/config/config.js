@@ -12,7 +12,7 @@ const sqliteConfig = {
 const postgresConfig = {
   use_env_variable: 'DATABASE_URL',
   dialect: 'postgres',
-  dialectOptions: {
+  dialectOptions: process.env.DATABASE_URL?.includes('localhost') ? {} : {
     ssl: {
       require: true,
       rejectUnauthorized: false

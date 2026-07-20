@@ -112,8 +112,8 @@ export const fetchUnreadEmails = async (refreshToken: string): Promise<GmailMess
 
     const msg = msgRes.data;
     const headers = msg.payload?.headers || [];
-    const fromHeader = headers.find(h => h.name?.toLowerCase() === "from")?.value || "";
-    const subject = headers.find(h => h.name?.toLowerCase() === "subject")?.value || "No Subject";
+    const fromHeader = headers.find((h: any) => h.name?.toLowerCase() === "from")?.value || "";
+    const subject = headers.find((h: any) => h.name?.toLowerCase() === "subject")?.value || "No Subject";
     
     // Parse sender e.g. "John Doe <john@example.com>" or "john@example.com"
     let senderName = "";
@@ -130,8 +130,8 @@ export const fetchUnreadEmails = async (refreshToken: string): Promise<GmailMess
     // Extract body text
     let body = "";
     if (msg.payload?.parts) {
-      const textPart = msg.payload.parts.find(p => p.mimeType === "text/plain");
-      const htmlPart = msg.payload.parts.find(p => p.mimeType === "text/html");
+      const textPart = msg.payload.parts.find((p: any) => p.mimeType === "text/plain");
+      const htmlPart = msg.payload.parts.find((p: any) => p.mimeType === "text/html");
       const base64Body = textPart?.body?.data || htmlPart?.body?.data || "";
       if (base64Body) {
         body = Buffer.from(base64Body, "base64").toString("utf8");

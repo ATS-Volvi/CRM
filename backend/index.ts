@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "dotenv/config"; // trigger restart again
 import { createServer } from "./server";
 import { Database, sequelize } from "@nexus-crm/database";
 import { checkOverdueTasks } from "./src/services/notificationService";
