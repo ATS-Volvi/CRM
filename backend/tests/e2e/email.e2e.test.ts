@@ -24,11 +24,12 @@ describe("E2E: Email Delivery Automation", () => {
     
     // Create a default user to satisfy Activity foreign key constraint
     try {
+      const hashedPassword = await require("bcrypt").hash("password123", 10);
       await sequelize.models.User.create({
         id: require('crypto').randomUUID(),
         name: "Default Admin",
         email: "admin@nexus.com",
-        password: "password123",
+        password: hashedPassword,
         role: "admin"
       });
     } catch (e) {}
@@ -75,11 +76,12 @@ describe("E2E: Email Delivery Automation", () => {
   it("should assign lead directly to salesperson if email is addressed to their email address", async () => {
     // Create a known salesperson
     const userEmail = `sales_rep_${require('crypto').randomUUID()}@nexus.com`;
+    const hashedPassword = await require("bcrypt").hash("password123", 10);
     const salesperson = await sequelize.models.User.create({
       id: require('crypto').randomUUID(),
       name: "Test Rep Direct",
       email: userEmail,
-      password: "password123",
+      password: hashedPassword,
       role: "sales_rep"
     }) as any;
 
@@ -103,6 +105,10 @@ describe("E2E: Email Delivery Automation", () => {
   });
 
   it("should fallback to default routing if recipient email does not match a known salesperson", async () => {
+    const defaultAdmin = await sequelize.models.User.findOne({
+      where: { email: "admin@nexus.com" }
+    }) as any;
+
     const payload = {
       from: "Client <client@example.com>",
       to: "generic-inbox@nexus-crm.com",
@@ -115,6 +121,7 @@ describe("E2E: Email Delivery Automation", () => {
       .send(payload);
 
     expect(response.status).toBe(201);
+    expect(response.body.assignedToId).toBe(defaultAdmin.id);
     
     // Verify recipientEmail field is saved even if fallback is used
     const createdLead = await sequelize.models.Lead.findByPk(response.body.leadId) as any;
