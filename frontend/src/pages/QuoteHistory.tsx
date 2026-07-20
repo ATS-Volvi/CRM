@@ -12,6 +12,7 @@ export default function QuoteHistory() {
   const [category, setCategory] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [showAuditModal, setShowAuditModal] = useState(false);
 
   const { data: quotes, isLoading, refetch } = useQuery({
     queryKey: ["quotes", search, status, valueBand, category, startDate, endDate],
@@ -394,10 +395,106 @@ export default function QuoteHistory() {
               </div>
             </div>
           </div>
-          <button className="w-full py-2 text-center text-[12px] font-bold tracking-wider uppercase text-primary border-t border-outline-variant hover:bg-primary-container/10 transition-colors">
+          <button 
+            onClick={() => setShowAuditModal(true)}
+            className="w-full py-2 text-center text-[12px] font-bold tracking-wider uppercase text-primary border-t border-outline-variant hover:bg-primary-container/10 transition-colors"
+          >
             View Full Audit Trail
           </button>
         </div>
+
+        {/* Audit Trail Modal Overlay */}
+        {showAuditModal && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+            <div className="bg-card w-full max-w-lg rounded-2xl border border-border shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-scale-up">
+              <div className="bg-primary text-on-primary px-6 py-4 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Bolt className="w-5 h-5" />
+                  <h3 className="font-bold text-sm tracking-wider uppercase">System Audit Trail</h3>
+                </div>
+                <button 
+                  onClick={() => setShowAuditModal(false)}
+                  className="text-on-primary/80 hover:text-on-primary text-sm font-bold bg-white/10 hover:bg-white/20 px-2 py-1 rounded transition-all"
+                >
+                  ✕
+                </button>
+              </div>
+              
+              <div className="p-6 overflow-y-auto space-y-6 flex-1">
+                <div className="relative border-l-2 border-outline/30 pl-6 ml-3 space-y-6">
+                  {/* Event 1 */}
+                  <div className="relative">
+                    <div className="absolute -left-[31px] top-1.5 w-4 h-4 rounded-full bg-primary border-2 border-card flex items-center justify-center">
+                      <CheckCircle className="w-2.5 h-2.5 text-on-primary" />
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold tracking-wider uppercase text-primary bg-primary/10 px-2 py-0.5 rounded">Quote Approved</span>
+                      <span className="text-[10px] text-outline ml-2">Just now (12:35 PM)</span>
+                      <h4 className="text-sm font-bold text-on-surface mt-1">QT-8821 was Approved</h4>
+                      <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
+                        Quote amount of <strong>SAR 45,000.00</strong> passed automatic floor limits check and was approved by <strong>Emma Watson (Manager)</strong>.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Event 2 */}
+                  <div className="relative">
+                    <div className="absolute -left-[31px] top-1.5 w-4 h-4 rounded-full bg-secondary border-2 border-card flex items-center justify-center">
+                      <Clock className="w-2.5 h-2.5 text-on-secondary" />
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold tracking-wider uppercase text-secondary bg-secondary/10 px-2 py-0.5 rounded">Catalog Update</span>
+                      <span className="text-[10px] text-outline ml-2">15 minutes ago (12:20 PM)</span>
+                      <h4 className="text-sm font-bold text-on-surface mt-1">Price Book updated</h4>
+                      <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
+                        Refreshed 8 items from the master price catalog. Automatic pricing tiers synchronized successfully.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Event 3 */}
+                  <div className="relative">
+                    <div className="absolute -left-[31px] top-1.5 w-4 h-4 rounded-full bg-tertiary border-2 border-card flex items-center justify-center">
+                      <TrendingUp className="w-2.5 h-2.5 text-on-tertiary" />
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold tracking-wider uppercase text-tertiary bg-tertiary/10 px-2 py-0.5 rounded">Lead Assigned</span>
+                      <span className="text-[10px] text-outline ml-2">45 minutes ago (11:50 AM)</span>
+                      <h4 className="text-sm font-bold text-on-surface mt-1">Lead: Tata Steel assigned</h4>
+                      <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
+                        Assigned automatically to representative <strong>Liam Carter</strong> based on rule priority 1 (Industry matching: Technology).
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Event 4 */}
+                  <div className="relative">
+                    <div className="absolute -left-[31px] top-1.5 w-4 h-4 rounded-full bg-outline border-2 border-card flex items-center justify-center">
+                      <AlertTriangle className="w-2.5 h-2.5 text-card" />
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold tracking-wider uppercase text-outline bg-outline/10 px-2 py-0.5 rounded">Quote Created</span>
+                      <span className="text-[10px] text-outline ml-2">3 hours ago (09:36 AM)</span>
+                      <h4 className="text-sm font-bold text-on-surface mt-1">Quote QT-2026-00002 created</h4>
+                      <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
+                        Netflix Production Cabins deal quote draft initialized with 1 item.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-surface-container-low px-6 py-4 border-t border-border flex justify-end">
+                <button 
+                  onClick={() => setShowAuditModal(false)}
+                  className="px-5 py-2 bg-primary text-on-primary text-xs font-bold rounded-lg hover:opacity-90 transition-all shadow-md"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
       </div>
     </div>
