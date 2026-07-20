@@ -4,192 +4,184 @@ This document maps all interactive elements (navigation items, buttons, links, f
 
 ---
 
-## 1. Global Navigation Structure
+## 1. Global Navigation & Table Summary
 
-### App: frontend (Nexus CRM)
+### Global Navigation Items (In Order of Appearance)
 
-#### Navigation Sidebar / Layout (`frontend/src/components/Layout.tsx`)
-- **Collapse/Expand Sidebar Toggle**: Minimizes/restores the left side navigation panel.
-- **My Dashboard Link**: Navigates to `/`.
-- **Lead Inbox Link**: Navigates to `/leads`.
-- **Quotes Link**: Navigates to `/quotes`.
-- **Purchase Orders Link**: Navigates to `/purchase-orders`.
-- **Customers Link**: Navigates to `/customers`.
-- **Reports Section**:
-  - **Pipeline Link**: Navigates to `/pipeline`.
-  - **Management Dashboard Link**: Navigates to `/management`. (Visible to `sales_manager` and `admin` only).
-  - **KPI Dashboard Link**: Navigates to `/kpi`.
-  - **Sales Representatives Link**: Navigates to `/salespersons`. (Visible to `sales_manager` and `admin` only).
-  - **AI Reports Link**: Navigates to `/ai-reports`.
-- **Master Data Section** (Visible to `admin` only):
-  - **Requirements Link**: Navigates to `/master-data/requirements`.
-  - **Line Items Link**: Navigates to `/master-data/line-items`.
-  - **Construction Items Link**: Navigates to `/master-data/construction-items`.
-  - **Pricing Grid Link**: Navigates to `/master-data/pricing`.
-  - **Lead Sources Link**: Navigates to `/master-data/lead-sources`.
-  - **KPI Master Link**: Navigates to `/master-data/kpis`.
-  - **Price Book Link**: Navigates to `/price-book`.
-- **Quick Add Dropdown**:
-  - **New Lead**: Navigates to `/leads/new`.
-  - **New Quotation**: Navigates to `/quotes/new`.
-- **Notifications Icon (Bell)**: Displays unread system notifications dropdown.
-- **User Avatar Profile Icon**: Opens setting/profile configuration popover.
-- **Sign Out Button**: Clears JWT token from `localStorage` and redirects to `/login`.
+#### App: frontend (Nexus CRM Sidebar + Header)
+1. **Sidebar Toggle Icon-Button**: Minimizes/restores the left side navigation panel.
+2. **My Dashboard Link**: Navigates to `/`.
+3. **Lead Inbox Link**: Navigates to `/leads`.
+4. **Quotes Link**: Navigates to `/quotes`.
+5. **Purchase Orders Link**: Navigates to `/purchase-orders`.
+6. **Customers Link**: Navigates to `/customers`.
+7. **Pipeline Link** (under Reports): Navigates to `/pipeline`.
+8. **Management Dashboard Link** (under Reports): Navigates to `/`. (Gated for admin/manager).
+9. **KPI Dashboard Link** (under Reports): Navigates to `/kpi`.
+10. **Sales Representatives Link** (under Reports): Navigates to `/salespersons`. (Gated for admin/manager).
+11. **AI Reports Link** (under Reports): Navigates to `/ai-reports`.
+12. **Requirements Link** (under Master Data): Navigates to `/master-data/requirements`. (Gated for admin).
+13. **Line Items Link** (under Master Data): Navigates to `/master-data/line-items`. (Gated for admin).
+14. **Construction Items Link** (under Master Data): Navigates to `/master-data/construction-items`. (Gated for admin).
+15. **Pricing Grid Link** (under Master Data): Navigates to `/master-data/pricing`. (Gated for admin).
+16. **Lead Sources Link** (under Master Data): Navigates to `/master-data/lead-sources`. (Gated for admin).
+17. **KPI Master Link** (under Master Data): Navigates to `/master-data/kpis`. (Gated for admin).
+18. **Price Book Link** (under Master Data): Navigates to `/price-book`. (Gated for admin).
+19. **Quick Add Dropdown**: Triggers list showing `New Lead` (navigates `/leads/new`) and `New Quotation` (navigates `/quotes/new`).
+20. **Notification Bell Icon**: Shows list of recent notifications.
+21. **User Profile Dropdown**: Allows logging out (clears JWT token).
 
----
-
-### App: quote-flow-pro-18 (QuoteFlow Pro)
-
-#### Navigation Sidebar (`quote-flow-pro-18/src/components/AppSidebar.tsx`)
-- **Dashboard**: Navigates to `/`.
-- **Leads**: Navigates to `/leads`.
-- **Quotations**: Navigates to `/quotations`.
-- **Customers**: Navigates to `/customers`.
-- **Purchase Orders**: Navigates to `/purchase-orders`.
-- **Analytics**: Navigates to `/analytics`.
-- **AI Coach**: Navigates to `/ai-reports`.
-- **Master Data Dropdown**:
-  - **Service Types**: Navigates to `/master-data/service-types`.
-  - **Line Items**: Navigates to `/master-data/service-items`.
-  - **Salespersons**: Navigates to `/master-data/salespersons`.
-  - **RFQ Sources**: Navigates to `/master-data/rfq-sources`.
-- **Settings**: Navigates to `/settings`.
-- **Sign Out Button**: Performs Supabase auth sign-out, clears local user session, and redirects to `/auth`.
+#### App: quote-flow-pro-18 (QuoteFlow Pro Sidebar)
+1. **Dashboard**: Navigates to `/`.
+2. **Leads**: Navigates to `/leads`.
+3. **Quotations**: Navigates to `/quotations`.
+4. **Customers**: Navigates to `/customers`.
+5. **Purchase Orders**: Navigates to `/purchase-orders`.
+6. **Analytics**: Navigates to `/analytics`.
+7. **AI Coach**: Navigates to `/ai-reports`.
+8. **Service Types**: Navigates to `/master/service-types`.
+9. **Service Line Items**: Navigates to `/master/service-items`.
+10. **Salespersons**: Navigates to `/master/salespersons`.
+11. **RFQ Sources**: Navigates to `/master/rfq-sources`.
+12. **Settings**: Navigates to `/settings`.
+13. **Sign Out Button**: Logs out session.
 
 ---
 
-## 2. Page-by-Page Audit: `frontend` (Nexus CRM)
+### Global Interaction Flat Table
 
-### Route: `/login` (Component: `Login.tsx`)
-- **Submit Form** (L77):
-  - Click / Enter → Submits credentials (email and password) to POST `/api/v1/auth/login`. Sets authorization headers, stores JWT in localStorage, and redirects to root `/`.
-
-### Route: `/` (Component: `MyDashboard.tsx`)
-- **Range Toggle Buttons** (L226):
-  - Click → Changes the local query range filter state (`range` = "weekly" | "monthly" | "yearly"). Re-triggers TanStack query for dashboard analytics.
-- **Add Lead Link** (L311):
-  - Click → Navigates to `/leads/new`.
-- **Create Quote Link** (L312):
-  - Click → Navigates to `/quotes/new`.
-- **View My Pipeline Link** (L313):
-  - Click → Navigates to `/pipeline?ownerId={userId}`.
-- **Tab Selection Controls** (L367):
-  - Click → Switches the active tab layout (`activeTab` = "overview" | "recent_quotes" | "incoming_emails").
-- **Close Email Modal Button** (L526 / L554):
-  - Click → Clears selected email detail overlay state (`setSelectedEmail(null)`).
-
-### Route: `/leads` (Component: `LeadInbox.tsx`)
-- **Create Lead Link** (L69 / L141):
-  - Click → Navigates to `/leads/new`.
-- **Lead ID Row Link** (L162):
-  - Click → Navigates to the Lead details view `/leads/{leadId}`.
-
-### Route: `/leads/new` (Component: `LeadCreate.tsx`)
-- **Save as Draft Button** (L299):
-  - Click → Submits lead details with status `"Draft"` to POST `/api/v1/leads`.
-- **Save & Mark Contacted Button** (L306):
-  - Click → Submits lead details with status `"Contacted"` to POST `/api/v1/leads`.
-- **Voice Assistant Toggle** (L336):
-  - Click → Activates browser Web Speech API for voice transcript capture.
-- **Parse Transcript Button** (L347):
-  - Click → Sends recorded transcript to AI Parser endpoint POST `/api/v1/voice-leads/parse` to extract fields.
-- **Fill Fields Button** (L358):
-  - Click → Populates fields on the page with parsed AI response metadata.
-- **New Customer Inline Form Button** (L399):
-  - Click → Toggles visibility of the new customer inline registration form.
-- **Save Customer Button** (L447):
-  - Click → Submits new inline customer to POST `/api/v1/customers`.
-- **Remove Group Button** (L574):
-  - Click → Deletes selected line items group from active state list.
-
-### Route: `/leads/:id` (Component: `LeadDetail.tsx`)
-- **Convert to Quotation Button** (L230):
-  - Click → Converts lead to active quotation, creating pipeline deal mapping via POST `/api/v1/quotes` and redirecting.
-- **Edit/X details Toggle** (L306):
-  - Click → Enables inline form inputs for updating lead metadata attributes.
-- **Save Changes Button** (L353):
-  - Click → Submits changes to PUT `/api/v1/leads/{id}`.
-- **Reassign Representative Icon** (L399):
-  - Click → Toggles dropdown selection to reassign lead representative.
-- **Reassign Lead Button** (L443):
-  - Click → Submits changes to PUT `/api/v1/leads/{id}/reassign`.
-- **Activity Feed Card Box** (L568):
-  - Click → Launches activity feed modal to record tasks or communication logs.
-
-### Route: `/quotes` (Component: `QuoteHistory.tsx`)
-- **Export CSV Button** (L213):
-  - Click → Downloads CSV file containing all filtered quote lists from GET `/api/v1/exports/quotes`.
-- **New Quote Button** (L219 / L251):
-  - Click → Navigates to `/quotes/new`.
-- **Simulate DocuSign Button** (L319):
-  - Click → Calls Mock DocuSign endpoint GET `/api/v1/public/quotes/{id}/sign` to mark status as "Accepted".
-- **Convert to Invoice Button** (L342):
-  - Click → Submits POST `/api/v1/invoices/from-quote` and redirects to `/invoices` page on success.
-- **View Full Audit Trail Button** (L399):
-  - Click → Opens overlay popup containing complete system activity logs.
-
-### Route: `/quotes/new` (Component: `QuotationBuilder.tsx`)
-- **Save as Draft Button** (L387):
-  - Click → Submits quote items with status `"Draft"` to POST `/api/v1/quotes`.
-- **Send for Approval Button** (L388):
-  - Click → Submits quote items with status `"Pending"` to POST `/api/v1/quotes`.
-- **Add Product Button** (L398):
-  - Click → Appends empty line item row to quote collection.
-- **Trash Icon Button** (L458):
-  - Click → Removes product row from active quotation builder form.
-- **Apply All Recommendations** (L474):
-  - Click → Adds all AI suggestion products to active items list.
-- **Tab Navigation** (L615):
-  - Click → Toggles historical quotes sidebar tabs (`client` history or `similar` products).
-- **Edit & Use Button** (L674 / L759):
-  - Click → Overwrites active quote builder fields with products and values from selected historical template quote.
-- **Send As-Is Button** (L685 / L770):
-  - Click → Sends selected historical quote layout directly to the client without changes.
+| Button/Control | Page | Action Type | Result |
+| :--- | :--- | :--- | :--- |
+| **Login Submit** | `Login.tsx` | API Call | Hits POST `/api/v1/auth/login`, redirects to `/` |
+| **Quick Add Lead** | Layout | Navigate | Navigates to `/leads/new` |
+| **Save as Draft** | `LeadCreate.tsx` | API Call | Hits POST `/api/v1/leads` with "Draft" status |
+| **Simulate DocuSign** | `QuoteHistory.tsx` | API Call | Hits GET `/api/v1/public/quotes/:id/sign`, marks "Accepted" |
+| **Convert Quote to Invoice** | `QuoteHistory.tsx` | API Call | Hits POST `/api/v1/invoices/from-quote`, redirects to `/invoices` |
+| **View Full Audit Trail** | `QuoteHistory.tsx` | Modal / Local | Opens timeline popup modal showing log events |
+| **Edit & Use** | `QuotationBuilder.tsx` | Local State | Copies selected historical template quote to builder |
+| **Send As-Is** | `QuotationBuilder.tsx` | API Call | Sends selected template quote direct to client |
+| **Supabase SignUp/SignIn** | `AuthPage.tsx` | API Call | Calls Supabase SignUp/SignIn methods |
 
 ---
 
-## 3. Page-by-Page Audit: `quote-flow-pro-18` (QuoteFlow Pro)
+## 2. Route-by-Route Audit: `frontend`
 
-### Route: `/auth` (Component: `AuthPage.tsx`)
-- **Submit Form** (L66):
-  - Click / Enter → Triggers Supabase authentication signUp / signIn flow.
-- **Toggle Mode Link** (L123):
-  - Click → Toggles between Login and Registration views.
+## App: frontend — Route: /login (Component: Login.tsx)
+Role visibility: All public users.
+Purpose of this page: Allows users to input email and password credentials to receive a JWT access token.
 
-### Route: `/` (Component: `Dashboard.tsx`)
-- **Lead / Quotation Cards** (L273 / L306):
-  - Click → Navigates to `/leads/{id}` or `/quotations/{id}`.
+### Buttons & controls
+- **[Register / Account Submit Button]** (line 116)
+  - Click → Calls POST `/api/v1/auth/login` to authenticate credentials.
+  - Effect: Saves JWT token to client `localStorage` and redirects user to `/`.
+  - Visible to: All users.
 
-### Route: `/leads` (Component: `LeadList.tsx`)
-- **New Lead Link** (L623):
+---
+
+## App: frontend — Route: /home (Component: MyDashboard.tsx)
+Role visibility: `sales_rep`, `sales_manager`, `admin`, `director`.
+Purpose of this page: Main landing dashboard containing metrics charts and recent quote lists.
+
+### Tabs / sub-navigation on this page
+- Tab "Overview" → shows general performance metrics.
+- Tab "Incoming Emails" → shows list of sync inbox emails.
+
+### Buttons & controls
+- **[Range Toggle Buttons]** (line 226)
+  - Click → Toggles timeline selection (`weekly`, `monthly`, or `yearly`).
+  - Effect: Triggers TanStack query state refresh for metrics calculation.
+  - Visible to: All users.
+- **[Add Lead Link]** (line 311)
   - Click → Navigates to `/leads/new`.
+  - Effect: Opens new lead builder form.
+  - Visible to: All users.
 
-### Route: `/leads/new` (Component: `LeadCreate.tsx`)
-- **Save Button** (L183):
-  - Click → Saves lead details as draft.
-- **Save & Mark Contacted Button** (L187):
-  - Click → Saves lead details and marks status as contacted.
-- **Add Service Button** (L276):
-  - Click → Opens category configuration popup.
+---
 
-### Route: `/leads/:id` (Component: `LeadDetail.tsx`)
-- **Convert to Quotation Button** (L212):
-  - Click → Creates quotation configuration mapped to lead and updates DB state.
+## App: frontend — Route: /leads/new (Component: LeadCreate.tsx)
+Role visibility: `sales_rep`, `sales_manager`, `admin`.
+Purpose of this page: Standardized lead builder and ingest form with integrated voice transcript parser.
 
-### Route: `/quotations` (Component: `QuotationList.tsx`)
-- **New Quotation Link** (L811):
-  - Click → Navigates to `/quotations/new`.
-- **Status Filter buttons** (L815):
-  - Click → Toggles local list filter status.
+### Buttons & controls
+- **[Save as Draft Button]** (line 299)
+  - Click → Submits form details with status `"Draft"` to POST `/api/v1/leads`.
+  - Effect: Writes new draft lead database entry.
+  - Visible to: All users.
+- **[Voice Assistant Toggle]** (line 336)
+  - Click → Toggles speech recorder on/off.
+  - Effect: Captures microphone transcript locally.
+  - Visible to: All users.
+- **[Parse Transcript Button]** (line 347)
+  - Click → Sends transcript to POST `/api/v1/voice-leads/parse`.
+  - Effect: Populates fields dynamically with AI metadata attributes.
+  - Visible to: All users.
 
-### Route: `/master-data/service-types` (Component: `MasterServiceTypes.tsx`)
-- **Save / Create Button** (L83):
-  - Click → Saves or updates service type taxonomy in Supabase.
-- **Active / Off Toggle** (L125):
-  - Click → Toggles active state boolean.
+---
 
-### Route: `/master-data/service-items` (Component: `MasterServiceItems.tsx`)
-- **Add Line Item** (L185):
-  - Click → Adds new line item definition.
-- **Add Field** (L238):
-  - Click → Appends custom metadata input field parameter definition.
+## App: frontend — Route: /quotes (Component: QuoteHistory.tsx)
+Role visibility: `sales_rep`, `sales_manager`, `admin`.
+Purpose of this page: Lists historic quotations with print capabilities and invoice converters.
+
+### Buttons & controls
+- **[Simulate DocuSign Button]** (line 319)
+  - Click → Calls GET `/api/v1/public/quotes/{id}/sign`.
+  - Effect: Marks quote status as "Accepted" in the database.
+  - Visible to: All users.
+- **[Convert to Invoice Button]** (line 342)
+  - Click → Sends POST `/api/v1/invoices/from-quote`.
+  - Effect: Spawns new invoice and redirects.
+  - Visible to: All users.
+- **[View Full Audit Trail Button]** (line 399)
+  - Click → Opens modal showing chronological events.
+  - Effect: Renders overlay popup.
+  - Visible to: All users.
+
+---
+
+## App: frontend — Route: /quotes/new (Component: QuotationBuilder.tsx)
+Role visibility: `sales_rep`, `sales_manager`, `admin`.
+Purpose of this page: Main interactive quote builder with sidebar suggestions and historical template copier.
+
+### Tabs / sub-navigation on this page
+- Tab "Client History" (line 604) → shows past quotations of active client.
+- Tab "Similar Products" (line 615) → shows similar templates across other clients.
+
+### Buttons & controls
+- **[Edit & Use Button]** (line 674 / 759)
+  - Click → Sets item values into builder local state arrays.
+  - Effect: Fills current quotation editor fields with historical data.
+  - Visible to: All users.
+- **[Send As-Is Button]** (line 685 / 770)
+  - Click → Triggers POST `/api/v1/quotes/{id}/send`.
+  - Effect: Immediately emails template quote configuration.
+  - Visible to: All users.
+
+---
+
+## 3. Route-by-Route Audit: `quote-flow-pro-18`
+
+## App: quote-flow-pro-18 — Route: /auth (Component: AuthPage.tsx)
+Role visibility: All public users.
+Purpose of this page: Supabase registration and login gate.
+
+### Buttons & controls
+- **[Submit Auth Button]** (line 112)
+  - Click → Calls Supabase Auth provider triggers.
+  - Effect: Redirects session to dashboard on success.
+  - Visible to: All users.
+
+---
+
+## App: quote-flow-pro-18 — Route: /leads/new (Component: LeadCreate.tsx)
+Role visibility: All authenticated users.
+Purpose of this page: Lead creator panel with service classification items.
+
+### Buttons & controls
+- **[Save Button]** (line 183)
+  - Click → Submits fields to Supabase DB leads table.
+  - Effect: Inserts new lead configuration.
+  - Visible to: All users.
+- **[Add Service Button]** (line 276)
+  - Click → Opens category items popover picker.
+  - Effect: Toggles local modal overlay state.
+  - Visible to: All users.
