@@ -348,7 +348,7 @@ export const getSalespersonPerformanceDetails = async (req: Request, res: Respon
   try {
     const id = req.params.id as string;
     const user = await sequelize.models.User.findByPk(id, {
-      attributes: ["id", "name", "role", "isAvailable", "maxOpenLeads", "department", "territory", "team"]
+      attributes: ["id", "name", "email", "role", "isAvailable", "maxOpenLeads", "department", "territory", "team"]
     });
 
     if (!user) {
@@ -592,6 +592,7 @@ export const getSalespersonPerformanceDetails = async (req: Request, res: Respon
     res.json({
       id: u.id,
       name: u.name,
+      email: u.email,
       role: u.role,
       isAvailable: u.isAvailable,
       maxOpenLeads: u.maxOpenLeads,
