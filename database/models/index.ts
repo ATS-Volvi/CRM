@@ -15,6 +15,7 @@ export class User extends Model {
   public department!: string | null;
   public territory!: string | null;
   public team!: string | null;
+  public emailAlias!: string | null;
 }
 
 User.init(
@@ -31,7 +32,8 @@ User.init(
     managerId: { type: DataTypes.UUID, allowNull: true },
     department: { type: DataTypes.STRING, allowNull: true },
     territory: { type: DataTypes.STRING, allowNull: true },
-    team: { type: DataTypes.STRING, allowNull: true }
+    team: { type: DataTypes.STRING, allowNull: true },
+    emailAlias: { type: DataTypes.STRING, allowNull: true }
   },
   { sequelize, modelName: "User" }
 );
@@ -60,6 +62,7 @@ export class Lead extends Model {
   public leadNumber!: string | null;
   public categoriesData!: any | null;
   public recipientEmail!: string | null;
+  public assignmentMethod!: string | null;
 }
 
 Lead.init(
@@ -86,6 +89,7 @@ Lead.init(
     leadNumber: { type: DataTypes.STRING, allowNull: true, unique: true },
     categoriesData: { type: DataTypes.JSON, allowNull: true },
     recipientEmail: { type: DataTypes.STRING, allowNull: true },
+    assignmentMethod: { type: DataTypes.STRING, allowNull: true },
   },
   { 
     sequelize, 
