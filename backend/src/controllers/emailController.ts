@@ -46,15 +46,17 @@ function extractPlusTag(emailStr: string): string | null {
 
 // Extract explicit "Attn:" or "For:" prefix convention from subject or first line of body
 function extractAttnName(subject: string, bodyText: string): string | null {
-  const firstLine = (bodyText || "").split(/\r?\n/)[0] || "";
-  const combined = `${subject || ""} ${firstLine}`;
-  
-  // Look for "Attn: <Name>" or "For <Name>"
-  const regex = /\b(?:Attn|For)\s*:?\s*([A-Za-z0-9._-]+)/i;
-  const match = combined.match(regex);
-  if (match && match[1]) {
-    return match[1].trim().toLowerCase();
+  const subjectMatch = subject ? subject.match(/\b(?:Attn|For)\s*:?\s*(.+)$/i) : null;
+  if (subjectMatch && subjectMatch[1]) {
+    return subjectMatch[1].trim().toLowerCase();
   }
+
+  const firstLine = (bodyText || "").split(/\r?\n/)[0] || "";
+  const bodyMatch = firstLine.match(/\b(?:Attn|For)\s*:?\s*(.+)$/i);
+  if (bodyMatch && bodyMatch[1]) {
+    return bodyMatch[1].trim().toLowerCase();
+  }
+
   return null;
 }
 
@@ -147,7 +149,13 @@ export const receiveInboundEmail = async (req: Request, res: Response) => {
           const uFirst = u.name.split(" ")[0].toLowerCase();
           const uFull = u.name.toLowerCase();
           const uAlias = (u.emailAlias || "").toLowerCase();
-          return attnTarget === uFirst || attnTarget === uFull || (uAlias && attnTarget === uAlias);
+          return (
+            attnTarget === uFirst ||
+            attnTarget === uFull ||
+            (uAlias && attnTarget === uAlias) ||
+            attnTarget.startsWith(uFirst) ||
+            attnTarget.startsWith(uFull)
+          );
         });
 
         if (matchedAttnUser) {
