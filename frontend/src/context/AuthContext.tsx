@@ -31,9 +31,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (storedToken && storedUser) {
       try {
-        // Decode JWT payload locally to check for expiration
+        // Decode JWT payload safely handling Base64URL formatting for Safari/WebKit
         const payloadBase64 = storedToken.split(".")[1];
-        const payloadJson = atob(payloadBase64);
+        let base64 = payloadBase64.replace(/-/g, "+").replace(/_/g, "/");
+        while (base64.length % 4 !== 0) {
+          base64 += "=";
+        }
+        const payloadJson = decodeURIComponent(
+          escape(atob(base64))
+        );
         const payload = JSON.parse(payloadJson);
         
         if (payload.exp && Date.now() >= payload.exp * 1000) {
