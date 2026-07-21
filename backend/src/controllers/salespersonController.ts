@@ -251,6 +251,7 @@ export const getSalespersonsPerformance = async (req: Request, res: Response) =>
       salespersonStats.push({
         id: u.id,
         name: u.name,
+        email: u.email,
         role: u.role,
         isAvailable: u.isAvailable,
         maxOpenLeads: u.maxOpenLeads,

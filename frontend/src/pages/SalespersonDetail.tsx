@@ -452,7 +452,10 @@ export default function SalespersonDetail() {
               {getInitials(rep.name)}
             </div>
             <div>
-              <h1 className="text-xl font-bold text-on-surface">{rep.name}</h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-bold text-on-surface">{rep.name}</h1>
+                {rep.email && <span className="text-xs font-mono text-on-surface-variant bg-surface-container-high px-2 py-0.5 rounded-md border border-outline-variant">{rep.email}</span>}
+              </div>
               <div className="flex flex-wrap items-center gap-2 mt-1.5">
                 <span className="capitalize px-2.5 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-bold">
                   {rep.role.replace("_", " ")}
