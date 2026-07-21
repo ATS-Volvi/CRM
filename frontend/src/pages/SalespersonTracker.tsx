@@ -375,6 +375,7 @@ export default function SalespersonTracker() {
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-on-surface text-sm truncate group-hover:text-primary transition-colors">{rep.name}</p>
                     <p className="text-[10px] text-on-surface-variant font-semibold">{roleLabel(rep.role)}</p>
+                    {rep.email && <p className="text-[10px] font-mono text-primary truncate">{rep.email}</p>}
                     <div className="flex items-center gap-1 mt-0.5">
                       <button
                         onClick={e => { e.stopPropagation(); handleToggleAvailability(rep); }}
