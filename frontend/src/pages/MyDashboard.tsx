@@ -212,9 +212,16 @@ export default function MyDashboard() {
             Personal Dashboard
           </p>
           <h1 className="text-4xl font-bold text-on-surface">
-            {greeting}, <span className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">{userRole}</span> 👋
+            {greeting}, <span className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">{user?.name || userRole}</span> 👋
           </h1>
-          <p className="text-body-md text-on-surface-variant mt-1">Here's a snapshot of your pipeline for the selected period.</p>
+          <div className="flex items-center gap-2 mt-1.5">
+            <p className="text-body-md text-on-surface-variant">Here's a snapshot of your pipeline for the selected period.</p>
+            {user?.email && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-mono font-bold border border-primary/20">
+                {user.email}
+              </span>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
