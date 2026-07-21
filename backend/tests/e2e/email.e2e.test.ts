@@ -304,4 +304,50 @@ describe("E2E: Email Delivery Automation", () => {
     expect(response.body.assignmentMethod).toBe("least-workload");
     expect(response.body.assignedToId).not.toBe(unavailableRep.id);
   });
+
+  it("should process Mailgun multipart/form-data payloads with sender, recipient, stripped-text", async () => {
+    const hashedPassword = await require("bcrypt").hash("password123", 10);
+    const mailgunRep = await sequelize.models.User.create({
+      id: require('crypto').randomUUID(),
+      name: "Mailgun Target Rep",
+      email: `mailgun_${require('crypto').randomUUID()}@nexus.com`,
+      emailAlias: "mgalias",
+      password: hashedPassword,
+      role: "sales_rep"
+    }) as any;
+
+    const response = await request(app)
+      .post("/api/v1/emails/inbound?auth_token=test_secret")
+      .field("sender", "Mailgun Client <mgclient@example.com>")
+      .field("recipient", "face+mgalias@123.com")
+      .field("subject", "Mailgun Multipart Quote")
+      .field("stripped-text", "Hello, this is a test via Mailgun multipart.");
+
+    expect(response.status).toBe(201);
+    expect(response.body.assignedToId).toBe(mailgunRep.id);
+    expect(response.body.assignmentMethod).toBe("plus-tag");
+
+    const createdLead = await sequelize.models.Lead.findByPk(response.body.leadId) as any;
+    expect(createdLead.email).toBe("mgclient@example.com");
+    expect(createdLead.body).toBe("Hello, this is a test via Mailgun multipart.");
+  });
+
+  it("should process Mailgun urlencoded payloads with body-plain fallback", async () => {
+    const response = await request(app)
+      .post("/api/v1/emails/inbound?auth_token=test_secret")
+      .type("form")
+      .send({
+        sender: "UrlEncoded Client <urlclient@example.com>",
+        recipient: "face@123.com",
+        subject: "UrlEncoded Inquiry",
+        "body-plain": "Inquiry text via urlencoded form body."
+      });
+
+    expect(response.status).toBe(201);
+    expect(response.body.message).toBe("Inbound email ingested successfully");
+
+    const createdLead = await sequelize.models.Lead.findByPk(response.body.leadId) as any;
+    expect(createdLead.email).toBe("urlclient@example.com");
+    expect(createdLead.body).toBe("Inquiry text via urlencoded form body.");
+  });
 });

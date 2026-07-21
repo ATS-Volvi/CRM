@@ -58,6 +58,16 @@ function extractAttnName(subject: string, bodyText: string): string | null {
   return null;
 }
 
+// Normalize different provider payload formats (SendGrid JSON, Mailgun multipart/form-data, URL encoded)
+function normalizeInboundPayload(rawBody: any) {
+  const b = rawBody || {};
+  const from = b.from || b.sender || b.From || b.Sender || "";
+  const to = b.to || b.recipient || b.To || b.Recipient || "";
+  const subject = b.subject || b.Subject || "No Subject";
+  const text = b["stripped-text"] || b["body-plain"] || b.text || b.body || b.Body || "No message body provided.";
+  return { from, to, subject, text };
+}
+
 export const receiveInboundEmail = async (req: Request, res: Response) => {
   try {
     // Security verification check
@@ -70,19 +80,14 @@ export const receiveInboundEmail = async (req: Request, res: Response) => {
       }
     }
 
-    // SendGrid/Mailgun/Postmark inbound parse fields
-    const { from, subject, text, body, sender, to, recipient, To } = req.body;
+    // Normalize inbound payload fields
+    const { from: rawFrom, to: rawTo, subject: emailSubject, text: emailBody } = normalizeInboundPayload(req.body);
     
-    const rawFrom = from || sender;
     if (!rawFrom) {
       return res.status(400).json({ error: "Missing sender information ('from' or 'sender')" });
     }
 
     const { firstName, lastName, email } = parseSender(rawFrom);
-    const emailSubject = subject || "No Subject";
-    const emailBody = text || body || "No message body provided.";
-
-    const rawTo = to || recipient || To;
     let assignedToId: string | null = null;
     let recipientEmail: string | null = null;
     let assignmentMethod: string | null = null;

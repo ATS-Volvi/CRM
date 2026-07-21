@@ -112,8 +112,17 @@ router.post("/auth/login", login);
  *       201:
  *         description: Lead captured successfully
  */
+import express from "express";
+import multer from "multer";
+const upload = multer();
+
 router.post("/public/leads", createPublicLead);
-router.post("/emails/inbound", receiveInboundEmail);
+router.post(
+  "/emails/inbound",
+  express.urlencoded({ extended: true }),
+  upload.any(),
+  receiveInboundEmail
+);
 import { handleUnsubscribe } from "../controllers/leadController";
 router.get("/leads/unsubscribe/:id", handleUnsubscribe);
 
