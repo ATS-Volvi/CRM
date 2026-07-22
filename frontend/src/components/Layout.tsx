@@ -297,8 +297,22 @@ export function Layout() {
 
       {/* Main Workspace chrome */}
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-16 border-b border-sidebar-border bg-card px-8 flex items-center justify-between gap-4 shrink-0">
-          <div className="flex items-center flex-1 max-w-xl relative">
+        {/* GLOBAL ENTERPRISE HEADER */}
+        <header className="h-16 border-b border-sidebar-border bg-card px-6 flex items-center justify-between gap-4 shrink-0">
+          
+          {/* Breadcrumb & Page Context */}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1 text-xs text-muted-foreground font-semibold">
+              <span>Nexus</span>
+              <ChevronRight className="w-3 h-3" />
+              <span className="capitalize text-foreground font-bold">
+                {location.pathname === "/" || location.pathname === "/home" ? "Dashboard" : location.pathname.substring(1).replace("-", " ")}
+              </span>
+            </div>
+          </div>
+
+          {/* Global Fuzzy Search Bar */}
+          <div className="flex items-center flex-1 max-w-lg relative">
             <div className="relative w-full">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
               <input 
