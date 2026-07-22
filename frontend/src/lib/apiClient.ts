@@ -9,7 +9,7 @@ export interface ApiOptions extends RequestInit {
 }
 
 export async function apiClient(path: string, options: ApiOptions = {}): Promise<Response> {
-  const token = localStorage.getItem("nexus_token");
+  const token = sessionStorage.getItem("nexus_token");
   
   const headers = new Headers(options.headers || {});
   

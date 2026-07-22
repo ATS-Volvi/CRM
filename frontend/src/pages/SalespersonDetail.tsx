@@ -68,6 +68,7 @@ interface KpiTarget {
 interface Salesperson {
   id: string;
   name: string;
+  email?: string;
   role: string;
   isAvailable: boolean;
   maxOpenLeads: number;

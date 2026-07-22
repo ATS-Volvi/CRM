@@ -25,9 +25,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check localStorage on mount
-    const storedToken = localStorage.getItem("nexus_token");
-    const storedUser = localStorage.getItem("nexus_user");
+    // Check sessionStorage on mount (new browser window/tab forces login)
+    const storedToken = sessionStorage.getItem("nexus_token");
+    const storedUser = sessionStorage.getItem("nexus_user");
 
     if (storedToken && storedUser) {
       try {
@@ -44,16 +44,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         if (payload.exp && Date.now() >= payload.exp * 1000) {
           console.warn("[AUTH] Stored token has expired. Clearing session.");
-          localStorage.removeItem("nexus_token");
-          localStorage.removeItem("nexus_user");
+          sessionStorage.removeItem("nexus_token");
+          sessionStorage.removeItem("nexus_user");
         } else {
           setToken(storedToken);
           setUser(JSON.parse(storedUser));
         }
       } catch (e) {
         console.error("[AUTH] Error decoding stored token. Clearing session:", e);
-        localStorage.removeItem("nexus_token");
-        localStorage.removeItem("nexus_user");
+        sessionStorage.removeItem("nexus_token");
+        sessionStorage.removeItem("nexus_user");
       }
     }
     setIsLoading(false);
@@ -62,16 +62,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = (newToken: string, newUser: User) => {
     setToken(newToken);
     setUser(newUser);
-    localStorage.setItem("nexus_token", newToken);
-    localStorage.setItem("nexus_user", JSON.stringify(newUser));
+    sessionStorage.setItem("nexus_token", newToken);
+    sessionStorage.setItem("nexus_user", JSON.stringify(newUser));
   };
 
   const logout = () => {
     setToken(null);
     setUser(null);
-    localStorage.removeItem("nexus_token");
-    localStorage.removeItem("nexus_user");
+    sessionStorage.removeItem("nexus_token");
+    sessionStorage.removeItem("nexus_user");
   };
+
+  // Session inactivity timeout timer (10 minutes of inactivity)
+  useEffect(() => {
+    if (!token) return;
+
+    const INACTIVITY_TIMEOUT_MS = 10 * 60 * 1000;
+    let timer: NodeJS.Timeout;
+
+    const resetTimer = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        console.warn("[AUTH] Session timed out due to inactivity.");
+        logout();
+      }, INACTIVITY_TIMEOUT_MS);
+    };
+
+    const events = ["mousemove", "keydown", "click", "scroll", "touchstart"];
+    events.forEach((event) => window.addEventListener(event, resetTimer));
+
+    resetTimer();
+
+    return () => {
+      clearTimeout(timer);
+      events.forEach((event) => window.removeEventListener(event, resetTimer));
+    };
+  }, [token]);
 
   // Register logout callback for the apiClient
   useEffect(() => {
