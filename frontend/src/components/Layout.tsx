@@ -128,163 +128,105 @@ export function Layout() {
     });
   };
 
-  // Core flat top-level items
-  const flatItems = [
-    { name: "My Dashboard", path: "/home", icon: Home },
-    { name: "Lead Inbox", path: "/leads", icon: Inbox },
-    { name: "Quotes", path: "/quotes", icon: FileText },
-    { name: "Purchase Orders", path: "/purchase-orders", icon: CheckSquare },
-    { name: "Customers", path: "/customers", icon: Users }
-  ];
-
-  // Reports submenu items
-  const reportsItems = [
-    { name: "Pipeline", path: "/pipeline", icon: Trello, visible: true },
-    { name: "Management Dashboard", path: "/", icon: LayoutDashboard, visible: isManagerOrAdmin },
-    { name: "KPI Dashboard", path: "/kpi", icon: BarChart, visible: isManagerOrAdmin },
-    { name: "Sales Representatives", path: "/salespersons", icon: Users, visible: isManagerOrAdmin },
-    { name: "AI Reports", path: "/ai-reports", icon: Mail, visible: isManagerOrAdmin }
-  ].filter(i => i.visible);
-
-  // Master Data submenu items (Only visible to managers/admins)
-  const masterItems = [
-    { name: "Requirements", path: "/master-data/requirements" },
-    { name: "Line Items", path: "/master-data/line-items" },
-    { name: "Construction Items", path: "/master-data/construction-items" },
-    { name: "Pricing Grid", path: "/master-data/pricing" },
-    { name: "Lead Sources", path: "/master-data/lead-sources" },
-    { name: "KPI Master", path: "/master-data/kpis" },
-    { name: "Price Book", path: "/price-book" }
+  // Enterprise UX Navigation Sections
+  const navSections = [
+    {
+      title: "Workspace",
+      items: [
+        { name: "Dashboard", path: "/home", icon: Home },
+        { name: "My Tasks", path: "/leads", icon: CheckSquare },
+        { name: "Calendar", path: "/pipeline", icon: Calendar },
+        { name: "Notifications", path: "/home", icon: Bell }
+      ]
+    },
+    {
+      title: "Sales",
+      items: [
+        { name: "Leads", path: "/leads", icon: Inbox },
+        { name: "Contacts & Customers", path: "/customers", icon: Users },
+        { name: "Pipeline Kanban", path: "/pipeline", icon: Trello },
+        { name: "Quotations", path: "/quotes", icon: FileText },
+        { name: "Purchase Orders", path: "/purchase-orders", icon: CheckSquare }
+      ]
+    },
+    {
+      title: "Customers & Billing",
+      items: [
+        { name: "Customer 360", path: "/customers", icon: Users },
+        { name: "Invoices & Billing", path: "/invoices", icon: Receipt }
+      ]
+    },
+    {
+      title: "Analytics & Intelligence",
+      items: [
+        { name: "Management Ops", path: "/", icon: LayoutDashboard, visible: isManagerOrAdmin },
+        { name: "KPI Performance", path: "/kpi", icon: BarChart, visible: isManagerOrAdmin },
+        { name: "Team Performance", path: "/salespersons", icon: Users, visible: isManagerOrAdmin },
+        { name: "AI Reports", path: "/ai-reports", icon: Sparkles, visible: isManagerOrAdmin }
+      ].filter(i => i.visible !== false)
+    },
+    {
+      title: "Administration",
+      items: [
+        { name: "Sales Representatives", path: "/salespersons", icon: Users, visible: isManagerOrAdmin },
+        { name: "Assignment Rules", path: "/rules", icon: Settings, visible: isManagerOrAdmin },
+        { name: "Approval Queues", path: "/approvals", icon: CheckSquare, visible: isManagerOrAdmin },
+        { name: "Price Book Catalog", path: "/price-book", icon: Database, visible: isManagerOrAdmin }
+      ].filter(i => i.visible !== false)
+    }
   ];
 
   return (
     <div className="flex h-screen w-full bg-background text-foreground font-sans overflow-hidden">
-      {/* Sidebar chrome */}
+      {/* SIDEBAR NAVIGATION CHROME */}
       <aside 
         className={`bg-sidebar border-r border-sidebar-border flex flex-col h-full shrink-0 transition-all duration-300 ${
           isCollapsed ? "w-16" : "w-[260px]"
         }`}
       >
-        {/* Fixed-height logo header (h-16) */}
+        {/* Brand Header */}
         <div className="h-16 border-b border-sidebar-border flex items-center px-4 gap-3 shrink-0">
-          <div className="w-8 h-8 rounded-lg gradient-primary flex items-center justify-center text-white font-bold shrink-0 shadow-sm">
+          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-black shrink-0 shadow-sm">
             N
           </div>
           {!isCollapsed && (
             <div className="min-w-0 animate-fade-in">
-              <h2 className="text-sm font-bold text-foreground truncate">Nexus CRM</h2>
-              <p className="text-[10px] text-muted-foreground truncate">Face Contracting Suite</p>
+              <h2 className="text-sm font-black text-foreground tracking-tight truncate">NEXUS CRM</h2>
+              <p className="text-[10px] font-semibold text-muted-foreground truncate">Enterprise Suite</p>
             </div>
           )}
         </div>
 
         {/* Scrollable Navigation Area */}
         <nav className="flex-1 overflow-y-auto p-3 space-y-4">
-          
-          {/* Top-Level Flat Group */}
-          <div className="space-y-1">
-            {flatItems.map(item => {
-              const Icon = item.icon;
-              const isActive = location.pathname === item.path;
-              return (
-                <Link
-                  key={item.name}
-                  to={item.path}
-                  className={`flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-bold transition-all ${
-                    isActive
-                      ? "bg-primary/10 text-primary glow-primary"
-                      : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                  }`}
-                  title={isCollapsed ? item.name : undefined}
-                >
-                  <Icon className="w-4 h-4 shrink-0" />
-                  {!isCollapsed && <span className="animate-fade-in">{item.name}</span>}
-                </Link>
-              );
-            })}
-          </div>
-
-          {/* Reports Submenu Group */}
-          {reportsItems.length > 0 && (
-            <div className="space-y-1">
-              {!isCollapsed ? (
-                <button
-                  onClick={toggleReports}
-                  className="w-full flex items-center justify-between px-3 py-1.5 text-[10px] font-bold text-sidebar-foreground/70 uppercase tracking-wider hover:text-primary transition-all"
-                >
-                  <span>Reports</span>
-                  <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${isReportsOpen ? "rotate-0" : "-rotate-90"}`} />
-                </button>
-              ) : (
-                <div className="border-t border-sidebar-border my-2" />
+          {navSections.map(section => (
+            <div key={section.title} className="space-y-1">
+              {!isCollapsed && (
+                <p className="px-3 text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
+                  {section.title}
+                </p>
               )}
-
-              {(isReportsOpen || isCollapsed) && (
-                <div className={`${!isCollapsed ? "pl-2 border-l border-sidebar-border/60 ml-4 space-y-1" : "space-y-1"}`}>
-                  {reportsItems.map(item => {
-                    const Icon = item.icon;
-                    const isActive = location.pathname === item.path;
-                    return (
-                      <Link
-                        key={item.name}
-                        to={item.path}
-                        className={`flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-bold transition-all ${
-                          isActive
-                            ? "bg-primary/10 text-primary glow-primary"
-                            : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                        }`}
-                        title={isCollapsed ? item.name : undefined}
-                      >
-                        <Icon className="w-4 h-4 shrink-0" />
-                        {!isCollapsed && <span className="animate-fade-in">{item.name}</span>}
-                      </Link>
-                    );
-                  })}
-                </div>
-              )}
+              {section.items.map(item => {
+                const Icon = item.icon;
+                const isActive = location.pathname === item.path;
+                return (
+                  <Link
+                    key={item.name}
+                    to={item.path}
+                    className={`flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-bold transition-all ${
+                      isActive
+                        ? "bg-primary/10 text-primary glow-primary"
+                        : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                    }`}
+                    title={isCollapsed ? item.name : undefined}
+                  >
+                    <Icon className="w-4 h-4 shrink-0" />
+                    {!isCollapsed && <span className="animate-fade-in truncate">{item.name}</span>}
+                  </Link>
+                );
+              })}
             </div>
-          )}
-
-          {/* Master Data Configuration Submenu Group */}
-          {isManagerOrAdmin && (
-            <div className="space-y-1">
-              {!isCollapsed ? (
-                <button
-                  onClick={toggleMaster}
-                  className="w-full flex items-center justify-between px-3 py-1.5 text-[10px] font-bold text-sidebar-foreground/70 uppercase tracking-wider hover:text-primary transition-all"
-                >
-                  <span>Master Data</span>
-                  <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${isMasterOpen ? "rotate-0" : "-rotate-90"}`} />
-                </button>
-              ) : (
-                <div className="border-t border-sidebar-border my-2" />
-              )}
-
-              {(isMasterOpen || isCollapsed) && (
-                <div className={`${!isCollapsed ? "pl-2 border-l border-sidebar-border/60 ml-4 space-y-1" : "space-y-1"}`}>
-                  {masterItems.map(item => {
-                    const isActive = location.pathname === item.path;
-                    return (
-                      <Link
-                        key={item.name}
-                        to={item.path}
-                        className={`flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-bold transition-all ${
-                          isActive
-                            ? "bg-primary/10 text-primary glow-primary"
-                            : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                        }`}
-                        title={isCollapsed ? item.name : undefined}
-                      >
-                        <Database className="w-4 h-4 shrink-0" />
-                        {!isCollapsed && <span className="animate-fade-in truncate">{item.name}</span>}
-                      </Link>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-
+          ))}
         </nav>
 
         {/* Sidebar Footer */}
