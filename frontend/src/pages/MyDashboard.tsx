@@ -191,9 +191,9 @@ export default function MyDashboard() {
   ];
 
   const tabs: { key: TabKey; label: string; count: number }[] = [
-    { key: "leads",  label: "Leads",  count: data?.leads.length  ?? 0 },
-    { key: "quotes", label: "Quotes", count: data?.quotes.length ?? 0 },
-    { key: "pos",    label: "POs",    count: data?.purchaseOrders.length ?? 0 },
+    { key: "leads",  label: "Leads",  count: data?.leads?.length  ?? 0 },
+    { key: "quotes", label: "Quotes", count: data?.quotes?.length ?? 0 },
+    { key: "pos",    label: "POs",    count: data?.purchaseOrders?.length ?? 0 },
     { key: "emails", label: "Emails", count: data?.assignedEmails?.length ?? 0 }
   ];
 
@@ -627,14 +627,14 @@ export default function MyDashboard() {
                     <Clock className="w-4 h-4 text-amber-500 mx-auto mb-1" />
                     <p className="text-[11px] font-semibold text-on-surface-variant">Active</p>
                     <p className="font-bold text-sm text-on-surface">
-                      {data?.leads.filter(l => l.status === "Qualified").length ?? 0}
+                      {data?.leads?.filter(l => l.status === "Qualified")?.length ?? 0}
                     </p>
                   </div>
                   <div className="bg-surface-container rounded-lg p-2">
                     <Inbox className="w-4 h-4 text-primary mx-auto mb-1" />
                     <p className="text-[11px] font-semibold text-on-surface-variant">New</p>
                     <p className="font-bold text-sm text-on-surface">
-                      {data?.leads.filter(l => l.status === "New").length ?? 0}
+                      {data?.leads?.filter(l => l.status === "New")?.length ?? 0}
                     </p>
                   </div>
                 </div>
@@ -646,12 +646,12 @@ export default function MyDashboard() {
                   <Tag className="w-4 h-4 text-secondary" />
                   <h3 className="font-bold text-sm text-on-surface">Lead Sources</h3>
                 </div>
-                {(data?.leads.length ?? 0) === 0 ? (
+                {(data?.leads?.length ?? 0) === 0 ? (
                   <p className="text-sm text-on-surface-variant italic">No leads in this period</p>
                 ) : (() => {
                   const srcMap: Record<string, number> = {};
-                  data!.leads.forEach(l => { srcMap[l.source || "Unknown"] = (srcMap[l.source || "Unknown"] || 0) + 1; });
-                  const total = data!.leads.length;
+                  (data?.leads || []).forEach(l => { srcMap[l.source || "Unknown"] = (srcMap[l.source || "Unknown"] || 0) + 1; });
+                  const total = data?.leads?.length || 1;
                   return Object.entries(srcMap).slice(0, 4).map(([src, count]) => (
                     <div key={src} className="mb-3">
                       <div className="flex justify-between text-xs font-semibold mb-1">
