@@ -128,50 +128,41 @@ export function Layout() {
     });
   };
 
-  // Enterprise UX Navigation Hierarchy (High-Quality Dedicated Destinations Only)
-  const navSections = [
-    {
-      title: "Workspace",
-      items: [
-        { name: "My Dashboard", path: "/home", icon: Home }
-      ]
-    },
-    {
-      title: "Sales & Pipeline",
-      items: [
-        { name: "Leads Inbox", path: "/leads", icon: Inbox },
-        { name: "Pipeline Kanban", path: "/pipeline", icon: Trello },
-        { name: "Quotations", path: "/quotes", icon: FileText },
-        { name: "Purchase Orders", path: "/purchase-orders", icon: CheckSquare },
-        { name: "Price Book Catalog", path: "/price-book", icon: Database }
-      ]
-    },
-    {
-      title: "Customers & Billing",
-      items: [
-        { name: "Customer 360 Workspace", path: "/customers", icon: Users },
-        { name: "Invoices & Billing", path: "/invoices", icon: Receipt }
-      ]
-    },
-    {
-      title: "Analytics & Intelligence",
-      items: [
-        { name: "Executive Operations", path: "/", icon: LayoutDashboard, visible: isManagerOrAdmin },
-        { name: "KPI Performance", path: "/kpi", icon: BarChart, visible: isManagerOrAdmin },
-        { name: "AI Reports & Copilot", path: "/ai-reports", icon: Sparkles, visible: isManagerOrAdmin }
-      ].filter(i => i.visible !== false)
-    },
-    {
-      title: "Administration & Rules",
-      items: [
-        { name: "Sales Representatives", path: "/salespersons", icon: Users, visible: isManagerOrAdmin },
-        { name: "Assignment Rules", path: "/rules", icon: Settings, visible: isManagerOrAdmin },
-        { name: "Approval Workflows", path: "/approvals", icon: CheckSquare, visible: isManagerOrAdmin },
-        { name: "Master Requirements", path: "/master-data/requirements", icon: Database, visible: isManagerOrAdmin },
-        { name: "Lead Sources", path: "/master-data/lead-sources", icon: Database, visible: isManagerOrAdmin },
-        { name: "System Settings", path: "/settings", icon: Settings, visible: isManagerOrAdmin }
-      ].filter(i => i.visible !== false)
-    }
+  // Core Primary Items
+  const primaryItems = [
+    { name: "My Dashboard", path: "/home", icon: Home },
+    { name: "Lead Inbox", path: "/leads", icon: Inbox },
+    { name: "Pipeline Kanban", path: "/pipeline", icon: Trello },
+    { name: "Quotation Center", path: "/quotes", icon: FileText },
+    { name: "Purchase Orders", path: "/purchase-orders", icon: CheckSquare },
+    { name: "Customer 360", path: "/customers", icon: Users },
+    { name: "Invoices & Billing", path: "/invoices", icon: Receipt }
+  ];
+
+  // Reports submenu items
+  const reportsItems = [
+    { name: "Management Ops", path: "/", icon: LayoutDashboard, visible: isManagerOrAdmin },
+    { name: "KPI Dashboard", path: "/kpi", icon: BarChart, visible: isManagerOrAdmin },
+    { name: "Sales Representatives", path: "/salespersons", icon: Users, visible: isManagerOrAdmin },
+    { name: "AI Reports", path: "/ai-reports", icon: Sparkles, visible: isManagerOrAdmin }
+  ].filter(i => i.visible);
+
+  // Master Data submenu items (Preserving original hierarchical order & routing)
+  const masterItems = [
+    { name: "Requirements", path: "/master-data/requirements" },
+    { name: "Line Items", path: "/master-data/line-items" },
+    { name: "Construction Items", path: "/master-data/construction-items" },
+    { name: "Pricing Grid", path: "/master-data/pricing" },
+    { name: "Lead Sources", path: "/master-data/lead-sources" },
+    { name: "KPI Master", path: "/master-data/kpis" },
+    { name: "Price Book", path: "/price-book" }
+  ];
+
+  // Administration items
+  const adminItems = [
+    { name: "Assignment Rules", path: "/rules", icon: Settings },
+    { name: "Approval Queues", path: "/approvals", icon: CheckSquare },
+    { name: "System Settings", path: "/settings", icon: Settings }
   ];
 
   return (
@@ -197,14 +188,117 @@ export function Layout() {
 
         {/* Scrollable Navigation Area */}
         <nav className="flex-1 overflow-y-auto p-3 space-y-4">
-          {navSections.map(section => (
-            <div key={section.title} className="space-y-1">
-              {!isCollapsed && (
-                <p className="px-3 text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
-                  {section.title}
-                </p>
+          
+          {/* Main Navigation Group */}
+          <div className="space-y-1">
+            {!isCollapsed && <p className="px-3 text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Core Modules</p>}
+            {primaryItems.map(item => {
+              const Icon = item.icon;
+              const isActive = location.pathname === item.path;
+              return (
+                <Link
+                  key={item.name}
+                  to={item.path}
+                  className={`flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-bold transition-all ${
+                    isActive
+                      ? "bg-primary/10 text-primary glow-primary"
+                      : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  }`}
+                  title={isCollapsed ? item.name : undefined}
+                >
+                  <Icon className="w-4 h-4 shrink-0" />
+                  {!isCollapsed && <span className="animate-fade-in truncate">{item.name}</span>}
+                </Link>
+              );
+            })}
+          </div>
+
+          {/* Reports Submenu Group */}
+          {reportsItems.length > 0 && (
+            <div className="space-y-1">
+              {!isCollapsed ? (
+                <button
+                  onClick={toggleReports}
+                  className="w-full flex items-center justify-between px-3 py-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider hover:text-primary transition-all"
+                >
+                  <span>Analytics & Intelligence</span>
+                  <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${isReportsOpen ? "rotate-0" : "-rotate-90"}`} />
+                </button>
+              ) : (
+                <div className="border-t border-sidebar-border my-2" />
               )}
-              {section.items.map(item => {
+
+              {(isReportsOpen || isCollapsed) && (
+                <div className={`${!isCollapsed ? "pl-2 border-l border-sidebar-border/60 ml-3 space-y-1" : "space-y-1"}`}>
+                  {reportsItems.map(item => {
+                    const Icon = item.icon;
+                    const isActive = location.pathname === item.path;
+                    return (
+                      <Link
+                        key={item.name}
+                        to={item.path}
+                        className={`flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-bold transition-all ${
+                          isActive
+                            ? "bg-primary/10 text-primary glow-primary"
+                            : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                        }`}
+                        title={isCollapsed ? item.name : undefined}
+                      >
+                        <Icon className="w-4 h-4 shrink-0" />
+                        {!isCollapsed && <span className="animate-fade-in">{item.name}</span>}
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Master Data Accordion Group (Restored Hierarchical Accordion) */}
+          {isManagerOrAdmin && (
+            <div className="space-y-1">
+              {!isCollapsed ? (
+                <button
+                  onClick={toggleMaster}
+                  className="w-full flex items-center justify-between px-3 py-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider hover:text-primary transition-all"
+                >
+                  <span>Master Data</span>
+                  <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${isMasterOpen ? "rotate-0" : "-rotate-90"}`} />
+                </button>
+              ) : (
+                <div className="border-t border-sidebar-border my-2" />
+              )}
+
+              {(isMasterOpen || isCollapsed) && (
+                <div className={`${!isCollapsed ? "pl-2 border-l border-sidebar-border/60 ml-3 space-y-1" : "space-y-1"}`}>
+                  {masterItems.map(item => {
+                    const isActive = location.pathname === item.path;
+                    return (
+                      <Link
+                        key={item.name}
+                        to={item.path}
+                        className={`flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-bold transition-all ${
+                          isActive
+                            ? "bg-primary/10 text-primary glow-primary"
+                            : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                        }`}
+                        title={isCollapsed ? item.name : undefined}
+                      >
+                        <Database className="w-4 h-4 shrink-0" />
+                        {!isCollapsed && <span className="animate-fade-in truncate">{item.name}</span>}
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Administration Group */}
+          {isManagerOrAdmin && (
+            <div className="space-y-1">
+              {!isCollapsed && <p className="px-3 text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Administration</p>}
+              {adminItems.map(item => {
                 const Icon = item.icon;
                 const isActive = location.pathname === item.path;
                 return (
@@ -224,7 +318,8 @@ export function Layout() {
                 );
               })}
             </div>
-          ))}
+          )}
+
         </nav>
 
         {/* Sidebar Footer */}
