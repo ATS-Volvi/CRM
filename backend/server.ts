@@ -27,7 +27,9 @@ export function createServer(): Express {
   app.use("/api/v1", v1Router);
 
   // Serve static assets from frontend build if they exist
-  const frontendBuildPath = path.join(process.cwd(), "frontend/dist");
+  // __dirname is backend/build/ (or backend/build/backend/), go up to repo root
+  const repoRoot = path.resolve(__dirname, "../../..");
+  const frontendBuildPath = path.join(repoRoot, "frontend/dist");
   app.use(express.static(frontendBuildPath));
 
   // SPA routing fallback for Client-side react Router paths
