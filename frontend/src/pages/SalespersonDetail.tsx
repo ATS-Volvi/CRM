@@ -75,7 +75,6 @@ interface Salesperson {
   department: string;
   territory: string;
   team: string;
-  email: string;
   totalLeads: number;
   totalDeals: number;
   purchaseOrders: {

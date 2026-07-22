@@ -18,7 +18,6 @@ interface Salesperson {
   department: string;
   territory: string;
   team: string;
-  email: string;
   activeKpiCount: number;
   revenueClosed: number;
   targetAchievementPct: number;
