@@ -882,6 +882,179 @@ GmailConfig.init(
   { sequelize, modelName: "GmailConfig" }
 );
 
+export class Task extends Model {
+  public id!: string;
+  public title!: string;
+  public description!: string | null;
+  public priority!: string;
+  public dueDate!: Date | null;
+  public reminderDate!: Date | null;
+  public status!: string;
+  public ownerId!: string | null;
+  public leadId!: string | null;
+  public customerId!: string | null;
+}
+
+Task.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    title: { type: DataTypes.STRING, allowNull: false },
+    description: { type: DataTypes.TEXT, allowNull: true },
+    priority: { type: DataTypes.STRING, defaultValue: "Medium" },
+    dueDate: { type: DataTypes.DATE, allowNull: true },
+    reminderDate: { type: DataTypes.DATE, allowNull: true },
+    status: { type: DataTypes.STRING, defaultValue: "Pending" },
+    ownerId: { type: DataTypes.UUID, allowNull: true },
+    leadId: { type: DataTypes.UUID, allowNull: true },
+    customerId: { type: DataTypes.UUID, allowNull: true }
+  },
+  { sequelize, modelName: "Task" }
+);
+
+export class CallLog extends Model {
+  public id!: string;
+  public leadId!: string | null;
+  public customerId!: string | null;
+  public userId!: string | null;
+  public direction!: string;
+  public durationSeconds!: number;
+  public outcome!: string | null;
+  public notes!: string | null;
+  public followUpDate!: Date | null;
+  public recordingUrl!: string | null;
+}
+
+CallLog.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    leadId: { type: DataTypes.UUID, allowNull: true },
+    customerId: { type: DataTypes.UUID, allowNull: true },
+    userId: { type: DataTypes.UUID, allowNull: true },
+    direction: { type: DataTypes.STRING, defaultValue: "Outbound" },
+    durationSeconds: { type: DataTypes.INTEGER, defaultValue: 0 },
+    outcome: { type: DataTypes.STRING, allowNull: true },
+    notes: { type: DataTypes.TEXT, allowNull: true },
+    followUpDate: { type: DataTypes.DATE, allowNull: true },
+    recordingUrl: { type: DataTypes.STRING, allowNull: true }
+  },
+  { sequelize, modelName: "CallLog" }
+);
+
+export class CrmDocument extends Model {
+  public id!: string;
+  public leadId!: string | null;
+  public customerId!: string | null;
+  public uploadedById!: string | null;
+  public name!: string;
+  public fileType!: string | null;
+  public fileSize!: number;
+  public fileUrl!: string;
+  public version!: string;
+}
+
+CrmDocument.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    leadId: { type: DataTypes.UUID, allowNull: true },
+    customerId: { type: DataTypes.UUID, allowNull: true },
+    uploadedById: { type: DataTypes.UUID, allowNull: true },
+    name: { type: DataTypes.STRING, allowNull: false },
+    fileType: { type: DataTypes.STRING, allowNull: true },
+    fileSize: { type: DataTypes.INTEGER, defaultValue: 0 },
+    fileUrl: { type: DataTypes.STRING, allowNull: false },
+    version: { type: DataTypes.STRING, defaultValue: "1.0" }
+  },
+  { sequelize, modelName: "Document" }
+);
+
+export class Meeting extends Model {
+  public id!: string;
+  public title!: string;
+  public date!: string;
+  public time!: string;
+  public attendees!: string | null;
+  public location!: string | null;
+  public videoLink!: string | null;
+  public agenda!: string | null;
+  public notes!: string | null;
+  public outcome!: string | null;
+  public leadId!: string | null;
+  public customerId!: string | null;
+  public organizerId!: string | null;
+}
+
+Meeting.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    title: { type: DataTypes.STRING, allowNull: false },
+    date: { type: DataTypes.STRING, allowNull: false },
+    time: { type: DataTypes.STRING, allowNull: false },
+    attendees: { type: DataTypes.STRING, allowNull: true },
+    location: { type: DataTypes.STRING, allowNull: true },
+    videoLink: { type: DataTypes.STRING, allowNull: true },
+    agenda: { type: DataTypes.TEXT, allowNull: true },
+    notes: { type: DataTypes.TEXT, allowNull: true },
+    outcome: { type: DataTypes.STRING, allowNull: true },
+    leadId: { type: DataTypes.UUID, allowNull: true },
+    customerId: { type: DataTypes.UUID, allowNull: true },
+    organizerId: { type: DataTypes.UUID, allowNull: true }
+  },
+  { sequelize, modelName: "Meeting" }
+);
+
+export class EmailMessage extends Model {
+  public id!: string;
+  public leadId!: string | null;
+  public customerId!: string | null;
+  public senderId!: string | null;
+  public toEmail!: string;
+  public subject!: string;
+  public body!: string;
+  public status!: string;
+  public scheduledAt!: Date | null;
+  public openedAt!: Date | null;
+  public clickedAt!: Date | null;
+}
+
+EmailMessage.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    leadId: { type: DataTypes.UUID, allowNull: true },
+    customerId: { type: DataTypes.UUID, allowNull: true },
+    senderId: { type: DataTypes.UUID, allowNull: true },
+    toEmail: { type: DataTypes.STRING, allowNull: false },
+    subject: { type: DataTypes.STRING, allowNull: false },
+    body: { type: DataTypes.TEXT, allowNull: false },
+    status: { type: DataTypes.STRING, defaultValue: "Sent" },
+    scheduledAt: { type: DataTypes.DATE, allowNull: true },
+    openedAt: { type: DataTypes.DATE, allowNull: true },
+    clickedAt: { type: DataTypes.DATE, allowNull: true }
+  },
+  { sequelize, modelName: "EmailMessage" }
+);
+
+// Associations
+Task.belongsTo(User, { foreignKey: "ownerId", as: "owner" });
+Task.belongsTo(Lead, { foreignKey: "leadId", as: "lead" });
+Task.belongsTo(Customer, { foreignKey: "customerId", as: "customer" });
+
+CallLog.belongsTo(Lead, { foreignKey: "leadId", as: "lead" });
+CallLog.belongsTo(Customer, { foreignKey: "customerId", as: "customer" });
+CallLog.belongsTo(User, { foreignKey: "userId", as: "user" });
+
+CrmDocument.belongsTo(Lead, { foreignKey: "leadId", as: "lead" });
+CrmDocument.belongsTo(Customer, { foreignKey: "customerId", as: "customer" });
+CrmDocument.belongsTo(User, { foreignKey: "uploadedById", as: "uploadedBy" });
+
+Meeting.belongsTo(Lead, { foreignKey: "leadId", as: "lead" });
+Meeting.belongsTo(Customer, { foreignKey: "customerId", as: "customer" });
+Meeting.belongsTo(User, { foreignKey: "organizerId", as: "organizer" });
+
+EmailMessage.belongsTo(Lead, { foreignKey: "leadId", as: "lead" });
+EmailMessage.belongsTo(Customer, { foreignKey: "customerId", as: "customer" });
+EmailMessage.belongsTo(User, { foreignKey: "senderId", as: "sender" });
+
 export { sequelize };
+
 
 

@@ -32,6 +32,11 @@ import { parseVoiceLead } from "../controllers/voiceLeadController";
 import { getMySettings, updateMySettings, getMyTeam, reassignTeamManager } from "../controllers/userSettingsController";
 import { getKpiMasters, createKpiMaster, updateKpiMaster, deleteKpiMaster } from "../controllers/kpiMasterController";
 import { getGmailAuthUrl, connectGmail, getGmailStatus, disconnectGmail, syncGmail } from "../controllers/gmailController";
+import { getTasks, createTask, updateTaskStatus } from "../controllers/taskController";
+import { getCallLogs, createCallLog } from "../controllers/callLogController";
+import { getDocuments, createDocument } from "../controllers/documentController";
+import { getMeetings, createMeeting } from "../controllers/meetingController";
+import { getEmailMessages, sendEmailMessage } from "../controllers/emailMessageController";
 
 const router = Router();
 
@@ -429,6 +434,25 @@ router.post("/gmail/connect", authMiddleware, connectGmail);
 router.get("/gmail/status", authMiddleware, getGmailStatus);
 router.post("/gmail/disconnect", authMiddleware, disconnectGmail);
 router.post("/gmail/sync", authMiddleware, syncGmail);
+
+// ==========================================
+// ENTERPRISE CRM WORKSPACE ENDPOINTS
+// ==========================================
+router.get("/tasks", authMiddleware, getTasks);
+router.post("/tasks", authMiddleware, createTask);
+router.put("/tasks/:id/status", authMiddleware, updateTaskStatus);
+
+router.get("/call-logs", authMiddleware, getCallLogs);
+router.post("/call-logs", authMiddleware, createCallLog);
+
+router.get("/documents", authMiddleware, getDocuments);
+router.post("/documents", authMiddleware, createDocument);
+
+router.get("/meetings", authMiddleware, getMeetings);
+router.post("/meetings", authMiddleware, createMeeting);
+
+router.get("/email-messages", authMiddleware, getEmailMessages);
+router.post("/email-messages", authMiddleware, sendEmailMessage);
 
 export default router;
 

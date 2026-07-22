@@ -28,7 +28,12 @@ const tableMap: Record<string, string> = {
   MessageTemplate: 'MessageTemplates',
   Customer: 'Customers',
   LeadSource: 'LeadSources',
-  LeadReassignmentHistory: 'LeadReassignmentHistories'
+  LeadReassignmentHistory: 'LeadReassignmentHistories',
+  Task: 'Tasks',
+  CallLog: 'CallLogs',
+  CrmDocument: 'Documents',
+  Meeting: 'Meetings',
+  EmailMessage: 'EmailMessages'
 };
 
 const modelsPath = path.resolve(__dirname, '../../database/models/index.ts');
