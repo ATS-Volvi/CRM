@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Layout } from "./components/Layout";
+import { SalesLayout } from "./components/SalesLayout";
 
 // Page Imports
 import ManagementDashboard from "./pages/ManagementDashboard";
@@ -31,6 +32,12 @@ import Customers from "./pages/Customers";
 import AIReports from "./pages/AIReports";
 import Settings from "./pages/Settings";
 import LeadCreate from "./pages/LeadCreate";
+import ActivitiesHub from "./pages/ActivitiesHub";
+import CommunicationCenter from "./pages/CommunicationCenter";
+import WorkflowAutomation from "./pages/WorkflowAutomation";
+import ExecutiveDashboard from "./pages/ExecutiveDashboard";
+import RepPortal from "./pages/RepPortal";
+import ManagerPortal from "./pages/ManagerPortal";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { Navigate, Outlet } from "react-router-dom";
 
@@ -39,12 +46,23 @@ const ProtectedRoute = () => {
   return isAuthenticated ? <Outlet /> : <Navigate to="/login" replace />;
 };
 
-/** Redirect / to /home for reps, keep ManagementDashboard for admins/directors */
+/** Dynamic Layout Selector: SalesLayout for reps, standard Layout for managers/admins */
+const RoleBasedLayout = () => {
+  const { user } = useAuth();
+  if (user?.role === "sales_rep") {
+    return <SalesLayout />;
+  }
+  return <Layout />;
+};
+
+/** Redirect / to appropriate workspace based on user role */
 const RoleBasedHome = () => {
   const { user } = useAuth();
-  const repRoles = ["sales_rep", "sales_manager"];
-  if (user && repRoles.includes(user.role)) {
-    return <Navigate to="/home" replace />;
+  if (user && user.role === "sales_rep") {
+    return <Navigate to="/rep-portal" replace />;
+  }
+  if (user && user.role === "sales_manager") {
+    return <Navigate to="/manager-portal" replace />;
   }
   return <ManagementDashboard />;
 };
@@ -60,7 +78,7 @@ function App() {
             <Route path="/login" element={<Login />} />
             
             <Route element={<ProtectedRoute />}>
-              <Route element={<Layout />}>
+              <Route element={<RoleBasedLayout />}>
                 <Route path="/" element={<RoleBasedHome />} />
                 <Route path="/home" element={<MyDashboard />} />
                 <Route path="/kpi" element={<KpiDashboard />} />
@@ -79,6 +97,12 @@ function App() {
                 <Route path="/salespersons" element={<SalespersonTracker />} />
                 <Route path="/salespersons/:id" element={<SalespersonDetail />} />
                 <Route path="/customers" element={<Customers />} />
+                <Route path="/activities" element={<ActivitiesHub />} />
+                <Route path="/communications" element={<CommunicationCenter />} />
+                <Route path="/automation" element={<WorkflowAutomation />} />
+                <Route path="/executive-bi" element={<ExecutiveDashboard />} />
+                <Route path="/rep-portal" element={<RepPortal />} />
+                <Route path="/manager-portal" element={<ManagerPortal />} />
                 <Route path="/ai-reports" element={<AIReports />} />
                 <Route path="/settings" element={<Settings />} />
                 

@@ -119,7 +119,7 @@ export default function LeadInbox() {
         ]}
         addLabel="+ Add Lead"
         onAddClick={() => navigate("/leads/new")}
-        onExport={() => alert("Exporting leads data...")}
+        onExport={() => window.open("/api/v1/exports/leads", "_blank")}
       />
     </div>
   );

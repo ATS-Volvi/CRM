@@ -159,14 +159,16 @@ export default function PipelineKanban() {
             <div className="w-8 h-8 rounded-full border-2 border-surface bg-primary flex items-center justify-center text-[10px] font-bold text-on-primary">+8</div>
           </div>
           <button 
-            onClick={() => alert("Filter panel coming soon.")}
+            onClick={() => navigate("/rules")}
             className="p-2 text-on-surface-variant hover:bg-surface-container-high rounded transition-all"
+            title="Assignment Rules"
           >
             <Filter className="w-5 h-5" />
           </button>
           <button 
-            onClick={() => alert("Pipeline settings coming soon.")}
+            onClick={() => navigate("/settings")}
             className="p-2 text-on-surface-variant hover:bg-surface-container-high rounded transition-all"
+            title="Pipeline Settings"
           >
             <MoreVertical className="w-5 h-5" />
           </button>

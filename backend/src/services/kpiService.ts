@@ -23,7 +23,7 @@ export async function calculateUserKpis(userId: string): Promise<any> {
     const actualRevenue = wonDeals.reduce((sum: number, d: any) => sum + Number(d.amount), 0);
 
     const targetRecord = await sequelize.models.KpiTarget.findOne({
-      where: { userId, kpiName: "revenue" }
+      where: { salespersonId: userId, kpiName: "revenue" }
     });
     const targetRevenue = targetRecord ? Number((targetRecord as any).targetValue) : 100000;
 

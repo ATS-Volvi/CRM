@@ -336,56 +336,71 @@ export default function QuotationBuilder() {
         <div className="col-span-8 space-y-8">
           
           {/* Client Header Card */}
-          <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 flex justify-between items-center shadow-sm">
+          <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-5 shadow-sm space-y-4">
             {isLoading ? (
               <div className="animate-pulse flex items-center gap-4 w-full h-12 bg-surface-container-low rounded"></div>
             ) : (
               <>
-                <div className="flex items-center gap-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-outline-variant pb-3">
                   <div>
-                    <h2 className="text-2xl font-bold text-on-surface">New Quotation</h2>
+                    <h2 className="text-2xl font-bold text-on-surface tracking-tight">New Quotation</h2>
+                    <p className="text-xs text-on-surface-variant mt-0.5">Build quotation with BOM line items & discount approval</p>
                     {dealIdError && (
                       <div className="text-xs text-error font-semibold bg-error-container text-error border border-error/20 px-3 py-1.5 rounded-lg mt-2 max-w-md">
                         {dealIdError}
                       </div>
                     )}
-                    <div className="flex flex-wrap items-center gap-4 mt-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-on-surface-variant">Select Deal:</span>
-                        <select 
-                          className="bg-surface border border-outline-variant rounded p-1 text-sm"
-                          value={selectedDealId}
-                          onChange={e => setSelectedDealId(e.target.value)}
-                        >
-                          <option value="">-- Choose Deal --</option>
-                          {deals?.map((d: any) => (
-                            <option key={d.id} value={d.id}>{d.name} ({d.client || 'Unknown Client'})</option>
-                          ))}
-                        </select>
-                      </div>
+                  </div>
 
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-on-surface-variant">Start from Bundle:</span>
-                        <select 
-                          className="bg-surface border border-outline-variant rounded p-1 text-sm"
-                          defaultValue=""
-                          onChange={e => {
-                            handleSelectBundle(e.target.value);
-                            e.target.value = "";
-                          }}
-                        >
-                          <option value="">-- Choose Bundle --</option>
-                          {bundles?.map((b: any) => (
-                            <option key={b.id} value={b.id}>{b.name}</option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => saveMutation.mutate("Draft")}
+                      disabled={saveMutation.isPending || !selectedDealId}
+                      className="px-4 py-2 border border-outline text-xs font-bold rounded-lg hover:bg-surface-container transition-colors disabled:opacity-50 whitespace-nowrap shadow-2xs"
+                    >
+                      Save as Draft
+                    </button>
+                    <button
+                      onClick={() => saveMutation.mutate("Pending")}
+                      disabled={saveMutation.isPending || !selectedDealId}
+                      className="px-4 py-2 bg-primary text-white text-xs font-bold rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 whitespace-nowrap shadow-xs"
+                    >
+                      Send for Approval
+                    </button>
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <button onClick={() => saveMutation.mutate("Draft")} disabled={saveMutation.isPending || !selectedDealId} className="px-3 py-1.5 border border-outline text-sm font-semibold rounded hover:bg-surface-container transition-colors disabled:opacity-50">Save as Draft</button>
-                  <button onClick={() => saveMutation.mutate("Pending")} disabled={saveMutation.isPending || !selectedDealId} className="px-3 py-1.5 bg-primary text-white text-sm font-semibold rounded hover:bg-primary/90 transition-colors disabled:opacity-50">Send for Approval</button>
+
+                <div className="flex flex-wrap items-center gap-4 pt-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Select Deal:</span>
+                    <select 
+                      className="bg-surface border border-outline-variant rounded-lg p-2 text-xs font-medium focus:ring-1 focus:ring-primary min-w-[220px]"
+                      value={selectedDealId}
+                      onChange={e => setSelectedDealId(e.target.value)}
+                    >
+                      <option value="">-- Choose Deal --</option>
+                      {deals?.map((d: any) => (
+                        <option key={d.id} value={d.id}>{d.name} ({d.client || 'Unknown Client'})</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Start from Bundle:</span>
+                    <select 
+                      className="bg-surface border border-outline-variant rounded-lg p-2 text-xs font-medium focus:ring-1 focus:ring-primary min-w-[200px]"
+                      defaultValue=""
+                      onChange={e => {
+                        handleSelectBundle(e.target.value);
+                        e.target.value = "";
+                      }}
+                    >
+                      <option value="">-- Choose Bundle --</option>
+                      {bundles?.map((b: any) => (
+                        <option key={b.id} value={b.id}>{b.name}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </>
             )}
@@ -527,8 +542,9 @@ export default function QuotationBuilder() {
           <div className="bg-surface-container border border-outline-variant rounded-xl p-8 relative min-h-[400px] flex flex-col items-center">
             <div className="absolute top-4 right-4 flex gap-2 z-10">
               <button 
-                onClick={() => alert("Zooming is simulated. Adjust your browser's zoom context to view detail.")}
+                onClick={() => window.print()}
                 className="bg-white/80 backdrop-blur p-2 rounded shadow-sm hover:bg-white"
+                title="Print Preview"
               >
                 <ZoomIn className="w-5 h-5" />
               </button>

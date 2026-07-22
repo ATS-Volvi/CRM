@@ -25,10 +25,16 @@ export default function Login() {
         body: JSON.stringify({ email, password }),
       });
 
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch (jsonErr) {
+        throw new Error(`Server returned non-JSON response (${res.status} ${res.statusText})`);
+      }
 
       if (!res.ok) {
-        throw new Error(data.error || "Failed to login");
+        throw new Error(data.error || `Login failed (${res.status})`);
       }
 
       login(data.token, data.user);

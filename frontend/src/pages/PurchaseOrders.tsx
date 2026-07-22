@@ -180,8 +180,9 @@ export default function PurchaseOrders() {
                         <Download className="w-4 h-4" />
                       </button>
                       <button 
-                        onClick={() => alert(`PO Detail - Number: ${po.poNumber || po.id.substring(0,8)}\nStatus: ${po.status}\nAmount: $${po.amount}`)}
+                        onClick={() => navigate("/quotes")}
                         className="p-2 text-on-surface-variant hover:text-primary"
+                        title="View Quotation Records"
                       >
                         <MoreVertical className="w-4 h-4" />
                       </button>

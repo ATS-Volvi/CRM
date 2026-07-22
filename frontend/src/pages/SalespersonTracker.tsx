@@ -198,7 +198,7 @@ export default function SalespersonTracker() {
           </div>
           <div>
             <h2 className="text-lg font-bold text-on-surface">Sales Representatives</h2>
-            <p className="text-xs text-on-surface-variant">KPI targets, progress rings, performance scores & territory insights.</p>
+            <p className="text-xs text-on-surface-variant font-medium">KPI targets · Target rings · Revenue performance · Territory insights</p>
           </div>
         </div>
         <button
@@ -304,7 +304,7 @@ export default function SalespersonTracker() {
         <div className="relative flex-1 min-w-[180px] max-w-xs">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant w-3.5 h-3.5" />
           <input type="text" value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Search representatives..."
+            placeholder="Search team members..."
             className="w-full bg-surface border border-outline rounded-xl pl-9 pr-4 py-2 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-primary/40" />
         </div>
         {[
@@ -319,7 +319,7 @@ export default function SalespersonTracker() {
           </select>
         ))}
         <span className="ml-auto text-xs text-on-surface-variant font-semibold">
-          {filtered.length} of {salespersons.length} reps
+          {filtered.length} of {salespersons.length} team members
         </span>
       </div>
 

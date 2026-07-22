@@ -2,6 +2,8 @@ import { Request, Response } from "express";
 import { sequelize } from "@nexus-crm/database";
 import { triggerTemplatedEmail } from "../services/emailService";
 import { assignLeadToSalesperson } from "../services/leadAssignmentService";
+import { ingestLead } from "../services/leadIngestion";
+import crypto from "crypto";
 
 export const getLeads = async (req: Request, res: Response) => {
   try {
@@ -9,7 +11,7 @@ export const getLeads = async (req: Request, res: Response) => {
     const where: any = {};
     
     if (source && source !== "All Sources") {
-      where.source = source.toString().toLowerCase();
+      where.source = source.toString();
     }
     
     if (status && status !== "All Statuses") {
@@ -34,8 +36,6 @@ export const getLeads = async (req: Request, res: Response) => {
   }
 };
 
-import { ingestLead } from "../services/leadIngestion";
-
 export const createLead = async (req: Request, res: Response) => {
   try {
     const { firstName, lastName, email, company, source, status, industry, phone, budgetRange } = req.body;
@@ -53,7 +53,6 @@ export const createLead = async (req: Request, res: Response) => {
     });
 
     const lead = await sequelize.models.Lead.findByPk(leadId);
-    // 1. LEAD ACKNOWLEDGEMENT AUTOMATION
     if (email) {
       const slaHours = process.env.LEAD_RESPONSE_SLA_HOURS || "24";
       triggerTemplatedEmail("lead_acknowledgement", email, { 
@@ -76,7 +75,7 @@ export const updateLead = async (req: Request, res: Response) => {
     
     if (updateData.assignedToId && updateData.assignedToId !== (lead as any).assignedToId) {
       await assignLeadToSalesperson(lead, updateData.assignedToId);
-      delete updateData.assignedToId; // Prevent overwriting during the main update below
+      delete updateData.assignedToId;
     }
 
     await lead.update(updateData);
@@ -86,21 +85,65 @@ export const updateLead = async (req: Request, res: Response) => {
   }
 };
 
+export const convertLead = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const lead = await sequelize.models.Lead.findByPk(String(id));
+    if (!lead) return res.status(404).json({ error: "Lead not found" });
+
+    const l = lead as any;
+
+    // Check if customer already exists for this lead
+    let customer = l.customerId ? await sequelize.models.Customer.findByPk(l.customerId) : null;
+    if (!customer) {
+      customer = await sequelize.models.Customer.create({
+        id: crypto.randomUUID(),
+        name: l.company || `${l.firstName} ${l.lastName}`.trim(),
+        primaryContactName: `${l.firstName} ${l.lastName}`.trim(),
+        email: l.email,
+        phone: l.phone,
+        address: l.address || null,
+        industry: l.industry || "General"
+      });
+      await l.update({ customerId: (customer as any).id, status: "Qualified" });
+    }
+
+    // Get or create deal for this lead
+    let deal = await sequelize.models.Deal.findOne({ where: { leadId: l.id } });
+    if (!deal) {
+      const stage = await sequelize.models.PipelineStage.findOne({ where: { name: "Qualified" } })
+        || await sequelize.models.PipelineStage.findOne({ order: [["order", "ASC"]] });
+
+      deal = await sequelize.models.Deal.create({
+        id: crypto.randomUUID(),
+        name: l.company ? `${l.company} Opportunity` : `${l.firstName} ${l.lastName} Opportunity`,
+        amount: l.leadScore ? l.leadScore * 1000 : 50000,
+        stageId: stage ? (stage as any).id : null,
+        leadId: l.id,
+        ownerId: l.assignedToId || (req as any).user?.id,
+        customerId: (customer as any).id
+      });
+    } else {
+      await deal.update({ customerId: (customer as any).id });
+    }
+
+    res.json({ message: "Lead converted to Customer and Deal successfully", customer, deal });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 export const getDuplicateLeads = async (req: Request, res: Response) => {
   try {
-    // A simple heuristic: Group leads by exact email OR exact company
     const leads = await sequelize.models.Lead.findAll();
     
     const groups: { [key: string]: any[] } = {};
     leads.forEach((l: any) => {
-      const emailDomain = l.email ? l.email.split('@')[1] : null;
-      // Key can be exact email or domain, here we just do exact email for simplicity if it exists
       const key = l.email ? l.email.toLowerCase() : l.company ? l.company.toLowerCase() : l.id;
       if (!groups[key]) groups[key] = [];
       groups[key].push(l);
     });
 
-    // Return only groups that have > 1 lead
     const duplicateGroups = Object.values(groups).filter(g => g.length > 1);
     res.json(duplicateGroups);
   } catch (error: any) {
@@ -111,34 +154,14 @@ export const getDuplicateLeads = async (req: Request, res: Response) => {
 export const mergeLeads = async (req: Request, res: Response) => {
   try {
     const { masterId, duplicateIds } = req.body;
-    
-    // Re-assign all related records to the masterId
     const models = sequelize.models;
     
-    await models.Deal.update(
-      { leadId: masterId },
-      { where: { leadId: duplicateIds } }
-    );
-    
-    await models.Activity.update(
-      { leadId: masterId },
-      { where: { leadId: duplicateIds } }
-    );
-    
-    await models.LeadStageHistory.update(
-      { leadId: masterId },
-      { where: { leadId: duplicateIds } }
-    );
-    
-    await models.ScheduledEmail.update(
-      { leadId: masterId },
-      { where: { leadId: duplicateIds } }
-    );
+    await models.Deal.update({ leadId: masterId }, { where: { leadId: duplicateIds } });
+    await models.Activity.update({ leadId: masterId }, { where: { leadId: duplicateIds } });
+    await models.LeadStageHistory.update({ leadId: masterId }, { where: { leadId: duplicateIds } });
+    await models.ScheduledEmail.update({ leadId: masterId }, { where: { leadId: duplicateIds } });
 
-    // Now safely delete the duplicates
-    await models.Lead.destroy({
-      where: { id: duplicateIds }
-    });
+    await models.Lead.destroy({ where: { id: duplicateIds } });
 
     res.json({ success: true, message: `Merged ${duplicateIds.length} duplicates into master ${masterId}` });
   } catch (error: any) {
@@ -163,18 +186,15 @@ export const handleUnsubscribe = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const lead = await sequelize.models.Lead.findByPk(String(id));
-    if (!lead) {
-      return res.status(404).send("Lead not found.");
-    }
+    if (!lead) return res.status(404).send("Lead not found.");
 
     const l = lead as any;
     if (!l.optedOutEmail) {
       l.optedOutEmail = true;
       await l.save();
 
-      // Log activity
       await sequelize.models.Activity.create({
-        id: require('crypto').randomUUID(),
+        id: crypto.randomUUID(),
         leadId: l.id,
         type: "Email",
         status: "Completed",
@@ -203,23 +223,16 @@ export const reassignLead = async (req: Request, res: Response) => {
     const { newAssignedToId, reason } = req.body;
     const caller = (req as any).user;
 
-    if (!caller) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
+    if (!caller) return res.status(401).json({ error: "Unauthorized" });
 
     const lead = await sequelize.models.Lead.findByPk(String(id));
-    if (!lead) {
-      return res.status(404).json({ error: "Lead not found" });
-    }
+    if (!lead) return res.status(404).json({ error: "Lead not found" });
 
     const oldAssignedToId = (lead as any).assignedToId;
-
-    // Update lead
     await lead.update({ assignedToId: newAssignedToId || null });
 
-    // Log in LeadReassignmentHistory
     await sequelize.models.LeadReassignmentHistory.create({
-      id: require("crypto").randomUUID(),
+      id: crypto.randomUUID(),
       leadId: id,
       oldAssignedToId: oldAssignedToId || null,
       newAssignedToId: newAssignedToId || null,
@@ -257,14 +270,9 @@ export const getLeadDealForQuote = async (req: Request, res: Response) => {
     const lead = await sequelize.models.Lead.findByPk(String(id));
     if (!lead) return res.status(404).json({ error: "Lead not found" });
 
-    // Look for an existing Deal where Deal.leadId matches
     let deal = await sequelize.models.Deal.findOne({ where: { leadId: (lead as any).id } });
-    if (deal) {
-      return res.json(deal);
-    }
+    if (deal) return res.json(deal);
 
-    // None exists: create one using sensible defaults
-    // stageId: PipelineStage matching lead's status
     const validStages = ["New", "Contacted", "Qualified", "Meeting/Demo", "Proposal", "Negotiation", "Won", "Lost", "On Hold"];
     const searchStatus = (lead as any).status === "New Lead" ? "New" : (lead as any).status;
     let stage = null;
@@ -280,7 +288,7 @@ export const getLeadDealForQuote = async (req: Request, res: Response) => {
     const amount = (lead as any).leadScore ? (lead as any).leadScore * 100 : 0;
 
     deal = await sequelize.models.Deal.create({
-      id: require('crypto').randomUUID(),
+      id: crypto.randomUUID(),
       name,
       amount,
       stageId: stage ? (stage as any).id : null,
@@ -305,4 +313,3 @@ export const getLead = async (req: Request, res: Response) => {
     res.status(500).json({ error: error.message });
   }
 };
-

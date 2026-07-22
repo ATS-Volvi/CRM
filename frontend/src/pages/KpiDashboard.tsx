@@ -324,13 +324,13 @@ export default function KpiDashboard() {
             </div>
             <div className="flex bg-surface-container-low p-1 rounded-lg">
               <button 
-                onClick={() => { setPeriod("MTD"); alert("Filter changed to Month-to-Date"); }}
+                onClick={() => setPeriod("MTD")}
                 className={`px-4 py-1.5 rounded text-[10px] font-bold uppercase transition-all ${period === "MTD" ? "bg-white text-primary shadow-sm" : "text-on-surface-variant hover:text-primary"}`}
               >
                 MTD
               </button>
               <button 
-                onClick={() => { setPeriod("Q3"); alert("Filter changed to Q3"); }}
+                onClick={() => setPeriod("Q3")}
                 className={`px-4 py-1.5 rounded text-[10px] font-bold uppercase transition-all ${period === "Q3" ? "bg-white text-primary shadow-sm" : "text-on-surface-variant hover:text-primary"}`}
               >
                 Q3

@@ -41,8 +41,8 @@ export const login = async (req: Request, res: Response) => {
 
     const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: "1d" });
     res.json({ user: { id: user.id, email: user.email, name: user.name, role: user.role }, token });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Login endpoint error:", error);
-    res.status(500).json({ error: "Server error" });
+    res.status(500).json({ error: error.message || "Server error" });
   }
 };
