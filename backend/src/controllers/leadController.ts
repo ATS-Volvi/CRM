@@ -18,6 +18,13 @@ export const getLeads = async (req: Request, res: Response) => {
 
     const leads = await sequelize.models.Lead.findAll({
       where,
+      include: [
+        {
+          model: sequelize.models.User,
+          as: "assignedTo",
+          attributes: ["id", "name", "email"]
+        }
+      ],
       order: [["createdAt", "DESC"]]
     });
 
