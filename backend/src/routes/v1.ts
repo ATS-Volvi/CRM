@@ -37,6 +37,7 @@ import { getCallLogs, createCallLog } from "../controllers/callLogController";
 import { getDocuments, createDocument } from "../controllers/documentController";
 import { getMeetings, createMeeting } from "../controllers/meetingController";
 import { getEmailMessages, sendEmailMessage } from "../controllers/emailMessageController";
+import { globalSearch } from "../controllers/searchController";
 
 const router = Router();
 
@@ -453,6 +454,8 @@ router.post("/meetings", authMiddleware, createMeeting);
 
 router.get("/email-messages", authMiddleware, getEmailMessages);
 router.post("/email-messages", authMiddleware, sendEmailMessage);
+
+router.get("/search", authMiddleware, globalSearch);
 
 export default router;
 
