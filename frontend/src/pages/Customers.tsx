@@ -154,98 +154,150 @@ export default function Customers() {
               </div>
             </div>
 
-            {/* Leads Section */}
-            <div className="space-y-3">
-              <h3 className="text-lg font-bold text-on-surface flex items-center gap-2">
-                <Building className="w-5 h-5 text-secondary" />
-                Leads ({customerDetails.leads?.length || 0})
-              </h3>
-              <div className="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden shadow-sm divide-y divide-outline-variant">
-                {customerDetails.leads?.length === 0 ? (
-                  <p className="p-4 text-sm text-on-surface-variant">No lead history found.</p>
-                ) : (
-                  customerDetails.leads?.map((lead: any) => (
-                    <div key={lead.id} className="p-4 flex items-center justify-between hover:bg-surface-container-low transition-colors">
-                      <div>
-                        <p className="font-bold text-sm text-on-surface">{lead.firstName} {lead.lastName}</p>
-                        <p className="text-xs text-on-surface-variant mt-0.5">Source: {lead.source} | Status: {lead.status}</p>
-                      </div>
-                      <span className="text-xs text-on-surface-variant">{new Date(lead.createdAt).toLocaleDateString()}</span>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
+            {/* STRICT 3-COLUMN CUSTOMER 360 LAYOUT */}
+            <div className="grid grid-cols-12 gap-6">
 
-            {/* Deals Section */}
-            <div className="space-y-3">
-              <h3 className="text-lg font-bold text-on-surface flex items-center gap-2">
-                <Briefcase className="w-5 h-5 text-primary" />
-                Deals ({customerDetails.deals?.length || 0})
-              </h3>
-              <div className="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden shadow-sm divide-y divide-outline-variant">
-                {customerDetails.deals?.length === 0 ? (
-                  <p className="p-4 text-sm text-on-surface-variant">No deal history found.</p>
-                ) : (
-                  customerDetails.deals?.map((deal: any) => (
-                    <div key={deal.id} className="p-4 flex items-center justify-between hover:bg-surface-container-low transition-colors">
-                      <div>
-                        <p className="font-bold text-sm text-on-surface">{deal.name}</p>
-                        <p className="text-xs text-on-surface-variant mt-0.5">Stage: {deal.stage?.name || 'Unknown'} | Value: {formatCurrency(deal.amount)}</p>
-                      </div>
-                      <span className="text-xs text-on-surface-variant">{new Date(deal.createdAt).toLocaleDateString()}</span>
+              {/* COLUMN 1 (25%): Customer Details */}
+              <div className="col-span-12 lg:col-span-3 space-y-4">
+                <div className="bg-card border border-border rounded-xl p-5 shadow-sm space-y-4">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground border-b border-border pb-2">
+                    Customer Details
+                  </h3>
+                  
+                  <div className="space-y-3 text-xs">
+                    <div>
+                      <span className="block text-[10px] font-bold text-muted-foreground uppercase">Profile Name</span>
+                      <span className="font-bold text-foreground text-sm">{customerDetails.name}</span>
                     </div>
-                  ))
-                )}
-              </div>
-            </div>
 
-            {/* Quotes Section */}
-            <div className="space-y-3">
-              <h3 className="text-lg font-bold text-on-surface flex items-center gap-2">
-                <FileText className="w-5 h-5 text-emerald-600" />
-                Quotes ({customerDetails.quotes?.length || 0})
-              </h3>
-              <div className="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden shadow-sm divide-y divide-outline-variant">
-                {customerDetails.quotes?.length === 0 ? (
-                  <p className="p-4 text-sm text-on-surface-variant">No quotation history found.</p>
-                ) : (
-                  customerDetails.quotes?.map((quote: any) => (
-                    <div key={quote.id} className="p-4 flex items-center justify-between hover:bg-surface-container-low transition-colors">
-                      <div>
-                        <p className="font-bold text-sm text-on-surface">Quote #{quote.quoteNumber || quote.id.substring(0, 8)}</p>
-                        <p className="text-xs text-on-surface-variant mt-0.5">Deal: {quote.deal?.name} | Status: {quote.status} | Value: {formatCurrency(quote.totalAmount)}</p>
-                      </div>
-                      <span className="text-xs text-on-surface-variant">{new Date(quote.createdAt).toLocaleDateString()}</span>
+                    <div>
+                      <span className="block text-[10px] font-bold text-muted-foreground uppercase">Company</span>
+                      <span className="font-semibold text-foreground">{customerDetails.industry || "General Industry"}</span>
                     </div>
-                  ))
-                )}
-              </div>
-            </div>
 
-            {/* Invoices Section */}
-            <div className="space-y-3">
-              <h3 className="text-lg font-bold text-on-surface flex items-center gap-2">
-                <Receipt className="w-5 h-5 text-indigo-600" />
-                Invoices ({customerDetails.invoices?.length || 0})
-              </h3>
-              <div className="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden shadow-sm divide-y divide-outline-variant">
-                {customerDetails.invoices?.length === 0 ? (
-                  <p className="p-4 text-sm text-on-surface-variant">No invoices generated yet.</p>
-                ) : (
-                  customerDetails.invoices?.map((invoice: any) => (
-                    <div key={invoice.id} className="p-4 flex items-center justify-between hover:bg-surface-container-low transition-colors">
-                      <div>
-                        <p className="font-bold text-sm text-on-surface">Invoice #{invoice.id.substring(0, 8)}</p>
-                        <p className="text-xs text-on-surface-variant mt-0.5">Status: {invoice.status} | Total: {formatCurrency(invoice.totalAmount)}</p>
-                      </div>
-                      <span className="text-xs text-on-surface-variant">{new Date(invoice.createdAt).toLocaleDateString()}</span>
+                    <div>
+                      <span className="block text-[10px] font-bold text-muted-foreground uppercase">Phone & Contact</span>
+                      <span className="font-semibold text-foreground">{customerDetails.phone || "N/A"}</span>
+                      <span className="block text-muted-foreground text-[10px]">{customerDetails.primaryContactName}</span>
                     </div>
-                  ))
-                )}
-              </div>
-            </div>
 
+                    <div>
+                      <span className="block text-[10px] font-bold text-muted-foreground uppercase">Email</span>
+                      <span className="font-semibold text-primary">{customerDetails.email || "N/A"}</span>
+                    </div>
+
+                    <div>
+                      <span className="block text-[10px] font-bold text-muted-foreground uppercase">Status & Tags</span>
+                      <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 mt-1">
+                        Active Account
+                      </span>
+                    </div>
+
+                    <div>
+                      <span className="block text-[10px] font-bold text-muted-foreground uppercase">Owner / Manager</span>
+                      <span className="font-semibold text-foreground">Admin Account Manager</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* COLUMN 2 (50%): Activity Timeline & Record Feeds */}
+              <div className="col-span-12 lg:col-span-6 space-y-6">
+                <div className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-6">
+                  <div className="flex justify-between items-center border-b border-border pb-3">
+                    <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+                      <FileText className="w-5 h-5 text-primary" /> Customer Activity & History Timeline
+                    </h3>
+                  </div>
+
+                  <div className="space-y-4">
+                    {/* Leads Feed */}
+                    <div>
+                      <h4 className="text-xs font-bold text-muted-foreground uppercase mb-2">Leads ({customerDetails.leads?.length || 0})</h4>
+                      <div className="divide-y divide-border border border-border rounded-lg overflow-hidden text-xs">
+                        {customerDetails.leads?.map((lead: any) => (
+                          <div key={lead.id} className="p-3 bg-muted/20 flex justify-between items-center">
+                            <div>
+                              <p className="font-bold text-foreground">{lead.firstName} {lead.lastName}</p>
+                              <p className="text-[10px] text-muted-foreground">Status: {lead.status} | Source: {lead.source}</p>
+                            </div>
+                            <span className="text-[10px] text-muted-foreground">{new Date(lead.createdAt).toLocaleDateString()}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Deals & Quotes Feed */}
+                    <div>
+                      <h4 className="text-xs font-bold text-muted-foreground uppercase mb-2">Deals & Quotations ({customerDetails.quotes?.length || 0})</h4>
+                      <div className="divide-y divide-border border border-border rounded-lg overflow-hidden text-xs">
+                        {customerDetails.quotes?.map((q: any) => (
+                          <div key={q.id} className="p-3 bg-muted/20 flex justify-between items-center">
+                            <div>
+                              <p className="font-bold text-foreground">Quote #{q.quoteNumber || q.id.substring(0,8)}</p>
+                              <p className="text-[10px] text-muted-foreground">Amount: {formatCurrency(q.totalAmount)} | Status: {q.status}</p>
+                            </div>
+                            <span className="text-[10px] text-muted-foreground">{new Date(q.createdAt).toLocaleDateString()}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* COLUMN 3 (25%): Quick Actions Launcher */}
+              <div className="col-span-12 lg:col-span-3 space-y-4">
+                <div className="bg-card border border-border rounded-xl p-5 shadow-sm space-y-4">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground border-b border-border pb-2">
+                    Quick Actions
+                  </h3>
+
+                  <div className="grid grid-cols-1 gap-2 text-xs">
+                    <button 
+                      onClick={() => alert(`Calling ${customerDetails.phone || customerDetails.name}...`)}
+                      className="w-full p-2.5 bg-muted hover:bg-muted/80 border border-border rounded-lg font-bold text-foreground flex items-center gap-2 transition-all"
+                    >
+                      <Phone className="w-4 h-4 text-emerald-600" />
+                      <span>Log Call</span>
+                    </button>
+
+                    <button 
+                      onClick={() => alert(`Opening email composer for ${customerDetails.email}...`)}
+                      className="w-full p-2.5 bg-muted hover:bg-muted/80 border border-border rounded-lg font-bold text-foreground flex items-center gap-2 transition-all"
+                    >
+                      <Mail className="w-4 h-4 text-blue-600" />
+                      <span>Send Email</span>
+                    </button>
+
+                    <button 
+                      onClick={() => alert("Scheduling meeting...")}
+                      className="w-full p-2.5 bg-muted hover:bg-muted/80 border border-border rounded-lg font-bold text-foreground flex items-center gap-2 transition-all"
+                    >
+                      <Calendar className="w-4 h-4 text-amber-600" />
+                      <span>Schedule Meeting</span>
+                    </button>
+
+                    <button 
+                      onClick={() => alert("Creating task...")}
+                      className="w-full p-2.5 bg-muted hover:bg-muted/80 border border-border rounded-lg font-bold text-foreground flex items-center gap-2 transition-all"
+                    >
+                      <Receipt className="w-4 h-4 text-purple-600" />
+                      <span>Create Task</span>
+                    </button>
+
+                    <button 
+                      onClick={() => alert("Uploading file to vault...")}
+                      className="w-full p-2.5 bg-muted hover:bg-muted/80 border border-border rounded-lg font-bold text-foreground flex items-center gap-2 transition-all"
+                    >
+                      <FileText className="w-4 h-4 text-indigo-600" />
+                      <span>Upload Document</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+            </div>
           </div>
         ) : null}
       </div>
