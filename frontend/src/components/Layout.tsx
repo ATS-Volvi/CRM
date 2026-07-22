@@ -128,8 +128,6 @@ export function Layout() {
     });
   };
 
-  const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
-
   // Core flat top-level items
   const flatItems = [
     { name: "My Dashboard", path: "/home", icon: Home },
