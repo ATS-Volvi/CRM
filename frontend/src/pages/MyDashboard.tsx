@@ -313,11 +313,20 @@ export default function MyDashboard() {
                 </div>
 
                 <div className="space-y-2">
-                  <h4 className="text-sm font-bold text-on-surface-variant uppercase tracking-wider">Quick Actions</h4>
+                  <h4 className="text-sm font-bold text-on-surface-variant uppercase tracking-wider">Operational Quick Actions</h4>
                   <div className="flex flex-wrap gap-2 pt-1">
-                    <Link to="/leads/new" className="px-3 py-1.5 bg-primary text-white text-xs font-bold rounded hover:opacity-90 transition-all">Add Lead</Link>
-                    <Link to="/quotes/new" className="px-3 py-1.5 bg-secondary text-white text-xs font-bold rounded hover:opacity-90 transition-all">Create Quote</Link>
-                    <Link to={`/pipeline?ownerId=${user?.id}`} className="px-3 py-1.5 bg-surface-container-high border border-outline-variant text-on-surface text-xs font-bold rounded hover:bg-surface-container transition-all">View My Pipeline</Link>
+                    <Link to="/leads/new" className="px-3.5 py-2 bg-primary text-white text-xs font-bold rounded-lg shadow-sm hover:opacity-90 transition-all flex items-center gap-1">
+                      + Create Lead
+                    </Link>
+                    <Link to="/quotes/new" className="px-3.5 py-2 bg-secondary text-white text-xs font-bold rounded-lg shadow-sm hover:opacity-90 transition-all flex items-center gap-1">
+                      + Create Quote
+                    </Link>
+                    <Link to="/leads" className="px-3.5 py-2 bg-indigo-600 text-white text-xs font-bold rounded-lg shadow-sm hover:opacity-90 transition-all flex items-center gap-1">
+                      + Add Task
+                    </Link>
+                    <Link to="/pipeline" className="px-3.5 py-2 bg-emerald-600 text-white text-xs font-bold rounded-lg shadow-sm hover:opacity-90 transition-all flex items-center gap-1">
+                      + Schedule Meeting
+                    </Link>
                   </div>
                 </div>
               </div>
