@@ -128,86 +128,45 @@ export function Layout() {
     });
   };
 
-  // Enterprise UX Navigation Hierarchy (10 Primary Modules)
+  // Enterprise UX Navigation Hierarchy (High-Quality Dedicated Destinations Only)
   const navSections = [
-    {
-      title: "Home",
-      items: [
-        { name: "Home Dashboard", path: "/home", icon: Home }
-      ]
-    },
     {
       title: "Workspace",
       items: [
-        { name: "My Tasks", path: "/leads", icon: CheckSquare },
-        { name: "My Meetings", path: "/leads", icon: Calendar },
-        { name: "Follow-ups", path: "/leads", icon: Clock },
-        { name: "Notifications", path: "/home", icon: Bell },
-        { name: "Recent Activity", path: "/home", icon: Inbox }
+        { name: "My Dashboard", path: "/home", icon: Home }
       ]
     },
     {
-      title: "Sales",
+      title: "Sales & Pipeline",
       items: [
-        { name: "Leads", path: "/leads", icon: Inbox },
-        { name: "Contacts", path: "/customers", icon: Users },
-        { name: "Companies", path: "/customers", icon: Building2 },
-        { name: "Opportunities / Pipeline", path: "/pipeline", icon: Trello },
+        { name: "Leads Inbox", path: "/leads", icon: Inbox },
+        { name: "Pipeline Kanban", path: "/pipeline", icon: Trello },
         { name: "Quotations", path: "/quotes", icon: FileText },
-        { name: "Products (Price Book)", path: "/price-book", icon: Database },
-        { name: "Orders (POs)", path: "/purchase-orders", icon: CheckSquare }
+        { name: "Purchase Orders", path: "/purchase-orders", icon: CheckSquare },
+        { name: "Price Book Catalog", path: "/price-book", icon: Database }
       ]
     },
     {
-      title: "Customers",
+      title: "Customers & Billing",
       items: [
-        { name: "Customer 360", path: "/customers", icon: Users },
-        { name: "Invoices & Contracts", path: "/invoices", icon: Receipt },
-        { name: "Support Vault", path: "/customers", icon: FileText }
+        { name: "Customer 360 Workspace", path: "/customers", icon: Users },
+        { name: "Invoices & Billing", path: "/invoices", icon: Receipt }
       ]
     },
     {
-      title: "Team",
+      title: "Analytics & Intelligence",
+      items: [
+        { name: "Executive Operations", path: "/", icon: LayoutDashboard, visible: isManagerOrAdmin },
+        { name: "KPI Performance", path: "/kpi", icon: BarChart, visible: isManagerOrAdmin },
+        { name: "AI Reports & Copilot", path: "/ai-reports", icon: Sparkles, visible: isManagerOrAdmin }
+      ].filter(i => i.visible !== false)
+    },
+    {
+      title: "Administration & Rules",
       items: [
         { name: "Sales Representatives", path: "/salespersons", icon: Users, visible: isManagerOrAdmin },
-        { name: "Team Performance", path: "/salespersons", icon: BarChart, visible: isManagerOrAdmin },
-        { name: "KPI Targets", path: "/master-data/kpis", icon: CheckSquare, visible: isManagerOrAdmin }
-      ].filter(i => i.visible !== false)
-    },
-    {
-      title: "Activities",
-      items: [
-        { name: "Calls & Log", path: "/leads", icon: Phone },
-        { name: "Meetings & Calendar", path: "/pipeline", icon: Calendar },
-        { name: "Emails", path: "/leads", icon: Mail },
-        { name: "Tasks", path: "/leads", icon: CheckSquare }
-      ]
-    },
-    {
-      title: "Analytics",
-      items: [
-        { name: "Executive Dashboard", path: "/", icon: LayoutDashboard, visible: isManagerOrAdmin },
-        { name: "KPI Reports", path: "/kpi", icon: BarChart, visible: isManagerOrAdmin },
-        { name: "Sales Funnel", path: "/pipeline", icon: Trello, visible: isManagerOrAdmin }
-      ].filter(i => i.visible !== false)
-    },
-    {
-      title: "Automation",
-      items: [
         { name: "Assignment Rules", path: "/rules", icon: Settings, visible: isManagerOrAdmin },
-        { name: "Approval Workflows", path: "/approvals", icon: CheckSquare, visible: isManagerOrAdmin }
-      ].filter(i => i.visible !== false)
-    },
-    {
-      title: "AI",
-      items: [
-        { name: "AI Assistant & Copilot", path: "/ai-reports", icon: Sparkles, visible: isManagerOrAdmin },
-        { name: "Sales Insights & Forecasting", path: "/ai-reports", icon: BarChart, visible: isManagerOrAdmin }
-      ].filter(i => i.visible !== false)
-    },
-    {
-      title: "Admin",
-      items: [
+        { name: "Approval Workflows", path: "/approvals", icon: CheckSquare, visible: isManagerOrAdmin },
         { name: "Master Requirements", path: "/master-data/requirements", icon: Database, visible: isManagerOrAdmin },
         { name: "Lead Sources", path: "/master-data/lead-sources", icon: Database, visible: isManagerOrAdmin },
         { name: "System Settings", path: "/settings", icon: Settings, visible: isManagerOrAdmin }
