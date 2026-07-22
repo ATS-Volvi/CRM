@@ -53,10 +53,9 @@ const queryClient = new QueryClient();
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <AuthProvider>
-          <Routes>
+    <BrowserRouter>
+      <AuthProvider>
+        <Routes>
             <Route path="/quote" element={<PublicQuoteRequest />} />
             <Route path="/login" element={<Login />} />
             
@@ -95,7 +94,6 @@ function App() {
           </Routes>
         </AuthProvider>
       </BrowserRouter>
-    </QueryClientProvider>
   );
 }
 
