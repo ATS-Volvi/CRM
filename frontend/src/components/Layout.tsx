@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Inbox, Trello, Receipt, FileText, Settings, Key, 
   CheckSquare, BarChart, Search, Bell, Plus, Users, Home, Database, 
   ChevronDown, ChevronRight, LogOut, Mail, Menu, ChevronLeft, Sparkles,
-  Command, Phone, Calendar, Upload, Building2, UserPlus, FilePlus
+  Command, Phone, Calendar, Upload, Building2, UserPlus, FilePlus, Clock
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
