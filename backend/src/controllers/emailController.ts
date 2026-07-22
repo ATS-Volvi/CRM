@@ -198,7 +198,25 @@ export const receiveInboundEmail = async (req: Request, res: Response) => {
     }
 
     // -------------------------------------------------------------
-    // Check 4: Genuine Least-Workload Fallback
+    // Check 4: Criteria-Based Assignment Rules Engine
+    // -------------------------------------------------------------
+    if (!assignedToId) {
+      const rulesAssignedId = await assignLead({
+        firstName,
+        lastName,
+        email,
+        phone: "",
+        company: "",
+        source: "email"
+      });
+      if (rulesAssignedId) {
+        assignedToId = rulesAssignedId;
+        assignmentMethod = "assignment-rules";
+      }
+    }
+
+    // -------------------------------------------------------------
+    // Check 5: Least-Workload Fallback
     // -------------------------------------------------------------
     if (!assignedToId) {
       // Respect isAvailable: true for least-workload distribution
@@ -227,23 +245,6 @@ export const receiveInboundEmail = async (req: Request, res: Response) => {
 
         assignedToId = candidateWorkloads[0].user.id;
         assignmentMethod = "least-workload";
-      }
-    }
-
-    // -------------------------------------------------------------
-    // Check 5: Emergency Legacy Assignment Engine Fallback
-    // -------------------------------------------------------------
-    if (!assignedToId) {
-      assignedToId = await assignLead({
-        firstName,
-        lastName,
-        email,
-        phone: "",
-        company: "",
-        source: "email"
-      });
-      if (assignedToId) {
-        assignmentMethod = "legacy-rules";
       }
     }
 
