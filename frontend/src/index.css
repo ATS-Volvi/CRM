@@ -5,57 +5,52 @@
 @tailwind utilities;
 
 :root {
-  --background: 210 20% 98%;
-  --foreground: 220 20% 10%;
+  --background: 220 14% 96%;
+  --foreground: 224 71% 4%;
   
   --card: 0 0% 100%;
-  --card-foreground: 220 20% 10%;
+  --card-foreground: 224 71% 4%;
   
   --popover: 0 0% 100%;
-  --popover-foreground: 220 20% 10%;
+  --popover-foreground: 224 71% 4%;
   
-  --primary: 185 65% 38%;
-  --primary-foreground: 0 0% 100%;
+  --primary: 221.2 83.2% 53.3%;
+  --primary-foreground: 210 40% 98%;
   
-  --secondary: 210 18% 93%;
-  --secondary-foreground: 220 15% 30%;
+  --secondary: 210 40% 96.1%;
+  --secondary-foreground: 222.2 47.4% 11.2%;
   
-  --muted: 210 14% 95%;
-  --muted-foreground: 215 12% 50%;
+  --muted: 220 14% 94%;
+  --muted-foreground: 215.4 16.3% 44%;
   
-  --accent: 38 90% 55%;
-  --accent-foreground: 220 20% 10%;
+  --accent: 210 40% 96.1%;
+  --accent-foreground: 222.2 47.4% 11.2%;
   
-  --destructive: 0 72% 50%;
-  --destructive-foreground: 0 0% 100%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 210 40% 98%;
   
-  --border: 214 20% 88%;
-  --input: 214 20% 88%;
-  --ring: 185 65% 38%;
+  --border: 214.3 31.8% 91.4%;
+  --input: 214.3 31.8% 91.4%;
+  --ring: 221.2 83.2% 53.3%;
   
-  --radius: 0.625rem;
+  --radius: 0.5rem;
   
-  --sidebar-background: 210 18% 96%;
-  --sidebar-foreground: 220 12% 40%;
-  --sidebar-primary: 185 65% 38%;
+  /* DARK SIDEBAR ENTERPRISE PALETTE (Linear/Stripe Style) */
+  --sidebar-background: 224 71% 4%;
+  --sidebar-foreground: 215 20.2% 75.1%;
+  --sidebar-primary: 217.2 91.2% 59.8%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 210 16% 92%;
-  --sidebar-accent-foreground: 220 20% 10%;
-  --sidebar-border: 214 18% 90%;
-  --sidebar-ring: 185 65% 38%;
+  --sidebar-accent: 217.2 32.6% 12%;
+  --sidebar-accent-foreground: 210 40% 98%;
+  --sidebar-border: 217.2 32.6% 12%;
+  --sidebar-ring: 224.3 76.3% 48%;
   
-  --success: 152 60% 38%;
-  --success-foreground: 0 0% 100%;
-  --warning: 38 90% 50%;
-  --warning-foreground: 220 20% 10%;
-  --info: 210 70% 50%;
+  --success: 142.1 76.2% 36.3%;
+  --success-foreground: 355.7 100% 97.3%;
+  --warning: 38 92% 50%;
+  --warning-foreground: 48 96% 89%;
+  --info: 199 89% 48%;
   --info-foreground: 0 0% 100%;
-  
-  --chart-1: 185 65% 38%;
-  --chart-2: 38 90% 55%;
-  --chart-3: 152 60% 38%;
-  --chart-4: 280 55% 55%;
-  --chart-5: 0 72% 50%;
 }
 
 @layer base {
