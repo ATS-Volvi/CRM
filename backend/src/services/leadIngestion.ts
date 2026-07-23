@@ -123,7 +123,7 @@ export async function ingestLead(payload: LeadPayload) {
       });
     } else {
       // 3. Assignment Engine
-      const assignedToId = await assignLead({
+      let assignedToId = await assignLead({
         firstName: payload.firstName,
         lastName: payload.lastName,
         email: payload.email,
@@ -132,6 +132,13 @@ export async function ingestLead(payload: LeadPayload) {
         source: payload.source,
         industry: payload.industry
       });
+
+      if (!assignedToId) {
+        const defaultAdmin = await sequelize.models.User.findOne({
+          where: { role: "admin", isAvailable: true }
+        });
+        assignedToId = defaultAdmin ? (defaultAdmin as any).id : null;
+      }
 
       // 4. Create New Lead
       targetLeadId = crypto.randomUUID();

@@ -74,12 +74,16 @@ export const receiveInboundEmail = async (req: Request, res: Response) => {
   try {
     // Security verification check
     const secret = process.env.INBOUND_EMAIL_SECRET;
-    if (secret) {
-      const tokenHeader = req.headers["x-inbound-secret"];
-      const tokenQuery = req.query.auth_token;
-      if (tokenHeader !== secret && tokenQuery !== secret) {
-        return res.status(401).json({ error: "Unauthorized: Invalid or missing INBOUND_EMAIL_SECRET" });
-      }
+    const tokenHeader = req.headers["x-inbound-secret"];
+    const tokenQuery = req.query.auth_token;
+
+    if (!secret) {
+      console.error("CRITICAL: INBOUND_EMAIL_SECRET is not set — inbound email webhook is rejecting all requests until this is configured.");
+      return res.status(401).json({ error: "Unauthorized: Invalid or missing INBOUND_EMAIL_SECRET" });
+    }
+
+    if (tokenHeader !== secret && tokenQuery !== secret) {
+      return res.status(401).json({ error: "Unauthorized: Invalid or missing INBOUND_EMAIL_SECRET" });
     }
 
     // Normalize inbound payload fields
@@ -149,9 +153,11 @@ export const receiveInboundEmail = async (req: Request, res: Response) => {
           const uFirst = u.name.split(" ")[0].toLowerCase();
           const uFull = u.name.toLowerCase();
           const uAlias = (u.emailAlias || "").toLowerCase();
+          const uEmail = (u.email || "").toLowerCase();
           return (
             attnTarget === uFirst ||
             attnTarget === uFull ||
+            attnTarget === uEmail ||
             (uAlias && attnTarget === uAlias) ||
             attnTarget.startsWith(uFirst) ||
             attnTarget.startsWith(uFull)
@@ -161,6 +167,27 @@ export const receiveInboundEmail = async (req: Request, res: Response) => {
         if (matchedAttnUser) {
           assignedToId = matchedAttnUser.id;
           assignmentMethod = "attn-tag";
+        }
+      }
+    }
+
+    // -------------------------------------------------------------
+    // Check 2b: Email address scan in subject/body
+    // (catches "To: saud4ie@gmail.com" or bare email mentions)
+    // -------------------------------------------------------------
+    if (!assignedToId) {
+      const emailMentionRegex = /\b([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})\b/g;
+      const searchText = `${emailSubject || ""} ${emailBody || ""}`;
+      let match;
+      while ((match = emailMentionRegex.exec(searchText)) !== null) {
+        const mentionedEmail = match[1].toLowerCase();
+        const foundUser = activeUsers.find(
+          (u) => u.email && u.email.toLowerCase() === mentionedEmail
+        );
+        if (foundUser) {
+          assignedToId = foundUser.id;
+          assignmentMethod = "attn-tag";
+          break;
         }
       }
     }
