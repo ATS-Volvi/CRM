@@ -3,10 +3,11 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Search, Plus, Filter, MoreVertical, View, List, CheckCircle2, X } from "lucide-react";
 import { formatCurrency, formatCurrencyCompact } from "../utils/currency";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 
 export default function PipelineKanban() {
   const { token } = useAuth();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const ownerId = searchParams.get("ownerId");
 
