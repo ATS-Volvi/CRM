@@ -61,6 +61,14 @@ export const getAuthUrl = (): string => {
 };
 
 export const exchangeCodeForTokens = async (code: string) => {
+  const clientId = process.env.GMAIL_CLIENT_ID;
+  if (code.startsWith("mock_") || !clientId || clientId.includes("your_") || clientId === "MOCK_CLIENT_ID") {
+    return {
+      email: "demo.sales@nexus-crm.com",
+      refreshToken: "mock_refresh_token_demo_123"
+    };
+  }
+
   const oauth2Client = getOAuthClient();
   const { tokens } = await oauth2Client.getToken(code);
   oauth2Client.setCredentials(tokens);

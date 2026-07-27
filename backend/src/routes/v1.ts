@@ -38,6 +38,7 @@ import {
   getRequirementRollup, getPricingGrid, updateConstructionItemPricing
 } from '../controllers/masterDataController';
 import { receiveInboundEmail } from "../controllers/emailController";
+import { verifyInstagramWebhook, receiveInstagramMessage } from "../controllers/instagramController";
 import { getCustomers, getCustomerById } from "../controllers/customerController";
 import { getLeadSources, createLeadSource, updateLeadSource, deleteLeadSource } from "../controllers/leadSourceController";
 import { queryAiReport } from "../controllers/aiReportController";
@@ -51,10 +52,13 @@ import { getDocuments, createDocument } from "../controllers/documentController"
 import { getMeetings, createMeeting } from "../controllers/meetingController";
 import { getEmailMessages, sendEmailMessage } from "../controllers/emailMessageController";
 import { globalSearch } from "../controllers/searchController";
+<<<<<<< HEAD
 import { getAutomationRules, createAutomationRule, updateAutomationRule, deleteAutomationRule } from "../controllers/automationController";
 import { getSequences, createSequence, enrollInSequence, getEnrollments } from "../controllers/sequenceController";
 import { getTelephonyStatus, initiateCall } from "../controllers/telephonyController";
 import { getDealMilestones, toggleDealMilestone, createDealMilestone } from "../controllers/milestoneController";
+=======
+>>>>>>> 8a7890c165d7bc47daf7fb902ffc6236be4129ad
 import whatsappRoutes from "./whatsappRoutes";
 
 const router = Router();
@@ -147,6 +151,12 @@ router.post(
   upload.any(),
   receiveInboundEmail
 );
+
+// Instagram & WhatsApp Webhook Channels (Public for Meta Verification & Webhook Ingestion)
+router.get("/instagram/webhook", verifyInstagramWebhook);
+router.post("/instagram/webhook", receiveInstagramMessage);
+router.use("/whatsapp", whatsappRoutes);
+
 import { handleUnsubscribe } from "../controllers/leadController";
 router.get("/leads/unsubscribe/:id", handleUnsubscribe);
 
@@ -480,6 +490,7 @@ router.post("/email-messages", authMiddleware, sendEmailMessage);
 
 router.get("/search", authMiddleware, globalSearch);
 
+<<<<<<< HEAD
 // ==========================================
 // AUTOMATIONS (STATUS-CHANGE RULE BUILDER)
 // ==========================================
@@ -509,4 +520,6 @@ router.get("/deals/:dealId/milestones", authMiddleware, getDealMilestones);
 router.post("/deals/milestones", authMiddleware, createDealMilestone);
 router.put("/deals/milestones/:id/toggle", authMiddleware, toggleDealMilestone);
 
+=======
+>>>>>>> 8a7890c165d7bc47daf7fb902ffc6236be4129ad
 export default router;

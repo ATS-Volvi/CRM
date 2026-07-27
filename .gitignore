@@ -2,8 +2,9 @@ node_modules/
 dist/
 build/
 .env
-.env.local
+.env.*
 *.log
+*.tsbuildinfo
 .DS_Store
 .vercel
 *.sqlite

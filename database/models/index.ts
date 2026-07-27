@@ -43,7 +43,7 @@ export class Lead extends Model {
   public firstName!: string;
   public lastName!: string;
   public company!: string;
-  public email!: string;
+  public email!: string | null;
   public phone!: string;
   public status!: string;
   public source!: string;
@@ -76,7 +76,7 @@ Lead.init(
     firstName: { type: DataTypes.STRING, allowNull: false },
     lastName: { type: DataTypes.STRING, allowNull: false },
     company: { type: DataTypes.STRING, allowNull: true },
-    email: { type: DataTypes.STRING, allowNull: false },
+    email: { type: DataTypes.STRING, allowNull: true },
     phone: { type: DataTypes.STRING, allowNull: true },
     status: { type: DataTypes.STRING, defaultValue: "New" },
     source: { type: DataTypes.STRING, allowNull: true },

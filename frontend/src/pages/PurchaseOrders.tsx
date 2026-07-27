@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { FileText, Download, MoreVertical, Plus, Filter, Search } from "lucide-react";
 import { formatCurrency } from "../utils/currency";
 
 export default function PurchaseOrders() {
+  const navigate = useNavigate();
   const { token } = useAuth();
   const [search, setSearch] = useState("");
   const [valueBand, setValueBand] = useState("");

@@ -74,12 +74,15 @@ describe("E2E: Email Delivery Automation", () => {
     expect(sendMailArgs.html).toContain("Hi Email, we have received your request.");
   });
 
-  it("should return 401 when calling inbound email without a valid secret", async () => {
+  it("should return 401 when INBOUND_EMAIL_SECRET is unset in the environment even if no token is provided", async () => {
+    const originalSecret = process.env.INBOUND_EMAIL_SECRET;
+    delete process.env.INBOUND_EMAIL_SECRET;
+
     const payload = {
       from: "Client <client@example.com>",
       to: "sales@nexus.com",
-      subject: "No auth",
-      text: "Unauthenticated request"
+      subject: "Unset secret test",
+      text: "Request while INBOUND_EMAIL_SECRET is unset"
     };
 
     const response = await request(app)
@@ -87,7 +90,35 @@ describe("E2E: Email Delivery Automation", () => {
       .send(payload);
 
     expect(response.status).toBe(401);
-    expect(response.body.error).toContain("Unauthorized");
+    expect(response.body.error).toContain("Unauthorized: Invalid or missing INBOUND_EMAIL_SECRET");
+
+    // Restore environment variable
+    process.env.INBOUND_EMAIL_SECRET = originalSecret;
+  });
+
+  it("should return 401 when calling inbound email with missing or wrong token when secret is set", async () => {
+    const payload = {
+      from: "Client <client@example.com>",
+      to: "sales@nexus.com",
+      subject: "Wrong auth token",
+      text: "Unauthenticated request"
+    };
+
+    // Test missing token
+    const missingTokenRes = await request(app)
+      .post("/api/v1/emails/inbound")
+      .send(payload);
+
+    expect(missingTokenRes.status).toBe(401);
+    expect(missingTokenRes.body.error).toContain("Unauthorized");
+
+    // Test wrong token
+    const wrongTokenRes = await request(app)
+      .post("/api/v1/emails/inbound?auth_token=invalid_token")
+      .send(payload);
+
+    expect(wrongTokenRes.status).toBe(401);
+    expect(wrongTokenRes.body.error).toContain("Unauthorized");
   });
 
   it("should assign lead directly to salesperson if email is addressed to their email address", async () => {

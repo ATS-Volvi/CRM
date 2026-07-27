@@ -156,11 +156,7 @@ export async function assignLead(leadContext: AssignmentContext): Promise<string
       }
     }
 
-    // Default Fallback: Assign to first available admin
-    const defaultAdmin = await sequelize.models.User.findOne({
-      where: { role: "admin", isAvailable: true }
-    });
-    return defaultAdmin ? (defaultAdmin as any).id : null;
+    return null;
   } catch (error) {
     console.error("Assignment Engine error:", error);
     return null;
