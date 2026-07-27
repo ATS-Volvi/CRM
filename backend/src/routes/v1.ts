@@ -37,6 +37,7 @@ import {
   getRequirementRollup, getPricingGrid, updateConstructionItemPricing
 } from '../controllers/masterDataController';
 import { receiveInboundEmail } from "../controllers/emailController";
+import { verifyInstagramWebhook, receiveInstagramMessage } from "../controllers/instagramController";
 import { getCustomers, getCustomerById } from "../controllers/customerController";
 import { getLeadSources, createLeadSource, updateLeadSource, deleteLeadSource } from "../controllers/leadSourceController";
 import { queryAiReport } from "../controllers/aiReportController";
@@ -50,6 +51,7 @@ import { getDocuments, createDocument } from "../controllers/documentController"
 import { getMeetings, createMeeting } from "../controllers/meetingController";
 import { getEmailMessages, sendEmailMessage } from "../controllers/emailMessageController";
 import { globalSearch } from "../controllers/searchController";
+import whatsappRoutes from "./whatsappRoutes";
 
 const router = Router();
 
@@ -141,6 +143,12 @@ router.post(
   upload.any(),
   receiveInboundEmail
 );
+
+// Instagram & WhatsApp Webhook Channels (Public for Meta Verification & Webhook Ingestion)
+router.get("/instagram/webhook", verifyInstagramWebhook);
+router.post("/instagram/webhook", receiveInstagramMessage);
+router.use("/whatsapp", whatsappRoutes);
+
 import { handleUnsubscribe } from "../controllers/leadController";
 router.get("/leads/unsubscribe/:id", handleUnsubscribe);
 
@@ -204,7 +212,6 @@ router.use(authMiddleware);
 import { createApproval } from '../controllers/approvalController';
 import { getNotifications, markAsRead, markAllAsRead } from '../controllers/notificationController';
 import { getMessageTemplates, getMessageTemplateById, createMessageTemplate, updateMessageTemplate, deleteMessageTemplate } from '../controllers/messageTemplateController';
-import whatsappRoutes from './whatsappRoutes';
 // ==========================================
 // LEADS
 // ==========================================
@@ -471,8 +478,3 @@ router.post("/email-messages", authMiddleware, sendEmailMessage);
 router.get("/search", authMiddleware, globalSearch);
 
 export default router;
-
-// ==========================================
-// WHATSAPP
-// ==========================================
-router.use("/whatsapp", whatsappRoutes);

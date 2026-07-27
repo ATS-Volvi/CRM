@@ -3,8 +3,18 @@ import { getAuthUrl, exchangeCodeForTokens, encryptToken, decryptToken, fetchUnr
 import { ingestLead } from "../services/leadIngestion";
 import { GmailConfig } from "@nexus-crm/database";
 
+import { processGmailConnector } from "../services/leadIngestion";
+
 export const getGmailAuthUrl = async (req: Request, res: Response) => {
   try {
+    const clientId = process.env.GMAIL_CLIENT_ID;
+    const clientSecret = process.env.GMAIL_CLIENT_SECRET;
+
+    if (!clientId || !clientSecret || clientId.includes("your_") || clientSecret.includes("your_")) {
+      // In demo mode with placeholder keys, return MOCK_CLIENT_ID URL so frontend mock flow triggers seamlessly
+      return res.json({ url: "https://accounts.google.com/o/oauth2/v2/auth?client_id=MOCK_CLIENT_ID" });
+    }
+
     const url = getAuthUrl();
     res.json({ url });
   } catch (error: any) {
@@ -73,23 +83,30 @@ export const syncGmail = async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Gmail is not connected" });
     }
 
-    const decrypted = decryptToken(config.encryptedRefreshToken);
-    const emails = await fetchUnreadEmails(decrypted);
-
     let ingestedCount = 0;
-    for (const email of emails) {
-      await ingestLead({
-        firstName: email.senderName.split(" ")[0] || "Unknown",
-        lastName: email.senderName.split(" ").slice(1).join(" ") || "Sender",
-        email: email.senderEmail,
-        phone: email.phone,
-        company: email.senderName + " Org",
-        source: "Gmail Connector",
-        sourceDetail: `Email Subject: ${email.subject}`,
-        message: email.body,
-        rawPayload: email.rawPayload
-      });
-      ingestedCount++;
+
+    if (config.encryptedRefreshToken.includes("mock_")) {
+      // In Demo mode: run simulated lead ingestion
+      const leadId = await processGmailConnector();
+      ingestedCount = leadId ? 1 : 0;
+    } else {
+      const decrypted = decryptToken(config.encryptedRefreshToken);
+      const emails = await fetchUnreadEmails(decrypted);
+
+      for (const email of emails) {
+        await ingestLead({
+          firstName: email.senderName.split(" ")[0] || "Unknown",
+          lastName: email.senderName.split(" ").slice(1).join(" ") || "Sender",
+          email: email.senderEmail,
+          phone: email.phone,
+          company: email.senderName + " Org",
+          source: "Gmail Connector",
+          sourceDetail: `Email Subject: ${email.subject}`,
+          message: email.body,
+          rawPayload: email.rawPayload
+        });
+        ingestedCount++;
+      }
     }
 
     config.lastSyncedAt = new Date();

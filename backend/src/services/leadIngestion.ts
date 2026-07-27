@@ -3,6 +3,12 @@ import { Op } from "sequelize";
 import crypto from "crypto";
 import { assignLead } from "./assignmentEngine";
 
+function isDummyKey(val?: string): boolean {
+  if (!val) return true;
+  const lower = val.toLowerCase();
+  return lower.includes("your_") || lower.includes("change_me") || lower.includes("test_user") || lower.includes("mock_");
+}
+
 interface LeadPayload {
   firstName: string;
   lastName: string;
@@ -270,7 +276,7 @@ export async function processGmailConnector() {
     console.error("[CONNECTOR] Real Gmail API ingest failed:", err);
   }
 
-  const isMockMode = !process.env.GMAIL_CLIENT_ID || !process.env.GMAIL_CLIENT_SECRET;
+  const isMockMode = isDummyKey(process.env.GMAIL_CLIENT_ID) || isDummyKey(process.env.GMAIL_CLIENT_SECRET);
   console.log(`[CONNECTOR] Gmail Ingest falling back to Mock. Mock Mode: ${isMockMode}`);
   
   if (isMockMode) {
@@ -293,7 +299,7 @@ export async function processGmailConnector() {
 }
 
 export async function processMetaConnector() {
-  const isMockMode = !process.env.META_APP_ID || !process.env.META_ACCESS_TOKEN;
+  const isMockMode = isDummyKey(process.env.META_APP_ID) || isDummyKey(process.env.META_ACCESS_TOKEN);
   console.log(`[CONNECTOR] Meta Ingest running. Mock Mode: ${isMockMode}`);
 
   if (isMockMode) {
@@ -315,7 +321,7 @@ export async function processMetaConnector() {
 }
 
 export async function processLinkedInConnector() {
-  const isMockMode = !process.env.LINKEDIN_CLIENT_ID || !process.env.LINKEDIN_ACCESS_TOKEN;
+  const isMockMode = isDummyKey(process.env.LINKEDIN_CLIENT_ID) || isDummyKey(process.env.LINKEDIN_ACCESS_TOKEN);
   console.log(`[CONNECTOR] LinkedIn Ingest running. Mock Mode: ${isMockMode}`);
 
   if (isMockMode) {
