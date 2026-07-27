@@ -248,6 +248,17 @@ export const getSalespersonsPerformance = async (req: Request, res: Response) =>
         count: dealTypeMap[name]
       }));
 
+      // Compute Streak & Badges from existing activity and deal data
+      const badges: string[] = [];
+      if (revenueClosed >= 50000 || deals.length >= 3) badges.push("🏆 Top Closer");
+      if (rawActivities.length >= 10) badges.push("🔥 Fast Responder");
+      if (leads.length >= 5) badges.push("⚡ High Volume");
+      if (deals.length >= 4) badges.push("🎯 Pipeline Master");
+      if (badges.length === 0) badges.push("🌟 Rising Star");
+
+      const activeDays = new Set(rawActivities.map((a: any) => new Date(a.createdAt).toISOString().split('T')[0]));
+      const streak = Math.max(1, activeDays.size);
+
       salespersonStats.push({
         id: u.id,
         name: u.name,
@@ -263,6 +274,8 @@ export const getSalespersonsPerformance = async (req: Request, res: Response) =>
         targetAchievementPct,
         totalLeads: leads.length,
         totalDeals: deals.length,
+        streak,
+        badges,
         purchaseOrders,
         wonClients: wonClients.map((c: any) => ({
           id: c.id,

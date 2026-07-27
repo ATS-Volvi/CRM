@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { 
+import {
   Search, Filter, Calendar, Download, Plus, ChevronLeft, ChevronRight,
   MoreHorizontal, Eye, Edit, Trash2
 } from "lucide-react";
@@ -66,7 +66,7 @@ export function StandardTable({
   };
 
   const toggleSelectOne = (id: string) => {
-    setSelectedIds(prev => 
+    setSelectedIds(prev =>
       prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
     );
   };
@@ -75,15 +75,15 @@ export function StandardTable({
     <div className="space-y-4">
       {/* FILTER & ACTION TOOLBAR */}
       <div className="bg-card border border-border rounded-xl p-4 shadow-sm flex flex-col lg:flex-row gap-4 items-center justify-between">
-        
+
         {/* Search */}
         <div className="relative w-full lg:w-72">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
-          <input 
-            type="text" 
+          <input
+            type="text"
             value={searchQuery}
             onChange={(e) => onSearchChange && onSearchChange(e.target.value)}
-            placeholder="Search records..." 
+            placeholder="Search records..."
             className="w-full bg-muted border border-border rounded-lg pl-9 pr-3 py-2 text-xs font-semibold focus:ring-1 focus:ring-primary focus:outline-none"
           />
         </div>
@@ -93,7 +93,7 @@ export function StandardTable({
           {statusOptions.length > 0 && (
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-muted-foreground">Status:</span>
-              <select 
+              <select
                 value={statusFilter}
                 onChange={(e) => onStatusChange && onStatusChange(e.target.value)}
                 className="bg-muted border border-border rounded-lg px-3 py-1.5 text-xs font-bold focus:outline-none cursor-pointer"
@@ -109,7 +109,7 @@ export function StandardTable({
           {ownerOptions.length > 0 && (
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-muted-foreground">Owner:</span>
-              <select 
+              <select
                 value={ownerFilter}
                 onChange={(e) => onOwnerChange && onOwnerChange(e.target.value)}
                 className="bg-muted border border-border rounded-lg px-3 py-1.5 text-xs font-bold focus:outline-none cursor-pointer"
@@ -123,7 +123,7 @@ export function StandardTable({
           )}
 
           {onExport && (
-            <button 
+            <button
               onClick={onExport}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-muted hover:bg-muted/80 text-foreground text-xs font-bold rounded-lg border border-border transition-all"
             >
@@ -133,7 +133,7 @@ export function StandardTable({
           )}
 
           {onAddClick && (
-            <button 
+            <button
               onClick={onAddClick}
               className="flex items-center gap-1.5 px-4 py-1.5 bg-primary text-primary-foreground text-xs font-bold rounded-lg shadow-sm hover:opacity-90 transition-all active:scale-95 ml-auto"
             >
@@ -148,19 +148,19 @@ export function StandardTable({
       <div className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-border bg-muted/50 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+            <thead className="sticky top-0 bg-muted/90 backdrop-blur-xs z-10">
+              <tr className="border-b border-border text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
                 <th className="px-4 py-3 w-10">
-                  <input 
-                    type="checkbox" 
+                  <input
+                    type="checkbox"
                     checked={data.length > 0 && selectedIds.length === data.length}
                     onChange={toggleSelectAll}
                     className="rounded border-border text-primary focus:ring-primary cursor-pointer"
                   />
                 </th>
                 {columns.map(col => (
-                  <th 
-                    key={col.key} 
+                  <th
+                    key={col.key}
                     className={`px-4 py-3 ${col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : "text-left"}`}
                   >
                     {col.header}
@@ -187,21 +187,21 @@ export function StandardTable({
                 data.map(item => {
                   const isSelected = selectedIds.includes(item.id);
                   return (
-                    <tr 
-                      key={item.id} 
+                    <tr
+                      key={item.id}
                       className={`hover:bg-muted/40 transition-colors ${isSelected ? "bg-primary/5" : ""}`}
                     >
                       <td className="px-4 py-3">
-                        <input 
-                          type="checkbox" 
+                        <input
+                          type="checkbox"
                           checked={isSelected}
                           onChange={() => toggleSelectOne(item.id)}
                           className="rounded border-border text-primary focus:ring-primary cursor-pointer"
                         />
                       </td>
                       {columns.map(col => (
-                        <td 
-                          key={col.key} 
+                        <td
+                          key={col.key}
                           className={`px-4 py-3 font-semibold ${col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : "text-left"}`}
                         >
                           {col.render ? col.render(item) : item[col.key] || "—"}
@@ -226,7 +226,7 @@ export function StandardTable({
         <div className="px-4 py-3 border-t border-border bg-muted/20 flex justify-between items-center text-xs font-semibold text-muted-foreground">
           <span>Showing {data.length} records</span>
           <div className="flex items-center gap-2">
-            <button 
+            <button
               disabled={page <= 1}
               onClick={() => onPageChange && onPageChange(page - 1)}
               className="p-1.5 rounded-lg border border-border hover:bg-muted disabled:opacity-40 transition-all"
@@ -234,7 +234,7 @@ export function StandardTable({
               <ChevronLeft className="w-4 h-4" />
             </button>
             <span>Page {page} of {totalPages}</span>
-            <button 
+            <button
               disabled={page >= totalPages}
               onClick={() => onPageChange && onPageChange(page + 1)}
               className="p-1.5 rounded-lg border border-border hover:bg-muted disabled:opacity-40 transition-all"

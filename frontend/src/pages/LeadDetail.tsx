@@ -6,7 +6,7 @@ import {
   ArrowLeft, Mail, Phone, Building2, Pencil, Check, X, History, UserCheck, 
   ChevronRight, Calendar, DollarSign, Activity, ShoppingBag, FileText, ChevronDown, Loader2,
   Users, TrendingUp, MessageSquare, CheckSquare, AlertCircle, Sparkles, Send, Upload, Plus,
-  FilePlus, Award, ShieldAlert, CheckCircle2, Clock, MapPin, Video, ExternalLink
+  FilePlus, Award, ShieldAlert, CheckCircle2, Clock, MapPin, Video, ExternalLink, Pin
 } from "lucide-react";
 import { formatCurrency } from "../utils/currency";
 import { formatDistanceToNow } from "date-fns";
@@ -31,6 +31,10 @@ export default function LeadDetail() {
 
   // Quick Action Modal States
   const [activeModal, setActiveModal] = useState<string | null>(null);
+
+  // Activity Timeline Filter & Note States
+  const [activityFilter, setActivityFilter] = useState<string>("all");
+  const [noteText, setNoteText] = useState("");
 
   // Quick Action Form States
   const [callDirection, setCallDirection] = useState("Outbound");
@@ -161,6 +165,24 @@ export default function LeadDetail() {
     }
   }, [lead]);
 
+  // Clear unread WhatsApp count when rep opens a WhatsApp lead
+  useEffect(() => {
+    if (
+      lead &&
+      token &&
+      ((lead.communicationChannel || "").toLowerCase() === "whatsapp" ||
+        (lead.source || "").toLowerCase() === "whatsapp") &&
+      (lead.unreadWhatsappCount || 0) > 0
+    ) {
+      fetch(`/api/v1/leads/${lead.id}/clear-unread`, {
+        method: "PUT",
+        headers: { "Authorization": `Bearer ${token}` }
+      })
+        .then(() => queryClient.invalidateQueries({ queryKey: ["leads"] }))
+        .catch(() => {}); // Silent fail — non-critical
+    }
+  }, [lead?.id, lead?.unreadWhatsappCount]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Mutations
   const updateDetailsMutation = useMutation({
     mutationFn: async () => {
@@ -260,6 +282,29 @@ export default function LeadDetail() {
     }
   });
 
+  const [whatsAppText, setWhatsAppText] = useState("");
+
+  const sendWhatsAppMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/v1/whatsapp/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({
+          leadId: id,
+          phone: lead?.phone,
+          text: whatsAppText
+        })
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["leadActivities", id] });
+      setActiveModal(null);
+      setWhatsAppText("");
+    }
+  });
+
   const createTaskMutation = useMutation({
     mutationFn: async () => {
       const res = await fetch(`/api/v1/tasks`, {
@@ -335,6 +380,40 @@ export default function LeadDetail() {
     }
   });
 
+  const addNoteMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/v1/leads/${id}/activities`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({
+          type: "note",
+          notes: noteText,
+          title: "Internal Note"
+        })
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["leadActivities", id] });
+      setNoteText("");
+    }
+  });
+
+  const togglePinMutation = useMutation({
+    mutationFn: async (actId: string) => {
+      const res = await fetch(`/api/v1/activities/${actId}/pin`, {
+        method: "PUT",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["leadActivities", id] });
+    }
+  });
+
   if (isLoading) {
     return <div className="text-center font-bold py-16 text-on-surface-variant">Loading Customer 360 Workspace...</div>;
   }
@@ -366,6 +445,12 @@ export default function LeadDetail() {
         </div>
 
         <div className="flex items-center gap-3">
+          <button 
+            onClick={() => setActiveModal("whatsapp")}
+            className="px-4 py-2 bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold text-xs rounded-lg hover:bg-emerald-100 transition-all flex items-center gap-1.5 shadow-2xs"
+          >
+            <MessageSquare className="w-4 h-4 text-emerald-600" /> Send WhatsApp
+          </button>
           <button 
             onClick={() => setActiveModal("email")}
             className="px-4 py-2 bg-surface-container text-on-surface border border-outline-variant font-bold text-xs rounded-lg hover:bg-surface-container-high transition-all flex items-center gap-1.5"
@@ -644,73 +729,206 @@ export default function LeadDetail() {
         {/* CENTER PANEL: Activity Timeline & Interaction Feed */}
         <div className="col-span-12 lg:col-span-6 flex flex-col gap-6">
 
-          {/* Interactive Timeline Feed */}
-          <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-6 shadow-sm space-y-6 min-h-[600px] flex flex-col">
-            <div className="flex justify-between items-center border-b border-outline-variant pb-4">
-              <div>
-                <h3 className="text-lg font-bold text-on-surface flex items-center gap-2">
-                  <Activity className="w-5 h-5 text-primary" /> Customer Activity Timeline
+          {/* Minimal Interactive Timeline Feed */}
+          <div className="bg-card border border-border rounded-2xl p-5 space-y-4 min-h-[500px] flex flex-col">
+            
+            {/* Minimal Timeline Header */}
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-extrabold text-foreground tracking-tight flex items-center gap-1.5">
+                  <Activity className="w-4 h-4 text-primary" /> Activity Timeline
                 </h3>
-                <p className="text-xs text-on-surface-variant">Complete chronological history of calls, emails, notes, tasks & quotes.</p>
+                <span className="text-[11px] font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded-full border border-border">
+                  {activities.length}
+                </span>
               </div>
-              <span className="text-xs font-bold text-primary bg-primary/10 px-2.5 py-1 rounded-full">
-                {activities.length} Interactions
-              </span>
+              
+              {/* Quiet Text Filter Links */}
+              <div className="flex items-center gap-3 text-xs font-semibold text-muted-foreground">
+                {[
+                  { key: "all", label: "All" },
+                  { key: "note", label: "Notes" },
+                  { key: "call", label: "Calls" },
+                  { key: "email", label: "Emails" },
+                  { key: "task", label: "Tasks" },
+                  { key: "whatsapp", label: "WhatsApp" },
+                ].map(f => (
+                  <button
+                    key={f.key}
+                    onClick={() => setActivityFilter(f.key)}
+                    className={`transition-colors ${
+                      activityFilter === f.key
+                        ? f.key === "whatsapp"
+                          ? "text-emerald-600 font-black underline underline-offset-4"
+                          : "text-primary font-bold underline underline-offset-4"
+                        : "hover:text-foreground"
+                    }`}
+                  >
+                    {f.key === "whatsapp" ? "💬 WhatsApp" : f.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto space-y-5 pr-2">
+            {/* Minimal Inline Note Box */}
+            <div className="flex items-center gap-2 bg-muted/60 px-3 py-1.5 rounded-xl border border-border focus-within:border-primary/40 focus-within:bg-card transition-all">
+              <input
+                type="text"
+                placeholder="Add a quick note or comment..."
+                value={noteText}
+                onChange={e => setNoteText(e.target.value)}
+                className="flex-1 bg-transparent py-1 text-xs font-medium focus:outline-none text-foreground placeholder:text-muted-foreground/70"
+                onKeyDown={e => {
+                  if (e.key === "Enter" && noteText.trim()) {
+                    addNoteMutation.mutate();
+                  }
+                }}
+              />
+              <button
+                disabled={!noteText.trim() || addNoteMutation.isPending}
+                onClick={() => addNoteMutation.mutate()}
+                className="text-xs font-bold text-primary hover:text-primary/80 disabled:opacity-30 transition-all flex items-center gap-1 shrink-0 px-2 py-1"
+              >
+                <Send className="w-3 h-3" /> Post
+              </button>
+            </div>
+
+            {/* WhatsApp conversation banner — shown when WhatsApp filter active */}
+            {activityFilter === "whatsapp" && (
+              <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 font-semibold">
+                <MessageSquare className="w-4 h-4 text-emerald-600 shrink-0" />
+                WhatsApp conversation with{" "}
+                <span className="font-black">{lead.firstName} {lead.lastName}</span>
+                {lead.whatsappPhone || lead.phone ? (
+                  <span className="text-emerald-600 font-mono ml-auto">{lead.whatsappPhone || lead.phone}</span>
+                ) : null}
+              </div>
+            )}
+
+            {/* Streamlined Minimal Feed */}
+            <div className={`flex-1 overflow-y-auto pt-1 pr-1 max-h-[500px] ${activityFilter === "whatsapp" ? "space-y-3 flex flex-col" : "space-y-2.5"}`}>
               {activities.length === 0 ? (
-                <div className="text-center py-16 text-on-surface-variant italic text-sm">
-                  No activity history recorded. Use the Quick Actions panel on the right to log calls, send emails, or schedule meetings.
+                <div className="text-center py-10 text-muted-foreground text-xs space-y-1">
+                  <p className="font-semibold text-foreground/80">No activity yet</p>
+                  <p className="text-[11px] text-muted-foreground">Log calls, emails, or notes to populate this timeline.</p>
                 </div>
               ) : (
-                activities.map((act: any) => (
-                  <div key={act.id} className="relative pl-8 border-l-2 border-outline-variant/60 pb-4 last:border-0 last:pb-0">
-                    <div className={`absolute -left-[13px] top-0 w-6 h-6 rounded-full border-2 border-surface flex items-center justify-center ${
-                      act.type === 'call' ? 'bg-emerald-100 text-emerald-700' :
-                      act.type === 'email' ? 'bg-blue-100 text-blue-700' :
-                      act.type === 'meeting' ? 'bg-purple-100 text-purple-700' :
-                      act.type === 'stage_change' ? 'bg-amber-100 text-amber-700' :
-                      'bg-slate-100 text-slate-700'
-                    }`}>
-                      {act.type === 'call' && <Phone className="w-3.5 h-3.5" />}
-                      {act.type === 'email' && <Mail className="w-3.5 h-3.5" />}
-                      {act.type === 'meeting' && <Users className="w-3.5 h-3.5" />}
-                      {act.type === 'stage_change' && <TrendingUp className="w-3.5 h-3.5" />}
-                      {act.type === 'note' && <MessageSquare className="w-3.5 h-3.5" />}
-                      {act.type === 'task' && <CheckSquare className="w-3.5 h-3.5" />}
-                    </div>
+                activities
+                  .filter((act: any) => {
+                    if (activityFilter === "all") return true;
+                    if (activityFilter === "whatsapp") return act.type === "whatsapp_sms";
+                    return (act.type || "").toLowerCase().includes(activityFilter);
+                  })
+                  .slice()
+                  .sort((a: any, b: any) => {
+                    if (activityFilter === "whatsapp") {
+                      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+                    }
+                    return 0; // maintain default pin/newest order for standard feed
+                  })
+                  .map((act: any) => {
+                    const isPinned = act.pinned;
+                    const authorName = act.createdBy?.name || act.createdByUser?.name || "System Rep";
+                    const titleText = act.title || (act.type ? act.type.replace('_', ' ') : "activity");
+                    const timeAgo = formatDistanceToNow(new Date(act.createdAt), { addSuffix: true });
+                    const isDupOutcome = act.outcome && act.outcome.includes("Duplicate lead capture");
+                    const bodyContent = act.notes || (isDupOutcome ? "Lead captured from marketing channel." : act.outcome);
 
-                    <div className="bg-surface p-3.5 rounded-xl border border-outline-variant/60 space-y-1">
-                      <div className="flex justify-between items-center text-xs">
-                        <span className="font-bold text-on-surface uppercase tracking-wider text-[10px]">
-                          {act.title || act.type.replace('_', ' ')}
-                        </span>
-                        <span className="text-[10px] text-on-surface-variant font-medium">
-                          {formatDistanceToNow(new Date(act.createdAt), { addSuffix: true })}
-                        </span>
+                    // ── WhatsApp Chat Bubble ─────────────────────────────────
+                    if (act.type === "whatsapp_sms") {
+                      const isIncoming = act.outcome === "message received";
+                      return (
+                        <div
+                          key={act.id}
+                          className={`flex ${isIncoming ? "justify-start" : "justify-end"} gap-2`}
+                        >
+                          {/* Avatar — only for incoming */}
+                          {isIncoming && (
+                            <div className="w-6 h-6 rounded-full bg-emerald-100 border border-emerald-300 flex items-center justify-center shrink-0 mt-0.5">
+                              <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+                            </div>
+                          )}
+
+                          <div className={`max-w-[75%] flex flex-col gap-0.5 ${isIncoming ? "items-start" : "items-end"}`}>
+                            {/* Sender Label */}
+                            <span className="text-[10px] font-bold text-on-surface-variant px-1">
+                              {isIncoming ? `${lead.firstName} ${lead.lastName}` : authorName}
+                            </span>
+                            {/* Bubble */}
+                            <div
+                              className={`px-3 py-2 rounded-2xl text-xs leading-snug shadow-sm ${
+                                isIncoming
+                                  ? "bg-surface-container border border-outline-variant/60 text-on-surface rounded-tl-sm"
+                                  : "bg-emerald-500 text-white rounded-tr-sm"
+                              }`}
+                            >
+                              {act.mediaUrl && (
+                                <p className={`text-[10px] font-bold mb-1 flex items-center gap-1 ${isIncoming ? "text-primary" : "text-white/80"}`}>
+                                  <Upload className="w-3 h-3" /> Media attachment —{" "}
+                                  <a href={act.mediaUrl} target="_blank" rel="noopener noreferrer" className="underline">View</a>
+                                </p>
+                              )}
+                              <p className="whitespace-pre-line">{act.notes}</p>
+                            </div>
+
+                            {/* Timestamp + label */}
+                            <span className="text-[10px] text-muted-foreground px-1">{timeAgo}</span>
+                          </div>
+
+                          {/* Avatar — only for outgoing */}
+                          {!isIncoming && (
+                            <div className="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center shrink-0 mt-0.5">
+                              <span className="text-[9px] font-black text-white">
+                                {authorName.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase()}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }
+
+                    // ── Standard Timeline Entry ──────────────────────────────
+                    return (
+                      <div key={act.id} className="relative pl-4 border-l border-border/70 pb-2.5 last:border-0 last:pb-0 space-y-0.5 text-xs">
+                        {/* Small quiet node */}
+                        <div className={`absolute -left-[4.5px] top-1.5 w-2 h-2 rounded-full border border-card ${
+                          isPinned ? "bg-primary" : "bg-muted-foreground/30"
+                        }`} />
+
+                        {/* Streamlined Single-Row Header */}
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                            <span className="font-bold text-foreground">{authorName}</span>
+                            <span className="text-muted-foreground font-normal text-[11px] capitalize">· {titleText}</span>
+                            {isPinned && (
+                              <span className="text-[9px] font-bold text-primary bg-primary/10 px-1 py-0.2 rounded border border-primary/20">Pinned</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0 text-[10px] text-muted-foreground/80">
+                            <span>{timeAgo}</span>
+                            <button
+                              onClick={() => togglePinMutation.mutate(act.id)}
+                              className="text-muted-foreground hover:text-primary transition-colors p-0.5"
+                              title={isPinned ? "Unpin" : "Pin"}
+                            >
+                              <Pin className={`w-3 h-3 ${isPinned ? "fill-primary text-primary" : ""}`} />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Note / Action Body */}
+                        {bodyContent && (
+                          <p className="text-xs text-foreground/90 font-normal leading-snug whitespace-pre-line">
+                            {bodyContent}
+                          </p>
+                        )}
                       </div>
-                      {act.notes && (
-                        <p className="text-xs text-on-surface font-medium whitespace-pre-line leading-relaxed">
-                          {act.notes}
-                        </p>
-                      )}
-                      {act.createdByUser && (
-                        <p className="text-[10px] text-on-surface-variant italic border-t border-outline-variant/30 pt-1">
-                          By {act.createdByUser.name}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                ))
+                    );
+                  })
               )}
             </div>
           </div>
 
-        </div>
-
-        {/* RIGHT PANEL: Quick Action Launcher & Vault */}
-        <div className="col-span-12 lg:col-span-3 flex flex-col gap-6">
 
           {/* Quick Actions Panel */}
           <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-5 shadow-sm space-y-4">
@@ -719,6 +937,56 @@ export default function LeadDetail() {
             </h3>
 
             <div className="grid grid-cols-2 gap-2 text-xs">
+              <button 
+                onClick={async () => {
+                  try {
+                    const statusRes = await fetch("/api/v1/telephony/status", { headers: { "Authorization": `Bearer ${token}` } });
+                    const statusData = await statusRes.json();
+                    if (!statusData.configured) {
+                      alert("Telephony not configured: " + statusData.message);
+                      return;
+                    }
+                    const callRes = await fetch("/api/v1/telephony/call", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+                      body: JSON.stringify({ leadId: id, phoneNumber: lead.phone || "+12025550123" })
+                    });
+                    const callData = await callRes.json();
+                    alert(callData.message || "Twilio call initiated!");
+                  } catch (e: any) {
+                    alert("Telephony action: " + e.message);
+                  }
+                }}
+                className="p-3 bg-emerald-50 hover:bg-emerald-100/80 border border-emerald-200 rounded-xl font-bold text-emerald-800 flex flex-col items-center gap-1.5 transition-all group"
+                title="Twilio Click-to-Call with Recording"
+              >
+                <Phone className="w-5 h-5 text-emerald-600 group-hover:scale-110 transition-transform" />
+                <span>Twilio Call</span>
+              </button>
+
+              <button 
+                onClick={async () => {
+                  const seqName = prompt("Enter sequence ID to enroll this lead (or select from Communications Hub):");
+                  if (!seqName) return;
+                  try {
+                    const res = await fetch("/api/v1/sequences/enroll", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+                      body: JSON.stringify({ leadId: id, sequenceId: seqName })
+                    });
+                    const data = await res.json();
+                    alert(data.message || "Enrolled in sequence!");
+                  } catch (err: any) {
+                    alert("Sequence error: " + err.message);
+                  }
+                }}
+                className="p-3 bg-primary/10 hover:bg-primary/20 border border-primary/30 rounded-xl font-bold text-primary flex flex-col items-center gap-1.5 transition-all group"
+                title="Enroll lead in Drip Sequence"
+              >
+                <Sparkles className="w-5 h-5 text-primary group-hover:scale-110 transition-transform" />
+                <span>Drip Sequence</span>
+              </button>
+
               <button 
                 onClick={() => setActiveModal("call")}
                 className="p-3 bg-surface hover:bg-surface-container border border-outline-variant rounded-xl font-bold text-on-surface flex flex-col items-center gap-1.5 transition-all group"
@@ -807,7 +1075,6 @@ export default function LeadDetail() {
                 <Plus className="w-3.5 h-3.5" /> Add
               </button>
             </div>
-
             {meetings.length === 0 ? (
               <p className="text-xs text-on-surface-variant italic">No upcoming meetings.</p>
             ) : (
@@ -827,6 +1094,46 @@ export default function LeadDetail() {
       </div>
 
       {/* QUICK ACTION MODALS */}
+
+      {/* Send WhatsApp Modal */}
+      {activeModal === "whatsapp" && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-6 max-w-md w-full space-y-4 shadow-xl">
+            <div className="flex justify-between items-center border-b border-outline-variant pb-3">
+              <h3 className="text-lg font-bold text-on-surface flex items-center gap-2">
+                <MessageSquare className="w-5 h-5 text-emerald-600" /> Send WhatsApp Message
+              </h3>
+              <button onClick={() => setActiveModal(null)}><X className="w-5 h-5 text-on-surface-variant" /></button>
+            </div>
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block font-bold text-on-surface-variant mb-1">To Phone Number</label>
+                <input type="text" readOnly value={lead?.phone || "No phone on record"} className="w-full bg-surface-container-low border border-outline-variant rounded p-2 text-xs font-mono font-bold text-emerald-700" />
+              </div>
+              <div>
+                <label className="block font-bold text-on-surface-variant mb-1">WhatsApp Message Body</label>
+                <textarea 
+                  rows={4} 
+                  value={whatsAppText} 
+                  onChange={e => setWhatsAppText(e.target.value)} 
+                  placeholder="Type your WhatsApp message..." 
+                  className="w-full bg-surface border border-outline rounded p-2.5 text-xs focus:ring-1 focus:ring-emerald-500" 
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button onClick={() => setActiveModal(null)} className="px-4 py-2 border border-outline rounded font-bold text-xs">Cancel</button>
+                <button 
+                  onClick={() => sendWhatsAppMutation.mutate()} 
+                  disabled={sendWhatsAppMutation.isPending || !whatsAppText.trim()}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-bold text-xs flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  <Send className="w-3.5 h-3.5" /> Send WhatsApp
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Call Log Modal */}
       {activeModal === "call" && (
@@ -937,7 +1244,7 @@ export default function LeadDetail() {
               </div>
               <div className="flex justify-end gap-2 pt-2">
                 <button onClick={() => setActiveModal(null)} className="px-4 py-2 border border-outline rounded font-bold text-xs">Cancel</button>
-                <button onClick={() => createTaskMutation.mutate()} className="px-4 py-2 bg-purple-600 text-white rounded font-bold text-xs">Save Task</button>
+                <button onClick={() => createTaskMutation.mutate()} className="px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded font-bold text-xs">Save Task</button>
               </div>
             </div>
           </div>
@@ -999,15 +1306,15 @@ export default function LeadDetail() {
             <div className="space-y-3 text-xs">
               <div>
                 <label className="block font-bold text-on-surface-variant mb-1">Document Name</label>
-                <input type="text" value={docName} onChange={e => setDocName(e.target.value)} placeholder="Contract_v1.pdf" className="w-full bg-surface border border-outline rounded p-2 text-xs" />
+                <input type="text" value={docName} onChange={e => setDocName(e.target.value)} placeholder="Technical Specifications PDF..." className="w-full bg-surface border border-outline rounded p-2 text-xs" />
               </div>
               <div>
-                <label className="block font-bold text-on-surface-variant mb-1">File Type</label>
+                <label className="block font-bold text-on-surface-variant mb-1">FileType</label>
                 <select value={docType} onChange={e => setDocType(e.target.value)} className="w-full bg-surface border border-outline rounded p-2 text-xs">
                   <option value="PDF">PDF</option>
-                  <option value="Word">Word</option>
-                  <option value="Excel">Excel</option>
-                  <option value="Contract">Contract</option>
+                  <option value="DOCX">DOCX</option>
+                  <option value="XLSX">XLSX</option>
+                  <option value="CAD/BOM">CAD / BOM</option>
                 </select>
               </div>
               <div className="flex justify-end gap-2 pt-2">
@@ -1018,7 +1325,6 @@ export default function LeadDetail() {
           </div>
         </div>
       )}
-
     </div>
   );
 }

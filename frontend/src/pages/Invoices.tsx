@@ -99,22 +99,22 @@ export default function Invoices() {
                     </td>
                     <td className="px-6 py-4">
                       {invoice.status === 'Paid' && (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-emerald-500/10 text-emerald-600 text-[10px] font-bold uppercase rounded-full border border-emerald-500/20">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-emerald-50 text-emerald-700 text-[10px] font-semibold uppercase rounded-full border border-emerald-200">
                           <CheckCircle className="w-3 h-3" /> Paid
                         </span>
                       )}
                       {invoice.status === 'Sent' && (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-primary/10 text-primary text-[10px] font-bold uppercase rounded-full border border-primary/20">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-blue-50 text-blue-700 text-[10px] font-semibold uppercase rounded-full border border-blue-200">
                           <FileText className="w-3 h-3" /> Sent
                         </span>
                       )}
                       {invoice.status === 'Draft' && (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-outline-variant/30 text-on-surface-variant text-[10px] font-bold uppercase rounded-full border border-outline/25">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-semibold uppercase rounded-full border border-slate-300">
                           <Clock className="w-3 h-3" /> Draft
                         </span>
                       )}
                       {invoice.status === 'Overdue' && (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-error-container text-error text-[10px] font-bold uppercase rounded-full border border-error/20">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-rose-50 text-rose-700 text-[10px] font-semibold uppercase rounded-full border border-rose-200">
                           <AlertCircle className="w-3 h-3" /> Overdue
                         </span>
                       )}

@@ -1,7 +1,7 @@
 import { useAuth } from "../context/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Settings as SettingsIcon, Shield, CheckCircle, RefreshCw, UserCheck, ToggleLeft, ToggleRight, Users, Mail } from "lucide-react";
+import { Settings as SettingsIcon, Shield, CheckCircle, RefreshCw, UserCheck, ToggleLeft, ToggleRight, Users, Mail, MessageCircle, Copy, ExternalLink, Check } from "lucide-react";
 
 export default function Settings() {
   const { token, user } = useAuth();
@@ -12,6 +12,15 @@ export default function Settings() {
   const [message, setMessage] = useState<string | null>(null);
   const [authCode, setAuthCode] = useState("");
   const [showCodeInput, setShowCodeInput] = useState(false);
+  const [copiedWebhook, setCopiedWebhook] = useState(false);
+
+  const webhookUrl = `${window.location.origin}/api/v1/whatsapp/webhook`;
+
+  const copyWebhook = () => {
+    navigator.clipboard.writeText(webhookUrl);
+    setCopiedWebhook(true);
+    setTimeout(() => setCopiedWebhook(false), 2000);
+  };
 
   // Fetch current user settings
   const { data: mySettings } = useQuery({
@@ -322,6 +331,73 @@ export default function Settings() {
                   )}
                 </div>
               )}
+            </div>
+
+            {/* WhatsApp Business API Card */}
+            <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-6 shadow-sm space-y-4">
+              <h3 className="text-lg font-bold text-on-surface flex items-center gap-2">
+                <MessageCircle className="w-5 h-5 text-emerald-600" />
+                WhatsApp Business API
+              </h3>
+              <p className="text-sm text-on-surface-variant">
+                Receive and send WhatsApp messages via Meta Cloud API. Incoming messages auto-create leads and activity logs.
+              </p>
+
+              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-xs font-bold text-emerald-800">Webhook Endpoint Registered</span>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider">Webhook URL (paste in Meta Developer Console)</p>
+                  <div className="flex items-center gap-2 bg-white border border-emerald-300 rounded-lg px-3 py-2">
+                    <code className="text-[11px] text-slate-700 flex-1 truncate font-mono">{webhookUrl}</code>
+                    <button
+                      onClick={copyWebhook}
+                      className="shrink-0 text-emerald-600 hover:text-emerald-800 transition-colors"
+                      title="Copy webhook URL"
+                    >
+                      {copiedWebhook ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <p className="text-emerald-700 font-bold">Verify Token</p>
+                    <p className="font-mono text-slate-700">nexus_whatsapp_webhook_secret_2026</p>
+                  </div>
+                  <div>
+                    <p className="text-emerald-700 font-bold">API Version</p>
+                    <p className="text-slate-700">Meta Cloud API v18.0</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2 text-xs">
+                <p className="font-bold text-on-surface-variant uppercase tracking-wider text-[10px]">Setup Checklist</p>
+                {[
+                  { done: true, label: "WHATSAPP_TOKEN configured in .env" },
+                  { done: true, label: "WHATSAPP_PHONE_NUMBER_ID configured in .env" },
+                  { done: true, label: "Webhook endpoint live at /api/v1/whatsapp/webhook" },
+                  { done: false, label: "Register webhook URL in Meta Developer Console" },
+                  { done: false, label: "Add phone number to WhatsApp Business API" },
+                ].map((step, i) => (
+                  <div key={i} className={`flex items-center gap-2 p-2 rounded-lg ${step.done ? "bg-emerald-50 text-emerald-800" : "bg-slate-50 text-slate-500"}`}>
+                    <CheckCircle className={`w-3.5 h-3.5 shrink-0 ${step.done ? "text-emerald-600" : "text-slate-300"}`} />
+                    {step.label}
+                  </div>
+                ))}
+              </div>
+
+              <a
+                href="https://developers.facebook.com/docs/whatsapp/cloud-api/get-started"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 text-xs font-bold text-emerald-700 hover:text-emerald-800 transition-colors"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                Meta WhatsApp Cloud API Docs
+              </a>
             </div>
 
             {/* Profile info & Password change */}

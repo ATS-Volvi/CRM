@@ -1,11 +1,14 @@
 import { Request, Response } from "express";
-import { Activity } from "@nexus-crm/database";
+import { Activity, User } from "@nexus-crm/database";
 
 export const getLeadActivities = async (req: Request, res: Response) => {
   try {
     const { leadId } = req.params;
     const activities = await Activity.findAll({ 
       where: { leadId },
+      include: [
+        { model: User, as: "createdBy", attributes: ["id", "name", "email", "role"] }
+      ],
       order: [
         ['pinned', 'DESC'],
         ['createdAt', 'DESC']
@@ -20,7 +23,7 @@ export const getLeadActivities = async (req: Request, res: Response) => {
 export const createActivity = async (req: Request, res: Response) => {
   try {
     const { leadId } = req.params;
-    const { type, duration, outcome, mentioned_user_ids, pinned, dueDate, priority, isCompleted } = req.body;
+    const { type, title, notes, duration, outcome, mentioned_user_ids, pinned, dueDate, priority, isCompleted } = req.body;
     const userId = (req as any).user?.id || "mock-user";
 
     // Validate tasks have a due date
@@ -31,9 +34,10 @@ export const createActivity = async (req: Request, res: Response) => {
     const activity = await Activity.create({
       id: require('crypto').randomUUID(),
       leadId,
-      type,
-      duration,
-      outcome,
+      type: type || "note",
+      notes: notes || title || "",
+      duration: duration || null,
+      outcome: outcome || null,
       mentioned_user_ids: mentioned_user_ids ? JSON.stringify(mentioned_user_ids) : "[]",
       pinned: pinned || false,
       createdById: userId,

@@ -27,7 +27,12 @@ export const getLeads = async (req: Request, res: Response) => {
           attributes: ["id", "name", "email"]
         }
       ],
-      order: [["createdAt", "DESC"]]
+      // WhatsApp leads with recent messages bubble to the top;
+      // everything else sorted by creation date descending
+      order: [
+        ["lastWhatsappAt", "DESC NULLS LAST"],
+        ["createdAt", "DESC"]
+      ]
     });
 
     res.json(leads);
@@ -313,3 +318,20 @@ export const getLead = async (req: Request, res: Response) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+/**
+ * Clears the unread WhatsApp message count for a lead.
+ * Called when a sales rep opens the Customer 360 page for a WhatsApp lead.
+ */
+export const clearUnreadCount = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const lead = await sequelize.models.Lead.findByPk(String(id));
+    if (!lead) return res.status(404).json({ error: "Lead not found" });
+    await lead.update({ unreadWhatsappCount: 0 });
+    res.json({ success: true, unreadWhatsappCount: 0 });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+

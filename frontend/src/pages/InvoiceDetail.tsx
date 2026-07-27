@@ -72,11 +72,11 @@ export default function InvoiceDetail() {
         <div>
           <h1 className="text-3xl font-bold">Invoice INV-{invoice.id.substring(0,6).toUpperCase()}</h1>
           <div className="flex items-center gap-3 mt-2">
-            <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase ${
-              invoice.status === 'Paid' ? 'bg-green-100 text-green-700' :
-              invoice.status === 'Sent' ? 'bg-blue-100 text-blue-700' :
-              invoice.status === 'Draft' ? 'bg-surface-variant text-on-surface-variant' :
-              'bg-red-100 text-red-700'
+            <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold uppercase border ${
+              invoice.status === 'Paid' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+              invoice.status === 'Sent' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+              invoice.status === 'Draft' ? 'bg-slate-100 text-slate-600 border-slate-300' :
+              'bg-rose-50 text-rose-700 border-rose-200'
             }`}>
               {invoice.status}
             </span>

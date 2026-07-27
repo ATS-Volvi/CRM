@@ -154,7 +154,7 @@ export default function PurchaseOrders() {
                     <td className="px-6 py-4">{clientName}</td>
                     <td className="px-6 py-4 font-medium">{formatCurrency(po.amount)}</td>
                     <td className="px-6 py-4">
-                      <span className={`px-2 py-1 text-[10px] font-bold rounded uppercase ${po.status === 'Verified' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                      <span className={`px-2.5 py-0.5 text-[10px] font-semibold rounded-full uppercase border ${po.status === 'Verified' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
                         {po.status}
                       </span>
                     </td>

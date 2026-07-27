@@ -155,26 +155,36 @@ function SectionHeader({ title, icon: Icon, action, badge }: {
 }
 
 // ─── Pipeline Funnel ───────────────────────────────────────────────────────────
+// ─── Single Blue Scale for Pipeline Stages ──────────────────────────────────
+const BLUE_FUNNEL_SHADES = [
+  "hsl(var(--primary))",
+  "hsl(217 75% 55%)",
+  "hsl(217 70% 65%)",
+  "hsl(217 65% 75%)",
+  "hsl(217 60% 85%)",
+];
+
+// ─── Pipeline Funnel ───────────────────────────────────────────────────────────
 function PipelineFunnel({ funnel }: { funnel: ManagementData["funnel"] }) {
   const visible = funnel.filter(f => !["Won","Lost"].includes(f.stage));
   const maxCount = Math.max(...visible.map(f => f.count), 1);
   return (
-    <div className="space-y-1.5">
-      {visible.map((f) => {
+    <div className="space-y-2">
+      {visible.map((f, idx) => {
         const w = pct(f.count, maxCount);
-        const color = STAGE_COLORS[f.stage] || "#6366f1";
+        const color = BLUE_FUNNEL_SHADES[idx % BLUE_FUNNEL_SHADES.length];
         return (
           <div key={f.stage} className="flex items-center gap-3">
             <span className="w-24 text-xs font-semibold text-slate-500 shrink-0 text-right">{f.stage}</span>
-            <div className="flex-1 h-5 bg-slate-100 rounded-md overflow-hidden">
+            <div className="flex-1 h-5 bg-slate-100/80 rounded-md overflow-hidden border border-slate-200/50">
               <div
-                className="h-full rounded-md flex items-center px-2 transition-all duration-700"
+                className="h-full rounded-md flex items-center px-2 transition-all duration-500"
                 style={{ width: `${Math.max(w, 8)}%`, background: color }}
               >
                 <span className="text-[10px] font-bold text-white">{f.count}</span>
               </div>
             </div>
-            <span className="w-20 text-xs text-slate-400 shrink-0">{formatCurrencyCompact(f.value)}</span>
+            <span className="w-20 text-xs text-slate-400 shrink-0 font-medium">{formatCurrencyCompact(f.value)}</span>
           </div>
         );
       })}
@@ -200,14 +210,14 @@ function RevenueChart({ months, values }: { months: string[]; values: number[] }
       <svg viewBox={`0 0 100 ${H}`} className="w-full h-20" preserveAspectRatio="none">
         <defs>
           <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#6366f1" stopOpacity="0.3" />
-            <stop offset="100%" stopColor="#6366f1" stopOpacity="0.02" />
+            <stop offset="0%" stopColor="#2563eb" stopOpacity="0.15" />
+            <stop offset="100%" stopColor="#2563eb" stopOpacity="0.01" />
           </linearGradient>
         </defs>
         <path d={areaD} fill="url(#revGrad)" />
-        <path d={pathD} stroke="#6366f1" strokeWidth="2" fill="none" strokeLinejoin="round" />
+        <path d={pathD} stroke="#2563eb" strokeWidth="2" fill="none" strokeLinejoin="round" />
         {pts.map((p, i) => (
-          <circle key={i} cx={p.x} cy={p.y} r="1.5" fill="#6366f1" />
+          <circle key={i} cx={p.x} cy={p.y} r="1.5" fill="#2563eb" />
         ))}
       </svg>
       <div className="flex justify-between">
@@ -224,14 +234,14 @@ function TaskCard({ task }: { task: any }) {
   const isOverdue = task.dueDate && new Date(task.dueDate) < new Date();
   return (
     <div className="flex items-start gap-3 py-3 border-b border-slate-100 last:border-0 hover:bg-slate-50/70 -mx-4 px-4 transition-colors rounded-lg cursor-pointer">
-      <div className={`mt-0.5 w-4 h-4 rounded-full border-2 shrink-0 ${isOverdue ? "border-red-400" : "border-indigo-400"}`} />
+      <div className={`mt-0.5 w-4 h-4 rounded-full border-2 shrink-0 ${isOverdue ? "border-rose-400" : "border-primary"}`} />
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-slate-800 truncate">{task.title || task.subject || "Task"}</p>
-        <p className={`text-xs mt-0.5 font-medium ${isOverdue ? "text-red-500" : "text-slate-400"}`}>
+        <p className={`text-xs mt-0.5 font-medium ${isOverdue ? "text-rose-600 font-semibold" : "text-slate-400"}`}>
           {isOverdue ? "Overdue" : task.dueDate ? new Date(task.dueDate).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Today"}
         </p>
       </div>
-      {isOverdue && <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />}
+      {isOverdue && <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />}
     </div>
   );
 }
@@ -239,9 +249,9 @@ function TaskCard({ task }: { task: any }) {
 // ─── Meeting Card ──────────────────────────────────────────────────────────────
 function MeetingCard({ meeting }: { meeting: typeof MEETINGS_DEMO[0] }) {
   const typeConfig: Record<string, { icon: React.ElementType; color: string }> = {
-    video:     { icon: PlayCircle, color: "text-indigo-500 bg-indigo-50" },
-    call:      { icon: Phone,      color: "text-emerald-500 bg-emerald-50" },
-    "in-person": { icon: Users,   color: "text-amber-500 bg-amber-50" },
+    video:     { icon: PlayCircle, color: "text-primary bg-primary/10 border border-primary/20" },
+    call:      { icon: Phone,      color: "text-secondary bg-secondary/10 border border-secondary/20" },
+    "in-person": { icon: Users,   color: "text-slate-700 bg-slate-100 border border-slate-200" },
   };
   const cfg = typeConfig[meeting.type] || typeConfig.call;
   const Ico = cfg.icon;
@@ -263,7 +273,7 @@ function MeetingCard({ meeting }: { meeting: typeof MEETINGS_DEMO[0] }) {
 function FollowUpCard({ lead }: { lead: any }) {
   return (
     <div className="flex items-center gap-3 py-3 border-b border-slate-100 last:border-0 hover:bg-slate-50/70 -mx-4 px-4 transition-colors rounded-lg cursor-pointer group">
-      <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 font-bold text-sm shrink-0">
+      <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-bold text-xs shrink-0">
         {(lead.firstName || lead.name || "?").charAt(0).toUpperCase()}
       </div>
       <div className="flex-1 min-w-0">
@@ -272,7 +282,7 @@ function FollowUpCard({ lead }: { lead: any }) {
         </p>
         <p className="text-xs text-slate-400 truncate">{lead.company || "Unknown Company"}</p>
       </div>
-      <button className="text-xs font-bold text-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+      <button className="text-xs font-bold text-primary opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
         <Phone className="w-3 h-3" /> Call
       </button>
     </div>
@@ -280,18 +290,22 @@ function FollowUpCard({ lead }: { lead: any }) {
 }
 
 // ─── Quick Action Button ────────────────────────────────────────────────────────
-function QuickAction({ label, icon: Icon, href, color }: {
+function QuickAction({ label, icon: Icon, href, primary }: {
   label: string;
   icon: React.ElementType;
   href: string;
-  color: string;
+  primary?: boolean;
 }) {
   return (
     <Link
       to={href}
-      className={`flex items-center gap-2 px-4 py-3 rounded-xl font-semibold text-sm text-white shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 ${color}`}
+      className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition-all duration-200 shadow-2xs ${
+        primary
+          ? "bg-primary hover:bg-primary/90 text-white"
+          : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300"
+      }`}
     >
-      <Icon className="w-4 h-4" />
+      <Icon className={`w-4 h-4 ${primary ? "text-white" : "text-primary"}`} />
       {label}
     </Link>
   );
@@ -380,7 +394,7 @@ export default function MyDashboard() {
       label: "Pipeline Value",
       value: formatCurrencyCompact(pipelineValue),
       icon: Target,
-      gradient: "bg-gradient-to-br from-indigo-500 to-indigo-600",
+      gradient: "bg-primary",
       spark: [12.1, 14.3, 11.8, 17.2, 19.5, 18.7, 22.1],
       trend: { up: true, val: "+14.2% vs last month" },
     },
@@ -388,7 +402,7 @@ export default function MyDashboard() {
       label: "Revenue (MTD)",
       value: formatCurrencyCompact(data?.invoicesTotal || 3780000),
       icon: DollarSign,
-      gradient: "bg-gradient-to-br from-emerald-500 to-emerald-600",
+      gradient: "bg-emerald-600",
       spark: [8.2, 9.1, 10.4, 11.2, 12.0, 13.5, 14.8],
       trend: { up: true, val: "+8.6% vs target" },
     },
@@ -396,7 +410,7 @@ export default function MyDashboard() {
       label: "New Leads",
       value: String(newLeads || 47),
       icon: Inbox,
-      gradient: "bg-gradient-to-br from-violet-500 to-purple-600",
+      gradient: "bg-secondary",
       spark: [5, 8, 6, 12, 9, 14, 11],
       trend: { up: true, val: "+23 this week" },
     },
@@ -404,7 +418,7 @@ export default function MyDashboard() {
       label: "Follow-ups Due",
       value: String(followUps.length || 12),
       icon: AlertCircle,
-      gradient: "bg-gradient-to-br from-amber-500 to-orange-500",
+      gradient: "bg-amber-600",
       spark: [3, 7, 5, 9, 11, 8, 12],
       trend: { up: false, val: `${followUps.length || 12} need action` },
     },
@@ -412,7 +426,7 @@ export default function MyDashboard() {
       label: "Win Rate",
       value: `${Math.round(data?.conversionRate || mgmtData?.winRate || 34)}%`,
       icon: TrendingUp,
-      gradient: "bg-gradient-to-br from-pink-500 to-rose-600",
+      gradient: "bg-slate-700",
       spark: [28, 31, 30, 34, 33, 36, 34],
       trend: { up: true, val: "vs 28% avg" },
     },
@@ -425,7 +439,7 @@ export default function MyDashboard() {
       <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs mb-6 space-y-4">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <p className="text-xs font-bold tracking-widest text-indigo-500 uppercase mb-0.5">{dateStr}</p>
+            <p className="text-xs font-bold tracking-widest text-primary uppercase mb-0.5">{dateStr}</p>
             <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
               {greeting}, {displayName} 👋
             </h1>
@@ -434,17 +448,17 @@ export default function MyDashboard() {
 
           {/* Quick Actions Strip */}
           <div className="flex items-center gap-2 flex-wrap">
-            <Link to="/leads/new" className="flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all">
+            <Link to="/leads/new" className="flex items-center gap-1.5 px-3.5 py-2 bg-primary hover:bg-primary/90 text-white text-xs font-bold rounded-xl shadow-xs transition-all">
               <Plus className="w-3.5 h-3.5" /> New Lead
             </Link>
-            <Link to="/home" className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all">
+            <Link to="/home" className="flex items-center gap-1.5 px-3.5 py-2 bg-secondary hover:bg-secondary/90 text-white text-xs font-bold rounded-xl shadow-xs transition-all">
               <Calendar className="w-3.5 h-3.5" /> Schedule Meeting
             </Link>
-            <Link to="/home" className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all">
-              <Phone className="w-3.5 h-3.5" /> Log Call
+            <Link to="/home" className="flex items-center gap-1.5 px-3.5 py-2 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-bold rounded-xl shadow-xs transition-all">
+              <Phone className="w-3.5 h-3.5 text-primary" /> Log Call
             </Link>
-            <Link to="/quotes/new" className="flex items-center gap-1.5 px-3.5 py-2 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all">
-              <FileText className="w-3.5 h-3.5" /> Create Quote
+            <Link to="/quotes/new" className="flex items-center gap-1.5 px-3.5 py-2 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-bold rounded-xl shadow-xs transition-all">
+              <FileText className="w-3.5 h-3.5 text-primary" /> Create Quote
             </Link>
           </div>
         </div>
@@ -475,10 +489,10 @@ export default function MyDashboard() {
       </div>
 
       {/* ─── AI Nudge Banner ──────────────────────────────────────────────── */}
-      <div className="flex items-center gap-3 px-5 py-3.5 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 rounded-2xl text-white shadow-lg mb-6">
-        <Zap className="w-4 h-4 shrink-0 animate-pulse" />
+      <div className="flex items-center gap-3 px-5 py-3.5 bg-primary text-primary-foreground rounded-2xl shadow-md mb-6">
+        <Zap className="w-4 h-4 shrink-0 animate-pulse text-amber-300" />
         <p className="text-sm font-semibold flex-1">{AI_NUDGES[nudgeIdx]}</p>
-        <Link to="/ai-reports" className="text-xs font-bold underline opacity-80 hover:opacity-100 whitespace-nowrap">
+        <Link to="/ai-reports" className="text-xs font-bold underline opacity-90 hover:opacity-100 whitespace-nowrap">
           View AI Reports →
         </Link>
       </div>
@@ -498,11 +512,11 @@ export default function MyDashboard() {
 
       {/* ─── QUICK ACTIONS ────────────────────────────────────────────────── */}
       <div className="flex flex-wrap gap-3 mb-6">
-        <QuickAction label="New Lead"      icon={Plus}      href="/leads/new"   color="bg-indigo-600 hover:bg-indigo-700" />
-        <QuickAction label="New Quote"     icon={FileText}  href="/quotes/new"  color="bg-purple-600 hover:bg-purple-700" />
-        <QuickAction label="Log a Call"    icon={Phone}     href="/leads"       color="bg-emerald-600 hover:bg-emerald-700" />
-        <QuickAction label="Schedule Meeting" icon={Calendar} href="/pipeline"  color="bg-amber-500 hover:bg-amber-600" />
-        <QuickAction label="View Pipeline" icon={BarChart2} href="/pipeline"   color="bg-slate-700 hover:bg-slate-800" />
+        <QuickAction label="New Lead"         icon={Plus}      href="/leads/new"  primary />
+        <QuickAction label="New Quote"        icon={FileText}  href="/quotes/new" />
+        <QuickAction label="Log a Call"       icon={Phone}     href="/leads" />
+        <QuickAction label="Schedule Meeting" icon={Calendar}  href="/pipeline" />
+        <QuickAction label="View Pipeline"    icon={BarChart2} href="/pipeline" />
       </div>
 
       {/* ─── MAIN 3-COLUMN GRID ───────────────────────────────────────────── */}
@@ -741,24 +755,39 @@ export default function MyDashboard() {
 
         {/* Team Leaderboard */}
         <div className="col-span-12 lg:col-span-5 bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-          <SectionHeader title="Team Leaderboard" icon={Users} action={{ label: "Full Report", href: "/kpi" }} />
+          <SectionHeader title="Team Gamification Leaderboard" icon={Users} action={{ label: "Full Report", href: "/kpi" }} />
           <div className="space-y-3">
             {[
-              { rank: 1, name: "Swastik Mukherjee", deals: 14, value: 4200000, pct: 94 },
-              { rank: 2, name: "Priya Sharma",       deals: 11, value: 3800000, pct: 85 },
-              { rank: 3, name: "Rajesh Kumar",        deals: 9,  value: 2900000, pct: 71 },
-              { rank: 4, name: "Ananya Reddy",        deals: 7,  value: 2100000, pct: 58 },
-              { rank: 5, name: "Vikram Mehta",        deals: 5,  value: 1500000, pct: 42 },
+              { rank: 1, name: "Swastik Mukherjee", deals: 14, value: 4200000, pct: 94, streak: "7d streak 🔥", badges: ["🏆 Top Closer", "🔥 Fast Responder"] },
+              { rank: 2, name: "Priya Sharma",       deals: 11, value: 3800000, pct: 85, streak: "5d streak 🔥", badges: ["🏆 Top Closer"] },
+              { rank: 3, name: "Rajesh Kumar",        deals: 9,  value: 2900000, pct: 71, streak: "4d streak 🔥", badges: ["⚡ Activity Machine"] },
+              { rank: 4, name: "Ananya Reddy",        deals: 7,  value: 2100000, pct: 58, streak: "3d streak 🔥", badges: ["🎯 Pipeline Master"] },
+              { rank: 5, name: "Vikram Mehta",        deals: 5,  value: 1500000, pct: 42, streak: "2d streak 🔥", badges: ["🌟 Rising Star"] },
             ].map(rep => (
-              <div key={rep.rank} className="flex items-center gap-3">
+              <div key={rep.rank} className="flex items-center gap-3 p-1 hover:bg-slate-50 rounded-xl transition-colors">
                 <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-extrabold shrink-0 ${
                   rep.rank === 1 ? "bg-amber-100 text-amber-600" : rep.rank === 2 ? "bg-slate-100 text-slate-500" : rep.rank === 3 ? "bg-orange-100 text-orange-500" : "bg-slate-50 text-slate-400"
                 }`}>{rep.rank}</span>
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-center mb-1">
-                    <span className="text-xs font-bold text-slate-700 truncate">{rep.name}</span>
+                    <div className="flex items-center gap-2 truncate">
+                      <span className="text-xs font-bold text-slate-700 truncate">{rep.name}</span>
+                      <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 shrink-0">
+                        {rep.streak}
+                      </span>
+                    </div>
                     <span className="text-xs font-bold text-indigo-600 ml-2 shrink-0">{formatCurrencyCompact(rep.value)}</span>
                   </div>
+
+                  {/* Earned Badges Row */}
+                  <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
+                    {rep.badges.map((b, idx) => (
+                      <span key={idx} className="text-[9px] font-bold bg-indigo-50 text-indigo-700 px-1.5 py-0.2 rounded border border-indigo-100">
+                        {b}
+                      </span>
+                    ))}
+                  </div>
+
                   <div className="w-full bg-slate-100 rounded-full h-1.5">
                     <div
                       className={`h-1.5 rounded-full transition-all duration-700 ${rep.rank === 1 ? "bg-amber-500" : "bg-indigo-500"}`}

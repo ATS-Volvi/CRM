@@ -101,7 +101,7 @@ export default function RepPortal() {
               key={t.key}
               onClick={() => setActiveTab(t.key as any)}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
-                isActive ? "bg-indigo-600 text-white shadow-xs" : "text-slate-600 hover:bg-slate-100"
+                isActive ? "bg-primary text-white shadow-2xs" : "text-slate-600 hover:bg-slate-100"
               }`}
             >
               <Icon className="w-3.5 h-3.5" />
@@ -124,16 +124,16 @@ export default function RepPortal() {
           <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs flex items-center justify-between gap-3 flex-wrap">
             <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">Quick Actions:</span>
             <div className="flex gap-2 flex-wrap">
-              <button onClick={() => navigate("/leads/new")} className="px-3 py-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-xl text-xs font-bold transition-colors">
+              <button onClick={() => navigate("/leads/new")} className="px-3.5 py-2 bg-primary text-white hover:bg-primary/90 rounded-xl text-xs font-bold transition-colors">
                 + Create Lead
               </button>
-              <button onClick={() => navigate("/activities")} className="px-3 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-xl text-xs font-bold transition-colors">
+              <button onClick={() => navigate("/activities")} className="px-3.5 py-2 bg-secondary text-white hover:bg-secondary/90 rounded-xl text-xs font-bold transition-colors">
                 📞 Log Call
               </button>
-              <button onClick={() => navigate("/activities")} className="px-3 py-2 bg-purple-50 text-purple-700 hover:bg-purple-100 rounded-xl text-xs font-bold transition-colors">
+              <button onClick={() => navigate("/activities")} className="px-3.5 py-2 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl text-xs font-bold transition-colors">
                 📅 Schedule Meeting
               </button>
-              <button onClick={() => navigate("/quotes/new")} className="px-3 py-2 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-xl text-xs font-bold transition-colors">
+              <button onClick={() => navigate("/quotes/new")} className="px-3.5 py-2 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl text-xs font-bold transition-colors">
                 📄 Generate Quote
               </button>
             </div>

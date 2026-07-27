@@ -99,7 +99,7 @@ export default function ApprovalQueue() {
             <h2 className="text-lg font-semibold flex items-center gap-2">
               <ClipboardList className="w-5 h-5 text-primary" />
               Approval Queue
-              <span className="bg-secondary text-on-secondary text-[12px] px-2 py-0.5 rounded-full">
+              <span className="bg-amber-50 text-amber-700 border border-amber-200 text-[11px] px-2.5 py-0.5 rounded-full font-bold">
                 {approvals?.filter((item: any) => item.status === 'Pending').length || 0} Pending
               </span>
             </h2>
@@ -141,9 +141,13 @@ export default function ApprovalQueue() {
                     return (
                     <tr key={item.id || i} className={`hover:bg-surface-container-low transition-colors group ${item.status === 'Rejected' ? 'bg-error-container/10' : ''}`}>
                       <td className="p-4">
-                        <div className="flex flex-col">
+                        <div className="flex flex-col gap-1 items-start">
                           <span className="font-bold text-on-surface">{item.type} Approval</span>
-                          <span className={`text-[11px] flex items-center gap-1 text-on-surface-variant`}>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border inline-flex items-center gap-1 ${
+                            item.status === 'Approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                            item.status === 'Pending' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                            'bg-rose-50 text-rose-700 border-rose-200'
+                          }`}>
                             <AlertTriangle className="w-3 h-3" />
                             {item.status}
                           </span>

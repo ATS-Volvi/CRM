@@ -15,7 +15,8 @@ import {
   getLeadReassignmentHistory,
   getLeadDealForQuote,
   getDuplicateLeads,
-  mergeLeads
+  mergeLeads,
+  clearUnreadCount
 } from "../controllers/leadController";
 import { getPriceBookEntries, createPriceBookEntry, updatePriceBookEntry, deletePriceBookEntry, importPriceBookEntries, getPriceSuggestion, importPriceBookEntriesPreview } from '../controllers/priceBookController';
 import { getQuotes, createQuote, getQuoteRecommendations, sendQuote, getPublicQuote, generateQuotePdf, signQuote, getQuoteHistoryByClient, getSimilarQuotesStats, getSimilarClientQuotes } from '../controllers/quoteController';
@@ -50,6 +51,11 @@ import { getDocuments, createDocument } from "../controllers/documentController"
 import { getMeetings, createMeeting } from "../controllers/meetingController";
 import { getEmailMessages, sendEmailMessage } from "../controllers/emailMessageController";
 import { globalSearch } from "../controllers/searchController";
+import { getAutomationRules, createAutomationRule, updateAutomationRule, deleteAutomationRule } from "../controllers/automationController";
+import { getSequences, createSequence, enrollInSequence, getEnrollments } from "../controllers/sequenceController";
+import { getTelephonyStatus, initiateCall } from "../controllers/telephonyController";
+import { getDealMilestones, toggleDealMilestone, createDealMilestone } from "../controllers/milestoneController";
+import whatsappRoutes from "./whatsappRoutes";
 
 const router = Router();
 
@@ -198,13 +204,15 @@ if (process.env.NODE_ENV !== "production") {
 router.post("/auth/register", register);
 router.post("/auth/login", login);
 
+// WhatsApp Router (contains public /webhook and protected /send, /conversations, /messages)
+router.use("/whatsapp", whatsappRoutes);
+
 // Protect all following routes
 router.use(authMiddleware);
 
 import { createApproval } from '../controllers/approvalController';
 import { getNotifications, markAsRead, markAllAsRead } from '../controllers/notificationController';
 import { getMessageTemplates, getMessageTemplateById, createMessageTemplate, updateMessageTemplate, deleteMessageTemplate } from '../controllers/messageTemplateController';
-import whatsappRoutes from './whatsappRoutes';
 // ==========================================
 // LEADS
 // ==========================================
@@ -252,6 +260,8 @@ router.delete("/leads/:id", authMiddleware, deleteLead);
 router.put("/leads/:id/reassign", authMiddleware, reassignLead);
 router.get("/leads/:id/reassignment-history", authMiddleware, getLeadReassignmentHistory);
 router.get("/leads/:id/deal-for-quote", authMiddleware, getLeadDealForQuote);
+router.put("/leads/:id/clear-unread", authMiddleware, clearUnreadCount);
+
 
 router.get("/deals", authMiddleware, getDeals);
 router.get("/pipeline", authMiddleware, getPipeline);
@@ -470,9 +480,33 @@ router.post("/email-messages", authMiddleware, sendEmailMessage);
 
 router.get("/search", authMiddleware, globalSearch);
 
-export default router;
+// ==========================================
+// AUTOMATIONS (STATUS-CHANGE RULE BUILDER)
+// ==========================================
+router.get("/automations", authMiddleware, getAutomationRules);
+router.post("/automations", authMiddleware, createAutomationRule);
+router.put("/automations/:id", authMiddleware, updateAutomationRule);
+router.delete("/automations/:id", authMiddleware, deleteAutomationRule);
 
 // ==========================================
-// WHATSAPP
+// DRIP SEQUENCES
 // ==========================================
-router.use("/whatsapp", whatsappRoutes);
+router.get("/sequences", authMiddleware, getSequences);
+router.post("/sequences", authMiddleware, createSequence);
+router.post("/sequences/enroll", authMiddleware, enrollInSequence);
+router.get("/sequences/enrollments", authMiddleware, getEnrollments);
+
+// ==========================================
+// TELEPHONY (TWILIO CLICK-TO-CALL)
+// ==========================================
+router.get("/telephony/status", authMiddleware, getTelephonyStatus);
+router.post("/telephony/call", authMiddleware, initiateCall);
+
+// ==========================================
+// DEAL MILESTONES
+// ==========================================
+router.get("/deals/:dealId/milestones", authMiddleware, getDealMilestones);
+router.post("/deals/milestones", authMiddleware, createDealMilestone);
+router.put("/deals/milestones/:id/toggle", authMiddleware, toggleDealMilestone);
+
+export default router;

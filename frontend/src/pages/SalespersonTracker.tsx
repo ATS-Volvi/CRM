@@ -210,6 +210,36 @@ export default function SalespersonTracker() {
         </button>
       </div>
 
+      {/* Top KPI Cards & Representative Overview */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-card border border-border rounded-xl p-4 shadow-2xs space-y-1">
+          <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Active Sales Reps</span>
+          <p className="text-xl font-black text-foreground">{salespersons.length}</p>
+          <span className="text-[11px] text-muted-foreground font-semibold">{salespersons.filter(s => s.isAvailable).length} available for routing</span>
+        </div>
+        <div className="bg-card border border-border rounded-xl p-4 shadow-2xs space-y-1">
+          <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Total Closed Revenue</span>
+          <p className="text-xl font-black text-emerald-600">
+            ₹{(salespersons.reduce((acc, s) => acc + (s.revenueClosed || 0), 0) / 100000).toFixed(1)}L
+          </p>
+          <span className="text-[11px] text-muted-foreground font-semibold">Attributed sales volume</span>
+        </div>
+        <div className="bg-card border border-border rounded-xl p-4 shadow-2xs space-y-1">
+          <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Avg Quota Attainment</span>
+          <p className="text-xl font-black text-amber-600">
+            {salespersons.length > 0 
+              ? Math.round(salespersons.reduce((acc, s) => acc + (s.targetAchievementPct || 0), 0) / salespersons.length)
+              : 0}%
+          </p>
+          <span className="text-[11px] text-muted-foreground font-semibold">Team performance average</span>
+        </div>
+        <div className="bg-card border border-border rounded-xl p-4 shadow-2xs space-y-1">
+          <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Channel Coverage</span>
+          <p className="text-xl font-black text-purple-600">5 Channels</p>
+          <span className="text-[11px] text-muted-foreground font-semibold">Email, IG, Cold Call, Web, FB</span>
+        </div>
+      </div>
+
       {/* Registration Form */}
       {isFormOpen && (
         <form onSubmit={submitNewRep} className="bg-surface-container-lowest border border-outline rounded-2xl p-6 shadow-sm space-y-4 animate-slide-down">

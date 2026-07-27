@@ -70,27 +70,27 @@ const EVENT_CONFIG: Record<EventType, { icon: React.ElementType; bg: string; tex
 
 // ─── Status pill colors ─────────────────────────────────────────────────────────
 const STATUS_COLORS: Record<string, string> = {
-  Won:          "bg-emerald-100 text-emerald-700",
-  Active:       "bg-blue-100 text-blue-700",
-  New:          "bg-indigo-100 text-indigo-700",
-  Qualified:    "bg-green-100 text-green-700",
-  Lost:         "bg-red-100 text-red-600",
-  Accepted:     "bg-emerald-100 text-emerald-700",
-  Approved:     "bg-blue-100 text-blue-700",
-  Sent:         "bg-violet-100 text-violet-700",
-  Draft:        "bg-slate-100 text-slate-500",
-  Pending:      "bg-amber-100 text-amber-700",
-  Completed:    "bg-emerald-100 text-emerald-700",
-  Overdue:      "bg-red-100 text-red-600",
-  Proposal:     "bg-orange-100 text-orange-700",
-  Negotiation:  "bg-yellow-100 text-yellow-700",
-  "Meeting/Demo": "bg-purple-100 text-purple-700",
+  Won:          "bg-emerald-50 text-emerald-700 border-emerald-200",
+  Active:       "bg-blue-50 text-blue-700 border-blue-200",
+  New:          "bg-blue-50 text-blue-700 border-blue-200",
+  Qualified:    "bg-purple-50 text-purple-700 border-purple-200",
+  Lost:         "bg-rose-50 text-rose-700 border-rose-200",
+  Accepted:     "bg-emerald-50 text-emerald-700 border-emerald-200",
+  Approved:     "bg-emerald-50 text-emerald-700 border-emerald-200",
+  Sent:         "bg-indigo-50 text-indigo-700 border-indigo-200",
+  Draft:        "bg-slate-100 text-slate-600 border-slate-300",
+  Pending:      "bg-amber-50 text-amber-700 border-amber-200",
+  Completed:    "bg-emerald-50 text-emerald-700 border-emerald-200",
+  Overdue:      "bg-rose-50 text-rose-700 border-rose-200",
+  Proposal:     "bg-indigo-50 text-indigo-700 border-indigo-200",
+  Negotiation:  "bg-cyan-50 text-cyan-700 border-cyan-200",
+  "Meeting/Demo": "bg-purple-50 text-purple-700 border-purple-200",
 };
 
 function StatusPill({ label }: { label: string }) {
-  const cls = STATUS_COLORS[label] ?? "bg-slate-100 text-slate-500";
+  const cls = STATUS_COLORS[label] ?? "bg-slate-100 text-slate-600 border-slate-300";
   return (
-    <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold whitespace-nowrap ${cls}`}>{label}</span>
+    <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap border ${cls}`}>{label}</span>
   );
 }
 

@@ -10,13 +10,13 @@ export function QuickActionFab() {
   const navigate = useNavigate();
 
   const actions = [
-    { label: "New Lead", icon: Inbox, color: "bg-indigo-600 hover:bg-indigo-700 text-white", path: "/leads/new" },
-    { label: "New Customer", icon: Building2, color: "bg-emerald-600 hover:bg-emerald-700 text-white", path: "/customers" },
-    { label: "Schedule Meeting", icon: Calendar, color: "bg-blue-600 hover:bg-blue-700 text-white", path: "/home" },
-    { label: "New Task", icon: CheckSquare, color: "bg-amber-600 hover:bg-amber-700 text-white", path: "/home" },
-    { label: "Generate Quote", icon: FileText, color: "bg-violet-600 hover:bg-violet-700 text-white", path: "/quotes/new" },
-    { label: "New Deal", icon: Target, color: "bg-pink-600 hover:bg-pink-700 text-white", path: "/pipeline" },
-    { label: "Log Call", icon: PhoneCall, color: "bg-teal-600 hover:bg-teal-700 text-white", path: "/home" },
+    { label: "New Lead", icon: Inbox, color: "bg-primary text-primary-foreground hover:bg-primary/90", path: "/leads/new" },
+    { label: "New Customer", icon: Building2, color: "bg-secondary text-secondary-foreground hover:bg-secondary/90", path: "/customers" },
+    { label: "Schedule Meeting", icon: Calendar, color: "bg-card border border-border text-foreground hover:bg-muted", path: "/home" },
+    { label: "New Task", icon: CheckSquare, color: "bg-card border border-border text-foreground hover:bg-muted", path: "/home" },
+    { label: "Generate Quote", icon: FileText, color: "bg-card border border-border text-foreground hover:bg-muted", path: "/quotes/new" },
+    { label: "New Deal", icon: Target, color: "bg-card border border-border text-foreground hover:bg-muted", path: "/pipeline" },
+    { label: "Log Call", icon: PhoneCall, color: "bg-card border border-border text-foreground hover:bg-muted", path: "/home" },
   ];
 
   return (
@@ -44,7 +44,7 @@ export function QuickActionFab() {
 
       <button
         onClick={() => setIsOpen(v => !v)}
-        className="w-14 h-14 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white shadow-xl flex items-center justify-center transition-all duration-200 hover:scale-105"
+        className="w-14 h-14 rounded-full bg-primary hover:bg-primary/90 text-white shadow-xl flex items-center justify-center transition-all duration-200 hover:scale-105"
         title="Quick Create (Actions)"
       >
         {isOpen ? <X className="w-6 h-6" /> : <Plus className="w-6 h-6" />}

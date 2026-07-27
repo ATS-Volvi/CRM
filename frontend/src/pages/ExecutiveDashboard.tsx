@@ -29,7 +29,7 @@ export default function ExecutiveDashboard() {
       <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
+            <span className="p-2 bg-primary/10 text-primary rounded-xl">
               <BarChart2 className="w-5 h-5" />
             </span>
             <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Executive Business Intelligence</h1>
@@ -46,7 +46,7 @@ export default function ExecutiveDashboard() {
                 key={r.key}
                 onClick={() => setActiveRole(r.key as BiRole)}
                 className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
-                  isActive ? "bg-indigo-600 text-white shadow-xs" : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
+                  isActive ? "bg-primary text-white shadow-2xs" : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
                 }`}
               >
                 <Icon className="w-3.5 h-3.5" />
@@ -63,10 +63,10 @@ export default function ExecutiveDashboard() {
           {/* Top 4 Executive KPI Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {[
-              { label: "Annual Run-Rate Revenue", val: "SAR 49.8M", change: "+18.4% YoY", color: "border-indigo-500 text-indigo-600", path: "/invoices" },
-              { label: "Quarterly Target Achievement", val: "88.4%", change: "On Track for Q3", color: "border-emerald-500 text-emerald-600", path: "/kpi" },
-              { label: "Active Enterprise Accounts", val: "105", change: "+12 New Accounts", color: "border-purple-500 text-purple-600", path: "/customers" },
-              { label: "Weighted Pipeline Forecast", val: "SAR 34.2M", change: "78% Win Probability", color: "border-amber-500 text-amber-600", path: "/pipeline" },
+              { label: "Annual Run-Rate Revenue", val: "SAR 49.8M", change: "+18.4% YoY", color: "border-primary text-primary", path: "/invoices" },
+              { label: "Quarterly Target Achievement", val: "88.4%", change: "On Track for Q3", color: "border-emerald-600 text-emerald-600", path: "/kpi" },
+              { label: "Active Enterprise Accounts", val: "105", change: "+12 New Accounts", color: "border-secondary text-secondary", path: "/customers" },
+              { label: "Weighted Pipeline Forecast", val: "SAR 34.2M", change: "78% Win Probability", color: "border-amber-600 text-amber-600", path: "/pipeline" },
             ].map(kpi => (
               <div
                 key={kpi.label}
@@ -89,7 +89,7 @@ export default function ExecutiveDashboard() {
             {/* Regional Revenue Map / Grid */}
             <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
               <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                <Globe className="w-4 h-4 text-indigo-600" /> Regional Performance & Revenue
+                <Globe className="w-4 h-4 text-primary" /> Regional Performance & Revenue
               </h3>
               <div className="space-y-3">
                 {[
@@ -101,10 +101,10 @@ export default function ExecutiveDashboard() {
                   <div key={r.region} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
                     <div className="flex justify-between items-center text-xs">
                       <span className="font-bold text-slate-800">{r.region}</span>
-                      <span className="font-extrabold text-indigo-600">{r.revenue}</span>
+                      <span className="font-extrabold text-primary">{r.revenue}</span>
                     </div>
                     <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
-                      <div className="bg-indigo-600 h-full rounded-full" style={{ width: `${r.share}%` }} />
+                      <div className="bg-primary h-full rounded-full" style={{ width: `${r.share}%` }} />
                     </div>
                     <div className="flex justify-between text-[10px] text-slate-400">
                       <span>{r.share}% total share</span>
@@ -118,13 +118,13 @@ export default function ExecutiveDashboard() {
             {/* Industry Breakdown */}
             <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
               <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                <Building2 className="w-4 h-4 text-purple-600" /> Key Industry Vertical Breakdown
+                <Building2 className="w-4 h-4 text-primary" /> Key Industry Vertical Breakdown
               </h3>
               <div className="space-y-3">
                 {[
-                  { industry: "Manufacturing & Industrial", count: "34 Clients", revenue: "SAR 19.2M", color: "bg-indigo-600" },
-                  { industry: "Pharmaceutical & Healthcare", count: "22 Clients", revenue: "SAR 12.8M", color: "bg-purple-600" },
-                  { industry: "Food & Beverage / FMCG", count: "19 Clients", revenue: "SAR 9.5M", color: "bg-pink-600" },
+                  { industry: "Manufacturing & Industrial", count: "34 Clients", revenue: "SAR 19.2M", color: "bg-primary" },
+                  { industry: "Pharmaceutical & Healthcare", count: "22 Clients", revenue: "SAR 12.8M", color: "bg-secondary" },
+                  { industry: "Food & Beverage / FMCG", count: "19 Clients", revenue: "SAR 9.5M", color: "bg-slate-700" },
                   { industry: "Logistics & Supply Chain", count: "16 Clients", revenue: "SAR 5.3M", color: "bg-emerald-600" },
                   { industry: "Automotive & Chemical", count: "14 Clients", revenue: "SAR 3.0M", color: "bg-amber-600" },
                 ].map(ind => (

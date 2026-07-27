@@ -569,9 +569,9 @@ async function seedEnterpriseDatabase() {
         id: crypto.randomUUID(),
         leadId: lead.id,
         createdById: rep.id,
-        type: pick(["call", "email", "meeting", "task", "note", "stage_change"]),
-        outcome: `${pick(taskTitles)} for ${comp.name}`,
-        notes: pick(callNotes),
+        type: i % 5 === 0 ? "whatsapp_sms" : pick(["call", "email", "meeting", "task", "note", "stage_change"]),
+        outcome: i % 5 === 0 ? (i % 2 === 0 ? "message received" : "message sent") : `${pick(taskTitles)} for ${comp.name}`,
+        notes: i % 5 === 0 ? (i % 2 === 0 ? `Hi ${rep.name}, can you send the updated quotation via WhatsApp?` : `Hi ${lead.firstName}, I have dispatched the quotation PDF to your WhatsApp number.`) : pick(callNotes),
         isCompleted: true,
         createdAt: created
       });

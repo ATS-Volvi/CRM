@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { Deal, PipelineStage, LeadStageHistory, Activity, User, sequelize } from "@nexus-crm/database";
 import { createNotification } from "../services/notificationService";
+import { triggerStageChangeAutomations } from "../services/automationService";
 
 export const getPipeline = async (req: Request, res: Response) => {
   try {
@@ -103,6 +104,9 @@ export const moveDealStage = async (req: Request, res: Response) => {
     if (req.body.probability !== undefined) deal.probability = req.body.probability;
 
     await deal.save();
+
+    // Trigger Configured Stage Change Automation Rules
+    await triggerStageChangeAutomations(deal, toStageObj ? toStageObj.name : 'Unknown', userId);
 
     if (toStageObj.name === "Won") {
       await createNotification(

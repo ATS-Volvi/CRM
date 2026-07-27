@@ -63,6 +63,11 @@ export class Lead extends Model {
   public categoriesData!: any | null;
   public recipientEmail!: string | null;
   public assignmentMethod!: string | null;
+  // WhatsApp tracking fields
+  public lastWhatsappAt!: Date | null;
+  public unreadWhatsappCount!: number;
+  public whatsappPhone!: string | null;
+  public communicationChannel!: string | null;
 }
 
 Lead.init(
@@ -90,6 +95,11 @@ Lead.init(
     categoriesData: { type: DataTypes.JSON, allowNull: true },
     recipientEmail: { type: DataTypes.STRING, allowNull: true },
     assignmentMethod: { type: DataTypes.STRING, allowNull: true },
+    // WhatsApp tracking
+    lastWhatsappAt: { type: DataTypes.DATE, allowNull: true },
+    unreadWhatsappCount: { type: DataTypes.INTEGER, defaultValue: 0 },
+    whatsappPhone: { type: DataTypes.STRING, allowNull: true },
+    communicationChannel: { type: DataTypes.STRING, allowNull: true },
   },
   { 
     sequelize, 
@@ -332,6 +342,8 @@ export class Activity extends Model {
   public dueDate!: Date | null;
   public priority!: string | null;
   public isCompleted!: boolean;
+  public mediaUrl!: string | null;  // WhatsApp media attachment
+  public messageId!: string | null; // Meta message ID for idempotency
 }
 
 Activity.init(
@@ -350,8 +362,16 @@ Activity.init(
     dueDate: { type: DataTypes.DATE, allowNull: true },
     priority: { type: DataTypes.STRING, allowNull: true },
     isCompleted: { type: DataTypes.BOOLEAN, defaultValue: false },
+    mediaUrl: { type: DataTypes.STRING, allowNull: true },
+    messageId: { type: DataTypes.STRING, allowNull: true },
   },
-  { sequelize, modelName: "Activity" }
+  { 
+    sequelize, 
+    modelName: "Activity",
+    indexes: [
+      { fields: ["messageId"], unique: true, where: { messageId: { [require('sequelize').Op.ne]: null } } }
+    ]
+  }
 );
 
 export class Invoice extends Model {
@@ -1033,6 +1053,111 @@ EmailMessage.init(
   { sequelize, modelName: "EmailMessage" }
 );
 
+export class AutomationRule extends Model {
+  public id!: string;
+  public name!: string;
+  public triggerType!: string;
+  public triggerCondition!: any;
+  public actionType!: string;
+  public actionConfig!: any;
+  public isActive!: boolean;
+}
+
+AutomationRule.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    name: { type: DataTypes.STRING, allowNull: false },
+    triggerType: { type: DataTypes.STRING, allowNull: false },
+    triggerCondition: { type: DataTypes.JSON, allowNull: true },
+    actionType: { type: DataTypes.STRING, allowNull: false },
+    actionConfig: { type: DataTypes.JSON, allowNull: true },
+    isActive: { type: DataTypes.BOOLEAN, defaultValue: true }
+  },
+  { sequelize, modelName: "AutomationRule" }
+);
+
+export class Sequence extends Model {
+  public id!: string;
+  public name!: string;
+  public triggerEvent!: string | null;
+  public isActive!: boolean;
+}
+
+Sequence.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    name: { type: DataTypes.STRING, allowNull: false },
+    triggerEvent: { type: DataTypes.STRING, allowNull: true },
+    isActive: { type: DataTypes.BOOLEAN, defaultValue: true }
+  },
+  { sequelize, modelName: "Sequence" }
+);
+
+export class SequenceStep extends Model {
+  public id!: string;
+  public sequenceId!: string;
+  public order!: number;
+  public delayDays!: number;
+  public messageTemplateId!: string | null;
+}
+
+SequenceStep.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    sequenceId: { type: DataTypes.UUID, allowNull: false },
+    order: { type: DataTypes.INTEGER, defaultValue: 1 },
+    delayDays: { type: DataTypes.INTEGER, defaultValue: 1 },
+    messageTemplateId: { type: DataTypes.UUID, allowNull: true }
+  },
+  { sequelize, modelName: "SequenceStep" }
+);
+
+export class SequenceEnrollment extends Model {
+  public id!: string;
+  public leadId!: string | null;
+  public customerId!: string | null;
+  public sequenceId!: string;
+  public currentStep!: number;
+  public enrolledAt!: Date;
+  public status!: string;
+}
+
+SequenceEnrollment.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    leadId: { type: DataTypes.UUID, allowNull: true },
+    customerId: { type: DataTypes.UUID, allowNull: true },
+    sequenceId: { type: DataTypes.UUID, allowNull: false },
+    currentStep: { type: DataTypes.INTEGER, defaultValue: 1 },
+    enrolledAt: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
+    status: { type: DataTypes.STRING, defaultValue: "active" }
+  },
+  { sequelize, modelName: "SequenceEnrollment" }
+);
+
+export class DealMilestone extends Model {
+  public id!: string;
+  public dealId!: string;
+  public name!: string;
+  public order!: number;
+  public isCompleted!: boolean;
+  public completedAt!: Date | null;
+  public dueDate!: Date | null;
+}
+
+DealMilestone.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    dealId: { type: DataTypes.UUID, allowNull: false },
+    name: { type: DataTypes.STRING, allowNull: false },
+    order: { type: DataTypes.INTEGER, defaultValue: 1 },
+    isCompleted: { type: DataTypes.BOOLEAN, defaultValue: false },
+    completedAt: { type: DataTypes.DATE, allowNull: true },
+    dueDate: { type: DataTypes.DATE, allowNull: true }
+  },
+  { sequelize, modelName: "DealMilestone" }
+);
+
 // Associations
 Task.belongsTo(User, { foreignKey: "ownerId", as: "owner" });
 Task.belongsTo(Lead, { foreignKey: "leadId", as: "lead" });
@@ -1053,6 +1178,11 @@ Meeting.belongsTo(User, { foreignKey: "organizerId", as: "organizer" });
 EmailMessage.belongsTo(Lead, { foreignKey: "leadId", as: "lead" });
 EmailMessage.belongsTo(Customer, { foreignKey: "customerId", as: "customer" });
 EmailMessage.belongsTo(User, { foreignKey: "senderId", as: "sender" });
+
+SequenceStep.belongsTo(Sequence, { foreignKey: "sequenceId", as: "sequence" });
+SequenceEnrollment.belongsTo(Sequence, { foreignKey: "sequenceId", as: "sequence" });
+SequenceEnrollment.belongsTo(Lead, { foreignKey: "leadId", as: "lead" });
+SequenceEnrollment.belongsTo(Customer, { foreignKey: "customerId", as: "customer" });
 
 export { sequelize };
 

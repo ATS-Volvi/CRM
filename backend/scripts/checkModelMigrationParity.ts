@@ -33,7 +33,12 @@ const tableMap: Record<string, string> = {
   CallLog: 'CallLogs',
   CrmDocument: 'Documents',
   Meeting: 'Meetings',
-  EmailMessage: 'EmailMessages'
+  EmailMessage: 'EmailMessages',
+  AutomationRule: 'AutomationRules',
+  Sequence: 'Sequences',
+  SequenceStep: 'SequenceSteps',
+  SequenceEnrollment: 'SequenceEnrollments',
+  DealMilestone: 'DealMilestones'
 };
 
 const modelsPath = path.resolve(__dirname, '../../database/models/index.ts');

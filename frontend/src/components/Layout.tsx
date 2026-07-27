@@ -395,28 +395,28 @@ export function Layout() {
             <div className="hidden lg:flex items-center gap-1.5">
               <button
                 onClick={() => navigate("/leads/new")}
-                className="flex items-center gap-1 px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-lg transition-all"
+                className="flex items-center gap-1 px-2.5 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold rounded-lg transition-all border border-primary/20"
               >
                 <Plus className="w-3.5 h-3.5" /> Lead
               </button>
               <button
                 onClick={() => navigate("/quotes/new")}
-                className="flex items-center gap-1 px-2.5 py-1.5 bg-violet-50 hover:bg-violet-100 text-violet-700 text-xs font-bold rounded-lg transition-all"
+                className="flex items-center gap-1 px-2.5 py-1.5 bg-secondary/10 hover:bg-secondary/20 text-secondary text-xs font-bold rounded-lg transition-all border border-secondary/20"
               >
                 <FileText className="w-3.5 h-3.5" /> Quote
               </button>
               <button
                 onClick={() => navigate("/customers")}
-                className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold rounded-lg transition-all"
+                className="flex items-center gap-1 px-2.5 py-1.5 bg-muted hover:bg-muted/80 text-foreground text-xs font-bold rounded-lg transition-all border border-border"
               >
-                <Users className="w-3.5 h-3.5" /> Customer
+                <Users className="w-3.5 h-3.5 text-primary" /> Customer
               </button>
             </div>
 
             {/* AI Copilot Trigger */}
             <button
               onClick={() => setIsAiCopilotOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold rounded-xl shadow-xs transition-all"
               title="AI Sales Copilot"
             >
               <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" /> AI Copilot
