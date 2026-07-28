@@ -198,13 +198,15 @@ export function Layout() {
       >
         {/* Brand Header */}
         <div className="h-16 border-b border-sidebar-border flex items-center px-4 gap-3 shrink-0">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-black shrink-0 shadow-sm">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 via-purple-600 to-pink-500 flex items-center justify-center text-white font-black shrink-0 shadow-lg shadow-indigo-500/25 ring-2 ring-white/10">
             N
           </div>
           {!isCollapsed && (
             <div className="min-w-0 animate-fade-in">
-              <h2 className="text-sm font-black text-foreground tracking-tight truncate">NEXUS CRM</h2>
-              <p className="text-[10px] font-semibold text-muted-foreground truncate">Enterprise Suite</p>
+              <h2 className="text-sm font-black bg-gradient-to-r from-white via-slate-100 to-indigo-200 bg-clip-text text-transparent tracking-tight truncate">NEXUS CRM</h2>
+              <p className="text-[10px] font-bold text-indigo-400/90 truncate flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Enterprise Suite
+              </p>
             </div>
           )}
         </div>
