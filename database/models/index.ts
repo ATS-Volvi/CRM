@@ -560,7 +560,10 @@ User.hasMany(AssignmentRule, { foreignKey: "assignToId" });
 AssignmentRule.belongsTo(User, { foreignKey: "assignToId", as: "assignTo" });
 
 Lead.hasMany(Activity, { foreignKey: "leadId", as: "activities" });
-Activity.belongsTo(Lead, { foreignKey: "leadId" });
+Activity.belongsTo(Lead, { foreignKey: "leadId", as: "lead" });
+
+Customer.hasMany(Activity, { foreignKey: "customerId", as: "activities" });
+Activity.belongsTo(Customer, { foreignKey: "customerId", as: "customer" });
 
 User.hasMany(Activity, { foreignKey: "createdById", as: "activitiesCreated" });
 Activity.belongsTo(User, { foreignKey: "createdById", as: "createdBy" });
