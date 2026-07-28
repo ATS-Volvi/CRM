@@ -307,7 +307,7 @@ export const handleIncomingWebhook = async (req: Request, res: Response) => {
     }
 
     // Extract sender display name (from contacts array, if provided)
-    const contacts = value.contacts || [];
+    if (!contacts.length) contacts = value.contacts || [];
     const senderContact = contacts.find((c: any) => c.wa_id === from);
     const senderName: string = senderContact?.profile?.name || "";
 

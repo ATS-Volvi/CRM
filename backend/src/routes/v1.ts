@@ -52,13 +52,10 @@ import { getDocuments, createDocument } from "../controllers/documentController"
 import { getMeetings, createMeeting } from "../controllers/meetingController";
 import { getEmailMessages, sendEmailMessage } from "../controllers/emailMessageController";
 import { globalSearch } from "../controllers/searchController";
-<<<<<<< HEAD
 import { getAutomationRules, createAutomationRule, updateAutomationRule, deleteAutomationRule } from "../controllers/automationController";
 import { getSequences, createSequence, enrollInSequence, getEnrollments } from "../controllers/sequenceController";
 import { getTelephonyStatus, initiateCall } from "../controllers/telephonyController";
 import { getDealMilestones, toggleDealMilestone, createDealMilestone } from "../controllers/milestoneController";
-=======
->>>>>>> 8a7890c165d7bc47daf7fb902ffc6236be4129ad
 import whatsappRoutes from "./whatsappRoutes";
 
 const router = Router();
@@ -490,7 +487,6 @@ router.post("/email-messages", authMiddleware, sendEmailMessage);
 
 router.get("/search", authMiddleware, globalSearch);
 
-<<<<<<< HEAD
 // ==========================================
 // AUTOMATIONS (STATUS-CHANGE RULE BUILDER)
 // ==========================================
@@ -520,6 +516,4 @@ router.get("/deals/:dealId/milestones", authMiddleware, getDealMilestones);
 router.post("/deals/milestones", authMiddleware, createDealMilestone);
 router.put("/deals/milestones/:id/toggle", authMiddleware, toggleDealMilestone);
 
-=======
->>>>>>> 8a7890c165d7bc47daf7fb902ffc6236be4129ad
 export default router;
