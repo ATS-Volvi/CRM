@@ -132,7 +132,7 @@ export const sendMessage = async (req: Request, res: Response) => {
 export const getConversations = async (req: Request, res: Response) => {
   try {
     const activities = await sequelize.models.Activity.findAll({
-      where: { type: "whatsapp_sms" },
+      where: { type: ["whatsapp_sms", "instagram_dm"] },
       order: [["createdAt", "DESC"]],
       include: [
         { model: sequelize.models.Lead, as: "lead", required: false },
@@ -161,7 +161,7 @@ export const getConversations = async (req: Request, res: Response) => {
           companyName,
           phone,
           lastMessage: act.notes,
-          channel: "whatsapp",
+          channel: act.type === "instagram_dm" ? "instagram" : "whatsapp",
           time: new Date(act.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
           unread: act.outcome === "message received",
           unreadCount: act.lead?.unreadWhatsappCount || 0,
@@ -187,7 +187,7 @@ export const getMessages = async (req: Request, res: Response) => {
 
     const activities = await sequelize.models.Activity.findAll({
       where: {
-        type: "whatsapp_sms",
+        type: ["whatsapp_sms", "instagram_dm"],
         [Op.or]: [{ leadId: targetId }, { customerId: targetId }, { id: targetId }],
       },
       order: [["createdAt", "ASC"]],
@@ -199,7 +199,7 @@ export const getMessages = async (req: Request, res: Response) => {
       isMe: a.outcome !== "message received",
       text: a.notes,
       time: new Date(a.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      channel: "whatsapp",
+      channel: a.type === "instagram_dm" ? "instagram" : "whatsapp",
       mediaUrl: a.mediaUrl,
     }));
 

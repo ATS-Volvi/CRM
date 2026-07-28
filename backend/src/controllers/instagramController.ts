@@ -169,6 +169,21 @@ export const receiveInstagramMessage = async (req: Request, res: Response) => {
           }
         }
 
+        // Create the actual Instagram DM activity record for the Communication Center
+        try {
+          await Activity.create({
+            type: "instagram_dm",
+            notes: messageText,
+            outcome: "received",
+            leadId: (lead as any).id,
+            createdById: assignedToId || null,
+            pinned: false,
+            priority: "Low"
+          });
+        } catch (err) {
+          console.warn("Failed to create instagram_dm activity log:", err);
+        }
+
         createdLeads.push({
           leadId: (lead as any).id,
           assignedToId,

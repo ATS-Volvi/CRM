@@ -22,7 +22,7 @@ interface WhatsAppConversation {
   companyName: string;
   phone: string;
   lastMessage: string;
-  channel: "whatsapp";
+  channel: ChannelType;
   time: string;
   unread: boolean;
   avatar: string;
@@ -35,7 +35,7 @@ interface WhatsAppMessage {
   isMe: boolean;
   text: string;
   time: string;
-  channel: "whatsapp";
+  channel: ChannelType;
   mediaUrl?: string;
   status?: "sent" | "delivered" | "read" | "failed" | "simulated";
 }
@@ -79,24 +79,7 @@ const staticConversations = [
       { id: "m1", sender: "Sarah Flores", isMe: false, text: "Connected via LinkedIn. We are expanding our solar assembly plant in Munich and need automated EHS monitoring.", time: "Jul 20, 02:14 PM", channel: "linkedin" as ChannelType },
     ]
   },
-  {
-    id: "s-c4",
-    clientName: "Marco Rossi",
-    companyName: "Milano Robotics & Automation",
-    lastMessage: "DM: Interested in your modular assembly line robotic arms shown on Instagram.",
-    channel: "instagram" as ChannelType,
-    channelHandle: "@marcorossi_eng",
-    time: "Jul 19",
-    unread: true,
-    avatar: "MR",
-    email: "m.rossi@milanorobotics.it",
-    phone: "+39 02 8841 902",
-    dealValue: "$210.0K",
-    leadSource: "Instagram Business Direct",
-    messages: [
-      { id: "m1", sender: "Marco Rossi", isMe: false, text: "Interested in your modular assembly line robotic arms shown in your latest reel! Do you export to Italy?", time: "Jul 19, 06:30 PM", channel: "instagram" as ChannelType },
-    ]
-  },
+
   {
     id: "s-c5",
     clientName: "David Walker",
@@ -217,7 +200,7 @@ export default function CommunicationCenter() {
     clientName: c.clientName,
     companyName: c.companyName,
     lastMessage: c.lastMessage,
-    channel: "whatsapp" as ChannelType,
+    channel: (c as any).channel || "whatsapp",
     channelHandle: c.phone,
     time: c.time,
     unread: c.unread,
@@ -226,7 +209,7 @@ export default function CommunicationCenter() {
     phone: c.phone,
     dealValue: c.dealValue,
     leadSource: "WhatsApp Business API",
-    messages: []
+    messages: [] as WhatsAppMessage[]
   }));
 
   const allConversations = [...whatsappItems, ...staticConversations];
@@ -247,6 +230,7 @@ export default function CommunicationCenter() {
 
   const activeConv = allConversations.find(c => c.id === selectedConvId) || allConversations[0];
   const activeIsWhatsApp = activeConv?.channel === "whatsapp" && !activeConv.id.startsWith("s-");
+  const activeIsLive = (activeConv?.channel === "whatsapp" || activeConv?.channel === "instagram") && !activeConv.id.startsWith("s-");
 
   // For static channel messages
   const staticMessages = activeConv?.messages || [];
@@ -631,7 +615,7 @@ export default function CommunicationCenter() {
                       type="text"
                       value={replyText}
                       onChange={e => setReplyText(e.target.value)}
-                      placeholder={activeIsWhatsApp ? "Send WhatsApp message..." : `Reply via ${activeConv?.channel?.toUpperCase() || ""}...`}
+                      placeholder={`Reply via ${activeConv?.channel?.toUpperCase() || ""}...`}
                       className="flex-1 bg-transparent text-xs text-slate-800 focus:outline-none placeholder:text-slate-400"
                     />
                     {activeIsWhatsApp && (
