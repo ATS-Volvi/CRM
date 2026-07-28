@@ -596,7 +596,7 @@ export default function MyDashboard() {
       </div>
 
       {/* ─── MAIN 3-COLUMN GRID ───────────────────────────────────────────── */}
-      <div className="grid grid-cols-12 gap-5">
+      <div className="grid grid-cols-12 gap-5 items-start">
 
         {/* ── COL 1: Tasks + Meetings (4 cols) ── */}
         <div className="col-span-12 lg:col-span-4 flex flex-col gap-5">
@@ -634,8 +634,8 @@ export default function MyDashboard() {
           </div>
         </div>
 
-        {/* ── COL 2: Pipeline Funnel + Revenue Trend (5 cols) ── */}
-        <div className="col-span-12 lg:col-span-5 flex flex-col gap-5">
+        {/* ── COL 2: Pipeline Funnel + Revenue Trend (4 cols) ── */}
+        <div className="col-span-12 lg:col-span-4 flex flex-col gap-5">
 
           {/* Pipeline Funnel */}
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 flex-1">
@@ -690,8 +690,8 @@ export default function MyDashboard() {
           </div>
         </div>
 
-        {/* ── COL 3: Follow-ups + Hot Leads + Activity Feed (3 cols) ── */}
-        <div className="col-span-12 lg:col-span-3 flex flex-col gap-5">
+        {/* ── COL 3: Follow-ups + Hot Leads + Activity Feed (4 cols) ── */}
+        <div className="col-span-12 lg:col-span-4 flex flex-col gap-5">
 
           {/* Follow-ups Due */}
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
