@@ -91,37 +91,49 @@ function SparkLine({ values, color = "#6366f1" }: { values: number[]; color?: st
 
 // ─── KPI Metric Card ───────────────────────────────────────────────────────────
 function MetricCard({
-  label, value, subtext, icon: Icon, gradient, spark, trend
+  label, value, subtext, icon: Icon, bgColor, iconBg, spark, trend, onDragStart, onDragOver, onDrop, isDragging
 }: {
   label: string;
   value: string;
   subtext?: string;
   icon: React.ElementType;
-  gradient: string;
+  bgColor: string;
+  iconBg: string;
   spark?: number[];
   trend?: { up: boolean; val: string };
+  onDragStart?: (e: React.DragEvent) => void;
+  onDragOver?: (e: React.DragEvent) => void;
+  onDrop?: (e: React.DragEvent) => void;
+  isDragging?: boolean;
 }) {
   return (
-    <div className="relative overflow-hidden bg-white border border-slate-100 rounded-2xl p-5 shadow-sm hover:shadow-lg transition-all duration-300 group cursor-default">
-      <div className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 ${gradient} pointer-events-none`} />
+    <div 
+      draggable={!!onDragStart}
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+      className={`relative overflow-hidden rounded-2xl p-5 border transition-all duration-300 group cursor-grab active:cursor-grabbing shadow-xs hover:shadow-md ${bgColor} ${
+        isDragging ? "opacity-40 scale-95 border-dashed border-indigo-400" : ""
+      }`}
+    >
       <div className="relative z-10">
         <div className="flex items-start justify-between mb-3">
-          <div className={`p-2.5 rounded-xl ${gradient} shadow-sm`}>
-            <Icon className="w-4 h-4 text-white" />
+          <div className={`p-2.5 rounded-xl ${iconBg} shadow-xs`}>
+            <Icon className="w-4 h-4" />
           </div>
-          {spark && <SparkLine values={spark} color={trend?.up ? "#10b981" : "#ef4444"} />}
+          {spark && <SparkLine values={spark} color={trend?.up ? "#10b981" : "#f59e0b"} />}
         </div>
-        <p className="text-2xl font-bold text-slate-900 tracking-tight">{value}</p>
-        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mt-0.5">{label}</p>
+        <p className="text-2xl font-black tracking-tight">{value}</p>
+        <p className="text-[11px] font-bold uppercase tracking-wider opacity-75 mt-0.5">{label}</p>
         {(trend || subtext) && (
           <div className="flex items-center gap-1.5 mt-2">
             {trend && (
-              <span className={`flex items-center gap-0.5 text-xs font-bold ${trend.up ? "text-emerald-600" : "text-red-500"}`}>
+              <span className={`flex items-center gap-0.5 text-xs font-bold ${trend.up ? "text-emerald-700" : "text-amber-700"}`}>
                 {trend.up ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
                 {trend.val}
               </span>
             )}
-            {subtext && <span className="text-xs text-slate-400">{subtext}</span>}
+            {subtext && <span className="text-xs opacity-60">{subtext}</span>}
           </div>
         )}
       </div>
@@ -389,48 +401,74 @@ export default function MyDashboard() {
     }));
   }, [mgmtData, newLeads]);
 
-  const kpiMetrics = [
+  const kpiMetrics = useMemo(() => [
     {
+      id: "pipeline",
       label: "Pipeline Value",
       value: formatCurrencyCompact(pipelineValue),
       icon: Target,
-      gradient: "bg-primary",
+      bgColor: "bg-indigo-50 border-indigo-100/80 text-indigo-950",
+      iconBg: "bg-indigo-500 text-white",
       spark: [12.1, 14.3, 11.8, 17.2, 19.5, 18.7, 22.1],
       trend: { up: true, val: "+14.2% vs last month" },
     },
     {
+      id: "revenue",
       label: "Revenue (MTD)",
       value: formatCurrencyCompact(data?.invoicesTotal || 3780000),
       icon: DollarSign,
-      gradient: "bg-emerald-600",
+      bgColor: "bg-emerald-50 border-emerald-100/80 text-emerald-950",
+      iconBg: "bg-emerald-500 text-white",
       spark: [8.2, 9.1, 10.4, 11.2, 12.0, 13.5, 14.8],
       trend: { up: true, val: "+8.6% vs target" },
     },
     {
+      id: "leads",
       label: "New Leads",
       value: String(newLeads || 47),
       icon: Inbox,
-      gradient: "bg-secondary",
+      bgColor: "bg-purple-50 border-purple-100/80 text-purple-950",
+      iconBg: "bg-purple-500 text-white",
       spark: [5, 8, 6, 12, 9, 14, 11],
       trend: { up: true, val: "+23 this week" },
     },
     {
+      id: "followups",
       label: "Follow-ups Due",
       value: String(followUps.length || 12),
       icon: AlertCircle,
-      gradient: "bg-amber-600",
+      bgColor: "bg-amber-50 border-amber-100/80 text-amber-950",
+      iconBg: "bg-amber-500 text-white",
       spark: [3, 7, 5, 9, 11, 8, 12],
       trend: { up: false, val: `${followUps.length || 12} need action` },
     },
     {
+      id: "winrate",
       label: "Win Rate",
       value: `${Math.round(data?.conversionRate || mgmtData?.winRate || 34)}%`,
       icon: TrendingUp,
-      gradient: "bg-slate-700",
+      bgColor: "bg-sky-50 border-sky-100/80 text-sky-950",
+      iconBg: "bg-sky-500 text-white",
       spark: [28, 31, 30, 34, 33, 36, 34],
       trend: { up: true, val: "vs 28% avg" },
     },
-  ];
+  ], [pipelineValue, data?.invoicesTotal, newLeads, followUps.length, data?.conversionRate, mgmtData?.winRate]);
+
+  const [orderedMetrics, setOrderedMetrics] = useState(() => {
+    try {
+      const saved = localStorage.getItem("dashboard_kpi_order");
+      if (saved) {
+        const orderIds: string[] = JSON.parse(saved);
+        const map = new Map(kpiMetrics.map(m => [m.id, m]));
+        const sorted = orderIds.map(id => map.get(id)).filter(Boolean) as typeof kpiMetrics;
+        if (sorted.length === kpiMetrics.length) return sorted;
+      }
+    } catch (e) {
+      // ignore parsing errors
+    }
+    return kpiMetrics;
+  });
+  const [draggingIdx, setDraggingIdx] = useState<number | null>(null);
 
   return (
     <div className="min-h-screen bg-slate-50 p-6 max-w-[1600px] mx-auto">
@@ -497,7 +535,7 @@ export default function MyDashboard() {
         </Link>
       </div>
 
-      {/* ─── 5 KPI METRIC CARDS ───────────────────────────────────────────── */}
+      {/* ─── 5 KPI METRIC CARDS (DRAG AND DROP CUSTOMIZABLE) ───────────────── */}
       {isLoading ? (
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
           {Array.from({ length: 5 }).map((_, i) => (
@@ -505,8 +543,33 @@ export default function MyDashboard() {
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-          {kpiMetrics.map(m => <MetricCard key={m.label} {...m} />)}
+        <div className="space-y-2 mb-6">
+          <div className="flex items-center justify-between px-1">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+              ✨ Customizable KPI Cards <span className="text-slate-300">• Drag to re-order</span>
+            </span>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            {orderedMetrics.map((m, idx) => (
+              <MetricCard 
+                key={m.id} 
+                {...m} 
+                isDragging={draggingIdx === idx}
+                onDragStart={() => setDraggingIdx(idx)}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={() => {
+                  if (draggingIdx !== null && draggingIdx !== idx) {
+                    const newItems = [...orderedMetrics];
+                    const [draggedItem] = newItems.splice(draggingIdx, 1);
+                    newItems.splice(idx, 0, draggedItem);
+                    setOrderedMetrics(newItems);
+                    localStorage.setItem("dashboard_kpi_order", JSON.stringify(newItems.map(item => item.id)));
+                  }
+                  setDraggingIdx(null);
+                }}
+              />
+            ))}
+          </div>
         </div>
       )}
 
