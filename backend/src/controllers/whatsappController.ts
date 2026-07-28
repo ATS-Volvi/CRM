@@ -9,12 +9,28 @@ import crypto from "crypto";
 
 /** Strip everything except digits from a phone number for loose matching */
 function extractDigits(phone: string): string {
-  return phone.replace(/\D/g, "");
+  return phone ? phone.replace(/\D/g, "") : "";
 }
 
 /** Last N digits of a phone number for LIKE-based DB matching */
 function phoneKey(phone: string, digits = 10): string {
   return extractDigits(phone).slice(-digits);
+}
+
+/** Match phone numbers regardless of formatting (spaces, dashes, parens, country codes) */
+function matchesPhoneNumber(storedPhone: string | null | undefined, inboundPhone: string): boolean {
+  if (!storedPhone || !inboundPhone) return false;
+  const storedDigits = extractDigits(storedPhone);
+  const inboundDigits = extractDigits(inboundPhone);
+  if (!storedDigits || !inboundDigits) return false;
+
+  const keyStored = storedDigits.slice(-10);
+  const keyInbound = inboundDigits.slice(-10);
+
+  if (keyStored.length >= 7 && keyInbound.length >= 7) {
+    return keyStored.endsWith(keyInbound) || keyInbound.endsWith(keyStored) || storedDigits === inboundDigits;
+  }
+  return storedDigits === inboundDigits;
 }
 
 /** Build a sequential lead number */
@@ -26,9 +42,9 @@ async function generateLeadNumber(): Promise<string> {
 }
 
 /** Get the first admin user id as a fallback creator */
-async function getFirstAdminId(): Promise<string> {
+async function getFirstAdminId(): Promise<string | null> {
   const admin = await sequelize.models.User.findOne({ where: { role: "admin" } });
-  return admin ? (admin as any).id : "00000000-0000-0000-0000-000000000000";
+  return admin ? (admin as any).id : null;
 }
 
 /** Create an in-app notification for the assigned rep */
@@ -127,7 +143,7 @@ export const getConversations = async (req: Request, res: Response) => {
     const conversationMap = new Map<string, any>();
 
     for (const act of activities as any[]) {
-      const key = act.leadId || act.customerId || act.notes?.slice(0, 15) || "unknown";
+      const key = act.leadId || act.customerId || act.id;
       if (!conversationMap.has(key)) {
         const clientName = act.lead
           ? `${act.lead.firstName} ${act.lead.lastName}`
@@ -172,7 +188,7 @@ export const getMessages = async (req: Request, res: Response) => {
     const activities = await sequelize.models.Activity.findAll({
       where: {
         type: "whatsapp_sms",
-        [Op.or]: [{ leadId: targetId }, { customerId: targetId }],
+        [Op.or]: [{ leadId: targetId }, { customerId: targetId }, { id: targetId }],
       },
       order: [["createdAt", "ASC"]],
     });
@@ -291,17 +307,28 @@ export const handleIncomingWebhook = async (req: Request, res: Response) => {
       ? new Date(parseInt(msg.timestamp, 10) * 1000)
       : new Date();
 
-    // Extract message content
+    // Extract message content (supports text, interactive, button, media, location)
     let msgBody = "[Media Message]";
     let mediaUrl: string | null = null;
-    if (msg.type === "text" || msg.message?.text) {
+    if (msg.type === "text" || msg.text?.body || msg.message?.text) {
       msgBody = msg.text?.body || msg.message?.text || "";
-    } else if (msg.type === "image" || msg.type === "video" || msg.type === "document" || msg.type === "audio") {
+    } else if (msg.type === "interactive") {
+      const interactive = msg.interactive;
+      if (interactive?.type === "button_reply") {
+        msgBody = interactive.button_reply?.title || interactive.button_reply?.id || "[Interactive Response]";
+      } else if (interactive?.type === "list_reply") {
+        msgBody = interactive.list_reply?.title || interactive.list_reply?.description || "[List Response]";
+      } else {
+        msgBody = "[Interactive Message]";
+      }
+    } else if (msg.type === "button") {
+      msgBody = msg.button?.text || msg.button?.payload || "[Button Click]";
+    } else if (msg.type === "image" || msg.type === "video" || msg.type === "document" || msg.type === "audio" || msg.type === "sticker") {
       const media = msg[msg.type];
       mediaUrl = media?.link || media?.url || null;
-      msgBody = media?.caption || `[${msg.type.charAt(0).toUpperCase() + msg.type.slice(1)} Message]`;
+      msgBody = media?.caption || `[${msg.type.charAt(0).toUpperCase() + msg.type.slice(1)} Attachment]`;
     } else if (msg.type === "location") {
-      msgBody = `[Location: ${msg.location?.latitude}, ${msg.location?.longitude}]`;
+      msgBody = `[Location: ${msg.location?.latitude || ""}, ${msg.location?.longitude || ""}${msg.location?.name ? " - " + msg.location.name : ""}]`;
     } else if (msg.body) {
       msgBody = msg.body;
     }
@@ -332,25 +359,66 @@ export const handleIncomingWebhook = async (req: Request, res: Response) => {
     // ── PHONE LOOKUP ──────────────────────────────────────────────────────────
     const cleanPhone = phoneKey(from, 10);
 
-    // Try Lead first (by whatsappPhone or phone)
-    let existingLead: any = await sequelize.models.Lead.findOne({
-      where: {
-        [Op.or]: [
-          { whatsappPhone: { [Op.like]: `%${cleanPhone}` } },
-          { phone: { [Op.like]: `%${cleanPhone}` } },
+    // Try SQL query first
+    let existingLead: any = null;
+    if (cleanPhone.length >= 7) {
+      existingLead = await sequelize.models.Lead.findOne({
+        where: {
+          [Op.or]: [
+            { whatsappPhone: { [Op.like]: `%${cleanPhone}` } },
+            { phone: { [Op.like]: `%${cleanPhone}` } },
+          ],
+        },
+        include: [
+          { model: sequelize.models.User, as: "assignedTo", attributes: ["id", "name", "email"] },
         ],
-      },
-      include: [
-        { model: sequelize.models.User, as: "assignedTo", attributes: ["id", "name", "email"] },
-      ],
-    });
+      });
+    }
+
+    // Fallback in-memory matching if SQL LIKE did not match formatted phone numbers
+    if (!existingLead) {
+      const candidateLeads = await sequelize.models.Lead.findAll({
+        where: {
+          [Op.or]: [
+            { phone: { [Op.ne]: null } },
+            { whatsappPhone: { [Op.ne]: null } },
+          ],
+        },
+        include: [
+          { model: sequelize.models.User, as: "assignedTo", attributes: ["id", "name", "email"] },
+        ],
+        order: [["updatedAt", "DESC"]],
+        limit: 200,
+      });
+
+      for (const lead of candidateLeads as any[]) {
+        if (matchesPhoneNumber(lead.whatsappPhone, from) || matchesPhoneNumber(lead.phone, from)) {
+          existingLead = lead;
+          break;
+        }
+      }
+    }
 
     // Try Customer if no lead found
     let existingCustomer: any = null;
     if (!existingLead) {
-      existingCustomer = await sequelize.models.Customer.findOne({
-        where: { phone: { [Op.like]: `%${cleanPhone}` } },
-      });
+      if (cleanPhone.length >= 7) {
+        existingCustomer = await sequelize.models.Customer.findOne({
+          where: { phone: { [Op.like]: `%${cleanPhone}` } },
+        });
+      }
+      if (!existingCustomer) {
+        const candidateCustomers = await sequelize.models.Customer.findAll({
+          where: { phone: { [Op.ne]: null } },
+          limit: 200,
+        });
+        for (const cust of candidateCustomers as any[]) {
+          if (matchesPhoneNumber(cust.phone, from)) {
+            existingCustomer = cust;
+            break;
+          }
+        }
+      }
     }
 
     let leadId: string;
@@ -369,9 +437,7 @@ export const handleIncomingWebhook = async (req: Request, res: Response) => {
         unreadWhatsappCount: (existingLead.unreadWhatsappCount || 0) + 1,
         whatsappPhone: from, // ensure canonical format is stored
         communicationChannel: "whatsapp",
-        // Update body with latest message preview
         body: msgBody,
-        // Move to top of inbox by bumping updatedAt (handled by Sequelize automatically)
       });
 
       console.log(`[WhatsApp Inbound] Appended to existing lead ${leadId} (${leadDisplayName})`);
@@ -380,17 +446,18 @@ export const handleIncomingWebhook = async (req: Request, res: Response) => {
       // ── NEW LEAD: Create via assignment engine ────────────────────────────
       isNewLead = true;
 
-      // Parse senderName into first/last
       const nameParts = senderName ? senderName.trim().split(" ") : [];
       const firstName = nameParts[0] || "WhatsApp";
       const lastName = nameParts.slice(1).join(" ") || `User ${from.slice(-4)}`;
       leadDisplayName = `${firstName} ${lastName}`;
 
-      // Run assignment engine
+      // Generate a unique email per inbound lead to avoid UniqueConstraintError
+      const uniqueEmail = `inbound-${extractDigits(from) || "user"}-${Date.now()}@whatsapp.local`;
+
       assignedToId = await assignLead({
         firstName,
         lastName,
-        email: `inbound-${from}@whatsapp.local`,
+        email: uniqueEmail,
         phone: from,
         source: "WhatsApp",
       });
@@ -402,7 +469,7 @@ export const handleIncomingWebhook = async (req: Request, res: Response) => {
         id: leadId,
         firstName,
         lastName,
-        email: `inbound-${from}@whatsapp.local`,
+        email: uniqueEmail,
         phone: from,
         whatsappPhone: from,
         source: "WhatsApp",
@@ -471,3 +538,4 @@ export const handleIncomingWebhook = async (req: Request, res: Response) => {
     // NOTE: HTTP 200 already sent — Meta won't retry
   }
 };
+

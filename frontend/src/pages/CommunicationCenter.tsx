@@ -147,7 +147,8 @@ export default function CommunicationCenter() {
       const res = await apiClient("/api/v1/whatsapp/conversations");
       return res.json();
     },
-    refetchInterval: 30000, // Poll every 30s for new messages
+    refetchInterval: 5000, // Poll every 5s for new messages
+    refetchOnWindowFocus: true,
   });
 
   // ─── FETCH MESSAGES FOR SELECTED WA CONV ──────────────────
@@ -160,7 +161,8 @@ export default function CommunicationCenter() {
       return res.json();
     },
     enabled: !!selectedConvId && selectedConvId.startsWith("s-") === false,
-    refetchInterval: 15000,
+    refetchInterval: 3000, // Poll every 3s while viewing thread
+    refetchOnWindowFocus: true,
   });
 
   // Merge API messages with local optimistic updates
