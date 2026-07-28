@@ -435,7 +435,7 @@ export default function LeadInbox() {
         <div className="bg-card border border-border rounded-xl p-4 shadow-2xs space-y-1">
           <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Lead Win Rate</span>
           <p className="text-xl font-black text-purple-600">
-            {(leads || []).length > 0 ? Math.round(((leads || []).filter((l: any) => l.status === "Won").length / leads.length) * 100) : 0}%
+            {(leads || []).length > 0 ? Math.round(((leads || []).filter((l: any) => l.status === "Won").length / (leads || []).length) * 100) : 0}%
           </p>
           <span className="text-[11px] text-muted-foreground font-semibold">Conversion ratio</span>
         </div>

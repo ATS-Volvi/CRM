@@ -143,9 +143,9 @@ export default function CommunicationCenter() {
   // ─── FETCH WHATSAPP CONVERSATIONS ─────────────────────────
   const { data: whatsappConvs = [], isLoading: loadingConvs, refetch: refetchConvs } = useQuery<WhatsAppConversation[]>({
     queryKey: ["whatsapp-conversations"],
-    queryFn: async () => {
-      const data = await apiClient("/api/v1/whatsapp/conversations");
-      return data;
+    queryFn: async (): Promise<WhatsAppConversation[]> => {
+      const res = await apiClient("/api/v1/whatsapp/conversations");
+      return res.json();
     },
     refetchInterval: 30000, // Poll every 30s for new messages
   });
@@ -154,10 +154,10 @@ export default function CommunicationCenter() {
   const selectedWaConv = whatsappConvs.find(c => c.id === selectedConvId);
   const { data: waMessages = [], isLoading: loadingMessages } = useQuery<WhatsAppMessage[]>({
     queryKey: ["whatsapp-messages", selectedConvId],
-    queryFn: async () => {
+    queryFn: async (): Promise<WhatsAppMessage[]> => {
       const targetId = selectedWaConv?.leadId || selectedWaConv?.customerId || selectedConvId;
-      const data = await apiClient(`/api/v1/whatsapp/messages/${targetId}`);
-      return data;
+      const res = await apiClient(`/api/v1/whatsapp/messages/${targetId}`);
+      return res.json();
     },
     enabled: !!selectedConvId && selectedConvId.startsWith("s-") === false,
     refetchInterval: 15000,
@@ -566,7 +566,7 @@ export default function CommunicationCenter() {
                   </div>
                 )}
 
-                {currentMessages.map(msg => (
+                {currentMessages.map((msg: any) => (
                   <div key={msg.id} className={`flex flex-col ${msg.isMe ? "items-end" : "items-start"}`}>
                     {!msg.isMe && (
                       <span className="text-[10px] text-slate-400 mb-1 ml-1">{msg.sender}</span>
