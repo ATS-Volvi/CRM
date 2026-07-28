@@ -54,7 +54,7 @@ async function testWhatsApp() {
     where: { leadId: leadId }
   });
   
-  activities.forEach(a => {
+  activities.forEach((a: any) => {
     const act = a as any;
     console.log(`Activity [${act.type}]: ${act.notes} (Outcome: ${act.outcome})`);
   });
@@ -93,11 +93,57 @@ async function testWhatsApp() {
     });
   }
 
+  const leadIdFormatted = require('crypto').randomUUID();
+
+  // Create Lead with formatted phone number
+  await sequelize.models.Lead.create({
+    id: leadIdFormatted,
+    firstName: "Formatted",
+    lastName: "PhoneUser",
+    email: "formatted@example.com",
+    company: "Formatted Inc",
+    status: "New Lead",
+    source: "whatsapp",
+    phone: "+1 (555) 777-6666" // Formatted phone number
+  });
+
+  console.log(`Created Formatted Lead ${leadIdFormatted} with phone +1 (555) 777-6666`);
+
+  console.log("\n--- SIMULATING INCOMING WEBHOOK FROM FORMATTED PHONE NUMBER ---");
+  const reqFormatted = {
+    body: {
+      object: "whatsapp_business_account",
+      entry: [{
+        changes: [{
+          value: {
+            metadata: { phone_number_id: "12345" },
+            messages: [{
+              from: "15557776666",
+              text: { body: "Replying from mobile phone!" }
+            }]
+          }
+        }]
+      }]
+    }
+  } as unknown as Request;
+
+  await handleIncomingWebhook(reqFormatted, res);
+
+  console.log("\n--- VERIFYING FORMATTED LEAD ACTIVITY WAS CREATED ---");
+  const formattedActivities = await sequelize.models.Activity.findAll({
+    where: { leadId: leadIdFormatted }
+  });
+  
+  formattedActivities.forEach((a: any) => {
+    const act = a as any;
+    console.log(`Formatted Activity [${act.type}]: ${act.notes} (Outcome: ${act.outcome})`);
+  });
+
   console.log("\n--- SIMULATING OUTBOUND SEND MESSAGE (EXPECTING FAILURE DUE TO NO CREDS) ---");
   
   const sendReq = {
     body: {
-      leadId: leadId,
+      leadId: leadIdFormatted,
       text: "Sure, let's schedule a meeting!"
     }
   } as unknown as Request;
