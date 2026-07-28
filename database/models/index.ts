@@ -562,9 +562,6 @@ AssignmentRule.belongsTo(User, { foreignKey: "assignToId", as: "assignTo" });
 Lead.hasMany(Activity, { foreignKey: "leadId", as: "activities" });
 Activity.belongsTo(Lead, { foreignKey: "leadId", as: "lead" });
 
-Customer.hasMany(Activity, { foreignKey: "customerId", as: "activities" });
-Activity.belongsTo(Customer, { foreignKey: "customerId", as: "customer" });
-
 User.hasMany(Activity, { foreignKey: "createdById", as: "activitiesCreated" });
 Activity.belongsTo(User, { foreignKey: "createdById", as: "createdBy" });
 
@@ -767,6 +764,9 @@ Lead.belongsTo(Customer, { foreignKey: "customerId", as: "customer" });
 
 Customer.hasMany(Deal, { foreignKey: "customerId", as: "deals" });
 Deal.belongsTo(Customer, { foreignKey: "customerId", as: "customer" });
+
+Customer.hasMany(Activity, { foreignKey: "customerId", as: "activities" });
+Activity.belongsTo(Customer, { foreignKey: "customerId", as: "customer" });
 
 export class LeadReassignmentHistory extends Model {
   public id!: string;
