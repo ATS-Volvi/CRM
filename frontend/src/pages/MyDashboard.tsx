@@ -323,6 +323,8 @@ function QuickAction({ label, icon: Icon, href, primary }: {
   );
 }
 
+import { DashboardThemeSelector, DashboardTheme } from "../components/DashboardThemeSelector";
+
 // ─── AI Nudge Banner ──────────────────────────────────────────────────────────
 const AI_NUDGES = [
   "🚀 3 deals in Proposal stage haven't been updated in 5+ days. Follow up to keep them moving.",
@@ -336,7 +338,14 @@ const AI_NUDGES = [
 export default function MyDashboard() {
   const { user, token } = useAuth();
   const [nudgeIdx] = useState(() => Math.floor(Math.random() * AI_NUDGES.length));
-  const [searchQuery, setSearchQuery] = useState("");
+  const [theme, setTheme] = useState<DashboardTheme>(() => {
+    return (localStorage.getItem("dashboard_theme") as DashboardTheme) || "pastel";
+  });
+
+  const handleThemeChange = (newTheme: DashboardTheme) => {
+    setTheme(newTheme);
+    localStorage.setItem("dashboard_theme", newTheme);
+  };
 
   const today = new Date();
   const defaultStart = new Date(today);
@@ -471,7 +480,11 @@ export default function MyDashboard() {
   const [draggingIdx, setDraggingIdx] = useState<number | null>(null);
 
   return (
-    <div className="min-h-screen bg-slate-50 p-6 max-w-[1600px] mx-auto">
+    <div className={`min-h-screen p-6 max-w-[1600px] mx-auto transition-colors duration-300 ${
+      theme === "minimalist" ? "bg-slate-100/60" : theme === "bento" ? "bg-slate-900/5 text-slate-900" : "bg-slate-50"
+    }`}>
+      {/* ─── THEME SWITCHER BAR ─────────────────────────────────────────────── */}
+      <DashboardThemeSelector currentTheme={theme} onThemeChange={handleThemeChange} />
 
       {/* ─── TOP BAR: Personalized Welcome & Daily Workspace Summary ─────────────────────── */}
       <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs mb-6 space-y-4">
