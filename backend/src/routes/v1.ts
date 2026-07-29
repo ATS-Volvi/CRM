@@ -57,6 +57,10 @@ import { getSequences, createSequence, enrollInSequence, getEnrollments } from "
 import { getTelephonyStatus, initiateCall } from "../controllers/telephonyController";
 import { getDealMilestones, toggleDealMilestone, createDealMilestone } from "../controllers/milestoneController";
 import whatsappRoutes from "./whatsappRoutes";
+import {
+  getCoachingNotes, createCoachingNote, markCoachingNoteRead, getAuthoredCoachingNotes,
+  getStaleDeal, getQuoteExpiry, getTopAccounts, getCustomerBirthdays, getWinCelebrations
+} from "../controllers/coachingNotesController";
 
 const router = Router();
 
@@ -515,5 +519,22 @@ router.post("/telephony/call", authMiddleware, initiateCall);
 router.get("/deals/:dealId/milestones", authMiddleware, getDealMilestones);
 router.post("/deals/milestones", authMiddleware, createDealMilestone);
 router.put("/deals/milestones/:id/toggle", authMiddleware, toggleDealMilestone);
+
+// ==========================================
+// COACHING NOTES (MANAGER → REP)
+// ==========================================
+router.get("/coaching-notes", authMiddleware, getCoachingNotes);
+router.get("/coaching-notes/authored", authMiddleware, getAuthoredCoachingNotes);
+router.post("/coaching-notes", authMiddleware, createCoachingNote);
+router.patch("/coaching-notes/:id/read", authMiddleware, markCoachingNoteRead);
+
+// ==========================================
+// DASHBOARD EXTRAS
+// ==========================================
+router.get("/dashboard/stale-deals", authMiddleware, getStaleDeal);
+router.get("/dashboard/quote-expiry", authMiddleware, getQuoteExpiry);
+router.get("/dashboard/top-accounts", authMiddleware, getTopAccounts);
+router.get("/dashboard/customer-birthdays", authMiddleware, getCustomerBirthdays);
+router.get("/dashboard/win-celebrations", authMiddleware, getWinCelebrations);
 
 export default router;

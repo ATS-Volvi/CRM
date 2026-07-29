@@ -1,4 +1,4 @@
-import { DataTypes, Model } from "sequelize";
+import { DataTypes, Model, Op } from "sequelize";
 import { sequelize } from "../config/dbConn";
 
 export class User extends Model {
@@ -369,7 +369,7 @@ Activity.init(
     sequelize, 
     modelName: "Activity",
     indexes: [
-      { fields: ["messageId"], unique: true, where: { messageId: { [require('sequelize').Op.ne]: null } } }
+      { fields: ["messageId"], unique: true, where: { messageId: { [Op.ne]: null } } }
     ]
   }
 );
@@ -729,6 +729,8 @@ export class Customer extends Model {
   public phone!: string | null;
   public address!: string | null;
   public industry!: string | null;
+  public birthday!: string | null;          // DATEONLY, e.g. "1985-03-15"
+  public anniversaryDate!: string | null;   // DATEONLY, e.g. "2018-06-01"
 }
 
 Customer.init(
@@ -739,10 +741,45 @@ Customer.init(
     email: { type: DataTypes.STRING, allowNull: true },
     phone: { type: DataTypes.STRING, allowNull: true },
     address: { type: DataTypes.TEXT, allowNull: true },
-    industry: { type: DataTypes.STRING, allowNull: true }
+    industry: { type: DataTypes.STRING, allowNull: true },
+    birthday: { type: DataTypes.DATEONLY, allowNull: true },
+    anniversaryDate: { type: DataTypes.DATEONLY, allowNull: true }
   },
   { sequelize, modelName: "Customer" }
 );
+
+// ── Coaching Notes ───────────────────────────────────────────────────────────
+export class CoachingNote extends Model {
+  public id!: string;
+  public dealId!: string | null;
+  public leadId!: string | null;
+  public authorUserId!: string | null;
+  public targetUserId!: string | null;
+  public content!: string;
+  public isRead!: boolean;
+  public createdAt!: Date;
+  public updatedAt!: Date;
+}
+
+CoachingNote.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    dealId: { type: DataTypes.UUID, allowNull: true },
+    leadId: { type: DataTypes.UUID, allowNull: true },
+    authorUserId: { type: DataTypes.UUID, allowNull: true },
+    targetUserId: { type: DataTypes.UUID, allowNull: true },
+    content: { type: DataTypes.TEXT, allowNull: false },
+    isRead: { type: DataTypes.BOOLEAN, defaultValue: false }
+  },
+  { sequelize, modelName: "CoachingNote" }
+);
+
+CoachingNote.belongsTo(User, { foreignKey: "authorUserId", as: "author" });
+CoachingNote.belongsTo(User, { foreignKey: "targetUserId", as: "targetUser" });
+CoachingNote.belongsTo(Deal, { foreignKey: "dealId", as: "deal" });
+CoachingNote.belongsTo(Lead, { foreignKey: "leadId", as: "lead" });
+User.hasMany(CoachingNote, { foreignKey: "targetUserId", as: "coachingNotes" });
+User.hasMany(CoachingNote, { foreignKey: "authorUserId", as: "coachingNotesAuthored" });
 
 export class LeadSource extends Model {
   public id!: string;
