@@ -14,9 +14,13 @@ async function seedEnterpriseDatabase() {
   try {
     await Database.createConnection();
     console.log("Syncing database schema cleanly (force: true)...");
-    await sequelize.query("PRAGMA foreign_keys = OFF;");
-    await sequelize.sync({ force: true });
-    await sequelize.query("PRAGMA foreign_keys = ON;");
+    if (sequelize.getDialect() === "sqlite") {
+      await sequelize.query("PRAGMA foreign_keys = OFF;");
+      await sequelize.sync({ force: true });
+      await sequelize.query("PRAGMA foreign_keys = ON;");
+    } else {
+      await sequelize.sync({ force: true });
+    }
     console.log("Truncating data...");
     
     // Clear all existing data in safe order

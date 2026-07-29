@@ -6,11 +6,18 @@
  *   node database/scripts/seedSalesReps.js
  */
 
-const sqlite3 = require("sqlite3").verbose();
+const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 
 const DB_PATH = path.resolve(__dirname, "../../nexus_crm.sqlite");
+
+if (process.env.USE_SQLITE === 'false' || (process.env.DATABASE_URL && process.env.USE_SQLITE !== 'true') || !fs.existsSync(DB_PATH)) {
+  console.log("PostgreSQL or non-SQLite environment active — skipping SQLite seedSalesReps.");
+  process.exit(0);
+}
+
+const sqlite3 = require("sqlite3").verbose();
 const db = new sqlite3.Database(DB_PATH);
 
 // ── 1. Org data per user ─────────────────────────────────────────────────────
