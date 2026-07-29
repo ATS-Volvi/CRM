@@ -4,7 +4,7 @@ import { Database, sequelize } from "@nexus-crm/database";
 import { checkOverdueTasks } from "./src/services/notificationService";
 import { processScheduledEmails, processQuoteFollowUps } from "./src/services/emailService";
 
-const PORT = process.env.PORT || 5505;
+const PORT = parseInt(process.env.PORT || "5506", 10);
 
 const app = createServer();
 
@@ -18,7 +18,7 @@ const startServer = async () => {
     const { seedDefaultMessageTemplates } = require("./src/services/communicationService");
     await seedDefaultMessageTemplates();
 
-    app.listen(PORT as number, '0.0.0.0', () => {
+    app.listen(PORT, '0.0.0.0', () => {
       console.log(`Nexus CRM backend running on port ${PORT}`);
       // Setup simple cron job for checking overdue tasks every hour
       // (Using 1 hour = 3600000 ms)
