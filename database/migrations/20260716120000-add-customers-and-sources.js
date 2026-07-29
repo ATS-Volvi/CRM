@@ -72,6 +72,17 @@ module.exports = {
         onDelete: 'SET NULL'
       }).catch(() => {});
     }
+
+    const activitiesDesc = await queryInterface.describeTable('Activities').catch(() => ({}));
+    if (!activitiesDesc.customerId) {
+      await queryInterface.addColumn('Activities', 'customerId', {
+        type: Sequelize.UUID,
+        allowNull: true,
+        references: { model: 'Customers', key: 'id' },
+        onUpdate: 'CASCADE',
+        onDelete: 'SET NULL'
+      }).catch(() => {});
+    }
   },
 
   down: async (queryInterface, Sequelize) => {

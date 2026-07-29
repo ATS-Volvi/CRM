@@ -344,6 +344,7 @@ export class Activity extends Model {
   public isCompleted!: boolean;
   public mediaUrl!: string | null;  // WhatsApp media attachment
   public messageId!: string | null; // Meta message ID for idempotency
+  public customerId!: string | null;
 }
 
 Activity.init(
@@ -364,6 +365,7 @@ Activity.init(
     isCompleted: { type: DataTypes.BOOLEAN, defaultValue: false },
     mediaUrl: { type: DataTypes.STRING, allowNull: true },
     messageId: { type: DataTypes.STRING, allowNull: true },
+    customerId: { type: DataTypes.UUID, allowNull: true },
   },
   { 
     sequelize, 
@@ -1199,6 +1201,10 @@ DealMilestone.init(
 );
 
 // Associations
+Activity.belongsTo(Lead, { foreignKey: "leadId", as: "lead" });
+Activity.belongsTo(Customer, { foreignKey: "customerId", as: "customer" });
+Activity.belongsTo(User, { foreignKey: "createdById", as: "creator" });
+
 Task.belongsTo(User, { foreignKey: "ownerId", as: "owner" });
 Task.belongsTo(Lead, { foreignKey: "leadId", as: "lead" });
 Task.belongsTo(Customer, { foreignKey: "customerId", as: "customer" });
