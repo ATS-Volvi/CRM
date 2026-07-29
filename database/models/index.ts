@@ -1201,7 +1201,7 @@ DealMilestone.init(
 );
 
 // Associations
-Customer.hasMany(Activity, { foreignKey: "customerId", as: "activities" });
+Customer.hasMany(Activity, { foreignKey: "customerId", as: "customerActivities" });
 Activity.belongsTo(Customer, { foreignKey: "customerId", as: "customer" });
 
 Task.belongsTo(User, { foreignKey: "ownerId", as: "owner" });
