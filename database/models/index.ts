@@ -351,7 +351,7 @@ Activity.init(
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
     type: { 
       type: DataTypes.ENUM, 
-      values: ["call", "email", "meeting", "task", "whatsapp_sms", "note", "stage_change"],
+      values: ["call", "email", "meeting", "task", "whatsapp_sms", "instagram_dm", "note", "stage_change"],
       allowNull: false 
     },
     duration: { type: DataTypes.INTEGER, allowNull: true },
