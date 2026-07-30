@@ -6,7 +6,7 @@ import {
   Search, Command, X, Users, Inbox, Trello, FileText, Receipt,
   CheckSquare, BarChart, Settings, Key, Plus, PhoneCall, Video,
   Clock, ArrowRight, Star, Sparkles, Building2, UserPlus, Eye,
-  Shield, Filter, Layers, CheckCircle2, ChevronRight
+  Shield, Filter, Layers, CheckCircle2, ChevronRight, FilePlus
 } from "lucide-react";
 import { formatCurrencyCompact } from "../utils/currency";
 
