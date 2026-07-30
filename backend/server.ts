@@ -15,6 +15,7 @@ export function createServer(): Express {
     : ["http://localhost:5173", "https://crm-frontend-9xq4.vercel.app"];
   app.use(cors({ origin: corsOrigins, credentials: true }));
   app.use(express.json({ verify: (req: any, _res, buf) => { req.rawBody = buf; } }));
+  app.use(express.urlencoded({ extended: true }));
   app.use(cookieParser());
   app.use("/static", express.static(path.join(__dirname, "public")));
 

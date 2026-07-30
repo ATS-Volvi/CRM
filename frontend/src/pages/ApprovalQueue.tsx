@@ -184,12 +184,28 @@ export default function ApprovalQueue() {
                       </td>
                       <td className="p-4 text-right">
                         {item.status === 'Pending' && (
-                          <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button onClick={() => updateMutation.mutate({ id: item.id, status: 'Rejected' })} className="p-1 text-error hover:bg-error-container rounded-lg" title="Reject">
-                              <X className="w-5 h-5" />
+                          <div className="flex justify-end gap-2">
+                            <button 
+                              onClick={() => {
+                                if (window.confirm(`Reject approval request for ${clientName}?`)) {
+                                  updateMutation.mutate({ id: item.id, status: 'Rejected' });
+                                }
+                              }} 
+                              className="px-2.5 py-1 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-lg border border-rose-200 transition-all flex items-center gap-1" 
+                              title="Reject Approval Request"
+                            >
+                              <X className="w-3.5 h-3.5" /> Reject
                             </button>
-                            <button onClick={() => updateMutation.mutate({ id: item.id, status: 'Approved' })} className="p-1 text-on-primary bg-primary rounded-lg shadow-sm hover:scale-105 active:scale-95" title="Approve">
-                              <Check className="w-5 h-5" />
+                            <button 
+                              onClick={() => {
+                                if (window.confirm(`Approve request for ${clientName} (${formatCurrency(value)})?`)) {
+                                  updateMutation.mutate({ id: item.id, status: 'Approved' });
+                                }
+                              }} 
+                              className="px-3 py-1 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm transition-all flex items-center gap-1" 
+                              title="Approve Request"
+                            >
+                              <Check className="w-3.5 h-3.5" /> Approve
                             </button>
                           </div>
                         )}

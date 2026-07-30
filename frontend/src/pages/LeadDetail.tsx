@@ -22,6 +22,8 @@ export default function LeadDetail() {
   const [editProjectName, setEditProjectName] = useState("");
   const [editExpectedValue, setEditExpectedValue] = useState("");
   const [editNotes, setEditNotes] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editPhone, setEditPhone] = useState("");
 
   // Mode states for assignee reassign
   const [isReassigning, setIsReassigning] = useState(false);
@@ -122,7 +124,9 @@ export default function LeadDetail() {
       if (!res.ok) return [];
       return res.json();
     },
-    enabled: !!id && !!token
+    enabled: !!id && !!token,
+    refetchInterval: 3000, // Poll every 3s so live WhatsApp replies pop up in real-time
+    refetchOnWindowFocus: true,
   });
 
   const { data: tasks = [] } = useQuery<any[]>({
@@ -161,6 +165,8 @@ export default function LeadDetail() {
       setEditProjectName(lead.subject || "");
       setEditExpectedValue(String((lead.leadScore || 50) * 100));
       setEditNotes(lead.body || "");
+      setEditEmail(lead.email || "");
+      setEditPhone(lead.phone || lead.whatsappPhone || "");
       setEmailTo(lead.email || "");
     }
   }, [lead]);
@@ -192,7 +198,9 @@ export default function LeadDetail() {
         body: JSON.stringify({
           subject: editProjectName,
           leadScore: parseFloat(editExpectedValue) / 100 || 0,
-          body: editNotes
+          body: editNotes,
+          email: editEmail,
+          phone: editPhone
         })
       });
       if (!res.ok) throw new Error(await res.text());
@@ -201,6 +209,7 @@ export default function LeadDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["lead", id] });
       queryClient.invalidateQueries({ queryKey: ["leadActivities", id] });
+      setIsEditingDetails(false);
     }
   });
 
@@ -422,6 +431,19 @@ export default function LeadDetail() {
     return <div className="text-center font-bold py-16 text-error">Lead workspace not found.</div>;
   }
 
+  // ─── Channel Relevance Calculations ──────────────────────────────────────────
+  const hasWhatsAppActivity = activities.some((a: any) => a.type === "whatsapp_sms");
+  const isWhatsAppRelevant =
+    (lead.communicationChannel || "").toLowerCase() === "whatsapp" ||
+    (lead.source || "").toLowerCase() === "whatsapp" ||
+    !!lead.whatsappPhone ||
+    hasWhatsAppActivity;
+
+  const hasEmailActivity = activities.some((a: any) => (a.type || "").toLowerCase().includes("email"));
+  const isSyntheticEmail = !!(lead.email && lead.email.endsWith("@whatsapp.local"));
+  const hasRealEmail = !!(lead.email && !isSyntheticEmail);
+  const isEmailRelevant = hasRealEmail || hasEmailActivity;
+
   const stages = pipelineStages?.map(s => s.stage) || [];
   const currentStageIndex = stages.indexOf(lead.status);
 
@@ -445,18 +467,26 @@ export default function LeadDetail() {
         </div>
 
         <div className="flex items-center gap-3">
-          <button 
-            onClick={() => setActiveModal("whatsapp")}
-            className="px-4 py-2 bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold text-xs rounded-lg hover:bg-emerald-100 transition-all flex items-center gap-1.5 shadow-2xs"
-          >
-            <MessageSquare className="w-4 h-4 text-emerald-600" /> Send WhatsApp
-          </button>
-          <button 
-            onClick={() => setActiveModal("email")}
-            className="px-4 py-2 bg-surface-container text-on-surface border border-outline-variant font-bold text-xs rounded-lg hover:bg-surface-container-high transition-all flex items-center gap-1.5"
-          >
-            <Mail className="w-4 h-4 text-primary" /> Send Email
-          </button>
+          {isWhatsAppRelevant && (
+            <button 
+              onClick={() => {
+                setActivityFilter("whatsapp");
+                const el = document.getElementById("activity-timeline");
+                if (el) el.scrollIntoView({ behavior: "smooth" });
+              }}
+              className="px-4 py-2 bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold text-xs rounded-lg hover:bg-emerald-100 transition-all flex items-center gap-1.5 shadow-2xs"
+            >
+              <MessageSquare className="w-4 h-4 text-emerald-600" /> WhatsApp Thread
+            </button>
+          )}
+          {isEmailRelevant && (
+            <button 
+              onClick={() => setActiveModal("email")}
+              className="px-4 py-2 bg-surface-container text-on-surface border border-outline-variant font-bold text-xs rounded-lg hover:bg-surface-container-high transition-all flex items-center gap-1.5"
+            >
+              <Mail className="w-4 h-4 text-primary" /> Send Email
+            </button>
+          )}
           <button 
             onClick={() => setActiveModal("call")}
             className="px-4 py-2 bg-surface-container text-on-surface border border-outline-variant font-bold text-xs rounded-lg hover:bg-surface-container-high transition-all flex items-center gap-1.5"
@@ -516,8 +546,8 @@ export default function LeadDetail() {
         </div>
       </div>
 
-      {/* THREE-COLUMN CUSTOMER 360 LAYOUT */}
-      <div className="grid grid-cols-12 gap-6">
+      {/* THREE-COLUMN / DYNAMIC CUSTOMER 360 LAYOUT */}
+      <div className="grid grid-cols-12 gap-6 items-start">
 
         {/* LEFT PANEL: Customer 360 Details */}
         <div className="col-span-12 lg:col-span-3 flex flex-col gap-6">
@@ -585,6 +615,26 @@ export default function LeadDetail() {
                   />
                 </div>
                 <div>
+                  <label className="block font-bold text-on-surface-variant mb-1">Email Address</label>
+                  <input 
+                    type="email" 
+                    placeholder="e.g. client@company.com"
+                    value={editEmail}
+                    onChange={e => setEditEmail(e.target.value)}
+                    className="w-full bg-surface border border-outline rounded p-2 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-on-surface-variant mb-1">Phone Number</label>
+                  <input 
+                    type="text" 
+                    placeholder="e.g. +919876543210"
+                    value={editPhone}
+                    onChange={e => setEditPhone(e.target.value)}
+                    className="w-full bg-surface border border-outline rounded p-2 text-xs"
+                  />
+                </div>
+                <div>
                   <label className="block font-bold text-on-surface-variant mb-1">Notes</label>
                   <textarea 
                     rows={3}
@@ -645,6 +695,24 @@ export default function LeadDetail() {
                     <span className="block text-[10px] font-bold text-on-surface-variant uppercase">Expected Value</span>
                     <span className="font-bold text-emerald-600">{formatCurrency((lead.leadScore || 50) * 100)}</span>
                   </div>
+                </div>
+
+                {/* AI-Extracted Requirement Highlight Section */}
+                <div className="border-t border-outline-variant/60 pt-3 bg-primary-container/20 p-3 rounded-xl space-y-1.5 border border-primary/20">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-primary">
+                    <Sparkles className="w-4 h-4 text-primary" />
+                    <span>AI-Extracted Requirement</span>
+                  </div>
+                  <div>
+                    <span className="block text-[10px] font-bold text-on-surface-variant uppercase">Extracted Requirement</span>
+                    <span className="font-semibold text-on-surface text-xs block">{lead.subject || "General Inquiry"}</span>
+                  </div>
+                  {lead.budgetRange && lead.budgetRange !== "N/A" && (
+                    <div>
+                      <span className="block text-[10px] font-bold text-on-surface-variant uppercase">Budget / Scope</span>
+                      <span className="font-bold text-emerald-700 text-xs">{lead.budgetRange}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -727,10 +795,10 @@ export default function LeadDetail() {
         </div>
 
         {/* CENTER PANEL: Activity Timeline & Interaction Feed */}
-        <div className="col-span-12 lg:col-span-6 flex flex-col gap-6">
+        <div id="activity-timeline" className="col-span-12 lg:col-span-6 flex flex-col gap-6">
 
           {/* Minimal Interactive Timeline Feed */}
-          <div className="bg-card border border-border rounded-2xl p-5 space-y-4 min-h-[500px] flex flex-col">
+          <div className="bg-card border border-border rounded-2xl p-5 space-y-4 flex flex-col">
             
             {/* Minimal Timeline Header */}
             <div className="flex items-center justify-between border-b border-border pb-3">
@@ -746,13 +814,13 @@ export default function LeadDetail() {
               {/* Quiet Text Filter Links */}
               <div className="flex items-center gap-3 text-xs font-semibold text-muted-foreground">
                 {[
-                  { key: "all", label: "All" },
-                  { key: "note", label: "Notes" },
-                  { key: "call", label: "Calls" },
-                  { key: "email", label: "Emails" },
-                  { key: "task", label: "Tasks" },
-                  { key: "whatsapp", label: "WhatsApp" },
-                ].map(f => (
+                  { key: "all", label: "All", show: true },
+                  { key: "note", label: "Notes", show: true },
+                  { key: "call", label: "Calls", show: true },
+                  { key: "email", label: "Emails", show: isEmailRelevant },
+                  { key: "task", label: "Tasks", show: true },
+                  { key: "whatsapp", label: "WhatsApp", show: isWhatsAppRelevant },
+                ].filter(f => f.show).map(f => (
                   <button
                     key={f.key}
                     onClick={() => setActivityFilter(f.key)}
@@ -770,28 +838,30 @@ export default function LeadDetail() {
               </div>
             </div>
 
-            {/* Minimal Inline Note Box */}
-            <div className="flex items-center gap-2 bg-muted/60 px-3 py-1.5 rounded-xl border border-border focus-within:border-primary/40 focus-within:bg-card transition-all">
-              <input
-                type="text"
-                placeholder="Add a quick note or comment..."
-                value={noteText}
-                onChange={e => setNoteText(e.target.value)}
-                className="flex-1 bg-transparent py-1 text-xs font-medium focus:outline-none text-foreground placeholder:text-muted-foreground/70"
-                onKeyDown={e => {
-                  if (e.key === "Enter" && noteText.trim()) {
-                    addNoteMutation.mutate();
-                  }
-                }}
-              />
-              <button
-                disabled={!noteText.trim() || addNoteMutation.isPending}
-                onClick={() => addNoteMutation.mutate()}
-                className="text-xs font-bold text-primary hover:text-primary/80 disabled:opacity-30 transition-all flex items-center gap-1 shrink-0 px-2 py-1"
-              >
-                <Send className="w-3 h-3" /> Post
-              </button>
-            </div>
+            {/* Minimal Inline Note Box (Non-WhatsApp filter views) */}
+            {activityFilter !== "whatsapp" && (
+              <div className="flex items-center gap-2 bg-muted/60 px-3 py-1.5 rounded-xl border border-border focus-within:border-primary/40 focus-within:bg-card transition-all">
+                <input
+                  type="text"
+                  placeholder="Add a quick note or comment..."
+                  value={noteText}
+                  onChange={e => setNoteText(e.target.value)}
+                  className="flex-1 bg-transparent py-1 text-xs font-medium focus:outline-none text-foreground placeholder:text-muted-foreground/70"
+                  onKeyDown={e => {
+                    if (e.key === "Enter" && noteText.trim()) {
+                      addNoteMutation.mutate();
+                    }
+                  }}
+                />
+                <button
+                  disabled={!noteText.trim() || addNoteMutation.isPending}
+                  onClick={() => addNoteMutation.mutate()}
+                  className="text-xs font-bold text-primary hover:text-primary/80 disabled:opacity-30 transition-all flex items-center gap-1 shrink-0 px-2 py-1"
+                >
+                  <Send className="w-3 h-3" /> Post
+                </button>
+              </div>
+            )}
 
             {/* WhatsApp conversation banner — shown when WhatsApp filter active */}
             {activityFilter === "whatsapp" && (
@@ -805,8 +875,8 @@ export default function LeadDetail() {
               </div>
             )}
 
-            {/* Streamlined Minimal Feed */}
-            <div className={`flex-1 overflow-y-auto pt-1 pr-1 max-h-[500px] ${activityFilter === "whatsapp" ? "space-y-3 flex flex-col" : "space-y-2.5"}`}>
+            {/* Scrollable Feed Container with explicit max-height */}
+            <div className={`overflow-y-auto pr-2 max-h-[420px] scrollbar-thin scrollbar-thumb-slate-200 ${activityFilter === "whatsapp" ? "space-y-4 pt-2 pb-2" : "space-y-3 pt-1"}`}>
               {activities.length === 0 ? (
                 <div className="text-center py-10 text-muted-foreground text-xs space-y-1">
                   <p className="font-semibold text-foreground/80">No activity yet</p>
@@ -840,30 +910,30 @@ export default function LeadDetail() {
                       return (
                         <div
                           key={act.id}
-                          className={`flex ${isIncoming ? "justify-start" : "justify-end"} gap-2`}
+                          className={`flex ${isIncoming ? "justify-start" : "justify-end"} gap-2.5 items-start`}
                         >
                           {/* Avatar — only for incoming */}
                           {isIncoming && (
-                            <div className="w-6 h-6 rounded-full bg-emerald-100 border border-emerald-300 flex items-center justify-center shrink-0 mt-0.5">
-                              <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+                            <div className="w-7 h-7 rounded-full bg-emerald-100 border border-emerald-300 flex items-center justify-center shrink-0 mt-3 shadow-2xs">
+                              <MessageSquare className="w-3.5 h-3.5 text-emerald-700" />
                             </div>
                           )}
 
-                          <div className={`max-w-[75%] flex flex-col gap-0.5 ${isIncoming ? "items-start" : "items-end"}`}>
+                          <div className={`max-w-[75%] flex flex-col gap-1 ${isIncoming ? "items-start" : "items-end"}`}>
                             {/* Sender Label */}
-                            <span className="text-[10px] font-bold text-on-surface-variant px-1">
+                            <span className="text-[10px] font-bold text-slate-500 px-1 select-none">
                               {isIncoming ? `${lead.firstName} ${lead.lastName}` : authorName}
                             </span>
                             {/* Bubble */}
                             <div
-                              className={`px-3 py-2 rounded-2xl text-xs leading-snug shadow-sm ${
+                              className={`px-3.5 py-2.5 rounded-2xl text-xs leading-relaxed shadow-xs ${
                                 isIncoming
-                                  ? "bg-surface-container border border-outline-variant/60 text-on-surface rounded-tl-sm"
-                                  : "bg-emerald-500 text-white rounded-tr-sm"
+                                  ? "bg-slate-100 border border-slate-200 text-slate-900 rounded-tl-xs"
+                                  : "bg-emerald-600 text-white rounded-tr-xs"
                               }`}
                             >
                               {act.mediaUrl && (
-                                <p className={`text-[10px] font-bold mb-1 flex items-center gap-1 ${isIncoming ? "text-primary" : "text-white/80"}`}>
+                                <p className={`text-[10px] font-bold mb-1 flex items-center gap-1 ${isIncoming ? "text-primary" : "text-white/90"}`}>
                                   <Upload className="w-3 h-3" /> Media attachment —{" "}
                                   <a href={act.mediaUrl} target="_blank" rel="noopener noreferrer" className="underline">View</a>
                                 </p>
@@ -872,12 +942,12 @@ export default function LeadDetail() {
                             </div>
 
                             {/* Timestamp + label */}
-                            <span className="text-[10px] text-muted-foreground px-1">{timeAgo}</span>
+                            <span className="text-[10px] text-slate-400 font-medium px-1">{timeAgo}</span>
                           </div>
 
                           {/* Avatar — only for outgoing */}
                           {!isIncoming && (
-                            <div className="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center shrink-0 mt-0.5">
+                            <div className="w-7 h-7 rounded-full bg-emerald-600 flex items-center justify-center shrink-0 mt-3 shadow-2xs">
                               <span className="text-[9px] font-black text-white">
                                 {authorName.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase()}
                               </span>
@@ -927,8 +997,82 @@ export default function LeadDetail() {
                   })
               )}
             </div>
+
+            {/* Inline WhatsApp Chat Composer — anchored directly under WhatsApp conversation */}
+            {activityFilter === "whatsapp" && (
+              <div className="flex items-center gap-2 bg-emerald-50/80 p-2 rounded-2xl border border-emerald-200 focus-within:border-emerald-500 focus-within:bg-white transition-all shadow-2xs">
+                <input
+                  type="text"
+                  placeholder={`Send WhatsApp message to ${lead.firstName}...`}
+                  value={whatsAppText}
+                  onChange={e => setWhatsAppText(e.target.value)}
+                  className="flex-1 bg-transparent px-3 py-1.5 text-xs font-semibold focus:outline-none text-emerald-950 placeholder:text-emerald-700/60"
+                  onKeyDown={e => {
+                    if (e.key === "Enter" && whatsAppText.trim() && !sendWhatsAppMutation.isPending) {
+                      sendWhatsAppMutation.mutate();
+                    }
+                  }}
+                />
+                <button
+                  disabled={!whatsAppText.trim() || sendWhatsAppMutation.isPending}
+                  onClick={() => sendWhatsAppMutation.mutate()}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs shrink-0"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span>Send</span>
+                </button>
+              </div>
+            )}
           </div>
 
+          {/* Next Best Step & Deals Summary Card */}
+          <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-5 shadow-sm space-y-4">
+            <div className="flex items-center justify-between border-b border-outline-variant pb-2">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-on-surface flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4 text-indigo-600" /> Next Best Step & Sales Playbook
+              </h3>
+              <span className="text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded">
+                Active Guide
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+              <div className="p-3 bg-emerald-50/60 border border-emerald-200 rounded-xl space-y-1">
+                <span className="font-bold text-emerald-800 flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Primary Recommended Action
+                </span>
+                <p className="text-emerald-950 font-medium leading-relaxed">
+                  Send technical specification sheet for <strong>{lead?.subject || "Porta Cabins"}</strong> and schedule 15-min discovery call.
+                </p>
+              </div>
+
+              <div className="p-3 bg-indigo-50/60 border border-indigo-200 rounded-xl space-y-1">
+                <span className="font-bold text-indigo-800 flex items-center gap-1">
+                  <FileText className="w-3.5 h-3.5 text-indigo-600" /> Quote Readiness
+                </span>
+                <p className="text-indigo-950 font-medium leading-relaxed">
+                  Requirements extracted from WhatsApp. Pre-fill quote with 4x units at standard list price.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-1">
+              <span className="text-[11px] text-on-surface-variant font-medium">
+                Last activity logged: {activities.length > 0 ? "Recently" : "None yet"}
+              </span>
+              <button
+                onClick={handleConvertToQuotation}
+                className="px-3.5 py-1.5 bg-primary text-white text-xs font-bold rounded-xl shadow-2xs hover:opacity-90 transition-all flex items-center gap-1.5"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>Create Quotation Now</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* RIGHT PANEL: Quick Actions, Documents & Meetings */}
+        <div className="col-span-12 lg:col-span-3 flex flex-col gap-6">
 
           {/* Quick Actions Panel */}
           <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-5 shadow-sm space-y-4">
@@ -1094,46 +1238,6 @@ export default function LeadDetail() {
       </div>
 
       {/* QUICK ACTION MODALS */}
-
-      {/* Send WhatsApp Modal */}
-      {activeModal === "whatsapp" && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-6 max-w-md w-full space-y-4 shadow-xl">
-            <div className="flex justify-between items-center border-b border-outline-variant pb-3">
-              <h3 className="text-lg font-bold text-on-surface flex items-center gap-2">
-                <MessageSquare className="w-5 h-5 text-emerald-600" /> Send WhatsApp Message
-              </h3>
-              <button onClick={() => setActiveModal(null)}><X className="w-5 h-5 text-on-surface-variant" /></button>
-            </div>
-            <div className="space-y-3 text-xs">
-              <div>
-                <label className="block font-bold text-on-surface-variant mb-1">To Phone Number</label>
-                <input type="text" readOnly value={lead?.phone || "No phone on record"} className="w-full bg-surface-container-low border border-outline-variant rounded p-2 text-xs font-mono font-bold text-emerald-700" />
-              </div>
-              <div>
-                <label className="block font-bold text-on-surface-variant mb-1">WhatsApp Message Body</label>
-                <textarea 
-                  rows={4} 
-                  value={whatsAppText} 
-                  onChange={e => setWhatsAppText(e.target.value)} 
-                  placeholder="Type your WhatsApp message..." 
-                  className="w-full bg-surface border border-outline rounded p-2.5 text-xs focus:ring-1 focus:ring-emerald-500" 
-                />
-              </div>
-              <div className="flex justify-end gap-2 pt-2">
-                <button onClick={() => setActiveModal(null)} className="px-4 py-2 border border-outline rounded font-bold text-xs">Cancel</button>
-                <button 
-                  onClick={() => sendWhatsAppMutation.mutate()} 
-                  disabled={sendWhatsAppMutation.isPending || !whatsAppText.trim()}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-bold text-xs flex items-center gap-1.5 disabled:opacity-50"
-                >
-                  <Send className="w-3.5 h-3.5" /> Send WhatsApp
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Call Log Modal */}
       {activeModal === "call" && (

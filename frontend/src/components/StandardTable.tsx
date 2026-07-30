@@ -32,6 +32,10 @@ interface StandardTableProps {
   page?: number;
   totalPages?: number;
   onPageChange?: (newPage: number) => void;
+  onRowClick?: (item: any) => void;
+  quickActionIcon?: React.ElementType;
+  quickActionLabel?: string;
+  onQuickAction?: (item: any, e: React.MouseEvent) => void;
 }
 
 export function StandardTable({
@@ -53,7 +57,11 @@ export function StandardTable({
   onExport,
   page = 1,
   totalPages = 1,
-  onPageChange
+  onPageChange,
+  onRowClick,
+  quickActionIcon: QuickIcon,
+  quickActionLabel = "Call",
+  onQuickAction
 }: StandardTableProps) {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
@@ -189,7 +197,13 @@ export function StandardTable({
                   return (
                     <tr
                       key={item.id}
-                      className={`hover:bg-muted/40 transition-colors ${isSelected ? "bg-primary/5" : ""}`}
+                      onClick={(e) => {
+                        // Prevent click when selecting checkbox or clicking action button
+                        const target = e.target as HTMLElement;
+                        if (target.tagName === "INPUT" || target.closest("button") || target.closest("a")) return;
+                        if (onRowClick) onRowClick(item);
+                      }}
+                      className={`hover:bg-muted/40 transition-colors cursor-pointer group ${isSelected ? "bg-primary/5" : ""}`}
                     >
                       <td className="px-4 py-3">
                         <input
@@ -208,7 +222,20 @@ export function StandardTable({
                         </td>
                       ))}
                       <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1 text-muted-foreground">
+                        <div className="flex items-center justify-end gap-1.5 text-muted-foreground">
+                          {QuickIcon && onQuickAction && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onQuickAction(item, e);
+                              }}
+                              className="px-2.5 py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 text-[10px] font-bold uppercase rounded-lg transition-all flex items-center gap-1 opacity-90 group-hover:opacity-100 shadow-2xs"
+                              title={`${quickActionLabel} Lead`}
+                            >
+                              <QuickIcon className="w-3 h-3" />
+                              <span>{quickActionLabel}</span>
+                            </button>
+                          )}
                           <button className="p-1 hover:text-primary rounded">
                             <MoreHorizontal className="w-4 h-4" />
                           </button>

@@ -8,9 +8,10 @@ import {
   Globe, CheckCircle2, MoreVertical, Plus, Instagram,
   Linkedin, MessageCircle, AlertTriangle, ArrowUpRight, BarChart2, Zap,
   RefreshCw, X, Image, SmilePlus, Clock, Wifi, WifiOff, Phone,
-  ExternalLink, Copy, ChevronDown, Settings, Bell, Hash, AtSign
+  ExternalLink, Copy, ChevronDown, Settings, Bell, Hash, AtSign, ShieldAlert
 } from "lucide-react";
 import { apiClient } from "../lib/apiClient";
+import { WhatsAppDiagnosticsModal } from "../components/WhatsAppDiagnosticsModal";
 
 type ChannelType = "all" | "whatsapp" | "linkedin" | "instagram" | "website" | "email" | "call";
 
@@ -122,6 +123,7 @@ export default function CommunicationCenter() {
   const [showTemplates, setShowTemplates] = useState(false);
   const [localMessages, setLocalMessages] = useState<WhatsAppMessage[]>([]);
   const [isWaConnected, setIsWaConnected] = useState(true);
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
 
   // ─── FETCH WHATSAPP CONVERSATIONS ─────────────────────────
   const { data: whatsappConvs = [], isLoading: loadingConvs, refetch: refetchConvs } = useQuery<WhatsAppConversation[]>({
@@ -306,6 +308,14 @@ export default function CommunicationCenter() {
             {isWaConnected ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
             {isWaConnected ? "WhatsApp Live" : "WhatsApp Offline"}
           </div>
+
+          <button
+            onClick={() => setShowDiagnostics(true)}
+            className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-extrabold bg-slate-900 text-emerald-400 hover:bg-slate-800 border border-slate-700 transition-all shadow-sm"
+          >
+            <ShieldAlert className="w-3.5 h-3.5 text-emerald-400" />
+            WhatsApp Diagnostics & Logs
+          </button>
         </div>
 
         <div className="flex items-center gap-2">
@@ -708,6 +718,11 @@ export default function CommunicationCenter() {
         </div>
       )}
 
+      {/* WhatsApp Diagnostic & Error Logs Modal */}
+      <WhatsAppDiagnosticsModal
+        isOpen={showDiagnostics}
+        onClose={() => setShowDiagnostics(false)}
+      />
     </div>
   );
 }

@@ -811,3 +811,58 @@ export function LeaderboardWidget({
     </WidgetCard>
   );
 }
+
+// ─── Individual Widget 13: Recently Viewed Widget ─────────────────────────────
+export function RecentlyViewedWidget({
+  isCustomizing,
+  onRemove,
+}: {
+  isCustomizing?: boolean;
+  onRemove?: () => void;
+}) {
+  const [recentlyViewed, setRecentlyViewed] = useState<any[]>([]);
+
+  useEffect(() => {
+    try {
+      const items = JSON.parse(localStorage.getItem("recently_viewed_records") || "[]");
+      setRecentlyViewed(items);
+    } catch {
+      setRecentlyViewed([]);
+    }
+  }, []);
+
+  return (
+    <WidgetCard
+      title="Recently Viewed"
+      icon={Clock}
+      themeName="indigo"
+      isCustomizing={isCustomizing}
+      onRemove={onRemove}
+    >
+      <div className="space-y-2">
+        {recentlyViewed.length === 0 ? (
+          <p className="text-xs text-slate-400 italic py-4 text-center">No recent records opened yet. Use search or open leads to populate.</p>
+        ) : (
+          recentlyViewed.map((item: any, idx: number) => (
+            <Link
+              key={item.id || idx}
+              to={item.path || "#"}
+              className="flex items-center justify-between p-2 rounded-xl bg-slate-50 hover:bg-indigo-50/70 border border-slate-100 transition-all group"
+            >
+              <div className="flex items-center gap-2 truncate">
+                <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] font-bold rounded-full uppercase">
+                  {item.type || "Record"}
+                </span>
+                <span className="text-xs font-bold text-slate-800 truncate group-hover:text-indigo-600">
+                  {item.title}
+                </span>
+              </div>
+              <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform shrink-0" />
+            </Link>
+          ))
+        )}
+      </div>
+    </WidgetCard>
+  );
+}
+

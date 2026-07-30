@@ -32,5 +32,19 @@ npm run dev:frontend                   # starts Vite dev server on :5173
 > [!IMPORTANT]
 > Database schema updates on Postgres must only be performed via migrations (`npm run migrate --workspace=backend`). The automatic `sequelize.sync({ alter: true })` call is disabled by default. For local dev convenience, it can be explicitly enabled with `RUN_SYNC=true` in your environment.
 
-## Design Reference
-The `design-reference/` folder contains static HTML/CSS mockups (Stitch "Horizon Enterprise" design system) for each screen: lead inbox, lead detail, pipeline kanban, quotation builder, price book, purchase orders, approval queue, KPI dashboards, management dashboards, assignment rules. Use these as the visual spec when building out `frontend/src` components/pages. The color palette and typography from `horizon_enterprise/DESIGN.md` are already wired into `frontend/tailwind.config.js`.
+## WhatsApp Integration (Twilio Sandbox)
+
+Nexus CRM uses **Twilio Programmable Messaging / WhatsApp API** for real-time lead and customer communication.
+
+> [!NOTE]
+> **Development & Testing Setup (Twilio Sandbox)**:
+> 1. Set `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, and `TWILIO_WHATSAPP_NUMBER` in `backend/.env`.
+> 2. Anyone testing inbound/outbound messaging must first send `join <your-sandbox-code>` from their mobile WhatsApp to the Twilio Sandbox number (`+1 415 523 8886`) once to join the sandbox session.
+> 3. Configure your Twilio WhatsApp Sandbox webhook to point to `https://<your-ngrok-domain>/api/v1/whatsapp/webhook` (`HTTP POST`).
+
+> [!IMPORTANT]
+> **Production Deployment Warning**:
+> Twilio Sandbox setup is strictly for development and internal testing — it is **not customer-facing**. Moving to production customer use requires either:
+> - Registering a Twilio-brokered **Production WhatsApp Sender** (requires Meta Business Verification through Twilio), OR
+> - Switching back to direct Meta Cloud API once Meta Business Verification is completed.
+

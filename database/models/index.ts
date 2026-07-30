@@ -518,6 +518,36 @@ WebhookEvent.init(
   { sequelize, modelName: "WebhookEvent" }
 );
 
+export class WhatsAppLog extends Model {
+  public id!: string;
+  public timestamp!: Date;
+  public level!: 'ERROR' | 'WARN' | 'INFO' | 'DEBUG';
+  public category!: 'CONFIGURATION' | 'WEBHOOK_VERIFICATION' | 'INBOUND_PAYLOAD' | 'OUTBOUND_SEND' | 'DELIVERY_STATUS' | 'LEAD_ASSOCIATION' | 'API_ERROR';
+  public event!: string;
+  public message!: string;
+  public details!: string | null;
+  public phone!: string | null;
+  public messageId!: string | null;
+  public resolved!: boolean;
+}
+
+WhatsAppLog.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    timestamp: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
+    level: { type: DataTypes.STRING, defaultValue: 'INFO' },
+    category: { type: DataTypes.STRING, allowNull: false },
+    event: { type: DataTypes.STRING, allowNull: false },
+    message: { type: DataTypes.TEXT, allowNull: false },
+    details: { type: DataTypes.TEXT, allowNull: true },
+    phone: { type: DataTypes.STRING, allowNull: true },
+    messageId: { type: DataTypes.STRING, allowNull: true },
+    resolved: { type: DataTypes.BOOLEAN, defaultValue: false },
+  },
+  { sequelize, modelName: "WhatsAppLog" }
+);
+
+
 // Define Associations
 User.hasMany(Lead, { foreignKey: "assignedToId" });
 Lead.belongsTo(User, { foreignKey: "assignedToId", as: "assignedTo" });
@@ -1200,9 +1230,7 @@ DealMilestone.init(
   { sequelize, modelName: "DealMilestone" }
 );
 
-// Associations
 Customer.hasMany(Activity, { foreignKey: "customerId", as: "customerActivities" });
-
 Task.belongsTo(User, { foreignKey: "ownerId", as: "owner" });
 Task.belongsTo(Lead, { foreignKey: "leadId", as: "lead" });
 Task.belongsTo(Customer, { foreignKey: "customerId", as: "customer" });

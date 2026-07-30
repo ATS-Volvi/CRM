@@ -43,8 +43,8 @@ const DEFAULT_TEMPLATES: Record<string, { name: string; channel: string; subject
   new_lead_assigned: {
     name: "New Lead Assigned Alert",
     channel: "email",
-    subject: "New Lead Assignment",
-    body: "Hi {{salesperson_name}},\n\nYou have been assigned a new lead: {{lead_name}} from {{company_name}}."
+    subject: "New Lead Assignment: {{lead_name}}",
+    body: "Hi {{salesperson_name}},\n\nYou have been assigned a new lead: {{lead_name}} from {{company_name}}.\nRequirement: {{requirement}}\nIndustry: {{industry}}\nBudget: {{budget}}"
   },
   sla_breach_escalation: {
     name: "SLA Breach Escalation",
@@ -111,12 +111,18 @@ export async function triggerCommunication(
     let leadName = "Valued Customer";
     let companyName = "Nexus Client";
     let salespersonName = "Nexus Representative";
+    let requirement = "General Inquiry";
+    let industry = "General";
+    let budget = "N/A";
     
     if (context.leadId) {
       const lead = await sequelize.models.Lead.findByPk(context.leadId);
       if (lead) {
         leadName = `${(lead as any).firstName} ${(lead as any).lastName}`.trim();
         companyName = (lead as any).company || "Nexus Client";
+        requirement = (lead as any).subject || (lead as any).body || "General Inquiry";
+        industry = (lead as any).industry || "General";
+        budget = (lead as any).budgetRange || (lead as any).expectedValue ? `$${(lead as any).expectedValue}` : "N/A";
       }
     }
     
@@ -137,7 +143,10 @@ export async function triggerCommunication(
       .replace(/\{\{lead_name\}\}/g, leadName)
       .replace(/\{\{company_name\}\}/g, companyName)
       .replace(/\{\{salesperson_name\}\}/g, salespersonName)
-      .replace(/\{\{quote_value\}\}/g, quoteValStr);
+      .replace(/\{\{quote_value\}\}/g, quoteValStr)
+      .replace(/\{\{requirement\}\}/g, requirement)
+      .replace(/\{\{industry\}\}/g, industry)
+      .replace(/\{\{budget\}\}/g, budget);
 
     // 4. Simulate sending or execute nodemailer
     const subject = templateData.subject || `[Nexus CRM] - ${templateData.name}`;

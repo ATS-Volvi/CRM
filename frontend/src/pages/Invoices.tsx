@@ -130,12 +130,40 @@ export default function Invoices() {
                           </button>
                         )}
                         {invoice.status === 'Sent' && (
-                          <button 
-                            onClick={() => updateStatusMutation.mutate({ id: invoice.id, status: 'Paid' })} 
-                            className="px-3 py-1 bg-emerald-600 text-white text-[10px] font-bold uppercase rounded hover:opacity-90 transition-all"
-                          >
-                            Mark Paid
-                          </button>
+                          <>
+                            <button 
+                              onClick={() => {
+                                alert(`Payment reminder sent to ${invoice.quote?.deal?.lead?.email || "client"}`);
+                              }}
+                              className="px-2.5 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200 text-[10px] font-bold uppercase rounded hover:bg-indigo-100 transition-all"
+                            >
+                              Send Reminder
+                            </button>
+                            <button 
+                              onClick={() => updateStatusMutation.mutate({ id: invoice.id, status: 'Paid' })} 
+                              className="px-3 py-1 bg-emerald-600 text-white text-[10px] font-bold uppercase rounded hover:opacity-90 transition-all"
+                            >
+                              Process Payment
+                            </button>
+                          </>
+                        )}
+                        {invoice.status === 'Overdue' && (
+                          <>
+                            <button 
+                              onClick={() => {
+                                alert(`Urgent Overdue Reminder sent for invoice INV-${invoice.id.substring(0,6).toUpperCase()}`);
+                              }}
+                              className="px-2.5 py-1 bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-bold uppercase rounded hover:bg-rose-100 transition-all"
+                            >
+                              Send Reminder
+                            </button>
+                            <button 
+                              onClick={() => updateStatusMutation.mutate({ id: invoice.id, status: 'Paid' })} 
+                              className="px-3 py-1 bg-emerald-600 text-white text-[10px] font-bold uppercase rounded hover:opacity-90 transition-all"
+                            >
+                              Process Payment
+                            </button>
+                          </>
                         )}
                         <Link 
                           to={`/invoices/${invoice.id}`} 

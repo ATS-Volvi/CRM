@@ -11,7 +11,10 @@ const app = createServer();
 const startServer = async () => {
   try {
     await Database.createConnection();
-    // Models are now synced via Sequelize migrations. Do not use sync()!
+    // Models are synced via Sequelize migrations. Safely sync WhatsAppLog table if needed.
+    if (sequelize.models.WhatsAppLog) {
+      await sequelize.models.WhatsAppLog.sync().catch(err => console.error("Failed to sync WhatsAppLog model:", err));
+    }
     console.log("Database connection established successfully.");
     
     // Seed default message templates if not exists

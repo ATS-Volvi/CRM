@@ -1,22 +1,37 @@
 import { useAuth } from "../context/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { Mic, MicOff, Play, Save, ChevronRight, AlertCircle, Plus, Trash2, ArrowLeft, Loader2 } from "lucide-react";
 import { formatCurrency } from "../utils/currency";
 
 export default function LeadCreate() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
 
+  const clientIdParam = searchParams.get("clientId");
+
   const [projectName, setProjectName] = useState("");
-  const [clientId, setClientId] = useState("");
-  const [salespersonId, setSalespersonId] = useState("");
+  const [clientId, setClientId] = useState(clientIdParam || "");
+  const [salespersonId, setSalespersonId] = useState(user?.id || "");
   const [leadType, setLeadType] = useState("General");
-  const [source, setSource] = useState("website");
+  const [source, setSource] = useState("Manual");
   const [expectedValue, setExpectedValue] = useState("");
   const [notes, setNotes] = useState("");
+
+  useEffect(() => {
+    if (!salespersonId && user?.id) {
+      setSalespersonId(user.id);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (clientIdParam) {
+      setClientId(clientIdParam);
+    }
+  }, [clientIdParam]);
 
   const [selectedGroups, setSelectedGroups] = useState<any[]>([]);
 

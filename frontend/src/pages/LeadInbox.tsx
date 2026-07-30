@@ -19,7 +19,8 @@ import {
   Search,
   ArrowUpDown,
   SlidersHorizontal,
-  MessageCircle
+  MessageCircle,
+  Phone
 } from "lucide-react";
 
 /** WhatsApp Badge: shown on any lead with communicationChannel=whatsapp or source=WhatsApp */
@@ -102,11 +103,13 @@ export default function LeadInbox() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  // View state
-  const [viewMode, setViewMode] = useState<"table" | "board">("board");
+  // View state: Table is now default
+  const [viewMode, setViewMode] = useState<"table" | "board">("table");
   const [groupBy, setGroupBy] = useState<"status" | "owner">("status");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [showAllColumns, setShowAllColumns] = useState(false);
+  const [isViewPopoverOpen, setIsViewPopoverOpen] = useState(false);
 
   // Inline Editing Dropdown States
   const [editingStatusId, setEditingStatusId] = useState<string | null>(null);
@@ -268,49 +271,19 @@ export default function LeadInbox() {
   };
 
   // Table Columns Definition
-  const columns = [
-    {
-      key: "leadNumber",
-      header: "Lead #",
-      render: (lead: any) => (
-        <Link to={`/leads/${lead.id}`} className="text-primary font-bold hover:underline">
-          {lead.leadNumber || "N/A"}
-        </Link>
-      )
-    },
+  const allColumns = [
     {
       key: "name",
       header: "Client Name",
       render: (lead: any) => (
         <div>
-          <Link to={`/leads/${lead.id}`} className="font-bold text-foreground hover:text-primary transition-colors">
+          <span className="font-bold text-foreground hover:text-primary transition-colors">
             {lead.firstName} {lead.lastName}
-          </Link>
+          </span>
           <p className="text-[10px] text-muted-foreground">{lead.company || "No Company"}</p>
           <WhatsAppBadge lead={lead} />
         </div>
       )
-    },
-    {
-      key: "company",
-      header: "Company",
-      render: (lead: any) => lead.company || "N/A"
-    },
-    {
-      key: "industry",
-      header: "Pipeline / Industry",
-      render: (lead: any) => lead.industry || "General"
-    },
-    {
-      key: "owner",
-      header: "Owner",
-      render: (lead: any) => lead.assignedTo?.name || "Unassigned"
-    },
-    {
-      key: "leadScore",
-      header: "Revenue Value",
-      align: "right" as const,
-      render: (lead: any) => formatCurrency((lead.leadScore || 50) * 100)
     },
     {
       key: "status",
@@ -325,6 +298,36 @@ export default function LeadInbox() {
       }
     },
     {
+      key: "owner",
+      header: "Owner",
+      render: (lead: any) => lead.assignedTo?.name || "Unassigned"
+    },
+    {
+      key: "leadScore",
+      header: "Revenue Value",
+      align: "right" as const,
+      render: (lead: any) => formatCurrency((lead.leadScore || 50) * 100)
+    },
+    {
+      key: "leadNumber",
+      header: "Lead #",
+      render: (lead: any) => (
+        <span className="text-primary font-bold">
+          {lead.leadNumber || "N/A"}
+        </span>
+      )
+    },
+    {
+      key: "company",
+      header: "Company",
+      render: (lead: any) => lead.company || "N/A"
+    },
+    {
+      key: "industry",
+      header: "Pipeline / Industry",
+      render: (lead: any) => lead.industry || "General"
+    },
+    {
       key: "createdAt",
       header: "Last Contact Date",
       render: (lead: any) => {
@@ -334,6 +337,8 @@ export default function LeadInbox() {
       }
     }
   ];
+
+  const columns = showAllColumns ? allColumns : allColumns.slice(0, 4);
 
 
   const availableStatuses = ["New", "Contacted", "Qualified", "Proposal", "Negotiation", "Won", "Lost"];
@@ -353,56 +358,99 @@ export default function LeadInbox() {
 
         {/* CONTROLS RIGHT SIDE */}
         <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
-          {/* GROUP BY SWITCHER (Only visible in Board Mode) */}
-          {viewMode === "board" && (
-            <div className="flex items-center gap-2 bg-muted border border-border rounded-xl p-1 text-xs">
-              <span className="text-[11px] font-bold text-foreground px-2 flex items-center gap-1">
-                <Layers className="w-3.5 h-3.5 text-primary" /> Group:
-              </span>
-              <button
-                onClick={() => setGroupBy("status")}
-                className={`px-2.5 py-1 rounded-lg font-bold transition-all ${groupBy === "status"
-                    ? "bg-card text-primary shadow-xs border border-border"
-                    : "text-muted-foreground hover:text-foreground"
-                  }`}
-              >
-                Status
-              </button>
-              <button
-                onClick={() => setGroupBy("owner")}
-                className={`px-2.5 py-1 rounded-lg font-bold transition-all ${groupBy === "owner"
-                    ? "bg-card text-primary shadow-xs border border-border"
-                    : "text-muted-foreground hover:text-foreground"
-                  }`}
-              >
-                Salesperson
-              </button>
-            </div>
-          )}
+          {/* CONSOLIDATED SINGLE "VIEW" CONTROL DROPDOWN */}
+          <div className="relative">
+            <button
+              onClick={() => setIsViewPopoverOpen(!isViewPopoverOpen)}
+              className="flex items-center gap-2 bg-muted hover:bg-muted/80 border border-border text-foreground px-3.5 py-2 rounded-xl text-xs font-bold transition-all shadow-2xs"
+            >
+              <SlidersHorizontal className="w-4 h-4 text-primary" />
+              <span>{viewMode === "table" ? "Table View" : `Board (${groupBy === "status" ? "Status" : "Owner"})`}</span>
+              {statusFilter !== "all" && (
+                <span className="w-2 h-2 rounded-full bg-primary" />
+              )}
+              <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+            </button>
 
-          {/* VIEW MODE TABS: Table vs Board */}
-          <div className="flex items-center bg-muted border border-border rounded-xl p-1">
-            <button
-              onClick={() => setViewMode("table")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === "table"
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-                }`}
-            >
-              <Table className="w-3.5 h-3.5" />
-              <span>Table</span>
-            </button>
-            <button
-              onClick={() => setViewMode("board")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === "board"
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-                }`}
-            >
-              <Kanban className="w-3.5 h-3.5" />
-              <span>Board</span>
-            </button>
+            {isViewPopoverOpen && (
+              <div className="absolute right-0 mt-2 w-64 bg-card border border-border rounded-2xl shadow-xl z-50 p-3 space-y-3 animate-scale-up text-xs">
+                {/* View Mode Toggle */}
+                <div>
+                  <label className="block font-bold text-muted-foreground text-[10px] uppercase tracking-wider mb-1.5">View Layout</label>
+                  <div className="grid grid-cols-2 gap-1 bg-muted p-1 rounded-xl">
+                    <button
+                      onClick={() => setViewMode("table")}
+                      className={`flex items-center justify-center gap-1.5 py-1.5 rounded-lg font-bold transition-all ${
+                        viewMode === "table" ? "bg-card text-primary shadow-xs" : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      <Table className="w-3.5 h-3.5" /> Table
+                    </button>
+                    <button
+                      onClick={() => setViewMode("board")}
+                      className={`flex items-center justify-center gap-1.5 py-1.5 rounded-lg font-bold transition-all ${
+                        viewMode === "board" ? "bg-card text-primary shadow-xs" : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      <Kanban className="w-3.5 h-3.5" /> Board
+                    </button>
+                  </div>
+                </div>
+
+                {/* Group By (in Board Mode) */}
+                {viewMode === "board" && (
+                  <div>
+                    <label className="block font-bold text-muted-foreground text-[10px] uppercase tracking-wider mb-1.5">Group Cards By</label>
+                    <div className="grid grid-cols-2 gap-1 bg-muted p-1 rounded-xl">
+                      <button
+                        onClick={() => setGroupBy("status")}
+                        className={`py-1.5 rounded-lg font-bold transition-all ${
+                          groupBy === "status" ? "bg-card text-primary shadow-xs" : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        Status
+                      </button>
+                      <button
+                        onClick={() => setGroupBy("owner")}
+                        className={`py-1.5 rounded-lg font-bold transition-all ${
+                          groupBy === "owner" ? "bg-card text-primary shadow-xs" : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        Owner
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Filter By Status */}
+                <div>
+                  <label className="block font-bold text-muted-foreground text-[10px] uppercase tracking-wider mb-1.5">Filter Status</label>
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="w-full bg-muted border border-border rounded-xl px-3 py-1.5 text-xs font-bold text-foreground focus:outline-none"
+                  >
+                    <option value="all">All Statuses</option>
+                    {availableStatuses.map(st => (
+                      <option key={st} value={st}>{st}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
           </div>
+
+          {/* Table Columns Density Toggle (Table Mode) */}
+          {viewMode === "table" && (
+            <button
+              onClick={() => setShowAllColumns(!showAllColumns)}
+              className="flex items-center gap-1.5 bg-muted hover:bg-muted/80 text-foreground border border-border text-xs font-bold px-3 py-2 rounded-xl transition-all"
+              title="Toggle additional columns"
+            >
+              <Layers className="w-3.5 h-3.5 text-primary" />
+              <span>{showAllColumns ? "Compact Columns" : "All Columns"}</span>
+            </button>
+          )}
 
           {/* ADD LEAD BUTTON */}
           <button
@@ -494,6 +542,10 @@ export default function LeadInbox() {
           addLabel="+ Add Lead"
           onAddClick={() => navigate("/leads/new")}
           onExport={() => window.open("/api/v1/exports/leads", "_blank")}
+          onRowClick={(lead) => navigate(`/leads/${lead.id}`)}
+          quickActionIcon={Phone}
+          quickActionLabel="Call"
+          onQuickAction={(lead) => navigate(`/leads/${lead.id}?action=log_call`)}
         />
       ) : (
         /* MONDAY.COM STYLE BOARD VIEW */

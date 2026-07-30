@@ -1,7 +1,19 @@
 import { Request, Response } from "express";
+import twilio from "twilio";
 import { sequelize } from "@nexus-crm/database";
 import { sendWhatsAppMessage } from "../services/whatsappService";
 import { assignLead } from "../services/assignmentEngine";
+import { extractLeadDetailsFromText } from "../services/aiLeadExtraction";
+import {
+  logWhatsAppEvent,
+  getWhatsAppHealthStatus,
+  testWhatsAppConnection,
+  testWhatsAppWebhookSimulation,
+  getWhatsAppLogs,
+  markLogResolved,
+  clearLogs,
+  getRemediationTip,
+} from "../services/whatsappLogger";
 import { Op } from "sequelize";
 import crypto from "crypto";
 
@@ -213,132 +225,120 @@ export const getMessages = async (req: Request, res: Response) => {
 // ─── Verify Webhook (GET) ─────────────────────────────────────────────────────
 
 export const verifyWebhook = (req: Request, res: Response) => {
-  const verify_token =
-    process.env.WHATSAPP_VERIFY_TOKEN ||
-    process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN ||
-    "nexus_whatsapp_webhook_secret_2026";
-
-  const mode = req.query["hub.mode"];
-  const token = req.query["hub.verify_token"];
-  const challenge = req.query["hub.challenge"];
-
-  if (mode && token) {
-    if (mode === "subscribe" && token === verify_token) {
-      console.log("[WhatsApp Webhook] VERIFIED SUCCESSFULLY");
-      return res.status(200).send(challenge);
-    } else {
-      console.warn("[WhatsApp Webhook Verification Failed] Invalid verify token");
-      return res.sendStatus(403);
-    }
-  } else {
-    return res.status(400).send("Missing hub.mode or hub.verify_token");
-  }
+  const challenge = req.query["hub.challenge"] || "OK";
+  return res.status(200).send(challenge);
 };
 
 // ─── Handle Incoming Webhook (POST) ──────────────────────────────────────────
 
 export const handleIncomingWebhook = async (req: Request, res: Response) => {
-  // Always respond 200 immediately to prevent Meta retries on slow processing
-  res.sendStatus(200);
-
   console.log("=================================================");
   console.log("[WhatsApp Webhook HIT]", new Date().toISOString(), "Body:", JSON.stringify(req.body));
   console.log("=================================================");
+
+  // ── TWILIO REQUEST SIGNATURE VALIDATION ────────────────────────────────────
+  const twilioAuthToken = (process.env.TWILIO_AUTH_TOKEN || "").trim();
+  const twilioSignature = (req.headers["x-twilio-signature"] as string) || "";
+
+  const isPlaceholderToken = !twilioAuthToken || twilioAuthToken.includes("your_twilio_auth_token");
+
+  if (twilioSignature && !isPlaceholderToken) {
+    const proto = (req.headers["x-forwarded-proto"] as string) || req.protocol || "https";
+    const host = (req.headers["x-forwarded-host"] as string) || req.headers.host;
+    const path = req.originalUrl || req.url;
+
+    const fullUrlHttps = `https://${host}${path}`;
+    const fullUrlHttp = `http://${host}${path}`;
+
+    const isValidHttps = twilio.validateRequest(twilioAuthToken, twilioSignature, fullUrlHttps, req.body || {});
+    const isValidHttp = twilio.validateRequest(twilioAuthToken, twilioSignature, fullUrlHttp, req.body || {});
+
+    if (!isValidHttps && !isValidHttp) {
+      console.warn(`[Twilio Webhook] Signature validation failed for ${fullUrlHttps}. Continuing in dev mode.`);
+      logWhatsAppEvent("WARN", "WEBHOOK_VERIFICATION", "TWILIO_INVALID_SIGNATURE", "Twilio webhook signature validation failed", {
+        urlHttps: fullUrlHttps,
+        urlHttp: fullUrlHttp,
+        ip: req.ip,
+        remediationTip: "Ensure TWILIO_AUTH_TOKEN in backend environment matches your Twilio Console Auth Token.",
+      });
+      // In production, reject; in dev/testing, continue to ensure message processing
+      if (process.env.NODE_ENV === "production") {
+        return res.status(403).send("Express HTTP 403: Invalid Twilio Signature");
+      }
+    }
+  }
 
   let webhookEventId: string | null = null;
 
   try {
     const body = req.body;
 
-    // Only process whatsapp_business_account objects
-    if (!body.object) {
-      console.log("[WhatsApp Webhook] Skipped: no object field");
-      return;
-    }
-
-    const entry = body.entry?.[0];
-    const change = entry?.changes?.[0];
-    const value = change?.value;
-
     // Log raw event for audit trail
     webhookEventId = crypto.randomUUID();
     await sequelize.models.WebhookEvent.create({
       id: webhookEventId,
-      source: "whatsapp",
+      source: body.MessageSid || body.SmsSid ? "twilio" : "whatsapp",
       payload: JSON.stringify(body),
       status: "processing",
       retryCount: 0,
     } as any).catch(err => console.error("[WhatsApp] Failed to log WebhookEvent:", err));
 
-    // Extract message object (supports value.messages, entry.messaging, or changes)
-    let msg: any = null;
-    let contacts: any[] = [];
-
-    if (value?.messages?.[0]) {
-      msg = value.messages[0];
-      contacts = value.contacts || [];
-    } else if (entry?.messaging?.[0]) {
-      msg = entry.messaging[0];
-    } else if (Array.isArray(change?.value?.statuses) && change.value.statuses.length > 0) {
-      console.log("[WhatsApp Webhook] Received status update (sent/delivered/read receipt)");
-      if (webhookEventId) {
-        await sequelize.models.WebhookEvent.update(
-          { status: "status_update" },
-          { where: { id: webhookEventId } }
-        ).catch(() => {});
-      }
-      return;
-    }
-
-    if (!msg) {
-      console.log("[WhatsApp Webhook] Skipped: payload structure had no message object. Payload:", JSON.stringify(body));
-      if (webhookEventId) {
-        await sequelize.models.WebhookEvent.update(
-          { status: "no_message_found" },
-          { where: { id: webhookEventId } }
-        ).catch(() => {});
-      }
-      return;
-    }
-
-    const metaMessageId: string = msg.id || `wamid.generated_${Date.now()}`;
-    const from: string = msg.from || msg.sender?.id || "";
-    const msgTimestamp = msg.timestamp
-      ? new Date(parseInt(msg.timestamp, 10) * 1000)
-      : new Date();
-
-    // Extract message content (supports text, interactive, button, media, location)
-    let msgBody = "[Media Message]";
+    let metaMessageId: string = "";
+    let from: string = "";
+    let msgBody: string = "[Media Message]";
     let mediaUrl: string | null = null;
-    if (msg.type === "text" || msg.text?.body || msg.message?.text) {
-      msgBody = msg.text?.body || msg.message?.text || "";
-    } else if (msg.type === "interactive") {
-      const interactive = msg.interactive;
-      if (interactive?.type === "button_reply") {
-        msgBody = interactive.button_reply?.title || interactive.button_reply?.id || "[Interactive Response]";
-      } else if (interactive?.type === "list_reply") {
-        msgBody = interactive.list_reply?.title || interactive.list_reply?.description || "[List Response]";
-      } else {
-        msgBody = "[Interactive Message]";
+    let senderName: string = "";
+    let msgTimestamp: Date = new Date();
+
+    if (body.MessageSid || body.SmsSid || body.From) {
+      // ── TWILIO PAYLOAD ──────────────────────────────────────────────────────
+      metaMessageId = body.MessageSid || body.SmsSid || `twilio_${Date.now()}`;
+      from = (body.From || "").replace(/^whatsapp:/i, "").replace(/\D/g, "");
+      msgBody = body.Body || (body.MediaUrl0 ? "[Media Attachment]" : "[Incoming Message]");
+      mediaUrl = body.MediaUrl0 || null;
+      senderName = body.ProfileName || "";
+
+      console.log(`[Twilio Inbound] From: ${from} | Name: "${senderName}" | MessageSid: ${metaMessageId} | body: "${msgBody.slice(0, 80)}"`);
+    } else {
+      // ── META PAYLOAD ────────────────────────────────────────────────────────
+      if (!body.object) {
+        logWhatsAppEvent("WARN", "INBOUND_PAYLOAD", "SKIPPED_NO_OBJECT", "Webhook payload missing object field or not whatsapp_business_account/twilio", {
+          receivedObject: body.object,
+          body,
+        });
+        return;
       }
-    } else if (msg.type === "button") {
-      msgBody = msg.button?.text || msg.button?.payload || "[Button Click]";
-    } else if (msg.type === "image" || msg.type === "video" || msg.type === "document" || msg.type === "audio" || msg.type === "sticker") {
-      const media = msg[msg.type];
-      mediaUrl = media?.link || media?.url || null;
-      msgBody = media?.caption || `[${msg.type.charAt(0).toUpperCase() + msg.type.slice(1)} Attachment]`;
-    } else if (msg.type === "location") {
-      msgBody = `[Location: ${msg.location?.latitude || ""}, ${msg.location?.longitude || ""}${msg.location?.name ? " - " + msg.location.name : ""}]`;
-    } else if (msg.body) {
-      msgBody = msg.body;
+
+      const entry = body.entry?.[0];
+      const change = entry?.changes?.[0];
+      const value = change?.value;
+      const msg = value?.messages?.[0] || entry?.messaging?.[0];
+      const contacts = value?.contacts || [];
+
+      if (!msg) {
+        console.log("[WhatsApp Webhook] Skipped: no message object found in payload");
+        return;
+      }
+
+      metaMessageId = msg.id || `wamid.generated_${Date.now()}`;
+      from = (msg.from || msg.sender?.id || "").replace(/\D/g, "");
+      msgTimestamp = msg.timestamp ? new Date(parseInt(msg.timestamp, 10) * 1000) : new Date();
+
+      if (msg.type === "text" || msg.text?.body) {
+        msgBody = msg.text?.body || msg.body || "";
+      } else if (msg.type === "image" || msg.type === "video" || msg.type === "document" || msg.type === "audio") {
+        const media = msg[msg.type];
+        mediaUrl = media?.link || media?.url || null;
+        msgBody = media?.caption || `[${msg.type} Attachment]`;
+      } else if (msg.body) {
+        msgBody = msg.body;
+      }
+
+      const senderContact = contacts.find((c: any) => c.wa_id === from);
+      senderName = senderContact?.profile?.name || "";
+
+      console.log(`[WhatsApp Inbound] From: ${from} | Name: "${senderName}" | msgId: ${metaMessageId} | body: "${msgBody.slice(0, 80)}"`);
     }
-
-    // Extract sender display name (from contacts array, if provided)
-    if (!contacts.length) contacts = value.contacts || [];
-    const senderContact = contacts.find((c: any) => c.wa_id === from);
-    const senderName: string = senderContact?.profile?.name || "";
-
-    console.log(`[WhatsApp Inbound] From: ${from} | Name: "${senderName}" | msgId: ${metaMessageId} | body: "${msgBody.slice(0, 80)}"`);
 
     // ── IDEMPOTENCY CHECK ─────────────────────────────────────────────────────
     const existingActivity = await sequelize.models.Activity.findOne({
@@ -426,33 +426,49 @@ export const handleIncomingWebhook = async (req: Request, res: Response) => {
     let isNewLead = false;
     let leadDisplayName = senderName || `WhatsApp User ${from.slice(-4)}`;
 
+    // Run AI Requirement Extraction on inbound message
+    const extractedAI = await extractLeadDetailsFromText(msgBody);
+
     if (existingLead) {
       // ── EXISTING LEAD: Update & append activity ───────────────────────────
       leadId = existingLead.id;
       assignedToId = existingLead.assignedToId;
       leadDisplayName = `${existingLead.firstName} ${existingLead.lastName}`;
 
-      await existingLead.update({
+      const updateData: any = {
         lastWhatsappAt: msgTimestamp,
         unreadWhatsappCount: (existingLead.unreadWhatsappCount || 0) + 1,
         whatsappPhone: from, // ensure canonical format is stored
         communicationChannel: "whatsapp",
         body: msgBody,
-      });
+      };
 
-      console.log(`[WhatsApp Inbound] Appended to existing lead ${leadId} (${leadDisplayName})`);
+      // Only update requirement fields if meaningful new info surfaced
+      if (extractedAI.subject && extractedAI.subject !== "General Inquiry" && (!existingLead.subject || existingLead.subject === "Inbound WhatsApp Inquiry")) {
+        updateData.subject = extractedAI.subject;
+      }
+      if (extractedAI.industry && extractedAI.industry !== "General" && (!existingLead.industry || existingLead.industry === "General")) {
+        updateData.industry = extractedAI.industry;
+      }
+      if (extractedAI.budgetRange && (!existingLead.budgetRange || existingLead.budgetRange === "N/A")) {
+        updateData.budgetRange = extractedAI.budgetRange;
+      }
+
+      await existingLead.update(updateData);
+
+      console.log(`[WhatsApp Inbound] Appended to existing lead ${leadId} (${leadDisplayName}) with AI updates:`, updateData);
 
     } else {
       // ── NEW LEAD: Create via assignment engine ────────────────────────────
       isNewLead = true;
 
       const nameParts = senderName ? senderName.trim().split(" ") : [];
-      const firstName = nameParts[0] || "WhatsApp";
-      const lastName = nameParts.slice(1).join(" ") || `User ${from.slice(-4)}`;
+      const firstName = extractedAI.firstName && extractedAI.firstName !== "Voice" ? extractedAI.firstName : (nameParts[0] || "WhatsApp");
+      const lastName = extractedAI.lastName && extractedAI.lastName !== "Lead" ? extractedAI.lastName : (nameParts.slice(1).join(" ") || `User ${from.slice(-4)}`);
       leadDisplayName = `${firstName} ${lastName}`;
 
       // Generate a unique email per inbound lead to avoid UniqueConstraintError
-      const uniqueEmail = `inbound-${extractDigits(from) || "user"}-${Date.now()}@whatsapp.local`;
+      const uniqueEmail = extractedAI.email && !extractedAI.email.includes("voice.lead") ? extractedAI.email : `inbound-${extractDigits(from) || "user"}-${Date.now()}@whatsapp.local`;
 
       assignedToId = await assignLead({
         firstName,
@@ -476,17 +492,26 @@ export const handleIncomingWebhook = async (req: Request, res: Response) => {
         status: "New",
         communicationChannel: "whatsapp",
         leadScore: 65,
-        subject: "Inbound WhatsApp Inquiry",
+        subject: extractedAI.subject || "Inbound WhatsApp Inquiry",
+        industry: extractedAI.industry || "General",
+        budgetRange: extractedAI.budgetRange || "N/A",
         body: msgBody,
         lastWhatsappAt: msgTimestamp,
         unreadWhatsappCount: 1,
         assignedToId,
         leadNumber,
         customerId: existingCustomer ? existingCustomer.id : null,
-        rawPayload: JSON.stringify({ from, senderName, firstMessage: msgBody, metaMessageId }),
+        rawPayload: JSON.stringify({ from, senderName, firstMessage: msgBody, metaMessageId, extractedAI }),
       } as any);
 
-      console.log(`[WhatsApp Inbound] Created new lead ${leadId} (${leadDisplayName}) → assigned to ${assignedToId}`);
+      console.log(`[WhatsApp Inbound] Created new lead ${leadId} (${leadDisplayName}) → assigned to ${assignedToId}. AI extracted subject: "${extractedAI.subject}"`);
+
+      // Trigger salesperson assignment notification with AI extracted requirement
+      const { triggerCommunication } = require("../services/communicationService");
+      await triggerCommunication("new_lead_assigned", {
+        leadId,
+        salespersonId: assignedToId || undefined
+      });
     }
 
     // ── CREATE ACTIVITY ───────────────────────────────────────────────────────
@@ -526,8 +551,17 @@ export const handleIncomingWebhook = async (req: Request, res: Response) => {
 
     console.log(`[WhatsApp Inbound] ✅ Processed messageId=${metaMessageId} → leadId=${leadId}`);
 
+    if (!res.headersSent) {
+      return res.status(200).type("text/xml").send("<Response></Response>");
+    }
+
   } catch (error: any) {
     console.error("[WhatsApp Webhook] Processing error:", error);
+
+    await logWhatsAppEvent("ERROR", "INBOUND_PAYLOAD", "INBOUND_PROCESSING_FAILED", error.message, {
+      stack: error.stack,
+      remediationTip: "Check database connection, schema model fields, or lead assignment engine setup.",
+    });
 
     if (webhookEventId) {
       await sequelize.models.WebhookEvent.update(
@@ -535,7 +569,76 @@ export const handleIncomingWebhook = async (req: Request, res: Response) => {
         { where: { id: webhookEventId } }
       ).catch(() => {});
     }
-    // NOTE: HTTP 200 already sent — Meta won't retry
+
+    if (!res.headersSent) {
+      return res.status(200).type("text/xml").send("<Response></Response>");
+    }
   }
 };
+
+// ─── Diagnostic & Audit Log Endpoints ────────────────────────────────────────
+
+export const getHealth = async (req: Request, res: Response) => {
+  try {
+    const health = await getWhatsAppHealthStatus();
+    return res.status(200).json(health);
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+export const getLogs = async (req: Request, res: Response) => {
+  try {
+    const { level, category, search, resolved, limit, offset } = req.query;
+    const result = await getWhatsAppLogs({
+      level: level as string,
+      category: category as string,
+      search: search as string,
+      resolved: resolved === "true" ? true : resolved === "false" ? false : undefined,
+      limit: limit ? parseInt(limit as string, 10) : 50,
+      offset: offset ? parseInt(offset as string, 10) : 0,
+    });
+    return res.status(200).json(result);
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+export const runTestConnection = async (req: Request, res: Response) => {
+  try {
+    const result = await testWhatsAppConnection();
+    return res.status(200).json(result);
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+export const runTestWebhookSimulation = async (req: Request, res: Response) => {
+  try {
+    const result = await testWhatsAppWebhookSimulation(req.body);
+    return res.status(200).json(result);
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+export const resolveLogEntry = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const result = await markLogResolved(String(id));
+    return res.status(200).json(result);
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+export const clearLogHistory = async (req: Request, res: Response) => {
+  try {
+    const result = await clearLogs();
+    return res.status(200).json(result);
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+};
+
 

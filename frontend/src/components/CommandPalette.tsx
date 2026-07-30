@@ -93,6 +93,7 @@ export function CommandPalette({ isOpen, onClose }: { isOpen: boolean; onClose: 
 
     (searchResults.leads || []).forEach((l: any) => {
       const name = `${l.firstName || ""} ${l.lastName || ""}`.trim() || l.company || "Lead";
+      // Primary navigation item
       items.push({
         id: `l-${l.id}`,
         category: "Leads",
@@ -100,10 +101,40 @@ export function CommandPalette({ isOpen, onClose }: { isOpen: boolean; onClose: 
         subtitle: `${l.company ? `${l.company} · ` : ""}${l.status || "New"}`,
         icon: Inbox,
         action: () => {
+          // Track recently viewed
+          const viewed = JSON.parse(localStorage.getItem("recently_viewed_records") || "[]");
+          const updated = [{ id: l.id, type: "Lead", title: name, path: `/leads/${l.id}`, time: new Date().toISOString() }, ...viewed.filter((v: any) => v.id !== l.id)].slice(0, 8);
+          localStorage.setItem("recently_viewed_records", JSON.stringify(updated));
           navigate(`/leads/${l.id}`);
           onClose();
         },
         previewData: { type: "Lead", title: name, company: l.company, email: l.email, status: l.status }
+      });
+
+      // Inline Task-Level Action: Log Call
+      items.push({
+        id: `act-call-${l.id}`,
+        category: "Actions",
+        title: `Log a call for ${name}`,
+        subtitle: `Directly log phone interaction for ${l.company || name}`,
+        icon: PhoneCall,
+        action: () => {
+          navigate(`/leads/${l.id}?action=log_call`);
+          onClose();
+        }
+      });
+
+      // Inline Task-Level Action: Create Quote for Lead
+      items.push({
+        id: `act-quote-${l.id}`,
+        category: "Actions",
+        title: `Create quote for ${name}`,
+        subtitle: `Generate new quotation proposal for ${name}`,
+        icon: FilePlus,
+        action: () => {
+          navigate(`/quotes/new?leadId=${l.id}`);
+          onClose();
+        }
       });
     });
 
@@ -120,20 +151,45 @@ export function CommandPalette({ isOpen, onClose }: { isOpen: boolean; onClose: 
         },
         previewData: { type: "Deal", title: d.name, amount: d.amount }
       });
+      // Inline Task-Level Action: Create Quote for Deal
+      items.push({
+        id: `act-quote-deal-${d.id}`,
+        category: "Actions",
+        title: `Create quote for ${d.name}`,
+        subtitle: `Generate quotation for deal ${d.name}`,
+        icon: FilePlus,
+        action: () => {
+          navigate(`/quotes/new?dealId=${d.id}`);
+          onClose();
+        }
+      });
     });
 
     (searchResults.quotes || []).forEach((q: any) => {
+      const qNum = q.quoteNumber || q.id.substring(0, 8);
       items.push({
         id: `q-${q.id}`,
         category: "Quotes",
-        title: `Quote #${q.quoteNumber || q.id.substring(0, 8)}`,
+        title: `Quote #${qNum}`,
         subtitle: `Status: ${q.status} · Amount: ${formatCurrencyCompact(parseFloat(q.totalAmount) || 0)}`,
         icon: FileText,
         action: () => {
           navigate(`/quotes`);
           onClose();
         },
-        previewData: { type: "Quote", number: q.quoteNumber, amount: q.totalAmount, status: q.status }
+        previewData: { type: "Quote", number: qNum, amount: q.totalAmount, status: q.status }
+      });
+      // Inline Task-Level Action: Record PO for Quote
+      items.push({
+        id: `act-po-${q.id}`,
+        category: "Actions",
+        title: `Record PO for Quote #${qNum}`,
+        subtitle: `Quickly convert Quote #${qNum} to Purchase Order`,
+        icon: CheckSquare,
+        action: () => {
+          navigate(`/quotes?action=record_po&quoteId=${q.id}`);
+          onClose();
+        }
       });
     });
 

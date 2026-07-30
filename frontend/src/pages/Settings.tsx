@@ -1,7 +1,8 @@
 import { useAuth } from "../context/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Settings as SettingsIcon, Shield, CheckCircle, RefreshCw, UserCheck, ToggleLeft, ToggleRight, Users, Mail, MessageCircle, Copy, ExternalLink, Check } from "lucide-react";
+import { Settings as SettingsIcon, Shield, CheckCircle, RefreshCw, UserCheck, ToggleLeft, ToggleRight, Users, Mail, MessageCircle, Copy, ExternalLink, Check, ShieldAlert } from "lucide-react";
+import { WhatsAppDiagnosticsModal } from "../components/WhatsAppDiagnosticsModal";
 
 export default function Settings() {
   const { token, user } = useAuth();
@@ -13,6 +14,7 @@ export default function Settings() {
   const [authCode, setAuthCode] = useState("");
   const [showCodeInput, setShowCodeInput] = useState(false);
   const [copiedWebhook, setCopiedWebhook] = useState(false);
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
 
   const webhookUrl = `${window.location.origin}/api/v1/whatsapp/webhook`;
 
@@ -216,6 +218,39 @@ export default function Settings() {
           <p className="text-base text-on-surface-variant">Update your password, set availability, and manage direct reports.</p>
         </div>
 
+        {/* Quick Access to Workspace Configurations & Master Data */}
+        <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-6 shadow-sm space-y-4">
+          <div className="flex items-center justify-between border-b border-outline-variant/60 pb-3">
+            <div>
+              <h3 className="text-lg font-bold text-on-surface">Workspace Master Data & Administration</h3>
+              <p className="text-xs text-on-surface-variant">Access system parameters, price books, and workflow configurations.</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[
+              { name: "Requirements", path: "/master-data/requirements" },
+              { name: "Line Items", path: "/master-data/line-items" },
+              { name: "Construction Items", path: "/master-data/construction-items" },
+              { name: "Pricing Grid", path: "/master-data/pricing" },
+              { name: "Lead Sources", path: "/master-data/lead-sources" },
+              { name: "KPI Master", path: "/master-data/kpis" },
+              { name: "Price Book", path: "/price-book" },
+              { name: "Assignment Rules", path: "/rules" },
+              { name: "Workflow Engine", path: "/automation" },
+              { name: "Approval Queue", path: "/approvals" }
+            ].map(item => (
+              <a
+                key={item.name}
+                href={item.path}
+                className="p-3 bg-surface hover:bg-surface-container-high border border-outline-variant rounded-xl text-xs font-bold text-on-surface hover:text-primary transition-all flex items-center justify-between group"
+              >
+                <span>{item.name}</span>
+                <span className="text-on-surface-variant group-hover:translate-x-0.5 transition-transform">→</span>
+              </a>
+            ))}
+          </div>
+        </div>
+
         {message && (
           <div className="bg-emerald-50 border border-emerald-300 text-emerald-800 rounded-xl p-4 text-sm font-semibold flex items-center gap-2 animate-fade-in">
             <CheckCircle className="w-5 h-5 text-emerald-600" />
@@ -389,15 +424,26 @@ export default function Settings() {
                 ))}
               </div>
 
-              <a
-                href="https://developers.facebook.com/docs/whatsapp/cloud-api/get-started"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 text-xs font-bold text-emerald-700 hover:text-emerald-800 transition-colors"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-                Meta WhatsApp Cloud API Docs
-              </a>
+              <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-3">
+                <a
+                  href="https://developers.facebook.com/docs/whatsapp/cloud-api/get-started"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 text-xs font-bold text-emerald-700 hover:text-emerald-800 transition-colors"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  Meta Cloud API Docs
+                </a>
+
+                <button
+                  type="button"
+                  onClick={() => setShowDiagnostics(true)}
+                  className="px-3 py-1.5 rounded-lg bg-slate-900 text-emerald-400 hover:bg-slate-800 text-xs font-extrabold flex items-center gap-1.5 transition-all shadow-sm"
+                >
+                  <ShieldAlert className="w-3.5 h-3.5" />
+                  Launch Diagnostics & Logs
+                </button>
+              </div>
             </div>
 
             {/* Profile info & Password change */}
@@ -503,6 +549,11 @@ export default function Settings() {
         </div>
 
       </div>
+
+      <WhatsAppDiagnosticsModal
+        isOpen={showDiagnostics}
+        onClose={() => setShowDiagnostics(false)}
+      />
     </div>
   );
 }

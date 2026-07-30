@@ -14,7 +14,7 @@ import {
   KPIWidget, AIBannerWidget, QuickActionsWidget, TasksWidget,
   MeetingsWidget, PipelineFunnelWidget, RevenueTrendWidget,
   FollowupsWidget, HotLeadsWidget, RecentActivityWidget,
-  LatestQuotesWidget, LeaderboardWidget
+  LatestQuotesWidget, LeaderboardWidget, RecentlyViewedWidget
 } from "../components/dashboard/DashboardWidgets";
 
 // ─── Custom Layout Item Interface ──────────────────────────────────────────────
@@ -118,7 +118,8 @@ const DEFAULT_WIDGET_DEFS: WidgetConfig[] = [
   { id: "hot-leads", name: "Hot Leads List", category: "Lists", defaultLayout: { i: "hot-leads", x: 8, y: 18, w: 4, h: 8, minW: 3, minH: 4 } },
   { id: "latest-quotes", name: "Latest Quotes Table", category: "Analytics", defaultLayout: { i: "latest-quotes", x: 0, y: 26, w: 7, h: 9, minW: 4, minH: 5 } },
   { id: "leaderboard", name: "Team Leaderboard", category: "Analytics", defaultLayout: { i: "leaderboard", x: 7, y: 26, w: 5, h: 9, minW: 3, minH: 5 } },
-  { id: "recent-activity", name: "Recent Activity Feed", category: "Insights", defaultLayout: { i: "recent-activity", x: 0, y: 35, w: 12, h: 7, minW: 4, minH: 4 } },
+  { id: "recently-viewed", name: "Recently Viewed Records", category: "Lists", defaultLayout: { i: "recently-viewed", x: 0, y: 35, w: 6, h: 7, minW: 4, minH: 4 } },
+  { id: "recent-activity", name: "Recent Activity Feed", category: "Insights", defaultLayout: { i: "recent-activity", x: 6, y: 35, w: 6, h: 7, minW: 4, minH: 4 } },
 ];
 
 export default function MyDashboard() {
@@ -445,6 +446,13 @@ export default function MyDashboard() {
           <LeaderboardWidget
             isCustomizing={isCustomizing}
             onRemove={() => handleRemoveWidget("leaderboard")}
+          />
+        );
+      case "recently-viewed":
+        return (
+          <RecentlyViewedWidget
+            isCustomizing={isCustomizing}
+            onRemove={() => handleRemoveWidget("recently-viewed")}
           />
         );
       default:
