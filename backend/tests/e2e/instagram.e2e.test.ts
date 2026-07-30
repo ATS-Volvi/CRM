@@ -88,7 +88,7 @@ describe("E2E: Instagram Webhook Ingestion & Routing", () => {
       .send(payload);
 
     expect(noSigRes.status).toBe(401);
-    expect(noSigRes.body.error).toContain("Missing or invalid signature header");
+    expect(noSigRes.body.error).toContain("Unauthorized: Invalid or missing Meta signature");
 
     // Invalid signature header
     const badSigRes = await request(app)
@@ -97,7 +97,7 @@ describe("E2E: Instagram Webhook Ingestion & Routing", () => {
       .send(payload);
 
     expect(badSigRes.status).toBe(401);
-    expect(badSigRes.body.error).toContain("Invalid signature");
+    expect(badSigRes.body.error).toContain("Unauthorized: Invalid or missing Meta signature");
   });
 
   it("should fail closed (401) when INSTAGRAM_APP_SECRET is unset, even if valid-looking signature is provided", async () => {
@@ -128,10 +128,10 @@ describe("E2E: Instagram Webhook Ingestion & Routing", () => {
       .send(payload);
 
     expect(response.status).toBe(401);
-    expect(response.body.error).toContain("Invalid or missing INSTAGRAM_APP_SECRET");
+    expect(response.body.error).toContain("Unauthorized: Invalid or missing Meta signature");
 
     // Restore environment variable
-    process.env.INSTAGRAM_APP_SECRET = originalSecret;
+    process.env.INSTAGRAM_APP_SECRET = "test_instagram_app_secret";
   });
 
   // -------------------------------------------------------------
@@ -261,5 +261,66 @@ describe("E2E: Instagram Webhook Ingestion & Routing", () => {
     const createdLead = (await sequelize.models.Lead.findByPk(response.body.leads[0].leadId)) as any;
     expect(createdLead.source).toBe("instagram");
     expect(createdLead.email).toBeNull();
+  });
+  // -------------------------------------------------------------
+  // Gateway Ingestion Checks (Zapier, Make, ManyChat, MessageBird)
+  // -------------------------------------------------------------
+  it("should return 401 when gateway secret is missing or invalid", async () => {
+    process.env.INSTAGRAM_GATEWAY_SECRET = "test_gateway_secret";
+
+    const payload = {
+      senderId: "123",
+      name: "Jane Doe",
+      username: "jane.ig",
+      text: "hi"
+    };
+
+    // Missing auth_token
+    const noAuthRes = await request(app)
+      .post("/api/v1/instagram/webhook")
+      .send(payload);
+
+    expect(noAuthRes.status).toBe(401);
+    expect(noAuthRes.body.error).toContain("Invalid or missing gateway secret");
+
+    // Invalid auth_token
+    const badAuthRes = await request(app)
+      .post("/api/v1/instagram/webhook?auth_token=wrong_token")
+      .send(payload);
+
+    expect(badAuthRes.status).toBe(401);
+    expect(badAuthRes.body.error).toContain("Invalid or missing gateway secret");
+  });
+
+  it("should process flat JSON payload from third-party gateway when authenticated", async () => {
+    process.env.INSTAGRAM_GATEWAY_SECRET = "test_gateway_secret";
+
+    const payload = {
+      senderId: "gateway_user_123",
+      name: "Gateway Jane",
+      username: "jane.gateway",
+      text: "Hello from Zapier gateway!"
+    };
+
+    const response = await request(app)
+      .post(`/api/v1/instagram/webhook?auth_token=test_gateway_secret`)
+      .send(payload);
+
+    expect(response.status).toBe(200);
+    expect(response.body.processedCount).toBe(1);
+
+    const leadId = response.body.leads[0].leadId;
+    const createdLead = (await sequelize.models.Lead.findByPk(leadId)) as any;
+    
+    expect(createdLead.source).toBe("instagram");
+    expect(createdLead.sourceDetail).toBe("@jane.gateway");
+    expect(createdLead.body).toBe("Hello from Zapier gateway!");
+    
+    const activity = (await sequelize.models.Activity.findOne({
+      where: { leadId, type: "instagram_dm" }
+    })) as any;
+    
+    expect(activity).not.toBeNull();
+    expect(activity.notes).toBe("Hello from Zapier gateway!");
   });
 });
