@@ -204,18 +204,7 @@ export default function PipelineKanban() {
     }
   };
 
-  const totalOpportunityValue = pipelineColumns?.reduce((acc: number, col: any) => acc + col.totalValue, 0) || 0;
-  const allDeals = pipelineColumns?.flatMap((col: any) => col.deals.map((d: any) => ({ ...d, stageName: col.stage }))) || [];
-
-  // Count per group phase
-  const groupCounts: Record<string, number> = groups.reduce((acc, g) => {
-    const stageNames = groupMappings[g] || [];
-    const count = pipelineColumns
-      ?.filter((col: any) => stageNames.includes(col.stage))
-      .reduce((colSum: number, col: any) => colSum + (col.deals?.length || 0), 0) || 0;
-    acc[g] = count;
-    return acc;
-  }, {} as Record<string, number>);
+  const allDeals = pipelineColumns?.flatMap((col: any) => col.deals?.map((d: any) => ({ ...d, stageName: col.stage })) || []) || [];
 
   return (
     <div className="flex-1 flex flex-col h-[calc(100vh-64px)] overflow-hidden bg-slate-50/60 font-sans">
