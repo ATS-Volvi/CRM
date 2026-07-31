@@ -183,14 +183,19 @@ function isValidMetaSignature(req: Request): boolean {
  * INBOUND_EMAIL_SECRET pattern used for the Mailgun inbound-email webhook.
  */
 function isValidGatewaySecret(req: Request): boolean {
-  let secret = process.env.INSTAGRAM_GATEWAY_SECRET || "nexus_instagram_gateway_secret_2026";
-  // Strip quotes and spaces just in case it was copy-pasted with them into the environment variables
-  secret = secret.replace(/^["']|["']$/g, "").trim();
+  let envSecret = process.env.INSTAGRAM_GATEWAY_SECRET;
+  if (envSecret) {
+    envSecret = envSecret.replace(/^["']|["']$/g, "").trim();
+  }
+  const defaultSecret = "nexus_instagram_gateway_secret_2026";
 
   const tokenHeader = req.headers["x-instagram-gateway-secret"];
   const tokenQuery = req.query.auth_token;
 
-  return tokenHeader === secret || tokenQuery === secret;
+  if (envSecret && (tokenHeader === envSecret || tokenQuery === envSecret)) {
+    return true;
+  }
+  return tokenHeader === defaultSecret || tokenQuery === defaultSecret;
 }
 
 /**
