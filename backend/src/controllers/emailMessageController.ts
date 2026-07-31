@@ -36,13 +36,22 @@ export const sendEmailMessage = async (req: Request, res: Response) => {
       openedAt: status === "Sent" ? new Date() : null
     });
 
+    let sendStatus = status;
+    let sendErrorMsg = "";
+
     if (status === "Sent" && toEmail) {
       try {
         const { sendEmail, getBaseHtmlTemplate } = require("../services/emailService");
         const html = getBaseHtmlTemplate(body, leadId);
-        await sendEmail(toEmail, subject, html);
-      } catch (sendErr) {
+        const info = await sendEmail(toEmail, subject, html);
+        if (!info) {
+           sendStatus = "Failed";
+           sendErrorMsg = "SMTP transporter returned null (timed out or auth failed)";
+        }
+      } catch (sendErr: any) {
         console.warn("Failed to dispatch email via transporter:", sendErr);
+        sendStatus = "Failed";
+        sendErrorMsg = sendErr.message || String(sendErr);
       }
     }
 
@@ -51,10 +60,14 @@ export const sendEmailMessage = async (req: Request, res: Response) => {
         id: require("crypto").randomUUID(),
         leadId,
         type: "email",
-        outcome: `Email ${status}: ${subject}`,
-        notes: body.substring(0, 150),
+        outcome: `Email ${sendStatus}: ${subject}`,
+        notes: sendErrorMsg ? `ERROR: ${sendErrorMsg}\n\n${body.substring(0, 150)}` : body.substring(0, 150),
         createdById: (req as any).user?.id || null
       });
+    }
+
+    if (sendStatus === "Failed") {
+      return res.status(500).json({ error: "Failed to send email. Check SMTP credentials.", details: sendErrorMsg });
     }
 
     res.status(201).json(message);
