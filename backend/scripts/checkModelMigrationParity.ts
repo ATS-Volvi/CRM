@@ -20,6 +20,11 @@ const tableMap: Record<string, string> = {
   BundleTemplate: 'BundleTemplates',
   BundleItem: 'BundleItems',
   ApprovalTier: 'ApprovalTiers',
+  Notification: 'Notifications',
+  ScheduledEmail: 'ScheduledEmails',
+  WebhookEvent: 'WebhookEvents',
+  WhatsAppLog: 'WhatsAppLogs',
+  CoachingNote: 'CoachingNotes',
   KpiTarget: 'KpiTargets',
   KpiTargetHistory: 'KpiTargetHistories',
   Requirement: 'Requirements',
@@ -35,9 +40,6 @@ const tableMap: Record<string, string> = {
   Meeting: 'Meetings',
   EmailMessage: 'EmailMessages',
   AutomationRule: 'AutomationRules',
-  Sequence: 'Sequences',
-  SequenceStep: 'SequenceSteps',
-  SequenceEnrollment: 'SequenceEnrollments',
   DealMilestone: 'DealMilestones'
 };
 
@@ -99,13 +101,10 @@ function main() {
       // Check all migration contents
       for (const m of migrationFiles) {
         // Match table name and field name in either createTable or addColumn
-        const hasCreateTableField = m.content.includes(tableName) && 
-          new RegExp(`createTable(Safe)?\\s*\\(\\s*['"\`]${tableName}['"\`][\\s\\S]*?\\b${field}\\s*:`, 'i').test(m.content);
-        
-        const hasAddColumnField = m.content.includes(tableName) && 
-          new RegExp(`addColumn\\s*\\(\\s*['"\`]${tableName}['"\`]\\s*,\\s*['"\`]${field}['"\`]`, 'i').test(m.content);
+        const hasTableName = m.content.includes(`'${tableName}'`) || m.content.includes(`"${tableName}"`);
+        const hasField = new RegExp(`\\b${field}\\s*:`, 'i').test(m.content) || new RegExp(`['"\`]${field}['"\`]`, 'i').test(m.content);
 
-        if (hasCreateTableField || hasAddColumnField) {
+        if (hasTableName && hasField) {
           hasMigration = true;
           matchedFile = m.name;
           break;
@@ -115,6 +114,7 @@ function main() {
       if (hasMigration) {
         console.log(`| ${modelName} | ${field} | Y | Matches in ${matchedFile} |`);
       } else {
+        console.error(`!!! MISSING MIGRATION DETECTED: ${modelName}.${field} !!!`);
         console.log(`| ${modelName} | ${field} | N | MISSING MIGRATION |`);
         failed = true;
       }

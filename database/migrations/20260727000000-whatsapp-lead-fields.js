@@ -56,9 +56,63 @@ module.exports = {
         where: { messageId: { [Sequelize.Op.ne]: null } },
       });
     }
+
+    // ── WhatsAppLogs table ────────────────────────────────────────────────
+    await queryInterface.createTable('WhatsAppLogs', {
+      id: {
+        type: Sequelize.UUID,
+        defaultValue: Sequelize.UUIDV4,
+        primaryKey: true
+      },
+      timestamp: {
+        type: Sequelize.DATE,
+        defaultValue: Sequelize.NOW
+      },
+      level: {
+        type: Sequelize.STRING,
+        defaultValue: 'INFO'
+      },
+      category: {
+        type: Sequelize.STRING,
+        allowNull: false
+      },
+      event: {
+        type: Sequelize.STRING,
+        allowNull: false
+      },
+      message: {
+        type: Sequelize.TEXT,
+        allowNull: false
+      },
+      details: {
+        type: Sequelize.TEXT,
+        allowNull: true
+      },
+      phone: {
+        type: Sequelize.STRING,
+        allowNull: true
+      },
+      messageId: {
+        type: Sequelize.STRING,
+        allowNull: true
+      },
+      resolved: {
+        type: Sequelize.BOOLEAN,
+        defaultValue: false
+      },
+      createdAt: {
+        allowNull: false,
+        type: Sequelize.DATE
+      },
+      updatedAt: {
+        allowNull: false,
+        type: Sequelize.DATE
+      }
+    }).catch(() => {});
   },
 
   async down(queryInterface, Sequelize) {
+    await queryInterface.dropTable('WhatsAppLogs').catch(() => {});
     await queryInterface.removeColumn("Leads", "lastWhatsappAt").catch(() => {});
     await queryInterface.removeColumn("Leads", "unreadWhatsappCount").catch(() => {});
     await queryInterface.removeColumn("Leads", "whatsappPhone").catch(() => {});

@@ -759,58 +759,7 @@ export function LatestQuotesWidget({
   );
 }
 
-// ─── Individual Widget 12: Team Leaderboard Widget ──────────────────────────────
-export function LeaderboardWidget({
-  isCustomizing,
-  onRemove,
-}: {
-  isCustomizing?: boolean;
-  onRemove?: () => void;
-}) {
-  const leaderboardReps = [
-    { rank: 1, name: "Swastik Mukherjee", value: 4200000, pct: 94, streak: "7d 🔥" },
-    { rank: 2, name: "Priya Sharma", value: 3800000, pct: 85, streak: "5d 🔥" },
-    { rank: 3, name: "Rajesh Kumar", value: 2900000, pct: 71, streak: "4d 🔥" },
-    { rank: 4, name: "Ananya Reddy", value: 2100000, pct: 58, streak: "3d 🔥" },
-  ];
 
-  return (
-    <WidgetCard
-      title="Leaderboard"
-      icon={Users}
-      themeName="peach"
-      action={{ label: "Full Report", href: "/kpi" }}
-      isCustomizing={isCustomizing}
-      onRemove={onRemove}
-    >
-      <div className="space-y-2">
-        {leaderboardReps.map(rep => (
-          <div key={rep.rank} className="flex items-center gap-2 p-1.5 rounded-xl hover:bg-amber-50/50 transition-colors">
-            <span
-              className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-extrabold shrink-0 ${
-                rep.rank === 1 ? "bg-amber-200 text-amber-900" : rep.rank === 2 ? "bg-slate-200 text-slate-800" : "bg-orange-100 text-orange-800"
-              }`}
-            >
-              {rep.rank}
-            </span>
-            <div className="flex-1 min-w-0">
-              <div className="flex justify-between items-center mb-0.5">
-                <span className="text-xs font-bold text-slate-800 truncate">{rep.name}</span>
-                <span className="text-[10px] font-bold text-amber-800">{formatCurrencyCompact(rep.value)}</span>
-              </div>
-              <div className="w-full bg-slate-100 rounded-full h-1.5">
-                <div
-                  className={`h-1.5 rounded-full ${rep.rank === 1 ? "bg-amber-400" : "bg-indigo-400"}`}
-                  style={{ width: `${rep.pct}%` }}
-                />
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </WidgetCard>
-  );
-}
 
 // ─── Individual Widget 13: Recently Viewed Widget ─────────────────────────────
 export function RecentlyViewedWidget({

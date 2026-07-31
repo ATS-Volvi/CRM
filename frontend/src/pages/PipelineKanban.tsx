@@ -89,7 +89,7 @@ export default function PipelineKanban() {
   const [searchParams] = useSearchParams();
   const ownerId = searchParams.get("ownerId");
 
-  const [viewMode, setViewMode] = useState<"kanban" | "list" | "gantt">("kanban");
+  const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
 
   const { data: pipelineColumns, isLoading } = useQuery({
     queryKey: ["pipeline", ownerId],
@@ -294,12 +294,6 @@ export default function PipelineKanban() {
                 className={`px-3 py-1.5 rounded-lg text-xs font-extrabold flex items-center gap-1.5 transition-all ${viewMode === "list" ? "bg-white text-blue-600 shadow-2xs" : "text-slate-600 hover:text-slate-900"}`}
               >
                 <List className="w-3.5 h-3.5" /> List
-              </button>
-              <button 
-                onClick={() => setViewMode("gantt")}
-                className={`px-3 py-1.5 rounded-lg text-xs font-extrabold flex items-center gap-1.5 transition-all ${viewMode === "gantt" ? "bg-white text-blue-600 shadow-2xs" : "text-slate-600 hover:text-slate-900"}`}
-              >
-                <Clock className="w-3.5 h-3.5" /> Timeline
               </button>
             </div>
           </div>

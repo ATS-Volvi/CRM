@@ -1148,65 +1148,6 @@ AutomationRule.init(
   { sequelize, modelName: "AutomationRule" }
 );
 
-export class Sequence extends Model {
-  public id!: string;
-  public name!: string;
-  public triggerEvent!: string | null;
-  public isActive!: boolean;
-}
-
-Sequence.init(
-  {
-    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
-    name: { type: DataTypes.STRING, allowNull: false },
-    triggerEvent: { type: DataTypes.STRING, allowNull: true },
-    isActive: { type: DataTypes.BOOLEAN, defaultValue: true }
-  },
-  { sequelize, modelName: "Sequence" }
-);
-
-export class SequenceStep extends Model {
-  public id!: string;
-  public sequenceId!: string;
-  public order!: number;
-  public delayDays!: number;
-  public messageTemplateId!: string | null;
-}
-
-SequenceStep.init(
-  {
-    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
-    sequenceId: { type: DataTypes.UUID, allowNull: false },
-    order: { type: DataTypes.INTEGER, defaultValue: 1 },
-    delayDays: { type: DataTypes.INTEGER, defaultValue: 1 },
-    messageTemplateId: { type: DataTypes.UUID, allowNull: true }
-  },
-  { sequelize, modelName: "SequenceStep" }
-);
-
-export class SequenceEnrollment extends Model {
-  public id!: string;
-  public leadId!: string | null;
-  public customerId!: string | null;
-  public sequenceId!: string;
-  public currentStep!: number;
-  public enrolledAt!: Date;
-  public status!: string;
-}
-
-SequenceEnrollment.init(
-  {
-    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
-    leadId: { type: DataTypes.UUID, allowNull: true },
-    customerId: { type: DataTypes.UUID, allowNull: true },
-    sequenceId: { type: DataTypes.UUID, allowNull: false },
-    currentStep: { type: DataTypes.INTEGER, defaultValue: 1 },
-    enrolledAt: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
-    status: { type: DataTypes.STRING, defaultValue: "active" }
-  },
-  { sequelize, modelName: "SequenceEnrollment" }
-);
-
 export class DealMilestone extends Model {
   public id!: string;
   public dealId!: string;
@@ -1251,13 +1192,5 @@ Meeting.belongsTo(User, { foreignKey: "organizerId", as: "organizer" });
 EmailMessage.belongsTo(Lead, { foreignKey: "leadId", as: "lead" });
 EmailMessage.belongsTo(Customer, { foreignKey: "customerId", as: "customer" });
 EmailMessage.belongsTo(User, { foreignKey: "senderId", as: "sender" });
-
-SequenceStep.belongsTo(Sequence, { foreignKey: "sequenceId", as: "sequence" });
-SequenceEnrollment.belongsTo(Sequence, { foreignKey: "sequenceId", as: "sequence" });
-SequenceEnrollment.belongsTo(Lead, { foreignKey: "leadId", as: "lead" });
-SequenceEnrollment.belongsTo(Customer, { foreignKey: "customerId", as: "customer" });
-
-export { sequelize };
-
 
 

@@ -53,7 +53,6 @@ import { getMeetings, createMeeting } from "../controllers/meetingController";
 import { getEmailMessages, sendEmailMessage } from "../controllers/emailMessageController";
 import { globalSearch } from "../controllers/searchController";
 import { getAutomationRules, createAutomationRule, updateAutomationRule, deleteAutomationRule } from "../controllers/automationController";
-import { getSequences, createSequence, enrollInSequence, getEnrollments } from "../controllers/sequenceController";
 import { getTelephonyStatus, initiateCall } from "../controllers/telephonyController";
 import { getDealMilestones, toggleDealMilestone, createDealMilestone } from "../controllers/milestoneController";
 import whatsappRoutes from "./whatsappRoutes";
@@ -498,14 +497,6 @@ router.get("/automations", authMiddleware, getAutomationRules);
 router.post("/automations", authMiddleware, createAutomationRule);
 router.put("/automations/:id", authMiddleware, updateAutomationRule);
 router.delete("/automations/:id", authMiddleware, deleteAutomationRule);
-
-// ==========================================
-// DRIP SEQUENCES
-// ==========================================
-router.get("/sequences", authMiddleware, getSequences);
-router.post("/sequences", authMiddleware, createSequence);
-router.post("/sequences/enroll", authMiddleware, enrollInSequence);
-router.get("/sequences/enrollments", authMiddleware, getEnrollments);
 
 // ==========================================
 // TELEPHONY (TWILIO CLICK-TO-CALL)

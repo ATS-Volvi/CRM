@@ -1130,29 +1130,6 @@ export default function LeadDetail() {
               </button>
 
               <button 
-                onClick={async () => {
-                  const seqName = prompt("Enter sequence ID to enroll this lead (or select from Communications Hub):");
-                  if (!seqName) return;
-                  try {
-                    const res = await fetch("/api/v1/sequences/enroll", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-                      body: JSON.stringify({ leadId: id, sequenceId: seqName })
-                    });
-                    const data = await res.json();
-                    alert(data.message || "Enrolled in sequence!");
-                  } catch (err: any) {
-                    alert("Sequence error: " + err.message);
-                  }
-                }}
-                className="p-3 bg-primary/10 hover:bg-primary/20 border border-primary/30 rounded-xl font-bold text-primary flex flex-col items-center gap-1.5 transition-all group"
-                title="Enroll lead in Drip Sequence"
-              >
-                <Sparkles className="w-5 h-5 text-primary group-hover:scale-110 transition-transform" />
-                <span>Drip Sequence</span>
-              </button>
-
-              <button 
                 onClick={() => setActiveModal("call")}
                 className="p-3 bg-surface hover:bg-surface-container border border-outline-variant rounded-xl font-bold text-on-surface flex flex-col items-center gap-1.5 transition-all group"
               >
