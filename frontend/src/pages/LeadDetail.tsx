@@ -1000,27 +1000,48 @@ export default function LeadDetail() {
 
             {/* Inline WhatsApp Chat Composer — anchored directly under WhatsApp conversation */}
             {activityFilter === "whatsapp" && (
-              <div className="flex items-center gap-2 bg-emerald-50/80 p-2 rounded-2xl border border-emerald-200 focus-within:border-emerald-500 focus-within:bg-white transition-all shadow-2xs">
-                <input
-                  type="text"
-                  placeholder={`Send WhatsApp message to ${lead.firstName}...`}
-                  value={whatsAppText}
-                  onChange={e => setWhatsAppText(e.target.value)}
-                  className="flex-1 bg-transparent px-3 py-1.5 text-xs font-semibold focus:outline-none text-emerald-950 placeholder:text-emerald-700/60"
-                  onKeyDown={e => {
-                    if (e.key === "Enter" && whatsAppText.trim() && !sendWhatsAppMutation.isPending) {
-                      sendWhatsAppMutation.mutate();
-                    }
-                  }}
-                />
-                <button
-                  disabled={!whatsAppText.trim() || sendWhatsAppMutation.isPending}
-                  onClick={() => sendWhatsAppMutation.mutate()}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs shrink-0"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>Send</span>
-                </button>
+              <div className="space-y-2 pt-1">
+                {/* 1-Click Quick Template Pills */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-[11px]">
+                  <span className="text-[10px] font-extrabold uppercase text-slate-400 shrink-0 mr-0.5 select-none">Quick Reply:</span>
+                  {[
+                    "Hi! Thanks for reaching out. How can we help you today?",
+                    "We've sent the requested catalog to your email. Please review!",
+                    "Would you be available for a quick 10-min demo call tomorrow?",
+                    "Your quotation is ready! Let us know if you need any adjustments."
+                  ].map((template, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setWhatsAppText(template)}
+                      className="px-2.5 py-1 bg-emerald-100/70 hover:bg-emerald-200/80 text-emerald-900 border border-emerald-300/80 rounded-full font-semibold transition-all shrink-0 active:scale-95 shadow-2xs"
+                    >
+                      {template.length > 32 ? template.slice(0, 32) + "…" : template}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-2 bg-emerald-50/80 p-2 rounded-2xl border border-emerald-200 focus-within:border-emerald-500 focus-within:bg-white transition-all shadow-2xs">
+                  <input
+                    type="text"
+                    placeholder={`Send WhatsApp message to ${lead.firstName}...`}
+                    value={whatsAppText}
+                    onChange={e => setWhatsAppText(e.target.value)}
+                    className="flex-1 bg-transparent px-3 py-1.5 text-xs font-semibold focus:outline-none text-emerald-950 placeholder:text-emerald-700/60"
+                    onKeyDown={e => {
+                      if (e.key === "Enter" && whatsAppText.trim() && !sendWhatsAppMutation.isPending) {
+                        sendWhatsAppMutation.mutate();
+                      }
+                    }}
+                  />
+                  <button
+                    disabled={!whatsAppText.trim() || sendWhatsAppMutation.isPending}
+                    onClick={() => sendWhatsAppMutation.mutate()}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs shrink-0"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Send</span>
+                  </button>
+                </div>
               </div>
             )}
           </div>
