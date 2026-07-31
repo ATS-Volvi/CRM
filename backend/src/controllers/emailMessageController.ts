@@ -36,12 +36,22 @@ export const sendEmailMessage = async (req: Request, res: Response) => {
       openedAt: status === "Sent" ? new Date() : null
     });
 
+    if (status === "Sent" && toEmail) {
+      try {
+        const { sendEmail, getBaseHtmlTemplate } = require("../services/emailService");
+        const html = getBaseHtmlTemplate(body, leadId);
+        await sendEmail(toEmail, subject, html);
+      } catch (sendErr) {
+        console.warn("Failed to dispatch email via transporter:", sendErr);
+      }
+    }
+
     if (leadId) {
       await sequelize.models.Activity.create({
         id: require("crypto").randomUUID(),
         leadId,
-        type: "Email",
-        title: `Email ${status}: ${subject}`,
+        type: "email",
+        outcome: `Email ${status}: ${subject}`,
         notes: body.substring(0, 150),
         createdById: (req as any).user?.id || null
       });
@@ -49,6 +59,7 @@ export const sendEmailMessage = async (req: Request, res: Response) => {
 
     res.status(201).json(message);
   } catch (error: any) {
+    console.error("Error sending email message:", error);
     res.status(500).json({ error: error.message });
   }
 };
