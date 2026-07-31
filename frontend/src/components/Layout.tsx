@@ -279,11 +279,38 @@ export function Layout() {
           {/* Consolidated Workspace Settings & Administration */}
           {isManagerOrAdmin && (
             <div className="space-y-1 pt-2 border-t border-sidebar-border/60">
+              {!isCollapsed && <p className="px-3 text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Master Data & Pricing</p>}
+              {isCollapsed && <div className="border-t border-sidebar-border my-2" />}
+              {masterItems.map(item => {
+                const Icon = item.icon;
+                const isActive = location.pathname === item.path;
+                return (
+                  <Link
+                    key={item.name}
+                    to={item.path}
+                    className={`flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-bold transition-all ${
+                      isActive
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                    }`}
+                    title={isCollapsed ? item.name : undefined}
+                  >
+                    <Icon className="w-4 h-4 shrink-0" />
+                    {!isCollapsed && <span className="animate-fade-in truncate">{item.name}</span>}
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Workspace Settings & Administration */}
+          {isManagerOrAdmin && (
+            <div className="space-y-1 pt-2 border-t border-sidebar-border/60">
               {!isCollapsed && <p className="px-3 text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Workspace & Config</p>}
               <Link
                 to="/settings"
                 className={`flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-bold transition-all ${
-                  location.pathname === "/settings" || location.pathname.startsWith("/master-data") || location.pathname === "/price-book" || location.pathname === "/rules" || location.pathname === "/automation" || location.pathname === "/approvals"
+                  location.pathname === "/settings" || location.pathname === "/rules" || location.pathname === "/automation" || location.pathname === "/approvals"
                     ? "bg-primary text-primary-foreground shadow-sm"
                     : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                 }`}

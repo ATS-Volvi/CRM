@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Upload, Download, Edit, MoreVertical, Plus, ChevronLeft, ChevronRight, Gavel, History, Cloud, ShieldCheck, Cpu, Settings } from "lucide-react";
 import { formatCurrency } from "../utils/currency";
+import { MasterDataNav } from "../components/MasterDataNav";
 
 export default function PriceBook() {
   const { token } = useAuth();
@@ -140,7 +141,8 @@ export default function PriceBook() {
 
   return (
     <div className="flex-1 overflow-y-auto bg-surface h-[calc(100vh-64px)] relative">
-      <div className="max-w-[1440px] mx-auto p-8 space-y-8">
+      <div className="max-w-[1440px] mx-auto p-8 space-y-6">
+        <MasterDataNav />
         
         {/* Page Header & Action Bar */}
         <div className="flex justify-between items-end">

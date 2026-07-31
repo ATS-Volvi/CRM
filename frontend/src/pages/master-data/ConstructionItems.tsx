@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Plus, Edit2, Trash2, ShieldCheck, ChevronDown, ChevronUp, Check, X } from "lucide-react";
 import { formatCurrency } from "../../utils/currency";
+import { MasterDataNav } from "../../components/MasterDataNav";
 
 export default function ConstructionItems() {
   const { token } = useAuth();
@@ -75,6 +76,7 @@ export default function ConstructionItems() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["constructionItems"] });
+      setExpandedId(null);
     }
   });
 
@@ -110,7 +112,8 @@ export default function ConstructionItems() {
   };
 
   return (
-    <div className="max-w-[1000px] mx-auto p-8 space-y-8 animate-fade-in">
+    <div className="max-w-[1000px] mx-auto p-8 space-y-6 animate-fade-in">
+      <MasterDataNav />
       
       {/* Page Header */}
       <div className="flex justify-between items-center">

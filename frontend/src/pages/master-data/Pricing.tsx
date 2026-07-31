@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Search, Save, Edit3, DollarSign, Check, X } from "lucide-react";
 import { formatCurrency } from "../../utils/currency";
+import { MasterDataNav } from "../../components/MasterDataNav";
 
 export default function Pricing() {
   const { token } = useAuth();
@@ -79,7 +80,8 @@ export default function Pricing() {
   };
 
   return (
-    <div className="max-w-[1000px] mx-auto p-8 space-y-8 animate-fade-in">
+    <div className="max-w-[1000px] mx-auto p-8 space-y-6 animate-fade-in">
+      <MasterDataNav />
       
       {/* Page Header */}
       <div className="flex justify-between items-center flex-wrap gap-4">

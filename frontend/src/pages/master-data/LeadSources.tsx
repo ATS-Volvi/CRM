@@ -2,6 +2,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useRef, useEffect } from "react";
 import { Plus, Edit2, Trash2, Check, X, ShieldAlert } from "lucide-react";
+import { MasterDataNav } from "../../components/MasterDataNav";
 
 export default function LeadSources() {
   const { token } = useAuth();
@@ -92,7 +93,8 @@ export default function LeadSources() {
   };
 
   return (
-    <div className="max-w-[1000px] mx-auto p-8 space-y-8 animate-fade-in">
+    <div className="max-w-[1000px] mx-auto p-8 space-y-6 animate-fade-in">
+      <MasterDataNav />
       
       {/* Page Header */}
       <div className="flex justify-between items-center">

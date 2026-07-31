@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { Plus, Edit2, Trash2, Sliders, Check, X } from "lucide-react";
+import { MasterDataNav } from "../../components/MasterDataNav";
 
 export default function LineItems() {
   const { token } = useAuth();
@@ -94,7 +95,8 @@ export default function LineItems() {
   };
 
   return (
-    <div className="max-w-[1000px] mx-auto p-8 space-y-8 animate-fade-in">
+    <div className="max-w-[1000px] mx-auto p-8 space-y-6 animate-fade-in">
+      <MasterDataNav />
       
       {/* Page Header */}
       <div className="flex justify-between items-center">

@@ -2,6 +2,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Plus, Edit2, Trash2, Check, X, ShieldAlert, Target, Save } from "lucide-react";
+import { MasterDataNav } from "../../components/MasterDataNav";
 
 interface KpiMaster {
   id: string;
@@ -138,7 +139,8 @@ export default function Kpis() {
   };
 
   return (
-    <div className="max-w-[1200px] mx-auto p-8 space-y-8 animate-fade-in text-on-surface">
+    <div className="max-w-[1200px] mx-auto p-8 space-y-6 animate-fade-in text-on-surface">
+      <MasterDataNav />
       
       {/* Page Header */}
       <div className="flex justify-between items-center">
