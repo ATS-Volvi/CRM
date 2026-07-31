@@ -202,17 +202,48 @@ function isValidGatewaySecret(req: Request): boolean {
  */
 function normalizeGatewayMessage(body: any): NormalizedIgMessage | null {
   const senderId =
-    body.senderId ?? body.sender_id ?? body.igsid ?? body.contactId ?? body.contact_id ?? body.userId ?? body.psid;
+    body.senderId ??
+    body.sender_id ??
+    body.igsid ??
+    body.contactId ??
+    body.contact_id ??
+    body.userId ??
+    body.psid ??
+    body.sender?.id ??
+    body.from?.id ??
+    (typeof body.from === "string" ? body.from : body.from?.id);
 
-  const text = body.text ?? body.message ?? body.messageText ?? body.message_text ?? body.body ?? body.content;
+  const text =
+    body.text ??
+    body.message ??
+    body.messageText ??
+    body.message_text ??
+    body.body ??
+    body.content ??
+    body.caption ??
+    (typeof body.message === "object" ? body.message?.text : undefined) ??
+    body.data?.text;
 
   if (!senderId || !text) return null;
 
   const name =
-    body.senderName ?? body.sender_name ?? body.name ?? body.fullName ?? body.full_name ?? `Instagram User`;
+    body.senderName ??
+    body.sender_name ??
+    body.name ??
+    body.fullName ??
+    body.full_name ??
+    body.from?.name ??
+    body.sender?.name ??
+    `Instagram User`;
 
   const username =
-    body.username ?? body.senderUsername ?? body.sender_username ?? body.instagramUsername ?? String(senderId);
+    body.username ??
+    body.senderUsername ??
+    body.sender_username ??
+    body.instagramUsername ??
+    body.from?.username ??
+    body.sender?.username ??
+    String(senderId);
 
   return {
     senderId: String(senderId),
@@ -228,7 +259,7 @@ function normalizeGatewayMessage(body: any): NormalizedIgMessage | null {
  *
  * Accepts two shapes of request:
  *  1. Raw Meta webhook payloads (entry[].messaging[]), authenticated via
- *     X-Hub-Signature-256 — for a direct Meta Developer App integration.
+ *     X-Hub-Signature-256 or INSTAGRAM_GATEWAY_SECRET.
  *  2. Normalized single-message payloads from a third-party gateway
  *     (Zapier, Make.com, ManyChat, MessageBird), authenticated via a shared
  *     secret (INSTAGRAM_GATEWAY_SECRET) in a header or query param.
@@ -239,7 +270,10 @@ export const receiveInstagramMessage = async (req: Request, res: Response) => {
     const looksLikeMetaPayload = Array.isArray(body.entry);
 
     if (looksLikeMetaPayload) {
-      if (!isValidMetaSignature(req)) {
+      const isMetaAuthed = isValidMetaSignature(req);
+      const isGatewayAuthed = isValidGatewaySecret(req);
+
+      if (!isMetaAuthed && !isGatewayAuthed) {
         return res.status(401).json({ error: "Unauthorized: Invalid or missing Meta signature" });
       }
 
