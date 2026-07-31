@@ -35,6 +35,8 @@ export function SalesLayout() {
     { name: "My Leads", path: "/leads", icon: Inbox },
     { name: "Pipeline", path: "/pipeline", icon: Trello },
     { name: "Quotations", path: "/quotes", icon: FileText },
+    { name: "Invoices & Billing", path: "/invoices", icon: Receipt },
+    { name: "Master Data", path: "/master-data/requirements", icon: Database },
     { name: "AI Sales Copilot", path: "#", icon: Sparkles, onClick: () => setIsAiCopilotOpen(true) },
   ];
 

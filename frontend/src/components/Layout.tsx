@@ -144,12 +144,13 @@ export function Layout() {
     });
   };
 
-  // Core Primary Everyday Items (Trimmed to 4)
+  // Core Primary Everyday Items
   const primaryItems = [
     { name: "My Dashboard", path: "/home", icon: Home },
     { name: "Lead Inbox", path: "/leads", icon: Inbox },
     { name: "Pipeline", path: "/pipeline", icon: Trello },
-    { name: "Quotation Center", path: "/quotes", icon: FileText }
+    { name: "Quotation Center", path: "/quotes", icon: FileText },
+    { name: "Invoices & Billing", path: "/invoices", icon: Receipt }
   ];
 
   // Reports submenu items
