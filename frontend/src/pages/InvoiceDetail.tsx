@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { formatCurrency } from "../utils/currency";
+import { downloadAuthenticatedFile } from "../utils/download";
 import { ArrowLeft, Printer, Download, CreditCard, FileText } from "lucide-react";
 
 export default function InvoiceDetail() {
@@ -93,7 +94,7 @@ export default function InvoiceDetail() {
             <Printer className="w-4 h-4" /> Print
           </button>
           <button 
-            onClick={() => window.open(`/api/v1/invoices/${invoice.id}/pdf`, "_blank")}
+            onClick={() => downloadAuthenticatedFile(`/api/v1/invoices/${invoice.id}/pdf`, `Invoice_${invoice.id.substring(0,8)}.pdf`, token)}
             className="flex items-center gap-2 px-4 py-2 bg-surface-container border border-outline-variant text-on-surface text-sm font-bold rounded-lg shadow-sm hover:bg-surface-container-high transition-colors"
           >
             <Download className="w-4 h-4" /> Download PDF

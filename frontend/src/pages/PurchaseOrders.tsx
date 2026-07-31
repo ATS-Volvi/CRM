@@ -4,6 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { FileText, Download, MoreVertical, Plus, Filter, Search } from "lucide-react";
 import { formatCurrency } from "../utils/currency";
+import { downloadAuthenticatedFile } from "../utils/download";
 
 export default function PurchaseOrders() {
   const navigate = useNavigate();
@@ -172,7 +173,7 @@ export default function PurchaseOrders() {
                       )}
                       <button 
                         onClick={() => {
-                          if (po.quoteId) window.open(`/api/v1/quotes/${po.quoteId}/pdf`, "_blank");
+                          if (po.quoteId) downloadAuthenticatedFile(`/api/v1/quotes/${po.quoteId}/pdf`, `Quote_${po.quoteId.substring(0,8)}.pdf`, token);
                           else alert("No associated quote document found.");
                         }}
                         className="p-2 text-on-surface-variant hover:text-primary"

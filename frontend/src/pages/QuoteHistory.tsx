@@ -4,6 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { ChevronRight, FileText, Download, CheckCircle, Clock, AlertTriangle, Plus, Search, Filter, Calendar, MoreVertical, TrendingUp, Timer, Bolt } from "lucide-react";
 import { formatCurrency, formatCurrencyCompact } from "../utils/currency";
+import { downloadAuthenticatedFile } from "../utils/download";
 
 export default function QuoteHistory() {
   const { token } = useAuth();
@@ -317,7 +318,7 @@ export default function QuoteHistory() {
                     const formattedDate = new Date(quote.createdAt).toLocaleDateString();
 
                     return (
-                    <tr key={quote.id || idx} className="hover:bg-surface-container-low/50 transition-colors group cursor-pointer" onClick={() => window.open(`/api/v1/quotes/${quote.id}/pdf`, "_blank")}>
+                    <tr key={quote.id || idx} className="hover:bg-surface-container-low/50 transition-colors group cursor-pointer" onClick={() => downloadAuthenticatedFile(`/api/v1/quotes/${quote.id}/pdf`, `Quote_${quote.id.substring(0,8)}.pdf`, token)}>
                       <td className="px-6 py-4">
                         <span className="text-sm font-bold text-primary">{quote.id.substring(0,8)}</span>
                         <p className="text-[10px] text-outline mt-1">Created: {formattedDate}</p>
@@ -370,7 +371,7 @@ export default function QuoteHistory() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              window.open(`/api/v1/quotes/${quote.id}/pdf`, "_blank");
+                              downloadAuthenticatedFile(`/api/v1/quotes/${quote.id}/pdf`, `Quote_${quote.id.substring(0,8)}.pdf`, token);
                             }}
                             className="px-3 py-1 bg-surface-container border border-outline-variant text-on-surface text-[10px] font-bold uppercase rounded hover:bg-surface-container-high transition-all flex items-center gap-1"
                           >
