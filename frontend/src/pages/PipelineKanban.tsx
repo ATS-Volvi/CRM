@@ -341,8 +341,8 @@ export default function PipelineKanban() {
 
       {/* MAIN CONTENT AREA */}
       <section className="flex-1 overflow-auto px-8 py-4">
-          /* KANBAN BOARD FOR ALL 3 TABS (LEADS, OPPORTUNITIES, DEALS) */
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-start">
+        {/* KANBAN BOARD FOR ALL 3 TABS (LEADS, OPPORTUNITIES, DEALS) */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-start">
             {activeTab === "leads" ? (
               /* LEADS KANBAN COLUMNS */
               ["New", "Contacted", "Qualified"].map((leadStage) => {
