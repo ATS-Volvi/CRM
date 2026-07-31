@@ -18,7 +18,14 @@ export function SalesLayout() {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isAiCopilotOpen, setIsAiCopilotOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(() => {
+    const saved = localStorage.getItem("sidebar_collapsed");
+    return saved === null ? true : saved === "true";
+  });
+
+  useEffect(() => {
+    localStorage.setItem("sidebar_collapsed", String(isCollapsed));
+  }, [isCollapsed]);
 
   const repName = user?.name || "Liam Carter";
   const initials = repName.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
@@ -26,10 +33,8 @@ export function SalesLayout() {
   const salesNavItems = [
     { name: "My Dashboard", path: "/rep-portal", icon: Zap },
     { name: "My Leads", path: "/leads", icon: Inbox },
-    { name: "My Customers", path: "/customers", icon: Users },
-    { name: "Pipeline Kanban", path: "/pipeline", icon: Trello },
-    { name: "Activities & Calendar", path: "/activities", icon: Calendar },
-    { name: "Quotations & Orders", path: "/quotes", icon: FileText },
+    { name: "Pipeline", path: "/pipeline", icon: Trello },
+    { name: "Quotations", path: "/quotes", icon: FileText },
     { name: "AI Sales Copilot", path: "#", icon: Sparkles, onClick: () => setIsAiCopilotOpen(true) },
   ];
 

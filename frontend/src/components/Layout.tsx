@@ -89,9 +89,10 @@ export function Layout() {
   const userRole = user?.role || "sales_rep";
   const isManagerOrAdmin = userRole === "sales_manager" || userRole === "admin" || userRole === "director";
 
-  // Sidebar collapse state
+  // Sidebar collapse state: default to true (icon rail) unless explicitly saved as false
   const [isCollapsed, setIsCollapsed] = useState(() => {
-    return localStorage.getItem("sidebar_collapsed") === "true";
+    const saved = localStorage.getItem("sidebar_collapsed");
+    return saved === null ? true : saved === "true";
   });
 
   // Group expand states
@@ -143,17 +144,12 @@ export function Layout() {
     });
   };
 
-  // Core Primary Items
+  // Core Primary Everyday Items (Trimmed to 4)
   const primaryItems = [
     { name: "My Dashboard", path: "/home", icon: Home },
     { name: "Lead Inbox", path: "/leads", icon: Inbox },
-    { name: "Pipeline Kanban", path: "/pipeline", icon: Trello },
-    { name: "Quotation Center", path: "/quotes", icon: FileText },
-    { name: "Purchase Orders", path: "/purchase-orders", icon: CheckSquare },
-    { name: "Customer 360", path: "/customers", icon: Users },
-    { name: "Activities Hub", path: "/activities", icon: Calendar },
-    { name: "Communication Center", path: "/communications", icon: Mail },
-    { name: "Invoices & Billing", path: "/invoices", icon: Receipt }
+    { name: "Pipeline", path: "/pipeline", icon: Trello },
+    { name: "Quotation Center", path: "/quotes", icon: FileText }
   ];
 
   // Reports submenu items
