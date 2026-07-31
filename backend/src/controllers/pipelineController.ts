@@ -12,7 +12,10 @@ export const getPipeline = async (req: Request, res: Response) => {
     if (ownerId) {
       dealWhere.ownerId = ownerId;
     }
-    const deals = await Deal.findAll({ where: dealWhere });
+    const deals = await Deal.findAll({
+      where: dealWhere,
+      include: [{ model: User, as: "owner", attributes: ["id", "name", "email"] }]
+    });
 
     const stageToGroupMap: { [key: string]: string } = {
       "New": "Prospecting",
@@ -46,7 +49,9 @@ export const getPipeline = async (req: Request, res: Response) => {
           probability: d.probability,
           group: stageToGroupMap[stage.name] || "Prospecting",
           leadId: d.leadId,
-          customerId: d.customerId
+          customerId: d.customerId,
+          ownerId: d.ownerId,
+          owner: d.owner ? { id: d.owner.id, name: d.owner.name, email: d.owner.email } : null
         }))
       };
     });

@@ -107,33 +107,33 @@ export default function PipelineKanban() {
   const [showAddDealModal, setShowAddDealModal] = useState(false);
   const [activeDealDetail, setActiveDealDetail] = useState<any | null>(null);
   const [reason, setReason] = useState("");
-  const [recontactDate, setRecontactDate] = useState("");
-  const [newDeal, setNewDeal] = useState({ name: "", amount: "", competitors: "", probability: "" });
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeGroup, setActiveGroup] = useState<string>("Active Deal"); // Default to Opportunities/Active Deal phase
 
   const groups = ["Prospecting", "Active Deal", "Closed"];
+  const groupLabelMap: { [key: string]: string } = {
+    "Prospecting": "Leads",
+    "Active Deal": "Opportunities",
+    "Closed": "Deals"
+  };
+
   const groupMappings: { [key: string]: string[] } = {
     "Prospecting": ["New", "Contacted", "Qualified"],
     "Active Deal": ["Meeting/Demo", "Proposal", "Negotiation"],
     "Closed": ["Won", "Lost", "On Hold"]
   };
 
-  const [expandedStages, setExpandedStages] = useState<{ [key: string]: boolean }>({
-    "New": true,
-    "Contacted": true,
-    "Qualified": true,
-    "Meeting/Demo": true,
-    "Proposal": true,
-    "Negotiation": true,
-    "Won": true,
-    "Lost": true,
-    "On Hold": true
-  });
-
-  const toggleStage = (stageName: string) => {
-    setExpandedStages(prev => ({
-      ...prev,
-      [stageName]: !prev[stageName]
-    }));
+  // Stage color scheme matching reference image
+  const stageHeaderColors: { [key: string]: { bg: string; text: string; border: string } } = {
+    "New": { bg: "bg-blue-50/80", text: "text-blue-900", border: "border-blue-200" },
+    "Contacted": { bg: "bg-indigo-50/80", text: "text-indigo-900", border: "border-indigo-200" },
+    "Qualified": { bg: "bg-blue-50/90", text: "text-blue-950", border: "border-blue-200" },
+    "Meeting/Demo": { bg: "bg-purple-50/90", text: "text-purple-950", border: "border-purple-200" },
+    "Proposal": { bg: "bg-amber-50/90", text: "text-amber-950", border: "border-amber-200" },
+    "Negotiation": { bg: "bg-orange-50/90", text: "text-orange-950", border: "border-orange-200" },
+    "Won": { bg: "bg-emerald-50/90", text: "text-emerald-950", border: "border-emerald-200" },
+    "Lost": { bg: "bg-rose-50/90", text: "text-rose-950", border: "border-rose-200" },
+    "On Hold": { bg: "bg-slate-100/90", text: "text-slate-900", border: "border-slate-300" }
   };
 
   const createDealMutation = useMutation({
@@ -192,83 +192,142 @@ export default function PipelineKanban() {
   const totalOpportunityValue = pipelineColumns?.reduce((acc: number, col: any) => acc + col.totalValue, 0) || 0;
   const allDeals = pipelineColumns?.flatMap((col: any) => col.deals.map((d: any) => ({ ...d, stageName: col.stage }))) || [];
 
+  // Count per group phase
+  const groupCounts: Record<string, number> = groups.reduce((acc, g) => {
+    const stageNames = groupMappings[g] || [];
+    const count = pipelineColumns
+      ?.filter((col: any) => stageNames.includes(col.stage))
+      .reduce((colSum: number, col: any) => colSum + (col.deals?.length || 0), 0) || 0;
+    acc[g] = count;
+    return acc;
+  }, {} as Record<string, number>);
+
   return (
-    <div className="flex-1 flex flex-col h-[calc(100vh-64px)] overflow-hidden">
-      {/* PIPELINE UTILITY BAR */}
-      <section className="bg-surface px-8 py-4 flex items-center justify-between shadow-sm z-30">
-        <div className="flex items-center gap-8">
-          <div>
-            <h2 className="text-2xl font-semibold">Global Pipeline</h2>
-            <p className="text-sm text-on-surface-variant mt-1">Total Opportunity Value: <span className="font-bold text-primary">{formatCurrency(totalOpportunityValue)}</span></p>
+    <div className="flex-1 flex flex-col h-[calc(100vh-64px)] overflow-hidden bg-slate-50/60 font-sans">
+      
+      {/* TOP NAVBAR / HEADER AREA MATCHING REFERENCE */}
+      <header className="bg-white px-8 py-5 flex items-center justify-between border-b border-slate-200/80 shadow-2xs z-30">
+        <div>
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight">Sales Pipeline</h1>
+          <p className="text-xs font-medium text-slate-500 mt-0.5">Track your sales process from lead to close</p>
+        </div>
+
+        <div className="flex items-center gap-4">
+          {/* Search Box */}
+          <div className="relative w-72">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input 
+              type="text"
+              placeholder="Search..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 bg-slate-100/80 border border-transparent rounded-xl text-xs font-semibold text-slate-800 placeholder-slate-400 focus:bg-white focus:border-blue-500 focus:outline-none transition-all"
+            />
           </div>
-          
-          <div className="flex items-center bg-surface-container border border-outline-variant rounded-lg p-1">
+
+          {/* Quick Add Button */}
+          <button 
+            onClick={() => setShowAddDealModal(true)}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5"
+          >
+            <Plus className="w-4 h-4" /> Quick Add
+          </button>
+        </div>
+      </header>
+
+      {/* SEGMENTED TOP TABS (Leads / Opportunities / Deals) */}
+      <section className="px-8 pt-5 pb-3 flex items-center justify-between">
+        <div className="bg-slate-200/60 p-1.5 rounded-2xl flex items-center gap-1 border border-slate-200">
+          {groups.map((grp) => {
+            const isActive = activeGroup === grp;
+            const count = groupCounts[grp] || 0;
+            const label = groupLabelMap[grp] || grp;
+            return (
+              <button
+                key={grp}
+                onClick={() => setActiveGroup(grp)}
+                className={`px-8 py-2.5 rounded-xl text-xs font-extrabold transition-all flex items-center gap-2 ${
+                  isActive
+                    ? "bg-blue-600 text-white shadow-md"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <span>{label} ({count})</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* View Mode Toggle (Kanban / List / Gantt) */}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center bg-slate-200/60 p-1 rounded-xl border border-slate-200">
             <button 
               onClick={() => setViewMode("kanban")}
-              className={`px-3 py-1.5 rounded text-xs font-bold flex items-center gap-1.5 transition-all ${viewMode === "kanban" ? "bg-surface-container-lowest shadow-sm text-primary" : "text-on-surface-variant hover:text-primary"}`}
+              className={`px-3 py-1.5 rounded-lg text-xs font-extrabold flex items-center gap-1.5 transition-all ${viewMode === "kanban" ? "bg-white text-blue-600 shadow-2xs" : "text-slate-600 hover:text-slate-900"}`}
             >
-              <View className="w-3.5 h-3.5" /> Kanban
+              <View className="w-3.5 h-3.5" /> Board
             </button>
             <button 
               onClick={() => setViewMode("list")}
-              className={`px-3 py-1.5 rounded text-xs font-bold flex items-center gap-1.5 transition-all ${viewMode === "list" ? "bg-surface-container-lowest shadow-sm text-primary" : "text-on-surface-variant hover:text-primary"}`}
+              className={`px-3 py-1.5 rounded-lg text-xs font-extrabold flex items-center gap-1.5 transition-all ${viewMode === "list" ? "bg-white text-blue-600 shadow-2xs" : "text-slate-600 hover:text-slate-900"}`}
             >
               <List className="w-3.5 h-3.5" /> List
             </button>
             <button 
               onClick={() => setViewMode("gantt")}
-              className={`px-3 py-1.5 rounded text-xs font-bold flex items-center gap-1.5 transition-all ${viewMode === "gantt" ? "bg-surface-container-lowest shadow-sm text-primary" : "text-on-surface-variant hover:text-primary"}`}
+              className={`px-3 py-1.5 rounded-lg text-xs font-extrabold flex items-center gap-1.5 transition-all ${viewMode === "gantt" ? "bg-white text-blue-600 shadow-2xs" : "text-slate-600 hover:text-slate-900"}`}
             >
-              <Clock className="w-3.5 h-3.5" /> Timeline Gantt
+              <Clock className="w-3.5 h-3.5" /> Timeline
             </button>
           </div>
         </div>
-
-        <div className="flex items-center gap-3">
-          <button 
-            onClick={() => setShowAddDealModal(true)}
-            className="bg-primary text-primary-foreground font-bold text-xs px-4 py-2 rounded-xl shadow-2xs hover:opacity-90 transition-all flex items-center gap-1.5"
-          >
-            <Plus className="w-4 h-4" /> Create Deal
-          </button>
-          <button 
-            onClick={() => navigate("/rules")}
-            className="p-2 text-on-surface-variant hover:bg-surface-container-high rounded transition-all"
-            title="Assignment Rules"
-          >
-            <Filter className="w-5 h-5" />
-          </button>
-        </div>
       </section>
 
-      {/* MAIN VIEW */}
-      <section className="flex-1 overflow-auto bg-surface-container-low flex p-6 gap-6 items-start">
+      {/* FILTER & ADD OPPORTUNITY BAR */}
+      <section className="px-8 py-2 flex items-center justify-between">
+        <button 
+          onClick={() => navigate("/rules")}
+          className="px-4 py-2 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 font-extrabold text-xs rounded-xl shadow-2xs transition-all flex items-center gap-2"
+        >
+          <Filter className="w-3.5 h-3.5 text-slate-500" /> Filter
+        </button>
+
+        <button 
+          onClick={() => setShowAddDealModal(true)}
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5"
+        >
+          <Plus className="w-4 h-4" /> + Add Opportunity
+        </button>
+      </section>
+
+      {/* MAIN KANBAN BOARD */}
+      <section className="flex-1 overflow-auto px-8 py-4">
         {isLoading ? (
-          <div className="w-full h-full flex justify-center items-center text-on-surface-variant animate-pulse">Loading Pipeline...</div>
+          <div className="w-full h-full flex justify-center items-center text-slate-400 font-bold animate-pulse">Loading Pipeline...</div>
         ) : viewMode === "list" ? (
-          <div className="w-full bg-surface rounded-xl shadow-sm border border-outline-variant/30 overflow-hidden">
+          <div className="w-full bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-surface-container-lowest border-b border-outline-variant/30 text-on-surface-variant text-xs uppercase tracking-wider">
-                  <th className="p-4 font-semibold">Deal Name</th>
-                  <th className="p-4 font-semibold">Stage</th>
-                  <th className="p-4 font-semibold">Value</th>
-                  <th className="p-4 font-semibold">Probability</th>
-                  <th className="p-4 font-semibold">Competitors</th>
-                  <th className="p-4 font-semibold">Milestones</th>
+                <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 text-xs uppercase tracking-wider font-extrabold">
+                  <th className="p-4">Deal Name</th>
+                  <th className="p-4">Stage</th>
+                  <th className="p-4">Value</th>
+                  <th className="p-4">Probability</th>
+                  <th className="p-4">Competitors</th>
+                  <th className="p-4">Milestones</th>
                 </tr>
               </thead>
               <tbody>
                 {allDeals.map((deal: any) => (
-                  <tr key={deal.id} className="border-b border-outline-variant/20 hover:bg-surface-container-lowest transition-colors">
-                    <td className="p-4 font-medium">{deal.name} {deal.isUrgent && <CheckCircle2 className="inline w-4 h-4 text-error ml-2" />}</td>
+                  <tr key={deal.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                    <td className="p-4 font-bold text-slate-900">{deal.name}</td>
                     <td className="p-4">
-                      <span className="px-2 py-1 bg-surface-container rounded text-xs font-semibold text-on-surface-variant">{deal.stageName}</span>
+                      <span className="px-2.5 py-1 bg-slate-100 rounded-full text-xs font-extrabold text-slate-700">{deal.stageName}</span>
                     </td>
-                    <td className="p-4 font-bold text-primary">{formatCurrency(deal.value)}</td>
-                    <td className="p-4 text-sm">{deal.probability != null ? `${deal.probability}%` : '-'}</td>
-                    <td className="p-4 text-sm text-on-surface-variant">{deal.competitors || '-'}</td>
-                    <td className="p-4 text-sm">
+                    <td className="p-4 font-black text-blue-600">{formatCurrency(deal.value)}</td>
+                    <td className="p-4 text-xs font-bold text-slate-600">{deal.probability != null ? `${deal.probability}%` : '-'}</td>
+                    <td className="p-4 text-xs text-slate-500">{deal.competitors || '-'}</td>
+                    <td className="p-4 text-xs">
                       <DealMilestonesWidget dealId={deal.id} token={token || ""} />
                     </td>
                   </tr>
@@ -277,52 +336,39 @@ export default function PipelineKanban() {
             </table>
           </div>
         ) : viewMode === "gantt" ? (
-          /* TIMELINE GANTT VIEW FOR DEALS */
-          <div className="w-full bg-card border border-border rounded-xl p-6 shadow-2xs space-y-6 overflow-x-auto">
-            <div className="flex justify-between items-center border-b border-border pb-4">
+          /* TIMELINE VIEW */
+          <div className="w-full bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-6 overflow-x-auto">
+            <div className="flex justify-between items-center border-b border-slate-200 pb-4">
               <div>
-                <h3 className="text-lg font-black text-foreground">Deals Schedule & Milestone Timeline</h3>
-                <p className="text-xs text-muted-foreground">Horizontal timeline plotted against expected close schedule.</p>
-              </div>
-              <div className="flex gap-4 text-xs font-bold text-muted-foreground">
-                <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-blue-500" /> Prospecting</span>
-                <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-purple-500" /> Active Deal</span>
-                <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-emerald-500" /> Closed Won</span>
+                <h3 className="text-base font-black text-slate-900">Deals Schedule & Milestone Timeline</h3>
               </div>
             </div>
-
-            {/* Ruler Header */}
             <div className="min-w-[800px]">
-              <div className="grid grid-cols-12 gap-2 text-[10px] font-bold uppercase text-muted-foreground pb-2 border-b border-border">
+              <div className="grid grid-cols-12 gap-2 text-[10px] font-extrabold uppercase text-slate-400 pb-2 border-b border-slate-200">
                 <div className="col-span-3">Deal & Owner</div>
                 <div className="col-span-1 text-center">Stage</div>
                 <div className="col-span-8 grid grid-cols-6 gap-1 text-center">
                   <span>Month 1</span><span>Month 2</span><span>Month 3</span><span>Month 4</span><span>Month 5</span><span>Month 6</span>
                 </div>
               </div>
-
-              {/* Deal Rows */}
-              <div className="divide-y divide-border/60">
+              <div className="divide-y divide-slate-100">
                 {allDeals.map((deal: any, idx: number) => {
                   const progressPct = Math.min(100, Math.max(15, (deal.probability || 30)));
-                  const startCol = (idx % 4) + 1;
-                  const spanCols = Math.min(6, (idx % 3) + 3);
-
                   return (
-                    <div key={deal.id} className="grid grid-cols-12 gap-2 py-3 items-center hover:bg-muted/40 transition-colors">
+                    <div key={deal.id} className="grid grid-cols-12 gap-2 py-3 items-center hover:bg-slate-50 transition-colors">
                       <div className="col-span-3">
-                        <span className="font-bold text-foreground text-xs block truncate">{deal.name}</span>
-                        <span className="text-[10px] text-emerald-600 font-bold">{formatCurrency(deal.value)}</span>
+                        <span className="font-bold text-slate-900 text-xs block truncate">{deal.name}</span>
+                        <span className="text-[10px] text-emerald-600 font-extrabold">{formatCurrency(deal.value)}</span>
                       </div>
                       <div className="col-span-1 text-center">
-                        <span className="px-2 py-0.5 bg-primary/10 text-primary text-[10px] font-bold rounded">
+                        <span className="px-2 py-0.5 bg-blue-50 text-blue-700 text-[10px] font-extrabold rounded-full">
                           {deal.stageName}
                         </span>
                       </div>
                       <div className="col-span-8 grid grid-cols-6 gap-1 relative items-center">
                         <div 
-                          className="h-6 rounded-lg bg-primary/20 border border-primary/40 flex items-center px-2 text-[10px] font-bold text-primary shadow-2xs truncate transition-all hover:bg-primary/30 cursor-pointer"
-                          style={{ gridColumnStart: startCol, gridColumnEnd: `span ${spanCols}` }}
+                          className="h-6 rounded-lg bg-blue-100 border border-blue-300 flex items-center px-2 text-[10px] font-bold text-blue-700 shadow-2xs truncate"
+                          style={{ gridColumnStart: (idx % 4) + 1, gridColumnEnd: `span ${Math.min(6, (idx % 3) + 3)}` }}
                         >
                           <span className="truncate">{deal.name} ({progressPct}%)</span>
                         </div>
@@ -332,114 +378,123 @@ export default function PipelineKanban() {
                 })}
               </div>
             </div>
-
           </div>
         ) : (
-          groups.map((group) => {
-            const stageNames = groupMappings[group];
-            const groupStages = pipelineColumns?.filter((col: any) => stageNames.includes(col.stage)) || [];
-            const totalValue = groupStages.reduce((acc: number, col: any) => acc + col.totalValue, 0);
+          /* RESTYLED KANBAN BOARD MATCHING REFERENCE EXACTLY */
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-start">
+            {(() => {
+              const activeStageNames = groupMappings[activeGroup] || [];
+              const activeStages = pipelineColumns?.filter((col: any) => activeStageNames.includes(col.stage)) || [];
 
-            return (
-              <div key={group} className="flex-1 flex flex-col gap-4 min-w-[320px]">
-                {/* Group Header */}
-                <div className="flex items-center justify-between bg-surface-container-lowest p-3 rounded-lg border border-outline-variant/60">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-on-surface text-sm uppercase tracking-wider">{group}</h3>
-                    <span className="px-2 py-0.5 rounded-full bg-surface-container text-xs font-bold text-on-surface-variant">
-                      {groupStages.reduce((acc: number, s: any) => acc + s.deals.length, 0)}
-                    </span>
-                  </div>
-                  <span className="font-bold text-primary text-sm">{formatCurrencyCompact(totalValue)}</span>
-                </div>
+              return activeStages.map((stageCol: any) => {
+                const colorScheme = stageHeaderColors[stageCol.stage] || {
+                  bg: "bg-slate-50",
+                  text: "text-slate-900",
+                  border: "border-slate-200"
+                };
 
-                {/* Sub Stages */}
-                <div className="space-y-4">
-                  {groupStages.map((stageCol: any) => {
-                    const isExpanded = expandedStages[stageCol.stage];
+                const filteredDeals = stageCol.deals.filter((d: any) => {
+                  if (!searchQuery) return true;
+                  return d.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                         (d.company && d.company.toLowerCase().includes(searchQuery.toLowerCase()));
+                });
 
-                    return (
-                      <div key={stageCol.id} className="bg-surface-container-lowest border border-outline-variant/60 rounded-xl overflow-hidden shadow-2xs">
-                        <div 
-                          onClick={() => toggleStage(stageCol.stage)}
-                          className="px-4 py-3 bg-muted/40 border-b border-border flex items-center justify-between cursor-pointer hover:bg-muted transition-colors select-none"
-                        >
-                          <div className="flex items-center gap-2">
-                            <span className="text-on-surface-variant font-bold text-xs">
-                              {isExpanded ? "▼" : "▶"}
-                            </span>
-                            <span className="text-xs font-bold text-on-surface uppercase tracking-wider">{stageCol.stage}</span>
-                            <span className="px-2 py-0.5 rounded-full bg-surface-container-high text-[10px] font-bold text-on-surface-variant">
-                              {stageCol.deals.length}
-                            </span>
-                          </div>
-                          <span className="text-xs font-bold text-primary">{formatCurrencyCompact(stageCol.totalValue)}</span>
-                        </div>
-
-                        {/* Collapsible Area */}
-                        {isExpanded && (
-                          <div 
-                            onDragOver={handleDragOver}
-                            onDrop={(e) => handleDrop(e, stageCol.id, stageCol.stage)}
-                            className="p-3 space-y-3 min-h-[80px]"
-                          >
-                            {stageCol.deals.length === 0 ? (
-                              <p className="text-[11px] text-center text-on-surface-variant/65 py-4 italic">Drag deals here to assign to {stageCol.stage}</p>
-                            ) : (
-                              stageCol.deals.map((deal: any) => (
-                                <div 
-                                  key={deal.id} 
-                                  draggable
-                                  onDragStart={(e) => handleDragStart(e, deal.id)}
-                                  className={`bg-surface-container-lowest p-3 rounded-lg border ${deal.isUrgent ? 'border-error/50' : 'border-outline-variant'} hover:shadow-md transition-all cursor-grab active:cursor-grabbing space-y-2`} 
-                                  style={deal.isUrgent ? { borderLeft: "4px solid #ba1a1a" } : {}}
-                                >
-                                  <div className="flex justify-between items-start mb-1 gap-2">
-                                    <span className="text-sm font-bold text-on-surface leading-tight">{deal.name}</span>
-                                    <select
-                                      value={stageCol.id}
-                                      onChange={(e) => {
-                                        const stageId = e.target.value;
-                                        const stageName = e.target.options[e.target.selectedIndex].text;
-                                        if (stageName === "Lost" || stageName === "On Hold") {
-                                          setTransitionModal({ dealId: deal.id, toStageId: stageId, toStageName: stageName });
-                                          setReason("");
-                                          setRecontactDate("");
-                                        } else {
-                                          updateStageMutation.mutate({ dealId: deal.id, toStageId: stageId });
-                                        }
-                                      }}
-                                      onClick={(e) => e.stopPropagation()}
-                                      className="text-[10px] bg-surface border border-outline-variant rounded px-1.5 py-0.5 outline-none focus:border-primary text-on-surface-variant max-w-[90px] truncate cursor-pointer hover:bg-surface-container-high transition-colors"
-                                    >
-                                      {pipelineColumns?.map((sc: any) => (
-                                        <option key={sc.id} value={sc.id}>{sc.stage}</option>
-                                      ))}
-                                    </select>
-                                  </div>
-
-                                  <div className="flex items-end justify-between">
-                                    <div>
-                                      <p className="text-sm text-primary font-bold">{formatCurrency(deal.value)}</p>
-                                      <p className={`text-[11px] ${deal.isUrgent ? 'text-error font-medium' : 'text-on-surface-variant'}`}>{deal.lastActivity}</p>
-                                    </div>
-                                  </div>
-
-                                  {/* Milestone Checklist Component */}
-                                  <DealMilestonesWidget dealId={deal.id} token={token || ""} />
-
-                                </div>
-                              ))
-                            )}
-                          </div>
-                        )}
+                return (
+                  <div 
+                    key={stageCol.id}
+                    onDragOver={handleDragOver}
+                    onDrop={(e) => handleDrop(e, stageCol.id, stageCol.stage)}
+                    className="flex flex-col gap-3 min-w-[270px]"
+                  >
+                    {/* Tinted Stage Header Card */}
+                    <div className={`p-4 rounded-2xl border ${colorScheme.bg} ${colorScheme.border} shadow-2xs flex items-center justify-between`}>
+                      <div>
+                        <h3 className={`text-sm font-black ${colorScheme.text}`}>
+                          {stageCol.stage}
+                        </h3>
+                        <p className="text-[11px] font-semibold text-slate-500 mt-0.5">
+                          {filteredDeals.length} opps
+                        </p>
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })
+                      <div className="text-base font-black text-slate-900 tracking-tight font-mono">
+                        {formatCurrencyCompact(stageCol.totalValue)}
+                      </div>
+                    </div>
+
+                    {/* Stage Deal Cards Stack */}
+                    <div className="space-y-3 min-h-[160px] pb-6">
+                      {filteredDeals.length === 0 ? (
+                        <div className="p-6 border-2 border-dashed border-slate-200 rounded-2xl text-center text-xs text-slate-400 italic bg-white/50">
+                          Drag deals here to assign to {stageCol.stage}
+                        </div>
+                      ) : (
+                        filteredDeals.map((deal: any) => {
+                          const repName = deal.owner?.name || deal.ownerName || "Unassigned Rep";
+                          const initials = repName
+                            .split(" ")
+                            .filter(Boolean)
+                            .map((n: string) => n[0])
+                            .join("")
+                            .slice(0, 2)
+                            .toUpperCase() || "U";
+
+                          return (
+                            <div 
+                              key={deal.id} 
+                              draggable
+                              onDragStart={(e) => handleDragStart(e, deal.id)}
+                              className="bg-white border border-slate-200/90 hover:border-blue-400 p-4 rounded-2xl shadow-2xs hover:shadow-md transition-all cursor-grab active:cursor-grabbing space-y-3 group relative"
+                            >
+                              {/* Deal Title */}
+                              <div>
+                                <h4 className="text-xs font-black text-slate-900 leading-snug line-clamp-2">
+                                  {deal.name}
+                                </h4>
+                                <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-400 mt-1">
+                                  <span>🏢</span>
+                                  <span className="truncate">{deal.company || deal.name}</span>
+                                </div>
+                              </div>
+
+                              {/* Value & Probability Pill */}
+                              <div className="flex items-center justify-between pt-1">
+                                <span className="text-base font-black text-slate-900 tracking-tight">
+                                  {formatCurrency(deal.value)}
+                                </span>
+                                {deal.probability != null && (
+                                  <span className="px-2 py-0.5 bg-slate-100 text-slate-700 text-[10px] font-extrabold rounded-full border border-slate-200">
+                                    {deal.probability}%
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Close Date & Rep Avatar */}
+                              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                                <div className="flex items-center gap-1 text-[11px] font-bold text-slate-400">
+                                  <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                                  <span>{deal.lastActivity || "Mar 30"}</span>
+                                </div>
+
+                                <div 
+                                  className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 border border-blue-200 font-black text-[9px] flex items-center justify-center shadow-2xs"
+                                  title={`Assigned Rep: ${repName}`}
+                                >
+                                  {initials}
+                                </div>
+                              </div>
+
+                              {/* Milestone Checklist Component */}
+                              <DealMilestonesWidget dealId={deal.id} token={token || ""} />
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                );
+              });
+            })()}
+          </div>
         )}
       </section>
 
