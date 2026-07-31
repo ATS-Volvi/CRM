@@ -1193,4 +1193,4 @@ EmailMessage.belongsTo(Lead, { foreignKey: "leadId", as: "lead" });
 EmailMessage.belongsTo(Customer, { foreignKey: "customerId", as: "customer" });
 EmailMessage.belongsTo(User, { foreignKey: "senderId", as: "sender" });
 
-
+export { sequelize };
