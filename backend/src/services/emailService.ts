@@ -70,7 +70,7 @@ export const getBaseHtmlTemplate = (bodyContent: string, leadId?: string): strin
 export const sendEmail = async (to: string, subject: string, htmlContent: string) => {
   try {
     const info = await transporter.sendMail({
-      from: process.env.SMTP_FROM || '"Nexus CRM" <no-reply@nexus-crm.com>',
+      from: cleanEnv("SMTP_FROM", '"Nexus CRM" <no-reply@nexus-crm.com>'),
       to,
       subject,
       html: htmlContent,
@@ -79,7 +79,7 @@ export const sendEmail = async (to: string, subject: string, htmlContent: string
     return info;
   } catch (error: any) {
     console.warn("SMTP send skipped or timed out:", error.message || error);
-    return null;
+    throw error; // Bubble up the error so it can be logged in the UI/Activity!
   }
 };
 
