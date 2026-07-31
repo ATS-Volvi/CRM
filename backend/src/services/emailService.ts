@@ -4,11 +4,14 @@ import { sequelize } from "@nexus-crm/database";
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || "smtp.ethereal.email",
   port: Number(process.env.SMTP_PORT) || 587,
-  secure: process.env.SMTP_SECURE === 'true', // true for 465, false for other ports
+  secure: process.env.SMTP_SECURE === 'true',
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
+  connectionTimeout: 4000,
+  greetingTimeout: 4000,
+  socketTimeout: 4000
 });
 
 export const renderTemplate = (templateString: string, dataObj: Record<string, string>): string => {
@@ -69,9 +72,9 @@ export const sendEmail = async (to: string, subject: string, htmlContent: string
     });
     console.log("Message sent: %s", info.messageId);
     return info;
-  } catch (error) {
-    console.error("Error sending email:", error);
-    throw error;
+  } catch (error: any) {
+    console.warn("SMTP send skipped or timed out:", error.message || error);
+    return null;
   }
 };
 
