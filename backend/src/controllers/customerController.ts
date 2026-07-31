@@ -129,13 +129,13 @@ export const getCustomerById = async (req: Request, res: Response) => {
       (sum: number, inv: any) => sum + (parseFloat(inv.totalAmount) || parseFloat(inv.amount) || 0), 0
     );
     customerJson.pipelineValue = customerJson.deals
-      .filter((d: any) => !["Won", "Lost"].includes(d.stage?.name))
+      .filter((d: any) => !["Closed Won", "Closed Lost"].includes(d.stage?.name))
       .reduce((sum: number, d: any) => sum + (parseFloat(d.amount) || 0), 0);
     customerJson.openDealsCount = customerJson.deals.filter(
-      (d: any) => !["Won", "Lost"].includes(d.stage?.name)
+      (d: any) => !["Closed Won", "Closed Lost"].includes(d.stage?.name)
     ).length;
     customerJson.wonDealsCount = customerJson.deals.filter(
-      (d: any) => d.stage?.name === "Won"
+      (d: any) => d.stage?.name === "Closed Won"
     ).length;
 
     res.json(customerJson);

@@ -122,7 +122,7 @@ PipelineStage.init(
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
     name: { 
       type: DataTypes.ENUM, 
-      values: ["New", "Contacted", "Qualified", "Meeting/Demo", "Proposal", "Negotiation", "Won", "Lost", "On Hold"],
+      values: ["Qualification", "Needs Analysis", "Proposal", "Negotiation", "Closed Won", "Closed Lost"],
       allowNull: false 
     },
     order: { type: DataTypes.INTEGER, allowNull: false },

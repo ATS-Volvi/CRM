@@ -144,7 +144,7 @@ export const createPurchaseOrder = async (req: Request, res: Response) => {
     const deal = (quote as any).deal;
     if (deal) {
       const wonStage = await sequelize.models.PipelineStage.findOne({
-        where: { name: "Won" }
+        where: { name: "Closed Won" }
       });
       if (wonStage) {
         await deal.update({ stageId: (wonStage as any).id });

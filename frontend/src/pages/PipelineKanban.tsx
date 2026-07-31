@@ -138,17 +138,14 @@ export default function PipelineKanban() {
     ?.filter((col: any) => isClosedGroup(col.group))
     .reduce((sum: number, col: any) => sum + (col.deals?.length || 0), 0) || 0;
 
-  // Stage color scheme — well-known names get specific colors; all others fall back gracefully
+  // Stage color scheme — keyed by new stage names
   const stageHeaderColors: { [key: string]: { bg: string; text: string; border: string } } = {
-    "New": { bg: "bg-blue-50/80", text: "text-blue-900", border: "border-blue-200" },
-    "Contacted": { bg: "bg-indigo-50/80", text: "text-indigo-900", border: "border-indigo-200" },
-    "Qualified": { bg: "bg-blue-50/90", text: "text-blue-950", border: "border-blue-200" },
-    "Meeting/Demo": { bg: "bg-purple-50/90", text: "text-purple-950", border: "border-purple-200" },
+    "Qualification": { bg: "bg-blue-50/80", text: "text-blue-900", border: "border-blue-200" },
+    "Needs Analysis": { bg: "bg-indigo-50/80", text: "text-indigo-900", border: "border-indigo-200" },
     "Proposal": { bg: "bg-amber-50/90", text: "text-amber-950", border: "border-amber-200" },
     "Negotiation": { bg: "bg-orange-50/90", text: "text-orange-950", border: "border-orange-200" },
-    "Won": { bg: "bg-emerald-50/90", text: "text-emerald-950", border: "border-emerald-200" },
-    "Lost": { bg: "bg-rose-50/90", text: "text-rose-950", border: "border-rose-200" },
-    "On Hold": { bg: "bg-slate-100/90", text: "text-slate-900", border: "border-slate-300" }
+    "Closed Won": { bg: "bg-emerald-50/90", text: "text-emerald-950", border: "border-emerald-200" },
+    "Closed Lost": { bg: "bg-rose-50/90", text: "text-rose-950", border: "border-rose-200" },
   };
   const getStageColor = (stageName: string, group: string) =>
     stageHeaderColors[stageName] || (
@@ -201,7 +198,7 @@ export default function PipelineKanban() {
     const dealId = e.dataTransfer.getData("dealId");
     if (!dealId) return;
 
-    if (stageName === "Lost" || stageName === "On Hold") {
+    if (stageName === "Closed Lost") {
       setTransitionModal({ dealId, toStageId: stageId, toStageName: stageName });
       setReason("");
       setRecontactDate("");

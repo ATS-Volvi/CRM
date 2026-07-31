@@ -18,15 +18,12 @@ export const getPipeline = async (req: Request, res: Response) => {
     });
 
     const stageToGroupMap: { [key: string]: string } = {
-      "New": "Prospecting",
-      "Contacted": "Prospecting",
-      "Qualified": "Prospecting",
-      "Meeting/Demo": "Active Deal",
+      "Qualification": "Active Deal",
+      "Needs Analysis": "Active Deal",
       "Proposal": "Active Deal",
       "Negotiation": "Active Deal",
-      "Won": "Closed",
-      "Lost": "Closed",
-      "On Hold": "Closed"
+      "Closed Won": "Closed",
+      "Closed Lost": "Closed"
     };
 
     const pipeline = stages.map(stage => {
@@ -77,11 +74,8 @@ export const moveDealStage = async (req: Request, res: Response) => {
     const fromStageObj: any = await PipelineStage.findByPk(fromStageId);
     const toStageObj: any = await PipelineStage.findByPk(toStageId);
 
-    if (toStageObj.name === "Lost" && !reason) {
+    if (toStageObj.name === "Closed Lost" && !reason) {
       return res.status(400).json({ error: "Loss reason is required." });
-    }
-    if (toStageObj.name === "On Hold" && (!reason || !recontactDate)) {
-      return res.status(400).json({ error: "Reason and re-contact date are required for On Hold." });
     }
 
     // Write history
@@ -113,7 +107,7 @@ export const moveDealStage = async (req: Request, res: Response) => {
     // Trigger Configured Stage Change Automation Rules
     await triggerStageChangeAutomations(deal, toStageObj ? toStageObj.name : 'Unknown', userId);
 
-    if (toStageObj.name === "Won") {
+    if (toStageObj.name === "Closed Won") {
       await createNotification(
         deal.ownerId,
         'success',

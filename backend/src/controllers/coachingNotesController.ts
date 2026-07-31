@@ -97,7 +97,7 @@ export const getStaleDeal = async (req: Request, res: Response) => {
 
     // Get active deals
     const stages = await sequelize.models.PipelineStage.findAll({
-      where: { name: { [Op.notIn]: ["Won", "Lost"] } },
+      where: { name: { [Op.notIn]: ["Closed Won", "Closed Lost"] } },
     });
     const stageIds = stages.map((s: any) => s.id);
 
@@ -183,7 +183,7 @@ export const getTopAccounts = async (req: Request, res: Response) => {
 
     const wonDeals = await sequelize.models.Deal.findAll({
       include: [
-        { model: sequelize.models.PipelineStage, as: "stage", where: { name: "Won" } },
+        { model: sequelize.models.PipelineStage, as: "stage", where: { name: "Closed Won" } },
         { model: sequelize.models.Customer, as: "customer", attributes: ["id", "name", "industry"] },
       ],
       where: { updatedAt: { [Op.gte]: quarterStart } },
@@ -256,7 +256,7 @@ export const getWinCelebrations = async (req: Request, res: Response) => {
     since.setDate(since.getDate() - 14); // last 2 weeks
 
     const wonStages = await sequelize.models.PipelineStage.findAll({
-      where: { name: "Won" },
+      where: { name: "Closed Won" },
     });
     const wonStageIds = wonStages.map((s: any) => s.id);
 

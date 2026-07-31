@@ -19,7 +19,7 @@ export async function calculateUserKpis(userId: string): Promise<any> {
     const leadsAssigned = leads.length;
 
     // 1. Quota Attainment (Won deal values vs Target)
-    const wonDeals = deals.filter((d: any) => d.stage?.name === "Won");
+    const wonDeals = deals.filter((d: any) => d.stage?.name === "Closed Won");
     const actualRevenue = wonDeals.reduce((sum: number, d: any) => sum + Number(d.amount), 0);
 
     const targetRecord = await sequelize.models.KpiTarget.findOne({
@@ -34,7 +34,7 @@ export async function calculateUserKpis(userId: string): Promise<any> {
     };
 
     // 2. Win/Close Rate
-    const totalClosed = deals.filter((d: any) => d.stage?.name === "Won" || d.stage?.name === "Lost").length;
+    const totalClosed = deals.filter((d: any) => d.stage?.name === "Closed Won" || d.stage?.name === "Closed Lost").length;
     const closeRate = totalClosed > 0 ? (wonDeals.length / totalClosed) * 100 : 0;
 
     // 3. Contact Rate & First Response Time
@@ -114,10 +114,10 @@ export async function calculateTeamKpis(scopedUserIds?: string[]): Promise<any> 
       include: [{ model: sequelize.models.PipelineStage, as: "stage" }]
     });
 
-    const wonDeals = deals.filter((d: any) => d.stage?.name === "Won");
+    const wonDeals = deals.filter((d: any) => d.stage?.name === "Closed Won");
     const totalWonAmount = wonDeals.reduce((sum: number, d: any) => sum + Number(d.amount), 0);
 
-    const totalClosed = deals.filter((d: any) => d.stage?.name === "Won" || d.stage?.name === "Lost").length;
+    const totalClosed = deals.filter((d: any) => d.stage?.name === "Closed Won" || d.stage?.name === "Closed Lost").length;
     const teamCloseRate = totalClosed > 0 ? (wonDeals.length / totalClosed) * 100 : 0;
 
     // Lead averages for team

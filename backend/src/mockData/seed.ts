@@ -76,8 +76,8 @@ async function seedEnterpriseDatabase() {
     }
 
     // Pipeline Stages
-    const stageNames = ["New", "Contacted", "Qualified", "Meeting/Demo", "Proposal", "Negotiation", "Won", "Lost"];
-    const stageProbabilities = [10, 20, 40, 60, 75, 90, 100, 0];
+    const stageNames = ["Qualification", "Needs Analysis", "Proposal", "Negotiation", "Closed Won", "Closed Lost"];
+    const stageProbabilities = [20, 40, 60, 80, 100, 0];
     const seededStages: any[] = [];
     for (let i = 0; i < stageNames.length; i++) {
       seededStages.push(await models.PipelineStage.create({
@@ -387,7 +387,7 @@ async function seedEnterpriseDatabase() {
       const rep = pick(repsOnly);
       const amount = randomInt(40, 450) * 1000;
       const created = daysAgo(randomInt(10, 300));
-      const expectedClose = stage.name === "Won" ? daysAgo(randomInt(5, 180)) : daysFromNow(randomInt(10, 90));
+      const expectedClose = stage.name === "Closed Won" ? daysAgo(randomInt(5, 180)) : daysFromNow(randomInt(10, 90));
 
       const dealRecord = await models.Deal.create({
         id: crypto.randomUUID(),

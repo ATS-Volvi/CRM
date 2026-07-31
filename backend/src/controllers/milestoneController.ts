@@ -8,7 +8,7 @@ const DEFAULT_MILESTONES_BY_STAGE: Record<string, string[]> = {
   "Meeting/Demo": ["Demo Scheduled", "Custom Demo Completed", "Product Feedback Logged"],
   "Proposal": ["Scope of Work Drafted", "Pricing Approved", "Proposal Delivered to Client"],
   "Negotiation": ["Contract Terms Reviewed", "Legal Approval", "Final Verbal Agreement"],
-  "Won": ["Purchase Order Received", "Invoice Generated", "Onboarding Kickoff Scheduled"]
+  "Closed Won": ["Purchase Order Received", "Invoice Generated", "Onboarding Kickoff Scheduled"]
 };
 
 export const getDealMilestones = async (req: Request, res: Response) => {
