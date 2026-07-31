@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Search, Plus, Filter, MoreVertical, View, List, CheckCircle2, XCircle, X, Clock, Calendar, CheckSquare, ChevronRight, Building2 } from "lucide-react";
 import { formatCurrency, formatCurrencyCompact } from "../utils/currency";
 import { useSearchParams, useNavigate } from "react-router-dom";
+import { LeadBoard } from "../components/LeadBoard";
 
 function DealMilestonesWidget({ dealId, token }: { dealId: string; token: string }) {
   const queryClient = useQueryClient();
@@ -102,26 +103,39 @@ export default function PipelineKanban() {
     }
   });
 
-  const queryClient = useQueryClient();
+  const { data: leads = [] } = useQuery<any[]>({
+    queryKey: ["leads"],
+    queryFn: async () => {
+      const res = await fetch("/api/v1/leads", {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!token
+  });
+
   const [transitionModal, setTransitionModal] = useState<{ dealId: string, toStageId: string, toStageName: string } | null>(null);
   const [showAddDealModal, setShowAddDealModal] = useState(false);
   const [activeDealDetail, setActiveDealDetail] = useState<any | null>(null);
   const [reason, setReason] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeGroup, setActiveGroup] = useState<string>("Active Deal"); // Default to Opportunities/Active Deal phase
+  const [activeTab, setActiveTab] = useState<"leads" | "opportunities" | "deals">("opportunities");
 
-  const groups = ["Prospecting", "Active Deal", "Closed"];
-  const groupLabelMap: { [key: string]: string } = {
-    "Prospecting": "Leads",
-    "Active Deal": "Opportunities",
-    "Closed": "Deals"
-  };
+  // Tab mapping & Stage Filtering:
+  // Opportunities: OPEN stages (Prospecting + Active Deal groups = New, Contacted, Qualified, Meeting/Demo, Proposal, Negotiation)
+  // Deals: CLOSED stages (Closed group = Won, Lost, On Hold)
+  const openStages = ["New", "Contacted", "Qualified", "Meeting/Demo", "Proposal", "Negotiation"];
+  const closedStages = ["Won", "Lost", "On Hold"];
 
-  const groupMappings: { [key: string]: string[] } = {
-    "Prospecting": ["New", "Contacted", "Qualified"],
-    "Active Deal": ["Meeting/Demo", "Proposal", "Negotiation"],
-    "Closed": ["Won", "Lost", "On Hold"]
-  };
+  // Real Counts computation
+  const leadsCount = leads?.length || 0;
+  const oppsCount = pipelineColumns
+    ?.filter((col: any) => openStages.includes(col.stage))
+    .reduce((sum: number, col: any) => sum + (col.deals?.length || 0), 0) || 0;
+  const dealsCount = pipelineColumns
+    ?.filter((col: any) => closedStages.includes(col.stage))
+    .reduce((sum: number, col: any) => sum + (col.deals?.length || 0), 0) || 0;
 
   // Stage color scheme matching reference image
   const stageHeaderColors: { [key: string]: { bg: string; text: string; border: string } } = {
@@ -238,52 +252,71 @@ export default function PipelineKanban() {
       {/* SEGMENTED TOP TABS (Leads / Opportunities / Deals) */}
       <section className="px-8 pt-5 pb-3 flex items-center justify-between">
         <div className="bg-slate-200/60 p-1.5 rounded-2xl flex items-center gap-1 border border-slate-200">
-          {groups.map((grp) => {
-            const isActive = activeGroup === grp;
-            const count = groupCounts[grp] || 0;
-            const label = groupLabelMap[grp] || grp;
-            return (
-              <button
-                key={grp}
-                onClick={() => setActiveGroup(grp)}
-                className={`px-8 py-2.5 rounded-xl text-xs font-extrabold transition-all flex items-center gap-2 ${
-                  isActive
-                    ? "bg-blue-600 text-white shadow-md"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                <span>{label} ({count})</span>
-              </button>
-            );
-          })}
+          {/* 1. LEADS TAB */}
+          <button
+            onClick={() => setActiveTab("leads")}
+            className={`px-8 py-2.5 rounded-xl text-xs font-extrabold transition-all flex items-center gap-2 ${
+              activeTab === "leads"
+                ? "bg-amber-500 text-white shadow-md"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <span>Leads ({leadsCount})</span>
+          </button>
+
+          {/* 2. OPPORTUNITIES TAB */}
+          <button
+            onClick={() => setActiveTab("opportunities")}
+            className={`px-8 py-2.5 rounded-xl text-xs font-extrabold transition-all flex items-center gap-2 ${
+              activeTab === "opportunities"
+                ? "bg-blue-600 text-white shadow-md"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <span>Opportunities ({oppsCount})</span>
+          </button>
+
+          {/* 3. DEALS TAB */}
+          <button
+            onClick={() => setActiveTab("deals")}
+            className={`px-8 py-2.5 rounded-xl text-xs font-extrabold transition-all flex items-center gap-2 ${
+              activeTab === "deals"
+                ? "bg-blue-600 text-white shadow-md"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <span>Deals ({dealsCount})</span>
+          </button>
         </div>
 
-        {/* View Mode Toggle (Kanban / List / Gantt) */}
-        <div className="flex items-center gap-2">
-          <div className="flex items-center bg-slate-200/60 p-1 rounded-xl border border-slate-200">
-            <button 
-              onClick={() => setViewMode("kanban")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-extrabold flex items-center gap-1.5 transition-all ${viewMode === "kanban" ? "bg-white text-blue-600 shadow-2xs" : "text-slate-600 hover:text-slate-900"}`}
-            >
-              <View className="w-3.5 h-3.5" /> Board
-            </button>
-            <button 
-              onClick={() => setViewMode("list")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-extrabold flex items-center gap-1.5 transition-all ${viewMode === "list" ? "bg-white text-blue-600 shadow-2xs" : "text-slate-600 hover:text-slate-900"}`}
-            >
-              <List className="w-3.5 h-3.5" /> List
-            </button>
-            <button 
-              onClick={() => setViewMode("gantt")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-extrabold flex items-center gap-1.5 transition-all ${viewMode === "gantt" ? "bg-white text-blue-600 shadow-2xs" : "text-slate-600 hover:text-slate-900"}`}
-            >
-              <Clock className="w-3.5 h-3.5" /> Timeline
-            </button>
+        {/* View Mode Toggle (Board / List / Timeline for Opportunities & Deals) */}
+        {activeTab !== "leads" && (
+          <div className="flex items-center gap-2">
+            <div className="flex items-center bg-slate-200/60 p-1 rounded-xl border border-slate-200">
+              <button 
+                onClick={() => setViewMode("kanban")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-extrabold flex items-center gap-1.5 transition-all ${viewMode === "kanban" ? "bg-white text-blue-600 shadow-2xs" : "text-slate-600 hover:text-slate-900"}`}
+              >
+                <View className="w-3.5 h-3.5" /> Board
+              </button>
+              <button 
+                onClick={() => setViewMode("list")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-extrabold flex items-center gap-1.5 transition-all ${viewMode === "list" ? "bg-white text-blue-600 shadow-2xs" : "text-slate-600 hover:text-slate-900"}`}
+              >
+                <List className="w-3.5 h-3.5" /> List
+              </button>
+              <button 
+                onClick={() => setViewMode("gantt")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-extrabold flex items-center gap-1.5 transition-all ${viewMode === "gantt" ? "bg-white text-blue-600 shadow-2xs" : "text-slate-600 hover:text-slate-900"}`}
+              >
+                <Clock className="w-3.5 h-3.5" /> Timeline
+              </button>
+            </div>
           </div>
-        </div>
+        )}
       </section>
 
-      {/* FILTER & ADD OPPORTUNITY BAR */}
+      {/* SHARED TOOLBAR: Filter button + Context-appropriate primary action button */}
       <section className="px-8 py-2 flex items-center justify-between">
         <button 
           onClick={() => navigate("/rules")}
@@ -292,17 +325,36 @@ export default function PipelineKanban() {
           <Filter className="w-3.5 h-3.5 text-slate-500" /> Filter
         </button>
 
-        <button 
-          onClick={() => setShowAddDealModal(true)}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5"
-        >
-          <Plus className="w-4 h-4" /> + Add Opportunity
-        </button>
+        {activeTab === "leads" ? (
+          <button 
+            onClick={() => navigate("/leads/new")}
+            className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5"
+          >
+            <Plus className="w-4 h-4" /> + Add Lead
+          </button>
+        ) : activeTab === "opportunities" ? (
+          <button 
+            onClick={() => setShowAddDealModal(true)}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5"
+          >
+            <Plus className="w-4 h-4" /> + Add Opportunity
+          </button>
+        ) : (
+          <button 
+            onClick={() => setShowAddDealModal(true)}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5"
+          >
+            <Plus className="w-4 h-4" /> + Record Deal
+          </button>
+        )}
       </section>
 
-      {/* MAIN KANBAN BOARD */}
+      {/* MAIN CONTENT AREA */}
       <section className="flex-1 overflow-auto px-8 py-4">
-        {isLoading ? (
+        {activeTab === "leads" ? (
+          /* LEADS TAB: REUSE SHARED LEAD BOARD VIEW */
+          <LeadBoard searchQuery={searchQuery} />
+        ) : isLoading ? (
           <div className="w-full h-full flex justify-center items-center text-slate-400 font-bold animate-pulse">Loading Pipeline...</div>
         ) : viewMode === "list" ? (
           <div className="w-full bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden">
@@ -380,10 +432,10 @@ export default function PipelineKanban() {
             </div>
           </div>
         ) : (
-          /* RESTYLED KANBAN BOARD MATCHING REFERENCE EXACTLY */
+          /* RESTYLED KANBAN BOARD FOR OPPS & DEALS TABS */
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-start">
             {(() => {
-              const activeStageNames = groupMappings[activeGroup] || [];
+              const activeStageNames = activeTab === "opportunities" ? openStages : closedStages;
               const activeStages = pipelineColumns?.filter((col: any) => activeStageNames.includes(col.stage)) || [];
 
               return activeStages.map((stageCol: any) => {
