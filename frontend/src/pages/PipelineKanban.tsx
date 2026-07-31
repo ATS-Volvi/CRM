@@ -119,6 +119,7 @@ export default function PipelineKanban() {
   const [showAddDealModal, setShowAddDealModal] = useState(false);
   const [activeDealDetail, setActiveDealDetail] = useState<any | null>(null);
   const [reason, setReason] = useState("");
+  const [recontactDate, setRecontactDate] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState<"leads" | "opportunities" | "deals">("opportunities");
 
