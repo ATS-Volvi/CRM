@@ -14,9 +14,9 @@ const transporter = nodemailer.createTransport({
     user: cleanEnv("SMTP_USER", ""),
     pass: cleanEnv("SMTP_PASS", ""),
   },
-  connectionTimeout: 4000,
-  greetingTimeout: 4000,
-  socketTimeout: 4000
+  connectionTimeout: 15000,
+  greetingTimeout: 15000,
+  socketTimeout: 15000
 });
 
 export const renderTemplate = (templateString: string, dataObj: Record<string, string>): string => {
