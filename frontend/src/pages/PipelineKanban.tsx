@@ -123,22 +123,22 @@ export default function PipelineKanban() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState<"leads" | "opportunities" | "deals">("opportunities");
 
-  // Tab mapping & Stage Filtering:
-  // Opportunities: OPEN stages (Prospecting + Active Deal groups = New, Contacted, Qualified, Meeting/Demo, Proposal, Negotiation)
-  // Deals: CLOSED stages (Closed group = Won, Lost, On Hold)
-  const openStages = ["New", "Contacted", "Qualified", "Meeting/Demo", "Proposal", "Negotiation"];
-  const closedStages = ["Won", "Lost", "On Hold"];
+  // Tab mapping via group field returned by the pipeline API:
+  // Opportunities: any stage whose group is NOT "Closed"
+  // Deals: any stage whose group is "Closed"
+  const isOpenGroup = (group: string) => group !== "Closed";
+  const isClosedGroup = (group: string) => group === "Closed";
 
   // Real Counts computation
   const leadsCount = leads?.length || 0;
   const oppsCount = pipelineColumns
-    ?.filter((col: any) => openStages.includes(col.stage))
+    ?.filter((col: any) => isOpenGroup(col.group))
     .reduce((sum: number, col: any) => sum + (col.deals?.length || 0), 0) || 0;
   const dealsCount = pipelineColumns
-    ?.filter((col: any) => closedStages.includes(col.stage))
+    ?.filter((col: any) => isClosedGroup(col.group))
     .reduce((sum: number, col: any) => sum + (col.deals?.length || 0), 0) || 0;
 
-  // Stage color scheme matching reference image
+  // Stage color scheme — well-known names get specific colors; all others fall back gracefully
   const stageHeaderColors: { [key: string]: { bg: string; text: string; border: string } } = {
     "New": { bg: "bg-blue-50/80", text: "text-blue-900", border: "border-blue-200" },
     "Contacted": { bg: "bg-indigo-50/80", text: "text-indigo-900", border: "border-indigo-200" },
@@ -150,6 +150,12 @@ export default function PipelineKanban() {
     "Lost": { bg: "bg-rose-50/90", text: "text-rose-950", border: "border-rose-200" },
     "On Hold": { bg: "bg-slate-100/90", text: "text-slate-900", border: "border-slate-300" }
   };
+  const getStageColor = (stageName: string, group: string) =>
+    stageHeaderColors[stageName] || (
+      group === "Closed"
+        ? { bg: "bg-slate-100/90", text: "text-slate-900", border: "border-slate-300" }
+        : { bg: "bg-blue-50/80", text: "text-blue-900", border: "border-blue-200" }
+    );
 
   const createDealMutation = useMutation({
     mutationFn: async (deal: any) => {
@@ -460,15 +466,12 @@ export default function PipelineKanban() {
             ) : (
               /* OPPORTUNITIES & DEALS KANBAN COLUMNS */
               (() => {
-                const activeStageNames = activeTab === "opportunities" ? openStages : closedStages;
-                const activeStages = pipelineColumns?.filter((col: any) => activeStageNames.includes(col.stage)) || [];
+                const activeStages = pipelineColumns?.filter((col: any) =>
+                  activeTab === "opportunities" ? isOpenGroup(col.group) : isClosedGroup(col.group)
+                ) || [];
 
                 return activeStages.map((stageCol: any) => {
-                  const colorScheme = stageHeaderColors[stageCol.stage] || {
-                    bg: "bg-slate-50",
-                    text: "text-slate-900",
-                    border: "border-slate-200"
-                  };
+                  const colorScheme = getStageColor(stageCol.stage, stageCol.group);
 
                   const filteredDeals = stageCol.deals.filter((d: any) => {
                     if (!searchQuery) return true;
