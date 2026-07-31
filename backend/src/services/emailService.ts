@@ -1,13 +1,18 @@
 import nodemailer from "nodemailer";
 import { sequelize } from "@nexus-crm/database";
 
+const cleanEnv = (key: string, defaultVal: string) => {
+  const val = process.env[key] || defaultVal;
+  return val.replace(/^["']|["']$/g, "").trim();
+};
+
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || "smtp.ethereal.email",
-  port: Number(process.env.SMTP_PORT) || 587,
+  host: cleanEnv("SMTP_HOST", "smtp.ethereal.email"),
+  port: Number(cleanEnv("SMTP_PORT", "587")),
   secure: process.env.SMTP_SECURE === 'true',
   auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
+    user: cleanEnv("SMTP_USER", ""),
+    pass: cleanEnv("SMTP_PASS", ""),
   },
   connectionTimeout: 4000,
   greetingTimeout: 4000,
