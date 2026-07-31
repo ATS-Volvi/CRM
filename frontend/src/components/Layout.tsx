@@ -276,30 +276,44 @@ export function Layout() {
             </div>
           )}
 
-          {/* Consolidated Workspace Settings & Administration */}
+          {/* Master Data & Pricing Submenu Group */}
           {isManagerOrAdmin && (
-            <div className="space-y-1 pt-2 border-t border-sidebar-border/60">
-              {!isCollapsed && <p className="px-3 text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Master Data & Pricing</p>}
-              {isCollapsed && <div className="border-t border-sidebar-border my-2" />}
-              {masterItems.map(item => {
-                const Icon = item.icon;
-                const isActive = location.pathname === item.path;
-                return (
-                  <Link
-                    key={item.name}
-                    to={item.path}
-                    className={`flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-bold transition-all ${
-                      isActive
-                        ? "bg-primary text-primary-foreground shadow-sm"
-                        : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                    }`}
-                    title={isCollapsed ? item.name : undefined}
-                  >
-                    <Icon className="w-4 h-4 shrink-0" />
-                    {!isCollapsed && <span className="animate-fade-in truncate">{item.name}</span>}
-                  </Link>
-                );
-              })}
+            <div className="space-y-1">
+              {!isCollapsed ? (
+                <button
+                  onClick={toggleMaster}
+                  className="w-full flex items-center justify-between px-3 py-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider hover:text-primary transition-all"
+                >
+                  <span>Master Data & Pricing</span>
+                  <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${isMasterOpen ? "rotate-0" : "-rotate-90"}`} />
+                </button>
+              ) : (
+                <div className="border-t border-sidebar-border my-2" />
+              )}
+
+              {(isMasterOpen || isCollapsed) && (
+                <div className={`${!isCollapsed ? "pl-2 border-l border-sidebar-border/60 ml-3 space-y-1" : "space-y-1"}`}>
+                  {masterItems.map(item => {
+                    const Icon = item.icon;
+                    const isActive = location.pathname === item.path;
+                    return (
+                      <Link
+                        key={item.name}
+                        to={item.path}
+                        className={`flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-bold transition-all ${
+                          isActive
+                            ? "bg-primary text-primary-foreground shadow-sm"
+                            : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                        }`}
+                        title={isCollapsed ? item.name : undefined}
+                      >
+                        <Icon className="w-4 h-4 shrink-0" />
+                        {!isCollapsed && <span className="animate-fade-in truncate">{item.name}</span>}
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 
