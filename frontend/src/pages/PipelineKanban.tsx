@@ -608,7 +608,6 @@ export default function PipelineKanban() {
               })()
             )}
           </div>
-        )}
       </section>
 
       {/* CREATE DEAL MODAL */}
