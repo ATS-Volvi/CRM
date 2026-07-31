@@ -88,6 +88,8 @@ export default function PipelineKanban() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const ownerId = searchParams.get("ownerId");
+  const queryClient = useQueryClient();
+
 
   const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
 
@@ -117,6 +119,7 @@ export default function PipelineKanban() {
 
   const [transitionModal, setTransitionModal] = useState<{ dealId: string, toStageId: string, toStageName: string } | null>(null);
   const [showAddDealModal, setShowAddDealModal] = useState(false);
+  const [newDeal, setNewDeal] = useState({ name: "", amount: "", competitors: "", probability: "" });
   const [activeDealDetail, setActiveDealDetail] = useState<any | null>(null);
   const [reason, setReason] = useState("");
   const [recontactDate, setRecontactDate] = useState("");

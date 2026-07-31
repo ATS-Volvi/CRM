@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Outlet, useNavigate, useLocation, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import {
   Zap, Inbox, Users, Trello, Calendar, PhoneCall, Video, CheckSquare,
   FileText, ShoppingBag, TrendingUp, Bell, Sparkles, User, LogOut, Search,
-  Plus, ChevronLeft, ChevronRight, MessageSquare, ShieldAlert
+  Plus, ChevronLeft, ChevronRight, MessageSquare, ShieldAlert, Receipt, Database
 } from "lucide-react";
 import { NotificationDrawer } from "./NotificationDrawer";
 import { AiCopilotDrawer } from "./AiCopilotDrawer";
