@@ -469,143 +469,144 @@ export default function PipelineKanban() {
                 const activeStageNames = activeTab === "opportunities" ? openStages : closedStages;
                 const activeStages = pipelineColumns?.filter((col: any) => activeStageNames.includes(col.stage)) || [];
 
-              return activeStages.map((stageCol: any) => {
-                const colorScheme = stageHeaderColors[stageCol.stage] || {
-                  bg: "bg-slate-50",
-                  text: "text-slate-900",
-                  border: "border-slate-200"
-                };
+                return activeStages.map((stageCol: any) => {
+                  const colorScheme = stageHeaderColors[stageCol.stage] || {
+                    bg: "bg-slate-50",
+                    text: "text-slate-900",
+                    border: "border-slate-200"
+                  };
 
-                const filteredDeals = stageCol.deals.filter((d: any) => {
-                  if (!searchQuery) return true;
-                  return d.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                         (d.company && d.company.toLowerCase().includes(searchQuery.toLowerCase()));
-                });
+                  const filteredDeals = stageCol.deals.filter((d: any) => {
+                    if (!searchQuery) return true;
+                    return d.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                           (d.company && d.company.toLowerCase().includes(searchQuery.toLowerCase()));
+                  });
 
-                return (
-                  <div 
-                    key={stageCol.id}
-                    onDragOver={handleDragOver}
-                    onDrop={(e) => handleDrop(e, stageCol.id, stageCol.stage)}
-                    className="flex flex-col gap-3 min-w-[270px]"
-                  >
-                    {/* Tinted Stage Header Card */}
-                    <div className={`p-4 rounded-2xl border ${colorScheme.bg} ${colorScheme.border} shadow-2xs flex items-center justify-between`}>
-                      <div>
-                        <h3 className={`text-sm font-black ${colorScheme.text}`}>
-                          {stageCol.stage}
-                        </h3>
-                        <p className="text-[11px] font-semibold text-slate-500 mt-0.5">
-                          {filteredDeals.length} opps
-                        </p>
-                      </div>
-                      <div className="text-base font-black text-slate-900 tracking-tight font-mono">
-                        {formatCurrencyCompact(stageCol.totalValue)}
-                      </div>
-                    </div>
-
-                    {/* Stage Deal Cards Stack */}
-                    <div className="space-y-3 min-h-[160px] pb-6">
-                      {filteredDeals.length === 0 ? (
-                        <div className="p-6 border-2 border-dashed border-slate-200 rounded-2xl text-center text-xs text-slate-400 italic bg-white/50">
-                          Drag deals here to assign to {stageCol.stage}
+                  return (
+                    <div 
+                      key={stageCol.id}
+                      onDragOver={handleDragOver}
+                      onDrop={(e) => handleDrop(e, stageCol.id, stageCol.stage)}
+                      className="flex flex-col gap-3 min-w-[270px]"
+                    >
+                      {/* Tinted Stage Header Card */}
+                      <div className={`p-4 rounded-2xl border ${colorScheme.bg} ${colorScheme.border} shadow-2xs flex items-center justify-between`}>
+                        <div>
+                          <h3 className={`text-sm font-black ${colorScheme.text}`}>
+                            {stageCol.stage}
+                          </h3>
+                          <p className="text-[11px] font-semibold text-slate-500 mt-0.5">
+                            {filteredDeals.length} opps
+                          </p>
                         </div>
-                      ) : (
-                        filteredDeals.map((deal: any) => {
-                          const repName = deal.owner?.name || deal.ownerName || "Unassigned Rep";
-                          const initials = repName
-                            .split(" ")
-                            .filter(Boolean)
-                            .map((n: string) => n[0])
-                            .join("")
-                            .slice(0, 2)
-                            .toUpperCase() || "U";
+                        <div className="text-base font-black text-slate-900 tracking-tight font-mono">
+                          {formatCurrencyCompact(stageCol.totalValue)}
+                        </div>
+                      </div>
 
-                          return (
-                            <div 
-                              key={deal.id} 
-                              draggable
-                              onDragStart={(e) => handleDragStart(e, deal.id)}
-                              className="bg-white border border-slate-200/90 hover:border-blue-400 p-4 rounded-2xl shadow-2xs hover:shadow-md transition-all cursor-grab active:cursor-grabbing space-y-3 group relative"
-                            >
-                              {/* Deal Title & Stage Badge */}
-                              <div className="flex items-start justify-between gap-2">
-                                <h4 className="text-xs font-black text-slate-900 leading-snug line-clamp-2">
-                                  {deal.name}
-                                </h4>
-                                {stageCol.stage === "Won" ? (
-                                  <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-extrabold rounded-md shrink-0 flex items-center gap-1">
-                                    <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Won
-                                  </span>
-                                ) : stageCol.stage === "Lost" ? (
-                                  <span className="px-2 py-0.5 bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-extrabold rounded-md shrink-0 flex items-center gap-1">
-                                    <XCircle className="w-3 h-3 text-rose-600" /> Lost
-                                  </span>
-                                ) : deal.probability != null ? (
-                                  <span className="px-2 py-0.5 bg-slate-100 text-slate-700 text-[10px] font-extrabold rounded-full border border-slate-200 shrink-0">
-                                    {deal.probability}%
-                                  </span>
-                                ) : null}
-                              </div>
+                      {/* Stage Deal Cards Stack */}
+                      <div className="space-y-3 min-h-[160px] pb-6">
+                        {filteredDeals.length === 0 ? (
+                          <div className="p-6 border-2 border-dashed border-slate-200 rounded-2xl text-center text-xs text-slate-400 italic bg-white/50">
+                            Drag deals here to assign to {stageCol.stage}
+                          </div>
+                        ) : (
+                          filteredDeals.map((deal: any) => {
+                            const repName = deal.owner?.name || deal.ownerName || "Unassigned Rep";
+                            const initials = repName
+                              .split(" ")
+                              .filter(Boolean)
+                              .map((n: string) => n[0])
+                              .join("")
+                              .slice(0, 2)
+                              .toUpperCase() || "U";
 
-                              {/* Company / Client Name */}
-                              <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
-                                <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                <span className="truncate">{deal.company || deal.name}</span>
-                              </div>
-
-                              {/* Formatted Amount */}
-                              <div>
-                                <span className="text-base font-black text-slate-900 tracking-tight">
-                                  {formatCurrency(deal.value)}
-                                </span>
-                              </div>
-
-                              {/* Close Date & Rep Avatar */}
-                              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
-                                <div className="flex items-center gap-1 text-[11px] font-medium text-slate-400">
-                                  <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                  <span>Closed: {deal.lastActivity || "Mar 30"}</span>
-                                </div>
-
-                                <div 
-                                  className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 border border-blue-200 font-black text-[9px] flex items-center justify-center shadow-2xs shrink-0"
-                                  title={`Assigned Rep: ${repName}`}
-                                >
-                                  {initials}
-                                </div>
-                              </div>
-
-                              {/* Tag / Competitor Badge */}
-                              {deal.competitors && (
-                                <div className="mt-2 flex items-center gap-1.5 text-[11px]">
+                            return (
+                              <div 
+                                key={deal.id} 
+                                draggable
+                                onDragStart={(e) => handleDragStart(e, deal.id)}
+                                className="bg-white border border-slate-200/90 hover:border-blue-400 p-4 rounded-2xl shadow-2xs hover:shadow-md transition-all cursor-grab active:cursor-grabbing space-y-3 group relative"
+                              >
+                                {/* Deal Title & Stage Badge */}
+                                <div className="flex items-start justify-between gap-2">
+                                  <h4 className="text-xs font-black text-slate-900 leading-snug line-clamp-2">
+                                    {deal.name}
+                                  </h4>
                                   {stageCol.stage === "Won" ? (
-                                    <span className="text-emerald-600 font-bold flex items-center gap-1">
-                                      <CheckCircle2 className="w-3 h-3" /> {deal.competitors}
+                                    <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-extrabold rounded-md shrink-0 flex items-center gap-1">
+                                      <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Won
                                     </span>
                                   ) : stageCol.stage === "Lost" ? (
-                                    <span className="text-rose-600 font-bold flex items-center gap-1">
-                                      <XCircle className="w-3 h-3" /> {deal.competitors}
+                                    <span className="px-2 py-0.5 bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-extrabold rounded-md shrink-0 flex items-center gap-1">
+                                      <XCircle className="w-3 h-3 text-rose-600" /> Lost
                                     </span>
-                                  ) : (
-                                    <span className="px-2 py-0.5 bg-slate-100 text-slate-600 border border-slate-200 rounded text-[10px] font-bold">
-                                      {deal.competitors}
+                                  ) : deal.probability != null ? (
+                                    <span className="px-2 py-0.5 bg-slate-100 text-slate-700 text-[10px] font-extrabold rounded-full border border-slate-200 shrink-0">
+                                      {deal.probability}%
                                     </span>
-                                  )}
+                                  ) : null}
                                 </div>
-                              )}
 
-                              {/* Milestone Checklist Component */}
-                              <DealMilestonesWidget dealId={deal.id} token={token || ""} />
-                            </div>
-                          );
-                        })
-                      )}
+                                {/* Company / Client Name */}
+                                <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
+                                  <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                  <span className="truncate">{deal.company || deal.name}</span>
+                                </div>
+
+                                {/* Formatted Amount */}
+                                <div>
+                                  <span className="text-base font-black text-slate-900 tracking-tight">
+                                    {formatCurrency(deal.value)}
+                                  </span>
+                                </div>
+
+                                {/* Close Date & Rep Avatar */}
+                                <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                                  <div className="flex items-center gap-1 text-[11px] font-medium text-slate-400">
+                                    <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                    <span>Closed: {deal.lastActivity || "Mar 30"}</span>
+                                  </div>
+
+                                  <div 
+                                    className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 border border-blue-200 font-black text-[9px] flex items-center justify-center shadow-2xs shrink-0"
+                                    title={`Assigned Rep: ${repName}`}
+                                  >
+                                    {initials}
+                                  </div>
+                                </div>
+
+                                {/* Tag / Competitor Badge */}
+                                {deal.competitors && (
+                                  <div className="mt-2 flex items-center gap-1.5 text-[11px]">
+                                    {stageCol.stage === "Won" ? (
+                                      <span className="text-emerald-600 font-bold flex items-center gap-1">
+                                        <CheckCircle2 className="w-3 h-3" /> {deal.competitors}
+                                      </span>
+                                    ) : stageCol.stage === "Lost" ? (
+                                      <span className="text-rose-600 font-bold flex items-center gap-1">
+                                        <XCircle className="w-3 h-3" /> {deal.competitors}
+                                      </span>
+                                    ) : (
+                                      <span className="px-2 py-0.5 bg-slate-100 text-slate-600 border border-slate-200 rounded text-[10px] font-bold">
+                                        {deal.competitors}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* Milestone Checklist Component */}
+                                <DealMilestonesWidget dealId={deal.id} token={token || ""} />
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
                     </div>
-                  </div>
-                );
-              });
-            })()}
+                  );
+                });
+              })()
+            )}
           </div>
         )}
       </section>
