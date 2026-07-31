@@ -341,92 +341,133 @@ export default function PipelineKanban() {
 
       {/* MAIN CONTENT AREA */}
       <section className="flex-1 overflow-auto px-8 py-4">
-        {activeTab === "leads" ? (
-          /* LEADS TAB: REUSE SHARED LEAD BOARD VIEW */
-          <LeadBoard searchQuery={searchQuery} />
-        ) : isLoading ? (
-          <div className="w-full h-full flex justify-center items-center text-slate-400 font-bold animate-pulse">Loading Pipeline...</div>
-        ) : viewMode === "list" ? (
-          <div className="w-full bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 text-xs uppercase tracking-wider font-extrabold">
-                  <th className="p-4">Deal Name</th>
-                  <th className="p-4">Stage</th>
-                  <th className="p-4">Value</th>
-                  <th className="p-4">Probability</th>
-                  <th className="p-4">Competitors</th>
-                  <th className="p-4">Milestones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {allDeals.map((deal: any) => (
-                  <tr key={deal.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                    <td className="p-4 font-bold text-slate-900">{deal.name}</td>
-                    <td className="p-4">
-                      <span className="px-2.5 py-1 bg-slate-100 rounded-full text-xs font-extrabold text-slate-700">{deal.stageName}</span>
-                    </td>
-                    <td className="p-4 font-black text-blue-600">{formatCurrency(deal.value)}</td>
-                    <td className="p-4 text-xs font-bold text-slate-600">{deal.probability != null ? `${deal.probability}%` : '-'}</td>
-                    <td className="p-4 text-xs text-slate-500">{deal.competitors || '-'}</td>
-                    <td className="p-4 text-xs">
-                      <DealMilestonesWidget dealId={deal.id} token={token || ""} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : viewMode === "gantt" ? (
-          /* TIMELINE VIEW */
-          <div className="w-full bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-6 overflow-x-auto">
-            <div className="flex justify-between items-center border-b border-slate-200 pb-4">
-              <div>
-                <h3 className="text-base font-black text-slate-900">Deals Schedule & Milestone Timeline</h3>
-              </div>
-            </div>
-            <div className="min-w-[800px]">
-              <div className="grid grid-cols-12 gap-2 text-[10px] font-extrabold uppercase text-slate-400 pb-2 border-b border-slate-200">
-                <div className="col-span-3">Deal & Owner</div>
-                <div className="col-span-1 text-center">Stage</div>
-                <div className="col-span-8 grid grid-cols-6 gap-1 text-center">
-                  <span>Month 1</span><span>Month 2</span><span>Month 3</span><span>Month 4</span><span>Month 5</span><span>Month 6</span>
-                </div>
-              </div>
-              <div className="divide-y divide-slate-100">
-                {allDeals.map((deal: any, idx: number) => {
-                  const progressPct = Math.min(100, Math.max(15, (deal.probability || 30)));
-                  return (
-                    <div key={deal.id} className="grid grid-cols-12 gap-2 py-3 items-center hover:bg-slate-50 transition-colors">
-                      <div className="col-span-3">
-                        <span className="font-bold text-slate-900 text-xs block truncate">{deal.name}</span>
-                        <span className="text-[10px] text-emerald-600 font-extrabold">{formatCurrency(deal.value)}</span>
+          /* KANBAN BOARD FOR ALL 3 TABS (LEADS, OPPORTUNITIES, DEALS) */
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-start">
+            {activeTab === "leads" ? (
+              /* LEADS KANBAN COLUMNS */
+              ["New", "Contacted", "Qualified"].map((leadStage) => {
+                const colorScheme = stageHeaderColors[leadStage] || {
+                  bg: "bg-slate-50",
+                  text: "text-slate-900",
+                  border: "border-slate-200"
+                };
+
+                const filteredStageLeads = leads.filter((l: any) => {
+                  const matchStage = (l.status || "New") === leadStage;
+                  if (!matchStage) return false;
+                  if (!searchQuery) return true;
+                  const searchLower = searchQuery.toLowerCase();
+                  const nameStr = `${l.firstName || ""} ${l.lastName || ""}`.toLowerCase();
+                  const companyStr = (l.company || "").toLowerCase();
+                  return nameStr.includes(searchLower) || companyStr.includes(searchLower);
+                });
+
+                const totalStageValue = filteredStageLeads.reduce(
+                  (acc: number, l: any) => acc + Number(l.leadScore || 50) * 100,
+                  0
+                );
+
+                return (
+                  <div key={leadStage} className="flex flex-col gap-3 min-w-[270px]">
+                    {/* Tinted Stage Header Card */}
+                    <div className={`p-4 rounded-2xl border ${colorScheme.bg} ${colorScheme.border} shadow-2xs flex items-center justify-between`}>
+                      <div>
+                        <h3 className={`text-sm font-black ${colorScheme.text}`}>{leadStage}</h3>
+                        <p className="text-[11px] font-semibold text-slate-500 mt-0.5">
+                          {filteredStageLeads.length} leads
+                        </p>
                       </div>
-                      <div className="col-span-1 text-center">
-                        <span className="px-2 py-0.5 bg-blue-50 text-blue-700 text-[10px] font-extrabold rounded-full">
-                          {deal.stageName}
-                        </span>
-                      </div>
-                      <div className="col-span-8 grid grid-cols-6 gap-1 relative items-center">
-                        <div 
-                          className="h-6 rounded-lg bg-blue-100 border border-blue-300 flex items-center px-2 text-[10px] font-bold text-blue-700 shadow-2xs truncate"
-                          style={{ gridColumnStart: (idx % 4) + 1, gridColumnEnd: `span ${Math.min(6, (idx % 3) + 3)}` }}
-                        >
-                          <span className="truncate">{deal.name} ({progressPct}%)</span>
-                        </div>
+                      <div className="text-base font-black text-slate-900 tracking-tight font-mono">
+                        {formatCurrencyCompact(totalStageValue)}
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        ) : (
-          /* RESTYLED KANBAN BOARD FOR OPPS & DEALS TABS */
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-start">
-            {(() => {
-              const activeStageNames = activeTab === "opportunities" ? openStages : closedStages;
-              const activeStages = pipelineColumns?.filter((col: any) => activeStageNames.includes(col.stage)) || [];
+
+                    {/* Lead Cards Stack */}
+                    <div className="space-y-3 min-h-[160px] pb-6">
+                      {filteredStageLeads.length === 0 ? (
+                        <div className="p-6 border-2 border-dashed border-slate-200 rounded-2xl text-center text-xs text-slate-400 italic bg-white/50">
+                          No leads in {leadStage}
+                        </div>
+                      ) : (
+                        filteredStageLeads.map((lead: any) => {
+                          const repName = lead.assignedTo?.name || "Unassigned Rep";
+                          const initials = repName
+                            .split(" ")
+                            .filter(Boolean)
+                            .map((n: string) => n[0])
+                            .join("")
+                            .slice(0, 2)
+                            .toUpperCase() || "UN";
+
+                          const score = Number(lead.leadScore || 50);
+                          let priorityLabel = "Warm";
+                          let priorityStyle = "bg-amber-50 text-amber-700 border-amber-200";
+                          if (score >= 70) {
+                            priorityLabel = "Hot";
+                            priorityStyle = "bg-rose-50 text-rose-700 border-rose-200";
+                          } else if (score < 40) {
+                            priorityLabel = "Cold";
+                            priorityStyle = "bg-blue-50 text-blue-700 border-blue-200";
+                          }
+
+                          const estValue = Number(lead.leadScore || 50) * 100;
+
+                          return (
+                            <div
+                              key={lead.id}
+                              onClick={() => navigate(`/leads/${lead.id}`)}
+                              className="bg-white border border-slate-200/90 hover:border-blue-400 p-4 rounded-2xl shadow-2xs hover:shadow-md transition-all cursor-pointer space-y-3 group relative"
+                            >
+                              {/* Lead Title & Priority Badge */}
+                              <div className="flex items-start justify-between gap-2">
+                                <h4 className="text-xs font-black text-slate-900 leading-snug line-clamp-2">
+                                  {lead.company || `${lead.firstName} ${lead.lastName}`}
+                                </h4>
+                                <span className={`px-2 py-0.5 text-[10px] font-extrabold rounded-full border shrink-0 ${priorityStyle}`}>
+                                  {priorityLabel}
+                                </span>
+                              </div>
+
+                              {/* Contact Name & Building */}
+                              <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
+                                <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                <span className="truncate">{lead.firstName} {lead.lastName}</span>
+                              </div>
+
+                              {/* Formatted Expected Amount */}
+                              <div>
+                                <span className="text-base font-black text-slate-900 tracking-tight">
+                                  {formatCurrency(estValue)}
+                                </span>
+                              </div>
+
+                              {/* Source & Rep Avatar */}
+                              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                                <div className="flex items-center gap-1 text-[11px] font-medium text-slate-400">
+                                  <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                  <span>{lead.source || "Inbound"}</span>
+                                </div>
+
+                                <div
+                                  className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 border border-blue-200 font-black text-[9px] flex items-center justify-center shadow-2xs shrink-0"
+                                  title={`Assigned Rep: ${repName}`}
+                                >
+                                  {initials}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              /* OPPORTUNITIES & DEALS KANBAN COLUMNS */
+              (() => {
+                const activeStageNames = activeTab === "opportunities" ? openStages : closedStages;
+                const activeStages = pipelineColumns?.filter((col: any) => activeStageNames.includes(col.stage)) || [];
 
               return activeStages.map((stageCol: any) => {
                 const colorScheme = stageHeaderColors[stageCol.stage] || {
