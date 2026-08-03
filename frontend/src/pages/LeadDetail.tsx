@@ -288,6 +288,15 @@ export default function LeadDetail() {
       setActiveModal(null);
       setEmailSubject("");
       setEmailBody("");
+      alert("Email sent successfully!");
+    },
+    onError: (error: any) => {
+      let msg = error.message;
+      try {
+        const parsed = JSON.parse(error.message);
+        if (parsed.error) msg = parsed.error + (parsed.details ? `: ${parsed.details}` : "");
+      } catch (e) {}
+      alert(`Failed to send email:\n${msg}`);
     }
   });
 
