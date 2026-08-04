@@ -33,7 +33,7 @@ Have a successful sales week!
     `;
 
     console.log(reportText);
-    // In a production setup, this would invoke nodemailer:
+    // In a production setup, this would invoke Mailgun API:
     // await sendSystemEmail("executive-director@nexus.com", "Weekly Executive Snapshot", reportText);
     
   } catch (error) {

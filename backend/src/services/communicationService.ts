@@ -1,5 +1,4 @@
 import { sequelize } from "@nexus-crm/database";
-import * as nodemailer from "nodemailer";
 
 // Fallback message templates in case DB is not yet populated
 // Fallback message templates in case DB is not yet populated
@@ -148,7 +147,7 @@ export async function triggerCommunication(
       .replace(/\{\{industry\}\}/g, industry)
       .replace(/\{\{budget\}\}/g, budget);
 
-    // 4. Simulate sending or execute nodemailer
+    // 4. Simulate sending or execute mailgun API call
     const subject = templateData.subject || `[Nexus CRM] - ${templateData.name}`;
     console.log(`\n--- STAKEHOLDER COMMUNICATION OUTBOX ---`);
     console.log(`Trigger Event: ${triggerEvent}`);

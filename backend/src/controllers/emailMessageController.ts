@@ -46,7 +46,7 @@ export const sendEmailMessage = async (req: Request, res: Response) => {
         const info = await sendEmail(toEmail, subject, html);
         if (!info) {
            sendStatus = "Failed";
-           sendErrorMsg = "SMTP transporter returned null (timed out or auth failed)";
+           sendErrorMsg = "Mailgun API returned null (timed out or auth failed)";
         }
       } catch (sendErr: any) {
         console.warn("Failed to dispatch email via transporter:", sendErr);
@@ -67,7 +67,7 @@ export const sendEmailMessage = async (req: Request, res: Response) => {
     }
 
     if (sendStatus === "Failed") {
-      return res.status(500).json({ error: "Failed to send email. Check SMTP credentials.", details: sendErrorMsg });
+      return res.status(500).json({ error: "Failed to send email. Check Mailgun API credentials.", details: sendErrorMsg });
     }
 
     res.status(201).json(message);

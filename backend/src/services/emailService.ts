@@ -1,4 +1,5 @@
-import nodemailer from "nodemailer";
+import FormData from "form-data";
+import Mailgun from "mailgun.js";
 import { sequelize } from "@nexus-crm/database";
 
 const cleanEnv = (key: string, defaultVal: string) => {
@@ -6,17 +7,10 @@ const cleanEnv = (key: string, defaultVal: string) => {
   return val.replace(/^["']|["']$/g, "").trim();
 };
 
-const transporter = nodemailer.createTransport({
-  host: cleanEnv("SMTP_HOST", "smtp.ethereal.email"),
-  port: Number(cleanEnv("SMTP_PORT", "587")),
-  secure: process.env.SMTP_SECURE === 'true',
-  auth: {
-    user: cleanEnv("SMTP_USER", ""),
-    pass: cleanEnv("SMTP_PASS", ""),
-  },
-  connectionTimeout: 15000,
-  greetingTimeout: 15000,
-  socketTimeout: 15000
+const mailgun = new Mailgun(FormData);
+const mg = mailgun.client({
+  username: 'api',
+  key: cleanEnv("MAILGUN_API_KEY", "dummy-key")
 });
 
 export const renderTemplate = (templateString: string, dataObj: Record<string, string>): string => {
@@ -69,16 +63,17 @@ export const getBaseHtmlTemplate = (bodyContent: string, leadId?: string): strin
 
 export const sendEmail = async (to: string, subject: string, htmlContent: string) => {
   try {
-    const info = await transporter.sendMail({
-      from: cleanEnv("SMTP_FROM", '"Nexus CRM" <no-reply@nexus-crm.com>'),
-      to,
+    const domain = cleanEnv("MAILGUN_DOMAIN", "inbound.volvitech.com");
+    const info = await mg.messages.create(domain, {
+      from: cleanEnv("MAILGUN_FROM", '"Nexus CRM" <no-reply@inbound.volvitech.com>'),
+      to: [to],
       subject,
       html: htmlContent,
     });
-    console.log("Message sent: %s", info.messageId);
+    console.log("Message sent:", info);
     return info;
   } catch (error: any) {
-    console.warn("SMTP send skipped or timed out:", error.message || error);
+    console.warn("Mailgun API send failed:", error.message || error);
     throw error; // Bubble up the error so it can be logged in the UI/Activity!
   }
 };
