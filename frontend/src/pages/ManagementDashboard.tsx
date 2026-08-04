@@ -35,10 +35,10 @@ export default function ManagementDashboard() {
   });
 
   return (
-    <div className="p-8 max-w-[1440px] mx-auto min-h-screen">
+    <div className="p-8 max-w-[1440px] ml-auto min-h-screen">
       {/* Header Actions */}
       <div className="flex justify-between items-end mb-8">
-        <div>
+        <div className="text-right flex-1 pr-6">
           <p className="text-[12px] font-semibold tracking-wider text-primary uppercase mb-1">Executive Overview</p>
           <h3 className="text-4xl font-bold text-on-surface">Global Performance</h3>
         </div>
