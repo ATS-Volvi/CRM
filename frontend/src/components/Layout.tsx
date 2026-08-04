@@ -120,16 +120,13 @@ export function Layout() {
         {/* ENTERPRISE DEMO STORY GUIDE BAR */}
         <DemoStoryGuide />
 
-        {/* TOP WORKSPACE NAVIGATION BAR (FIXED NAV) */}
-        <TopWorkspaceNav
-          onOpenSearch={() => setIsCommandPaletteOpen(true)}
-          onOpenAi={() => setIsAiCopilotOpen(true)}
-          onOpenNotifications={() => setIsNotificationsOpen(true)}
-        />
-
         {/* MAIN CONTENT AREA CONTAINER WITH PERSISTENT SIDEBAR */}
         <div className="flex-1 flex overflow-hidden relative">
-          <Sidebar />
+          <Sidebar
+            onOpenSearch={() => setIsCommandPaletteOpen(true)}
+            onOpenAi={() => setIsAiCopilotOpen(true)}
+            onOpenNotifications={() => setIsNotificationsOpen(true)}
+          />
           <main className="flex-1 overflow-y-auto relative">
             <WorkspaceTransition>
               <Outlet />
