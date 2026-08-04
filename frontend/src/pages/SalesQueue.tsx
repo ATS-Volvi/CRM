@@ -25,6 +25,9 @@ export default function SalesQueue() {
   // STAGE 1 vs STAGE 2 ARCHITECTURE STATE
   const [selectedLeadId, setSelectedLeadId] = useState<string | number | null>(activeLeadId);
 
+  // VIEW MODE SWITCHER IN STAGE 1 (LIVE QUEUE vs KANBAN vs DATA TABLE)
+  const [viewMode, setViewMode] = useState<"queue" | "kanban" | "table">("queue");
+
   useEffect(() => {
     if (activeLeadId) {
       setSelectedLeadId(activeLeadId);
@@ -251,23 +254,48 @@ export default function SalesQueue() {
           >
             {/* Filter Bar */}
             <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs space-y-4">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                  <h1 className="text-lg font-black text-[#191B23] tracking-tight">Live Priority Work Inbox</h1>
-                  <p className="text-xs text-[#6B7280] font-medium">Select an active enquiry card to enter the dedicated customer workspace.</p>
-                </div>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                  <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-bold">
+                    <button
+                      onClick={() => setViewMode("queue")}
+                      className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${
+                        viewMode === "queue" ? "bg-white text-[#2563EB] shadow-2xs" : "text-slate-500 hover:text-slate-800"
+                      }`}
+                    >
+                      <Inbox className="w-3.5 h-3.5" />
+                      <span>Live Cards</span>
+                    </button>
+                    <button
+                      onClick={() => setViewMode("kanban")}
+                      className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${
+                        viewMode === "kanban" ? "bg-white text-[#2563EB] shadow-2xs" : "text-slate-500 hover:text-slate-800"
+                      }`}
+                    >
+                      <Trello className="w-3.5 h-3.5" />
+                      <span>Kanban Board</span>
+                    </button>
+                    <button
+                      onClick={() => setViewMode("table")}
+                      className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${
+                        viewMode === "table" ? "bg-white text-[#2563EB] shadow-2xs" : "text-slate-500 hover:text-slate-800"
+                      }`}
+                    >
+                      <Layers className="w-3.5 h-3.5" />
+                      <span>Table</span>
+                    </button>
+                  </div>
 
-                <div className="relative w-full md:w-80">
-                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3.5 top-3" />
-                  <input
-                    type="text"
-                    placeholder="Search by customer, company, phone, owner..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20"
-                  />
+                  <div className="relative w-full sm:w-64">
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3.5 top-3" />
+                    <input
+                      type="text"
+                      placeholder="Search by customer, company, phone..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20"
+                    />
+                  </div>
                 </div>
-              </div>
 
               <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100 text-xs">
                 <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl font-bold">
@@ -311,78 +339,114 @@ export default function SalesQueue() {
               </div>
             </div>
 
-            {/* Priority Cards */}
-            <div className="space-y-3">
-              {filteredQueue.map((lead: any) => {
-                const sla = getSlaBadge(lead.createdAt);
-                const isUrgent = lead.status === "New" || (lead.unreadWhatsappCount || 0) > 0;
-                const messagePreview = lead.notes || lead.body || "Can you send over your latest product catalogue and pricing breakdown for Enterprise software?";
+            {/* Priority Content: Cards vs Data Table */}
+            {viewMode === "table" ? (
+              <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
+                    <tr>
+                      <th className="p-3.5">Customer / Company</th>
+                      <th className="p-3.5">Channel</th>
+                      <th className="p-3.5">Status</th>
+                      <th className="p-3.5">Score / Value</th>
+                      <th className="p-3.5">Assigned To</th>
+                      <th className="p-3.5 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-medium">
+                    {filteredQueue.map((lead: any) => (
+                      <tr key={lead.id} onClick={() => setSelectedLeadId(lead.id)} className="hover:bg-blue-50/50 cursor-pointer transition-colors">
+                        <td className="p-3.5 font-bold text-slate-800">
+                          {lead.firstName} {lead.lastName}
+                          <span className="block text-[10px] text-slate-400 font-normal">{lead.company || "Enterprise"}</span>
+                        </td>
+                        <td className="p-3.5 font-semibold text-[#2563EB]">{lead.source || "Website"}</td>
+                        <td className="p-3.5">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-[#2563EB] border border-blue-200">{lead.status}</span>
+                        </td>
+                        <td className="p-3.5 font-black text-emerald-600">${((lead.leadScore || 75) * 240).toLocaleString()}</td>
+                        <td className="p-3.5 text-slate-600">{lead.assignedTo?.name || "Rahul"}</td>
+                        <td className="p-3.5 text-right">
+                          <button onClick={(e) => { e.stopPropagation(); setSelectedLeadId(lead.id); }} className="px-3 py-1 bg-[#2563EB] text-white rounded-lg font-bold text-[10px]">Open</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {filteredQueue.map((lead: any) => {
+                  const sla = getSlaBadge(lead.createdAt);
+                  const isUrgent = lead.status === "New" || (lead.unreadWhatsappCount || 0) > 0;
+                  const messagePreview = lead.notes || lead.body || "Can you send over your latest product catalogue and pricing breakdown for Enterprise software?";
 
-                return (
-                  <motion.div
-                    key={lead.id}
-                    whileHover={{ y: -2 }}
-                    onClick={() => setSelectedLeadId(lead.id)}
-                    className="group relative p-5 bg-white rounded-2xl border border-slate-200/80 shadow-2xs hover:shadow-md hover:border-[#2563EB]/60 transition-all cursor-pointer space-y-3"
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl bg-blue-50 text-[#2563EB] font-black text-xs flex items-center justify-center border border-blue-100">
-                          {lead.firstName?.charAt(0)}
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <h3 className="text-sm font-black text-[#191B23]">{lead.firstName} {lead.lastName}</h3>
-                            <span className="text-xs font-semibold text-[#6B7280]">· {lead.company || "Enterprise Account"}</span>
+                  return (
+                    <motion.div
+                      key={lead.id}
+                      whileHover={{ y: -2 }}
+                      onClick={() => setSelectedLeadId(lead.id)}
+                      className="group relative p-5 bg-white rounded-2xl border border-slate-200/80 shadow-2xs hover:shadow-md hover:border-[#2563EB]/60 transition-all cursor-pointer space-y-3"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-xl bg-blue-50 text-[#2563EB] font-black text-xs flex items-center justify-center border border-blue-100">
+                            {lead.firstName?.charAt(0)}
                           </div>
-                          <div className="flex items-center gap-2 text-[11px] text-slate-500 font-medium mt-0.5">
-                            <span className="font-bold text-[#2563EB]">
-                              {lead.source?.toLowerCase().includes("whatsapp") ? "📱 WhatsApp" : lead.source?.toLowerCase().includes("instagram") ? "📸 Instagram" : "🌐 Website"}
-                            </span>
-                            <span>·</span>
-                            <span>Assigned to <strong className="text-slate-700">{lead.assignedTo?.name || "Rahul"}</strong></span>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h3 className="text-sm font-black text-[#191B23]">{lead.firstName} {lead.lastName}</h3>
+                              <span className="text-xs font-semibold text-[#6B7280]">· {lead.company || "Enterprise Account"}</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-[11px] text-slate-500 font-medium mt-0.5">
+                              <span className="font-bold text-[#2563EB]">
+                                {lead.source?.toLowerCase().includes("whatsapp") ? "📱 WhatsApp" : lead.source?.toLowerCase().includes("instagram") ? "📸 Instagram" : "🌐 Website"}
+                              </span>
+                              <span>·</span>
+                              <span>Assigned to <strong className="text-slate-700">{lead.assignedTo?.name || "Rahul"}</strong></span>
+                            </div>
                           </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${sla.cls}`}>
+                            {sla.label}
+                          </span>
+                          <span className={`px-3 py-0.5 rounded-full text-xs font-bold border ${isUrgent ? "bg-rose-50 text-rose-700 border-rose-200" : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            }`}>
+                            ● {isUrgent ? "Needs Reply" : "Quote Requested"}
+                          </span>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2">
-                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${sla.cls}`}>
-                          {sla.label}
-                        </span>
-                        <span className={`px-3 py-0.5 rounded-full text-xs font-bold border ${isUrgent ? "bg-rose-50 text-rose-700 border-rose-200" : "bg-emerald-50 text-emerald-700 border-emerald-200"
-                          }`}>
-                          ● {isUrgent ? "Needs Reply" : "Quote Requested"}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="p-3.5 bg-slate-50/80 rounded-xl border border-slate-100 text-xs space-y-1">
-                      <p className="text-slate-800 font-medium leading-relaxed line-clamp-2">"{messagePreview}"</p>
-                    </div>
-
-                    <div className="flex items-center justify-between text-xs pt-1">
-                      <div className="flex items-center gap-1.5 text-[11px] font-bold text-indigo-600 bg-indigo-50/60 px-2.5 py-1 rounded-lg border border-indigo-100">
-                        <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                        <span>✨ High probability to convert · Opened quotation twice</span>
+                      <div className="p-3.5 bg-slate-50/80 rounded-xl border border-slate-100 text-xs space-y-1">
+                        <p className="text-slate-800 font-medium leading-relaxed line-clamp-2">"{messagePreview}"</p>
                       </div>
 
-                      <div className="flex items-center gap-3">
-                        <strong className="text-emerald-600 font-black text-sm">
-                          ${((lead.leadScore || 75) * 240).toLocaleString()}
-                        </strong>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setSelectedLeadId(lead.id); }}
-                          className="px-4 py-1.5 bg-[#2563EB] hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-1 transition-all active:scale-95"
-                        >
-                          <span>Open Workspace</span>
-                          <ChevronRight className="w-3.5 h-3.5" />
-                        </button>
+                      <div className="flex items-center justify-between text-xs pt-1">
+                        <div className="flex items-center gap-1.5 text-[11px] font-bold text-indigo-600 bg-indigo-50/60 px-2.5 py-1 rounded-lg border border-indigo-100">
+                          <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                          <span>✨ High probability to convert · Opened quotation twice</span>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                          <strong className="text-emerald-600 font-black text-sm">
+                            ${((lead.leadScore || 75) * 240).toLocaleString()}
+                          </strong>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setSelectedLeadId(lead.id); }}
+                            className="px-4 py-1.5 bg-[#2563EB] hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-1 transition-all active:scale-95"
+                          >
+                            <span>Open Workspace</span>
+                            <ChevronRight className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            )}
           </motion.div>
         ) : (
 
