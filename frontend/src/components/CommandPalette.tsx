@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
+import { useOrbit } from "../context/OrbitContext";
 import {
   Search, Command, X, Users, Inbox, Trello, FileText, Receipt,
   CheckSquare, BarChart, Settings, Key, Plus, PhoneCall, Video,
@@ -9,6 +10,7 @@ import {
   Shield, Filter, Layers, CheckCircle2, ChevronRight, FilePlus
 } from "lucide-react";
 import { formatCurrencyCompact } from "../utils/currency";
+
 
 interface CommandItem {
   id: string;
@@ -23,6 +25,7 @@ interface CommandItem {
 export function CommandPalette({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const navigate = useNavigate();
   const { token } = useAuth();
+  const { openLeadDrawer, openQuoteDrawer, openInvoiceDrawer, openCreateLeadDrawer } = useOrbit();
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
@@ -61,17 +64,17 @@ export function CommandPalette({ isOpen, onClose }: { isOpen: boolean; onClose: 
     { id: "nav-leads", category: "Navigation", title: "Go to Lead Inbox", subtitle: "Manage lead pipeline", icon: Inbox, action: () => { navigate("/leads"); onClose(); } },
     { id: "nav-pipeline", category: "Navigation", title: "Go to Pipeline Kanban", subtitle: "Visual deal board", icon: Trello, action: () => { navigate("/pipeline"); onClose(); } },
     { id: "nav-quotes", category: "Navigation", title: "Go to Quotation Center", subtitle: "Quotes & approvals", icon: FileText, action: () => { navigate("/quotes"); onClose(); } },
-    { id: "nav-po", category: "Navigation", title: "Go to Purchase Orders", subtitle: "Purchase orders & vendor fulfillment", icon: CheckSquare, action: () => { navigate("/purchase-orders"); onClose(); } },
+    { id: "nav-[#2563EB]", category: "Navigation", title: "Go to Purchase Orders", subtitle: "Purchase orders & vendor fulfillment", icon: CheckSquare, action: () => { navigate("/purchase-orders"); onClose(); } },
     { id: "nav-customers", category: "Navigation", title: "Go to Customer 360", subtitle: "Customer workspace & contacts", icon: Users, action: () => { navigate("/customers"); onClose(); } },
     { id: "nav-activities", category: "Navigation", title: "Go to Activities Hub", subtitle: "Calls, meetings & tasks calendar", icon: Clock, action: () => { navigate("/activities"); onClose(); } },
     { id: "nav-communications", category: "Navigation", title: "Go to Communication Center", subtitle: "Omnichannel messages & WhatsApp", icon: Sparkles, action: () => { navigate("/communications"); onClose(); } },
     { id: "nav-invoices", category: "Navigation", title: "Go to Invoices & Billing", subtitle: "Financial records & payments", icon: Receipt, action: () => { navigate("/invoices"); onClose(); } },
     { id: "nav-team", category: "Navigation", title: "Go to Sales Team", subtitle: "Manager performance workspace", icon: Users, action: () => { navigate("/salespersons"); onClose(); } },
     { id: "nav-settings", category: "Navigation", title: "Go to Settings", subtitle: "System settings", icon: Settings, action: () => { navigate("/settings"); onClose(); } },
-    { id: "act-new-lead", category: "Actions", title: "Create New Lead", subtitle: "Ingest a new prospect", icon: Plus, action: () => { navigate("/leads/new"); onClose(); } },
-    { id: "act-new-quote", category: "Actions", title: "Generate New Quote", subtitle: "Create custom proposal", icon: Plus, action: () => { navigate("/quotes/new"); onClose(); } },
+    { id: "act-new-lead", category: "Actions", title: "Create New Lead", subtitle: "Ingest a new prospect", icon: Plus, action: () => { openCreateLeadDrawer(); onClose(); } },
+    { id: "act-new-quote", category: "Actions", title: "Generate New Quote", subtitle: "Create custom proposal", icon: Plus, action: () => { openQuoteDrawer(); onClose(); } },
     { id: "act-ai-reports", category: "Actions", title: "Open AI Intelligence Reports", subtitle: "Ask AI sales questions", icon: Sparkles, action: () => { navigate("/ai-reports"); onClose(); } },
-  ], [navigate, onClose]);
+  ], [navigate, onClose, openQuoteDrawer, openCreateLeadDrawer]);
 
   // Transform backend search results to command items
   const recordItems = useMemo<CommandItem[]>(() => {
@@ -96,7 +99,7 @@ export function CommandPalette({ isOpen, onClose }: { isOpen: boolean; onClose: 
 
     (searchResults.leads || []).forEach((l: any) => {
       const name = `${l.firstName || ""} ${l.lastName || ""}`.trim() || l.company || "Lead";
-      // Primary navigation item
+      // Primary navigation item: Open Lead Workspace Drawer inline without page redirect!
       items.push({
         id: `l-${l.id}`,
         category: "Leads",
@@ -104,15 +107,13 @@ export function CommandPalette({ isOpen, onClose }: { isOpen: boolean; onClose: 
         subtitle: `${l.company ? `${l.company} · ` : ""}${l.status || "New"}`,
         icon: Inbox,
         action: () => {
-          // Track recently viewed
-          const viewed = JSON.parse(localStorage.getItem("recently_viewed_records") || "[]");
-          const updated = [{ id: l.id, type: "Lead", title: name, path: `/leads/${l.id}`, time: new Date().toISOString() }, ...viewed.filter((v: any) => v.id !== l.id)].slice(0, 8);
-          localStorage.setItem("recently_viewed_records", JSON.stringify(updated));
-          navigate(`/leads/${l.id}`);
+          openLeadDrawer(l.id);
+          navigate("/leads");
           onClose();
         },
         previewData: { type: "Lead", title: name, company: l.company, email: l.email, status: l.status }
       });
+
 
       // Inline Task-Level Action: Log Call
       items.push({

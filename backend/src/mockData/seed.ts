@@ -31,10 +31,10 @@ async function seedEnterpriseDatabase() {
       await sequelize.sync({ force: true });
     }
     console.log("Truncating data...");
-    
+
     // Clear all existing data in safe order
     const tables = [
-      'LeadReassignmentHistories', 'WebhookEvents', 'ScheduledEmails', 'Notifications', 
+      'LeadReassignmentHistories', 'WebhookEvents', 'ScheduledEmails', 'Notifications',
       'MessageTemplates', 'InvoiceLineItems', 'Invoices', 'Activities', 'AssignmentRules',
       'ApprovalRequests', 'PurchaseOrders', 'QuoteLineItems', 'PriceBookEntries',
       'Quotes', 'Deals', 'LeadStageHistories', 'PipelineStages', 'Leads', 'Users',
@@ -49,10 +49,10 @@ async function seedEnterpriseDatabase() {
       } catch (e) {
         try {
           await sequelize.query(`DELETE FROM ${table};`);
-        } catch (e2) {}
+        } catch (e2) { }
       }
     }
-    
+
     const models = sequelize.models;
     const hashedPassword = await bcrypt.hash("password123", 10);
 
@@ -114,7 +114,7 @@ async function seedEnterpriseDatabase() {
     // Requirements & BOM Line Items
     const req1 = await models.Requirement.create({ id: crypto.randomUUID(), name: "Standard Enterprise Deployment", category: "Deployment", description: "Standard turnkey setup for mid-market enterprise clients." }) as any;
     const req2 = await models.Requirement.create({ id: crypto.randomUUID(), name: "High-Security Defense & Healthcare Spec", category: "Security", description: "Dedicated isolated cluster with encryption compliance." }) as any;
-    
+
     const lineItem1 = await models.LineItem.create({ id: crypto.randomUUID(), requirementId: req1.id, name: "Core Server Provisioning", unit: "Instance", defaultQuantity: 1 }) as any;
     const lineItem2 = await models.LineItem.create({ id: crypto.randomUUID(), requirementId: req1.id, name: "User Onboarding & License Pack", unit: "User", defaultQuantity: 50 }) as any;
 

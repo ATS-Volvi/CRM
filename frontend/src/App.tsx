@@ -7,6 +7,7 @@ import { SalesLayout } from "./components/SalesLayout";
 import ManagementDashboard from "./pages/ManagementDashboard";
 import MyDashboard from "./pages/MyDashboard";
 import KpiDashboard from "./pages/KpiDashboard";
+import SalesQueue from "./pages/SalesQueue";
 import LeadInbox from "./pages/LeadInbox";
 import LeadDetail from "./pages/LeadDetail";
 import PipelineKanban from "./pages/PipelineKanban";
@@ -82,7 +83,9 @@ function App() {
                 <Route path="/" element={<RoleBasedHome />} />
                 <Route path="/home" element={<MyDashboard />} />
                 <Route path="/kpi" element={<KpiDashboard />} />
-                <Route path="/leads" element={<LeadInbox />} />
+                <Route path="/leads" element={<SalesQueue />} />
+                <Route path="/sales-queue" element={<SalesQueue />} />
+                <Route path="/leads-table" element={<LeadInbox />} />
                 <Route path="/leads/new" element={<LeadCreate />} />
                 <Route path="/leads/:id" element={<LeadDetail />} />
                 <Route path="/pipeline" element={<PipelineKanban />} />

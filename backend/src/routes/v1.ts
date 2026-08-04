@@ -16,7 +16,8 @@ import {
   getLeadDealForQuote,
   getDuplicateLeads,
   mergeLeads,
-  clearUnreadCount
+  clearUnreadCount,
+  getLeadAiSummary
 } from "../controllers/leadController";
 import { getPriceBookEntries, createPriceBookEntry, updatePriceBookEntry, deletePriceBookEntry, importPriceBookEntries, getPriceSuggestion, importPriceBookEntriesPreview } from '../controllers/priceBookController';
 import { getQuotes, createQuote, getQuoteRecommendations, sendQuote, getPublicQuote, generateQuotePdf, signQuote, getQuoteHistoryByClient, getSimilarQuotesStats, getSimilarClientQuotes } from '../controllers/quoteController';
@@ -268,6 +269,7 @@ router.put("/leads/:id", authMiddleware, updateLead);
 router.post("/leads/:id/convert", authMiddleware, convertLead);
 router.delete("/leads/:id", authMiddleware, deleteLead);
 router.put("/leads/:id/reassign", authMiddleware, reassignLead);
+router.get("/leads/:id/ai-summary", authMiddleware, getLeadAiSummary);
 router.get("/leads/:id/reassignment-history", authMiddleware, getLeadReassignmentHistory);
 router.get("/leads/:id/deal-for-quote", authMiddleware, getLeadDealForQuote);
 router.put("/leads/:id/clear-unread", authMiddleware, clearUnreadCount);

@@ -1,68 +1,62 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  /* Dynamic Modern Palette: Vibrant Indigo-Violet Primary with Soft Pastel Backgrounds */
-  --background: 230 35% 97%;
-  --foreground: 224 45% 12%;
+  /* Pulse OS Light Design Tokens */
+  --background: 250 100% 98.8%; /* #faf8ff */
+  --foreground: 228 17% 12%;   /* #191b23 */
   
-  --card: 0 0% 100%;
-  --card-foreground: 224 45% 12%;
+  --card: 0 0% 100%;             /* #ffffff */
+  --card-foreground: 228 17% 12%;
   
   --popover: 0 0% 100%;
-  --popover-foreground: 224 45% 12%;
+  --popover-foreground: 228 17% 12%;
   
-  /* Electric Indigo-Violet Primary */
-  --primary: 250 84% 60%;
+  /* Brand Primary & Surfaces */
+  --primary: 217 100% 38.8%;     /* #004ac6 */
   --primary-foreground: 0 0% 100%;
+  --primary-container: 221 83% 53%; /* #2563eb */
   
-  /* Playful Teal-Cyan Secondary */
-  --secondary: 174 72% 40%;
+  --secondary: 218 10% 38%;     /* #585f6c */
   --secondary-foreground: 0 0% 100%;
   
-  --muted: 230 25% 94%;
-  --muted-foreground: 225 15% 48%;
+  --muted: 240 40% 96%;          /* #f3f3fe */
+  --muted-foreground: 226 12% 37%; /* #434655 */
   
-  /* Soft Lavender Accent */
-  --accent: 250 85% 95%;
-  --accent-foreground: 250 84% 45%;
+  --accent: 240 45% 95%;         /* #ededf9 */
+  --accent-foreground: 217 100% 38.8%;
   
-  --destructive: 350 89% 60%;
+  --destructive: 0 75% 42%;      /* #ba1a1a */
   --destructive-foreground: 0 0% 100%;
   
-  --border: 230 20% 89%;
-  --input: 230 20% 89%;
-  --ring: 250 84% 60%;
+  --border: 228 20% 81%;         /* #c3c6d7 */
+  --input: 228 20% 81%;
+  --ring: 221 83% 53%;
   
-  --radius: 0.85rem;
+  --radius: 0.75rem;
 
-  /* SLEEK MODERN DARK SIDEBAR WITH VIOLET GLOW ACCENTS */
-  --sidebar-background: 240 30% 9%;
-  --sidebar-foreground: 225 25% 82%;
-  --sidebar-primary: 250 84% 60%;
-  --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 245 40% 18%;
-  --sidebar-accent-foreground: 250 100% 97%;
-  --sidebar-border: 240 25% 16%;
-  --sidebar-ring: 250 84% 60%;
+  /* Modern Corporate Surface Hierarchy */
+  --surface-dim: #d9d9e5;
+  --surface-container-lowest: #ffffff;
+  --surface-container-low: #f3f3fe;
+  --surface-container: #ededf9;
+  --surface-container-high: #e7e7f3;
+  --surface-container-highest: #e1e2ed;
   
-  --success: 160 84% 39%;
-  --success-foreground: 0 0% 100%;
-  --warning: 38 92% 50%;
-  --warning-foreground: 0 0% 100%;
-  --info: 190 90% 42%;
-  --info-foreground: 0 0% 100%;
+  --success: 142 71% 45%;        /* #22C55E */
+  --warning: 38 92% 50%;         /* #F59E0B */
+  --danger: 0 84% 60%;          /* #EF4444 */
 }
 
 @layer base {
   body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
-    @apply antialiased tracking-normal;
+    font-family: 'Geist', 'Inter', system-ui, -apple-system, sans-serif;
+    @apply antialiased tracking-tight;
   }
 
   /* Smooth scroll and selection */

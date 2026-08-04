@@ -405,7 +405,7 @@ export function TasksWidget({
           return (
             <div
               key={t.id}
-              className="flex items-center gap-2.5 py-2 px-2.5 rounded-xl hover:bg-emerald-50/50 transition-colors border border-transparent hover:border-emerald-100"
+              className="flex items-center gap-2 py-2 px-2.5 rounded-xl hover:bg-emerald-50/50 transition-colors border border-transparent hover:border-emerald-100 group/task"
             >
               <div className={`w-3.5 h-3.5 rounded-full border-2 shrink-0 ${isOverdue ? "border-rose-400 bg-rose-50" : "border-emerald-500"}`} />
               <div className="flex-1 min-w-0">
@@ -414,7 +414,24 @@ export function TasksWidget({
                   {isOverdue ? "Overdue" : t.dueDate ? new Date(t.dueDate).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Today"}
                 </p>
               </div>
-              {isOverdue && <span className="px-1.5 py-0.2 bg-rose-100 text-rose-700 text-[9px] font-bold rounded-md">Urgent</span>}
+
+              {/* 1-Click Action Launcher */}
+              <div className="flex items-center gap-1 shrink-0 opacity-90 group-hover/task:opacity-100">
+                <Link
+                  to="/communications"
+                  className="px-2 py-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-[10px] font-bold rounded-lg transition-all flex items-center gap-1 shadow-2xs"
+                  title="1-Click Reply / Message"
+                >
+                  <Send className="w-2.5 h-2.5" /> Reply
+                </Link>
+                <Link
+                  to="/quotes/new"
+                  className="px-2 py-1 bg-indigo-100 hover:bg-indigo-200 text-indigo-800 text-[10px] font-bold rounded-lg transition-all hidden sm:flex items-center gap-1 shadow-2xs"
+                  title="1-Click Quote"
+                >
+                  <FileText className="w-2.5 h-2.5" /> Quote
+                </Link>
+              </div>
             </div>
           );
         })}

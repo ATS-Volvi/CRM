@@ -124,6 +124,7 @@ export default function CommunicationCenter() {
   const [localMessages, setLocalMessages] = useState<WhatsAppMessage[]>([]);
   const [isWaConnected, setIsWaConnected] = useState(true);
   const [showDiagnostics, setShowDiagnostics] = useState(false);
+  const [isFocusMode, setIsFocusMode] = useState(false);
 
   // ─── FETCH WHATSAPP CONVERSATIONS ─────────────────────────
   const { data: whatsappConvs = [], isLoading: loadingConvs, refetch: refetchConvs } = useQuery<WhatsAppConversation[]>({
@@ -319,6 +320,20 @@ export default function CommunicationCenter() {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Focus Mode Immersive Workspace Toggle */}
+          <button
+            onClick={() => setIsFocusMode(v => !v)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${
+              isFocusMode
+                ? "bg-amber-500 text-white border-amber-600 shadow-md shadow-amber-500/20"
+                : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+            }`}
+            title="Focus Mode: Immersive conversation workspace"
+          >
+            <Zap className="w-3.5 h-3.5" />
+            <span>{isFocusMode ? "Exit Focus Mode" : "Focus Mode"}</span>
+          </button>
+
           <button
             onClick={() => refetchConvs()}
             className="p-2 hover:bg-slate-100 rounded-lg transition-colors text-slate-500"
@@ -407,8 +422,9 @@ export default function CommunicationCenter() {
       {activeView === "workspace" && (
         <div className="flex-1 flex overflow-hidden">
 
-          {/* ── LEFT PANE: Conversation List ── */}
-          <div className="w-full md:w-80 lg:w-96 bg-white border-r border-slate-200 flex flex-col shrink-0">
+          {/* ── LEFT PANE: Conversation List (Hidden in Focus Mode) ── */}
+          {!isFocusMode && (
+            <div className="w-full md:w-80 lg:w-96 bg-white border-r border-slate-200 flex flex-col shrink-0">
 
             {/* Channel Filters */}
             <div className="p-2.5 border-b border-slate-100 flex gap-1 overflow-x-auto no-scrollbar bg-slate-50/70">
@@ -494,8 +510,8 @@ export default function CommunicationCenter() {
                 );
               })}
             </div>
-
           </div>
+        )}
 
           {/* ── CENTER PANE: Message Thread ── */}
           {activeConv ? (

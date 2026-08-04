@@ -523,7 +523,14 @@ export default function PipelineKanban() {
                                 key={deal.id} 
                                 draggable
                                 onDragStart={(e) => handleDragStart(e, deal.id)}
-                                className="bg-white border border-slate-200/90 hover:border-blue-400 p-4 rounded-2xl shadow-2xs hover:shadow-md transition-all cursor-grab active:cursor-grabbing space-y-3 group relative"
+                                onClick={() => {
+                                  if (deal.leadId) {
+                                    navigate(`/queue?selectedId=${deal.leadId}`);
+                                  } else {
+                                    setActiveDealDetail(deal);
+                                  }
+                                }}
+                                className="bg-white border border-slate-200/90 hover:border-blue-400 p-4 rounded-2xl shadow-2xs hover:shadow-md transition-all cursor-pointer space-y-3 group relative"
                               >
                                 {/* Deal Title & Stage Badge */}
                                 <div className="flex items-start justify-between gap-2">
@@ -716,6 +723,58 @@ export default function PipelineKanban() {
                   Confirm Stage Change
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ACTIVE DEAL DETAIL MODAL */}
+      {activeDealDetail && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 w-full max-w-lg shadow-2xl space-y-4 animate-scale-up">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-base font-black text-slate-900">{activeDealDetail.name}</h3>
+                <p className="text-xs text-slate-500 font-semibold">{activeDealDetail.company || "Enterprise Account"}</p>
+              </div>
+              <button onClick={() => setActiveDealDetail(null)} className="p-1 text-slate-400 hover:text-slate-700">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <span className="text-[9px] font-bold text-slate-400 uppercase block">Deal Value</span>
+                <strong className="text-emerald-600 font-black text-sm">{formatCurrency(activeDealDetail.value)}</strong>
+              </div>
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <span className="text-[9px] font-bold text-slate-400 uppercase block">Probability</span>
+                <strong className="text-blue-600 font-black text-sm">{activeDealDetail.probability || 80}%</strong>
+              </div>
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <span className="text-[9px] font-bold text-slate-400 uppercase block">Assigned Rep</span>
+                <strong className="text-slate-800 font-bold">{activeDealDetail.owner?.name || "Rahul Verma"}</strong>
+              </div>
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <span className="text-[9px] font-bold text-slate-400 uppercase block">Competitor / Tag</span>
+                <strong className="text-slate-800 font-bold">{activeDealDetail.competitors || "Standard SLA"}</strong>
+              </div>
+            </div>
+
+            <div className="pt-2 flex justify-between items-center border-t border-slate-100">
+              <button
+                onClick={() => {
+                  const leadId = activeDealDetail.leadId || activeDealDetail.id;
+                  navigate(`/queue?selectedId=${leadId}`);
+                }}
+                className="px-4 py-2 bg-[#2563EB] hover:bg-blue-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-xs transition-all"
+              >
+                <span>Open Dedicated Workspace</span>
+                <ChevronRight className="w-4 h-4" />
+              </button>
+              <button onClick={() => setActiveDealDetail(null)} className="px-4 py-2 bg-slate-100 text-slate-700 font-bold text-xs rounded-xl">
+                Close
+              </button>
             </div>
           </div>
         </div>

@@ -38,13 +38,34 @@ export default function ManagerPortal() {
     repsAtRisk: 2
   };
 
-  const teamReps = [
-    { id: "s1", name: "Sophia Martinez", territory: "EMEA — Nordics & UK", target: "$150K", revenue: "$124.5K", pct: 83, dealsWon: 14, pipeline: "$1.45M", winRate: "42.8%", status: "On Track", avatar: "SM" },
-    { id: "s2", name: "Henry Cavill", territory: "EMEA — Nordics", target: "$140K", revenue: "$151.2K", pct: 108, dealsWon: 12, pipeline: "$1.20M", winRate: "39.5%", status: "Exceeding", avatar: "HC" },
-    { id: "s3", name: "Liam Carter", territory: "North America — East", target: "$160K", revenue: "$112.0K", pct: 70, dealsWon: 11, pipeline: "$980.0K", winRate: "34.0%", status: "Needs Support", avatar: "LC" },
-    { id: "s4", name: "Ava Sterling", territory: "EMEA — DACH Region", target: "$130K", revenue: "$109.2K", pct: 84, dealsWon: 9, pipeline: "$850.0K", winRate: "36.2%", status: "On Track", avatar: "AS" },
-    { id: "s5", name: "Noah Bennett", territory: "EMEA — UK & Ireland", target: "$145K", revenue: "$87.0K", pct: 60, dealsWon: 7, pipeline: "$720.0K", winRate: "29.4%", status: "At Risk", avatar: "NB" },
-  ];
+  const [showAddRepModal, setShowAddRepModal] = useState(false);
+  const [newRepName, setNewRepName] = useState("");
+  const [newRepEmail, setNewRepEmail] = useState("");
+  const [newRepTerritory, setNewRepTerritory] = useState("North America - East");
+  const [newRepMaxLeads, setNewRepMaxLeads] = useState("35");
+
+  const createRepMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiClient("/api/v1/salespersons", {
+        method: "POST",
+        body: JSON.stringify({
+          name: newRepName,
+          email: newRepEmail,
+          territory: newRepTerritory,
+          maxOpenLeads: parseInt(newRepMaxLeads),
+          role: "sales_rep"
+        })
+      });
+      if (!res.ok) throw new Error("Failed to create sales representative");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["salespersonsPerformance"] });
+      setShowAddRepModal(false);
+      setNewRepName("");
+      setNewRepEmail("");
+    }
+  });
 
   const pendingApprovals = [
     { id: "a1", type: "Quote Discount Approval", client: "Aegis Systems Group", rep: "Sophia Martinez", amount: "$268,500", discount: "12% Enterprise Bundle", status: "Pending" },
@@ -140,8 +161,8 @@ export default function ManagerPortal() {
               <button onClick={() => navigate("/approvals")} className="px-3.5 py-2 bg-secondary/10 text-secondary border border-secondary/20 hover:bg-secondary/20 rounded-xl text-xs font-bold transition-colors">
                 🛡 Approval Queues ({pendingApprovals.length})
               </button>
-              <button onClick={() => navigate("/executive-bi")} className="px-3.5 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100/70 rounded-xl text-xs font-bold transition-colors">
-                📊 Executive BI Analytics
+              <button onClick={() => setShowAddRepModal(true)} className="px-3.5 py-2 bg-[#2563EB] text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-xs hover:bg-blue-700 transition-all">
+                <Plus className="w-3.5 h-3.5" /> + Add Sales Representative
               </button>
             </div>
           </div>
@@ -309,6 +330,89 @@ export default function ManagerPortal() {
           <Sparkles className="w-12 h-12 text-purple-500 mx-auto animate-pulse" />
           <h3 className="text-base font-bold text-slate-800">AI Manager Assistant & Lead Redistribution</h3>
           <p className="text-xs text-slate-500 max-w-md mx-auto">AI recommends rebalancing leads from Noah Bennett to Henry Cavill based on active capacity and win rate.</p>
+        </div>
+      )}
+
+      {/* ADD SALES REPRESENTATIVE MODAL */}
+      {showAddRepModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-4 animate-scale-up">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                <Users className="w-4 h-4 text-[#2563EB]" /> Add New Sales Representative
+              </h3>
+              <button onClick={() => setShowAddRepModal(false)} className="p-1 text-slate-400 hover:text-slate-700">
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Full Name</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Vikram Sharma"
+                  value={newRepName}
+                  onChange={(e) => setNewRepName(e.target.value)}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Work Email</label>
+                <input
+                  type="email"
+                  placeholder="e.g. vikram@nexus.com"
+                  value={newRepEmail}
+                  onChange={(e) => setNewRepEmail(e.target.value)}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Territory</label>
+                  <select
+                    value={newRepTerritory}
+                    onChange={(e) => setNewRepTerritory(e.target.value)}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium"
+                  >
+                    <option value="North America - East">North America - East</option>
+                    <option value="North America - West">North America - West</option>
+                    <option value="EMEA - UK & Ireland">EMEA - UK & Ireland</option>
+                    <option value="EMEA - DACH Region">EMEA - DACH Region</option>
+                    <option value="APAC - India & SEA">APAC - India & SEA</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Max Open Lead Capacity</label>
+                  <input
+                    type="number"
+                    value={newRepMaxLeads}
+                    onChange={(e) => setNewRepMaxLeads(e.target.value)}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-blue-600"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-3 border-t border-slate-100">
+              <button onClick={() => setShowAddRepModal(false)} className="px-4 py-2 bg-slate-100 font-bold rounded-xl text-xs flex-1">
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  if (!newRepName || !newRepEmail) return alert("Name and Email are required");
+                  createRepMutation.mutate();
+                }}
+                disabled={createRepMutation.isPending}
+                className="px-5 py-2 bg-[#2563EB] text-white font-bold rounded-xl text-xs flex-1 shadow-xs hover:bg-blue-700"
+              >
+                {createRepMutation.isPending ? "Creating..." : "Add Representative"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

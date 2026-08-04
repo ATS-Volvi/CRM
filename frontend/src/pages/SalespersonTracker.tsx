@@ -102,14 +102,50 @@ export default function SalespersonTracker() {
 
   const fetchSalespersons = async () => {
     try {
+      // Try the full performance endpoint first
       const res = await apiClient("/api/v1/salespersons/performance");
-      const data = await res.json();
-      if (Array.isArray(data)) setSalespersons(data);
-      setLoading(false);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          setSalespersons(data);
+          setLoading(false);
+          return;
+        }
+      }
     } catch (err) {
-      console.error(err);
-      setLoading(false);
+      console.error("Performance endpoint failed, falling back to list:", err);
     }
+
+    // Fallback: use the simple salespersons list endpoint
+    try {
+      const res2 = await apiClient("/api/v1/salespersons");
+      if (res2.ok) {
+        const list = await res2.json();
+        if (Array.isArray(list)) {
+          // Map to the shape the UI expects, with safe defaults
+          const mapped: Salesperson[] = list.map((u: any) => ({
+            id: u.id,
+            name: u.name,
+            email: u.email || "",
+            role: u.role || "sales_rep",
+            isAvailable: u.isAvailable ?? true,
+            maxOpenLeads: u.maxOpenLeads ?? 35,
+            totalLeads: u.totalLeads ?? 0,
+            totalDeals: u.totalDeals ?? 0,
+            department: u.department || "Sales",
+            territory: u.territory || "EMEA",
+            team: u.team || "Aces",
+            activeKpiCount: 0,
+            revenueClosed: 0,
+            targetAchievementPct: 0,
+          }));
+          setSalespersons(mapped);
+        }
+      }
+    } catch (err2) {
+      console.error("Fallback list also failed:", err2);
+    }
+    setLoading(false);
   };
 
   const fetchManagers = async () => {

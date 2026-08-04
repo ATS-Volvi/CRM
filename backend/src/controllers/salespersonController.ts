@@ -205,7 +205,7 @@ export const getSalespersonsPerformance = async (req: Request, res: Response) =>
       // 5. Fetch last 50 activities created by this user, with lead context
       const rawActivities = await sequelize.models.Activity.findAll({
         where: { createdById: u.id },
-        include: [{ model: sequelize.models.Lead }],
+        include: [{ model: sequelize.models.Lead, as: "lead" }],
         order: [["createdAt", "DESC"]],
         limit: 50
       });
@@ -213,7 +213,7 @@ export const getSalespersonsPerformance = async (req: Request, res: Response) =>
       // Pin pinned items to the top, then sort by date descending
       const activities = (rawActivities as any[])
         .map((act: any) => {
-          const lead = act.Lead ?? act.lead ?? null;
+          const lead = act.lead ?? null;
           const leadName = lead
             ? lead.company || `${lead.firstName} ${lead.lastName}`.trim()
             : null;
@@ -462,14 +462,14 @@ export const getSalespersonPerformanceDetails = async (req: Request, res: Respon
     // Fetch activities
     const rawActivities = await sequelize.models.Activity.findAll({
       where: { createdById: u.id },
-      include: [{ model: sequelize.models.Lead }],
+      include: [{ model: sequelize.models.Lead, as: "lead" }],
       order: [["createdAt", "DESC"]],
       limit: 50
     });
 
     const activities = (rawActivities as any[])
       .map((act: any) => {
-        const lead = act.Lead ?? act.lead ?? null;
+        const lead = act.lead ?? null;
         const leadName = lead ? lead.company || `${lead.firstName} ${lead.lastName}`.trim() : null;
         return {
           id: act.id,

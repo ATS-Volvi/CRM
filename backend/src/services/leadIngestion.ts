@@ -150,7 +150,8 @@ export async function ingestLead(payload: LeadPayload) {
       targetLeadId = crypto.randomUUID();
       const year = new Date().getFullYear();
       const count = await LeadModel.count();
-      const seq = String(count + 1).padStart(5, '0');
+      // Add a small random suffix to avoid collisions when multiple leads are created concurrently
+      const seq = String(count + 1 + Math.floor(Math.random() * 100)).padStart(5, '0');
       const leadNumber = `LD-${year}-${seq}`;
 
       const newLead = await LeadModel.create({

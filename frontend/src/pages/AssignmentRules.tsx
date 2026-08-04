@@ -163,52 +163,54 @@ export default function AssignmentRules() {
   };
 
   return (
-    <div className="flex-1 overflow-y-auto bg-surface h-[calc(100vh-64px)] relative">
+    <div className="flex-1 overflow-y-auto bg-[#FAF8FF] min-h-[calc(100vh-88px)] relative">
       {/* Top Bar Shell */}
-      <header className="h-16 flex justify-between items-center px-8 bg-surface-container-lowest border-b border-outline-variant sticky top-0 z-40">
+      <header className="h-16 flex justify-between items-center px-8 bg-white border-b border-slate-200/80 sticky top-0 z-40 shadow-2xs">
         <div className="flex items-center gap-6">
-          <div className="flex items-center gap-1 bg-muted p-1 rounded-lg border border-border">
+          <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200">
             <button
               onClick={() => setActiveTab("distribution")}
-              className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
-                activeTab === "distribution" ? "bg-primary text-white shadow-2xs" : "text-muted-foreground hover:text-foreground"
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                activeTab === "distribution" ? "bg-[#2563EB] text-white shadow-2xs" : "text-slate-500 hover:text-slate-900"
               }`}
             >
               Lead Distribution Rules
             </button>
             <button
               onClick={() => setActiveTab("automations")}
-              className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
-                activeTab === "automations" ? "bg-primary text-white shadow-2xs" : "text-muted-foreground hover:text-foreground"
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                activeTab === "automations" ? "bg-[#2563EB] text-white shadow-2xs" : "text-slate-500 hover:text-slate-900"
               }`}
             >
               Stage Automations ({automations.length})
             </button>
           </div>
 
-          <div className="h-4 w-[1px] bg-outline-variant"></div>
-          <div className="flex items-center gap-2 text-primary font-bold">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+          <div className="h-4 w-[1px] bg-slate-200"></div>
+          <div className="flex items-center gap-2 text-[#2563EB] font-bold">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-500 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#2563EB]"></span>
             </span>
-            <span className="text-xs">Real-time automation engine active</span>
+            <span className="text-xs font-bold">Real-time automation engine active</span>
           </div>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           {activeTab === "distribution" ? (
             <button 
               onClick={() => setShowAddRuleModal(true)}
-              className="bg-primary text-on-primary px-4 py-2 rounded-lg text-[12px] font-bold shadow-sm hover:opacity-90 transition-all"
+              className="bg-[#2563EB] hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-xs transition-all active:scale-95 flex items-center gap-1.5"
             >
-              + Add Distribution Rule
+              <Plus className="w-3.5 h-3.5" />
+              <span>Add Distribution Rule</span>
             </button>
           ) : (
             <button 
               onClick={() => setShowAddAutomationModal(true)}
-              className="bg-primary text-on-primary px-4 py-2 rounded-lg text-[12px] font-bold shadow-sm hover:opacity-90 transition-all"
+              className="bg-[#2563EB] hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-xs transition-all active:scale-95 flex items-center gap-1.5"
             >
-              + Create Automation Rule
+              <Plus className="w-3.5 h-3.5" />
+              <span>Create Automation Rule</span>
             </button>
           )}
         </div>
@@ -512,51 +514,52 @@ export default function AssignmentRules() {
         </div>
 
         {/* Right Sidebar: Capacity & Status */}
-        <aside className="w-80 flex flex-col gap-6">
+        <aside className="w-80 flex flex-col gap-6 shrink-0">
           {/* Capacity Meter Widget */}
-          <section className="bg-surface-container-lowest border border-outline-variant rounded-xl p-6 shadow-sm">
-            <div className="flex justify-between items-center mb-4">
-              <h4 className="text-[12px] font-bold uppercase text-on-surface-variant">Agent Capacity</h4>
-              <Sliders className="w-5 h-5 text-outline" />
+          <section className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-2xs space-y-4">
+            <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+              <h4 className="text-[11px] font-black uppercase tracking-wider text-[#6B7280]">Agent Capacity</h4>
+              <Sliders className="w-4 h-4 text-[#2563EB]" />
             </div>
-             <div className="space-y-6">
-               {isLoadingCapacities ? (
-                 <div className="text-xs text-on-surface-variant animate-pulse">Loading capacities...</div>
-               ) : capacities.length === 0 ? (
-                 <div className="text-xs text-on-surface-variant">No active salespersons found.</div>
-               ) : (
-                 capacities.map((cap: any) => {
-                   const percentage = Math.min(100, Math.round((cap.current / cap.max) * 100));
-                   const isOverloaded = cap.current >= cap.max;
-                   const barColor = isOverloaded ? "bg-error" : percentage > 80 ? "bg-amber-500" : "bg-primary";
-                   return (
-                     <div key={cap.id || cap.name}>
-                       <div className="flex justify-between text-sm mb-1">
-                         <span className="font-bold">{cap.name}</span>
-                         <span className={`${isOverloaded ? "text-error font-bold" : "text-on-surface-variant"}`}>
-                           {cap.current} / {cap.max} leads
-                         </span>
-                       </div>
-                       <div className="w-full bg-surface-container h-2 rounded-full overflow-hidden">
-                         <div className={`${barColor} h-full rounded-full`} style={{ width: `${percentage}%` }}></div>
-                       </div>
-                     </div>
-                   );
-                 })
-               )}
-             </div>
-             <button 
-               onClick={() => {
-                 if (confirm("Redistribute open leads and balance agent capacities in database?")) {
-                   balanceLimitsMutation.mutate();
-                 }
-               }}
-               disabled={balanceLimitsMutation.isPending}
-               className="w-full mt-6 py-2 text-primary font-bold text-[12px] uppercase border border-primary/20 rounded-lg hover:bg-primary/5 transition-colors disabled:opacity-50"
-             >
-               {balanceLimitsMutation.isPending ? "Balancing..." : "Balance All Limits"}
-             </button>
+            <div className="space-y-3.5 max-h-[420px] overflow-y-auto pr-1">
+              {isLoadingCapacities ? (
+                <div className="text-xs text-slate-400 animate-pulse font-medium">Loading capacities...</div>
+              ) : capacities.length === 0 ? (
+                <div className="text-xs text-slate-400 font-medium">No active salespersons found.</div>
+              ) : (
+                capacities.map((cap: any) => {
+                  const percentage = Math.min(100, Math.round((cap.current / cap.max) * 100));
+                  const isOverloaded = cap.current >= cap.max;
+                  const barColor = isOverloaded ? "bg-rose-500" : percentage > 80 ? "bg-amber-500" : "bg-[#2563EB]";
+                  return (
+                    <div key={cap.id || cap.name} className="space-y-1">
+                      <div className="flex justify-between text-xs font-bold">
+                        <span className="text-[#191B23]">{cap.name}</span>
+                        <span className={`${isOverloaded ? "text-rose-600 font-black" : "text-slate-500"}`}>
+                          {cap.current} / {cap.max} leads
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden border border-slate-200/60">
+                        <div className={`${barColor} h-full rounded-full transition-all duration-300`} style={{ width: `${percentage}%` }}></div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+            <button 
+              onClick={() => {
+                if (confirm("Redistribute open leads and balance agent capacities in database?")) {
+                  balanceLimitsMutation.mutate();
+                }
+              }}
+              disabled={balanceLimitsMutation.isPending}
+              className="w-full py-2 bg-blue-50 hover:bg-blue-100 text-[#2563EB] font-bold text-xs rounded-xl border border-blue-200 transition-all active:scale-95 disabled:opacity-50"
+            >
+              {balanceLimitsMutation.isPending ? "Balancing..." : "Balance All Limits"}
+            </button>
           </section>
+
 
           {/* Out of Office Status */}
           <section className="bg-surface-container-lowest border border-outline-variant rounded-xl p-6 shadow-sm flex-1">
@@ -620,19 +623,19 @@ export default function AssignmentRules() {
         )}
       </div>
 
-      {/* Footer Stats */}
-      <footer className="fixed bottom-6 right-8 flex justify-end items-center pointer-events-none z-50">
-        <div className="bg-inverse-surface text-on-primary-fixed rounded-full px-6 py-2 shadow-xl pointer-events-auto flex items-center gap-4 border border-outline/30">
-          <div className="flex items-center gap-2 pr-4 border-r border-outline/50">
-            <span className="text-primary-fixed-dim text-2xl font-bold">128</span>
-            <span className="text-[12px] font-bold uppercase text-surface-variant">Leads Assigned (Today)</span>
+      {/* Footer Stats integrated into non-blocking bottom bar */}
+      <div className="fixed bottom-4 right-8 z-30 pointer-events-none">
+        <div className="bg-slate-900/90 backdrop-blur-md text-white rounded-2xl px-5 py-2.5 shadow-xl border border-slate-800 pointer-events-auto flex items-center gap-4 text-xs font-bold">
+          <div className="flex items-center gap-2 pr-4 border-r border-slate-700">
+            <span className="text-blue-400 text-lg font-black">128</span>
+            <span className="text-[10px] font-extrabold uppercase text-slate-300">Leads Assigned Today</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-secondary-fixed-dim text-2xl font-bold">4.2s</span>
-            <span className="text-[12px] font-bold uppercase text-surface-variant">Avg. Routing Time</span>
+            <span className="text-emerald-400 text-lg font-black">4.2s</span>
+            <span className="text-[10px] font-extrabold uppercase text-slate-300">Avg Routing Time</span>
           </div>
         </div>
-      </footer>
+      </div>
 
       {/* Add Rule Modal */}
       {showAddRuleModal && (

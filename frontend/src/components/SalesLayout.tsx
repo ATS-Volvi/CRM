@@ -4,11 +4,14 @@ import { useAuth } from "../context/AuthContext";
 import {
   Zap, Inbox, Users, Trello, Calendar, PhoneCall, Video, CheckSquare,
   FileText, ShoppingBag, TrendingUp, Bell, Sparkles, User, LogOut, Search,
-  Plus, ChevronLeft, ChevronRight, MessageSquare, ShieldAlert, Receipt, Database
+  Plus, ChevronLeft, ChevronRight, MessageSquare, ShieldAlert, Receipt, Database, Moon, Sun
 } from "lucide-react";
 import { NotificationDrawer } from "./NotificationDrawer";
 import { AiCopilotDrawer } from "./AiCopilotDrawer";
 import { CommandPalette } from "./CommandPalette";
+import { SalesOrbit } from "./SalesOrbit";
+import { WorkspaceTransition } from "./WorkspaceTransition";
+import { OrbitProvider } from "../context/OrbitContext";
 
 export function SalesLayout() {
   const { user, logout } = useAuth();
@@ -18,179 +21,87 @@ export function SalesLayout() {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isAiCopilotOpen, setIsAiCopilotOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
-  const [isCollapsed, setIsCollapsed] = useState(() => {
-    const saved = localStorage.getItem("sidebar_collapsed");
-    return saved === null ? true : saved === "true";
-  });
-
-  useEffect(() => {
-    localStorage.setItem("sidebar_collapsed", String(isCollapsed));
-  }, [isCollapsed]);
 
   const repName = user?.name || "Liam Carter";
   const initials = repName.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
 
-  const salesNavItems = [
-    { name: "My Dashboard", path: "/rep-portal", icon: Zap },
-    { name: "My Leads", path: "/leads", icon: Inbox },
-    { name: "Pipeline", path: "/pipeline", icon: Trello },
-    { name: "Quotations", path: "/quotes", icon: FileText },
-    { name: "Invoices & Billing", path: "/invoices", icon: Receipt },
-    { name: "Master Data", path: "/master-data/requirements", icon: Database },
-    { name: "AI Sales Copilot", path: "#", icon: Sparkles, onClick: () => setIsAiCopilotOpen(true) },
-  ];
-
   return (
-    <div className="flex h-screen w-full bg-slate-100 text-slate-900 font-sans overflow-hidden">
-      
-      {/* SALES REPRESENTATIVE SIDEBAR */}
-      <aside className={`bg-slate-900 border-r border-slate-800 text-slate-200 flex flex-col h-full shrink-0 transition-all duration-300 ${isCollapsed ? "w-16" : "w-[260px]"}`}>
+    <OrbitProvider>
+      <div className="flex flex-col h-screen w-full bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans overflow-hidden transition-colors duration-300">
         
-        {/* Brand Header */}
-        <div className="h-16 flex items-center justify-between px-4 border-b border-slate-800 shrink-0">
-          {!isCollapsed && (
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-primary text-white flex items-center justify-center font-bold text-xs shadow-2xs">
-                NX
-              </div>
-              <div>
-                <span className="font-bold text-sm tracking-tight text-white block">SALES WORKSPACE</span>
-                <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider block">Individual Representative</span>
-              </div>
+        {/* TOP COMPACT REPO OS TOOLBAR */}
+        <header className="h-14 border-b border-slate-200/80 dark:border-slate-800/80 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl flex items-center justify-between px-6 shrink-0 z-30 shadow-2xs">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 via-purple-600 to-pink-500 text-white flex items-center justify-center font-bold text-xs shadow-md shadow-indigo-500/20">
+              NX
             </div>
-          )}
-          <button
-            onClick={() => setIsCollapsed(prev => !prev)}
-            className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-colors mx-auto"
-          >
-            {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-          </button>
-        </div>
-
-        {/* Rep Identity Card */}
-        {!isCollapsed && (
-          <div className="p-3 mx-3 my-3 bg-slate-800/60 border border-slate-700/60 rounded-xl flex items-center gap-3 shrink-0">
-            <div className="w-8 h-8 rounded-full bg-primary/20 text-primary border border-primary/30 font-bold text-xs flex items-center justify-center shrink-0">
-              {initials}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-bold text-white truncate">{repName}</p>
-              <p className="text-[10px] text-emerald-400 font-medium flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Active Representative
-              </p>
+            <div>
+              <span className="font-extrabold text-xs tracking-tight text-slate-900 dark:text-white block leading-none">
+                SALES OPERATING SYSTEM
+              </span>
+              <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold block">
+                Representative Portal • {repName}
+              </span>
             </div>
           </div>
-        )}
 
-        {/* Navigation Menu */}
-        <nav className="flex-1 overflow-y-auto p-3 space-y-1 no-scrollbar">
-          <p className={`text-[10px] font-bold text-slate-400 uppercase tracking-wider px-3 mb-2 ${isCollapsed ? "hidden" : "block"}`}>
-            Daily Modules
-          </p>
-          {salesNavItems.map(item => {
-            const Icon = item.icon;
-            const isActive = location.pathname === item.path;
-            return (
-              <button
-                key={item.name}
-                onClick={() => {
-                  if (item.onClick) item.onClick();
-                  else navigate(item.path);
-                }}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                  isActive
-                    ? "bg-primary text-white shadow-2xs"
-                    : "text-slate-300 hover:bg-slate-800 hover:text-white"
-                }`}
-                title={isCollapsed ? item.name : undefined}
-              >
-                <Icon className={`w-4 h-4 shrink-0 ${isActive ? "text-white" : "text-slate-400"}`} />
-                {!isCollapsed && <span>{item.name}</span>}
-              </button>
-            );
-          })}
-        </nav>
-
-        {/* Footer Sign Out */}
-        <div className="p-3 border-t border-white/10 shrink-0">
-          <button
-            onClick={() => { logout(); navigate("/login"); }}
-            className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-slate-400 hover:text-white hover:bg-white/10 rounded-xl transition-all"
-          >
-            <LogOut className="w-4 h-4 text-red-400" />
-            {!isCollapsed && <span>Sign Out</span>}
-          </button>
-        </div>
-
-      </aside>
-
-      {/* MAIN CONTENT WORKSPACE */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden">
-        
-        {/* TOP HEADER BAR */}
-        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 shrink-0 gap-4 shadow-xs">
-          
-          {/* Global Search input */}
-          <div className="flex-1 max-w-md">
+          {/* Omnibar Search */}
+          <div className="flex-1 max-w-md mx-4">
             <button
               onClick={() => setIsCommandPaletteOpen(true)}
-              className="w-full flex items-center gap-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-500 transition-all"
+              className="w-full flex items-center gap-2 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full px-3 py-1.5 text-xs text-slate-500 dark:text-slate-400 transition-all shadow-2xs"
             >
-              <Search className="w-4 h-4 text-slate-400" />
-              <span className="flex-1 text-left font-medium">Search my assigned leads, deals, quotes...</span>
-              <kbd className="px-2 py-0.5 text-[10px] font-mono font-bold bg-white text-slate-400 rounded border border-slate-200">
-                CTRL + K
+              <Search className="w-3.5 h-3.5 text-indigo-500" />
+              <span className="flex-1 text-left font-medium">Search deals, clients...</span>
+              <kbd className="px-1.5 py-0.5 text-[9px] font-mono font-bold bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 rounded border border-slate-200 dark:border-slate-700">
+                Ctrl+K
               </kbd>
             </button>
           </div>
 
-          {/* Quick Actions & Copilot Button */}
-          <div className="flex items-center gap-3 shrink-0">
-            <button
-              onClick={() => navigate("/leads/new")}
-              className="flex items-center gap-1 px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold rounded-lg transition-colors border border-primary/20"
-            >
-              <Plus className="w-3.5 h-3.5" /> Lead
-            </button>
-            <button
-              onClick={() => navigate("/quotes/new")}
-              className="flex items-center gap-1 px-3 py-1.5 bg-secondary/10 hover:bg-secondary/20 text-secondary text-xs font-bold rounded-lg transition-colors border border-secondary/20"
-            >
-              <FileText className="w-3.5 h-3.5" /> Quote
-            </button>
-
+          <div className="flex items-center gap-2">
             <button
               onClick={() => setIsAiCopilotOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-black rounded-xl shadow-xs transition-all"
+              className="flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-full shadow-xs hover:bg-indigo-700 transition-all"
             >
-              <Sparkles className="w-3.5 h-3.5 text-amber-300" /> AI Sales Assistant
+              <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
+              <span>AI Copilot</span>
             </button>
-
             <button
               onClick={() => setIsNotificationsOpen(true)}
-              className="p-2 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all relative"
+              className="p-2 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white rounded-full transition-colors"
             >
-              <Bell className="w-5 h-5" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-indigo-600 animate-pulse" />
+              <Bell className="w-4 h-4" />
             </button>
-
-            <div className="w-8 h-8 rounded-full bg-indigo-600 text-white font-extrabold text-xs flex items-center justify-center shadow-xs">
-              {initials}
-            </div>
+            <button
+              onClick={() => logout()}
+              className="p-1.5 text-slate-400 hover:text-rose-500 transition-colors"
+              title="Sign Out"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
         </header>
 
-        {/* DYNAMIC SALES PAGE CONTENT */}
-        <main className="flex-1 overflow-y-auto bg-slate-50">
-          <Outlet />
+        {/* MAIN REPO CONTENT & ORBIT */}
+        <main className="flex-1 overflow-y-auto relative pb-24">
+          <WorkspaceTransition>
+            <Outlet />
+          </WorkspaceTransition>
         </main>
+
+        {/* SALES ORBIT FLOATING NAVIGATION */}
+        <SalesOrbit
+          onOpenSearch={() => setIsCommandPaletteOpen(true)}
+          onOpenAi={() => setIsAiCopilotOpen(true)}
+          onOpenNotifications={() => setIsNotificationsOpen(true)}
+        />
+
+        {/* MODALS */}
+        <CommandPalette isOpen={isCommandPaletteOpen} onClose={() => setIsCommandPaletteOpen(false)} />
+        <NotificationDrawer isOpen={isNotificationsOpen} onClose={() => setIsNotificationsOpen(false)} />
+        <AiCopilotDrawer isOpen={isAiCopilotOpen} onClose={() => setIsAiCopilotOpen(false)} />
       </div>
-
-      {/* DRAWERS & DIALOGS */}
-      <NotificationDrawer isOpen={isNotificationsOpen} onClose={() => setIsNotificationsOpen(false)} />
-      <AiCopilotDrawer isOpen={isAiCopilotOpen} onClose={() => setIsAiCopilotOpen(false)} />
-      <CommandPalette isOpen={isCommandPaletteOpen} onClose={() => setIsCommandPaletteOpen(false)} />
-
-    </div>
+    </OrbitProvider>
   );
 }

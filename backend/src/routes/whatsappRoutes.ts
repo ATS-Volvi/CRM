@@ -23,6 +23,7 @@ router.post("/webhook", handleIncomingWebhook);
 // Authenticated CRM Endpoints
 router.post("/send", authMiddleware, sendMessage);
 router.get("/conversations", authMiddleware, getConversations);
+router.get("/messages", authMiddleware, getMessages);
 router.get("/messages/:targetId", authMiddleware, getMessages);
 
 // Diagnostics & Error Logging Endpoints

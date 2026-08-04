@@ -195,7 +195,11 @@ export const getConversations = async (req: Request, res: Response) => {
 
 export const getMessages = async (req: Request, res: Response) => {
   try {
-    const { targetId } = req.params;
+    const targetId = req.params.targetId || (req.query.leadId as string) || (req.query.targetId as string) || (req.query.customerId as string);
+
+    if (!targetId) {
+      return res.status(200).json([]);
+    }
 
     const activities = await sequelize.models.Activity.findAll({
       where: {
