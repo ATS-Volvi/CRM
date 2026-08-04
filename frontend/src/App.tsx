@@ -47,12 +47,8 @@ const ProtectedRoute = () => {
   return isAuthenticated ? <Outlet /> : <Navigate to="/login" replace />;
 };
 
-/** Dynamic Layout Selector: SalesLayout for reps, standard Layout for managers/admins */
+/** Standardized Workspace Layout with Sidebar */
 const RoleBasedLayout = () => {
-  const { user } = useAuth();
-  if (user?.role === "sales_rep") {
-    return <SalesLayout />;
-  }
   return <Layout />;
 };
 
