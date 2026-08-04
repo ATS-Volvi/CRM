@@ -353,20 +353,28 @@ export default function ManagementDashboard() {
                 <div>
                   <h5 className="text-sm font-bold uppercase tracking-wider text-on-surface-variant mb-4">Call Outcome Distribution</h5>
                   <div className="space-y-3">
-                    {Object.entries(actReports.callOutcomeDistribution).map(([outcome, count]: any) => (
-                      <div key={outcome} className="flex items-center justify-between text-sm">
-                        <span>{outcome}</span>
-                        <div className="flex items-center gap-3 w-1/2">
-                          <div className="bg-secondary/20 h-2 rounded-full flex-grow">
-                            <div 
-                              className="bg-secondary h-2 rounded-full" 
-                              style={{ width: `${Math.min(100, (Number(count) / ((Object.values(actReports.callOutcomeDistribution).reduce((a: any, b: any) => Number(a) + Number(b), 0) as number) || 1)) * 100)}%` }}
-                            />
+                    {Object.entries(actReports.callOutcomeDistribution)
+                      .slice(0, 6)
+                      .map(([outcome, count]: any) => {
+                        const cleanLabel = outcome.length > 30 ? outcome.substring(0, 28) + "..." : outcome;
+                        const total = (Object.values(actReports.callOutcomeDistribution).reduce((a: any, b: any) => Number(a) + Number(b), 0) as number) || 1;
+                        const pct = Math.min(100, Math.round((Number(count) / total) * 100));
+
+                        return (
+                          <div key={outcome} className="flex items-center justify-between text-xs gap-3">
+                            <span className="font-semibold text-slate-700 w-1/2 truncate" title={outcome}>{cleanLabel}</span>
+                            <div className="flex items-center gap-3 w-1/2">
+                              <div className="bg-slate-200 h-2 rounded-full flex-grow overflow-hidden">
+                                <div 
+                                  className="bg-blue-600 h-2 rounded-full transition-all" 
+                                  style={{ width: `${pct}%` }}
+                                />
+                              </div>
+                              <span className="font-bold text-slate-900 w-6 text-right">{count}</span>
+                            </div>
                           </div>
-                          <span className="font-bold">{count}</span>
-                        </div>
-                      </div>
-                    ))}
+                        );
+                      })}
                   </div>
                 </div>
               </div>

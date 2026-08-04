@@ -604,13 +604,23 @@ async function seedEnterpriseDatabase() {
           });
         }
       } else {
+        const actType = i % 5 === 0 ? "whatsapp_sms" : pick(["call", "email", "meeting", "task", "note"]);
+        let outcomeStr = pick(["Connected - High Interest", "Left Voicemail", "Connected - Demo Scheduled", "Connected - Follow-up Needed"]);
+        if (actType === "whatsapp_sms") {
+          outcomeStr = i % 2 === 0 ? "message received" : "message sent";
+        } else if (actType === "email") {
+          outcomeStr = "Email Delivered";
+        } else if (actType === "meeting") {
+          outcomeStr = "Meeting Completed";
+        }
+
         await models.Activity.create({
           id: crypto.randomUUID(),
           leadId: lead.id,
           createdById: rep.id,
-          type: i % 5 === 0 ? "whatsapp_sms" : pick(["call", "email", "meeting", "task", "note", "stage_change"]),
-          outcome: i % 5 === 0 ? (i % 2 === 0 ? "message received" : "message sent") : `${pick(taskTitles)} for ${comp.name}`,
-          notes: i % 5 === 0 ? (i % 2 === 0 ? `Hi ${rep.name}, can you send the updated quotation via WhatsApp?` : `Hi ${lead.firstName}, I have dispatched the quotation PDF to your WhatsApp number.`) : pick(callNotes),
+          type: actType,
+          outcome: outcomeStr,
+          notes: actType === "whatsapp_sms" ? (i % 2 === 0 ? `Hi ${rep.name}, can you send the updated quotation via WhatsApp?` : `Hi ${lead.firstName}, I have dispatched the quotation PDF to your WhatsApp number.`) : pick(callNotes),
           isCompleted: true,
           createdAt: created
         });
