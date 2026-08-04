@@ -97,8 +97,10 @@ export default function SalesQueue() {
     queryKey: ["leads"],
     queryFn: async () => {
       const res = await apiClient("/api/v1/leads");
-      if (!res.ok) throw new Error("Failed to fetch queue leads");
-      return res.json();
+      if (res.status === 401) return [];
+      if (!res.ok) return [];
+      const json = await res.json();
+      return Array.isArray(json) ? json : [];
     },
     refetchInterval: 10000,
   });
@@ -240,7 +242,7 @@ export default function SalesQueue() {
   };
 
   return (
-    <div className="min-h-[calc(100vh-88px)] bg-[#FAF8FF] text-[#191B23] font-sans select-none relative">
+    <div className="min-h-full w-full bg-[#FAF8FF] text-[#191B23] font-sans select-none relative">
       {isLeadsLoading ? (
         <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
           <RefreshCw className="w-8 h-8 animate-spin text-[#2563EB]" />
