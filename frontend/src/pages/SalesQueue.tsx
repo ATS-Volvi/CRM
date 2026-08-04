@@ -93,16 +93,13 @@ export default function SalesQueue() {
   }, [lineItems]);
 
   // Query Leads with 10s Polling
-  const { data: leads = [] } = useQuery<any[]>({
+  const { data: leads = [], isLoading: isLeadsLoading, isError: isLeadsError } = useQuery<any[]>({
     queryKey: ["leads"],
     queryFn: async () => {
-      const res = await fetch("/api/v1/leads", {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await apiClient("/api/v1/leads");
       if (!res.ok) throw new Error("Failed to fetch queue leads");
       return res.json();
     },
-    enabled: !!token,
     refetchInterval: 10000,
   });
 
