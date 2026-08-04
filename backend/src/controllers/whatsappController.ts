@@ -103,6 +103,17 @@ export const sendMessage = async (req: Request, res: Response) => {
       if (lead) {
         if (!targetPhone) targetPhone = lead.whatsappPhone || lead.phone;
       }
+    } else if (phone) {
+      // Find lead by phone number if leadId was not explicitly passed
+      const cleanTargetDigits = extractDigits(phone).slice(-10);
+      const matchingLead = await sequelize.models.Lead.findOne({
+        where: {
+          phone: { [Op.like]: `%${cleanTargetDigits}%` }
+        }
+      }) as any;
+      if (matchingLead) {
+        targetLeadId = matchingLead.id;
+      }
     } else if (customerId) {
       const customer = await sequelize.models.Customer.findByPk(customerId) as any;
       if (customer) {
@@ -116,11 +127,17 @@ export const sendMessage = async (req: Request, res: Response) => {
 
     const apiResult = await sendWhatsAppMessage(targetPhone, text, mediaUrl);
 
+    let creatorId = (req as any).user?.id;
+    if (!creatorId) {
+      const adminUser = await sequelize.models.User.findOne({ where: { role: "admin" } }) as any;
+      if (adminUser) creatorId = adminUser.id;
+    }
+
     const activity = await sequelize.models.Activity.create({
       id: crypto.randomUUID(),
       leadId: targetLeadId || null,
       customerId: targetCustomerId || null,
-      createdById: (req as any).user?.id || null,
+      createdById: creatorId || null,
       type: "whatsapp_sms",
       notes: text,
       outcome: apiResult.simulated ? "sent (simulated)" : "sent",

@@ -137,6 +137,12 @@ export default function CommunicationCenter() {
     refetchOnWindowFocus: true,
   });
 
+  useEffect(() => {
+    if (!selectedConvId && whatsappConvs.length > 0) {
+      setSelectedConvId(whatsappConvs[0].id);
+    }
+  }, [whatsappConvs, selectedConvId]);
+
   // ─── FETCH MESSAGES FOR SELECTED WA CONV ──────────────────
   const selectedWaConv = whatsappConvs.find(c => c.id === selectedConvId);
   const { data: waMessages = [], isLoading: loadingMessages } = useQuery<WhatsAppMessage[]>({
@@ -232,8 +238,8 @@ export default function CommunicationCenter() {
   });
 
   const activeConv = allConversations.find(c => c.id === selectedConvId) || allConversations[0];
-  const activeIsWhatsApp = activeConv?.channel === "whatsapp" && !activeConv.id.startsWith("s-");
-  const activeIsLive = (activeConv?.channel === "whatsapp" || activeConv?.channel === "instagram") && !activeConv.id.startsWith("s-");
+  const activeIsWhatsApp = activeConv?.channel === "whatsapp";
+  const activeIsLive = activeConv?.channel === "whatsapp" || activeConv?.channel === "instagram";
 
   // For static channel messages
   const staticMessages = activeConv?.messages || [];

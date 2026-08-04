@@ -62,7 +62,7 @@ async function seedEnterpriseDatabase() {
     console.log("Seeding Master Data & Reference Sets...");
 
     const sourceNames = [
-      "Website Organic", "LinkedIn Outreach", "Cold Inbound", "Trade Show Expo 2025",
+      "Website Organic", "WhatsApp Inbound", "LinkedIn Outreach", "Cold Inbound", "Trade Show Expo 2025",
       "Executive Referral", "Google Search Ads", "Webinar Series", "Partner Referral",
       "G2 Crowd Lead", "Direct Mail Campaign"
     ];
@@ -342,22 +342,25 @@ async function seedEnterpriseDatabase() {
       const status = leadStatuses[i % leadStatuses.length];
       const created = daysAgo(randomInt(5, 365));
 
+      const isWa = i % 5 === 0;
       const leadRecord = await models.Lead.create({
         id: crypto.randomUUID(),
         leadNumber: `LD-2025-${String(i + 1001).padStart(5, '0')}`,
-        firstName: fn,
-        lastName: ln,
-        company: comp.name,
-        email: `${fn.toLowerCase()}.${ln.toLowerCase()}@${comp.name.toLowerCase().replace(/[^a-z]/g, "")}.com`,
-        phone: `+1 (${randomInt(200, 999)}) ${randomInt(100, 999)}-${randomInt(1000, 9999)}`,
+        firstName: i === 0 ? "Rahul" : fn,
+        lastName: i === 0 ? "Sharma" : ln,
+        company: i === 0 ? "Sharma Global Enterprises" : comp.name,
+        email: i === 0 ? "rahul.sharma@sharmaglobal.com" : `${fn.toLowerCase()}.${ln.toLowerCase()}@${comp.name.toLowerCase().replace(/[^a-z]/g, "")}.com`,
+        phone: i === 0 ? "+919632217484" : `+1 (${randomInt(200, 999)}) ${randomInt(100, 999)}-${randomInt(1000, 9999)}`,
         status: status === "Meeting Scheduled" ? "Contacted" : status === "Proposal Sent" ? "Qualified" : status,
-        source: src.name,
+        source: isWa ? "WhatsApp Inbound" : src.name,
         industry: comp.industry,
         assignedToId: rep.id,
         leadScore: randomInt(35, 98),
         campaign: pick(campaigns),
         budgetRange: `$${randomInt(50, 500)}k`,
         isStrategic: i % 7 === 0,
+        unreadWhatsappCount: isWa ? randomInt(1, 3) : 0,
+        lastWhatsappAt: isWa ? daysAgo(randomInt(0, 2)) : null,
         customerId: comp.id,
         createdAt: created,
         updatedAt: daysAgo(randomInt(0, 4))
@@ -578,16 +581,40 @@ async function seedEnterpriseDatabase() {
       });
 
       // Activity Timeline Entry
-      await models.Activity.create({
-        id: crypto.randomUUID(),
-        leadId: lead.id,
-        createdById: rep.id,
-        type: i % 5 === 0 ? "whatsapp_sms" : pick(["call", "email", "meeting", "task", "note", "stage_change"]),
-        outcome: i % 5 === 0 ? (i % 2 === 0 ? "message received" : "message sent") : `${pick(taskTitles)} for ${comp.name}`,
-        notes: i % 5 === 0 ? (i % 2 === 0 ? `Hi ${rep.name}, can you send the updated quotation via WhatsApp?` : `Hi ${lead.firstName}, I have dispatched the quotation PDF to your WhatsApp number.`) : pick(callNotes),
-        isCompleted: true,
-        createdAt: created
-      });
+      if (i === 0) {
+        // Explicit rich WhatsApp chat history for Rahul Sharma
+        const rahulChatHistory = [
+          { outcome: "message received", notes: "Hi! This is Rahul Sharma from Sharma Global. We are looking for an Enterprise CRM package with WhatsApp integration.", time: daysAgo(2) },
+          { outcome: "message sent", notes: "Hello Rahul! Thanks for reaching out to Nexus. Our Enterprise package includes 24/7 SLA support, custom ERP connectors, and direct WhatsApp dispatch. Would you like a product overview?", time: daysAgo(2) },
+          { outcome: "message received", notes: "Yes, please! Can you send over the technical brochure and pricing for 50 licenses?", time: daysAgo(1) },
+          { outcome: "message sent", notes: "I have prepared Quote #Q-9812 for Sharma Global ($18,000/yr). You can review the details directly in your portal. Let me know if you need manager discount approvals!", time: daysAgo(1) },
+          { outcome: "message received", notes: "Thanks! Reviewing with our procurement team now. Can we schedule a quick demo call tomorrow at 3 PM?", time: daysAgo(0) }
+        ];
+
+        for (const chat of rahulChatHistory) {
+          await models.Activity.create({
+            id: crypto.randomUUID(),
+            leadId: lead.id,
+            createdById: rep.id,
+            type: "whatsapp_sms",
+            outcome: chat.outcome,
+            notes: chat.notes,
+            isCompleted: true,
+            createdAt: chat.time
+          });
+        }
+      } else {
+        await models.Activity.create({
+          id: crypto.randomUUID(),
+          leadId: lead.id,
+          createdById: rep.id,
+          type: i % 5 === 0 ? "whatsapp_sms" : pick(["call", "email", "meeting", "task", "note", "stage_change"]),
+          outcome: i % 5 === 0 ? (i % 2 === 0 ? "message received" : "message sent") : `${pick(taskTitles)} for ${comp.name}`,
+          notes: i % 5 === 0 ? (i % 2 === 0 ? `Hi ${rep.name}, can you send the updated quotation via WhatsApp?` : `Hi ${lead.firstName}, I have dispatched the quotation PDF to your WhatsApp number.`) : pick(callNotes),
+          isCompleted: true,
+          createdAt: created
+        });
+      }
 
       // Meetings (250 items, every 2nd iteration)
       if (i % 2 === 0) {

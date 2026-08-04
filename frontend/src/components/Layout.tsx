@@ -12,6 +12,7 @@ import { QuickActionFab } from "./QuickActionFab";
 import { AiCopilotDrawer } from "./AiCopilotDrawer";
 import { DemoStoryGuide } from "./DemoStoryGuide";
 import { TopWorkspaceNav } from "./TopWorkspaceNav";
+import { Sidebar } from "./Sidebar";
 import { WorkspaceTransition } from "./WorkspaceTransition";
 import { OrbitProvider } from "../context/OrbitContext";
 
@@ -126,8 +127,9 @@ export function Layout() {
           onOpenNotifications={() => setIsNotificationsOpen(true)}
         />
 
-        {/* MAIN CONTENT AREA CONTAINER */}
-        <div className="flex-1 flex overflow-hidden relative pt-[88px]">
+        {/* MAIN CONTENT AREA CONTAINER WITH PERSISTENT SIDEBAR */}
+        <div className="flex-1 flex overflow-hidden relative">
+          <Sidebar />
           <main className="flex-1 overflow-y-auto relative">
             <WorkspaceTransition>
               <Outlet />

@@ -201,10 +201,17 @@ export default function SalesQueue() {
 
       if (channelFilter !== "all") {
         const src = (lead.source || "").toLowerCase();
-        if (channelFilter === "whatsapp" && !src.includes("whatsapp")) return false;
-        if (channelFilter === "instagram" && !src.includes("instagram")) return false;
-        if (channelFilter === "email" && !src.includes("email")) return false;
-        if (channelFilter === "website" && !src.includes("web")) return false;
+        const rawBody = (lead.body || lead.notes || "").toLowerCase();
+        if (channelFilter === "whatsapp") {
+          const isWa = src.includes("whatsapp") || src.includes("phone") || src.includes("inbound") || (lead.unreadWhatsappCount || 0) > 0 || lead.lastWhatsappAt || rawBody.includes("whatsapp");
+          if (!isWa) return false;
+        } else if (channelFilter === "instagram") {
+          if (!src.includes("instagram") && !src.includes("ig")) return false;
+        } else if (channelFilter === "email") {
+          if (!src.includes("email") && !src.includes("mail")) return false;
+        } else if (channelFilter === "website") {
+          if (!src.includes("web") && !src.includes("form") && !src.includes("site")) return false;
+        }
       }
 
       if (searchQuery.trim()) {
