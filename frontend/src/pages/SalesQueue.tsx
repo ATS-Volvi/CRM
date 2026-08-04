@@ -228,8 +228,11 @@ export default function SalesQueue() {
   }, [leads, workFilter, channelFilter, searchQuery]);
 
   // SLA Urgency Helper
-  const getSlaBadge = (createdAt: string) => {
-    const mins = differenceInMinutes(new Date(), new Date(createdAt));
+  const getSlaBadge = (createdAt?: string) => {
+    if (!createdAt) return { label: "🟢 Just now", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" };
+    const dateObj = new Date(createdAt);
+    if (isNaN(dateObj.getTime())) return { label: "🟢 Just now", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" };
+    const mins = Math.abs(differenceInMinutes(new Date(), dateObj));
     if (mins < 10) return { label: `🟢 ${mins} min`, cls: "bg-emerald-50 text-emerald-700 border-emerald-200" };
     if (mins < 30) return { label: `🟡 ${mins} min`, cls: "bg-amber-50 text-amber-700 border-amber-200" };
     const hrs = Math.floor(mins / 60);
@@ -238,7 +241,21 @@ export default function SalesQueue() {
 
   return (
     <div className="min-h-[calc(100vh-88px)] bg-[#FAF8FF] text-[#191B23] font-sans select-none relative">
-      <AnimatePresence mode="wait">
+      {isLeadsLoading ? (
+        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
+          <RefreshCw className="w-8 h-8 animate-spin text-[#2563EB]" />
+          <p className="text-sm font-bold text-slate-600">Loading Live Priority Inbox...</p>
+        </div>
+      ) : isLeadsError ? (
+        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
+          <AlertCircle className="w-10 h-10 text-rose-500" />
+          <p className="text-base font-bold text-slate-800">Failed to load leads queue</p>
+          <button onClick={() => queryClient.invalidateQueries({ queryKey: ["leads"] })} className="px-4 py-2 bg-[#2563EB] text-white font-bold text-xs rounded-xl shadow-xs">
+            Retry Connection
+          </button>
+        </div>
+      ) : (
+        <AnimatePresence mode="wait">
 
         {/* ─── STAGE 1: LIVE PRIORITY WORK INBOX ─────────────────────────────────── */}
         {!selectedLeadId ? (
@@ -942,7 +959,8 @@ export default function SalesQueue() {
           </motion.div>
         )}
 
-      </AnimatePresence>
+        </AnimatePresence>
+      )}
     </div>
   );
 }
