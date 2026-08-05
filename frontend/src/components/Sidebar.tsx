@@ -74,8 +74,6 @@ export function Sidebar({
       icon: Users,
       items: [
         { label: "Customer 360", path: "/customers", icon: Users },
-        { label: "Activities & Tasks", path: "/activities", icon: Clock },
-        { label: "Omnichannel Inbox", path: "/communications", icon: MessageSquare },
       ]
     },
     {
