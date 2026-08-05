@@ -108,6 +108,7 @@ export default function LeadInbox() {
   const [viewMode, setViewMode] = useState<"table" | "board">("table");
   const [groupBy, setGroupBy] = useState<"status" | "owner">("status");
   const [searchQuery, setSearchQuery] = useState("");
+  const [channelFilter, setChannelFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [showAllColumns, setShowAllColumns] = useState(false);
   const [isViewPopoverOpen, setIsViewPopoverOpen] = useState(false);
@@ -177,14 +178,33 @@ export default function LeadInbox() {
       const sourceStr = (lead.source || "").toLowerCase();
       const channelStr = (lead.communicationChannel || "").toLowerCase();
       const q = searchQuery.toLowerCase();
+      const cf = channelFilter.toLowerCase();
+
+      // Check channel filter first if active
+      if (cf) {
+        if (cf === "whatsapp") {
+          const isWa = sourceStr.includes("whatsapp") || channelStr === "whatsapp" || (lead.unreadWhatsappCount || 0) > 0 || !!lead.lastWhatsappAt;
+          if (!isWa) return false;
+        } else if (cf === "email") {
+          if (!sourceStr.includes("email") && channelStr !== "email") return false;
+        } else if (cf === "instagram") {
+          if (!sourceStr.includes("instagram") && !sourceStr.includes("ig") && channelStr !== "instagram") return false;
+        } else if (cf === "website") {
+          if (!sourceStr.includes("web") && !sourceStr.includes("site") && channelStr !== "website") return false;
+        } else if (cf === "cold call") {
+          if (!sourceStr.includes("cold")) return false;
+        } else if (cf === "facebook") {
+          if (!sourceStr.includes("fb") && !sourceStr.includes("facebook")) return false;
+        }
+      }
 
       const matchesSearch =
+        !q || q === cf ||
         numberStr.toLowerCase().includes(q) ||
         nameStr.includes(q) ||
         companyStr.includes(q) ||
         sourceStr.includes(q) ||
-        channelStr.includes(q) ||
-        (q === "whatsapp" && (sourceStr.includes("whatsapp") || channelStr === "whatsapp" || (lead.unreadWhatsappCount || 0) > 0 || !!lead.lastWhatsappAt));
+        channelStr.includes(q);
 
       const matchesStatus = statusFilter === "all" || lead.status === statusFilter;
       return matchesSearch && matchesStatus;
@@ -198,7 +218,7 @@ export default function LeadInbox() {
       if (bTime !== aTime) return bTime - aTime;
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     }) || [];
-  }, [leads, searchQuery, statusFilter]);
+  }, [leads, searchQuery, channelFilter, statusFilter]);
 
   // Source metrics computation including WhatsApp
   const sourceStats = useMemo(() => {
@@ -504,11 +524,19 @@ export default function LeadInbox() {
         </span>
         <div className="flex flex-wrap items-center gap-2">
           {Object.entries(sourceStats).map(([src, count]) => {
-            const isActive = searchQuery.toLowerCase() === src.toLowerCase();
+            const isActive = channelFilter.toLowerCase() === src.toLowerCase() || (searchQuery.toLowerCase() === src.toLowerCase() && !channelFilter);
             return (
               <button 
                 key={src}
-                onClick={() => setSearchQuery(isActive ? "" : src)}
+                onClick={() => {
+                  if (isActive) {
+                    setChannelFilter("");
+                    setSearchQuery("");
+                  } else {
+                    setChannelFilter(src);
+                    setSearchQuery(src);
+                  }
+                }}
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border flex items-center gap-1.5 ${
                   isActive
                     ? "bg-primary text-primary-foreground border-primary shadow-2xs"
