@@ -175,11 +175,16 @@ export default function LeadInbox() {
       const nameStr = `${lead.firstName} ${lead.lastName}`.toLowerCase();
       const companyStr = (lead.company || "").toLowerCase();
       const sourceStr = (lead.source || "").toLowerCase();
+      const channelStr = (lead.communicationChannel || "").toLowerCase();
+      const q = searchQuery.toLowerCase();
+
       const matchesSearch =
-        numberStr.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        nameStr.includes(searchQuery.toLowerCase()) ||
-        companyStr.includes(searchQuery.toLowerCase()) ||
-        sourceStr.includes(searchQuery.toLowerCase());
+        numberStr.toLowerCase().includes(q) ||
+        nameStr.includes(q) ||
+        companyStr.includes(q) ||
+        sourceStr.includes(q) ||
+        channelStr.includes(q) ||
+        (q === "whatsapp" && (sourceStr.includes("whatsapp") || channelStr === "whatsapp" || (lead.unreadWhatsappCount || 0) > 0 || !!lead.lastWhatsappAt));
 
       const matchesStatus = statusFilter === "all" || lead.status === statusFilter;
       return matchesSearch && matchesStatus;
@@ -210,11 +215,13 @@ export default function LeadInbox() {
     (leads || []).forEach((l: any) => {
       const src = (l.source || "").toLowerCase().trim();
       const channel = (l.communicationChannel || "").toLowerCase();
-      if (src.includes("whatsapp") || channel === "whatsapp") counts["WhatsApp"]++;
-      else if (src.includes("email")) counts["Email"]++;
-      else if (src.includes("ig") || src.includes("instagram")) counts["Instagram"]++;
+      const hasWa = (l.unreadWhatsappCount || 0) > 0 || !!l.lastWhatsappAt;
+
+      if (src.includes("whatsapp") || channel === "whatsapp" || hasWa) counts["WhatsApp"]++;
+      else if (src.includes("email") || channel === "email") counts["Email"]++;
+      else if (src.includes("ig") || src.includes("instagram") || channel === "instagram") counts["Instagram"]++;
       else if (src.includes("cold")) counts["Cold Call"]++;
-      else if (src.includes("web") || src.includes("site")) counts["Website"]++;
+      else if (src.includes("web") || src.includes("site") || channel === "website") counts["Website"]++;
       else if (src.includes("fb") || src.includes("facebook")) counts["Facebook"]++;
       else counts["Other"]++;
     });
