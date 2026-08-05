@@ -433,6 +433,24 @@ export default function LeadDetail() {
     }
   });
 
+  const handleConvertToQuotation = async () => {
+    setIsConverting(true);
+    try {
+      const res = await fetch(`/api/v1/leads/${id}/convert-to-deal`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({ amount: (lead?.leadScore || 50) * 100 })
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const deal = await res.json();
+      navigate(`/quotes/new?dealId=${deal.id}`);
+    } catch (err: any) {
+      alert("Error generating quote: " + err.message);
+    } finally {
+      setIsConverting(false);
+    }
+  };
+
   if (isLoading) {
     return <div className="text-center font-bold py-16 text-on-surface-variant">Loading Customer 360 Workspace...</div>;
   }
