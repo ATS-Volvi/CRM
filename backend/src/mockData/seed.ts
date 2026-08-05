@@ -74,8 +74,8 @@ async function seedEnterpriseDatabase() {
       }));
     }
 
-    // Pipeline Stages
-    const stageNames = ["Qualification", "Needs Analysis", "Proposal", "Negotiation", "Closed Won", "Closed Lost"];
+    // Pipeline Stages matching database ENUM: ENUM("New", "Contacted", "Qualified", "Meeting/Demo", "Proposal", "Negotiation", "Won", "Lost", "On Hold")
+    const stageNames = ["Qualified", "Meeting/Demo", "Proposal", "Negotiation", "Won", "Lost"];
     const stageProbabilities = [20, 40, 60, 80, 100, 0];
     const seededStages: any[] = [];
     for (let i = 0; i < stageNames.length; i++) {
