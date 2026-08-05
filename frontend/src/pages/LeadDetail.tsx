@@ -7,7 +7,7 @@ import {
   ChevronRight, Calendar, DollarSign, Activity, ShoppingBag, FileText, ChevronDown, Loader2,
   Users, TrendingUp, MessageSquare, CheckSquare, AlertCircle, Sparkles, Send, Upload, Plus,
   FilePlus, Award, ShieldAlert, CheckCircle2, Clock, MapPin, Video, ExternalLink, Pin,
-  FileEdit, Landmark, Inbox
+  FileEdit, Landmark, Inbox, User, Receipt
 } from "lucide-react";
 import { formatCurrency } from "../utils/currency";
 import { formatDistanceToNow } from "date-fns";
