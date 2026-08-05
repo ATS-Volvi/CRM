@@ -132,7 +132,7 @@ async function checkOutstandingPOs() {
       }
     }
 
-    console.log("Outstanding PO check complete. Created ${alertedDealsCount} follow-up tasks.");
+    console.log(`Outstanding PO check complete. Created ${alertedDealsCount} follow-up tasks.`);
   } catch (error) {
     console.error("Error in Outstanding PO follow-up check:", error);
   }
