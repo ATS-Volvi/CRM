@@ -63,6 +63,8 @@ export function Sidebar({
       items: [
         { label: "Customer Workspace", path: "/customers", icon: Users },
         { label: "Sales & Pipeline", path: "/pipeline", icon: Trello },
+        { label: "Quotations", path: "/quotes", icon: FileText },
+        { label: "Invoices", path: "/invoices", icon: Receipt },
       ]
     },
     {
@@ -71,6 +73,7 @@ export function Sidebar({
       icon: Settings,
       items: [
         { label: "Team Hub", path: "/salespersons", icon: BarChart },
+        { label: "Approval Center", path: "/approvals", icon: CheckSquare },
         { label: "Master Data & Admin", path: "/master-data/requirements", icon: Settings },
       ]
     }
