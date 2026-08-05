@@ -8,7 +8,7 @@ import {
   Users, TrendingUp, MessageSquare, CheckSquare, AlertCircle, Sparkles, Send, Upload, Plus,
   FilePlus, Award, ShieldAlert, CheckCircle2, Clock, MapPin, Video, ExternalLink, Pin,
   FileEdit, Landmark, Inbox, User, Receipt, Layers, Filter, Trash2, Eye, FileCheck, ArrowRight,
-  ShieldCheck, AlertTriangle, RefreshCw
+  ShieldCheck, AlertTriangle, RefreshCw, Tag
 } from "lucide-react";
 import { formatCurrency, formatCurrencyCompact } from "../utils/currency";
 import { formatDistanceToNow } from "date-fns";
