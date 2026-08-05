@@ -13,7 +13,7 @@ import {
   TrendingUp, AlertCircle, ShieldAlert, CheckCircle2, User, Building2, Tag, Send,
   RefreshCw, Check, X, ChevronDown, Paperclip, FileUp, Award, DollarSign, Settings,
   Sliders, Activity, Folder, Archive, UserPlus, PhoneCall, ExternalLink, Shield,
-  PenTool, CheckCircle, Clock3, Layers, FileCheck, ShoppingCart, Inbox
+  PenTool, CheckCircle, Clock3, Layers, FileCheck, ShoppingCart, Inbox, Trello
 } from "lucide-react";
 
 export default function SalesQueue() {
