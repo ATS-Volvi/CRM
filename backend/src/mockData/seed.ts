@@ -11,9 +11,8 @@ const daysAgo = (days: number): Date => new Date(Date.now() - days * 86400000);
 const daysFromNow = (days: number): Date => new Date(Date.now() + days * 86400000);
 
 async function seedEnterpriseDatabase() {
-  // CRITICAL FIX: Never run the destructive seed script in production or against the live Postgres database!
-  // This was wiping out all live data on every deploy and causing Render deploy timeouts.
-  if (process.env.NODE_ENV === "production" || (process.env.USE_SQLITE !== "true" && process.env.DATABASE_URL && process.env.DATABASE_URL.includes("postgres"))) {
+  // Guard: Skip auto-seeding on production deploys unless explicitly forced via FORCE_SEED=true
+  if (process.env.FORCE_SEED !== "true" && (process.env.NODE_ENV === "production" || (process.env.USE_SQLITE !== "true" && process.env.DATABASE_URL && process.env.DATABASE_URL.includes("postgres")))) {
     console.log("==========================================================================");
     console.log("🚨 PRODUCTION POSTGRES DB DETECTED - SKIPPING DESTRUCTIVE SEED SCRIPT 🚨");
     console.log("==========================================================================");
