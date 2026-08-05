@@ -6,7 +6,8 @@ import {
   ArrowLeft, Mail, Phone, Building2, Pencil, Check, X, History, UserCheck, 
   ChevronRight, Calendar, DollarSign, Activity, ShoppingBag, FileText, ChevronDown, Loader2,
   Users, TrendingUp, MessageSquare, CheckSquare, AlertCircle, Sparkles, Send, Upload, Plus,
-  FilePlus, Award, ShieldAlert, CheckCircle2, Clock, MapPin, Video, ExternalLink, Pin
+  FilePlus, Award, ShieldAlert, CheckCircle2, Clock, MapPin, Video, ExternalLink, Pin,
+  FileEdit, Landmark, Inbox
 } from "lucide-react";
 import { formatCurrency } from "../utils/currency";
 import { formatDistanceToNow } from "date-fns";
@@ -521,36 +522,60 @@ export default function LeadDetail() {
         </div>
       </div>
 
-      {/* Stage Progress Ribbon */}
-      <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 shadow-sm">
-        <div className="flex items-center justify-between mb-3">
+      {/* 13-Stage Enterprise OS Flow Progression Ribbon */}
+      <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-5 shadow-sm space-y-3">
+        <div className="flex items-center justify-between">
           <span className="text-xs font-bold uppercase tracking-wider text-on-surface-variant flex items-center gap-1.5">
-            <TrendingUp className="w-4 h-4 text-primary" /> Pipeline Progression
+            <TrendingUp className="w-4 h-4 text-primary" /> Lifecycle Progression
           </span>
           <select 
             value={lead.status}
             onChange={(e) => updateStatusMutation.mutate(e.target.value)}
-            className="bg-surface border border-outline rounded-lg px-3 py-1 text-xs font-bold focus:ring-primary cursor-pointer"
+            className="bg-surface border border-outline rounded-lg px-3 py-1.5 text-xs font-bold focus:ring-primary cursor-pointer"
           >
-            {stages.map(st => (
+            {[
+              "Lead Queue", "Customer Workspace", "Generate Quote", "Quote Draft", "Send for Approval",
+              "Approval Center", "Approved", "Send to Customer", "Waiting Customer", "Negotiation",
+              "Accepted", "Invoice", "Payment", "Closed Won"
+            ].map(st => (
               <option key={st} value={st}>{st}</option>
             ))}
           </select>
         </div>
-        <div className="grid grid-cols-4 md:grid-cols-8 gap-2">
-          {stages.map((st, idx) => {
-            const isCompleted = idx <= currentStageIndex;
-            const isCurrent = idx === currentStageIndex;
+        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 xl:grid-cols-14 gap-1.5 pt-1">
+          {[
+            { name: "Lead Queue", icon: Inbox, path: "/leads-table" },
+            { name: "Customer Workspace", icon: User, path: `/leads/${lead.id}` },
+            { name: "Generate Quote", icon: Plus, action: handleConvertToQuotation },
+            { name: "Quote Draft", icon: FileEdit, path: `/quotes/new?leadId=${lead.id}` },
+            { name: "Send for Approval", icon: AlertTriangle, path: "/approvals" },
+            { name: "Approval Center", icon: Landmark, path: "/approvals" },
+            { name: "Approved", icon: CheckCircle2, path: "/quotes" },
+            { name: "Send to Customer", icon: Mail, path: "/quotes" },
+            { name: "Waiting Customer", icon: Clock, path: "/quotes" },
+            { name: "Negotiation", icon: MessageSquare, path: "/quotes" },
+            { name: "Accepted", icon: CheckCircle2, path: "/quotes" },
+            { name: "Invoice", icon: Receipt, path: "/invoices" },
+            { name: "Payment", icon: DollarSign, path: "/invoices" },
+            { name: "Closed Won", icon: CheckCircle2, path: "/pipeline" },
+          ].map((stepObj, idx) => {
+            const isCurrent = (lead.status || "").toLowerCase().includes(stepObj.name.toLowerCase());
+            const Icon = stepObj.icon;
             return (
-              <div key={st} className="flex flex-col gap-1">
-                <div className={`h-2 rounded-full transition-all ${
-                  isCurrent ? "bg-primary animate-pulse" : isCompleted ? "bg-primary/80" : "bg-outline-variant/40"
-                }`} />
-                <span className={`text-[10px] font-bold text-center truncate ${
-                  isCurrent ? "text-primary font-black" : isCompleted ? "text-on-surface" : "text-on-surface-variant opacity-60"
-                }`}>
-                  {st}
-                </span>
+              <div 
+                key={stepObj.name}
+                onClick={() => {
+                  if (stepObj.action) stepObj.action();
+                  else if (stepObj.path) navigate(stepObj.path);
+                }}
+                className={`p-2 rounded-xl border flex flex-col items-center justify-center text-center cursor-pointer transition-all ${
+                  isCurrent 
+                    ? "bg-primary text-white border-primary shadow-sm ring-2 ring-primary/20 scale-105" 
+                    : "bg-surface-container-low/50 hover:bg-surface-container-high text-on-surface border-outline-variant/60"
+                }`}
+              >
+                <Icon className={`w-3.5 h-3.5 mb-1 ${isCurrent ? "text-white" : "text-primary"}`} />
+                <span className="text-[10px] font-bold leading-tight line-clamp-2">{stepObj.name}</span>
               </div>
             );
           })}
