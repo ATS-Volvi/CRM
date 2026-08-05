@@ -52,16 +52,9 @@ const RoleBasedLayout = () => {
   return <Layout />;
 };
 
-/** Redirect / to appropriate workspace based on user role */
+/** Redirect / to initial landing dashboard (My Work / Operational Dashboard) */
 const RoleBasedHome = () => {
-  const { user } = useAuth();
-  if (user && user.role === "sales_rep") {
-    return <Navigate to="/rep-portal" replace />;
-  }
-  if (user && user.role === "sales_manager") {
-    return <Navigate to="/manager-portal" replace />;
-  }
-  return <ManagementDashboard />;
+  return <MyDashboard />;
 };
 
 const queryClient = new QueryClient();

@@ -525,9 +525,9 @@ export default function PipelineKanban() {
                                 onDragStart={(e) => handleDragStart(e, deal.id)}
                                 onClick={() => {
                                   if (deal.leadId) {
-                                    navigate(`/queue?selectedId=${deal.leadId}`);
+                                    navigate(`/leads/${deal.leadId}`);
                                   } else {
-                                    setActiveDealDetail(deal);
+                                    navigate(`/leads/${deal.id}`);
                                   }
                                 }}
                                 className="bg-white border border-slate-200/90 hover:border-blue-400 p-4 rounded-2xl shadow-2xs hover:shadow-md transition-all cursor-pointer space-y-3 group relative"

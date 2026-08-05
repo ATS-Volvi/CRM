@@ -67,6 +67,12 @@ export default function ManagerPortal() {
     }
   });
 
+  const teamReps = [
+    { id: "1", name: "Henry Cavill", avatar: "HC", territory: "Nordics & DACH", email: "h.cavill@apex.com", target: "$1,200,000", revenue: "$1,300,000", pct: 108, winRate: "42%", dealsWon: 14, pipeline: "$4.2M", status: "Exceeding" },
+    { id: "2", name: "Sophia Martinez", avatar: "SM", territory: "UK & Southern Europe", email: "s.martinez@apex.com", target: "$1,100,000", revenue: "$980,000", pct: 89, winRate: "36%", dealsWon: 11, pipeline: "$3.1M", status: "On Track" },
+    { id: "3", name: "Liam Carter", avatar: "LC", territory: "North America - East", email: "l.carter@apex.com", target: "$1,000,000", revenue: "$720,000", pct: 72, winRate: "28%", dealsWon: 8, pipeline: "$2.5M", status: "Coaching Needed" },
+  ];
+
   const pendingApprovals = [
     { id: "a1", type: "Quote Discount Approval", client: "Aegis Systems Group", rep: "Sophia Martinez", amount: "$268,500", discount: "12% Enterprise Bundle", status: "Pending" },
     { id: "a2", type: "Special Pricing Request", client: "Apex Pharmaceuticals", rep: "Henry Cavill", amount: "$380,000", discount: "15% Multi-Year SLA", status: "Pending" },

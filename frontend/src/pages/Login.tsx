@@ -42,9 +42,9 @@ export default function Login() {
       const queryParams = new URLSearchParams(window.location.search);
       const redirectQuery = queryParams.get("redirect");
       const redirectSession = sessionStorage.getItem("redirect_to");
-      let targetPath = redirectQuery || redirectSession || "/home";
+      let targetPath = redirectQuery || redirectSession || "/";
       if (!targetPath.startsWith("/")) {
-        targetPath = "/home";
+        targetPath = "/";
       }
       
       sessionStorage.removeItem("redirect_to");

@@ -463,9 +463,11 @@ export default function LeadDetail() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-outline-variant pb-4">
         <div>
           <div className="flex items-center gap-2 text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1">
-            <Link to="/leads" className="hover:text-primary">Leads</Link>
+            <Link to="/leads-table" className="hover:text-primary flex items-center gap-1 font-bold">
+              <ArrowLeft className="w-3.5 h-3.5" /> Live Queue (Inbox)
+            </Link>
             <ChevronRight className="w-3.5 h-3.5" />
-            <span>Customer 360 Workspace</span>
+            <span className="text-primary font-bold">Customer 360 Workspace</span>
           </div>
           <h2 className="text-3xl font-black text-on-surface flex items-center gap-3">
             {lead.leadNumber || "LEAD-360"}

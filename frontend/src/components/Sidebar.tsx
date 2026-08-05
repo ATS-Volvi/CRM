@@ -48,41 +48,30 @@ export function Sidebar({
 
   const navCategories: NavCategory[] = [
     {
-      id: "workspace",
-      category: "Workspace",
+      id: "command",
+      category: "Command",
       icon: Home,
       items: [
-        { label: "Executive Hub", path: "/", icon: LayoutDashboard },
-        { label: "My Work", path: "/home", icon: Home },
-        { label: "Live Queue", path: "/leads", icon: Inbox, badge: "Live" },
-        { label: "Pipeline Kanban", path: "/pipeline", icon: Trello },
+        { label: "Dashboard", path: "/", icon: LayoutDashboard },
+        { label: "Live Queue", path: "/leads-table", icon: Inbox, badge: "Inbound" },
       ]
     },
     {
-      id: "commerce",
-      category: "Deals & Commerce",
-      icon: FileText,
-      items: [
-        { label: "Quotations", path: "/quotes", icon: FileText },
-        { label: "Invoices & Billing", path: "/invoices", icon: Receipt },
-        { label: "Purchase Orders", path: "/purchase-orders", icon: CheckSquare },
-      ]
-    },
-    {
-      id: "crm",
-      category: "CRM & Channels",
+      id: "operations",
+      category: "Operations",
       icon: Users,
       items: [
-        { label: "Customer 360", path: "/customers", icon: Users },
+        { label: "Customer Workspace", path: "/customers", icon: Users },
+        { label: "Sales & Pipeline", path: "/pipeline", icon: Trello },
       ]
     },
     {
       id: "admin",
-      category: "Analytics & Settings",
+      category: "Management & Config",
       icon: Settings,
       items: [
-        { label: "Team & Performance", path: "/salespersons", icon: BarChart },
-        { label: "System Settings", path: "/settings", icon: Settings },
+        { label: "Team Hub", path: "/salespersons", icon: BarChart },
+        { label: "Master Data & Admin", path: "/master-data/requirements", icon: Settings },
       ]
     }
   ];
