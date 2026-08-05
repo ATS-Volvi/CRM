@@ -46,7 +46,10 @@ export function Sidebar({
     });
   };
 
-  const navCategories: NavCategory[] = [
+  const userRole = (user?.role || "admin").toLowerCase();
+  const isAdminOrManager = userRole === "admin" || userRole === "director" || userRole === "sales_manager";
+
+  const rawNavCategories: NavCategory[] = [
     {
       id: "command",
       category: "Command",
@@ -64,10 +67,10 @@ export function Sidebar({
         { label: "Customer Workspace", path: "/customers", icon: Users },
         { label: "Sales & Pipeline", path: "/pipeline", icon: Trello },
         { label: "Quotations", path: "/quotes", icon: FileText },
-        { label: "Invoices", path: "/invoices", icon: Receipt },
+        ...(isAdminOrManager ? [{ label: "Invoices", path: "/invoices", icon: Receipt }] : []),
       ]
     },
-    {
+    ...(isAdminOrManager ? [{
       id: "admin",
       category: "Management & Config",
       icon: Settings,
@@ -76,8 +79,10 @@ export function Sidebar({
         { label: "Approval Center", path: "/approvals", icon: CheckSquare },
         { label: "Master Data & Admin", path: "/master-data/requirements", icon: Settings },
       ]
-    }
+    }] : [])
   ];
+
+  const navCategories = rawNavCategories;
 
   // Track expanded accordion categories
   const [openCategories, setOpenCategories] = useState<Record<string, boolean>>(() => {

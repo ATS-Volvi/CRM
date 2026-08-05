@@ -16,8 +16,11 @@ import { formatDistanceToNow } from "date-fns";
 export default function LeadDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const queryClient = useQueryClient();
+
+  const userRole = (user?.role || "admin").toLowerCase();
+  const isAdminOrManager = userRole === "admin" || userRole === "director" || userRole === "sales_manager";
 
   // Active contextual slide-over panel: null | 'quote' | 'approval' | 'invoice' | 'task' | 'meeting' | 'email' | 'call' | 'doc'
   const [slideOver, setSlideOver] = useState<string | null>(null);
@@ -510,7 +513,7 @@ export default function LeadDetail() {
               >
                 <Plus className="w-4 h-4" /> Generate Quote
               </button>
-              {latestQuote && latestQuote.status === "Approved" && (
+              {latestQuote && latestQuote.status === "Approved" && isAdminOrManager && (
                 <button
                   onClick={() => createInvoiceMutation.mutate(latestQuote.id)}
                   disabled={createInvoiceMutation.isPending}
@@ -600,22 +603,28 @@ export default function LeadDetail() {
                     </span>
                     <span className="text-[11px] text-amber-700 font-semibold">Assigned: Regional Sales Director</span>
                   </div>
-                  <div className="flex gap-2 justify-end">
-                    <button
-                      onClick={() => approveQuoteMutation.mutate({ quoteId: latestQuote.id, approve: false })}
-                      disabled={approveQuoteMutation.isPending}
-                      className="px-3.5 py-1.5 bg-white border border-slate-300 text-slate-700 font-bold text-xs rounded-lg hover:bg-slate-50"
-                    >
-                      Reject
-                    </button>
-                    <button
-                      onClick={() => approveQuoteMutation.mutate({ quoteId: latestQuote.id, approve: true })}
-                      disabled={approveQuoteMutation.isPending}
-                      className="px-4 py-1.5 bg-emerald-600 text-white font-bold text-xs rounded-lg hover:bg-emerald-700 shadow-xs"
-                    >
-                      Approve Quote
-                    </button>
-                  </div>
+                  {isAdminOrManager ? (
+                    <div className="flex gap-2 justify-end">
+                      <button
+                        onClick={() => approveQuoteMutation.mutate({ quoteId: latestQuote.id, approve: false })}
+                        disabled={approveQuoteMutation.isPending}
+                        className="px-3.5 py-1.5 bg-white border border-slate-300 text-slate-700 font-bold text-xs rounded-lg hover:bg-slate-50"
+                      >
+                        Reject
+                      </button>
+                      <button
+                        onClick={() => approveQuoteMutation.mutate({ quoteId: latestQuote.id, approve: true })}
+                        disabled={approveQuoteMutation.isPending}
+                        className="px-4 py-1.5 bg-emerald-600 text-white font-bold text-xs rounded-lg hover:bg-emerald-700 shadow-xs"
+                      >
+                        Approve Quote
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-amber-800 font-bold text-right italic">
+                      Submitted to Manager for Review. Awaiting Manager Approval...
+                    </p>
+                  )}
                 </div>
               )}
 

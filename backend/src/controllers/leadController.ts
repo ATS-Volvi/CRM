@@ -9,8 +9,14 @@ import crypto from "crypto";
 export const getLeads = async (req: Request, res: Response) => {
   try {
     const { source, status, search } = req.query;
+    const user = (req as any).user;
     const where: any = {};
     
+    // Data isolation for Sales Representatives: Only return leads assigned to them
+    if (user && user.role === "sales_rep") {
+      where.assignedToId = user.id;
+    }
+
     if (source && source !== "All Sources") {
       where.source = source.toString();
     }
