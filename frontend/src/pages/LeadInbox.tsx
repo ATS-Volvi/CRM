@@ -183,19 +183,24 @@ export default function LeadInbox() {
       // Check channel filter first if active
       if (cf) {
         if (cf === "whatsapp") {
-          const isWa = sourceStr.includes("whatsapp") || channelStr === "whatsapp" || (lead.unreadWhatsappCount || 0) > 0 || !!lead.lastWhatsappAt;
+          const isWa = sourceStr.includes("whatsapp") || channelStr.includes("whatsapp") || (lead.unreadWhatsappCount || 0) > 0 || !!lead.lastWhatsappAt;
           if (!isWa) return false;
         } else if (cf === "email") {
-          if (!sourceStr.includes("email") && channelStr !== "email") return false;
+          if (!sourceStr.includes("email") && !channelStr.includes("email")) return false;
         } else if (cf === "instagram") {
-          if (!sourceStr.includes("instagram") && !sourceStr.includes("ig") && channelStr !== "instagram") return false;
+          if (!sourceStr.includes("instagram") && !sourceStr.includes("ig") && !channelStr.includes("instagram")) return false;
         } else if (cf === "website") {
-          if (!sourceStr.includes("web") && !sourceStr.includes("site") && channelStr !== "website") return false;
+          if (!sourceStr.includes("web") && !sourceStr.includes("site") && !channelStr.includes("website")) return false;
         } else if (cf === "cold call") {
           if (!sourceStr.includes("cold")) return false;
         } else if (cf === "facebook") {
           if (!sourceStr.includes("fb") && !sourceStr.includes("facebook")) return false;
         }
+      }
+
+      // If search box has 'whatsapp' (e.g. from user typing), match any WhatsApp lead
+      if (q === "whatsapp") {
+        return sourceStr.includes("whatsapp") || channelStr.includes("whatsapp") || (lead.unreadWhatsappCount || 0) > 0 || !!lead.lastWhatsappAt;
       }
 
       const matchesSearch =
