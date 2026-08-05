@@ -83,7 +83,7 @@ async function checkOutstandingPOs() {
     console.log("Checking for outstanding POs...");
 
     const wonStage = await sequelize.models.PipelineStage.findOne({
-      where: { name: "Closed Won" }
+      where: { name: { [Op.in]: ["Won", "Closed Won"] } }
     });
     if (!wonStage) return;
 
