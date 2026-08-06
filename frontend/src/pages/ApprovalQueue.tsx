@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { 
   Filter, ClipboardList, AlertTriangle, Landmark, 
-  Gavel, FileEdit, Check, X, Info, History, Plus, Trash2
+  Gavel, FileEdit, Check, X, Info, History, Plus, Trash2, Bell
 } from "lucide-react";
 import { formatCurrency, formatCurrencyCompact } from "../utils/currency";
 
@@ -103,7 +103,11 @@ export default function ApprovalQueue() {
                 {approvals?.filter((item: any) => item.status === 'Pending').length || 0} Pending
               </span>
             </h2>
-            <div className="flex gap-2">
+            <div className="flex gap-2 items-center">
+              <div className="flex items-center gap-1.5 px-3 py-1 bg-amber-50 text-amber-900 border border-amber-300 rounded-lg text-xs font-bold shadow-2xs">
+                <Bell className="w-3.5 h-3.5 text-amber-600 animate-bounce" />
+                <span>{approvals?.filter((item: any) => item.status === 'Pending').length || 0} Approvals Require Attention</span>
+              </div>
               <select 
                 value={filterStatus} 
                 onChange={(e) => setFilterStatus(e.target.value)} 
