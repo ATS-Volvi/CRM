@@ -47,11 +47,49 @@ export const updateApproval = async (req: Request, res: Response) => {
       comments: comments || (approval as any).comments
     });
     
-    // If it's a quote approval, we should update the Quote status too
+    // If it's a quote approval, update Quote status and auto-generate Invoice for the salesperson
     if ((approval as any).type === 'Quote' && status === 'Approved') {
-       const quote = await sequelize.models.Quote.findByPk((approval as any).targetId);
+       const quote = await sequelize.models.Quote.findByPk((approval as any).targetId, {
+         include: [{ model: sequelize.models.QuoteLineItem, as: "QuoteLineItems" }]
+       });
        if (quote) {
          await quote.update({ status: 'Approved' });
+
+         // Auto-generate invoice if not already generated
+         const existingInvoice = await sequelize.models.Invoice.findOne({ where: { quoteId: (quote as any).id } });
+         if (!existingInvoice) {
+           const invoiceId = require('crypto').randomUUID();
+           const invNumber = `INV-${Date.now().toString().slice(-6)}`;
+           const invoice = await sequelize.models.Invoice.create({
+             id: invoiceId,
+             invoiceNumber: invNumber,
+             quoteId: (quote as any).id,
+             leadId: (quote as any).dealId ? (await sequelize.models.Deal.findByPk((quote as any).dealId))?.leadId : null,
+             status: 'Draft',
+             issueDate: new Date(),
+             dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+             subtotal: (quote as any).subtotal || (quote as any).totalAmount || 0,
+             taxTotal: (quote as any).taxAmount || 0,
+             discountTotal: (quote as any).discountAmount || 0,
+             totalAmount: (quote as any).totalAmount || 0,
+             notes: 'Auto-generated invoice upon Admin approval.'
+           }) as any;
+
+           // Copy line items to InvoiceLineItems
+           if ((quote as any).QuoteLineItems && (quote as any).QuoteLineItems.length > 0) {
+             for (const item of (quote as any).QuoteLineItems) {
+               await sequelize.models.InvoiceLineItem.create({
+                 id: require('crypto').randomUUID(),
+                 invoiceId: invoice.id,
+                 productId: item.productId,
+                 description: item.description || 'Line Item',
+                 quantity: item.quantity,
+                 unitPrice: item.unitPrice,
+                 amount: item.amount || (item.quantity * item.unitPrice)
+               });
+             }
+           }
+         }
        }
     } else if ((approval as any).type === 'Quote' && status === 'Rejected') {
        const quote = await sequelize.models.Quote.findByPk((approval as any).targetId);

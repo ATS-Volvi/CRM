@@ -271,29 +271,28 @@ export default function ApprovalQueue() {
             )}
 
             <div className="space-y-4">
-              {tiers?.map((tier: any, idx: number) => (
-                <div key={tier.id || idx} className="flex gap-4 group/tier">
-                  <div className="flex flex-col items-center">
-                    <div className="w-6 h-6 rounded-full bg-primary text-on-primary flex items-center justify-center text-[10px] font-bold">{idx + 1}</div>
-                    {idx < tiers.length - 1 && <div className="w-[2px] h-full bg-outline-variant mt-1"></div>}
-                  </div>
-                  <div className="pb-2 flex-1">
-                    <div className="flex justify-between items-start">
-                      <p className="text-sm font-bold text-on-surface">{tier.name}</p>
-                      <button 
-                        onClick={() => deleteTierMutation.mutate(tier.id)}
-                        className="text-error opacity-0 group-hover/tier:opacity-100 transition-opacity hover:scale-105"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                    <p className="text-[11px] text-on-surface-variant">Threshold: &gt; {formatCurrency(tier.thresholdValue)}</p>
-                    <div className="mt-1 bg-surface-container-low px-2 py-1 rounded border border-outline-variant text-[10px] text-on-surface-variant">
-                      Assigned to: {tier.requiredRole}
-                    </div>
-                  </div>
+              <div className="flex gap-4">
+                <div className="flex flex-col items-center">
+                  <div className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-bold">1</div>
+                  <div className="w-[2px] h-full bg-outline-variant mt-1"></div>
                 </div>
-              ))}
+                <div className="pb-2 flex-1">
+                  <h4 className="text-xs font-bold text-on-surface">Stage 1: Sales Representative Request</h4>
+                  <p className="text-[11px] text-on-surface-variant">Rep submits discount/quote for approval</p>
+                  <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded mt-1 inline-block">Role: Sales Rep</span>
+                </div>
+              </div>
+
+              <div className="flex gap-4">
+                <div className="flex flex-col items-center">
+                  <div className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px] font-bold">2</div>
+                </div>
+                <div className="pb-2 flex-1">
+                  <h4 className="text-xs font-bold text-on-surface">Stage 2: Admin Approval & Invoice Return</h4>
+                  <p className="text-[11px] text-on-surface-variant">Admin approves quote & returns auto-generated invoice to rep</p>
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded mt-1 inline-block">Role: Admin</span>
+                </div>
+              </div>
             </div>
           </div>
 
