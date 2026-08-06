@@ -8,7 +8,7 @@ import {
   Calendar, MessageSquare, ChevronRight,
   Shield, Zap, UserPlus, RefreshCw, Send, Check, X,
   Briefcase, DollarSign, Target, Award, BarChart2,
-  FileText, ArrowUpRight, Flame, Layers, CircleCheck, AlertCircle, Plus
+  FileText, ArrowUpRight, Flame, Layers, CircleCheck, AlertCircle, Plus, Info, Eye
 } from "lucide-react";
 import { apiClient } from "../lib/apiClient";
 import { formatCurrency, formatCurrencyCompact } from "../utils/currency";
@@ -48,16 +48,29 @@ interface Rep {
   lostLeads: any[];
 }
 
-const STAGES = ["Qualification", "Meeting", "Proposal", "Approval", "Negotiation", "Won", "Lost"];
+const PIPELINE_STAGES = [
+  "Qualification", "Discovery", "Meeting", "Proposal", "Approval", "Negotiation", "Closing", "Won", "Lost"
+];
 
 const STAGE_BADGES: Record<string, string> = {
   Qualification: "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700",
+  Discovery: "bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/50 dark:text-indigo-300 dark:border-indigo-800",
   Meeting: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800",
   Proposal: "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/50 dark:text-purple-300 dark:border-purple-800",
   Approval: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800",
   Negotiation: "bg-cyan-50 text-cyan-700 border-cyan-200 dark:bg-cyan-950/50 dark:text-cyan-300 dark:border-cyan-800",
-  Won: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800",
+  Closing: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800",
+  Won: "bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-200 dark:border-emerald-700",
   Lost: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-800",
+};
+
+const QUOTE_STATUS_BADGES: Record<string, string> = {
+  Draft: "bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-300",
+  "Pending Approval": "bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800",
+  Approved: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300",
+  Sent: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/50 dark:text-blue-300",
+  Viewed: "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/50 dark:text-purple-300",
+  "Revision Requested": "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/50 dark:text-rose-300"
 };
 
 export default function SalespersonDetail() {
@@ -67,10 +80,10 @@ export default function SalespersonDetail() {
   const queryClient = useQueryClient();
 
   const [activeTab, setActiveTab] = useState<string>("active-deals");
+  const [showInfoDrawer, setShowInfoDrawer] = useState<boolean>(false);
   const [taskState, setTaskState] = useState<Record<string, boolean>>({
-    t1: false, t2: false, t3: true, t4: false, t5: false
+    t1: false, t2: false, t3: true, t4: false, t5: false, t6: false
   });
-  const [capacity, setCapacity] = useState<number>(15);
 
   // Data fetching
   const { data: rep, isLoading, error } = useQuery<Rep>({
@@ -93,53 +106,59 @@ export default function SalespersonDetail() {
     enabled: !!id && !!token,
   });
 
-  // Calculate Metrics for Hero Section & Workload AI
-  const revTarget = kpiTargets?.find(t => t.kpiName === "Revenue Closed")?.targetValue || 250000;
-  const closedRevenue = kpiTargets?.find(t => t.kpiName === "Revenue Closed")?.currentValue || (rep?.wonLeads?.length ? rep.wonLeads.length * 85000 : 185000);
-  const targetPct = Math.min(100, Math.round((closedRevenue / revTarget) * 100));
+  // Calculate Critical Metrics
+  const revTarget = kpiTargets?.find(t => t.kpiName === "Revenue Closed")?.targetValue || 2300000;
+  const closedRevenue = kpiTargets?.find(t => t.kpiName === "Revenue Closed")?.currentValue || 1800000;
+  const targetAchievementPct = Math.min(100, Math.round((closedRevenue / revTarget) * 100));
 
-  const totalDeals = rep?.totalDeals || 12;
-  const activeDealsCount = rep?.dealTypes ? rep.dealTypes.filter(d => !["Won", "Lost"].includes(d.stage)).reduce((acc, d) => acc + d.count, 0) : 8;
-  const totalPipelineValue = activeDealsCount * 64000;
-  
-  const pendingQuotesCount = rep?.quotes ? rep.quotes.filter(q => ["Draft", "Sent", "Pending Approval"].includes(q.status)).length : 4;
-  const approvalsWaitingCount = rep?.quotes ? rep.quotes.filter(q => q.status === "Pending Approval").length : 2;
-  
-  const followupsToday = 6;
-  const meetingsToday = 3;
+  const activeDealsCount = rep?.dealTypes ? rep.dealTypes.filter(d => !["Won", "Lost"].includes(d.stage)).reduce((acc, d) => acc + d.count, 0) : 14;
+  const totalPipelineValue = 5200000; // SAR 5.2M
+  const pendingApprovalsCount = 3;
+  const followupsTodayCount = 6;
+
   const currentWorkloadPct = Math.round((activeDealsCount / (rep?.maxOpenLeads || 15)) * 100);
-  const canReceiveMoreLeads = currentWorkloadPct < 80 && rep?.isAvailable !== false;
+  const isOverloaded = currentWorkloadPct >= 80 || pendingApprovalsCount > 2;
 
-  // Active Deals Data
+  // Active Deals Data (Work Cards)
   const activeDealsList = useMemo(() => {
-    if (!rep) return [];
     return [
-      { id: "d1", customer: "Apex Global Logistics", stage: "Negotiation", value: 145000, nextAction: "Finalize SLA Terms & Discount Approval", followUp: "Today, 14:00", priority: "High", isBlocked: true, blockReason: "Waiting on 12% Discount Admin Approval" },
-      { id: "d2", customer: "GreenPack Industrial Co.", stage: "Proposal", value: 92000, nextAction: "Send Revised Equipment Line Items Quote", followUp: "Today, 16:30", priority: "High", isBlocked: false },
-      { id: "d3", customer: "Metro Chemical Refineries", stage: "Approval", value: 210000, nextAction: "Admin Approval for Enterprise Payment Terms", followUp: "Tomorrow, 10:00", priority: "High", isBlocked: true, blockReason: "Quote #QT-9921 Pending Admin Signoff" },
-      { id: "d4", customer: "Saudi Heavy Transport", stage: "Meeting", value: 68000, nextAction: "Technical BOM Demo with Fleet Director", followUp: "Today, 11:30", priority: "Medium", isBlocked: false },
-      { id: "d5", customer: "Eastern Port Logistics", stage: "Qualification", value: 45000, nextAction: "Discovery call on warehouse capacity", followUp: "08 Aug, 09:00", priority: "Low", isBlocked: false },
-      { id: "d6", customer: "Al-Khobar Water Systems", stage: "Proposal", value: 115000, nextAction: "Submit Portacabin Specs & Delivery Timeline", followUp: "09 Aug, 15:00", priority: "Medium", isBlocked: false }
+      { id: "d1", customer: "ABC Industries", stage: "Negotiation", value: 1200000, lastActivity: "Meeting Tomorrow", followUp: "Today, 14:00", priority: "High", closeDate: "12 Aug 2026", isBlocked: true, blockReason: "Waiting on 12% Discount Approval" },
+      { id: "d2", customer: "Metro Chemicals", stage: "Pending Approval", value: 850000, lastActivity: "Quote Waiting", followUp: "Today, 16:30", priority: "High", closeDate: "20 Aug 2026", isBlocked: true, blockReason: "Quote #QT-9921 Pending Admin Approval" },
+      { id: "d3", customer: "Apex Global Logistics", stage: "Proposal", value: 1450000, lastActivity: "Revised Proposal Sent", followUp: "08 Aug, 10:00", priority: "High", closeDate: "18 Aug 2026", isBlocked: false },
+      { id: "d4", customer: "Saudi Heavy Transport", stage: "Meeting", value: 680000, lastActivity: "Technical Demo Completed", followUp: "Today, 11:30", priority: "Medium", closeDate: "25 Aug 2026", isBlocked: false },
+      { id: "d5", customer: "Eastern Port Logistics", stage: "Discovery", value: 450000, lastActivity: "Discovery Call Scheduled", followUp: "09 Aug, 09:00", priority: "Low", closeDate: "30 Aug 2026", isBlocked: false },
+      { id: "d6", customer: "Al-Khobar Water Systems", stage: "Closing", value: 570000, lastActivity: "Contract Reviewing", followUp: "10 Aug, 15:00", priority: "High", closeDate: "14 Aug 2026", isBlocked: false }
     ];
-  }, [rep]);
+  }, []);
 
   // Pending Quotations Data
   const pendingQuotationsList = useMemo(() => {
     return [
-      { id: "q1", number: "QT-2026-881", customer: "Apex Global Logistics", amount: 145000, status: "Pending Approval", submittedDate: "05 Aug 2026", approver: "Admin User", revision: "Rev 2", hasDiscount: true },
-      { id: "q2", number: "QT-2026-894", customer: "Metro Chemical Refineries", amount: 210000, status: "Pending Approval", submittedDate: "06 Aug 2026", approver: "Admin User", revision: "Rev 1", hasDiscount: false },
-      { id: "q3", number: "QT-2026-772", customer: "GreenPack Industrial Co.", amount: 92000, status: "Sent to Client", submittedDate: "03 Aug 2026", approver: "Auto-Approved", revision: "Rev 0", hasDiscount: false },
-      { id: "q4", number: "QT-2026-640", customer: "Al-Khobar Water Systems", amount: 115000, status: "Draft", submittedDate: "Today", approver: "Pending", revision: "Rev 0", hasDiscount: true }
+      { id: "q1", number: "QT-2026-881", customer: "ABC Industries", amount: 1200000, status: "Pending Approval", submittedDate: "05 Aug 2026", approver: "Admin User", revision: "Rev 2" },
+      { id: "q2", number: "QT-2026-894", customer: "Metro Chemicals", amount: 850000, status: "Pending Approval", submittedDate: "06 Aug 2026", approver: "Admin User", revision: "Rev 1" },
+      { id: "q3", number: "QT-2026-902", customer: "Saudi Heavy Transport", amount: 680000, status: "Pending Approval", submittedDate: "06 Aug 2026", approver: "Admin User", revision: "Rev 0" },
+      { id: "q4", number: "QT-2026-772", customer: "Apex Global Logistics", amount: 1450000, status: "Sent", submittedDate: "03 Aug 2026", approver: "Auto-Approved", revision: "Rev 0" },
+      { id: "q5", number: "QT-2026-640", customer: "Al-Khobar Water Systems", amount: 570000, status: "Viewed", submittedDate: "04 Aug 2026", approver: "Auto-Approved", revision: "Rev 1" },
+      { id: "q6", number: "QT-2026-512", customer: "Eastern Port Logistics", amount: 450000, status: "Draft", submittedDate: "Today", approver: "Pending", revision: "Rev 0" }
     ];
   }, []);
 
   // Today's Tasks
-  const todayChecklist = [
-    { id: "t1", title: "Follow-up call on SLA discount approval with Apex Global", category: "Call", due: "14:00", priority: "High" },
-    { id: "t2", title: "Submit revised Portacabin line items for Al-Khobar Water", category: "Quote Revision", due: "15:30", priority: "High" },
-    { id: "t3", title: "Technical Demo with Saudi Heavy Transport Director", category: "Meeting", due: "11:30", priority: "High" },
-    { id: "t4", title: "Send payment link reminder to GreenPack Industrial", category: "Follow-up", due: "16:45", priority: "Medium" },
-    { id: "t5", title: "Review monthly target progress with Admin", category: "Reminder", due: "17:30", priority: "Low" }
+  const todayTasksList = [
+    { id: "t1", type: "Calls", title: "Follow-up call on SLA discount approval with ABC Industries", due: "14:00", priority: "High" },
+    { id: "t2", type: "Proposal Revisions", title: "Submit revised Portacabin line items for Metro Chemicals", due: "15:30", priority: "High" },
+    { id: "t3", type: "Meetings", title: "Technical Demo with Saudi Heavy Transport Director", due: "11:30", priority: "High" },
+    { id: "t4", type: "Follow-ups", title: "Send payment link reminder to Apex Global Logistics", due: "16:45", priority: "Medium" },
+    { id: "t5", type: "Pending Replies", title: "Reply to Al-Khobar Water Systems pricing inquiry email", due: "17:00", priority: "Medium" },
+    { id: "t6", type: "Overdue Tasks", title: "Overdue: Log discovery call notes for Eastern Port", due: "Yesterday", priority: "High" }
+  ];
+
+  // Admin Actionable Alerts
+  const adminAlerts = [
+    { id: "a1", text: "2 quotations waiting over 24 hours for manager approval", type: "urgent" },
+    { id: "a2", text: "3 overdue follow-up tasks requiring attention", type: "warning" },
+    { id: "a3", text: "1 inactive deal with no touchpoint for 12 days (Eastern Port)", type: "warning" },
+    { id: "a4", text: "1 high-value customer waiting 48 hours for quotation revision (ABC Industries)", type: "urgent" }
   ];
 
   const toggleTask = (taskId: string) => {
@@ -147,9 +166,9 @@ export default function SalespersonDetail() {
   };
 
   if (isLoading) return (
-    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-64px)] gap-3 bg-slate-50 dark:bg-slate-950">
-      <div className="w-8 h-8 border-3 border-slate-900 dark:border-white border-t-transparent rounded-full animate-spin" />
-      <p className="text-xs font-semibold text-slate-500 tracking-wide">Loading Executive Command Center...</p>
+    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-64px)] gap-3 bg-[#fcfcfc] dark:bg-slate-950">
+      <div className="w-8 h-8 border-2 border-slate-900 dark:border-white border-t-transparent rounded-full animate-spin" />
+      <p className="text-xs font-semibold text-slate-500 tracking-wide">Loading Command Center...</p>
     </div>
   );
 
@@ -160,7 +179,7 @@ export default function SalespersonDetail() {
       </div>
       <h3 className="font-bold text-slate-900 text-lg">Salesperson Workspace Unavailable</h3>
       <p className="text-xs text-slate-500">Could not retrieve workload data for this sales executive.</p>
-      <button onClick={() => navigate("/salespersons")} className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold shadow-sm hover:bg-slate-800 transition-all">
+      <button onClick={() => navigate("/salespersons")} className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold shadow-xs hover:bg-slate-800 transition-all">
         Back to Sales Executives
       </button>
     </div>
@@ -169,8 +188,8 @@ export default function SalespersonDetail() {
   return (
     <div className="min-h-screen bg-[#fafafa] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-slate-900 selection:text-white">
       
-      {/* ── TOP NAVIGATION BREADCRUMB HEADER ── */}
-      <div className="sticky top-0 z-20 bg-white/80 dark:bg-slate-900/80 backdrop-blur border-b border-slate-200/80 dark:border-slate-800 px-8 py-3.5 flex items-center justify-between">
+      {/* ── TOP ACTION BAR (Breadcrumb & Employee Drawer Trigger) ── */}
+      <div className="sticky top-0 z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur border-b border-slate-200/80 dark:border-slate-800 px-8 py-3.5 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <button onClick={() => navigate("/salespersons")} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-white transition-all">
             <ArrowLeft className="w-4 h-4" />
@@ -180,20 +199,20 @@ export default function SalespersonDetail() {
             <span className="text-slate-400">Sales Executives</span>
             <ChevronRight className="w-3.5 h-3.5 text-slate-300" />
             <span className="text-slate-900 dark:text-white">{rep.name}</span>
-            <span className="ml-2 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-purple-50 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+            <span className="ml-2 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
               Command Center
             </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <button onClick={() => alert("Sending direct dispatch message to salesperson...")} className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-800 dark:text-slate-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5">
-            <MessageSquare className="w-3.5 h-3.5 text-slate-500" />
-            Message Rep
+        <div className="flex items-center gap-3">
+          <button onClick={() => setShowInfoDrawer(true)} className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5">
+            <Info className="w-3.5 h-3.5 text-slate-500" />
+            Employee Information
           </button>
-          <button onClick={() => navigate(`/approvals`)} className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5">
+          <button onClick={() => navigate("/approvals")} className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 dark:text-slate-900 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5">
             <Shield className="w-3.5 h-3.5" />
-            Approval Center ({approvalsWaitingCount})
+            Approvals ({pendingApprovalsCount})
           </button>
         </div>
       </div>
@@ -201,119 +220,104 @@ export default function SalespersonDetail() {
       <div className="max-w-[1536px] mx-auto px-8 py-8 space-y-8">
 
         {/* ─────────────────────────────────────────────────────────────
-            HERO SECTION: Salesperson Performance & Workload Banner
+            HIGH PRIORITY: ADMIN ALERTS SECTION (Highest Priority Items)
            ───────────────────────────────────────────────────────────── */}
-        <header className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-6 shadow-xs relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-purple-500/5 via-indigo-500/5 to-transparent rounded-full blur-3xl pointer-events-none" />
-
-          {/* Identity & Status */}
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-6 border-b border-slate-100 dark:border-slate-800/80">
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-purple-600 via-indigo-600 to-emerald-500 text-white flex items-center justify-center font-black text-xl shadow-md shadow-purple-500/20 shrink-0">
-                {rep.name.split(" ").map(n => n[0]).join("")}
-              </div>
-              <div>
-                <div className="flex items-center gap-3">
-                  <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">{rep.name}</h1>
-                  <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border flex items-center gap-1.5 ${
-                    rep.isAvailable !== false
-                      ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800"
-                      : "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-800"
-                  }`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${rep.isAvailable !== false ? "bg-emerald-500 animate-pulse" : "bg-rose-500"}`} />
-                    {rep.isAvailable !== false ? "Available for Assignment" : "At Max Capacity"}
-                  </span>
-                </div>
-                <div className="flex items-center gap-4 mt-1 text-xs text-slate-500 dark:text-slate-400 font-medium">
-                  <span>Sales Executive</span>
-                  <span>•</span>
-                  <span>{rep.territory || "Middle East Territory"}</span>
-                  <span>•</span>
-                  <span>{rep.email || `${rep.name.toLowerCase().replace(" ", "")}@nexus.com`}</span>
-                </div>
-              </div>
+        <section className="bg-white dark:bg-slate-900 border border-rose-200/80 dark:border-rose-950 rounded-2xl p-5 shadow-xs space-y-3">
+          <div className="flex items-center justify-between pb-2 border-b border-rose-100 dark:border-rose-950">
+            <div className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider text-rose-700 dark:text-rose-400">
+              <AlertTriangle className="w-4 h-4 text-rose-600 animate-pulse" />
+              <span>Admin Action Alerts</span>
             </div>
-
-            {/* Target Progress Bar */}
-            <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-800 rounded-xl p-3.5 min-w-[280px]">
-              <div className="flex justify-between items-baseline mb-1.5">
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Monthly Target Progress</span>
-                <span className="text-xs font-black text-slate-900 dark:text-white">{targetPct}% ({formatCurrencyCompact(closedRevenue)})</span>
-              </div>
-              <div className="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
-                <div className="bg-gradient-to-r from-purple-600 to-emerald-500 h-full rounded-full transition-all duration-700" style={{ width: `${targetPct}%` }} />
-              </div>
-              <p className="text-[10px] text-slate-400 text-right mt-1">Goal: {formatCurrencyCompact(revTarget)}</p>
-            </div>
+            <span className="text-[10px] font-bold px-2 py-0.5 bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 rounded-full border border-rose-200 dark:border-rose-800">
+              {adminAlerts.length} Critical Items Requiring Intervention
+            </span>
           </div>
 
-          {/* Metric Strip (Clean Desktop Grid) */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4 pt-6">
-            <div className="space-y-1">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Pipeline Value</span>
-              <p className="text-lg font-extrabold text-slate-900 dark:text-white tracking-tight">{formatCurrencyCompact(totalPipelineValue)}</p>
-              <span className="text-[10px] text-slate-400 font-medium">Active Deals Total</span>
-            </div>
-
-            <div className="space-y-1">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Revenue Closed</span>
-              <p className="text-lg font-extrabold text-emerald-600 dark:text-emerald-400 tracking-tight">{formatCurrencyCompact(closedRevenue)}</p>
-              <span className="text-[10px] text-emerald-600 font-medium">+12% vs last month</span>
-            </div>
-
-            <div className="space-y-1">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Active Deals</span>
-              <p className="text-lg font-extrabold text-slate-900 dark:text-white tracking-tight">{activeDealsCount}</p>
-              <span className="text-[10px] text-slate-400 font-medium">Live Opportunities</span>
-            </div>
-
-            <div className="space-y-1">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Pending Quotes</span>
-              <p className="text-lg font-extrabold text-purple-600 dark:text-purple-400 tracking-tight">{pendingQuotesCount}</p>
-              <span className="text-[10px] text-slate-400 font-medium">Awaiting Action</span>
-            </div>
-
-            <div className="space-y-1">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Approvals Waiting</span>
-              <p className="text-lg font-extrabold text-amber-600 dark:text-amber-400 tracking-tight">{approvalsWaitingCount}</p>
-              <span className="text-[10px] text-amber-600 font-medium">Requires Admin Review</span>
-            </div>
-
-            <div className="space-y-1">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Follow-ups Today</span>
-              <p className="text-lg font-extrabold text-blue-600 dark:text-blue-400 tracking-tight">{followupsToday}</p>
-              <span className="text-[10px] text-slate-400 font-medium">{meetingsToday} Client Meetings</span>
-            </div>
-
-            <div className="space-y-1">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Workload Cap</span>
-              <p className="text-lg font-extrabold text-slate-900 dark:text-white tracking-tight">{activeDealsCount} / {rep.maxOpenLeads || 15}</p>
-              <span className="text-[10px] text-slate-400 font-medium">{currentWorkloadPct}% Capacity</span>
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+            {adminAlerts.map(alert => (
+              <div key={alert.id} className="p-3 rounded-xl bg-rose-50/50 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/60 flex items-start gap-2.5 text-xs text-rose-900 dark:text-rose-200 font-semibold">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                <span>{alert.text}</span>
+              </div>
+            ))}
           </div>
-        </header>
+        </section>
 
         {/* ─────────────────────────────────────────────────────────────
-            MAIN WORKSPACE LAYOUT (5 CORE SECTIONS & RIGHT SIDEBAR)
+            TOP KPI STRIP (Business-Critical Executive Cards)
+           ───────────────────────────────────────────────────────────── */}
+        <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+          
+          {/* Card 1: Active Deals */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-1">
+            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">💼 Active Deals</span>
+            <p className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">{activeDealsCount} Active Deals</p>
+            <span className="text-[10px] text-slate-400 font-medium">Live Opportunities</span>
+          </div>
+
+          {/* Card 2: Pipeline Value */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-1">
+            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">💰 Pipeline Value</span>
+            <p className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">SAR 5.2M</p>
+            <span className="text-[10px] text-slate-400 font-medium">Total Open Volume</span>
+          </div>
+
+          {/* Card 3: Revenue Closed */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-1">
+            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">📈 Revenue Closed (Month)</span>
+            <p className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400 tracking-tight">SAR 1.8M</p>
+            <span className="text-[10px] text-emerald-600 font-medium">+12% vs last month</span>
+          </div>
+
+          {/* Card 4: Target Achievement */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-2">
+            <div className="flex justify-between items-baseline">
+              <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">🎯 Target Progress</span>
+              <span className="text-xs font-black text-slate-900 dark:text-white">{targetAchievementPct}%</span>
+            </div>
+            <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+              <div className="bg-slate-900 dark:bg-white h-full rounded-full transition-all duration-700" style={{ width: `${targetAchievementPct}%` }} />
+            </div>
+            <span className="text-[9px] text-slate-400 block text-right">Goal: SAR 2.3M</span>
+          </div>
+
+          {/* Card 5: Pending Approvals */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-1">
+            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">⏳ Pending Approvals</span>
+            <p className="text-2xl font-extrabold text-amber-600 dark:text-amber-400 tracking-tight">{pendingApprovalsCount} Pending</p>
+            <span className="text-[10px] text-amber-600 font-medium">Requires Signoff</span>
+          </div>
+
+          {/* Card 6: Follow-ups Due Today */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-1">
+            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">📞 Follow-ups Today</span>
+            <p className="text-2xl font-extrabold text-blue-600 dark:text-blue-400 tracking-tight">{followupsTodayCount} Follow-ups</p>
+            <span className="text-[10px] text-slate-400 font-medium">3 Meetings Scheduled</span>
+          </div>
+
+        </section>
+
+        {/* ─────────────────────────────────────────────────────────────
+            MAIN WORKSPACE LAYOUT (5 REPLACED CORE SECTIONS & SIDEBAR)
            ───────────────────────────────────────────────────────────── */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
 
           {/* LEFT 8 COLUMNS: MAIN WORKSPACE SECTIONS */}
           <main className="lg:col-span-8 space-y-8">
             
-            {/* Section Tab Bar */}
-            <div className="flex border-b border-slate-200 dark:border-slate-800 gap-6 text-sm font-bold">
+            {/* Executive Workspace Tabs */}
+            <div className="flex border-b border-slate-200 dark:border-slate-800 gap-8 text-xs font-bold">
               {[
                 { id: "active-deals", label: `Active Deals (${activeDealsList.length})` },
                 { id: "pending-quotes", label: `Pending Quotations (${pendingQuotationsList.length})` },
-                { id: "todays-tasks", label: `Today's Tasks (${todayChecklist.length})` },
-                { id: "pipeline-snapshot", label: "Pipeline Snapshot" },
+                { id: "todays-tasks", label: `Today's Tasks (${todayTasksList.length})` },
+                { id: "pipeline-health", label: "Pipeline Health" },
                 { id: "performance", label: "Performance Analytics" }
               ].map(tab => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`pb-3 border-b-2 transition-all cursor-pointer ${
+                  className={`pb-3.5 border-b-2 transition-all cursor-pointer ${
                     activeTab === tab.id
                       ? "border-slate-900 text-slate-900 dark:border-white dark:text-white font-extrabold"
                       : "border-transparent text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
@@ -328,13 +332,13 @@ export default function SalespersonDetail() {
             {activeTab === "active-deals" && (
               <section className="space-y-4">
                 <div className="flex justify-between items-center">
-                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Live Opportunities ({activeDealsList.length})</h3>
-                  <span className="text-xs text-slate-500 font-medium">Sorted by Priority & Follow-up</span>
+                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Active Deals Work Cards</h3>
+                  <span className="text-xs text-slate-500 font-medium">Sorted by expected close date</span>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {activeDealsList.map(deal => (
-                    <div key={deal.id} className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs hover:border-slate-300 dark:hover:border-slate-700 transition-all space-y-4 relative group">
+                    <div key={deal.id} className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs hover:border-slate-300 dark:hover:border-slate-700 transition-all space-y-4 relative">
                       {deal.isBlocked && (
                         <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-xl p-2.5 flex items-start gap-2 text-[11px] text-amber-800 dark:text-amber-300 font-semibold">
                           <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
@@ -354,12 +358,16 @@ export default function SalespersonDetail() {
 
                       <div className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
                         <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                          <span className="font-medium text-slate-400">Next Action:</span>
-                          <span className="font-bold text-slate-800 dark:text-slate-200 text-right truncate max-w-[180px]">{deal.nextAction}</span>
+                          <span className="font-medium text-slate-400">Last Activity:</span>
+                          <span className="font-bold text-slate-800 dark:text-slate-200">{deal.lastActivity}</span>
                         </div>
                         <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                          <span className="font-medium text-slate-400">Follow-up:</span>
+                          <span className="font-medium text-slate-400">Next Follow-up:</span>
                           <span className="font-bold text-slate-800 dark:text-slate-200">{deal.followUp}</span>
+                        </div>
+                        <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                          <span className="font-medium text-slate-400">Expected Close:</span>
+                          <span className="font-bold text-slate-800 dark:text-slate-200">{deal.closeDate}</span>
                         </div>
                       </div>
 
@@ -370,7 +378,7 @@ export default function SalespersonDetail() {
                           {deal.priority} Priority
                         </span>
 
-                        <Link to={`/leads/036e30da-298b-45bf-a3be-e08cfb8f8af4`} className="text-xs font-bold text-purple-600 hover:text-purple-700 dark:text-purple-400 flex items-center gap-1">
+                        <Link to={`/leads/036e30da-298b-45bf-a3be-e08cfb8f8af4`} className="text-xs font-bold text-slate-900 dark:text-white hover:underline flex items-center gap-1">
                           Quick Open <ArrowUpRight className="w-3.5 h-3.5" />
                         </Link>
                       </div>
@@ -384,48 +392,53 @@ export default function SalespersonDetail() {
             {activeTab === "pending-quotes" && (
               <section className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs">
                 <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
-                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Quotations Awaiting Action ({pendingQuotationsList.length})</h3>
-                  <Link to="/quotes" className="text-xs font-bold text-purple-600 hover:underline">View All Quotes</Link>
+                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Salesperson Quotations ({pendingQuotationsList.length})</h3>
+                  <Link to="/quotes" className="text-xs font-bold text-slate-900 dark:text-white hover:underline">View All Quotes</Link>
                 </div>
 
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
                     <thead>
                       <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800 text-slate-400 font-bold uppercase tracking-wider">
-                        <th className="p-4">Quote #</th>
                         <th className="p-4">Customer</th>
-                        <th className="p-4">Amount</th>
-                        <th className="p-4">Status</th>
-                        <th className="p-4">Revision</th>
+                        <th className="p-4">Value</th>
+                        <th className="p-4">Status Badge</th>
+                        <th className="p-4">Submitted Date</th>
                         <th className="p-4">Approver</th>
+                        <th className="p-4">Revision</th>
                         <th className="p-4 text-right">Quick Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                       {pendingQuotationsList.map(q => (
                         <tr key={q.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors">
-                          <td className="p-4 font-bold text-slate-900 dark:text-white">{q.number}</td>
-                          <td className="p-4 font-bold">{q.customer}</td>
+                          <td className="p-4 font-bold text-slate-900 dark:text-white">
+                            {q.customer}
+                            <span className="block text-[10px] text-slate-400 font-normal">{q.number}</span>
+                          </td>
                           <td className="p-4 font-extrabold text-slate-900 dark:text-white">{formatCurrency(q.amount)}</td>
                           <td className="p-4">
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold border ${
-                              q.status === "Pending Approval" ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-blue-50 text-blue-700 border-blue-200"
-                            }`}>
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold border ${QUOTE_STATUS_BADGES[q.status] || QUOTE_STATUS_BADGES["Draft"]}`}>
                               {q.status}
                             </span>
                           </td>
-                          <td className="p-4 text-slate-500 font-medium">{q.revision}</td>
+                          <td className="p-4 text-slate-500 font-medium">{q.submittedDate}</td>
                           <td className="p-4 text-slate-500 font-medium">{q.approver}</td>
+                          <td className="p-4 text-slate-500 font-medium">{q.revision}</td>
                           <td className="p-4 text-right">
-                            {q.status === "Pending Approval" ? (
-                              <button onClick={() => navigate("/approvals")} className="px-2.5 py-1 bg-emerald-600 text-white rounded-lg text-[11px] font-bold hover:bg-emerald-700 transition-all shadow-xs">
-                                Approve Quote
+                            <div className="flex justify-end gap-1.5">
+                              {q.status === "Pending Approval" && (
+                                <button onClick={() => navigate("/approvals")} className="px-2 py-1 bg-emerald-600 text-white rounded-lg text-[10px] font-bold hover:bg-emerald-700 transition-all shadow-xs">
+                                  Approve
+                                </button>
+                              )}
+                              <button onClick={() => navigate("/quotes")} className="px-2 py-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg text-[10px] font-bold hover:bg-slate-200">
+                                View
                               </button>
-                            ) : (
-                              <button onClick={() => navigate("/quotes")} className="px-2.5 py-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg text-[11px] font-bold hover:bg-slate-200">
-                                Review
+                              <button onClick={() => alert(`Sending reminder for ${q.number}`)} className="px-2 py-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg text-[10px] font-bold hover:bg-slate-200">
+                                Reminder
                               </button>
-                            )}
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -435,16 +448,16 @@ export default function SalespersonDetail() {
               </section>
             )}
 
-            {/* ── SECTION 3: TODAY'S TASKS ── */}
+            {/* ── SECTION 3: TODAY'S TASKS (Simple Checklist) ── */}
             {activeTab === "todays-tasks" && (
               <section className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-6 shadow-xs space-y-4">
                 <div className="flex justify-between items-center pb-3 border-b border-slate-100 dark:border-slate-800">
-                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Today's Executive Checklist ({todayChecklist.length})</h3>
-                  <span className="text-xs font-bold text-slate-500">{Object.values(taskState).filter(Boolean).length} / {todayChecklist.length} Completed</span>
+                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Today's Execution Checklist</h3>
+                  <span className="text-xs font-bold text-slate-500">{Object.values(taskState).filter(Boolean).length} / {todayTasksList.length} Completed</span>
                 </div>
 
                 <div className="space-y-2.5">
-                  {todayChecklist.map(t => {
+                  {todayTasksList.map(t => {
                     const isDone = !!taskState[t.id];
                     return (
                       <div
@@ -458,13 +471,13 @@ export default function SalespersonDetail() {
                       >
                         <div className="flex items-center gap-3">
                           <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${
-                            isDone ? "bg-emerald-600 border-emerald-600 text-white" : "border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                            isDone ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-transparent" : "border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
                           }`}>
                             {isDone && <Check className="w-3.5 h-3.5 stroke-[3]" />}
                           </div>
                           <div>
                             <p className="text-xs font-bold text-slate-900 dark:text-white">{t.title}</p>
-                            <span className="text-[10px] text-slate-400 font-medium">{t.category} • Due {t.due}</span>
+                            <span className="text-[10px] text-slate-400 font-medium">{t.type} • Due {t.due}</span>
                           </div>
                         </div>
 
@@ -480,19 +493,20 @@ export default function SalespersonDetail() {
               </section>
             )}
 
-            {/* ── SECTION 4: PIPELINE SNAPSHOT (COMPACT KANBAN) ── */}
-            {activeTab === "pipeline-snapshot" && (
+            {/* ── SECTION 4: PIPELINE HEALTH ── */}
+            {activeTab === "pipeline-health" && (
               <section className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-6 shadow-xs space-y-4">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Pipeline Stage Distribution</h3>
-                  <Link to="/pipeline" className="text-xs font-bold text-purple-600 hover:underline">Full Kanban Board</Link>
+                <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Pipeline Health & Distribution</h3>
+                  <Link to="/pipeline" className="text-xs font-bold text-slate-900 dark:text-white hover:underline">Full Kanban Board</Link>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 overflow-x-auto pb-2">
-                  {STAGES.map(stage => {
-                    const count = stage === "Proposal" ? 3 : stage === "Negotiation" ? 2 : stage === "Approval" ? 2 : 1;
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                  {PIPELINE_STAGES.map(stage => {
+                    const count = stage === "Proposal" ? 3 : stage === "Negotiation" ? 2 : stage === "Approval" ? 3 : stage === "Discovery" ? 2 : 1;
+                    const value = count * 580000;
                     return (
-                      <div key={stage} className="bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800 rounded-xl p-3 flex flex-col justify-between h-36">
+                      <div key={stage} className="bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800 rounded-xl p-3.5 flex flex-col justify-between h-32">
                         <div className="flex justify-between items-center">
                           <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider truncate">{stage}</span>
                           <span className="w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-[10px] flex items-center justify-center">
@@ -501,9 +515,9 @@ export default function SalespersonDetail() {
                         </div>
 
                         <div className="space-y-1">
-                          <p className="text-xs font-black text-slate-900 dark:text-white">{formatCurrencyCompact(count * 55000)}</p>
+                          <p className="text-xs font-black text-slate-900 dark:text-white">{formatCurrencyCompact(value)}</p>
                           <div className="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
-                            <div className="bg-purple-600 h-full rounded-full" style={{ width: `${Math.min(100, count * 30)}%` }} />
+                            <div className="bg-slate-900 dark:bg-white h-full rounded-full" style={{ width: `${Math.min(100, count * 25)}%` }} />
                           </div>
                         </div>
                       </div>
@@ -515,43 +529,61 @@ export default function SalespersonDetail() {
 
             {/* ── SECTION 5: PERFORMANCE ANALYTICS ── */}
             {activeTab === "performance" && (
-              <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-2">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Win Rate</span>
-                  <p className="text-3xl font-extrabold text-emerald-600 tracking-tight">42.8%</p>
-                  <p className="text-xs text-slate-500 font-medium">+4.2% above team benchmark</p>
+              <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-1">
+                  <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Win Rate</span>
+                  <p className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">42.8%</p>
+                  <p className="text-xs text-slate-500 font-medium">Based on 14 closed opportunities</p>
                 </div>
 
-                <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-2">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Average Deal Size</span>
-                  <p className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">$68,500</p>
-                  <p className="text-xs text-slate-500 font-medium">Based on 14 closed won deals</p>
+                <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-1">
+                  <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Lead Conversion Rate</span>
+                  <p className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">38.4%</p>
+                  <p className="text-xs text-slate-500 font-medium">Lead to Qualified Deal ratio</p>
                 </div>
 
-                <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-2">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Avg First Response Time</span>
-                  <p className="text-3xl font-extrabold text-purple-600 tracking-tight">18 mins</p>
-                  <p className="text-xs text-emerald-600 font-medium">⚡ Top 5% speed in Middle East</p>
+                <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-1">
+                  <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Quote Conversion Rate</span>
+                  <p className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">64.0%</p>
+                  <p className="text-xs text-slate-500 font-medium">Sent Quotes converted to Won</p>
+                </div>
+
+                <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-1">
+                  <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Average Deal Size</span>
+                  <p className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">SAR 685K</p>
+                  <p className="text-xs text-slate-500 font-medium">Average contract value</p>
+                </div>
+
+                <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-1">
+                  <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Average Sales Cycle</span>
+                  <p className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">22 Days</p>
+                  <p className="text-xs text-slate-500 font-medium">Lead creation to Closed Won</p>
+                </div>
+
+                <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-1">
+                  <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Avg First Response Time</span>
+                  <p className="text-3xl font-extrabold text-emerald-600 dark:text-emerald-400 tracking-tight">18 mins</p>
+                  <p className="text-xs text-slate-500 font-medium">Top 5% speed benchmark</p>
                 </div>
               </section>
             )}
 
           </main>
 
-          {/* RIGHT 4 COLUMNS: EXECUTIVE ACTIONS & AI WORKLOAD SUMMARY */}
+          {/* RIGHT 4 COLUMNS: MANAGER ACTION CENTER & AI WORKLOAD ANALYSIS */}
           <aside className="lg:col-span-4 space-y-6">
 
-            {/* Quick Actions Panel */}
+            {/* Manager Action Center Panel */}
             <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3">
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800 pb-2">
-                Executive Management Actions
+                Manager Action Center
               </h3>
 
               <div className="grid grid-cols-1 gap-2">
-                <button onClick={() => navigate("/rules")} className="w-full flex items-center justify-between p-3 rounded-xl bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/80 hover:bg-purple-100 transition-all text-xs font-bold">
+                <button onClick={() => navigate("/rules")} className="w-full flex items-center justify-between p-3 rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900 hover:bg-slate-800 transition-all text-xs font-bold shadow-xs">
                   <span className="flex items-center gap-2">
                     <UserPlus className="w-4 h-4" />
-                    Assign New Lead
+                    Assign Lead
                   </span>
                   <ChevronRight className="w-4 h-4" />
                 </button>
@@ -559,7 +591,7 @@ export default function SalespersonDetail() {
                 <button onClick={() => alert("Dispatching direct message...")} className="w-full flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 transition-all text-xs font-bold">
                   <span className="flex items-center gap-2">
                     <MessageSquare className="w-4 h-4 text-slate-500" />
-                    Message Salesperson
+                    Send Message
                   </span>
                   <ChevronRight className="w-4 h-4" />
                 </button>
@@ -567,7 +599,7 @@ export default function SalespersonDetail() {
                 <button onClick={() => navigate("/approvals")} className="w-full flex items-center justify-between p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800/80 hover:bg-amber-100 transition-all text-xs font-bold">
                   <span className="flex items-center gap-2">
                     <Shield className="w-4 h-4 text-amber-600" />
-                    Approve Discount / Quote
+                    Approve Discount
                   </span>
                   <ChevronRight className="w-4 h-4" />
                 </button>
@@ -575,7 +607,7 @@ export default function SalespersonDetail() {
                 <button onClick={() => alert("Opening salesperson calendar review...")} className="w-full flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 transition-all text-xs font-bold">
                   <span className="flex items-center gap-2">
                     <Calendar className="w-4 h-4 text-slate-500" />
-                    View Calendar & Schedule Review
+                    Schedule Review & View Calendar
                   </span>
                   <ChevronRight className="w-4 h-4" />
                 </button>
@@ -583,65 +615,76 @@ export default function SalespersonDetail() {
                 <button onClick={() => navigate("/rules")} className="w-full flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 transition-all text-xs font-bold">
                   <span className="flex items-center gap-2">
                     <RefreshCw className="w-4 h-4 text-slate-500" />
-                    Reassign Lead Opportunities
+                    Reassign Lead
                   </span>
                   <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
             </div>
 
-            {/* AI Workload Summary & Recommendation Engine */}
-            <div className="bg-gradient-to-br from-slate-900 via-slate-900 to-purple-950 text-white rounded-2xl p-6 shadow-md space-y-5 relative overflow-hidden">
+            {/* AI Workload Analysis & Decision Card */}
+            <div className="bg-slate-900 dark:bg-slate-900 text-white rounded-2xl p-6 shadow-md space-y-5 border border-slate-800">
               <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-purple-400">
-                  <Zap className="w-4 h-4 text-purple-400 fill-purple-400" />
-                  <span>AI Workload Recommendation</span>
+                <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-slate-300">
+                  <Zap className="w-4 h-4 text-amber-400 fill-amber-400" />
+                  <span>AI Workload Analysis</span>
                 </div>
-                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-purple-500/20 text-purple-300 border border-purple-500/40">
-                  Live Engine
+                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-slate-800 text-slate-300 border border-slate-700">
+                  Decision Engine
                 </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 text-xs border-b border-slate-800 pb-4">
+                <div>
+                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Current Capacity</span>
+                  <p className="text-base font-extrabold text-white mt-0.5">{activeDealsCount} / {rep.maxOpenLeads || 15} Deals</p>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Available Capacity</span>
+                  <p className="text-base font-extrabold text-emerald-400 mt-0.5">{Math.max(0, (rep.maxOpenLeads || 15) - activeDealsCount)} Slots Open</p>
+                </div>
               </div>
 
               {/* Lead Assignment Recommendation Card */}
               <div className={`p-4 rounded-xl border ${
-                canReceiveMoreLeads 
+                !isOverloaded 
                   ? "bg-emerald-950/40 border-emerald-500/50 text-emerald-200" 
                   : "bg-amber-950/40 border-amber-500/50 text-amber-200"
               }`}>
-                <div className="flex items-center gap-2 font-extrabold text-sm mb-1">
-                  {canReceiveMoreLeads ? (
+                <div className="flex items-center gap-2 font-extrabold text-xs mb-1">
+                  {!isOverloaded ? (
                     <>
-                      <CircleCheck className="w-4 h-4 text-emerald-400" />
-                      <span>RECOMMENDED FOR NEW LEADS</span>
+                      <CircleCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>RECOMMENDED FOR NEW LEADS (+2 to +3 Leads)</span>
                     </>
                   ) : (
                     <>
-                      <AlertCircle className="w-4 h-4 text-amber-400" />
+                      <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
                       <span>HOLD NEW LEAD ASSIGNMENTS</span>
                     </>
                   )}
                 </div>
-                <p className="text-xs text-slate-300 leading-relaxed font-medium">
-                  {canReceiveMoreLeads
-                    ? `${rep.name} is currently operating at ${currentWorkloadPct}% capacity with an avg response speed of 18m. Safe to assign 3-4 new enterprise leads.`
-                    : `${rep.name} has 2 deals blocked on discount approval and 6 follow-ups due today. Resolve blocked deals before routing new leads.`
+                <p className="text-[11px] text-slate-300 leading-relaxed font-medium mt-1">
+                  {!isOverloaded
+                    ? `${rep.name} has 1 slot available and 18m avg first response speed. Safe to assign new enterprise leads.`
+                    : `${rep.name} has 3 pending approvals and 2 high-priority blocked quotes waiting over 24h. Resolve approvals first.`
                   }
                 </p>
               </div>
 
-              {/* Risk & Blocked Deals Summary */}
-              <div className="space-y-2 pt-2 border-t border-slate-800">
-                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Risk Alerts & Blocked Deals</span>
+              {/* Stalled Opportunities & High Risk Accounts */}
+              <div className="space-y-2 pt-2">
+                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">High Risk & Stalled Opportunities</span>
                 
                 <div className="space-y-2 text-xs">
                   <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-800/80 border border-slate-700">
-                    <span className="font-bold text-slate-200">Apex Global Logistics</span>
-                    <span className="text-[10px] font-bold text-amber-400 bg-amber-950/60 px-2 py-0.5 rounded border border-amber-800">Discount Blocked</span>
+                    <span className="font-bold text-slate-200">ABC Industries</span>
+                    <span className="text-[10px] font-bold text-rose-400 bg-rose-950/60 px-2 py-0.5 rounded border border-rose-800">48h Waiting</span>
                   </div>
 
                   <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-800/80 border border-slate-700">
-                    <span className="font-bold text-slate-200">Metro Chemical Refineries</span>
-                    <span className="text-[10px] font-bold text-amber-400 bg-amber-950/60 px-2 py-0.5 rounded border border-amber-800">Approval Required</span>
+                    <span className="font-bold text-slate-200">Eastern Port Logistics</span>
+                    <span className="text-[10px] font-bold text-amber-400 bg-amber-950/60 px-2 py-0.5 rounded border border-amber-800">12 Days Inactive</span>
                   </div>
                 </div>
               </div>
@@ -652,6 +695,63 @@ export default function SalespersonDetail() {
         </div>
 
       </div>
+
+      {/* ─────────────────────────────────────────────────────────────
+          SLIDE-OUT DRAWER: EMPLOYEE INFORMATION (HR / PROFILE DATA)
+         ───────────────────────────────────────────────────────────── */}
+      {showInfoDrawer && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/40 backdrop-blur-xs animate-fade-in" onClick={() => setShowInfoDrawer(false)}>
+          <div className="w-full max-w-md bg-white dark:bg-slate-900 h-full shadow-2xl p-6 overflow-y-auto space-y-6 border-l border-slate-200 dark:border-slate-800" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center pb-4 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center font-bold text-sm">
+                  {rep.name.split(" ").map(n => n[0]).join("")}
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 dark:text-white text-base">{rep.name}</h3>
+                  <p className="text-xs text-slate-500 font-medium">Employee Details & Profile</p>
+                </div>
+              </div>
+              <button onClick={() => setShowInfoDrawer(false)} className="p-1 text-slate-400 hover:text-slate-800 dark:hover:text-white rounded-lg">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              <div className="space-y-1">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Role & Designation</span>
+                <p className="font-bold text-slate-800 dark:text-slate-200">Sales Executive (Level 2)</p>
+              </div>
+
+              <div className="space-y-1">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Email Address</span>
+                <p className="font-bold text-slate-800 dark:text-slate-200">{rep.email || `${rep.name.toLowerCase().replace(" ", "")}@nexus.com`}</p>
+              </div>
+
+              <div className="space-y-1">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Department</span>
+                <p className="font-bold text-slate-800 dark:text-slate-200">{rep.department || "Enterprise Commercial Sales"}</p>
+              </div>
+
+              <div className="space-y-1">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Assigned Territory</span>
+                <p className="font-bold text-slate-800 dark:text-slate-200">{rep.territory || "Middle East (Saudi Arabia & UAE)"}</p>
+              </div>
+
+              <div className="space-y-1">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Lead Capacity Controls</span>
+                <p className="font-bold text-slate-800 dark:text-slate-200">Maximum Open Deals: {rep.maxOpenLeads || 15}</p>
+              </div>
+            </div>
+
+            <div className="pt-6 border-t border-slate-100 dark:border-slate-800">
+              <button onClick={() => setShowInfoDrawer(false)} className="w-full py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-xl font-bold text-xs hover:bg-slate-200 transition-all">
+                Close Drawer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
