@@ -264,25 +264,35 @@ export const handleIncomingWebhook = async (req: Request, res: Response) => {
   const isPlaceholderToken = !twilioAuthToken || twilioAuthToken.includes("your_twilio_auth_token");
 
   if (twilioSignature && !isPlaceholderToken) {
-    const proto = (req.headers["x-forwarded-proto"] as string) || req.protocol || "https";
     const host = (req.headers["x-forwarded-host"] as string) || req.headers.host;
     const path = req.originalUrl || req.url;
 
-    const fullUrlHttps = `https://${host}${path}`;
-    const fullUrlHttp = `http://${host}${path}`;
+    // Build all candidate URLs that Twilio might have signed.
+    // Render (and similar proxies) can mangle the Host header, so we also
+    // try the explicit BASE_URL / RENDER_EXTERNAL_URL from the environment.
+    const candidateUrls: string[] = [
+      `https://${host}${path}`,
+      `http://${host}${path}`,
+    ];
+    const baseUrl = (process.env.BASE_URL || process.env.RENDER_EXTERNAL_URL || "").replace(/\/$/, "");
+    if (baseUrl && !candidateUrls.includes(`${baseUrl}${path}`)) {
+      candidateUrls.push(`${baseUrl}${path}`);
+    }
 
-    const isValidHttps = twilio.validateRequest(twilioAuthToken, twilioSignature, fullUrlHttps, req.body || {});
-    const isValidHttp = twilio.validateRequest(twilioAuthToken, twilioSignature, fullUrlHttp, req.body || {});
+    const isValid = candidateUrls.some(url =>
+      twilio.validateRequest(twilioAuthToken, twilioSignature, url, req.body || {})
+    );
 
-    if (!isValidHttps && !isValidHttp) {
-      console.warn(`[Twilio Webhook] Signature validation failed for ${fullUrlHttps}. Continuing in dev mode.`);
+    if (!isValid) {
+      console.warn(`[Twilio Webhook] Signature validation failed. Tried URLs: ${candidateUrls.join(" | ")}`);
       logWhatsAppEvent("WARN", "WEBHOOK_VERIFICATION", "TWILIO_INVALID_SIGNATURE", "Twilio webhook signature validation failed", {
-        urlHttps: fullUrlHttps,
-        urlHttp: fullUrlHttp,
+        triedUrls: candidateUrls,
         ip: req.ip,
-        remediationTip: "Ensure TWILIO_AUTH_TOKEN in backend environment matches your Twilio Console Auth Token.",
+        remediationTip:
+          "Ensure TWILIO_AUTH_TOKEN matches the Twilio Console Auth Token, " +
+          "and set BASE_URL=https://<your-render-domain> in Render environment variables.",
       });
-      // In production, reject; in dev/testing, continue to ensure message processing
+      // In production, reject; in dev/testing, log and continue
       if (process.env.NODE_ENV === "production") {
         return res.status(403).send("Express HTTP 403: Invalid Twilio Signature");
       }

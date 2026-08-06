@@ -144,8 +144,19 @@ export async function getWhatsAppHealthStatus() {
   const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN || process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN || "nexus_whatsapp_webhook_secret_2026";
   const wabaId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
 
-  const isConfigured = Boolean(token && phoneId);
-  const isSimulation = !isConfigured;
+  // Twilio credentials (primary provider for this deployment)
+  const twilioSid = (process.env.TWILIO_ACCOUNT_SID || "").trim();
+  const twilioToken = (process.env.TWILIO_AUTH_TOKEN || "").trim();
+  const twilioNumber = (process.env.TWILIO_WHATSAPP_NUMBER || process.env.TWILIO_PHONE_NUMBER || "").trim();
+  const isTwilioConfigured = Boolean(
+    twilioSid && !twilioSid.includes("your_") &&
+    twilioToken && !twilioToken.includes("your_") &&
+    twilioNumber
+  );
+
+  const isMetaConfigured = Boolean(token && phoneId);
+  // System is NOT simulated if either Twilio OR Meta is configured
+  const isSimulation = !isMetaConfigured && !isTwilioConfigured;
 
   // Count errors in last 24h
   const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -175,12 +186,12 @@ export async function getWhatsAppHealthStatus() {
     // If table not created yet
   }
 
-  // Ping Meta API if credentials exist
+  // Ping Meta API only if Meta credentials exist (separate from Twilio)
   let metaApiReachable = false;
   let metaApiLatencyMs = 0;
   let metaApiDetails: any = null;
 
-  if (isConfigured) {
+  if (isMetaConfigured) {
     const startTime = Date.now();
     try {
       const response = await fetch(`https://graph.facebook.com/v18.0/${phoneId}?access_token=${token}`);
@@ -207,10 +218,14 @@ export async function getWhatsAppHealthStatus() {
     }
   }
 
-  // Calculate health state
+  // Calculate overall health state
+  // Twilio is the primary active provider; Meta Cloud API is optional/secondary
   let state: "healthy" | "degraded" | "error" | "simulation" = "healthy";
   if (isSimulation) {
     state = "simulation";
+  } else if (isTwilioConfigured && !isMetaConfigured) {
+    // Twilio-only deployment: healthy if no recent errors, degraded otherwise
+    state = errorCount24h > 10 ? "error" : errorCount24h > 0 ? "degraded" : "healthy";
   } else if (!metaApiReachable || errorCount24h > 10) {
     state = "error";
   } else if (errorCount24h > 0 || warnCount24h > 5) {
@@ -218,19 +233,42 @@ export async function getWhatsAppHealthStatus() {
   }
 
   const checklist = [
+    // ── Twilio (Primary Provider) ──────────────────────────────────────────────
+    {
+      key: "TWILIO_SID",
+      title: "Twilio Account SID",
+      configured: isTwilioConfigured,
+      value: twilioSid ? `Present (${twilioSid.slice(0, 6)}...${twilioSid.slice(-4)})` : "Missing",
+      status: isTwilioConfigured ? "ok" : "warning",
+    },
+    {
+      key: "TWILIO_TOKEN",
+      title: "Twilio Auth Token",
+      configured: isTwilioConfigured,
+      value: twilioToken ? "Configured (hidden)" : "Missing",
+      status: isTwilioConfigured ? "ok" : "warning",
+    },
+    {
+      key: "TWILIO_NUMBER",
+      title: "Twilio WhatsApp Number",
+      configured: Boolean(twilioNumber),
+      value: twilioNumber || "Missing",
+      status: twilioNumber ? "ok" : "warning",
+    },
+    // ── Meta Cloud API (Optional / Secondary) ──────────────────────────────────
     {
       key: "TOKEN",
-      title: "WhatsApp Access Token",
+      title: "Meta WhatsApp Access Token",
       configured: Boolean(token),
-      value: token ? `Present (${token.slice(0, 8)}...${token.slice(-4)})` : "Missing",
-      status: token ? "ok" : "warning",
+      value: token ? `Present (${token.slice(0, 8)}...${token.slice(-4)})` : "Not configured (optional if using Twilio)",
+      status: token ? "ok" : "info",
     },
     {
       key: "PHONE_ID",
-      title: "Phone Number ID",
+      title: "Meta Phone Number ID",
       configured: Boolean(phoneId),
-      value: phoneId || "Missing",
-      status: phoneId ? "ok" : "warning",
+      value: phoneId || "Not configured (optional if using Twilio)",
+      status: phoneId ? "ok" : "info",
     },
     {
       key: "VERIFY_TOKEN",
@@ -249,13 +287,15 @@ export async function getWhatsAppHealthStatus() {
     {
       key: "META_GRAPH",
       title: "Meta Cloud API Connectivity",
-      configured: isConfigured,
+      configured: isMetaConfigured,
       value: metaApiReachable
         ? `Connected (${metaApiLatencyMs}ms)`
         : isSimulation
         ? "Simulated Mode"
-        : `Connection Failed (${metaApiLatencyMs}ms)`,
-      status: metaApiReachable ? "ok" : isSimulation ? "warning" : "error",
+        : isMetaConfigured
+        ? `Connection Failed (${metaApiLatencyMs}ms)`
+        : "Not configured (using Twilio)",
+      status: metaApiReachable ? "ok" : isMetaConfigured ? "error" : "info",
     },
   ];
 
