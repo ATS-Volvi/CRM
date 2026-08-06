@@ -78,8 +78,9 @@ function App() {
                 <Route path="/leads/new" element={<LeadCreate />} />
                 <Route path="/leads/:id" element={<LeadDetail />} />
                 <Route path="/pipeline" element={<PipelineKanban />} />
+                <Route path="/quotes" element={<QuotationBuilder />} />
                 <Route path="/quotes/new" element={<QuotationBuilder />} />
-                <Route path="/quotes" element={<QuoteHistory />} />
+                <Route path="/quotes/history" element={<QuoteHistory />} />
                 <Route path="/invoices" element={<Invoices />} />
                 <Route path="/invoices/:id" element={<InvoiceDetail />} />
                 <Route path="/price-book" element={<PriceBook />} />
