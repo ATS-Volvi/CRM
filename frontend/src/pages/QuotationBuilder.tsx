@@ -627,39 +627,119 @@ export default function QuotationBuilder() {
               </button>
             </div>
             
-            <div id="pdf-preview-box" className="bg-white w-[595px] h-[842px] shadow-xl p-8 scale-[0.6] origin-top border border-outline-variant pointer-events-none mt-8 transition-transform">
-              {/* Branded Template Visual */}
-              <div className="flex justify-between items-start mb-16">
-                <div className="text-4xl font-extrabold text-primary">CRM.</div>
+            <div id="pdf-preview-box" className="bg-white w-[595px] min-h-[842px] shadow-2xl p-8 scale-[0.65] origin-top border border-slate-300 pointer-events-none mt-4 transition-transform font-sans text-slate-800">
+              {/* Top Meta Bar */}
+              <div className="grid grid-cols-3 bg-purple-50/80 border border-purple-200 text-center py-1.5 px-2 rounded mb-6 text-[11px] font-bold text-slate-700">
+                <div>
+                  <span className="text-[9px] uppercase tracking-wider text-purple-900 block">Date</span>
+                  <span>{new Date().toLocaleDateString('en-GB')}</span>
+                </div>
+                <div className="border-x border-purple-200">
+                  <span className="text-[9px] uppercase tracking-wider text-purple-900 block">Quotation No.</span>
+                  <span className="font-extrabold text-purple-950">{selectedDealId ? `FTC-${selectedDealId.substring(0, 8).toUpperCase()}` : "FTC-25121518"}</span>
+                </div>
+                <div>
+                  <span className="text-[9px] uppercase tracking-wider text-purple-900 block">Revision</span>
+                  <span>0</span>
+                </div>
+              </div>
+
+              {/* Company Header Box & Client Card */}
+              <div className="grid grid-cols-2 gap-4 mb-6">
+                <div className="bg-lime-50/70 border border-lime-200/80 rounded-xl p-3.5">
+                  <p className="text-xs font-bold text-slate-900">Company Name</p>
+                  <p className="text-[11px] text-slate-600 font-medium">Kingdom of Saudi Arabia.</p>
+                </div>
+                <div className="bg-blue-50/60 border border-blue-200/80 rounded-xl p-3.5">
+                  <p className="text-xs font-bold text-slate-900">Client / Destination</p>
+                  <p className="text-[11px] text-slate-600 font-medium">{leadData?.contactName || leadData?.companyName || "Valued Client, Riyadh / Abqaiq"}</p>
+                </div>
+              </div>
+
+              {/* Cover Letter Text */}
+              <div className="mb-6 space-y-2 text-[10.5px] leading-relaxed text-slate-700">
+                <p className="font-bold text-slate-900">Dear Client,</p>
+                <p>
+                  Thank you for showing your interest in us & inviting us to Quote. Faisal Fahad Hussain Al Kari Transportation Co. has remained one of the Big Players in Industrial Services in the market over the past two decades and we continue to strive every day to make every client experience the most unique & pleasing one.
+                </p>
+                <p>
+                  With reference to your recent request for the quotation for industrial equipment, services & supply for your project location, we are pleased to supply the same at the below quoted competitive price:
+                </p>
+              </div>
+
+              {/* Industrial Line Items Table */}
+              <table className="w-full border-collapse mb-6 text-[10px]">
+                <thead>
+                  <tr className="bg-[#f2dbdb] border-y border-slate-900 text-slate-900 font-bold">
+                    <th className="py-2 px-2 text-left w-10">SI No.</th>
+                    <th className="py-2 px-2 text-left">Item Description</th>
+                    <th className="py-2 px-2 text-center w-14">UOM</th>
+                    <th className="py-2 px-2 text-center w-12">Qty</th>
+                    <th className="py-2 px-2 text-right w-20">Price (SAR)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 border-b border-slate-900">
+                  {items.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-6 text-center text-slate-400 italic">No line items added yet. Select items on the left to render here.</td>
+                    </tr>
+                  ) : (
+                    items.map((item: any, idx: number) => {
+                      const prod = products?.find((p: any) => p.id === item.productId);
+                      return (
+                        <tr key={idx} className="align-top">
+                          <td className="py-2.5 px-2 font-bold text-slate-800">{idx + 1}</td>
+                          <td className="py-2.5 px-2">
+                            <p className="font-bold text-slate-900 text-[10.5px]">{prod?.name || item.name || "Industrial Line Item"}</p>
+                            {item.description && (
+                              <p className="text-[10px] text-slate-600 mt-0.5 whitespace-pre-line">{item.description}</p>
+                            )}
+                            <ul className="list-disc pl-3 mt-1 space-y-0.5 text-[9.5px] text-slate-600">
+                              <li>Shift Specifications: Day/Night shift deployment as agreed.</li>
+                              <li>Client Scope: Accommodation, transfers, and site access.</li>
+                            </ul>
+                          </td>
+                          <td className="py-2.5 px-2 text-center font-semibold text-slate-700">{item.uom || prod?.unit || "Month"}</td>
+                          <td className="py-2.5 px-2 text-center font-bold text-slate-900">{item.quantity || 1}</td>
+                          <td className="py-2.5 px-2 text-right font-bold text-slate-900">{formatCurrency(item.total || (item.quantity * item.unitPrice) || 0)}</td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+
+              {/* Total Summary */}
+              <div className="flex justify-end mb-8">
+                <div className="w-56 bg-slate-50 border border-slate-300 rounded p-2.5 space-y-1 text-[11px]">
+                  <div className="flex justify-between font-semibold text-slate-700">
+                    <span>Subtotal:</span>
+                    <span>{formatCurrency(items.filter((i: any) => !i.isOptional).reduce((a: number, c: any) => a + (c.total || 0), 0))}</span>
+                  </div>
+                  <div className="flex justify-between font-semibold text-slate-700">
+                    <span>VAT (15%):</span>
+                    <span>{formatCurrency(items.filter((i: any) => !i.isOptional).reduce((a: number, c: any) => a + (c.total || 0), 0) * 0.15)}</span>
+                  </div>
+                  <div className="flex justify-between font-extrabold text-slate-950 text-xs border-t border-slate-300 pt-1 mt-1">
+                    <span>Grand Total (SAR):</span>
+                    <span>{formatCurrency(items.filter((i: any) => !i.isOptional).reduce((a: number, c: any) => a + (c.total || 0), 0) * 1.15)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer Signature */}
+              <div className="border-t border-slate-200 pt-4 flex justify-between items-end text-[9.5px] text-slate-500">
+                <div>
+                  <p className="font-bold text-slate-800">Faisal Fahad Hussain Al Kari Transportation Co.</p>
+                  <p>Prince Fahad St, Al Khobar, Kingdom of Saudi Arabia</p>
+                </div>
                 <div className="text-right">
-                  <h1 className="text-3xl font-bold uppercase tracking-widest text-on-surface-variant mb-2">Quotation</h1>
-                  <p className="text-sm font-semibold">{quote?.id || "QT-NEW"}</p>
-                  <p className="text-xs text-on-surface-variant">Date: {quote?.date || "Today"}</p>
+                  <div className="h-8 border-b border-slate-400 w-32 ml-auto mb-1"></div>
+                  <p className="font-bold text-slate-700">Authorized Signature</p>
                 </div>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-12 mb-16">
-                <div>
-                  <h4 className="text-xs font-bold uppercase text-on-surface-variant mb-2">From:</h4>
-                  <p className="text-sm font-bold">Enterprise CRM Solutions</p>
-                  <p className="text-xs">123 Tech Corridor, Dubai Internet City</p>
-                  <p className="text-xs">United Arab Emirates</p>
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold uppercase text-on-surface-variant mb-2">Prepared For:</h4>
-                  <p className="text-sm font-bold">{quote?.client || "Client Name"}</p>
-                  <p className="text-xs">Financial Center Rd, Downtown Dubai</p>
-                  <p className="text-xs">Attn: Sarah Jenkins</p>
-                </div>
-              </div>
-              
-              <div className="border-t-2 border-primary pt-4 mb-4"></div>
-              
-              <div className="h-24 bg-surface-container-low mb-8 rounded flex items-center justify-center italic text-on-surface-variant">
-                [ Live PDF Render Area - Line Items and Terms ]
               </div>
             </div>
-            <p className="text-sm text-on-surface-variant mt-4 -translate-y-24">Live Branded Preview (v2.1 Template)</p>
+            <p className="text-sm text-on-surface-variant mt-2">Live Industrial Format Preview (FTC Saudi Arabia Spec)</p>
           </div>
         </div>
 
