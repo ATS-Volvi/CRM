@@ -204,10 +204,11 @@ export const createQuote = async (req: Request, res: Response) => {
       .reduce((acc, item) => acc + item.totalPrice, 0);
 
     // Create quote
+    const isPendingApprovalStatus = status === "Pending" || status === "Pending Approval" || status === "Pending_Approval";
     const quote = await sequelize.models.Quote.create({
       id: require('crypto').randomUUID(),
       dealId,
-      status: approvalRequired ? "Pending Approval" : (status || "Draft"),
+      status: (approvalRequired || isPendingApprovalStatus) ? "Pending Approval" : (status || "Draft"),
       totalAmount,
       expirationDate: expirationDate || null,
       quoteNumber: quoteNum,
@@ -223,29 +224,36 @@ export const createQuote = async (req: Request, res: Response) => {
       await sequelize.models.QuoteLineItem.bulkCreate(lineItemsData);
     }
 
-    // Auto-create approval request if threshold is breached
-    if (approvalRequired) {
+    // Auto-create approval request whenever quote is submitted for approval
+    if (approvalRequired || isPendingApprovalStatus) {
       let assignedApproverId = null;
       let commentsExtra = "";
       
-      const manager = await sequelize.models.User.findOne({ where: { role: "sales_manager" } });
-      if (manager) {
-        assignedApproverId = (manager as any).id;
-        if ((manager as any).onLeave && (manager as any).delegatedUserId) {
-          assignedApproverId = (manager as any).delegatedUserId;
-          commentsExtra = ` (Delegated from ${(manager as any).name} due to leave)`;
-        }
+      const adminOrManager = await sequelize.models.User.findOne({ where: { role: "admin" } }) || await sequelize.models.User.findOne({ where: { role: "sales_manager" } });
+      if (adminOrManager) {
+        assignedApproverId = (adminOrManager as any).id;
       }
 
-      await sequelize.models.ApprovalRequest.create({
+      const approvalReq = await sequelize.models.ApprovalRequest.create({
         id: require('crypto').randomUUID(),
         targetId: (quote as any).id,
         type: "Quote",
         status: "Pending",
         requestedById: userId,
         assignedApproverId,
-        comments: `Discount limit of ${maxAllowedDiscount}% exceeded by ${userRole}.${commentsExtra}`
+        comments: `Quote submitted for Admin approval by Sales Representative.${commentsExtra}`
       });
+
+      // Send real-time notification to Admin users
+      if (adminOrManager) {
+        await createNotification(
+          (adminOrManager as any).id,
+          "alert",
+          "New Quote Approval Request",
+          `A new quotation approval request for deal #${dealId?.substring(0, 8)} requires your approval.`,
+          "/approvals"
+        );
+      }
     }
 
     res.status(201).json(quote);
