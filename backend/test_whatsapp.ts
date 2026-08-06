@@ -37,10 +37,21 @@ async function testWhatsApp() {
           }
         }]
       }]
-    }
+    },
+    headers: {}
   } as unknown as Request;
 
   const res = {
+    status: function(s: number) {
+      console.log(`Webhook responded with status ${s}`);
+      return this;
+    },
+    type: function(t: string) {
+      return this;
+    },
+    send: function(b: any) {
+      return this;
+    },
     sendStatus: function(s: number) {
       console.log(`Webhook responded with status ${s}`);
       return this;
@@ -74,7 +85,8 @@ async function testWhatsApp() {
           }
         }]
       }]
-    }
+    },
+    headers: {}
   } as unknown as Request;
 
   await handleIncomingWebhook(reqUnknown, res);
@@ -124,7 +136,8 @@ async function testWhatsApp() {
           }
         }]
       }]
-    }
+    },
+    headers: {}
   } as unknown as Request;
 
   await handleIncomingWebhook(reqFormatted, res);

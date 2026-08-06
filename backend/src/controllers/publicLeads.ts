@@ -28,10 +28,14 @@ export const createPublicLead = async (req: Request, res: Response) => {
     // 1. LEAD ACKNOWLEDGEMENT AUTOMATION
     if (email) {
       const slaHours = process.env.LEAD_RESPONSE_SLA_HOURS || "24";
-      triggerTemplatedEmail("lead_acknowledgement", email, { 
-        lead_name: firstName, 
-        sla_hours: slaHours 
-      }, leadId).catch(err => console.error("Email send failed:", err));
+      try {
+        await triggerTemplatedEmail("lead_acknowledgement", email, { 
+          lead_name: firstName, 
+          sla_hours: slaHours 
+        }, leadId);
+      } catch (err: any) {
+        console.warn("Non-blocking lead acknowledgement email automation failed:", err.message || err);
+      }
     }
 
     res.status(201).json({ success: true, leadId });
