@@ -131,6 +131,16 @@ export default function SalespersonDetail() {
     ];
   }, []);
 
+  // Converted Deals Data (Won & Closed Opportunities)
+  const convertedDealsList = useMemo(() => {
+    return [
+      { id: "cd1", customer: "Faisal Transportation Co.", value: 650000, closedDate: "28 Jul 2026", invoiceNo: "INV-2026-901", paymentStatus: "Paid", repCommission: "SAR 19,500" },
+      { id: "cd2", customer: "Kolkata Bottling Works", value: 420000, closedDate: "15 Jul 2026", invoiceNo: "INV-2026-784", paymentStatus: "Paid", repCommission: "SAR 12,600" },
+      { id: "cd3", customer: "Riyadh Logistics Park", value: 780000, closedDate: "02 Jul 2026", invoiceNo: "INV-2026-612", paymentStatus: "Paid", repCommission: "SAR 23,400" },
+      { id: "cd4", customer: "Jeddah Container Terminals", value: 510000, closedDate: "20 Jun 2026", invoiceNo: "INV-2026-440", paymentStatus: "Paid", repCommission: "SAR 15,300" }
+    ];
+  }, []);
+
   // Pending Quotations Data
   const pendingQuotationsList = useMemo(() => {
     return [
@@ -306,9 +316,10 @@ export default function SalespersonDetail() {
           <main className="lg:col-span-8 space-y-8">
             
             {/* Executive Workspace Tabs */}
-            <div className="flex border-b border-slate-200 dark:border-slate-800 gap-8 text-xs font-bold">
+            <div className="flex border-b border-slate-200 dark:border-slate-800 gap-8 text-xs font-bold overflow-x-auto pb-0.5">
               {[
                 { id: "active-deals", label: `Active Deals (${activeDealsList.length})` },
+                { id: "converted-deals", label: `Converted Deals (${convertedDealsList.length})` },
                 { id: "pending-quotes", label: `Pending Quotations (${pendingQuotationsList.length})` },
                 { id: "todays-tasks", label: `Today's Tasks (${todayTasksList.length})` },
                 { id: "pipeline-health", label: "Pipeline Health" },
@@ -317,7 +328,7 @@ export default function SalespersonDetail() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`pb-3.5 border-b-2 transition-all cursor-pointer ${
+                  className={`pb-3.5 border-b-2 transition-all cursor-pointer whitespace-nowrap ${
                     activeTab === tab.id
                       ? "border-slate-900 text-slate-900 dark:border-white dark:text-white font-extrabold"
                       : "border-transparent text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
@@ -384,6 +395,47 @@ export default function SalespersonDetail() {
                       </div>
                     </div>
                   ))}
+                </div>
+              </section>
+            )}
+
+            {/* ── SECTION: CONVERTED DEALS ── */}
+            {activeTab === "converted-deals" && (
+              <section className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs">
+                <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Converted & Won Opportunities ({convertedDealsList.length})</h3>
+                  <span className="text-xs text-emerald-600 font-extrabold">Total Won: {formatCurrency(convertedDealsList.reduce((acc, d) => acc + d.value, 0))}</span>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800 text-slate-400 font-bold uppercase tracking-wider">
+                        <th className="p-4">Customer</th>
+                        <th className="p-4">Contract Value</th>
+                        <th className="p-4">Closed Date</th>
+                        <th className="p-4">Invoice #</th>
+                        <th className="p-4">Payment Status</th>
+                        <th className="p-4 text-right">Rep Commission</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {convertedDealsList.map(d => (
+                        <tr key={d.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors">
+                          <td className="p-4 font-extrabold text-slate-900 dark:text-white">{d.customer}</td>
+                          <td className="p-4 font-black text-slate-900 dark:text-white">{formatCurrency(d.value)}</td>
+                          <td className="p-4 text-slate-500 font-medium">{d.closedDate}</td>
+                          <td className="p-4 font-bold text-purple-600 dark:text-purple-400">{d.invoiceNo}</td>
+                          <td className="p-4">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300">
+                              {d.paymentStatus}
+                            </span>
+                          </td>
+                          <td className="p-4 text-right font-bold text-slate-900 dark:text-white">{d.repCommission}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </section>
             )}
