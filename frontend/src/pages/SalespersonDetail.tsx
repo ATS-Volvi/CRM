@@ -81,6 +81,8 @@ export default function SalespersonDetail() {
 
   const [activeTab, setActiveTab] = useState<string>("active-deals");
   const [showInfoDrawer, setShowInfoDrawer] = useState<boolean>(false);
+  const [isEditingCap, setIsEditingCap] = useState<boolean>(false);
+  const [maxDealsLimit, setMaxDealsLimit] = useState<number>(15);
   const [taskState, setTaskState] = useState<Record<string, boolean>>({
     t1: false, t2: false, t3: true, t4: false, t5: false, t6: false
   });
@@ -91,9 +93,25 @@ export default function SalespersonDetail() {
     queryFn: async () => {
       const res = await apiClient(`/api/v1/salespersons/${id}/performance`);
       if (!res.ok) throw new Error("Failed to load salesperson command center data");
-      return res.json();
+      const d = await res.json();
+      if (d && d.maxOpenLeads) setMaxDealsLimit(d.maxOpenLeads);
+      return d;
     },
     enabled: !!id && !!token,
+  });
+
+  const updateCapMutation = useMutation({
+    mutationFn: async (newCap: number) => {
+      const res = await apiClient(`/api/v1/salespersons/${id}/capacity`, {
+        method: "PUT",
+        body: JSON.stringify({ maxOpenLeads: newCap })
+      });
+      if (!res.ok) throw new Error("Failed to update capacity limit");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["salespersonPerformance", id] });
+    }
   });
 
   const { data: kpiTargets } = useQuery<KpiTarget[]>({
@@ -688,12 +706,48 @@ export default function SalespersonDetail() {
 
               <div className="grid grid-cols-2 gap-3 text-xs border-b border-slate-800 pb-4">
                 <div>
-                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Current Capacity</span>
-                  <p className="text-base font-extrabold text-white mt-0.5">{activeDealsCount} / {rep.maxOpenLeads || 15} Deals</p>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-slate-400 uppercase font-bold block">Max Deals Limit</span>
+                    <button 
+                      onClick={() => {
+                        if (isEditingCap) {
+                          updateCapMutation.mutate(maxDealsLimit);
+                          setIsEditingCap(false);
+                        } else {
+                          setIsEditingCap(true);
+                        }
+                      }}
+                      className="text-[10px] font-bold text-emerald-400 hover:underline flex items-center gap-0.5"
+                    >
+                      {isEditingCap ? "Save" : "Edit"}
+                    </button>
+                  </div>
+                  {isEditingCap ? (
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <input 
+                        type="number" 
+                        value={maxDealsLimit} 
+                        onChange={(e) => setMaxDealsLimit(Math.max(1, parseInt(e.target.value) || 1))}
+                        className="w-16 bg-slate-800 border border-slate-700 text-white rounded px-2 py-0.5 text-xs font-bold focus:outline-none focus:border-emerald-500"
+                      />
+                      <button 
+                        onClick={() => {
+                          updateCapMutation.mutate(maxDealsLimit);
+                          setIsEditingCap(false);
+                        }}
+                        className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-500 transition-colors"
+                        title="Save Max Limit"
+                      >
+                        <Check className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="text-base font-extrabold text-white mt-0.5">{activeDealsCount} / {maxDealsLimit} Deals</p>
+                  )}
                 </div>
                 <div>
                   <span className="text-[10px] text-slate-400 uppercase font-bold block">Available Capacity</span>
-                  <p className="text-base font-extrabold text-emerald-400 mt-0.5">{Math.max(0, (rep.maxOpenLeads || 15) - activeDealsCount)} Slots Open</p>
+                  <p className="text-base font-extrabold text-emerald-400 mt-0.5">{Math.max(0, maxDealsLimit - activeDealsCount)} Slots Open</p>
                 </div>
               </div>
 
