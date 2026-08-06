@@ -64,7 +64,7 @@ export const updateApproval = async (req: Request, res: Response) => {
              id: invoiceId,
              invoiceNumber: invNumber,
              quoteId: (quote as any).id,
-             leadId: (quote as any).dealId ? (await sequelize.models.Deal.findByPk((quote as any).dealId))?.leadId : null,
+             leadId: (quote as any).dealId ? ((await sequelize.models.Deal.findByPk((quote as any).dealId)) as any)?.leadId : null,
              status: 'Draft',
              issueDate: new Date(),
              dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
