@@ -48,15 +48,6 @@ export default function QuotationBuilder() {
     }
   });
 
-  const { data: masterRequirements } = useQuery({
-    queryKey: ["masterRequirements"],
-    queryFn: async () => {
-      const res = await fetch("/api/v1/master-data/requirements", { headers: { "Authorization": `Bearer ${token}` } });
-      if (!res.ok) return [];
-      return res.json();
-    }
-  });
-
   const [searchParams] = useSearchParams();
   const dealIdParam = searchParams.get("dealId");
 
@@ -294,60 +285,13 @@ export default function QuotationBuilder() {
     setItems([...items, ...newItems]);
   };
 
-  const handleImportRequirement = (reqId: string) => {
-    if (!reqId) return;
-    const reqObj = masterRequirements?.find((r: any) => r.id === reqId);
-    if (!reqObj || !reqObj.lineItems || reqObj.lineItems.length === 0) return;
-
-    const toAdd = reqObj.lineItems.map((li: any) => {
-      // Find matching product in price book or fallback to list price
-      const matchedProd = products?.find((p: any) => 
-        p.name.toLowerCase().includes(li.name.toLowerCase()) || 
-        li.name.toLowerCase().includes(p.name.toLowerCase())
-      );
-      const unitPrice = matchedProd ? parseFloat(matchedProd.unitPrice || matchedProd.msrp || 1000) : 1000;
-      const qty = li.defaultQuantity || 1;
-      return {
-        productId: matchedProd?.id || "",
-        nameOverride: li.name,
-        quantity: qty,
-        unitPrice: unitPrice,
-        discount: 0,
-        total: qty * unitPrice,
-        isOptional: false
-      };
-    });
-
-    setItems([...items, ...toAdd]);
-  };
-
-  // Compute previous unit price for a given product to perform live comparison
-  const getPreviousUnitPrice = (productId: string) => {
-    if (!productId) return null;
-    if (!clientHistory || clientHistory.length === 0) return null;
-
-    for (const hQuote of clientHistory) {
-      if (hQuote.QuoteLineItems && Array.isArray(hQuote.QuoteLineItems)) {
-        const found = hQuote.QuoteLineItems.find((li: any) => li.productId === productId);
-        if (found && found.unitPrice) {
-          return {
-            unitPrice: parseFloat(found.unitPrice),
-            quoteNumber: hQuote.quoteNumber || hQuote.id.substring(0, 8),
-            date: new Date(hQuote.createdAt).toLocaleDateString()
-          };
-        }
-      }
-    }
-    return null;
-  };
-
   const updateItem = (index: number, field: string, value: any) => {
     const newItems = [...items];
     newItems[index][field] = value;
     if (field === 'productId') {
       const prod = products?.find((p: any) => p.id === value);
       if (prod) {
-        newItems[index].unitPrice = parseFloat(prod.msrp || prod.listPrice || prod.unitPrice || 0);
+        newItems[index].unitPrice = parseFloat(prod.msrp || prod.listPrice || 0);
       }
     }
     newItems[index].total = newItems[index].quantity * newItems[index].unitPrice;
@@ -444,7 +388,7 @@ export default function QuotationBuilder() {
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Start from Bundle:</span>
                     <select 
-                      className="bg-surface border border-outline-variant rounded-lg p-2 text-xs font-medium focus:ring-1 focus:ring-primary min-w-[180px]"
+                      className="bg-surface border border-outline-variant rounded-lg p-2 text-xs font-medium focus:ring-1 focus:ring-primary min-w-[200px]"
                       defaultValue=""
                       onChange={e => {
                         handleSelectBundle(e.target.value);
@@ -454,25 +398,6 @@ export default function QuotationBuilder() {
                       <option value="">-- Choose Bundle --</option>
                       {bundles?.map((b: any) => (
                         <option key={b.id} value={b.id}>{b.name}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-primary uppercase tracking-wider flex items-center gap-1">
-                      <Lightbulb className="w-3.5 h-3.5" /> Master Requirement:
-                    </span>
-                    <select 
-                      className="bg-primary/5 border border-primary/30 text-primary font-bold rounded-lg p-2 text-xs focus:ring-1 focus:ring-primary min-w-[210px]"
-                      defaultValue=""
-                      onChange={e => {
-                        handleImportRequirement(e.target.value);
-                        e.target.value = "";
-                      }}
-                    >
-                      <option value="">-- Import Requirement --</option>
-                      {masterRequirements?.map((r: any) => (
-                        <option key={r.id} value={r.id}>{r.name} ({r.category})</option>
                       ))}
                     </select>
                   </div>
@@ -494,30 +419,22 @@ export default function QuotationBuilder() {
                 <thead>
                   <tr className="bg-surface-container-low border-b border-outline-variant">
                     <th className="px-4 py-3 text-[12px] font-bold text-on-surface-variant uppercase">Product / Service</th>
-                    <th className="px-4 py-3 text-[12px] font-bold text-on-surface-variant uppercase w-20 text-center">Qty</th>
-                    <th className="px-4 py-3 text-[12px] font-bold text-on-surface-variant uppercase w-28">Current Price</th>
-                    <th className="px-4 py-3 text-[12px] font-bold text-on-surface-variant uppercase w-36">Prev Quote Price</th>
-                    <th className="px-4 py-3 text-[12px] font-bold text-on-surface-variant uppercase w-20">Disc %</th>
-                    <th className="px-4 py-3 text-[12px] font-bold text-on-surface-variant uppercase w-20 text-center">Optional</th>
-                    <th className="px-4 py-3 text-[12px] font-bold text-on-surface-variant uppercase w-28 text-right">Total</th>
+                    <th className="px-4 py-3 text-[12px] font-bold text-on-surface-variant uppercase w-24 text-center">Qty</th>
+                    <th className="px-4 py-3 text-[12px] font-bold text-on-surface-variant uppercase w-32">Unit Price</th>
+                    <th className="px-4 py-3 text-[12px] font-bold text-on-surface-variant uppercase w-24">Disc %</th>
+                    <th className="px-4 py-3 text-[12px] font-bold text-on-surface-variant uppercase w-24">Tax</th>
+                    <th className="px-4 py-3 text-[12px] font-bold text-on-surface-variant uppercase w-24 text-center">Optional</th>
+                    <th className="px-4 py-3 text-[12px] font-bold text-on-surface-variant uppercase w-32 text-right">Total</th>
                     <th className="px-4 py-3 w-10"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-outline-variant">
                   {items.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="px-4 py-8 text-center text-on-surface-variant">No items added. Select a Master Requirement above or click "Add Product" to begin.</td>
+                      <td colSpan={8} className="px-4 py-8 text-center text-on-surface-variant">No items added. Click "Add Product" to begin.</td>
                     </tr>
                   ) : (
-                    items.map((item: any, i: number) => {
-                      const prevInfo = getPreviousUnitPrice(item.productId);
-                      const currentPrice = Number(item.unitPrice || 0);
-                      let priceDiffPct: number | null = null;
-                      if (prevInfo && prevInfo.unitPrice > 0) {
-                        priceDiffPct = ((currentPrice - prevInfo.unitPrice) / prevInfo.unitPrice) * 100;
-                      }
-
-                      return (
+                    items.map((item: any, i: number) => (
                       <tr 
                         key={i} 
                         className={`hover:bg-surface-container-low transition-colors cursor-pointer ${
@@ -529,45 +446,20 @@ export default function QuotationBuilder() {
                       >
                         <td className="px-4 py-4">
                           <select 
-                            className="w-full border border-outline-variant rounded p-1 text-sm bg-transparent font-medium"
+                            className="w-full border border-outline-variant rounded p-1 text-sm bg-transparent"
                             value={item.productId}
                             onChange={(e) => updateItem(i, 'productId', e.target.value)}
                           >
-                            <option value="">{item.nameOverride ? `[Req Item] ${item.nameOverride}` : "Select Product..."}</option>
+                            <option value="">Select Product...</option>
                             {products?.map((p: any) => (
                               <option key={p.id} value={p.id}>{p.name}</option>
                             ))}
                           </select>
                         </td>
-                        <td className="px-4 py-4"><input className="w-full text-center border-outline-variant rounded py-1 text-sm font-bold focus:ring-primary" type="number" min="1" value={item.quantity} onChange={(e) => updateItem(i, 'quantity', parseInt(e.target.value) || 0)} /></td>
-                        <td className="px-4 py-4 text-sm font-medium"><input className="w-full text-center border-outline-variant rounded py-1 text-sm font-bold focus:ring-primary" type="number" value={item.unitPrice} onChange={(e) => updateItem(i, 'unitPrice', parseFloat(e.target.value) || 0)} /></td>
-                        
-                        {/* Live Price Comparison Column */}
-                        <td className="px-4 py-4">
-                          {prevInfo ? (
-                            <div className="space-y-0.5">
-                              <div className="text-xs font-bold text-on-surface flex items-center justify-between">
-                                <span>{formatCurrency(prevInfo.unitPrice)}</span>
-                                {priceDiffPct !== null && (
-                                  <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded ${
-                                    priceDiffPct > 0 ? "bg-amber-100 text-amber-800" :
-                                    priceDiffPct < 0 ? "bg-emerald-100 text-emerald-800" :
-                                    "bg-slate-100 text-slate-700"
-                                  }`}>
-                                    {priceDiffPct > 0 ? `+${priceDiffPct.toFixed(1)}%` : `${priceDiffPct.toFixed(1)}%`}
-                                  </span>
-                                )}
-                              </div>
-                              <div className="text-[10px] text-on-surface-variant opacity-80">
-                                Quote #{prevInfo.quoteNumber} ({prevInfo.date})
-                              </div>
-                            </div>
-                          ) : (
-                            <span className="text-xs text-outline italic">No prev quote</span>
-                          )}
-                        </td>
-
-                        <td className="px-4 py-4"><input className="w-full border-outline-variant rounded py-1 text-sm font-bold focus:ring-primary" type="number" value={item.discount || 0} onChange={(e) => updateItem(i, 'discount', parseFloat(e.target.value) || 0)} /></td>
+                        <td className="px-4 py-4"><input className="w-full text-center border-outline-variant rounded py-1 text-base focus:ring-primary focus:border-primary" type="number" min="1" value={item.quantity} onChange={(e) => updateItem(i, 'quantity', parseInt(e.target.value) || 0)} /></td>
+                        <td className="px-4 py-4 text-sm font-medium"><input className="w-full text-center border-outline-variant rounded py-1 text-base focus:ring-primary focus:border-primary" type="number" value={item.unitPrice} onChange={(e) => updateItem(i, 'unitPrice', parseFloat(e.target.value) || 0)} /></td>
+                        <td className="px-4 py-4"><input className="w-full border-outline-variant rounded py-1 text-base focus:ring-primary focus:border-primary" type="number" value={item.discount || 0} onChange={(e) => updateItem(i, 'discount', parseFloat(e.target.value) || 0)} /></td>
+                        <td className="px-4 py-4 text-sm">0%</td>
                         <td className="px-4 py-4 text-center">
                           <input 
                             type="checkbox"
@@ -577,13 +469,12 @@ export default function QuotationBuilder() {
                             className="w-4 h-4 rounded text-primary focus:ring-primary"
                           />
                         </td>
-                        <td className="px-4 py-4 text-right font-bold text-sm text-on-surface">{formatCurrency(item.total)}</td>
+                        <td className="px-4 py-4 text-right font-semibold text-sm">{formatCurrency(item.total)}</td>
                         <td className="px-4 py-4 text-on-surface-variant hover:text-error cursor-pointer" onClick={(e) => { e.stopPropagation(); removeItem(i); }}>
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="w-5 h-5" />
                         </td>
                       </tr>
-                      );
-                    })
+                    ))
                   )}
                   {recommendations && recommendations.length > 0 && (
                     <tr>
