@@ -48,6 +48,15 @@ export default function QuotationBuilder() {
     }
   });
 
+  const { data: masterRequirements } = useQuery({
+    queryKey: ["masterRequirements"],
+    queryFn: async () => {
+      const res = await fetch("/api/v1/master-data/requirements", { headers: { "Authorization": `Bearer ${token}` } });
+      if (!res.ok) return [];
+      return res.json();
+    }
+  });
+
   const [searchParams] = useSearchParams();
   const dealIdParam = searchParams.get("dealId");
 
@@ -285,6 +294,32 @@ export default function QuotationBuilder() {
     setItems([...items, ...newItems]);
   };
 
+  const handleImportRequirement = (reqId: string) => {
+    if (!reqId) return;
+    const reqObj = masterRequirements?.find((r: any) => r.id === reqId);
+    if (!reqObj || !reqObj.lineItems || reqObj.lineItems.length === 0) return;
+
+    const toAdd = reqObj.lineItems.map((li: any) => {
+      const matchedProd = products?.find((p: any) => 
+        p.name.toLowerCase().includes(li.name.toLowerCase()) || 
+        li.name.toLowerCase().includes(p.name.toLowerCase())
+      );
+      const unitPrice = matchedProd ? parseFloat(matchedProd.unitPrice || matchedProd.msrp || 1000) : 1000;
+      const qty = li.defaultQuantity || 1;
+      return {
+        productId: matchedProd?.id || "",
+        nameOverride: li.name,
+        quantity: qty,
+        unitPrice: unitPrice,
+        discount: 0,
+        total: qty * unitPrice,
+        isOptional: false
+      };
+    });
+
+    setItems([...items, ...toAdd]);
+  };
+
   const updateItem = (index: number, field: string, value: any) => {
     const newItems = [...items];
     newItems[index][field] = value;
@@ -388,7 +423,7 @@ export default function QuotationBuilder() {
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Start from Bundle:</span>
                     <select 
-                      className="bg-surface border border-outline-variant rounded-lg p-2 text-xs font-medium focus:ring-1 focus:ring-primary min-w-[200px]"
+                      className="bg-surface border border-outline-variant rounded-lg p-2 text-xs font-medium focus:ring-1 focus:ring-primary min-w-[180px]"
                       defaultValue=""
                       onChange={e => {
                         handleSelectBundle(e.target.value);
@@ -398,6 +433,25 @@ export default function QuotationBuilder() {
                       <option value="">-- Choose Bundle --</option>
                       {bundles?.map((b: any) => (
                         <option key={b.id} value={b.id}>{b.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-primary uppercase tracking-wider flex items-center gap-1">
+                      <Lightbulb className="w-3.5 h-3.5" /> Master Requirement:
+                    </span>
+                    <select 
+                      className="bg-primary/5 border border-primary/30 text-primary font-bold rounded-lg p-2 text-xs focus:ring-1 focus:ring-primary min-w-[210px]"
+                      defaultValue=""
+                      onChange={e => {
+                        handleImportRequirement(e.target.value);
+                        e.target.value = "";
+                      }}
+                    >
+                      <option value="">-- Import Requirement --</option>
+                      {masterRequirements?.map((r: any) => (
+                        <option key={r.id} value={r.id}>{r.name} ({r.category})</option>
                       ))}
                     </select>
                   </div>
