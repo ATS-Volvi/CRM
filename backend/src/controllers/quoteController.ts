@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { sequelize } from "@nexus-crm/database";
+import { createNotification } from "../services/notificationService";
 
 export const getQuotes = async (req: Request, res: Response) => {
   try {
