@@ -58,13 +58,21 @@ export const updateApproval = async (req: Request, res: Response) => {
          // Auto-generate invoice if not already generated
          const existingInvoice = await sequelize.models.Invoice.findOne({ where: { quoteId: (quote as any).id } });
          if (!existingInvoice) {
+           let targetLeadId: string | null = null;
+           if ((quote as any).dealId) {
+             const dealObj: any = await sequelize.models.Deal.findByPk((quote as any).dealId);
+             if (dealObj && dealObj.leadId) {
+               targetLeadId = dealObj.leadId;
+             }
+           }
+
            const invoiceId = require('crypto').randomUUID();
            const invNumber = `INV-${Date.now().toString().slice(-6)}`;
            const invoice = await sequelize.models.Invoice.create({
              id: invoiceId,
              invoiceNumber: invNumber,
              quoteId: (quote as any).id,
-             leadId: (quote as any).dealId ? ((await sequelize.models.Deal.findByPk((quote as any).dealId)) as any)?.leadId : null,
+             leadId: targetLeadId,
              status: 'Draft',
              issueDate: new Date(),
              dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
