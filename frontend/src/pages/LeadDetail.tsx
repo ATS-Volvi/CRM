@@ -55,7 +55,7 @@ export default function LeadDetail() {
 
   const [meetingTitle, setMeetingTitle] = useState("");
   const [meetingDate, setMeetingDate] = useState("");
-  const [meetingTime] = useState("10:00");
+  const [meetingTime, setMeetingTime] = useState("10:00");
   const [meetingLocation] = useState("");
   const [meetingAgenda] = useState("");
 
