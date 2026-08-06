@@ -40,7 +40,7 @@ export function Layout() {
     return saved === null ? true : saved === "true";
   });
 
-  // Dark mode toggle handler
+  // Dark mode & Role color scheme toggle handler
   useEffect(() => {
     if (isDarkMode) {
       document.documentElement.classList.add("dark");
@@ -49,7 +49,13 @@ export function Layout() {
       document.documentElement.classList.remove("dark");
       localStorage.setItem("theme", "light");
     }
-  }, [isDarkMode]);
+
+    if (user?.role === "sales_rep") {
+      document.documentElement.classList.add("role-sales-rep");
+    } else {
+      document.documentElement.classList.remove("role-sales-rep");
+    }
+  }, [isDarkMode, user?.role]);
 
   useEffect(() => {
     localStorage.setItem("use_orbit_nav", String(useOrbitNav));

@@ -113,26 +113,35 @@ export function Sidebar({
       {/* Sidebar Header */}
       <div className="p-4 border-b border-slate-100 dark:border-slate-800 space-y-3">
         <div className="flex items-center justify-between">
-          {!isCollapsed && (
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-black text-xs shadow-md shadow-blue-500/20">
+          {!isCollapsed && <div className="flex items-center gap-2.5">
+                <div className={`w-8 h-8 rounded-xl text-white flex items-center justify-center font-black text-xs shadow-md ${
+                  userRole === "sales_rep" 
+                    ? "bg-gradient-to-tr from-purple-600 via-indigo-600 to-emerald-500 shadow-purple-500/30" 
+                    : "bg-gradient-to-tr from-blue-600 to-indigo-600 shadow-blue-500/20"
+                }`}>
+                  NX
+                </div>
+                <div>
+                  <span className="font-extrabold text-sm tracking-tight text-slate-900 dark:text-white block leading-none">
+                    NEXUS CRM
+                  </span>
+                  <span className={`text-[10px] font-bold block ${
+                    userRole === "sales_rep" ? "text-purple-600 dark:text-purple-400" : "text-blue-600 dark:text-blue-400"
+                  }`}>
+                    {userRole === "sales_rep" ? "Sales OS Rep" : "Workspace OS"}
+                  </span>
+                </div>
+              </div>
+            }
+            {isCollapsed && (
+              <div className={`w-8 h-8 rounded-xl text-white flex items-center justify-center font-black text-xs mx-auto shadow-md ${
+                userRole === "sales_rep"
+                  ? "bg-gradient-to-tr from-purple-600 to-emerald-500 shadow-purple-500/30"
+                  : "bg-gradient-to-tr from-blue-600 to-indigo-600 shadow-blue-500/20"
+              }`}>
                 NX
               </div>
-              <div>
-                <span className="font-extrabold text-sm tracking-tight text-slate-900 dark:text-white block leading-none">
-                  NEXUS CRM
-                </span>
-                <span className="text-[10px] text-blue-600 dark:text-blue-400 font-bold block">
-                  Workspace OS
-                </span>
-              </div>
-            </div>
-          )}
-          {isCollapsed && (
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-black text-xs mx-auto shadow-md shadow-blue-500/20">
-              NX
-            </div>
-          )}
+            )}
           <button
             onClick={toggleCollapse}
             className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors hidden sm:block"

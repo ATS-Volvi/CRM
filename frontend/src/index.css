@@ -51,6 +51,15 @@
   --danger: 0 84% 60%;          /* #EF4444 */
 }
 
+/* Sales Representative Theme (Vibrant Violet / Emerald Action Accent) */
+.role-sales-rep {
+  --primary: 262 83% 58%;        /* #7c3aed Vibrant Violet */
+  --primary-foreground: 0 0% 100%;
+  --primary-container: 263 70% 50%; /* #6d28d9 */
+  --accent: 160 84% 39%;         /* #059669 Emerald Green */
+  --ring: 262 83% 58%;
+}
+
 @layer base {
   body {
     background-color: hsl(var(--background));
