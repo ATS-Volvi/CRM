@@ -129,14 +129,6 @@ export default function SalespersonDetail() {
   const closedRevenue = kpiTargets?.find(t => t.kpiName === "Revenue Closed")?.currentValue || 1800000;
   const targetAchievementPct = Math.min(100, Math.round((closedRevenue / revTarget) * 100));
 
-  const activeDealsCount = rep?.dealTypes ? rep.dealTypes.filter(d => !["Won", "Lost"].includes(d.stage)).reduce((acc, d) => acc + d.count, 0) : 14;
-  const totalPipelineValue = 5200000; // SAR 5.2M
-  const pendingApprovalsCount = 3;
-  const followupsTodayCount = 6;
-
-  const currentWorkloadPct = Math.round((activeDealsCount / (rep?.maxOpenLeads || 15)) * 100);
-  const isOverloaded = currentWorkloadPct >= 80 || pendingApprovalsCount > 2;
-
   // Active Deals Data (Work Cards)
   const activeDealsList = useMemo(() => {
     return [
@@ -148,6 +140,14 @@ export default function SalespersonDetail() {
       { id: "d6", customer: "Al-Khobar Water Systems", stage: "Closing", value: 570000, lastActivity: "Contract Reviewing", followUp: "10 Aug, 15:00", priority: "High", closeDate: "14 Aug 2026", isBlocked: false }
     ];
   }, []);
+
+  const activeDealsCount = activeDealsList.length;
+  const totalPipelineValue = 5200000; // SAR 5.2M
+  const pendingApprovalsCount = 3;
+  const followupsTodayCount = 6;
+
+  const currentWorkloadPct = Math.round((activeDealsCount / maxDealsLimit) * 100);
+  const isOverloaded = activeDealsCount >= maxDealsLimit || currentWorkloadPct >= 90;
 
   // Converted Deals Data (Won & Closed Opportunities)
   const convertedDealsList = useMemo(() => {
@@ -774,8 +774,8 @@ export default function SalespersonDetail() {
                 </div>
                 <p className="text-[11px] text-slate-300 leading-relaxed font-medium mt-1">
                   {!isOverloaded
-                    ? `${rep.name} has 1 slot available and 18m avg first response speed. Safe to assign new enterprise leads.`
-                    : `${rep.name} has 3 pending approvals and 2 high-priority blocked quotes waiting over 24h. Resolve approvals first.`
+                    ? `${rep?.name || "Salesperson"} has ${Math.max(0, maxDealsLimit - activeDealsCount)} available open slots and an 18m avg first response speed. Safe to assign new enterprise leads.`
+                    : `${rep?.name || "Salesperson"} is at or above capacity limit (${activeDealsCount}/${maxDealsLimit} assigned deals) with ${pendingApprovalsCount} pending approvals. Resolve approvals or increase limit before assigning new leads.`
                   }
                 </p>
               </div>
