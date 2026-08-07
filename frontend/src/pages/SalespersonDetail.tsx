@@ -276,11 +276,13 @@ export default function SalespersonDetail() {
            ───────────────────────────────────────────────────────────── */}
         <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
           
-          {/* Card 1: Active Deals */}
+          {/* Card 1: Assigned Leads & Conversion Rate */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-1">
-            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">💼 Active Deals</span>
-            <p className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">{activeDealsCount} Active Deals</p>
-            <span className="text-[10px] text-slate-400 font-medium">Live Opportunities</span>
+            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">📋 Assigned Leads</span>
+            <p className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">{activeDealsCount} Assigned Leads</p>
+            <span className="text-[10px] text-emerald-600 font-extrabold flex items-center gap-1">
+              ⚡ 40% Lead Conversion Rate
+            </span>
           </div>
 
           {/* Card 2: Pipeline Value */}
@@ -336,8 +338,8 @@ export default function SalespersonDetail() {
             {/* Executive Workspace Tabs */}
             <div className="flex border-b border-slate-200 dark:border-slate-800 gap-8 text-xs font-bold overflow-x-auto pb-0.5">
               {[
-                { id: "active-deals", label: `Active Deals (${activeDealsList.length})` },
-                { id: "converted-deals", label: `Converted Deals (${convertedDealsList.length})` },
+                { id: "active-deals", label: `Assigned Leads (${activeDealsList.length})` },
+                { id: "converted-deals", label: `Converted Leads (${convertedDealsList.length})` },
                 { id: "pending-quotes", label: `Pending Quotations (${pendingQuotationsList.length})` },
                 { id: "todays-tasks", label: `Today's Tasks (${todayTasksList.length})` },
                 { id: "pipeline-health", label: "Pipeline Health" },
@@ -357,11 +359,11 @@ export default function SalespersonDetail() {
               ))}
             </div>
 
-            {/* ── SECTION 1: ACTIVE DEALS ── */}
+            {/* ── SECTION 1: ASSIGNED LEADS ── */}
             {activeTab === "active-deals" && (
               <section className="space-y-4">
                 <div className="flex justify-between items-center">
-                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Active Deals Work Cards</h3>
+                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Assigned Leads Work Cards</h3>
                   <span className="text-xs text-slate-500 font-medium">Sorted by expected close date</span>
                 </div>
 
