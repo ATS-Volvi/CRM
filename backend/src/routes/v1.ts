@@ -181,7 +181,7 @@ router.post("/public/quotes/:id/sign", signQuote);
 // ==========================================
 router.get("/quote-templates", authMiddleware, getQuoteTemplates);
 router.post("/quote-templates", authMiddleware, createQuoteTemplate);
-router.post("/quote-templates/parse-reference", authMiddleware, parseReferenceDocument);
+router.post("/quote-templates/parse-reference", authMiddleware, upload.single("document"), parseReferenceDocument);
 
 // ==========================================
 // DEV ROUTES

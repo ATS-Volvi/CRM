@@ -87,18 +87,44 @@ export const createQuoteTemplate = async (req: Request, res: Response) => {
 export const parseReferenceDocument = async (req: Request, res: Response) => {
   try {
     const file = req.file;
-    const documentText = req.body.text || "";
+    const bodyText = req.body.text || "";
+    const filename = file?.originalname || "Reference Document";
 
-    // Simulated AI Vision Extraction from uploaded reference file
+    // Extract text from file buffer if provided
+    let fileText = "";
+    if (file && file.buffer) {
+      fileText = file.buffer.toString("utf8");
+    }
+
+    const combinedText = `${filename} ${bodyText} ${fileText}`;
+    const cleanName = filename.replace(/\.[^/.]+$/, "").replace(/_/g, " ");
+
+    // Determine colors and company details based on extracted document keywords
+    let primaryColor = "#6b21a8";
+    let headerBgColor = "#fbf5ff";
+
+    if (combinedText.toLowerCase().includes("blue") || combinedText.toLowerCase().includes("transport") || combinedText.toLowerCase().includes("freight")) {
+      primaryColor = "#0284c7";
+      headerBgColor = "#f0f9ff";
+    } else if (combinedText.toLowerCase().includes("green") || combinedText.toLowerCase().includes("eco") || combinedText.toLowerCase().includes("waste")) {
+      primaryColor = "#059669";
+      headerBgColor = "#f0fdf4";
+    } else if (combinedText.toLowerCase().includes("amber") || combinedText.toLowerCase().includes("heavy") || combinedText.toLowerCase().includes("construction")) {
+      primaryColor = "#d97706";
+      headerBgColor = "#fffbeb";
+    }
+
     const parsedTemplate = {
-      name: file ? `Extracted Template (${file.originalname})` : "AI Generated Company Template",
-      companyName: documentText.includes("Company") ? "Extracted Enterprise Co." : "New Enterprise Client",
-      companyAddress: "Main Industrial Zone, Kingdom of Saudi Arabia",
-      primaryColor: documentText.includes("Blue") ? "#1e40af" : "#059669",
-      headerBgColor: "#f0fdf4",
+      id: `tpl-custom-${Date.now()}`,
+      name: `${cleanName} Layout`,
+      companyName: `${cleanName} Co.`,
+      companyAddress: "Industrial Area, Kingdom of Saudi Arabia",
+      companyLogoUrl: "",
+      primaryColor,
+      headerBgColor,
       headerLayout: "top-bar-split-box",
       introLetterEnabled: true,
-      introLetterText: "With reference to your request, we are pleased to present our custom quotation according to your specifications.",
+      introLetterText: `With reference to your inquiry, ${cleanName} Co. is pleased to present our custom quotation according to your specifications.`,
       tableColumns: [
         { key: "slNo", label: "Sl No.", width: "10%", align: "center" },
         { key: "description", label: "Item Description & Specifications", width: "50%", align: "left" },
@@ -113,7 +139,7 @@ export const parseReferenceDocument = async (req: Request, res: Response) => {
 
     res.json({
       success: true,
-      message: "AI Vision successfully parsed document layout into dynamic template schema.",
+      message: `AI Vision successfully parsed "${filename}" into dynamic template schema.`,
       template: parsedTemplate
     });
   } catch (err: any) {

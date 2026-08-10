@@ -59,6 +59,8 @@ export default function QuotationTemplateManager() {
       const data = await res.json();
       if (data?.template) {
         setActiveTemplate(data.template);
+        // Automatically persist extracted template into active templates list
+        createTemplateMutation.mutate(data.template);
       }
     } catch (err) {
       console.error("AI Vision extraction error:", err);
