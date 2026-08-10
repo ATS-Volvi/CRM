@@ -59,7 +59,7 @@ export default function QuotationDocumentRenderer({
           <p style={{ fontSize: "10px", color: "#64748b", margin: "2px 0 0 0" }}>{activeTpl.companyAddress}</p>
         </div>
         <div style={{ textAlign: "right" }}>
-          <h2 style={{ fontSize: "22px", fontWeight: 900, color: activeTpl.primaryColor || "#1e3a8a", margin: 0, tracking: "0.05em" }}>
+          <h2 style={{ fontSize: "22px", fontWeight: 900, color: activeTpl.primaryColor || "#1e3a8a", margin: 0, letterSpacing: "0.05em" }}>
             QUOTATION
           </h2>
           <p style={{ fontSize: "11px", fontWeight: 700, color: "#334155", margin: "2px 0 0 0" }}>
@@ -118,7 +118,7 @@ export default function QuotationDocumentRenderer({
         <tbody>
           {items.length === 0 ? (
             <tr>
-              <td colSpan={columns.length} style={{ textAlign: "center", padding: "16px", color: "#94a3b8", italic: "true" }}>
+              <td colSpan={columns.length} style={{ textAlign: "center", padding: "16px", color: "#94a3b8", fontStyle: "italic" }}>
                 No line items added to this quotation yet.
               </td>
             </tr>
