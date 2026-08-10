@@ -16,6 +16,7 @@ export class QuoteTemplate extends Model {
   public phone?: string;
   public email?: string;
   public website?: string;
+  public layoutElements?: any;
   public primaryColor!: string;
   public secondaryColor!: string;
   public headerBgColor!: string;
@@ -89,6 +90,19 @@ QuoteTemplate.init(
     website: {
       type: DataTypes.STRING,
       allowNull: true
+    },
+    layoutElements: {
+      type: DataTypes.JSON,
+      defaultValue: [
+        { id: "header", type: "header", x: 0, y: 0, width: "100%", height: 60 },
+        { id: "divider", type: "divider", x: 0, y: 65, width: "100%", height: 2 },
+        { id: "metaGrid", type: "grid", x: 0, y: 75, width: "100%", height: 70 },
+        { id: "proposal", type: "text", x: 0, y: 155, width: "100%", height: 60 },
+        { id: "lineItems", type: "table", x: 0, y: 225, width: "100%", height: "auto" },
+        { id: "totals", type: "totals", x: 540, y: 350, width: 260, height: 100 },
+        { id: "terms", type: "terms", x: 0, y: 460, width: "100%", height: 80 },
+        { id: "signatures", type: "footer", x: 0, y: 550, width: "100%", height: 60 }
+      ]
     },
     primaryColor: {
       type: DataTypes.STRING,

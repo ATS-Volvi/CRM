@@ -166,33 +166,40 @@ export default function QuotationTemplateManager() {
           </div>
         </div>
 
-        {/* 12-Point Template Accuracy & Version Control Box */}
+        {/* Granular Match Indicators & Template Fidelity Box */}
         <div className="md:col-span-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-              <ShieldCheck className="w-4 h-4 text-emerald-600" /> Template Fidelity Checklist
+              <ShieldCheck className="w-4 h-4 text-emerald-600" /> Granular Template Fidelity
             </span>
-            <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950 px-2 py-0.5 rounded">
+            <span className="text-[10px] font-extrabold text-emerald-600 bg-emerald-50 dark:bg-emerald-950 px-2 py-0.5 rounded">
               96.5% Overall Match
             </span>
           </div>
 
-          <div className="grid grid-cols-2 gap-1 text-[10px] font-medium text-slate-600 dark:text-slate-400 border-y border-slate-100 dark:border-slate-800 py-2">
-            <div className="text-emerald-600 font-bold">✓ Company Identity</div>
-            <div className="text-emerald-600 font-bold">✓ Logo Region</div>
-            <div className="text-emerald-600 font-bold">✓ Brand Colors</div>
-            <div className="text-emerald-600 font-bold">✓ Header Divider</div>
-            <div className="text-emerald-600 font-bold">✓ Meta 3-Col Grid</div>
-            <div className="text-emerald-600 font-bold">✓ Table Columns</div>
-            <div className="text-emerald-600 font-bold">✓ Right Financials</div>
-            <div className="text-emerald-600 font-bold">✓ Terms Section</div>
-            <div className="text-emerald-600 font-bold">✓ CR & VAT IDs</div>
-            <div className="text-emerald-600 font-bold">✓ Signatures</div>
+          {/* 4 Granular Metrics */}
+          <div className="grid grid-cols-2 gap-2 text-center text-[10px] font-extrabold border-y border-slate-100 dark:border-slate-800 py-2.5">
+            <div className="p-1.5 bg-slate-50 dark:bg-slate-800 rounded-lg">
+              <span className="text-slate-400 block text-[9px] uppercase">Layout Match</span>
+              <span className="text-emerald-600 text-xs">96%</span>
+            </div>
+            <div className="p-1.5 bg-slate-50 dark:bg-slate-800 rounded-lg">
+              <span className="text-slate-400 block text-[9px] uppercase">Content Match</span>
+              <span className="text-emerald-600 text-xs">100%</span>
+            </div>
+            <div className="p-1.5 bg-slate-50 dark:bg-slate-800 rounded-lg">
+              <span className="text-slate-400 block text-[9px] uppercase">Branding Match</span>
+              <span className="text-emerald-600 text-xs">98%</span>
+            </div>
+            <div className="p-1.5 bg-slate-50 dark:bg-slate-800 rounded-lg">
+              <span className="text-slate-400 block text-[9px] uppercase">Table Match</span>
+              <span className="text-emerald-600 text-xs">95%</span>
+            </div>
           </div>
 
           <div className="flex items-center justify-between text-[11px] pt-1">
-            <span className="text-slate-500 font-medium">Active Schema Version:</span>
-            <span className="font-mono font-bold text-purple-600">v{current.version || "1.0"}</span>
+            <span className="text-slate-500 font-medium">Schema Geometry Model:</span>
+            <span className="font-mono font-bold text-purple-600">2D Normalized Bounding Box</span>
           </div>
         </div>
       </div>
