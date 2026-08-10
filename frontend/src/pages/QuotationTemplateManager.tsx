@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Upload, Sparkles, CheckCircle2, Layout, Sliders, Check, FileText, History, RotateCcw, AlertTriangle, ShieldCheck } from "lucide-react";
+import { Upload, Sparkles, CheckCircle2, Layout, Sliders, Check, FileText, History, RotateCcw, AlertTriangle, ShieldCheck, Layers } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import QuotationDocumentRenderer from "../components/QuotationDocumentRenderer";
 
 export default function QuotationTemplateManager() {
   const { token } = useAuth();
@@ -243,83 +244,23 @@ export default function QuotationTemplateManager() {
           </div>
 
           {/* RIGHT: GENERATED CRM TEMPLATE OUTPUT PREVIEW */}
-          <div className="bg-slate-100 dark:bg-slate-900/60 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col items-center min-h-[600px]">
+          <div className="bg-slate-100 dark:bg-slate-900/60 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col items-center min-h-[600px] overflow-x-auto">
             <div className="w-full flex items-center justify-between mb-3 pb-2 border-b border-slate-300 dark:border-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300">
-              <span>🖼️ CRM GENERATED QUOTATION OUTPUT</span>
+              <span>🖼️ CRM GENERATED QUOTATION OUTPUT (Pure Layout Engine)</span>
               <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded">Dynamic Lead Binding Active</span>
             </div>
 
-            <div className="w-full bg-white text-slate-900 shadow-2xl rounded-lg p-8 space-y-6 font-sans text-xs border border-slate-300 min-h-[550px]">
-              
-              {/* Dynamic Header */}
-              <div className="grid grid-cols-3 gap-2 text-center rounded-lg p-3 border" style={{ backgroundColor: current.headerBgColor || "#fbf5ff", borderColor: current.primaryColor }}>
-                <div>
-                  <span className="text-[9px] font-extrabold uppercase text-slate-400 block">Date</span>
-                  <span className="font-bold">{new Date().toLocaleDateString('en-GB')}</span>
-                </div>
-                <div className="border-x border-slate-200">
-                  <span className="text-[9px] font-extrabold uppercase text-slate-400 block">Quotation No.</span>
-                  <span className="font-extrabold" style={{ color: current.primaryColor }}>QT-2026-881</span>
-                </div>
-                <div>
-                  <span className="text-[9px] font-extrabold uppercase text-slate-400 block">Revision</span>
-                  <span className="font-bold">0</span>
-                </div>
-              </div>
-
-              {/* Company & Client Cards */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-3 rounded-lg border bg-slate-50 border-slate-200">
-                  <span className="text-[9px] font-bold text-slate-400 uppercase block">Company Name</span>
-                  <p className="font-extrabold text-slate-900">{current.companyName}</p>
-                  <p className="text-[10px] text-slate-500">{current.companyAddress}</p>
-                </div>
-                <div className="p-3 rounded-lg border bg-slate-50 border-slate-200">
-                  <span className="text-[9px] font-bold text-slate-400 uppercase block">Client / Project</span>
-                  <p className="font-extrabold text-slate-900">Aramco Industrial Site, Abqaiq</p>
-                </div>
-              </div>
-
-              {/* Cover Letter */}
-              <div className="text-[10.5px] leading-relaxed text-slate-700 space-y-1">
-                <p className="font-bold text-slate-900">Dear Aramco Procurement Team,</p>
-                <p>{current.introLetterText}</p>
-              </div>
-
-              {/* Table Render */}
-              <table className="w-full border-collapse text-[10px]">
-                <thead>
-                  <tr className="border-y border-slate-900 font-bold text-slate-900" style={{ backgroundColor: current.headerBgColor || "#f2dbdb" }}>
-                    {current.tableColumns?.map((col: any, idx: number) => (
-                      <th key={idx} style={{ width: col.width }} className="py-2 px-2 text-left">{col.label}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 border-b border-slate-900">
-                  <tr className="align-top">
-                    <td className="py-2 px-2 font-bold">1</td>
-                    <td className="py-2 px-2 font-bold text-slate-900">
-                      Industrial Heavy Equipment Rentals
-                      <p className="text-[9.5px] text-slate-500 font-normal">Day/Night shift deployment as agreed.</p>
-                    </td>
-                    <td className="py-2 px-2 text-center">Month</td>
-                    <td className="py-2 px-2 text-center font-bold">2</td>
-                    <td className="py-2 px-2 text-right font-bold">29,000 SAR</td>
-                  </tr>
-                </tbody>
-              </table>
-
-              {/* Financial Totals */}
-              <div className="flex justify-end">
-                <div className="w-52 bg-slate-50 border border-slate-300 rounded p-2 space-y-1 text-[10.5px]">
-                  <div className="flex justify-between"><span>Subtotal:</span><span>29,000 SAR</span></div>
-                  <div className="flex justify-between"><span>VAT (15%):</span><span>4,350 SAR</span></div>
-                  <div className="flex justify-between font-extrabold border-t pt-1" style={{ color: current.primaryColor }}>
-                    <span>Grand Total:</span><span>33,350 SAR</span>
-                  </div>
-                </div>
-              </div>
-
+            <div className="w-full flex justify-center mt-2">
+              <QuotationDocumentRenderer
+                template={current}
+                leadData={{ companyName: "Aramco Operations", contactName: "Aramco Procurement Team", address: "Abqaiq Industrial Zone, KSA" }}
+                items={[
+                  { item: 1, description: "Industrial Heavy Equipment Deployment & Rentals", qty: 2, unitPrice: 14500, total: 29000 }
+                ]}
+                quotationNumber="QT-2026-881"
+                quotationDate={new Date().toLocaleDateString('en-GB')}
+                salesExecutive="Sophia Martinez"
+              />
             </div>
           </div>
 

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { Search, PlusCircle, Trash2, Lightbulb, ZoomIn, Printer, Maximize, BarChart2, Clock, MessageSquare, History } from "lucide-react";
 import { formatCurrency, formatCurrencyCompact } from "../utils/currency";
+import QuotationDocumentRenderer from "../components/QuotationDocumentRenderer";
 
 export default function QuotationBuilder() {
   const { token } = useAuth();
@@ -635,135 +636,15 @@ export default function QuotationBuilder() {
               </div>
             </div>
             
-            <div id="pdf-preview-box" className="bg-white w-full max-w-[700px] shadow-2xl p-10 border border-slate-300 rounded-lg mt-2 font-sans text-slate-800 text-xs leading-relaxed space-y-6">
-              {/* Top Meta Bar */}
-              {(() => {
-                const activeTpl = quoteTemplates?.find((t: any) => t.id === selectedTemplateId) || {
-                  name: "FTC Saudi Arabia Standard",
-                  companyName: "Faisal Fahad Hussain Al Kari Transportation Co.",
-                  companyAddress: "Prince Fahad St, Al Khobar, Kingdom of Saudi Arabia",
-                  primaryColor: "#6b21a8",
-                  headerBgColor: "#fbf5ff",
-                  introLetterText: "Thank you for showing your interest in us & inviting us to Quote. Faisal Fahad Hussain Al Kari Transportation Co. has remained one of the Big Players in Industrial Services in the market over the past two decades and we continue to strive every day to make every client experience the most unique & pleasing one.",
-                  currency: "SAR",
-                  taxRate: 0.15
-                };
-
-                const subtotal = items.filter((i: any) => !i.isOptional).reduce((a: number, c: any) => a + (c.total || 0), 0);
-                const vatAmount = subtotal * (activeTpl.taxRate || 0.15);
-                const grandTotal = subtotal + vatAmount;
-
-                return (
-                  <>
-                    <div className="grid grid-cols-3 text-center py-2 px-3 rounded-lg mb-6 text-[11px] font-bold border" style={{ backgroundColor: activeTpl.headerBgColor || "#fbf5ff", borderColor: activeTpl.primaryColor || "#6b21a8" }}>
-                      <div>
-                        <span className="text-[9px] uppercase tracking-wider block text-slate-400">Date</span>
-                        <span>{new Date().toLocaleDateString('en-GB')}</span>
-                      </div>
-                      <div className="border-x border-slate-200">
-                        <span className="text-[9px] uppercase tracking-wider block text-slate-400">Quotation No.</span>
-                        <span className="font-extrabold" style={{ color: activeTpl.primaryColor }}>{selectedDealId ? `QT-${selectedDealId.substring(0, 8).toUpperCase()}` : "QT-2026-881"}</span>
-                      </div>
-                      <div>
-                        <span className="text-[9px] uppercase tracking-wider block text-slate-400">Revision</span>
-                        <span>0</span>
-                      </div>
-                    </div>
-
-                    {/* Company Header Box & Client Card */}
-                    <div className="grid grid-cols-2 gap-4 mb-6">
-                      <div className="p-3.5 rounded-xl border bg-slate-50 border-slate-200">
-                        <p className="text-xs font-extrabold text-slate-900">{activeTpl.companyName}</p>
-                        <p className="text-[11px] text-slate-500 font-medium mt-0.5">{activeTpl.companyAddress}</p>
-                      </div>
-                      <div className="p-3.5 rounded-xl border bg-slate-50 border-slate-200">
-                        <p className="text-xs font-bold text-slate-900">Client / Destination</p>
-                        <p className="text-[11px] text-slate-600 font-medium">{leadData?.contactName || leadData?.companyName || "Valued Client, Riyadh / Abqaiq"}</p>
-                      </div>
-                    </div>
-
-                    {/* Cover Letter Text */}
-                    <div className="mb-6 space-y-2 text-[10.5px] leading-relaxed text-slate-700">
-                      <p className="font-bold text-slate-900">Dear Client,</p>
-                      <p>{activeTpl.introLetterText}</p>
-                    </div>
-
-                    {/* Industrial Line Items Table */}
-                    <table className="w-full border-collapse mb-6 text-[10px]">
-                      <thead>
-                        <tr className="border-y border-slate-900 font-bold text-slate-900" style={{ backgroundColor: activeTpl.headerBgColor || "#f2dbdb" }}>
-                          <th className="py-2 px-2 text-left w-10">SI No.</th>
-                          <th className="py-2 px-2 text-left">Item Description</th>
-                          <th className="py-2 px-2 text-center w-14">UOM</th>
-                          <th className="py-2 px-2 text-center w-12">Qty</th>
-                          <th className="py-2 px-2 text-right w-20">Price ({activeTpl.currency || "SAR"})</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-200 border-b border-slate-900">
-                        {items.length === 0 ? (
-                          <tr>
-                            <td colSpan={5} className="py-6 text-center text-slate-400 italic">No line items added yet. Select items on the left to render here.</td>
-                          </tr>
-                        ) : (
-                          items.map((item: any, idx: number) => {
-                            const prod = products?.find((p: any) => p.id === item.productId);
-                            return (
-                              <tr key={idx} className="align-top">
-                                <td className="py-2.5 px-2 font-bold text-slate-800">{idx + 1}</td>
-                                <td className="py-2.5 px-2">
-                                  <p className="font-bold text-slate-900 text-[10.5px]">{prod?.name || item.name || "Industrial Line Item"}</p>
-                                  {item.description && (
-                                    <p className="text-[10px] text-slate-600 mt-0.5 whitespace-pre-line">{item.description}</p>
-                                  )}
-                                  <ul className="list-disc pl-3 mt-1 space-y-0.5 text-[9.5px] text-slate-600">
-                                    <li>Shift Specifications: Day/Night shift deployment as agreed.</li>
-                                    <li>Client Scope: Accommodation, transfers, and site access.</li>
-                                  </ul>
-                                </td>
-                                <td className="py-2.5 px-2 text-center font-semibold text-slate-700">{item.uom || prod?.unit || "Month"}</td>
-                                <td className="py-2.5 px-2 text-center font-bold text-slate-900">{item.quantity || 1}</td>
-                                <td className="py-2.5 px-2 text-right font-bold text-slate-900">{formatCurrency(item.total || (item.quantity * item.unitPrice) || 0)}</td>
-                              </tr>
-                            );
-                          })
-                        )}
-                      </tbody>
-                    </table>
-
-                    {/* Total Summary */}
-                    <div className="flex justify-end mb-8">
-                      <div className="w-56 bg-slate-50 border border-slate-300 rounded p-2.5 space-y-1 text-[11px]">
-                        <div className="flex justify-between font-semibold text-slate-700">
-                          <span>Subtotal:</span>
-                          <span>{formatCurrency(subtotal)}</span>
-                        </div>
-                        <div className="flex justify-between font-semibold text-slate-700">
-                          <span>VAT ({((activeTpl.taxRate || 0.15) * 100).toFixed(0)}%):</span>
-                          <span>{formatCurrency(vatAmount)}</span>
-                        </div>
-                        <div className="flex justify-between font-extrabold text-slate-950 text-xs border-t border-slate-300 pt-1 mt-1">
-                          <span>Grand Total ({activeTpl.currency || "SAR"}):</span>
-                          <span style={{ color: activeTpl.primaryColor }}>{formatCurrency(grandTotal)}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Footer Signature */}
-                    <div className="border-t border-slate-200 pt-4 flex justify-between items-end text-[9.5px] text-slate-500">
-                      <div>
-                        <p className="font-bold text-slate-800">{activeTpl.companyName}</p>
-                        <p>{activeTpl.companyAddress}</p>
-                      </div>
-                      <div className="text-right">
-                        <div className="h-8 border-b border-slate-400 w-32 ml-auto mb-1"></div>
-                        <p className="font-bold text-slate-700">Authorized Signature</p>
-                      </div>
-                    </div>
-                  </>
-                );
-              })()}
+            <div id="pdf-preview-box" className="w-full flex justify-center mt-2">
+              <QuotationDocumentRenderer
+                template={quoteTemplates?.find((t: any) => t.id === selectedTemplateId)}
+                leadData={leadData}
+                items={items}
+                quotationNumber={selectedDealId ? `QT-${selectedDealId.substring(0, 8).toUpperCase()}` : "QT-2026-881"}
+                salesExecutive="Sophia Martinez"
+              />
             </div>
-            <p className="text-xs text-slate-400 font-medium mt-2">Dynamic Template Live Preview</p>
           </div>
         </div>
 
