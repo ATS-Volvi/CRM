@@ -207,12 +207,22 @@ export default function SalespersonDetail() {
     department: "Enterprise Solutions",
     territory: "Riyadh & Central Region",
     team: "Key Accounts",
+    totalLeads: 24,
+    totalDeals: 14,
+    successRate: 42.8,
+    purchaseOrders: [],
+    wonClients: [],
+    leadSources: [{ source: "Inbound Web", count: 12 }],
     dealTypes: [
       { stage: "Negotiation", count: 2 },
       { stage: "Proposal", count: 2 },
       { stage: "Meeting", count: 1 },
       { stage: "Discovery", count: 1 }
-    ]
+    ],
+    quotes: [],
+    activities: [],
+    wonLeads: [],
+    lostLeads: []
   }), [id]);
 
   const activeRep = rep || defaultMockRep;
