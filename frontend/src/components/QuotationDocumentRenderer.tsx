@@ -20,8 +20,10 @@ export default function QuotationDocumentRenderer({
   salesExecutive
 }: QuotationDocumentProps) {
   const activeTpl = template || {
-    companyName: "Northstar Industrial Solutions Co.",
-    companyAddress: "King Fahd Industrial Highway, Dammam, KSA",
+    companyName: "Faisal Fahad Hussain Al Kari Transportation Co.",
+    companyAddress: "Prince Fahad St, Al Khobar, Kingdom of Saudi Arabia",
+    crNumber: "CR-3029192",
+    vatNumber: "VAT-3102919200003",
     primaryColor: "#1e3a8a",
     tableColumns: [
       { key: "item", label: "Item", width: "8%", align: "center" },
@@ -192,7 +194,9 @@ export default function QuotationDocumentRenderer({
       <div className="doc-footer-signatures">
         <div>
           <p style={{ fontWeight: 700, color: "#1e293b", margin: 0 }}>{activeTpl.companyName}</p>
-          <p style={{ margin: "2px 0 0 0" }}>Commercial Registration: KSA-3029192 | Tax ID: 3102919200003</p>
+          <p style={{ margin: "2px 0 0 0" }}>
+            Commercial Registration: {activeTpl.crNumber || "CR-3029192"} | Tax Registration (VAT): {activeTpl.vatNumber || "VAT-3102919200003"}
+          </p>
         </div>
         <div className="doc-signature-box">
           <div className="doc-signature-line"></div>

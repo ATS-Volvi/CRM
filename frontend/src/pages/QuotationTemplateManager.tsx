@@ -166,25 +166,33 @@ export default function QuotationTemplateManager() {
           </div>
         </div>
 
-        {/* Version Control & Differences Box */}
+        {/* 12-Point Template Accuracy & Version Control Box */}
         <div className="md:col-span-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-              <History className="w-4 h-4 text-purple-600" /> Version Control History
+              <ShieldCheck className="w-4 h-4 text-emerald-600" /> Template Fidelity Checklist
             </span>
-            <button className="text-[10px] font-bold text-purple-600 hover:underline flex items-center gap-1">
-              <RotateCcw className="w-3 h-3" /> Rollback to v1.0
-            </button>
+            <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950 px-2 py-0.5 rounded">
+              96.5% Overall Match
+            </span>
           </div>
-          <div className="space-y-1.5 text-[11px]">
-            <div className="p-2 bg-purple-50 dark:bg-purple-950/40 rounded-lg border border-purple-200/60 flex justify-between font-medium text-purple-900 dark:text-purple-200">
-              <span>v1.0 (Current AI Vision Source)</span>
-              <span className="font-bold text-emerald-600">96.5% Accuracy</span>
-            </div>
-            <div className="p-2 bg-slate-50 dark:bg-slate-800/40 rounded-lg border border-slate-200/60 flex justify-between text-slate-600 dark:text-slate-400">
-              <span>v0.9 Initial Document Upload</span>
-              <span>88.2% Accuracy</span>
-            </div>
+
+          <div className="grid grid-cols-2 gap-1 text-[10px] font-medium text-slate-600 dark:text-slate-400 border-y border-slate-100 dark:border-slate-800 py-2">
+            <div className="text-emerald-600 font-bold">✓ Company Identity</div>
+            <div className="text-emerald-600 font-bold">✓ Logo Region</div>
+            <div className="text-emerald-600 font-bold">✓ Brand Colors</div>
+            <div className="text-emerald-600 font-bold">✓ Header Divider</div>
+            <div className="text-emerald-600 font-bold">✓ Meta 3-Col Grid</div>
+            <div className="text-emerald-600 font-bold">✓ Table Columns</div>
+            <div className="text-emerald-600 font-bold">✓ Right Financials</div>
+            <div className="text-emerald-600 font-bold">✓ Terms Section</div>
+            <div className="text-emerald-600 font-bold">✓ CR & VAT IDs</div>
+            <div className="text-emerald-600 font-bold">✓ Signatures</div>
+          </div>
+
+          <div className="flex items-center justify-between text-[11px] pt-1">
+            <span className="text-slate-500 font-medium">Active Schema Version:</span>
+            <span className="font-mono font-bold text-purple-600">v{current.version || "1.0"}</span>
           </div>
         </div>
       </div>

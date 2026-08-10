@@ -10,6 +10,12 @@ export class QuoteTemplate extends Model {
   public companyName!: string;
   public companyAddress!: string;
   public companyLogoUrl?: string;
+  public logoAssetId?: string;
+  public crNumber?: string;
+  public vatNumber?: string;
+  public phone?: string;
+  public email?: string;
+  public website?: string;
   public primaryColor!: string;
   public secondaryColor!: string;
   public headerBgColor!: string;
@@ -50,14 +56,37 @@ QuoteTemplate.init(
     },
     companyName: {
       type: DataTypes.STRING,
-      allowNull: false,
-      defaultValue: "Faisal Fahad Hussain Al Kari Transportation Co."
+      allowNull: false
     },
     companyAddress: {
       type: DataTypes.STRING,
-      defaultValue: "Prince Fahad St, Al Khobar, Kingdom of Saudi Arabia"
+      allowNull: true
     },
     companyLogoUrl: {
+      type: DataTypes.STRING,
+      allowNull: true
+    },
+    logoAssetId: {
+      type: DataTypes.STRING,
+      allowNull: true
+    },
+    crNumber: {
+      type: DataTypes.STRING,
+      allowNull: true
+    },
+    vatNumber: {
+      type: DataTypes.STRING,
+      allowNull: true
+    },
+    phone: {
+      type: DataTypes.STRING,
+      allowNull: true
+    },
+    email: {
+      type: DataTypes.STRING,
+      allowNull: true
+    },
+    website: {
       type: DataTypes.STRING,
       allowNull: true
     },
