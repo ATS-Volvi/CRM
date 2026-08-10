@@ -39,6 +39,7 @@ import WorkflowAutomation from "./pages/WorkflowAutomation";
 import ExecutiveDashboard from "./pages/ExecutiveDashboard";
 import RepPortal from "./pages/RepPortal";
 import ManagerPortal from "./pages/ManagerPortal";
+import QuotationTemplateManager from "./pages/QuotationTemplateManager";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { Navigate, Outlet } from "react-router-dom";
 
@@ -103,6 +104,7 @@ function App() {
                 <Route path="/master-data/line-items" element={<LineItems />} />
                 <Route path="/master-data/construction-items" element={<ConstructionItems />} />
                 <Route path="/master-data/pricing" element={<Pricing />} />
+                <Route path="/master-data/quote-templates" element={<QuotationTemplateManager />} />
                 <Route path="/master-data/lead-sources" element={<LeadSources />} />
                 <Route path="/master-data/kpis" element={<Kpis />} />
               </Route>

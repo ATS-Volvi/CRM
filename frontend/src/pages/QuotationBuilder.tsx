@@ -61,6 +61,7 @@ export default function QuotationBuilder() {
   const dealIdParam = searchParams.get("dealId");
 
   const [selectedDealId, setSelectedDealId] = useState("");
+  const [selectedTemplateId, setSelectedTemplateId] = useState("tpl-ftc-standard");
   const [focusedIndex, setFocusedIndex] = useState(0);
   const [dealIdError, setDealIdError] = useState("");
   const logDebug = (msg: string) => {
@@ -594,37 +595,54 @@ export default function QuotationBuilder() {
 
           {/* PDF Preview Pane */}
           <div className="bg-surface-container border border-outline-variant rounded-xl p-8 relative min-h-[400px] flex flex-col items-center">
-            <div className="absolute top-4 right-4 flex gap-2 z-10">
-              <button 
-                onClick={() => window.print()}
-                className="bg-white/80 backdrop-blur p-2 rounded shadow-sm hover:bg-white"
-                title="Print Preview"
-              >
-                <ZoomIn className="w-5 h-5" />
-              </button>
-              <button 
-                onClick={() => window.print()}
-                className="bg-white/80 backdrop-blur p-2 rounded shadow-sm hover:bg-white"
-              >
-                <Printer className="w-5 h-5" />
-              </button>
-              <button 
-                onClick={() => {
-                  const el = document.getElementById("pdf-preview-box");
-                  if (el) {
-                    if (el.classList.contains("scale-[0.6]")) {
-                      el.classList.remove("scale-[0.6]", "origin-top");
-                      el.classList.add("scale-100");
-                    } else {
-                      el.classList.add("scale-[0.6]", "origin-top");
-                      el.classList.remove("scale-100");
+            <div className="w-full flex items-center justify-between mb-4 pb-3 border-b border-outline-variant/40">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Company Format:</span>
+                <select
+                  value={selectedTemplateId}
+                  onChange={(e) => setSelectedTemplateId(e.target.value)}
+                  className="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1 text-xs font-bold text-slate-800 dark:text-white"
+                >
+                  <option value="tpl-ftc-standard">FTC Saudi Arabia Standard</option>
+                  <option value="tpl-apex-logistics">Apex Global Logistics</option>
+                </select>
+                <Link to="/master-data/quote-templates" className="text-[11px] font-bold text-purple-600 hover:underline">
+                  + Add Custom PDF Template
+                </Link>
+              </div>
+
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => window.print()}
+                  className="bg-white/80 backdrop-blur p-2 rounded shadow-sm hover:bg-white"
+                  title="Print Preview"
+                >
+                  <ZoomIn className="w-5 h-5" />
+                </button>
+                <button 
+                  onClick={() => window.print()}
+                  className="bg-white/80 backdrop-blur p-2 rounded shadow-sm hover:bg-white"
+                >
+                  <Printer className="w-5 h-5" />
+                </button>
+                <button 
+                  onClick={() => {
+                    const el = document.getElementById("pdf-preview-box");
+                    if (el) {
+                      if (el.classList.contains("scale-[0.6]")) {
+                        el.classList.remove("scale-[0.6]", "origin-top");
+                        el.classList.add("scale-100");
+                      } else {
+                        el.classList.add("scale-[0.6]", "origin-top");
+                        el.classList.remove("scale-100");
+                      }
                     }
-                  }
-                }}
-                className="bg-white/80 backdrop-blur p-2 rounded shadow-sm hover:bg-white"
-              >
-                <Maximize className="w-5 h-5" />
-              </button>
+                  }}
+                  className="bg-white/80 backdrop-blur p-2 rounded shadow-sm hover:bg-white"
+                >
+                  <Maximize className="w-5 h-5" />
+                </button>
+              </div>
             </div>
             
             <div id="pdf-preview-box" className="bg-white w-[595px] min-h-[842px] shadow-2xl p-8 scale-[0.65] origin-top border border-slate-300 pointer-events-none mt-4 transition-transform font-sans text-slate-800">

@@ -38,6 +38,7 @@ import {
   getConstructionItems, createConstructionItem, updateConstructionItem, deleteConstructionItem,
   getRequirementRollup, getPricingGrid, updateConstructionItemPricing
 } from '../controllers/masterDataController';
+import { getQuoteTemplates, createQuoteTemplate, parseReferenceDocument } from '../controllers/quoteTemplateController';
 import { receiveInboundEmail } from "../controllers/emailController";
 import { verifyInstagramWebhook, receiveInstagramMessage } from "../controllers/instagramController";
 import { getCustomers, getCustomerById } from "../controllers/customerController";
@@ -174,6 +175,13 @@ router.get("/kpis/management", async (req, res) => {
 
 router.get("/public/quotes/:id", getPublicQuote);
 router.post("/public/quotes/:id/sign", signQuote);
+
+// ==========================================
+// QUOTE TEMPLATES & AI VISION PARSER
+// ==========================================
+router.get("/quote-templates", authMiddleware, getQuoteTemplates);
+router.post("/quote-templates", authMiddleware, createQuoteTemplate);
+router.post("/quote-templates/parse-reference", authMiddleware, parseReferenceDocument);
 
 // ==========================================
 // DEV ROUTES
