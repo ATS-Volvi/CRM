@@ -4,13 +4,18 @@ import { sequelize } from "@nexus-crm/database";
 export class QuoteTemplate extends Model {
   public id!: string;
   public name!: string;
+  public version!: string;
+  public accuracyScore!: number;
   public isDefault!: boolean;
   public companyName!: string;
   public companyAddress!: string;
   public companyLogoUrl?: string;
   public primaryColor!: string;
+  public secondaryColor!: string;
   public headerBgColor!: string;
   public headerLayout!: string;
+  public pageConfig!: any;
+  public typography!: any;
   public introLetterEnabled!: boolean;
   public introLetterText!: string;
   public tableColumns!: any;
@@ -30,6 +35,14 @@ QuoteTemplate.init(
     name: {
       type: DataTypes.STRING,
       allowNull: false
+    },
+    version: {
+      type: DataTypes.STRING,
+      defaultValue: "1.0"
+    },
+    accuracyScore: {
+      type: DataTypes.FLOAT,
+      defaultValue: 95.0
     },
     isDefault: {
       type: DataTypes.BOOLEAN,
@@ -52,6 +65,10 @@ QuoteTemplate.init(
       type: DataTypes.STRING,
       defaultValue: "#6b21a8"
     },
+    secondaryColor: {
+      type: DataTypes.STRING,
+      defaultValue: "#4c1d95"
+    },
     headerBgColor: {
       type: DataTypes.STRING,
       defaultValue: "#fbf5ff"
@@ -59,6 +76,27 @@ QuoteTemplate.init(
     headerLayout: {
       type: DataTypes.STRING,
       defaultValue: "top-bar-split-box"
+    },
+    pageConfig: {
+      type: DataTypes.JSON,
+      defaultValue: {
+        size: "A4",
+        orientation: "portrait",
+        marginTop: 20,
+        marginRight: 20,
+        marginBottom: 20,
+        marginLeft: 20
+      }
+    },
+    typography: {
+      type: DataTypes.JSON,
+      defaultValue: {
+        fontFamily: "Inter, sans-serif",
+        fontSize: 12,
+        fontWeight: 400,
+        lineHeight: 1.5,
+        fontDetectionConfidence: 0.95
+      }
     },
     introLetterEnabled: {
       type: DataTypes.BOOLEAN,
