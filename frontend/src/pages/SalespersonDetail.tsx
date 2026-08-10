@@ -93,12 +93,16 @@ export default function SalespersonDetail() {
     queryFn: async () => {
       const res = await apiClient(`/api/v1/salespersons/${id}/performance`);
       if (!res.ok) throw new Error("Failed to load salesperson command center data");
-      const d = await res.json();
-      if (d && d.maxOpenLeads) setMaxDealsLimit(d.maxOpenLeads);
-      return d;
+      return res.json();
     },
     enabled: !!id && !!token,
   });
+
+  useEffect(() => {
+    if (rep?.maxOpenLeads) {
+      setMaxDealsLimit(rep.maxOpenLeads);
+    }
+  }, [rep?.maxOpenLeads]);
 
   const updateCapMutation = useMutation({
     mutationFn: async (newCap: number) => {
