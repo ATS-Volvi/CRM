@@ -594,8 +594,8 @@ export default function QuotationBuilder() {
           </div>
 
           {/* PDF Preview Pane */}
-          <div className="bg-surface-container border border-outline-variant rounded-xl p-8 relative min-h-[400px] flex flex-col items-center">
-            <div className="w-full flex items-center justify-between mb-4 pb-3 border-b border-outline-variant/40">
+          <div className="bg-slate-200/60 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl p-6 relative flex flex-col items-center overflow-x-auto w-full">
+            <div className="w-full flex items-center justify-between mb-4 pb-3 border-b border-slate-300 dark:border-slate-800">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Company Format:</span>
                 <select
@@ -606,7 +606,7 @@ export default function QuotationBuilder() {
                   <option value="tpl-ftc-standard">FTC Saudi Arabia Standard</option>
                   <option value="tpl-apex-logistics">Apex Global Logistics</option>
                 </select>
-                <Link to="/master-data/quote-templates" className="text-[11px] font-bold text-purple-600 hover:underline">
+                <Link to="/master-data/quote-templates" className="text-[11px] font-bold text-purple-600 dark:text-purple-400 hover:underline">
                   + Add Custom PDF Template
                 </Link>
               </div>
@@ -614,38 +614,15 @@ export default function QuotationBuilder() {
               <div className="flex gap-2">
                 <button 
                   onClick={() => window.print()}
-                  className="bg-white/80 backdrop-blur p-2 rounded shadow-sm hover:bg-white"
-                  title="Print Preview"
+                  className="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 p-2 rounded-lg shadow-xs hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200"
+                  title="Print Document"
                 >
-                  <ZoomIn className="w-5 h-5" />
-                </button>
-                <button 
-                  onClick={() => window.print()}
-                  className="bg-white/80 backdrop-blur p-2 rounded shadow-sm hover:bg-white"
-                >
-                  <Printer className="w-5 h-5" />
-                </button>
-                <button 
-                  onClick={() => {
-                    const el = document.getElementById("pdf-preview-box");
-                    if (el) {
-                      if (el.classList.contains("scale-[0.6]")) {
-                        el.classList.remove("scale-[0.6]", "origin-top");
-                        el.classList.add("scale-100");
-                      } else {
-                        el.classList.add("scale-[0.6]", "origin-top");
-                        el.classList.remove("scale-100");
-                      }
-                    }
-                  }}
-                  className="bg-white/80 backdrop-blur p-2 rounded shadow-sm hover:bg-white"
-                >
-                  <Maximize className="w-5 h-5" />
+                  <Printer className="w-4 h-4" />
                 </button>
               </div>
             </div>
             
-            <div id="pdf-preview-box" className="bg-white w-[595px] min-h-[842px] shadow-2xl p-8 scale-[0.65] origin-top border border-slate-300 pointer-events-none mt-4 transition-transform font-sans text-slate-800">
+            <div id="pdf-preview-box" className="bg-white w-full max-w-[700px] shadow-2xl p-10 border border-slate-300 rounded-lg mt-2 font-sans text-slate-800 text-xs leading-relaxed space-y-6">
               {/* Top Meta Bar */}
               <div className="grid grid-cols-3 bg-purple-50/80 border border-purple-200 text-center py-1.5 px-2 rounded mb-6 text-[11px] font-bold text-slate-700">
                 <div>
