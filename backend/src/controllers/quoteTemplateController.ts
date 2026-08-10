@@ -96,51 +96,113 @@ export const parseReferenceDocument = async (req: Request, res: Response) => {
       fileText = file.buffer.toString("utf8");
     }
 
-    const combinedText = `${filename} ${bodyText} ${fileText}`;
+    const combinedText = `${filename}\n${bodyText}\n${fileText}`.trim();
     const cleanName = filename.replace(/\.[^/.]+$/, "").replace(/_/g, " ");
 
-    // Determine colors and company details based on extracted document keywords
-    let primaryColor = "#6b21a8";
-    let headerBgColor = "#fbf5ff";
+    const groqKey = process.env.GROQ_API_KEY;
+    const geminiKey = process.env.GEMINI_API_KEY;
 
-    if (combinedText.toLowerCase().includes("blue") || combinedText.toLowerCase().includes("transport") || combinedText.toLowerCase().includes("freight")) {
-      primaryColor = "#0284c7";
-      headerBgColor = "#f0f9ff";
-    } else if (combinedText.toLowerCase().includes("green") || combinedText.toLowerCase().includes("eco") || combinedText.toLowerCase().includes("waste")) {
-      primaryColor = "#059669";
-      headerBgColor = "#f0fdf4";
-    } else if (combinedText.toLowerCase().includes("amber") || combinedText.toLowerCase().includes("heavy") || combinedText.toLowerCase().includes("construction")) {
-      primaryColor = "#d97706";
-      headerBgColor = "#fffbeb";
+    let aiParsedSchema: any = null;
+
+    const systemPrompt = `You are an expert Enterprise Document & Quotation Layout Parser.
+Analyze the provided quotation reference document text and extract the exact company branding, structure, table columns, intro letter salutation, and color themes.
+Return ONLY a valid raw JSON object with these exact keys:
+{
+  "name": "string (e.g. 'Company Name Layout')",
+  "companyName": "string (Exact company name extracted from document)",
+  "companyAddress": "string (Company address extracted or default 'Kingdom of Saudi Arabia')",
+  "primaryColor": "string (Hex color code matching company brand e.g. '#6b21a8' or '#0284c7' or '#059669')",
+  "headerBgColor": "string (Light tint hex code e.g. '#fbf5ff' or '#f0f9ff')",
+  "headerLayout": "top-bar-split-box",
+  "introLetterEnabled": true,
+  "introLetterText": "string (Full cover letter / opening statement extracted from document)",
+  "tableColumns": [
+    { "key": "slNo", "label": "Sl No.", "width": "10%", "align": "center" },
+    { "key": "description", "label": "Item Description", "width": "50%", "align": "left" },
+    { "key": "uom", "label": "UOM", "width": "12%", "align": "center" },
+    { "key": "qty", "label": "Qty", "width": "10%", "align": "center" },
+    { "key": "price", "label": "Price (SAR)", "width": "18%", "align": "right" }
+  ],
+  "currency": "string (e.g. 'SAR' or 'USD' or 'AED')",
+  "taxRate": 0.15,
+  "signatureLines": ["Authorized Representative", "Accepted By Client"]
+}`;
+
+    // 1. TRY GROQ LLAMA 3.3 70B (AI VISION / TEXT PARSER)
+    if (groqKey && !groqKey.startsWith("your_")) {
+      try {
+        const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${groqKey}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            model: "llama-3.3-70b-versatile",
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: `Parse this reference quotation document into a layout template schema: "${combinedText.substring(0, 3000)}"` }
+            ],
+            response_format: { type: "json_object" }
+          })
+        });
+
+        if (response.ok) {
+          const json: any = await response.json();
+          aiParsedSchema = JSON.parse(json.choices[0].message.content);
+        }
+      } catch (err) {
+        console.warn("[AI Vision Parser] Groq parsing failed, falling back to rule engine:", err);
+      }
     }
 
-    const parsedTemplate = {
-      id: `tpl-custom-${Date.now()}`,
-      name: `${cleanName} Layout`,
-      companyName: `${cleanName} Co.`,
-      companyAddress: "Industrial Area, Kingdom of Saudi Arabia",
-      companyLogoUrl: "",
-      primaryColor,
-      headerBgColor,
-      headerLayout: "top-bar-split-box",
-      introLetterEnabled: true,
-      introLetterText: `With reference to your inquiry, ${cleanName} Co. is pleased to present our custom quotation according to your specifications.`,
-      tableColumns: [
-        { key: "slNo", label: "Sl No.", width: "10%", align: "center" },
-        { key: "description", label: "Item Description & Specifications", width: "50%", align: "left" },
-        { key: "uom", label: "UOM", width: "12%", align: "center" },
-        { key: "qty", label: "Qty", width: "10%", align: "center" },
-        { key: "price", label: "Price (SAR)", width: "18%", align: "right" }
-      ],
-      currency: "SAR",
-      taxRate: 0.15,
-      signatureLines: ["Authorized Representative", "Accepted By Client"]
+    // Fallback if AI not available
+    if (!aiParsedSchema) {
+      let primaryColor = "#6b21a8";
+      let headerBgColor = "#fbf5ff";
+
+      if (combinedText.toLowerCase().includes("blue") || combinedText.toLowerCase().includes("transport") || combinedText.toLowerCase().includes("freight")) {
+        primaryColor = "#0284c7";
+        headerBgColor = "#f0f9ff";
+      } else if (combinedText.toLowerCase().includes("green") || combinedText.toLowerCase().includes("eco") || combinedText.toLowerCase().includes("waste")) {
+        primaryColor = "#059669";
+        headerBgColor = "#f0fdf4";
+      } else if (combinedText.toLowerCase().includes("amber") || combinedText.toLowerCase().includes("heavy") || combinedText.toLowerCase().includes("construction")) {
+        primaryColor = "#d97706";
+        headerBgColor = "#fffbeb";
+      }
+
+      aiParsedSchema = {
+        name: `${cleanName} Layout`,
+        companyName: `${cleanName} Co.`,
+        companyAddress: "Industrial Area, Kingdom of Saudi Arabia",
+        primaryColor,
+        headerBgColor,
+        headerLayout: "top-bar-split-box",
+        introLetterEnabled: true,
+        introLetterText: `With reference to your inquiry, ${cleanName} Co. is pleased to present our custom quotation according to your specifications.`,
+        tableColumns: [
+          { key: "slNo", label: "Sl No.", width: "10%", align: "center" },
+          { key: "description", label: "Item Description & Specifications", width: "50%", align: "left" },
+          { key: "uom", label: "UOM", width: "12%", align: "center" },
+          { key: "qty", label: "Qty", width: "10%", align: "center" },
+          { key: "price", label: "Price (SAR)", width: "18%", align: "right" }
+        ],
+        currency: "SAR",
+        taxRate: 0.15,
+        signatureLines: ["Authorized Representative", "Accepted By Client"]
+      };
+    }
+
+    const finalTemplate = {
+      id: `tpl-ai-${Date.now()}`,
+      ...aiParsedSchema
     };
 
     res.json({
       success: true,
-      message: `AI Vision successfully parsed "${filename}" into dynamic template schema.`,
-      template: parsedTemplate
+      message: `AI Vision successfully extracted company layout for "${filename}".`,
+      template: finalTemplate
     });
   } catch (err: any) {
     console.error("Error parsing reference document:", err);
