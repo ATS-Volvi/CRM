@@ -612,8 +612,12 @@ export default function QuotationBuilder() {
                   onChange={(e) => setSelectedTemplateId(e.target.value)}
                   className="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1 text-xs font-bold text-slate-800 dark:text-white"
                 >
-                  <option value="tpl-ftc-standard">FTC Saudi Arabia Standard</option>
-                  <option value="tpl-apex-logistics">Apex Global Logistics</option>
+                  {(quoteTemplates || [
+                    { id: "tpl-ftc-standard", name: "FTC Saudi Arabia Standard" },
+                    { id: "tpl-apex-logistics", name: "Apex Global Logistics" }
+                  ]).map((t: any) => (
+                    <option key={t.id || t.name} value={t.id}>{t.name}</option>
+                  ))}
                 </select>
                 <Link to="/master-data/quote-templates" className="text-[11px] font-bold text-purple-600 dark:text-purple-400 hover:underline">
                   + Add Custom PDF Template
