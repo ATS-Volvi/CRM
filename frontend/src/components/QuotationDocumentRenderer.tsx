@@ -173,7 +173,7 @@ export default function QuotationDocumentRenderer({
             <span style={{ fontWeight: 600 }}>VAT ({((activeTpl.taxRate || 0.15) * 100).toFixed(0)}%)</span>
             <span style={{ fontWeight: 700 }}>{currency} {vatAmount.toLocaleString('en-US')}</span>
           </div>
-          <div className="doc-financial-row total-row" style={{ backgroundColor: "#e0f2fe", borderColor: "#7dd3fc" }}>
+          <div className="doc-financial-row total-row" style={{ backgroundColor: `${primaryColor}15`, borderColor: `${primaryColor}40` }}>
             <span style={{ fontWeight: 800 }}>TOTAL</span>
             <span style={{ fontWeight: 800, color: primaryColor }}>{currency} {grandTotal.toLocaleString('en-US')}</span>
           </div>

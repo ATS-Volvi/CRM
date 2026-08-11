@@ -224,36 +224,42 @@ Return ONLY a valid raw JSON object matching this exact schema:
 
     // Fallback if AI not available
     if (!aiParsedSchema) {
-      let primaryColor = "#1e3a8a";
+      let primaryColor = "#1b365d"; // Default Navy
       let headerBgColor = "#f8fafc";
 
-      if (combinedText.toLowerCase().includes("purple")) {
+      const lowerText = combinedText.toLowerCase();
+
+      if (lowerText.includes("greenridge") || lowerText.includes("emerald") || lowerText.includes("green") || lowerText.includes("eco")) {
+        primaryColor = "#00795b"; // Reference Emerald Green
+        headerBgColor = "#f0fdf4";
+      } else if (lowerText.includes("purple")) {
         primaryColor = "#6b21a8";
         headerBgColor = "#fbf5ff";
-      } else if (combinedText.toLowerCase().includes("green") || combinedText.toLowerCase().includes("eco")) {
-        primaryColor = "#059669";
-        headerBgColor = "#f0fdf4";
-      } else if (combinedText.toLowerCase().includes("amber") || combinedText.toLowerCase().includes("heavy")) {
+      } else if (lowerText.includes("amber") || lowerText.includes("heavy")) {
         primaryColor = "#d97706";
         headerBgColor = "#fffbeb";
       }
 
       aiParsedSchema = {
-        name: `${cleanName} Layout`,
+        name: lowerText.includes("emerald") ? "EMERALD QUOTATION LAYOUT" : `${cleanName} Layout`,
         version: "1.0",
         accuracyScore: 96.2,
-        companyName: `${cleanName} Co.`,
-        companyAddress: "Industrial Zone, Kingdom of Saudi Arabia",
+        companyName: lowerText.includes("greenridge") ? "GREENRIDGE AUTOMATION SOLUTIONS" : `${cleanName} Co.`,
+        companyAddress: "Dammam Industrial City, KSA",
         crNumber: "CR-3029192",
         vatNumber: "VAT-3102919200003",
-        phone: "+966 13 891 0291",
-        email: `info@${cleanName.toLowerCase().replace(/\s+/g, "")}.sa`,
-        website: `www.${cleanName.toLowerCase().replace(/\s+/g, "")}.sa`,
+        phone: "+966 55 123 4567",
+        email: "omar@greenridge.sa",
+        website: "www.greenridge.sa",
         logoAssetId: "extracted-logo-1",
         primaryColor,
         secondaryColor: "#0f172a",
         headerBgColor,
         headerLayout: "top-bar-split-box",
+        customerName: "Gulf Manufacturing Co.",
+        quotationNumber: "GRS-Q-2026-1042",
+        quotationDate: "11 Aug 2026",
+        salesExecutive: "Omar Khalid",
         pageConfig: {
           size: "A4",
           orientation: "portrait",
