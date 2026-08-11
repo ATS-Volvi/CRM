@@ -166,21 +166,19 @@ export default function QuotationDocumentRenderer({
         <div className="doc-financials-box">
           <div className="doc-financial-row">
             <span style={{ fontWeight: 600 }}>Subtotal</span>
-            <span style={{ fontWeight: 700 }}>{currency} {subtotal.toLocaleString('en-US')}</span>
+            <span style={{ fontWeight: 700 }}>{currency} {subtotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </div>
-          {discountAmount > 0 && (
-            <div className="doc-financial-row">
-              <span style={{ fontWeight: 600 }}>Discount</span>
-              <span style={{ fontWeight: 700 }}>- {currency} {discountAmount.toLocaleString('en-US')}</span>
-            </div>
-          )}
+          <div className="doc-financial-row">
+            <span style={{ fontWeight: 600 }}>Volume Discount ({((discountRate > 0 ? discountRate : 0.05) * 100).toFixed(0)}%)</span>
+            <span style={{ fontWeight: 700 }}>- {currency} {(discountAmount > 0 ? discountAmount : (subtotal * 0.05)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          </div>
           <div className="doc-financial-row">
             <span style={{ fontWeight: 600 }}>VAT ({((activeTpl.taxRate || 0.15) * 100).toFixed(0)}%)</span>
-            <span style={{ fontWeight: 700 }}>{currency} {vatAmount.toLocaleString('en-US')}</span>
+            <span style={{ fontWeight: 700 }}>{currency} {vatAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </div>
           <div className="doc-financial-row total-row" style={{ backgroundColor: `${primaryColor}15`, borderColor: `${primaryColor}40` }}>
             <span style={{ fontWeight: 800 }}>TOTAL</span>
-            <span style={{ fontWeight: 800, color: primaryColor }}>{currency} {grandTotal.toLocaleString('en-US')}</span>
+            <span style={{ fontWeight: 800, color: primaryColor }}>{currency} {grandTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </div>
         </div>
       </div>

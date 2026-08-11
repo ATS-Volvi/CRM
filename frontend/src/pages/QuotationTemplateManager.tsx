@@ -61,7 +61,10 @@ export default function QuotationTemplateManager() {
       });
 
       const data = await res.json();
+      console.log("[Data Pipeline Audit] Raw extraction response from backend:", data);
+
       if (data?.template) {
+        console.log("[Data Pipeline Audit] Active template updated to extracted schema:", data.template);
         setActiveTemplate(data.template);
         createTemplateMutation.mutate(data.template);
       }
@@ -304,16 +307,33 @@ export default function QuotationTemplateManager() {
               <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded">Dynamic Extraction Active</span>
             </div>
 
-            <div className="w-full flex justify-center mt-2">
+            <div className="w-full flex flex-col items-center justify-center mt-2">
+              {/* DOCUMENT EXTRACTION HEALTH AUDIT BANNER */}
+              <div className="w-full max-w-[800px] bg-slate-900 text-slate-200 p-3 rounded-t-lg border-x border-t border-slate-700 flex items-center justify-between text-[11px] font-mono">
+                <div className="flex items-center gap-2">
+                  <span className="text-emerald-400 font-bold">DOCUMENT EXTRACTION:</span>
+                  <span className={current.companyName ? "text-emerald-400 font-bold" : "text-amber-400"}>Company {current.companyName ? "✓" : "✗"}</span>
+                  <span className={current.customerName ? "text-emerald-400 font-bold" : "text-amber-400"}>Customer {current.customerName ? "✓" : "✗"}</span>
+                  <span className={current.quotationNumber ? "text-emerald-400 font-bold" : "text-amber-400"}>Quote # {current.quotationNumber ? "✓" : "✗"}</span>
+                  <span className={current.extractedItems?.length > 0 ? "text-emerald-400 font-bold" : "text-amber-400"}>Items {current.extractedItems?.length ? `✓ (${current.extractedItems.length})` : "✗ (0)"}</span>
+                  <span className={current.primaryColor ? "text-emerald-400 font-bold" : "text-amber-400"}>Branding {current.primaryColor ? "✓" : "✗"}</span>
+                </div>
+                <span className="text-purple-400 font-bold uppercase">{selectedFile ? "Reference Mode A" : "Template View"}</span>
+              </div>
+
               <QuotationDocumentRenderer
                 template={current}
-                leadData={current.extractedCustomer ? { companyName: current.extractedCustomer.name, contactName: current.extractedCustomer.contact, address: current.extractedCustomer.address } : { companyName: current.customerName || "Gulf Manufacturing Co.", contactName: "Fahad Al-Mansoor", address: "Jubail Industrial City, KSA" }}
+                leadData={{
+                  companyName: current.customerName || (current.extractedCustomer?.name) || "[Extracted Customer Name]",
+                  contactName: current.extractedCustomer?.contact || "Fahad Al-Mansoor",
+                  address: current.extractedCustomer?.address || "Dammam Industrial City, KSA"
+                }}
                 items={current.extractedItems || [
-                  { item: "01", description: "PLC Control Panel – 32 I/O with enclosure", qty: 2, unitPrice: 24500, total: 49000 },
-                  { item: "02", description: "HMI Touchscreen & SCADA Integration Package", qty: 1, unitPrice: 38000, total: 38000 },
-                  { item: "03", description: "Field Instrumentation & Cabling", qty: 1, unitPrice: 22000, total: 22000 },
-                  { item: "04", description: "Installation, Testing & Commissioning", qty: 1, unitPrice: 18500, total: 18500 },
-                  { item: "05", description: "Operator Training & Documentation", qty: 1, unitPrice: 9500, total: 9500 }
+                  { lineNumber: "01", description: "PLC Control Panel – 32 I/O with enclosure", uom: "Set", qty: 2, unitPrice: 24500, amount: 49000 },
+                  { lineNumber: "02", description: "HMI Touchscreen & SCADA Integration Package", uom: "Set", qty: 1, unitPrice: 38750, amount: 38750 },
+                  { lineNumber: "03", description: "Field Instrumentation & Cabling", uom: "Lot", qty: 1, unitPrice: 17800, amount: 17800 },
+                  { lineNumber: "04", description: "Installation, Testing & Commissioning", uom: "Lot", qty: 1, unitPrice: 21500, amount: 21500 },
+                  { lineNumber: "05", description: "Operator Training & Documentation", uom: "Day", qty: 2, unitPrice: 4250, amount: 8500 }
                 ]}
                 quotationNumber={current.quotationNumber || "GRS-Q-2026-1042"}
                 quotationDate={current.quotationDate || "11 Aug 2026"}
