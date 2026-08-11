@@ -42,7 +42,8 @@ export const createCallLog = async (req: Request, res: Response) => {
         type: "Call",
         title: `${direction || "Outbound"} Call (${outcome || "Connected"})`,
         notes: notes || `Duration: ${durationSeconds || 0} seconds`,
-        createdById: (req as any).user?.id || null
+        createdById: (req as any).user?.id || null,
+        direction: "internal"
       });
     }
 

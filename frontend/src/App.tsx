@@ -30,6 +30,7 @@ import Pricing from "./pages/master-data/Pricing";
 import LeadSources from "./pages/master-data/LeadSources";
 import Kpis from "./pages/master-data/Kpis";
 import Customers from "./pages/Customers";
+import Assets from "./pages/Assets";
 import AIReports from "./pages/AIReports";
 import Settings from "./pages/Settings";
 import LeadCreate from "./pages/LeadCreate";
@@ -90,6 +91,7 @@ function App() {
                 <Route path="/salespersons" element={<SalespersonTracker />} />
                 <Route path="/salespersons/:id" element={<SalespersonDetail />} />
                 <Route path="/customers" element={<Customers />} />
+                <Route path="/assets" element={<Assets />} />
                 <Route path="/activities" element={<ActivitiesHub />} />
                 <Route path="/communications" element={<CommunicationCenter />} />
                 <Route path="/automation" element={<WorkflowAutomation />} />

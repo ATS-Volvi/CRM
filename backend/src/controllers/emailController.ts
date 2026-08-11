@@ -126,12 +126,29 @@ export const receiveInboundEmail = async (req: Request, res: Response) => {
       body: emailBody,
       assignedToId: null,
       recipientEmail,
-      assignmentMethod
+      assignmentMethod,
+      lastInboundAt: new Date(),
     });
 
     if (assignedToId) {
       await assignLeadToSalesperson(lead, assignedToId);
     }
+
+    // Log the inbound email as an Activity so it triggers temperature logic correctly
+    await Activity.create({
+      id: require("crypto").randomUUID(),
+      type: "email",
+      outcome: "Email received",
+      notes: emailBody ? emailBody.substring(0, 500) : "No body",
+      leadId: (lead as any).id,
+      createdById: assignedToId || null,
+      pinned: false,
+      direction: "inbound"
+    });
+    
+    // Trigger temperature recalculation for inbound Email
+    const { handleInboundActivity } = require("../services/leadTemperatureService");
+    await handleInboundActivity((lead as any).id);
 
     // If assigned via fuzzy name-match, log an activity entry for audit transparency
     if (isFuzzyNameMatch && (lead as any).id) {
@@ -142,7 +159,8 @@ export const receiveInboundEmail = async (req: Request, res: Response) => {
           leadId: (lead as any).id,
           createdById: assignedToId,
           pinned: false,
-          priority: "Medium"
+          priority: "Medium",
+          direction: "internal"
         });
       } catch (actErr) {
         console.warn("Failed to create fuzzy match activity log:", actErr);

@@ -61,6 +61,23 @@ function WhatsAppBadge({ lead }: { lead: any }) {
 }
 
 
+/** Temperature Badge */
+function TemperatureBadge({ temperature }: { temperature?: string }) {
+  if (!temperature) return null;
+  const config: Record<string, { bg: string, text: string, icon: string }> = {
+    Hot: { bg: "bg-red-50 border-red-200", text: "text-red-700", icon: "🔥" },
+    Warm: { bg: "bg-amber-50 border-amber-200", text: "text-amber-700", icon: "🟡" },
+    Cold: { bg: "bg-blue-50 border-blue-200", text: "text-blue-700", icon: "🧊" }
+  };
+  const cfg = config[temperature] || config["Warm"];
+
+  return (
+    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 border rounded text-[10px] font-bold ${cfg.bg} ${cfg.text} shadow-2xs`}>
+      {cfg.icon} {temperature}
+    </span>
+  );
+}
+
 // Status Color Palette (Soft Muted Style)
 const STATUS_CONFIG: Record<string, { bg: string; text: string; bar: string; border: string; hover: string }> = {
   New: { bg: "bg-blue-50", text: "text-blue-700", bar: "#93c5fd", border: "border-blue-200", hover: "hover:bg-blue-100/70 hover:border-blue-300" },
@@ -110,6 +127,7 @@ export default function LeadInbox() {
   const [searchQuery, setSearchQuery] = useState("");
   const [channelFilter, setChannelFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [temperatureFilter, setTemperatureFilter] = useState("all");
   const [showAllColumns, setShowAllColumns] = useState(false);
   const [isViewPopoverOpen, setIsViewPopoverOpen] = useState(false);
 
@@ -212,7 +230,8 @@ export default function LeadInbox() {
         channelStr.includes(q);
 
       const matchesStatus = statusFilter === "all" || lead.status === statusFilter;
-      return matchesSearch && matchesStatus;
+      const matchesTemp = temperatureFilter === "all" || lead.temperature === temperatureFilter;
+      return matchesSearch && matchesStatus && matchesTemp;
     })?.slice()?.sort((a: any, b: any) => {
       // Sort WhatsApp unread leads first, then by lastWhatsappAt, then by createdAt
       if ((b.unreadWhatsappCount || 0) !== (a.unreadWhatsappCount || 0)) {
@@ -223,7 +242,7 @@ export default function LeadInbox() {
       if (bTime !== aTime) return bTime - aTime;
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     }) || [];
-  }, [leads, searchQuery, channelFilter, statusFilter]);
+  }, [leads, searchQuery, channelFilter, statusFilter, temperatureFilter]);
 
   // Source metrics computation including WhatsApp
   const sourceStats = useMemo(() => {
@@ -313,8 +332,11 @@ export default function LeadInbox() {
           <span className="font-bold text-foreground hover:text-primary transition-colors">
             {lead.firstName} {lead.lastName}
           </span>
-          <p className="text-[10px] text-muted-foreground">{lead.company || "No Company"}</p>
-          <WhatsAppBadge lead={lead} />
+          <p className="text-[10px] text-muted-foreground mb-1">{lead.company || "No Company"}</p>
+          <div className="flex items-center gap-2">
+            <TemperatureBadge temperature={lead.temperature} />
+            <WhatsAppBadge lead={lead} />
+          </div>
         </div>
       )
     },
@@ -454,6 +476,21 @@ export default function LeadInbox() {
                     </div>
                   </div>
                 )}
+
+                {/* TEMPERATURE FILTER */}
+                <div>
+                  <label className="block font-bold text-muted-foreground text-[10px] uppercase tracking-wider mb-1.5">Filter Temperature</label>
+                  <select
+                    value={temperatureFilter}
+                    onChange={(e) => setTemperatureFilter(e.target.value)}
+                    className="w-full bg-muted border border-border rounded-xl px-3 py-1.5 text-xs font-bold text-foreground focus:outline-none"
+                  >
+                    <option value="all">All Temperatures</option>
+                    <option value="Hot">🔥 Hot</option>
+                    <option value="Warm">🟡 Warm</option>
+                    <option value="Cold">🧊 Cold</option>
+                  </select>
+                </div>
 
                 {/* Filter By Status */}
                 <div>

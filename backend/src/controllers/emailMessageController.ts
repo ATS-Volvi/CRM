@@ -62,7 +62,8 @@ export const sendEmailMessage = async (req: Request, res: Response) => {
         type: "email",
         outcome: `Email ${sendStatus}: ${subject}`,
         notes: sendErrorMsg ? `ERROR: ${sendErrorMsg}\n\n${body.substring(0, 150)}` : body.substring(0, 150),
-        createdById: (req as any).user?.id || null
+        createdById: (req as any).user?.id || null,
+        direction: "outbound"
       });
     }
 

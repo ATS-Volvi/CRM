@@ -34,7 +34,8 @@ export const triggerStageChangeAutomations = async (deal: any, toStageName: stri
             leadId: deal.leadId,
             type: "task_created",
             outcome: `Automated Task Created: ${config.taskTitle || 'Follow-up task'}`,
-            createdById: userId
+            createdById: userId,
+      direction: "internal"
           });
         } else if (rule.actionType === "assign_user" && config.targetUserId) {
           deal.ownerId = config.targetUserId;
@@ -52,7 +53,8 @@ export const triggerStageChangeAutomations = async (deal: any, toStageName: stri
             leadId: deal.leadId,
             type: "email",
             outcome: `Automated Email Sent (Template #${config.templateId || 'Default'}): Stage reached ${toStageName}`,
-            createdById: userId
+            createdById: userId,
+            direction: "outbound"
           });
         }
       }

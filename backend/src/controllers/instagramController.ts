@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { Lead, Activity } from "@nexus-crm/database";
 import { assignLeadToSalesperson } from "../services/leadAssignmentService";
 import { routeChannelLead } from "../services/channelRoutingEngine";
+import { handleInboundActivity } from "../services/leadTemperatureService";
 
 interface SenderProfile {
   name: string;
@@ -123,7 +124,8 @@ async function processInstagramMessage(msg: NormalizedIgMessage) {
         leadId: (lead as any).id,
         createdById: assignedToId,
         pinned: false,
-        priority: "Medium"
+        priority: "Medium",
+        direction: "internal"
       });
     } catch (actErr) {
       console.warn("Failed to create fuzzy match activity log:", actErr);
@@ -139,8 +141,12 @@ async function processInstagramMessage(msg: NormalizedIgMessage) {
       leadId: (lead as any).id,
       createdById: assignedToId || null,
       pinned: false,
-      priority: "Low"
+      priority: "Low",
+      direction: "inbound"
     });
+    
+    await handleInboundActivity((lead as any).id);
+
   } catch (err) {
     console.warn("Failed to create instagram_dm activity log:", err);
   }

@@ -68,6 +68,12 @@ export class Lead extends Model {
   public unreadWhatsappCount!: number;
   public whatsappPhone!: string | null;
   public communicationChannel!: string | null;
+
+  // Temperature tracking
+  public temperature!: string;
+  public temperatureOverride!: boolean;
+  public lastInboundAt!: Date | null;
+  public responsivenessScore!: number;
 }
 
 Lead.init(
@@ -99,7 +105,11 @@ Lead.init(
     lastWhatsappAt: { type: DataTypes.DATE, allowNull: true },
     unreadWhatsappCount: { type: DataTypes.INTEGER, defaultValue: 0 },
     whatsappPhone: { type: DataTypes.STRING, allowNull: true },
-    communicationChannel: { type: DataTypes.STRING, allowNull: true },
+    communicationChannel: { type: DataTypes.STRING, allowNull: true, defaultValue: "email" },
+    temperature: { type: DataTypes.STRING, defaultValue: "Warm" },
+    temperatureOverride: { type: DataTypes.BOOLEAN, defaultValue: false },
+    lastInboundAt: { type: DataTypes.DATE, allowNull: true },
+    responsivenessScore: { type: DataTypes.INTEGER, defaultValue: 0 },
   },
   { 
     sequelize, 
@@ -345,6 +355,7 @@ export class Activity extends Model {
   public mediaUrl!: string | null;  // WhatsApp media attachment
   public messageId!: string | null; // Meta message ID for idempotency
   public customerId!: string | null;
+  public direction!: string | null; // inbound, outbound, internal
 }
 
 Activity.init(
@@ -366,6 +377,7 @@ Activity.init(
     mediaUrl: { type: DataTypes.STRING, allowNull: true },
     messageId: { type: DataTypes.STRING, allowNull: true },
     customerId: { type: DataTypes.UUID, allowNull: true },
+    direction: { type: DataTypes.ENUM("inbound", "outbound", "internal"), allowNull: true },
   },
   { 
     sequelize, 
@@ -1192,5 +1204,104 @@ Meeting.belongsTo(User, { foreignKey: "organizerId", as: "organizer" });
 EmailMessage.belongsTo(Lead, { foreignKey: "leadId", as: "lead" });
 EmailMessage.belongsTo(Customer, { foreignKey: "customerId", as: "customer" });
 EmailMessage.belongsTo(User, { foreignKey: "senderId", as: "sender" });
+
+export class Asset extends Model {
+  public id!: string;
+  public name!: string;
+  public type!: string;
+  public serialNumber!: string | null;
+  public status!: string;
+  public condition!: string;
+  public customerId!: string | null;
+  public dealId!: string | null;
+  public deployedAt!: Date | null;
+  public expectedReturnDate!: Date | null;
+  public notes!: string | null;
+}
+
+Asset.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    name: { type: DataTypes.STRING, allowNull: false },
+    type: { type: DataTypes.STRING, allowNull: false },
+    serialNumber: { type: DataTypes.STRING, allowNull: true, unique: true },
+    status: { type: DataTypes.STRING, allowNull: false, defaultValue: "In Storage" },
+    condition: { type: DataTypes.STRING, allowNull: false, defaultValue: "Good" },
+    customerId: { type: DataTypes.UUID, allowNull: true },
+    dealId: { type: DataTypes.UUID, allowNull: true },
+    deployedAt: { type: DataTypes.DATE, allowNull: true },
+    expectedReturnDate: { type: DataTypes.DATE, allowNull: true },
+    notes: { type: DataTypes.TEXT, allowNull: true },
+  },
+  { sequelize, modelName: "Asset" }
+);
+
+export class AssetStatusHistory extends Model {
+  public id!: string;
+  public assetId!: string;
+  public previousStatus!: string | null;
+  public newStatus!: string | null;
+  public previousCondition!: string | null;
+  public newCondition!: string | null;
+  public changedById!: string | null;
+  public notes!: string | null;
+  public createdAt!: Date;
+}
+
+AssetStatusHistory.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    assetId: { type: DataTypes.UUID, allowNull: false },
+    previousStatus: { type: DataTypes.STRING, allowNull: true },
+    newStatus: { type: DataTypes.STRING, allowNull: true },
+    previousCondition: { type: DataTypes.STRING, allowNull: true },
+    newCondition: { type: DataTypes.STRING, allowNull: true },
+    changedById: { type: DataTypes.UUID, allowNull: true },
+    notes: { type: DataTypes.TEXT, allowNull: true },
+  },
+  { sequelize, modelName: "AssetStatusHistory", updatedAt: false }
+);
+
+// Asset Associations
+Asset.belongsTo(Customer, { foreignKey: "customerId", as: "customer" });
+Customer.hasMany(Asset, { foreignKey: "customerId", as: "assets" });
+
+Asset.belongsTo(Deal, { foreignKey: "dealId", as: "deal" });
+Deal.hasMany(Asset, { foreignKey: "dealId", as: "assets" });
+
+Asset.hasMany(AssetStatusHistory, { foreignKey: "assetId", as: "statusHistory" });
+AssetStatusHistory.belongsTo(Asset, { foreignKey: "assetId", as: "asset" });
+
+AssetStatusHistory.belongsTo(User, { foreignKey: "changedById", as: "changedBy" });
+User.hasMany(AssetStatusHistory, { foreignKey: "changedById", as: "assetStatusChanges" });
+
+export class LeadContact extends Model {
+  public id!: string;
+  public leadId!: string;
+  public firstName!: string;
+  public lastName!: string;
+  public email!: string | null;
+  public phone!: string | null;
+  public role!: string | null;
+  public createdAt!: Date;
+}
+
+LeadContact.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    leadId: { type: DataTypes.UUID, allowNull: false },
+    firstName: { type: DataTypes.STRING, allowNull: false },
+    lastName: { type: DataTypes.STRING, allowNull: false },
+    email: { type: DataTypes.STRING, allowNull: true },
+    phone: { type: DataTypes.STRING, allowNull: true },
+    role: { type: DataTypes.STRING, allowNull: true },
+    createdAt: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
+  },
+  { sequelize, modelName: "LeadContact", tableName: "LeadContacts", updatedAt: false }
+);
+
+// LeadContact Associations
+Lead.hasMany(LeadContact, { foreignKey: "leadId", as: "contacts" });
+LeadContact.belongsTo(Lead, { foreignKey: "leadId", as: "lead" });
 
 export { sequelize };

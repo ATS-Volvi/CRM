@@ -158,7 +158,8 @@ export const createPurchaseOrder = async (req: Request, res: Response) => {
           outcome: `Purchase Order Received: ${poNumber} (Amount: $${amount}) - Status: ${mismatch ? "Flagged/Mismatch" : "Accepted"}`,
           mentioned_user_ids: "[]",
           pinned: false,
-          createdById: "system"
+          createdById: "system",
+          direction: "internal"
         });
         
         // Feature 13 trigger: Send PO Received thank-you

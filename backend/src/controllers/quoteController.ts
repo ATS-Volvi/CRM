@@ -306,7 +306,8 @@ export const sendQuote = async (req: Request, res: Response) => {
         outcome: `Quote ${(quote as any).quoteNumber || (quote as any).id} Sent`,
         mentioned_user_ids: "[]",
         pinned: false,
-        createdById: (req as any).user?.id || "mock-user"
+        createdById: (req as any).user?.id || "mock-user",
+      direction: "internal"
       });
       // Feature 13 trigger: Send Quote Sent email notification
       const { triggerCommunication } = require("../services/communicationService");
@@ -349,7 +350,8 @@ export const getPublicQuote = async (req: Request, res: Response) => {
           outcome: `Quote ${(quote as any).quoteNumber || (quote as any).id} Viewed by Client`,
           mentioned_user_ids: "[]",
           pinned: false,
-          createdById: "system"
+          createdById: "system",
+      direction: "internal"
         });
       }
     }
@@ -559,7 +561,8 @@ export const signQuote = async (req: Request, res: Response) => {
       leadId: (quote as any).deal?.leadId || null,
       type: "note",
       outcome: `Quote ${(quote as any).quoteNumber} signed via simulated DocuSign by ${signedBy || "Client"}.`,
-      createdById: (req as any).user?.id || "mock-user"
+      createdById: (req as any).user?.id || "mock-user",
+      direction: "internal"
     });
 
     res.json({ message: "Quote successfully signed via DocuSign simulation.", quote });

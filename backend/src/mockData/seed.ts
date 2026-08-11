@@ -599,7 +599,8 @@ async function seedEnterpriseDatabase() {
             outcome: chat.outcome,
             notes: chat.notes,
             isCompleted: true,
-            createdAt: chat.time
+            createdAt: chat.time,
+      direction: "internal"
           });
         }
       } else {
@@ -621,7 +622,8 @@ async function seedEnterpriseDatabase() {
           outcome: outcomeStr,
           notes: actType === "whatsapp_sms" ? (i % 2 === 0 ? `Hi ${rep.name}, can you send the updated quotation via WhatsApp?` : `Hi ${lead.firstName}, I have dispatched the quotation PDF to your WhatsApp number.`) : pick(callNotes),
           isCompleted: true,
-          createdAt: created
+          createdAt: created,
+      direction: "internal"
         });
       }
 

@@ -124,7 +124,8 @@ async function checkOutstandingPOs() {
               dueDate: new Date(),
               priority: "high",
               outcome: `Outstanding PO follow-up for Quote ${(quote as any).quoteNumber}. Deal marked Won but no PO received.`,
-              createdById: (deal as any).ownerId
+              createdById: (deal as any).ownerId,
+      direction: "internal"
             });
             alertedDealsCount++;
           }

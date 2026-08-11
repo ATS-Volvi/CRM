@@ -118,7 +118,8 @@ export const updateApproval = async (req: Request, res: Response) => {
           outcome: `Quote ${(quote as any).quoteNumber || (quote as any).id} Approval Request: ${status}`,
           mentioned_user_ids: "[]",
           pinned: false,
-          createdById: (req as any).user?.id || "system"
+          createdById: (req as any).user?.id || "system",
+      direction: "internal"
         });
       }
     }

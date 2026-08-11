@@ -43,7 +43,8 @@ export const createActivity = async (req: Request, res: Response) => {
       createdById: userId,
       dueDate: dueDate || null,
       priority: priority || null,
-      isCompleted: isCompleted || false
+      isCompleted: isCompleted || false,
+      direction: "internal"
     });
 
     res.status(201).json(activity);

@@ -41,7 +41,8 @@ export const createDocument = async (req: Request, res: Response) => {
         type: "Document",
         title: `Document Uploaded: ${name}`,
         notes: `Version ${version || "1.0"}`,
-        createdById: (req as any).user?.id || null
+        createdById: (req as any).user?.id || null,
+      direction: "internal"
       });
     }
 
