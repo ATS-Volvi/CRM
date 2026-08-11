@@ -18,7 +18,9 @@ import {
   mergeLeads,
   clearUnreadCount,
   getLeadAiSummary,
-  getLeadContacts
+  getLeadContacts,
+  updateTemperature,
+  unlockTemperature
 } from "../controllers/leadController";
 import { getPriceBookEntries, createPriceBookEntry, updatePriceBookEntry, deletePriceBookEntry, importPriceBookEntries, getPriceSuggestion, importPriceBookEntriesPreview } from '../controllers/priceBookController';
 import { getQuotes, createQuote, getQuoteRecommendations, sendQuote, getPublicQuote, generateQuotePdf, signQuote, getQuoteHistoryByClient, getSimilarQuotesStats, getSimilarClientQuotes } from '../controllers/quoteController';
@@ -269,10 +271,8 @@ router.post("/leads", authMiddleware, createLead);
 router.get("/leads/:id", authMiddleware, getLead);
 router.put("/leads/:id", authMiddleware, updateLead);
 router.post("/leads/:id/convert", authMiddleware, convertLead);
-router.post("/leads/:id/status", authMiddleware, updateLeadStatus);
-router.post("/leads/:id/temperature", authMiddleware, leadController.updateTemperature);
-router.post("/leads/:id/temperature/unlock", authMiddleware, leadController.unlockTemperature);
-router.post("/leads/:id/assign", authMiddleware, leadController.assignLeadManually);
+router.post("/leads/:id/temperature", authMiddleware, updateTemperature);
+router.post("/leads/:id/temperature/unlock", authMiddleware, unlockTemperature);
 router.delete("/leads/:id", authMiddleware, deleteLead);
 router.put("/leads/:id/reassign", authMiddleware, reassignLead);
 router.get("/leads/:id/ai-summary", authMiddleware, getLeadAiSummary);

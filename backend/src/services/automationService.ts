@@ -52,9 +52,9 @@ export const triggerStageChangeAutomations = async (deal: any, toStageName: stri
           await Activity.create({
             leadId: deal.leadId,
             type: "email",
-            outcome: `Automated Email Sent (Template #${config.templateId || 'Default',
-      direction: "internal"}): Stage reached ${toStageName}`,
-            createdById: userId
+            outcome: `Automated Email Sent (Template #${config.templateId || 'Default'}): Stage reached ${toStageName}`,
+            createdById: userId,
+            direction: "outbound"
           });
         }
       }
