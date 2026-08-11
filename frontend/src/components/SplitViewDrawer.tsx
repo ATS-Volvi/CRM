@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { X, Phone, Play, ChevronRight, User, Mail, Calendar, DollarSign } from "lucide-react";
+import { X, Phone, Play, ChevronRight, User, Mail, Calendar, DollarSign, Unlock } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
 import { formatCurrency } from "../utils/currency";
 
@@ -11,6 +12,7 @@ interface SplitViewDrawerProps {
 
 export function SplitViewDrawer({ isOpen, onClose, record }: SplitViewDrawerProps) {
   const { token } = useAuth();
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<"overview" | "timeline">("overview");
   const [callStatus, setCallStatus] = useState<string | null>(null);
   const [telephonyConfigured, setTelephonyConfigured] = useState<boolean | null>(null);
@@ -70,6 +72,35 @@ export function SplitViewDrawer({ isOpen, onClose, record }: SplitViewDrawerProp
       setCallStatus(`Call Failed: ${err.message}`);
     }
   };
+
+  const updateTempMutation = useMutation({
+    mutationFn: async (temperature: string) => {
+      const res = await fetch(`/api/v1/leads/${record.id}/temperature`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({ temperature })
+      });
+      if (!res.ok) throw new Error("Failed to update temperature");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+    }
+  });
+
+  const unlockTempMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/v1/leads/${record.id}/temperature/unlock`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error("Failed to unlock temperature");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+    }
+  });
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden bg-black/40 backdrop-blur-xs flex justify-end">
@@ -145,6 +176,37 @@ export function SplitViewDrawer({ isOpen, onClose, record }: SplitViewDrawerProp
                   <div><span className="text-[10px] text-muted-foreground block font-bold">Phone</span><span>{record.phone || "N/A"}</span></div>
                   <div><span className="text-[10px] text-muted-foreground block font-bold">Company</span><span>{record.company || "N/A"}</span></div>
                   <div><span className="text-[10px] text-muted-foreground block font-bold">Industry</span><span>{record.industry || "General"}</span></div>
+                </div>
+              </div>
+
+              {/* Temperature Control */}
+              <div className="p-4 bg-card border border-border rounded-xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-foreground">Lead Temperature</h4>
+                  <div className="flex gap-2 items-center">
+                    {record.temperatureOverride && (
+                      <button 
+                        onClick={() => unlockTempMutation.mutate()}
+                        className="text-[10px] flex items-center gap-1 text-primary hover:underline font-bold bg-primary/10 px-2 py-1 rounded"
+                      >
+                        <Unlock className="w-3 h-3" /> Auto
+                      </button>
+                    )}
+                  </div>
+                </div>
+                
+                <div className="flex items-center justify-between text-xs mt-2">
+                  <span className="text-muted-foreground">Current: <strong className="text-foreground">{record.temperature || "Warm"}</strong> {record.temperatureOverride ? "(Manual)" : "(Auto)"}</span>
+                  <select 
+                    className="bg-muted border border-border rounded p-1 text-xs font-bold"
+                    value={record.temperature || "Warm"}
+                    onChange={(e) => updateTempMutation.mutate(e.target.value)}
+                    disabled={updateTempMutation.isPending}
+                  >
+                    <option value="Hot">🔥 Hot</option>
+                    <option value="Warm">🟡 Warm</option>
+                    <option value="Cold">🧊 Cold</option>
+                  </select>
                 </div>
               </div>
 

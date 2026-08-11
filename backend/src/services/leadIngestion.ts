@@ -3,6 +3,7 @@ import { Op } from "sequelize";
 import crypto from "crypto";
 import { assignLead } from "./assignmentEngine";
 import { createNotification } from "./notificationService";
+import { handleInboundActivity } from "./leadTemperatureService";
 
 function isDummyKey(val?: string): boolean {
   if (!val) return true;
@@ -160,7 +161,8 @@ export async function ingestLead(payload: LeadPayload) {
               mentioned_user_ids: "[]",
               pinned: false,
               isCompleted: true,
-              createdById: existingLead.assignedToId || (await getFirstAdminId())
+              createdById: existingLead.assignedToId || (await getFirstAdminId()),
+              direction: "inbound"
             });
 
             if (existingLead.assignedToId) {
@@ -191,9 +193,13 @@ export async function ingestLead(payload: LeadPayload) {
           mentioned_user_ids: "[]",
           pinned: false,
           isCompleted: true,
-          createdById: existingLead.assignedToId || (await getFirstAdminId())
+          createdById: existingLead.assignedToId || (await getFirstAdminId()),
+          direction: "inbound"
         });
         
+        // Trigger temperature recalculation for inbound duplicate activity
+        await handleInboundActivity(targetLeadId);
+
         if (existingLead.assignedToId) {
           await createNotification(
             existingLead.assignedToId,
@@ -249,7 +255,8 @@ export async function ingestLead(payload: LeadPayload) {
         customerId,
         leadNumber,
         categoriesData: payload.categoriesData || null,
-        rawPayload: payload.rawPayload ? JSON.stringify(payload.rawPayload) : null
+        rawPayload: payload.rawPayload ? JSON.stringify(payload.rawPayload) : null,
+        lastInboundAt: new Date()
       });
 
       // Log initial ingestion activity
@@ -261,7 +268,8 @@ export async function ingestLead(payload: LeadPayload) {
         mentioned_user_ids: "[]",
         pinned: false,
         isCompleted: true,
-        createdById: assignedToId || (await getFirstAdminId())
+        createdById: assignedToId || (await getFirstAdminId()),
+        direction: "internal"
       });
 
       const { triggerCommunication } = require("./communicationService");

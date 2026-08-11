@@ -4,6 +4,7 @@ import { Op } from "sequelize";
 import { triggerTemplatedEmail } from "../services/emailService";
 import { assignLeadToSalesperson } from "../services/leadAssignmentService";
 import { ingestLead } from "../services/leadIngestion";
+import { updateLeadTemperature } from "../services/leadTemperatureService";
 import crypto from "crypto";
 
 export const getLeads = async (req: Request, res: Response) => {
@@ -211,7 +212,8 @@ export const handleUnsubscribe = async (req: Request, res: Response) => {
         type: "Email",
         status: "Completed",
         assignedToId: l.assignedToId,
-        notes: "Client clicked Unsubscribe. All future marketing/templated emails are now blocked."
+        notes: "Client clicked Unsubscribe. All future marketing/templated emails are now blocked.",
+      direction: "internal"
       });
     }
 
@@ -518,6 +520,57 @@ ${conversationText}`;
       suggestedAction: "Prepare line-item quote with 1-year maintenance support",
       clientHistory
     });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * Manually set the temperature for a lead (overrides automatic decay).
+ */
+export const updateTemperature = async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const { temperature } = req.body;
+    
+    if (!["Hot", "Warm", "Cold"].includes(temperature)) {
+      return res.status(400).json({ error: "Invalid temperature" });
+    }
+
+    const lead = await sequelize.models.Lead.findByPk(id);
+    if (!lead) {
+      return res.status(404).json({ error: "Lead not found" });
+    }
+
+    await lead.update({
+      temperature,
+      temperatureOverride: true
+    });
+
+    res.status(200).json({ success: true, temperature, override: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * Removes the manual override and recalculates temperature based on decay.
+ */
+export const unlockTemperature = async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    
+    const lead = await sequelize.models.Lead.findByPk(id);
+    if (!lead) {
+      return res.status(404).json({ error: "Lead not found" });
+    }
+
+    (lead as any).temperatureOverride = false;
+    await lead.save();
+    
+    await updateLeadTemperature(lead);
+
+    res.status(200).json({ success: true, temperature: (lead as any).temperature, override: false });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

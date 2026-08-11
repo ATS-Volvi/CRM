@@ -76,7 +76,8 @@ export const initiateCall = async (req: Request, res: Response) => {
         leadId,
         type: "call",
         outcome: `Outbound Call completed (${callLog.durationSeconds}s). Recording: ${recordingUrl}`,
-        createdById: userId
+        createdById: userId,
+      direction: "internal"
       });
     }
 

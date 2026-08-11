@@ -46,7 +46,8 @@ export const createMeeting = async (req: Request, res: Response) => {
         type: "Meeting",
         title: `Meeting Scheduled: ${title}`,
         notes: `Date: ${date} at ${time}. ${agenda || ""}`,
-        createdById: (req as any).user?.id || null
+        createdById: (req as any).user?.id || null,
+      direction: "internal"
       });
     }
 

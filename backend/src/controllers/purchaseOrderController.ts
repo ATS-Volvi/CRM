@@ -155,7 +155,8 @@ export const createPurchaseOrder = async (req: Request, res: Response) => {
           id: require('crypto').randomUUID(),
           leadId: (deal as any).leadId,
           type: "note",
-          outcome: `Purchase Order Received: ${poNumber} (Amount: $${amount}) - Status: ${mismatch ? "Flagged/Mismatch" : "Accepted"}`,
+          outcome: `Purchase Order Received: ${poNumber} (Amount: $${amount,
+      direction: "internal"}) - Status: ${mismatch ? "Flagged/Mismatch" : "Accepted"}`,
           mentioned_user_ids: "[]",
           pinned: false,
           createdById: "system"

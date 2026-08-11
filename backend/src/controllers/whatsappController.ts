@@ -4,6 +4,7 @@ import { sequelize } from "@nexus-crm/database";
 import { sendWhatsAppMessage } from "../services/whatsappService";
 import { assignLead } from "../services/assignmentEngine";
 import { extractLeadDetailsFromText } from "../services/aiLeadExtraction";
+import { handleInboundActivity } from "../services/leadTemperatureService";
 import {
   logWhatsAppEvent,
   getWhatsAppHealthStatus,
@@ -142,6 +143,7 @@ export const sendMessage = async (req: Request, res: Response) => {
       notes: text,
       outcome: apiResult.simulated ? "sent (simulated)" : "sent",
       mediaUrl: mediaUrl || null,
+      direction: "outbound"
     } as any);
 
     return res.status(200).json({
@@ -559,7 +561,11 @@ export const handleIncomingWebhook = async (req: Request, res: Response) => {
       pinned: false,
       isCompleted: true,
       createdById: adminId,
+      direction: "inbound"
     } as any);
+    
+    // Trigger temperature recalculation for inbound WhatsApp
+    await handleInboundActivity(leadId);
 
     // ── IN-APP NOTIFICATION ───────────────────────────────────────────────────
     if (assignedToId) {

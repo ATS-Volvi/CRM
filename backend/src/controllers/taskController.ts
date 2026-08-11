@@ -47,7 +47,8 @@ export const createTask = async (req: Request, res: Response) => {
         type: "Task",
         title: `Task Created: ${title}`,
         notes: description || `Priority: ${priority || "Medium"}`,
-        createdById: (req as any).user?.id || null
+        createdById: (req as any).user?.id || null,
+      direction: "internal"
       });
     }
 

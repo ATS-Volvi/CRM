@@ -92,7 +92,8 @@ export const moveDealStage = async (req: Request, res: Response) => {
       leadId: deal.leadId || id,
       type: "stage_change",
       outcome: `Stage updated to ${toStageObj ? toStageObj.name : 'Unknown'}${reason ? ' - Reason: ' + reason : ''}`,
-      createdById: userId
+      createdById: userId,
+      direction: "internal"
     });
 
     // Update Deal

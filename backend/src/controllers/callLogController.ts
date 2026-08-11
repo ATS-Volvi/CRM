@@ -40,7 +40,8 @@ export const createCallLog = async (req: Request, res: Response) => {
         id: require("crypto").randomUUID(),
         leadId,
         type: "Call",
-        title: `${direction || "Outbound"} Call (${outcome || "Connected"})`,
+        title: `${direction || "Outbound"} Call (${outcome || "Connected",
+      direction: "internal"})`,
         notes: notes || `Duration: ${durationSeconds || 0} seconds`,
         createdById: (req as any).user?.id || null
       });

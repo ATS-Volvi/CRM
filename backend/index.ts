@@ -42,6 +42,10 @@ const startServer = async () => {
       // Start Lead Connector Scheduler
       const { startConnectorScheduler } = require("./src/services/connectorScheduler");
       startConnectorScheduler();
+
+      // Start Temperature Scheduler
+      const { startTemperatureScheduler } = require("./src/services/temperatureScheduler");
+      startTemperatureScheduler();
     });
   } catch (error) {
     console.error("Failed to start server:", error);
