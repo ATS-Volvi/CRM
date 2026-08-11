@@ -66,7 +66,7 @@ export function Sidebar({
       items: [
         { label: "Customer Workspace", path: "/customers", icon: Users },
         { label: "Asset Tracking", path: "/assets", icon: Package },
-        { label: "Sales Pipeline", path: "/pipeline", icon: Trello },
+        { label: "Sales & Pipeline", path: "/pipeline", icon: Trello },
         { label: "Quotations", path: "/quotes", icon: FileText },
         ...(isAdminOrManager ? [{ label: "Invoices", path: "/invoices", icon: Receipt }] : []),
       ]

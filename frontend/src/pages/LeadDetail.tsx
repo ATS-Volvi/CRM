@@ -522,43 +522,61 @@ export default function LeadDetail() {
         </div>
       </div>
 
-      {/* Streamlined Sales Pipeline Progression */}
-      <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-4 shadow-sm space-y-2.5">
+      {/* 13-Stage Enterprise OS Flow Progression Ribbon */}
+      <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-5 shadow-sm space-y-3">
         <div className="flex items-center justify-between">
           <span className="text-xs font-bold uppercase tracking-wider text-on-surface-variant flex items-center gap-1.5">
-            <TrendingUp className="w-4 h-4 text-primary" /> Sales Pipeline Stage
+            <TrendingUp className="w-4 h-4 text-primary" /> Lifecycle Progression
           </span>
           <select 
             value={lead.status}
             onChange={(e) => updateStatusMutation.mutate(e.target.value)}
-            className="bg-surface border border-outline rounded-lg px-3 py-1 text-xs font-bold focus:ring-primary cursor-pointer"
+            className="bg-surface border border-outline rounded-lg px-3 py-1.5 text-xs font-bold focus:ring-primary cursor-pointer"
           >
-            {["New", "Contacted", "Qualified", "Proposal", "Negotiation", "Won", "Lost"].map(st => (
+            {[
+              "Lead Queue", "Customer Workspace", "Generate Quote", "Quote Draft", "Send for Approval",
+              "Approval Center", "Approved", "Send to Customer", "Waiting Customer", "Negotiation",
+              "Accepted", "Invoice", "Payment", "Closed Won"
+            ].map(st => (
               <option key={st} value={st}>{st}</option>
             ))}
           </select>
         </div>
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 xl:grid-cols-14 gap-1.5 pt-1">
           {[
-            { name: "New", key: "New" },
-            { name: "Contacted", key: "Contacted" },
-            { name: "Qualified", key: "Qualified" },
-            { name: "Proposal / Quote", key: "Proposal" },
-            { name: "Won / Closed", key: "Won" },
-          ].map((stepObj) => {
-            const isCurrent = (lead.status || "").toLowerCase().includes(stepObj.key.toLowerCase());
+            { name: "Lead Queue", icon: Inbox, path: "/leads-table" },
+            { name: "Customer Workspace", icon: User, path: `/leads/${lead.id}` },
+            { name: "Generate Quote", icon: Plus, action: handleConvertToQuotation },
+            { name: "Quote Draft", icon: FileEdit, path: `/quotes/new?leadId=${lead.id}` },
+            { name: "Send for Approval", icon: AlertTriangle, path: "/approvals" },
+            { name: "Approval Center", icon: Landmark, path: "/approvals" },
+            { name: "Approved", icon: CheckCircle2, path: "/quotes" },
+            { name: "Send to Customer", icon: Mail, path: "/quotes" },
+            { name: "Waiting Customer", icon: Clock, path: "/quotes" },
+            { name: "Negotiation", icon: MessageSquare, path: "/quotes" },
+            { name: "Accepted", icon: CheckCircle2, path: "/quotes" },
+            { name: "Invoice", icon: Receipt, path: "/invoices" },
+            { name: "Payment", icon: DollarSign, path: "/invoices" },
+            { name: "Closed Won", icon: CheckCircle2, path: "/pipeline" },
+          ].map((stepObj, idx) => {
+            const isCurrent = (lead.status || "").toLowerCase().includes(stepObj.name.toLowerCase());
+            const Icon = stepObj.icon;
             return (
-              <button
+              <div 
                 key={stepObj.name}
-                onClick={() => updateStatusMutation.mutate(stepObj.key)}
-                className={`flex-1 min-w-[120px] py-2 px-3 rounded-xl border text-xs font-extrabold transition-all text-center ${
+                onClick={() => {
+                  if (stepObj.action) stepObj.action();
+                  else if (stepObj.path) navigate(stepObj.path);
+                }}
+                className={`p-2 rounded-xl border flex flex-col items-center justify-center text-center cursor-pointer transition-all ${
                   isCurrent 
-                    ? "bg-primary text-white border-primary shadow-sm scale-[1.02]" 
-                    : "bg-surface-container-low/50 hover:bg-surface-container-high text-on-surface-variant border-outline-variant/60"
+                    ? "bg-primary text-white border-primary shadow-sm ring-2 ring-primary/20 scale-105" 
+                    : "bg-surface-container-low/50 hover:bg-surface-container-high text-on-surface border-outline-variant/60"
                 }`}
               >
-                {stepObj.name}
-              </button>
+                <Icon className={`w-3.5 h-3.5 mb-1 ${isCurrent ? "text-white" : "text-primary"}`} />
+                <span className="text-[10px] font-bold leading-tight line-clamp-2">{stepObj.name}</span>
+              </div>
             );
           })}
         </div>
