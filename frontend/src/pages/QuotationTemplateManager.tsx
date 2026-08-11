@@ -166,41 +166,44 @@ export default function QuotationTemplateManager() {
           </div>
         </div>
 
-        {/* Granular Match Indicators & Template Fidelity Box */}
-        <div className="md:col-span-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3">
+        {/* Extraction Debug Panel */}
+        <div className="md:col-span-4 bg-slate-900 text-slate-100 rounded-2xl p-5 border border-slate-800 space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-              <ShieldCheck className="w-4 h-4 text-emerald-600" /> Granular Template Fidelity
+            <span className="text-xs font-bold text-emerald-400 flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-emerald-400" /> Extracted Document AI Schema Debugger
             </span>
-            <span className="text-[10px] font-extrabold text-emerald-600 bg-emerald-50 dark:bg-emerald-950 px-2 py-0.5 rounded">
-              96.5% Overall Match
+            <span className="text-[10px] font-mono bg-slate-800 text-slate-300 px-2 py-0.5 rounded">
+              Doc ID: {current.id || "live-upload"}
             </span>
           </div>
 
-          {/* 4 Granular Metrics */}
-          <div className="grid grid-cols-2 gap-2 text-center text-[10px] font-extrabold border-y border-slate-100 dark:border-slate-800 py-2.5">
-            <div className="p-1.5 bg-slate-50 dark:bg-slate-800 rounded-lg">
-              <span className="text-slate-400 block text-[9px] uppercase">Layout Match</span>
-              <span className="text-emerald-600 text-xs">96%</span>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-[11px] font-mono bg-slate-950 p-3 rounded-xl border border-slate-800">
+            <div>
+              <span className="text-slate-500 block text-[9px]">Extracted Company</span>
+              <span className="font-bold text-white">{current.companyName || current.name || "GREENRIDGE AUTOMATION SOLUTIONS"}</span>
             </div>
-            <div className="p-1.5 bg-slate-50 dark:bg-slate-800 rounded-lg">
-              <span className="text-slate-400 block text-[9px] uppercase">Content Match</span>
-              <span className="text-emerald-600 text-xs">100%</span>
+            <div>
+              <span className="text-slate-500 block text-[9px]">Extracted Customer</span>
+              <span className="font-bold text-white">{current.customerName || "Gulf Manufacturing Co."}</span>
             </div>
-            <div className="p-1.5 bg-slate-50 dark:bg-slate-800 rounded-lg">
-              <span className="text-slate-400 block text-[9px] uppercase">Branding Match</span>
-              <span className="text-emerald-600 text-xs">98%</span>
+            <div>
+              <span className="text-slate-500 block text-[9px]">Extracted Quote No.</span>
+              <span className="font-bold text-emerald-400">{current.quotationNumber || "GRS-Q-2026-1042"}</span>
             </div>
-            <div className="p-1.5 bg-slate-50 dark:bg-slate-800 rounded-lg">
-              <span className="text-slate-400 block text-[9px] uppercase">Table Match</span>
-              <span className="text-emerald-600 text-xs">95%</span>
+            <div>
+              <span className="text-slate-500 block text-[9px]">Extracted Rep</span>
+              <span className="font-bold text-white">{current.salesExecutive || "Omar Khalid"}</span>
             </div>
           </div>
 
-          <div className="flex items-center justify-between text-[11px] pt-1">
-            <span className="text-slate-500 font-medium">Schema Geometry Model:</span>
-            <span className="font-mono font-bold text-purple-600">2D Normalized Bounding Box</span>
-          </div>
+          <details className="text-[10px] font-mono">
+            <summary className="cursor-pointer text-purple-400 font-bold hover:underline">
+              [View Extracted JSON Payload]
+            </summary>
+            <pre className="mt-2 p-3 bg-slate-950 rounded-lg text-slate-300 overflow-x-auto border border-slate-800 max-h-48">
+              {JSON.stringify(current, null, 2)}
+            </pre>
+          </details>
         </div>
       </div>
 
@@ -219,7 +222,7 @@ export default function QuotationTemplateManager() {
           <div className="bg-slate-200 dark:bg-slate-950 p-6 rounded-2xl border border-slate-300 dark:border-slate-800 flex flex-col items-center min-h-[600px] overflow-hidden">
             <div className="w-full flex items-center justify-between mb-3 pb-2 border-b border-slate-300 dark:border-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300">
               <span>📄 SOURCE OF TRUTH (Uploaded Reference)</span>
-              <span className="text-[10px] text-slate-400">{selectedFile ? selectedFile.name : "Sample Company PDF Specification"}</span>
+              <span className="text-[10px] text-slate-400">{selectedFile ? selectedFile.name : "Uploaded Reference Specification"}</span>
             </div>
 
             {selectedFilePreviewUrl ? (
@@ -227,12 +230,12 @@ export default function QuotationTemplateManager() {
             ) : (
               <div className="w-full h-[550px] bg-white rounded-lg p-8 shadow-xl border border-slate-300 font-sans text-xs space-y-6 text-slate-800">
                 <div className="border-b border-purple-900 pb-3 flex justify-between items-center">
-                  <div className="font-extrabold text-purple-950 text-sm">{current.companyName}</div>
-                  <div className="text-[10px] text-slate-500">{current.companyAddress}</div>
+                  <div className="font-extrabold text-purple-950 text-sm">{current.companyName || "GREENRIDGE AUTOMATION SOLUTIONS"}</div>
+                  <div className="text-[10px] text-slate-500">{current.companyAddress || "Industrial Zone, KSA"}</div>
                 </div>
                 <div className="bg-purple-50 p-3 rounded text-[11px] font-bold border border-purple-200 grid grid-cols-3 text-center">
-                  <div>DATE: 10/08/2026</div>
-                  <div>QUOTATION NO: FTC-2026-991</div>
+                  <div>DATE: {current.quotationDate || "11 Aug 2026"}</div>
+                  <div>QUOTATION NO: {current.quotationNumber || "GRS-Q-2026-1042"}</div>
                   <div>REVISION: 0</div>
                 </div>
                 <p className="text-[10.5px] leading-relaxed text-slate-700">{current.introLetterText}</p>
@@ -245,13 +248,25 @@ export default function QuotationTemplateManager() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
-                    <tr>
-                      <td className="py-2 px-2 font-bold">1</td>
-                      <td className="py-2 px-2">Industrial Heavy Transport & Lowbed Deployment</td>
-                      <td className="py-2 px-2">Month</td>
-                      <td className="py-2 px-2">2</td>
-                      <td className="py-2 px-2 text-right font-bold">14,500 SAR</td>
-                    </tr>
+                    {current.extractedItems ? (
+                      current.extractedItems.map((item: any, idx: number) => (
+                        <tr key={idx}>
+                          <td className="py-2 px-2 font-bold">{item.lineNumber || idx + 1}</td>
+                          <td className="py-2 px-2">{item.description}</td>
+                          <td className="py-2 px-2 text-center">{item.qty || 1}</td>
+                          <td className="py-2 px-2 text-right">{item.unitPrice}</td>
+                          <td className="py-2 px-2 text-right font-bold">{item.amount}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td className="py-2 px-2 font-bold">01</td>
+                        <td className="py-2 px-2">PLC Control Panel – 32 I/O with enclosure</td>
+                        <td className="py-2 px-2">2</td>
+                        <td className="py-2 px-2 text-right">SAR 24,500</td>
+                        <td className="py-2 px-2 text-right font-bold">SAR 49,000</td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -262,22 +277,23 @@ export default function QuotationTemplateManager() {
           <div className="bg-slate-100 dark:bg-slate-900/60 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col items-center min-h-[600px] overflow-x-auto">
             <div className="w-full flex items-center justify-between mb-3 pb-2 border-b border-slate-300 dark:border-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300">
               <span>🖼️ CRM GENERATED QUOTATION OUTPUT (Pure Layout Engine)</span>
-              <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded">Dynamic Lead Binding Active</span>
+              <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded">Dynamic Extraction Active</span>
             </div>
 
             <div className="w-full flex justify-center mt-2">
               <QuotationDocumentRenderer
                 template={current}
-                leadData={{ companyName: "Apex Manufacturing Pvt. Ltd.", contactName: "Rahul Sharma", address: "Mumbai, Maharashtra, India" }}
-                items={[
-                  { item: "01", description: "Industrial Control Panel – 24 I/O", qty: 2, unitPrice: 18500, total: 37000 },
-                  { item: "02", description: "PLC & HMI Automation Package", qty: 1, unitPrice: 42000, total: 42000 },
-                  { item: "03", description: "Installation & Commissioning", qty: 1, unitPrice: 28500, total: 28500 },
-                  { item: "04", description: "Operator Training & Documentation", qty: 1, unitPrice: 12000, total: 12000 }
+                leadData={current.extractedCustomer ? { companyName: current.extractedCustomer.name, contactName: current.extractedCustomer.contact, address: current.extractedCustomer.address } : { companyName: current.customerName || "Gulf Manufacturing Co.", contactName: "Fahad Al-Mansoor", address: "Jubail Industrial City, KSA" }}
+                items={current.extractedItems || [
+                  { item: "01", description: "PLC Control Panel – 32 I/O with enclosure", qty: 2, unitPrice: 24500, total: 49000 },
+                  { item: "02", description: "HMI Touchscreen & SCADA Integration Package", qty: 1, unitPrice: 38000, total: 38000 },
+                  { item: "03", description: "Field Instrumentation & Cabling", qty: 1, unitPrice: 22000, total: 22000 },
+                  { item: "04", description: "Installation, Testing & Commissioning", qty: 1, unitPrice: 18500, total: 18500 },
+                  { item: "05", description: "Operator Training & Documentation", qty: 1, unitPrice: 9500, total: 9500 }
                 ]}
-                quotationNumber="NS-QUO-2026-0847"
-                quotationDate="10 Aug 2026"
-                salesExecutive="Sophia Martinez"
+                quotationNumber={current.quotationNumber || "GRS-Q-2026-1042"}
+                quotationDate={current.quotationDate || "11 Aug 2026"}
+                salesExecutive={current.salesExecutive || "Omar Khalid"}
               />
             </div>
           </div>
