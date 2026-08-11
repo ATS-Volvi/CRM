@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { 
   LayoutDashboard, Home, Inbox, Trello, FileText, Receipt, 
   Users, BarChart, Settings, Clock, ChevronLeft, 
-  ChevronRight, MessageSquare, CheckSquare, Search, Bell, Sparkles, LogOut, ChevronDown, Layers
+  ChevronRight, MessageSquare, CheckSquare, Search, Bell, Sparkles, LogOut, ChevronDown, Layers, Package
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
@@ -65,6 +65,7 @@ export function Sidebar({
       icon: Users,
       items: [
         { label: "Customer Workspace", path: "/customers", icon: Users },
+        { label: "Asset Tracking", path: "/assets", icon: Package },
         { label: "Sales & Pipeline", path: "/pipeline", icon: Trello },
         { label: "Quotations", path: "/quotes", icon: FileText },
         ...(isAdminOrManager ? [{ label: "Invoices", path: "/invoices", icon: Receipt }] : []),

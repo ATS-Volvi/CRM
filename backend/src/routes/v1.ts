@@ -17,7 +17,8 @@ import {
   getDuplicateLeads,
   mergeLeads,
   clearUnreadCount,
-  getLeadAiSummary
+  getLeadAiSummary,
+  getLeadContacts
 } from "../controllers/leadController";
 import { getPriceBookEntries, createPriceBookEntry, updatePriceBookEntry, deletePriceBookEntry, importPriceBookEntries, getPriceSuggestion, importPriceBookEntriesPreview } from '../controllers/priceBookController';
 import { getQuotes, createQuote, getQuoteRecommendations, sendQuote, getPublicQuote, generateQuotePdf, signQuote, getQuoteHistoryByClient, getSimilarQuotesStats, getSimilarClientQuotes } from '../controllers/quoteController';
@@ -41,6 +42,7 @@ import {
 import { receiveInboundEmail } from "../controllers/emailController";
 import { verifyInstagramWebhook, receiveInstagramMessage } from "../controllers/instagramController";
 import { getCustomers, getCustomerById } from "../controllers/customerController";
+import { getAssets, getAssetById, createAsset, updateAsset, updateAssetStatus, getAssetHistory } from "../controllers/assetController";
 import { getLeadSources, createLeadSource, updateLeadSource, deleteLeadSource } from "../controllers/leadSourceController";
 import { queryAiReport } from "../controllers/aiReportController";
 import { parseVoiceLead } from "../controllers/voiceLeadController";
@@ -272,6 +274,7 @@ router.put("/leads/:id/reassign", authMiddleware, reassignLead);
 router.get("/leads/:id/ai-summary", authMiddleware, getLeadAiSummary);
 router.get("/leads/:id/reassignment-history", authMiddleware, getLeadReassignmentHistory);
 router.get("/leads/:id/deal-for-quote", authMiddleware, getLeadDealForQuote);
+router.get("/leads/:id/contacts", authMiddleware, getLeadContacts);
 router.put("/leads/:id/clear-unread", authMiddleware, clearUnreadCount);
 
 
@@ -437,6 +440,16 @@ router.delete("/master-data/kpis/:id", authMiddleware, deleteKpiMaster);
 // ==========================================
 router.get("/customers", authMiddleware, getCustomers);
 router.get("/customers/:id", authMiddleware, getCustomerById);
+
+// ==========================================
+// ASSETS / EQUIPMENT TRACKING
+// ==========================================
+router.get("/assets", authMiddleware, getAssets);
+router.get("/assets/:id", authMiddleware, getAssetById);
+router.post("/assets", authMiddleware, createAsset);
+router.put("/assets/:id", authMiddleware, updateAsset);
+router.post("/assets/:id/status", authMiddleware, updateAssetStatus);
+router.get("/assets/:id/history", authMiddleware, getAssetHistory);
 
 // ==========================================
 // LEAD SOURCES
