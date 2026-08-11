@@ -62,8 +62,11 @@ export default function QuotationDocumentRenderer({
           <h1 className="doc-company-title" style={{ color: primaryColor }}>
             {compName}
           </h1>
+          {activeTpl.companyTagline && (
+            <p style={{ fontSize: "10px", color: "#64748b", margin: "2px 0 0 0", fontWeight: 600 }}>{activeTpl.companyTagline}</p>
+          )}
           {activeTpl.companyAddress && (
-            <p style={{ fontSize: "10px", color: "#64748b", margin: "2px 0 0 0" }}>{activeTpl.companyAddress}</p>
+            <p style={{ fontSize: "9.5px", color: "#64748b", margin: "1px 0 0 0" }}>{activeTpl.companyAddress}</p>
           )}
         </div>
         <div style={{ textAlign: "right" }}>
@@ -139,10 +142,12 @@ export default function QuotationDocumentRenderer({
                 {columns.map((col: any, colIdx: number) => {
                   const key = col.key;
                   let val = item[key];
-                  if (key === "item" || key === "slNo" || key === "lineNumber") val = String(idx + 1).padStart(2, '0');
+                  if (key === "item" || key === "slNo" || key === "lineNumber") val = item.lineNumber || String(idx + 1).padStart(2, '0');
                   if (key === "description") val = item.description || item.name || "Line Item Description";
+                  if (key === "uom") val = item.uom || item.unit || "Lot";
+                  if (key === "qty" || key === "quantity") val = item.qty || item.quantity || 1;
                   if (key === "unitPrice") val = `${currency} ${Number(item.unitPrice || 0).toLocaleString('en-US')}`;
-                  if (key === "amount" || key === "price" || key === "total") val = `${currency} ${Number(item.total || (item.quantity * item.unitPrice) || 0).toLocaleString('en-US')}`;
+                  if (key === "amount" || key === "price" || key === "total") val = `${currency} ${Number(item.amount || item.total || ((item.qty || item.quantity || 1) * item.unitPrice) || 0).toLocaleString('en-US')}`;
 
                   return (
                     <td key={colIdx} style={{ textAlign: col.align || "left" }}>

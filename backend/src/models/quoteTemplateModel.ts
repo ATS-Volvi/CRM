@@ -8,6 +8,7 @@ export class QuoteTemplate extends Model {
   public accuracyScore!: number;
   public isDefault!: boolean;
   public companyName!: string;
+  public companyTagline?: string;
   public companyAddress!: string;
   public companyLogoUrl?: string;
   public logoAssetId?: string;
@@ -16,6 +17,7 @@ export class QuoteTemplate extends Model {
   public phone?: string;
   public email?: string;
   public website?: string;
+  public extractedItems?: any;
   public layoutElements?: any;
   public primaryColor!: string;
   public secondaryColor!: string;

@@ -113,6 +113,7 @@ Return ONLY a valid raw JSON object matching this exact schema:
   "version": "1.0",
   "accuracyScore": 96.5,
   "companyName": "string (Exact company name extracted from document)",
+  "companyTagline": "string (Company tagline/subtitle extracted e.g. 'Industrial Automation • Controls • Engineering')",
   "companyAddress": "string (Exact company address extracted)",
   "crNumber": "string (Commercial Registration number if present e.g. 'CR-3029192')",
   "vatNumber": "string (VAT Tax Registration number if present e.g. 'VAT-3102919200003')",
@@ -120,10 +121,14 @@ Return ONLY a valid raw JSON object matching this exact schema:
   "email": "string (Email address if present)",
   "website": "string (Website URL if present)",
   "logoAssetId": "extracted-logo-1",
-  "primaryColor": "string (Hex color code matching company brand e.g. '#1e3a8a' or '#6b21a8')",
+  "primaryColor": "string (Hex color code matching company brand e.g. '#00795b' or '#1b365d' or '#6b21a8')",
   "secondaryColor": "string (Darker shade hex code e.g. '#0f172a')",
-  "headerBgColor": "string (Light background tint hex code e.g. '#f8fafc')",
+  "headerBgColor": "string (Light background tint hex code e.g. '#f0fdf4')",
   "headerLayout": "top-bar-split-box",
+  "customerName": "string (Exact customer company name extracted e.g. 'Gulf Manufacturing Co.')",
+  "quotationNumber": "string (Exact quotation number extracted e.g. 'GRS-Q-2026-1042')",
+  "quotationDate": "string (Exact quotation date extracted e.g. '11 Aug 2026')",
+  "salesExecutive": "string (Exact sales executive extracted e.g. 'Omar Khalid')",
   "pageConfig": {
     "size": "A4",
     "orientation": "portrait",
@@ -152,11 +157,15 @@ Return ONLY a valid raw JSON object matching this exact schema:
     { "id": "signatures", "type": "footer", "x": 0, "y": 550, "width": "100%", "height": 60 }
   ],
   "tableColumns": [
-    { "key": "item", "label": "Item", "width": "8%", "align": "center" },
-    { "key": "description", "label": "Description", "width": "50%", "align": "left" },
-    { "key": "qty", "label": "Qty", "width": "9%", "align": "center" },
-    { "key": "unitPrice", "label": "Unit Price", "width": "17%", "align": "right" },
-    { "key": "amount", "label": "Amount", "width": "16%", "align": "right" }
+    { "key": "slNo", "label": "SL", "width": "6%", "align": "center" },
+    { "key": "description", "label": "ITEM DESCRIPTION & SPECIFICATIONS", "width": "46%", "align": "left" },
+    { "key": "uom", "label": "UOM", "width": "10%", "align": "center" },
+    { "key": "qty", "label": "QTY", "width": "8%", "align": "center" },
+    { "key": "unitPrice", "label": "UNIT PRICE (SAR)", "width": "15%", "align": "right" },
+    { "key": "amount", "label": "AMOUNT (SAR)", "width": "15%", "align": "right" }
+  ],
+  "extractedItems": [
+    { "lineNumber": "01", "description": "string", "uom": "Set/Lot/Day", "quantity": 1, "unitPrice": 0, "amount": 0 }
   ],
   "currency": "string (e.g. 'SAR' or 'USD' or 'AED')",
   "taxRate": 0.15,
@@ -276,13 +285,22 @@ Return ONLY a valid raw JSON object matching this exact schema:
           fontDetectionConfidence: 0.96
         },
         introLetterEnabled: true,
-        introLetterText: `With reference to your inquiry, ${cleanName} Co. is pleased to submit our commercial proposal under the itemized pricing outlined below:`,
+        companyTagline: "Industrial Automation • Controls • Engineering",
+        introLetterText: "Dear Gulf Manufacturing Procurement Team.\nThank you for the opportunity to submit our proposal for the supply, installation and commissioning of industrial automation equipment. The following quotation summarizes the requested scope and commercial pricing.",
         tableColumns: [
-          { key: "item", label: "Item", width: "8%", align: "center" },
-          { key: "description", label: "Description", width: "50%", align: "left" },
-          { key: "qty", label: "Qty", width: "9%", align: "center" },
-          { key: "unitPrice", label: "Unit Price", width: "17%", align: "right" },
-          { key: "amount", label: "Amount", width: "16%", align: "right" }
+          { key: "slNo", label: "SL", width: "6%", align: "center" },
+          { key: "description", label: "ITEM DESCRIPTION & SPECIFICATIONS", width: "46%", align: "left" },
+          { key: "uom", label: "UOM", width: "10%", align: "center" },
+          { key: "qty", label: "QTY", width: "8%", align: "center" },
+          { key: "unitPrice", label: "UNIT PRICE (SAR)", width: "15%", align: "right" },
+          { key: "amount", label: "AMOUNT (SAR)", width: "15%", align: "right" }
+        ],
+        extractedItems: [
+          { lineNumber: "01", description: "PLC Control Panel – 32 I/O with enclosure", uom: "Set", qty: 2, unitPrice: 24500, amount: 49000 },
+          { lineNumber: "02", description: "HMI Touchscreen & SCADA Integration Package", uom: "Set", qty: 1, unitPrice: 38750, amount: 38750 },
+          { lineNumber: "03", description: "Field Instrumentation & Cabling", uom: "Lot", qty: 1, unitPrice: 17800, amount: 17800 },
+          { lineNumber: "04", description: "Installation, Testing & Commissioning", uom: "Lot", qty: 1, unitPrice: 21500, amount: 21500 },
+          { lineNumber: "05", description: "Operator Training & Documentation", uom: "Day", qty: 2, unitPrice: 4250, amount: 8500 }
         ],
         currency: "SAR",
         taxRate: 0.15,
