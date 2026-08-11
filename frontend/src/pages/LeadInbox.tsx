@@ -477,33 +477,25 @@ export default function LeadInbox() {
                   </div>
                 )}
 
+                {/* TEMPERATURE FILTER */}
+                <div>
+                  <label className="block font-bold text-muted-foreground text-[10px] uppercase tracking-wider mb-1.5">Filter Temperature</label>
+                  <select
+                    value={temperatureFilter}
+                    onChange={(e) => setTemperatureFilter(e.target.value)}
+                    className="w-full bg-muted border border-border rounded-xl px-3 py-1.5 text-xs font-bold text-foreground focus:outline-none"
+                  >
+                    <option value="all">All Temperatures</option>
+                    <option value="Hot">🔥 Hot</option>
+                    <option value="Warm">🟡 Warm</option>
+                    <option value="Cold">🧊 Cold</option>
+                  </select>
+                </div>
+
                 {/* Filter By Status */}
-                <div className="relative">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <input
-                  type="text"
-                  placeholder="Search leads, company, source..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full sm:w-64 bg-background border border-border text-foreground text-sm rounded-xl pl-9 pr-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary/20 shadow-2xs placeholder:text-muted-foreground/60 transition-all"
-                />
-              </div>
-
-              {/* TEMPERATURE FILTER */}
-              <select
-                value={temperatureFilter}
-                onChange={(e) => setTemperatureFilter(e.target.value)}
-                className="bg-background border border-border text-foreground text-sm rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/20 shadow-2xs cursor-pointer appearance-none pr-8 relative"
-                style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center' }}
-              >
-                <option value="all">All Temperatures</option>
-                <option value="Hot">🔥 Hot</option>
-                <option value="Warm">🟡 Warm</option>
-                <option value="Cold">🧊 Cold</option>
-              </select>
-
-              {/* STATUS FILTER */}
-              <select
+                <div>
+                  <label className="block font-bold text-muted-foreground text-[10px] uppercase tracking-wider mb-1.5">Filter Status</label>
+                  <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
                     className="w-full bg-muted border border-border rounded-xl px-3 py-1.5 text-xs font-bold text-foreground focus:outline-none"
