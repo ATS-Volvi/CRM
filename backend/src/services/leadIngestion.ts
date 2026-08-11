@@ -2,6 +2,7 @@ import { sequelize } from "@nexus-crm/database";
 import { Op } from "sequelize";
 import crypto from "crypto";
 import { assignLead } from "./assignmentEngine";
+import { createNotification } from "./notificationService";
 
 function isDummyKey(val?: string): boolean {
   if (!val) return true;
@@ -85,6 +86,16 @@ export async function ingestLead(payload: LeadPayload) {
       });
     }
 
+    if (!existingLead && email) {
+      const genericDomains = ["gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "icloud.com"];
+      const emailDomain = email.split('@')[1]?.toLowerCase();
+      if (emailDomain && !genericDomains.includes(emailDomain)) {
+        existingLead = await LeadModel.findOne({
+          where: { email: { [Op.like]: `%@${emailDomain}` } }
+        });
+      }
+    }
+
     // 2. Lead Scoring
     let leadScore = 50; // base score
     if (email && !email.endsWith("@gmail.com") && !email.endsWith("@yahoo.com") && !email.endsWith("@hotmail.com") && !email.endsWith("@outlook.com")) {
@@ -102,10 +113,8 @@ export async function ingestLead(payload: LeadPayload) {
       // Update existing lead (Merge / Update fields)
       targetLeadId = existingLead.id;
       const updates: any = {
-        firstName: payload.firstName || existingLead.firstName,
-        lastName: payload.lastName || existingLead.lastName,
-        phone: payload.phone || existingLead.phone,
-        company: payload.company || existingLead.company,
+        // Do NOT overwrite existing identity fields (firstName, lastName, phone, email, company)
+        company: existingLead.company || payload.company,
         leadScore: Math.max(existingLead.leadScore || 0, leadScore),
         sourceDetail: payload.sourceDetail || existingLead.sourceDetail,
         campaign: payload.campaign || existingLead.campaign,
@@ -116,17 +125,85 @@ export async function ingestLead(payload: LeadPayload) {
       };
       await existingLead.update(updates);
 
-      // Create duplicate capture activity log
-      await sequelize.models.Activity.create({
-        id: crypto.randomUUID(),
-        type: "note",
-        leadId: targetLeadId,
-        outcome: `Duplicate lead capture: ${payload.source || 'Unknown Source'}`,
-        mentioned_user_ids: "[]",
-        pinned: false,
-        isCompleted: true,
-        createdById: existingLead.assignedToId || (await getFirstAdminId())
-      });
+      // Check if this is a different contact for the same company/lead
+      const isDifferentEmail = email && existingLead.email && email.toLowerCase() !== existingLead.email.toLowerCase();
+      const isDifferentName = payload.firstName && payload.lastName && 
+        (payload.firstName.toLowerCase() !== existingLead.firstName.toLowerCase() || 
+         payload.lastName.toLowerCase() !== existingLead.lastName.toLowerCase());
+
+      if (isDifferentEmail || isDifferentName) {
+        const LeadContactModel = sequelize.models.LeadContact;
+        if (LeadContactModel) {
+          const existingContact = await LeadContactModel.findOne({
+            where: {
+              leadId: targetLeadId,
+              email: email
+            }
+          });
+
+          if (!existingContact) {
+            await LeadContactModel.create({
+              id: crypto.randomUUID(),
+              leadId: targetLeadId,
+              firstName: payload.firstName,
+              lastName: payload.lastName,
+              email: email,
+              phone: payload.phone || null,
+              role: "Additional Contact"
+            });
+
+            await sequelize.models.Activity.create({
+              id: crypto.randomUUID(),
+              type: "note",
+              leadId: targetLeadId,
+              outcome: `New contact added from duplicate inquiry: ${payload.firstName} ${payload.lastName} (${email})`,
+              mentioned_user_ids: "[]",
+              pinned: false,
+              isCompleted: true,
+              createdById: existingLead.assignedToId || (await getFirstAdminId())
+            });
+
+            if (existingLead.assignedToId) {
+              await createNotification(
+                existingLead.assignedToId,
+                "system",
+                "New Contact on Existing Lead",
+                `${payload.firstName} ${payload.lastName} from ${payload.company || existingLead.company || "the same company"} just reached out — this company already has an active lead with you (originally from ${existingLead.firstName} ${existingLead.lastName}).`,
+                `/leads/${targetLeadId}`
+              );
+            }
+          } else {
+            // Update the existing contact silently
+            await existingContact.update({
+              firstName: payload.firstName,
+              lastName: payload.lastName,
+              phone: payload.phone || (existingContact as any).phone
+            });
+          }
+        }
+      } else {
+        // Create duplicate capture activity log
+        await sequelize.models.Activity.create({
+          id: crypto.randomUUID(),
+          type: "note",
+          leadId: targetLeadId,
+          outcome: `Duplicate lead capture: ${payload.source || 'Unknown Source'}`,
+          mentioned_user_ids: "[]",
+          pinned: false,
+          isCompleted: true,
+          createdById: existingLead.assignedToId || (await getFirstAdminId())
+        });
+        
+        if (existingLead.assignedToId) {
+          await createNotification(
+            existingLead.assignedToId,
+            "system",
+            "Duplicate Lead Captured",
+            `${payload.firstName} ${payload.lastName} from ${payload.company || existingLead.company || "the same company"} submitted another inquiry.`,
+            `/leads/${targetLeadId}`
+          );
+        }
+      }
     } else {
       // 3. Assignment Engine
       let assignedToId = await assignLead({

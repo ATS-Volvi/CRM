@@ -523,4 +523,22 @@ ${conversationText}`;
   }
 };
 
+export const getLeadContacts = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    
+    const LeadContactModel = sequelize.models.LeadContact;
+    if (!LeadContactModel) {
+      return res.status(200).json([]);
+    }
 
+    const contacts = await LeadContactModel.findAll({
+      where: { leadId: id },
+      order: [["createdAt", "DESC"]]
+    });
+
+    res.status(200).json(contacts);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};

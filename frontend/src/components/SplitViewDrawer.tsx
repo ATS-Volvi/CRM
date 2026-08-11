@@ -14,6 +14,24 @@ export function SplitViewDrawer({ isOpen, onClose, record }: SplitViewDrawerProp
   const [activeTab, setActiveTab] = useState<"overview" | "timeline">("overview");
   const [callStatus, setCallStatus] = useState<string | null>(null);
   const [telephonyConfigured, setTelephonyConfigured] = useState<boolean | null>(null);
+  const [contacts, setContacts] = useState<any[]>([]);
+  const [isLoadingContacts, setIsLoadingContacts] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && record && token) {
+      setIsLoadingContacts(true);
+      fetch(`/api/v1/leads/${record.id}/contacts`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (Array.isArray(data)) setContacts(data);
+          else setContacts([]);
+        })
+        .catch(() => setContacts([]))
+        .finally(() => setIsLoadingContacts(false));
+    }
+  }, [isOpen, record, token]);
 
   useEffect(() => {
     if (isOpen && token) {
@@ -128,6 +146,29 @@ export function SplitViewDrawer({ isOpen, onClose, record }: SplitViewDrawerProp
                   <div><span className="text-[10px] text-muted-foreground block font-bold">Company</span><span>{record.company || "N/A"}</span></div>
                   <div><span className="text-[10px] text-muted-foreground block font-bold">Industry</span><span>{record.industry || "General"}</span></div>
                 </div>
+              </div>
+
+              {/* Secondary Contacts List */}
+              <div className="p-4 bg-card border border-border rounded-xl space-y-2">
+                <h4 className="font-bold text-foreground">Secondary Contacts</h4>
+                {isLoadingContacts ? (
+                  <p className="text-xs text-muted-foreground">Loading contacts...</p>
+                ) : contacts.length > 0 ? (
+                  <div className="space-y-3">
+                    {contacts.map((contact, idx) => (
+                      <div key={idx} className="p-3 bg-muted/20 border border-border rounded-lg text-xs flex flex-col gap-1">
+                        <div className="flex justify-between items-start">
+                          <span className="font-bold text-foreground">{contact.firstName} {contact.lastName}</span>
+                          <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-bold uppercase tracking-wide">{contact.role || "Contact"}</span>
+                        </div>
+                        {contact.email && <div className="text-muted-foreground flex items-center gap-1.5"><Mail className="w-3 h-3" /> {contact.email}</div>}
+                        {contact.phone && <div className="text-muted-foreground flex items-center gap-1.5"><Phone className="w-3 h-3" /> {contact.phone}</div>}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">No additional contacts.</p>
+                )}
               </div>
             </div>
           )}
