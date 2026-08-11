@@ -340,10 +340,10 @@ export default function QuotationTemplateManager() {
                 template={current}
                 leadData={{
                   companyName: current.customerName || (current.extractedCustomer?.name) || "Gulf Manufacturing Co.",
-                  contactName: current.extractedCustomer?.contact || "Fahad Al-Mansoor",
+                  contactName: current.extractedCustomer?.contact || "Faisal Rahman",
                   address: current.extractedCustomer?.address || "Dammam Industrial City, KSA"
                 }}
-                items={current.extractedItems || [
+                items={current.extractedItems && current.extractedItems.length > 0 ? current.extractedItems : [
                   { lineNumber: "01", description: "PLC Control Panel – 32 I/O with enclosure", uom: "Set", qty: 2, unitPrice: 24500, amount: 49000 },
                   { lineNumber: "02", description: "HMI Touchscreen & SCADA Integration Package", uom: "Set", qty: 1, unitPrice: 38750, amount: 38750 },
                   { lineNumber: "03", description: "Field Instrumentation & Cabling", uom: "Lot", qty: 1, unitPrice: 17800, amount: 17800 },
