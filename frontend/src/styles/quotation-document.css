@@ -7,13 +7,13 @@
   max-width: 800px;
   background-color: #ffffff !important;
   color: #0f172a !important;
-  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  font-family: Arial, Helvetica, sans-serif !important;
   font-size: 11px !important;
   line-height: 1.4 !important;
   border: 1px solid #cbd5e1 !important;
   border-radius: 0px !important;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
-  padding: 32px !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1) !important;
+  padding: 40px !important;
   margin: 0 auto !important;
 }
 
@@ -26,28 +26,55 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  padding-bottom: 12px;
+  padding-bottom: 4px;
+}
+
+.doc-company-title {
+  font-size: 20px;
+  font-weight: 800;
+  color: #1e3a8a;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.doc-quote-title {
+  font-size: 24px;
+  font-weight: 800;
+  color: #1e3a8a;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  margin: 0;
+  line-height: 1;
+}
+
+.doc-quote-number {
+  font-size: 11px;
+  font-weight: 700;
+  color: #1e3a8a;
+  margin-top: 4px;
+  text-align: right;
 }
 
 .doc-divider-line {
   height: 2px;
-  background-color: #1e3a8a; /* Reference Blue Accent */
+  background-color: #1e3a8a; /* Reference Blue Accent Line */
   width: 100%;
   margin-top: 8px;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
 
-/* Compact 3-Column Metadata Grid */
+/* Metadata Grid (3 Columns) */
 .doc-meta-grid {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
   border: 1px solid #cbd5e1;
   background-color: #f8fafc;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 }
 
 .doc-meta-col {
-  padding: 10px 12px;
+  padding: 12px 14px;
   border-right: 1px solid #cbd5e1;
 }
 
@@ -56,21 +83,28 @@
 }
 
 .doc-meta-label {
-  font-size: 9px;
+  font-size: 9.5px;
   font-weight: 700;
   text-transform: uppercase;
   color: #64748b;
-  margin-bottom: 3px;
+  margin-bottom: 4px;
   display: block;
 }
 
 .doc-meta-value {
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
   color: #0f172a;
 }
 
-/* Commercial Proposal Section */
+.doc-meta-sub {
+  font-size: 10px;
+  color: #475569;
+  margin-top: 2px;
+  line-height: 1.3;
+}
+
+/* Proposal Section */
 .doc-proposal-section {
   margin-bottom: 20px;
 }
@@ -80,8 +114,6 @@
   font-weight: 800;
   color: #1e3a8a;
   margin-bottom: 6px;
-  text-transform: uppercase;
-  letter-spacing: 0.025em;
 }
 
 .doc-proposal-text {
@@ -90,26 +122,25 @@
   line-height: 1.5;
 }
 
-/* Strict Table Architecture - Direct Reference Layout */
+/* Strict Table Architecture - Reference Blue Header */
 .doc-items-table {
   width: 100%;
   border-collapse: collapse;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
   font-size: 10.5px;
 }
 
 .doc-items-table th {
-  background-color: #1e3a8a !important; /* Reference Dark Blue Header */
+  background-color: #1b365d !important; /* Reference Deep Navy Header */
   color: #ffffff !important;
   font-weight: 700;
-  text-transform: uppercase;
-  padding: 8px 10px;
-  border: 1px solid #1e3a8a;
-  font-size: 10px;
+  padding: 9px 12px;
+  border: 1px solid #1b365d;
+  font-size: 10.5px;
 }
 
 .doc-items-table td {
-  padding: 8px 10px;
+  padding: 9px 12px;
   border: 1px solid #e2e8f0;
   color: #1e293b;
   vertical-align: top;
@@ -119,35 +150,35 @@
   background-color: #f8fafc;
 }
 
-/* Financial Summary Grid */
+/* Financial Summary Box (Right-Aligned) */
 .doc-financials-wrapper {
   display: flex;
   justify-content: flex-end;
-  margin-bottom: 24px;
+  margin-bottom: 28px;
 }
 
 .doc-financials-box {
-  width: 260px;
-  border: 1px solid #cbd5e1;
+  width: 270px;
   background-color: #ffffff;
-  padding: 10px 12px;
+  padding: 4px 0;
 }
 
 .doc-financial-row {
   display: flex;
   justify-content: space-between;
-  padding: 3px 0;
-  font-size: 10.5px;
-  color: #334155;
+  padding: 4px 12px;
+  font-size: 11px;
+  color: #1e293b;
 }
 
 .doc-financial-row.total-row {
   font-size: 12px;
   font-weight: 800;
-  color: #0f172a;
-  border-top: 2px solid #1e3a8a;
-  padding-top: 6px;
-  margin-top: 4px;
+  color: #1e3a8a;
+  background-color: #eff6ff; /* Highlight tint for Total row */
+  border: 1px solid #93c5fd;
+  padding: 8px 12px;
+  margin-top: 6px;
 }
 
 /* Commercial Terms Section */

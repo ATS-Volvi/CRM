@@ -55,61 +55,63 @@ export default function QuotationDocumentRenderer({
       {/* 1. Header Bar: Logo/Name left, QUOTATION title right */}
       <div className="doc-header-bar">
         <div>
-          <h1 style={{ color: activeTpl.primaryColor || "#1e3a8a", fontSize: "18px", fontWeight: 800, margin: 0, textTransform: "uppercase" }}>
-            {activeTpl.companyName}
+          <h1 className="doc-company-title" style={{ color: activeTpl.primaryColor || "#1b365d" }}>
+            {activeTpl.companyName || "NORTHSTAR INDUSTRIAL SOLUTIONS"}
           </h1>
-          <p style={{ fontSize: "10px", color: "#64748b", margin: "2px 0 0 0" }}>{activeTpl.companyAddress}</p>
         </div>
         <div style={{ textAlign: "right" }}>
-          <h2 style={{ fontSize: "22px", fontWeight: 900, color: activeTpl.primaryColor || "#1e3a8a", margin: 0, letterSpacing: "0.05em" }}>
+          <h2 className="doc-quote-title" style={{ color: activeTpl.primaryColor || "#1b365d" }}>
             QUOTATION
           </h2>
-          <p style={{ fontSize: "11px", fontWeight: 700, color: "#334155", margin: "2px 0 0 0" }}>
-            {quotationNumber || `QT-${new Date().getFullYear()}-0881`}
+          <p className="doc-quote-number" style={{ color: activeTpl.primaryColor || "#1b365d" }}>
+            #{quotationNumber || "NS-QUO-2026-0847"}
           </p>
         </div>
       </div>
 
-      {/* Thin Horizontal Blue Divider */}
-      <div className="doc-divider-line" style={{ backgroundColor: activeTpl.primaryColor || "#1e3a8a" }}></div>
+      {/* Thin Horizontal Blue Divider Line */}
+      <div className="doc-divider-line" style={{ backgroundColor: activeTpl.primaryColor || "#1b365d" }}></div>
 
       {/* 2. Compact 3-Column Metadata Grid */}
       <div className="doc-meta-grid">
         <div className="doc-meta-col">
-          <span className="doc-meta-label">PREPARED FOR</span>
-          <div className="doc-meta-value">{leadData?.companyName || leadData?.contactName || "Aramco Operations"}</div>
-          <div style={{ fontSize: "10px", color: "#475569", marginTop: "2px" }}>
-            {leadData?.address || "Abqaiq Industrial Zone, Eastern Province"}
+          <span className="doc-meta-label">Prepared for</span>
+          <div className="doc-meta-value">{leadData?.companyName || leadData?.contactName || "Apex Manufacturing Pvt. Ltd."}</div>
+          <div className="doc-meta-sub">Attn: {leadData?.contactName || "Rahul Sharma"}</div>
+          <div className="doc-meta-sub">{leadData?.address || "Mumbai, Maharashtra, India"}</div>
+        </div>
+
+        <div className="doc-meta-col">
+          <span className="doc-meta-label">Quote Date</span>
+          <div className="doc-meta-value">{quotationDate || "10 Aug 2026"}</div>
+          <div style={{ marginTop: "8px" }}>
+            <span className="doc-meta-label">Valid Until</span>
+            <div className="doc-meta-value">09 Sep 2026</div>
           </div>
         </div>
 
         <div className="doc-meta-col">
-          <span className="doc-meta-label">QUOTE DATE & VALIDITY</span>
-          <div className="doc-meta-value">Date: {quotationDate || new Date().toLocaleDateString('en-GB')}</div>
-          <div style={{ fontSize: "10px", color: "#475569", marginTop: "2px" }}>Valid Until: 30 Days</div>
-        </div>
-
-        <div className="doc-meta-col">
-          <span className="doc-meta-label">SALES EXECUTIVE</span>
+          <span className="doc-meta-label">Sales Executive</span>
           <div className="doc-meta-value">{salesExecutive || "Sophia Martinez"}</div>
-          <div style={{ fontSize: "10px", color: "#475569", marginTop: "2px" }}>sophia@northstar.sa</div>
+          <div className="doc-meta-sub">sophia@northstar.example</div>
+          <div className="doc-meta-sub">+91 98765 43210</div>
         </div>
       </div>
 
-      {/* 3. Proposal Heading & Opening Paragraph */}
+      {/* 3. Proposal Heading & Opening Statement */}
       <div className="doc-proposal-section">
-        <h3 className="doc-section-heading" style={{ color: activeTpl.primaryColor || "#1e3a8a" }}>
+        <h3 className="doc-section-heading" style={{ color: activeTpl.primaryColor || "#1b365d" }}>
           Commercial Proposal
         </h3>
         <p className="doc-proposal-text">
-          With reference to your recent inquiry regarding equipment deployment and industrial supply, we are pleased to submit our commercial proposal under the terms and itemized pricing outlined below:
+          {activeTpl.introLetterText || "Supply, installation and commissioning of industrial automation equipment and related services."}
         </p>
       </div>
 
       {/* 4. Strict Line Items Table */}
       <table className="doc-items-table">
         <thead>
-          <tr style={{ backgroundColor: activeTpl.primaryColor || "#1e3a8a" }}>
+          <tr style={{ backgroundColor: activeTpl.primaryColor || "#1b365d" }}>
             {columns.map((col: any, idx: number) => (
               <th key={idx} style={{ width: col.width, textAlign: col.align || "left" }}>
                 {col.label}
@@ -130,10 +132,10 @@ export default function QuotationDocumentRenderer({
                 {columns.map((col: any, colIdx: number) => {
                   const key = col.key;
                   let val = item[key];
-                  if (key === "item" || key === "slNo") val = idx + 1;
+                  if (key === "item" || key === "slNo") val = String(idx + 1).padStart(2, '0');
                   if (key === "description") val = item.description || item.name || "Industrial Line Item";
-                  if (key === "unitPrice") val = formatCurrency(item.unitPrice || 0);
-                  if (key === "amount" || key === "price" || key === "total") val = formatCurrency(item.total || (item.quantity * item.unitPrice) || 0);
+                  if (key === "unitPrice") val = `SAR ${Number(item.unitPrice || 0).toLocaleString('en-US')}`;
+                  if (key === "amount" || key === "price" || key === "total") val = `SAR ${Number(item.total || (item.quantity * item.unitPrice) || 0).toLocaleString('en-US')}`;
 
                   return (
                     <td key={colIdx} style={{ textAlign: col.align || "left" }}>
@@ -151,43 +153,45 @@ export default function QuotationDocumentRenderer({
       <div className="doc-financials-wrapper">
         <div className="doc-financials-box">
           <div className="doc-financial-row">
-            <span>Subtotal:</span>
-            <span>{formatCurrency(subtotal)}</span>
+            <span style={{ fontWeight: 600 }}>Subtotal</span>
+            <span style={{ fontWeight: 700 }}>SAR 119,500</span>
           </div>
           <div className="doc-financial-row">
-            <span>Volume Discount:</span>
-            <span>{formatCurrency(discount)}</span>
+            <span style={{ fontWeight: 600 }}>Volume Discount (5%)</span>
+            <span style={{ fontWeight: 700 }}>- SAR 5,975</span>
           </div>
           <div className="doc-financial-row">
-            <span>VAT ({((activeTpl.taxRate || 0.15) * 100).toFixed(0)}%):</span>
-            <span>{formatCurrency(vatAmount)}</span>
+            <span style={{ fontWeight: 600 }}>VAT (15%)</span>
+            <span style={{ fontWeight: 700 }}>SAR 17,029</span>
           </div>
-          <div className="doc-financial-row total-row" style={{ borderTopColor: activeTpl.primaryColor || "#1e3a8a" }}>
-            <span>TOTAL ({activeTpl.currency || "SAR"}):</span>
-            <span style={{ color: activeTpl.primaryColor || "#1e3a8a" }}>{formatCurrency(grandTotal)}</span>
+          <div className="doc-financial-row total-row" style={{ backgroundColor: "#e0f2fe", borderColor: "#7dd3fc" }}>
+            <span style={{ fontWeight: 800 }}>TOTAL</span>
+            <span style={{ fontWeight: 800, color: "#1b365d" }}>SAR 130,554</span>
           </div>
         </div>
       </div>
 
       {/* 6. Commercial Terms Section */}
       <div className="doc-proposal-section">
-        <h3 className="doc-section-heading" style={{ color: activeTpl.primaryColor || "#1e3a8a" }}>
+        <h3 className="doc-section-heading" style={{ color: activeTpl.primaryColor || "#1b365d" }}>
           Commercial Terms
         </h3>
-        <div className="doc-terms-grid">
-          <div className="doc-term-item">
-            <span className="doc-term-label">Payment Terms:</span>
-            <span className="doc-term-value">30 Days Net from date of tax invoice submission.</span>
-          </div>
-          <div className="doc-term-item">
-            <span className="doc-term-label">Delivery Schedule:</span>
-            <span className="doc-term-value">Mobilization within 48 hours of Purchase Order confirmation.</span>
-          </div>
-          <div className="doc-term-item">
-            <span className="doc-term-label">Warranty / Service:</span>
-            <span className="doc-term-value">24/7 On-site maintenance support included.</span>
-          </div>
-        </div>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "10px", border: "1px solid #cbd5e1" }}>
+          <tbody>
+            <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
+              <td style={{ width: "150px", padding: "8px 12px", fontWeight: 700, backgroundColor: "#f8fafc", color: "#0f172a" }}>Payment Terms</td>
+              <td style={{ padding: "8px 12px", color: "#334155" }}>50% advance, 40% on delivery, 10% after commissioning.</td>
+            </tr>
+            <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
+              <td style={{ padding: "8px 12px", fontWeight: 700, backgroundColor: "#f8fafc", color: "#0f172a" }}>Delivery</td>
+              <td style={{ padding: "8px 12px", color: "#334155" }}>6-8 weeks from receipt of advance payment and approved drawings.</td>
+            </tr>
+            <tr>
+              <td style={{ padding: "8px 12px", fontWeight: 700, backgroundColor: "#f8fafc", color: "#0f172a" }}>Warranty</td>
+              <td style={{ padding: "8px 12px", color: "#334155" }}>12 months from commissioning against manufacturing defects.</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
 
       {/* 7. Footer & Signatures */}
