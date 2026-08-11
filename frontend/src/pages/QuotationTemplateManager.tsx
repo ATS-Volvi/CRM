@@ -161,19 +161,19 @@ export default function QuotationTemplateManager() {
           <div className="w-full md:w-1/2 space-y-2">
             <span className="text-[10px] font-extrabold uppercase text-slate-400 block tracking-wider">Active Company Templates</span>
             <div className="space-y-1.5 max-h-32 overflow-y-auto pr-1">
-              {(templates || [current]).map((t: any) => (
+              {(templates && templates.length > 0 ? templates : [current]).map((t: any) => (
                 <div
                   key={t.id || t.name}
                   onClick={() => setActiveTemplate(t)}
                   className={`p-2 rounded-lg border text-xs font-bold cursor-pointer flex items-center justify-between transition-all ${
-                    (activeTemplate?.name || current.name) === t.name
+                    (current?.id === t.id || current?.name === t.name)
                       ? "border-purple-500 bg-purple-50/50 dark:bg-purple-950/30 text-purple-900 dark:text-purple-200"
                       : "border-slate-200 dark:border-slate-800 hover:border-slate-300 text-slate-700 dark:text-slate-300"
                   }`}
                 >
                   <div className="flex items-center gap-2">
                     <Layout className="w-3.5 h-3.5 text-purple-600" />
-                    <span>{t.name}</span>
+                    <span>{t.companyName || t.name}</span>
                   </div>
                   <span className="text-[9px] font-black uppercase px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded">v{t.version || "1.0"}</span>
                 </div>
