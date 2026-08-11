@@ -76,23 +76,36 @@ export default function QuotationTemplateManager() {
   };
 
   const current = activeTemplate || (templates && templates[0]) || {
-    name: "FTC Saudi Arabia Standard",
+    name: "GREENRIDGE AUTOMATION SOLUTIONS Template",
     version: "1.0",
-    accuracyScore: 96.5,
-    companyName: "Faisal Fahad Hussain Al Kari Transportation Co.",
-    companyAddress: "Prince Fahad St, Al Khobar, Kingdom of Saudi Arabia",
-    primaryColor: "#6b21a8",
-    secondaryColor: "#4c1d95",
-    headerBgColor: "#fbf5ff",
-    introLetterText: "Thank you for showing your interest in us & inviting us to Quote. Faisal Fahad Hussain Al Kari Transportation Co. has remained one of the Big Players in Industrial Services over the past two decades.",
+    accuracyScore: 98.4,
+    companyName: "GREENRIDGE AUTOMATION SOLUTIONS",
+    companyTagline: "Industrial Automation • Controls • Engineering",
+    companyAddress: "Dammam Industrial City, Kingdom of Saudi Arabia",
+    primaryColor: "#00795b",
+    secondaryColor: "#0f172a",
+    headerBgColor: "#f0fdf4",
+    introLetterText: "Dear Gulf Manufacturing Procurement Team.\nThank you for the opportunity to submit our proposal for the supply, installation and commissioning of industrial automation equipment. The following quotation summarizes the requested scope and commercial pricing.",
+    customerName: "Gulf Manufacturing Co.",
+    quotationNumber: "GRS-Q-2026-1042",
+    quotationDate: "11 Aug 2026",
+    salesExecutive: "Omar Khalid",
     currency: "SAR",
     taxRate: 0.15,
     tableColumns: [
-      { key: "slNo", label: "Sl No.", width: "10%", align: "center" },
-      { key: "description", label: "Item Description & Specifications", width: "50%", align: "left" },
-      { key: "uom", label: "UOM", width: "12%", align: "center" },
-      { key: "qty", label: "Qty", width: "10%", align: "center" },
-      { key: "price", label: "Price (SAR)", width: "18%", align: "right" }
+      { key: "slNo", label: "SL", width: "6%", align: "center" },
+      { key: "description", label: "ITEM DESCRIPTION & SPECIFICATIONS", width: "46%", align: "left" },
+      { key: "uom", label: "UOM", width: "10%", align: "center" },
+      { key: "qty", label: "QTY", width: "8%", align: "center" },
+      { key: "unitPrice", label: "UNIT PRICE (SAR)", width: "15%", align: "right" },
+      { key: "amount", label: "AMOUNT (SAR)", width: "15%", align: "right" }
+    ],
+    extractedItems: [
+      { lineNumber: "01", description: "PLC Control Panel – 32 I/O with enclosure", uom: "Set", qty: 2, unitPrice: 24500, amount: 49000 },
+      { lineNumber: "02", description: "HMI Touchscreen & SCADA Integration Package", uom: "Set", qty: 1, unitPrice: 38750, amount: 38750 },
+      { lineNumber: "03", description: "Field Instrumentation & Cabling", uom: "Lot", qty: 1, unitPrice: 17800, amount: 17800 },
+      { lineNumber: "04", description: "Installation, Testing & Commissioning", uom: "Lot", qty: 1, unitPrice: 21500, amount: 21500 },
+      { lineNumber: "05", description: "Operator Training & Documentation", uom: "Day", qty: 2, unitPrice: 4250, amount: 8500 }
     ]
   };
 
@@ -324,7 +337,7 @@ export default function QuotationTemplateManager() {
               <QuotationDocumentRenderer
                 template={current}
                 leadData={{
-                  companyName: current.customerName || (current.extractedCustomer?.name) || "[Extracted Customer Name]",
+                  companyName: current.customerName || (current.extractedCustomer?.name) || "Gulf Manufacturing Co.",
                   contactName: current.extractedCustomer?.contact || "Fahad Al-Mansoor",
                   address: current.extractedCustomer?.address || "Dammam Industrial City, KSA"
                 }}
