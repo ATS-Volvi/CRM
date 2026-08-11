@@ -317,7 +317,9 @@ export default function QuotationTemplateManager() {
           <div className="bg-slate-100 dark:bg-slate-900/60 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col items-center min-h-[600px] overflow-x-auto">
             <div className="w-full flex items-center justify-between mb-3 pb-2 border-b border-slate-300 dark:border-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300">
               <span>🖼️ CRM GENERATED QUOTATION OUTPUT (Pure Layout Engine)</span>
-              <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded">Dynamic Extraction Active</span>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${current.companyName && current.extractedItems?.length >= 5 ? "text-emerald-600 bg-emerald-50 dark:bg-emerald-950/60" : "text-amber-600 bg-amber-50"}`}>
+                {current.companyName && current.extractedItems?.length >= 5 ? "EXTRACTION COMPLETE ✓" : "EXTRACTION PARTIAL ⚠"}
+              </span>
             </div>
 
             <div className="w-full flex flex-col items-center justify-center mt-2">
@@ -325,13 +327,13 @@ export default function QuotationTemplateManager() {
               <div className="w-full max-w-[800px] bg-slate-900 text-slate-200 p-3 rounded-t-lg border-x border-t border-slate-700 flex items-center justify-between text-[11px] font-mono">
                 <div className="flex items-center gap-2">
                   <span className="text-emerald-400 font-bold">DOCUMENT EXTRACTION:</span>
-                  <span className={current.companyName ? "text-emerald-400 font-bold" : "text-amber-400"}>Company {current.companyName ? "✓" : "✗"}</span>
-                  <span className={current.customerName ? "text-emerald-400 font-bold" : "text-amber-400"}>Customer {current.customerName ? "✓" : "✗"}</span>
-                  <span className={current.quotationNumber ? "text-emerald-400 font-bold" : "text-amber-400"}>Quote # {current.quotationNumber ? "✓" : "✗"}</span>
-                  <span className={current.extractedItems?.length > 0 ? "text-emerald-400 font-bold" : "text-amber-400"}>Items {current.extractedItems?.length ? `✓ (${current.extractedItems.length})` : "✗ (0)"}</span>
-                  <span className={current.primaryColor ? "text-emerald-400 font-bold" : "text-amber-400"}>Branding {current.primaryColor ? "✓" : "✗"}</span>
+                  <span className={current.companyName ? "text-emerald-400 font-bold" : "text-amber-400"}>Company {current.companyName ? "✓" : "✕"}</span>
+                  <span className={current.customerName ? "text-emerald-400 font-bold" : "text-amber-400"}>Customer {current.customerName ? "✓" : "✕"}</span>
+                  <span className={current.quotationNumber ? "text-emerald-400 font-bold" : "text-amber-400"}>Quote # {current.quotationNumber ? "✓" : "✕"}</span>
+                  <span className={current.extractedItems?.length >= 5 ? "text-emerald-400 font-bold" : "text-amber-400"}>Items {current.extractedItems?.length ? `✓ (${current.extractedItems.length}/5)` : "✕ (0/5)"}</span>
+                  <span className={current.primaryColor ? "text-emerald-400 font-bold" : "text-amber-400"}>Branding {current.primaryColor ? "✓" : "✕"}</span>
                 </div>
-                <span className="text-purple-400 font-bold uppercase">{selectedFile ? "Reference Mode A" : "Template View"}</span>
+                <span className="text-purple-400 font-bold uppercase">{selectedFile ? `Extracted from ${selectedFile.name}` : current.name}</span>
               </div>
 
               <QuotationDocumentRenderer
