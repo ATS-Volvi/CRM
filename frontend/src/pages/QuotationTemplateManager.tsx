@@ -268,12 +268,15 @@ export default function QuotationTemplateManager() {
             <div className="w-full flex justify-center mt-2">
               <QuotationDocumentRenderer
                 template={current}
-                leadData={{ companyName: "Aramco Operations", contactName: "Aramco Procurement Team", address: "Abqaiq Industrial Zone, KSA" }}
+                leadData={{ companyName: "Apex Manufacturing Pvt. Ltd.", contactName: "Rahul Sharma", address: "Mumbai, Maharashtra, India" }}
                 items={[
-                  { item: 1, description: "Industrial Heavy Equipment Deployment & Rentals", qty: 2, unitPrice: 14500, total: 29000 }
+                  { item: "01", description: "Industrial Control Panel – 24 I/O", qty: 2, unitPrice: 18500, total: 37000 },
+                  { item: "02", description: "PLC & HMI Automation Package", qty: 1, unitPrice: 42000, total: 42000 },
+                  { item: "03", description: "Installation & Commissioning", qty: 1, unitPrice: 28500, total: 28500 },
+                  { item: "04", description: "Operator Training & Documentation", qty: 1, unitPrice: 12000, total: 12000 }
                 ]}
-                quotationNumber="QT-2026-881"
-                quotationDate={new Date().toLocaleDateString('en-GB')}
+                quotationNumber="NS-QUO-2026-0847"
+                quotationDate="10 Aug 2026"
                 salesExecutive="Sophia Martinez"
               />
             </div>
