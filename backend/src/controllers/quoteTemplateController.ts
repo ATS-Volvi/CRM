@@ -163,8 +163,39 @@ Return ONLY a valid raw JSON object matching this exact schema:
   "signatureLines": ["Authorized Representative", "Accepted By Client"]
 }`;
 
-    // 1. TRY GROQ LLAMA 3.3 70B (AI VISION / TEXT PARSER)
-    if (groqKey && !groqKey.startsWith("your_")) {
+    // 1. TRY GOOGLE GEMINI 1.5 PRO / FLASH VISION API
+    if (geminiKey && !geminiKey.startsWith("your_")) {
+      try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{
+              parts: [
+                { text: `${systemPrompt}\n\nParse this uploaded reference quotation into a template schema: "${combinedText.substring(0, 4000)}"` }
+              ]
+            }],
+            generationConfig: {
+              responseMimeType: "application/json"
+            }
+          })
+        });
+
+        if (response.ok) {
+          const json: any = await response.json();
+          const rawText = json?.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (rawText) {
+            aiParsedSchema = JSON.parse(rawText);
+            console.log("[Gemini Vision AI] Successfully parsed reference document schema with Gemini 1.5");
+          }
+        }
+      } catch (err) {
+        console.warn("[Gemini Vision AI] Gemini 1.5 Vision call error:", err);
+      }
+    }
+
+    // 2. TRY GROQ LLAMA 3.3 70B (AI VISION / TEXT PARSER FALLBACK)
+    if (!aiParsedSchema && groqKey && !groqKey.startsWith("your_")) {
       try {
         const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
           method: "POST",
