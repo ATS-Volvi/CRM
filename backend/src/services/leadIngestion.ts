@@ -150,14 +150,19 @@ export async function ingestLead(payload: LeadPayload) {
               lastName: payload.lastName,
               email: email,
               phone: payload.phone || null,
-              role: "Additional Contact"
+              role: "Additional Contact",
+              message: payload.message || null
             });
+
+            const messageSnippet = payload.message
+              ? payload.message.substring(0, 60) + (payload.message.length > 60 ? '...' : '')
+              : 'No message provided';
 
             await sequelize.models.Activity.create({
               id: crypto.randomUUID(),
               type: "note",
               leadId: targetLeadId,
-              outcome: `New contact added from duplicate inquiry: ${payload.firstName} ${payload.lastName} (${email})`,
+              outcome: `New contact added: ${payload.firstName} ${payload.lastName} (${email}) — requesting: ${messageSnippet}`,
               mentioned_user_ids: "[]",
               pinned: false,
               isCompleted: true,

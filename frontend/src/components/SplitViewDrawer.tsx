@@ -1,8 +1,40 @@
 import { useState, useEffect } from "react";
-import { X, Phone, Play, ChevronRight, User, Mail, Calendar, DollarSign, Unlock } from "lucide-react";
+import { X, Phone, Play, ChevronRight, User, Mail, Calendar, DollarSign, Unlock, ChevronDown, Building, Plus, FileText, CheckCircle2, Clock, Star, AlertCircle, Link } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
 import { formatCurrency } from "../utils/currency";
+
+function ContactCard({ contact }: { contact: any }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  
+  return (
+    <div className="p-3 bg-muted/20 border border-border rounded-lg text-xs flex flex-col gap-1">
+      <div className="flex justify-between items-start">
+        <span className="font-bold text-foreground">{contact.firstName} {contact.lastName}</span>
+        <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-bold uppercase tracking-wide">{contact.role || "Contact"}</span>
+      </div>
+      {contact.email && <div className="text-muted-foreground flex items-center gap-1.5"><Mail className="w-3 h-3" /> {contact.email}</div>}
+      {contact.phone && <div className="text-muted-foreground flex items-center gap-1.5"><Phone className="w-3 h-3" /> {contact.phone}</div>}
+      
+      {contact.message && (
+        <div className="mt-2 pt-2 border-t border-border/50">
+          <div className="text-[10px] uppercase font-bold text-foreground mb-1">Message / Request</div>
+          <div className={`text-muted-foreground ${!isExpanded && contact.message.length > 100 ? "line-clamp-2" : ""}`}>
+            {contact.message}
+          </div>
+          {contact.message.length > 100 && (
+            <button 
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="mt-1 text-primary hover:underline text-[10px] font-bold"
+            >
+              {isExpanded ? "Show Less" : "Show More"}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface SplitViewDrawerProps {
   isOpen: boolean;
@@ -218,14 +250,7 @@ export function SplitViewDrawer({ isOpen, onClose, record }: SplitViewDrawerProp
                 ) : contacts.length > 0 ? (
                   <div className="space-y-3">
                     {contacts.map((contact, idx) => (
-                      <div key={idx} className="p-3 bg-muted/20 border border-border rounded-lg text-xs flex flex-col gap-1">
-                        <div className="flex justify-between items-start">
-                          <span className="font-bold text-foreground">{contact.firstName} {contact.lastName}</span>
-                          <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-bold uppercase tracking-wide">{contact.role || "Contact"}</span>
-                        </div>
-                        {contact.email && <div className="text-muted-foreground flex items-center gap-1.5"><Mail className="w-3 h-3" /> {contact.email}</div>}
-                        {contact.phone && <div className="text-muted-foreground flex items-center gap-1.5"><Phone className="w-3 h-3" /> {contact.phone}</div>}
-                      </div>
+                      <ContactCard key={idx} contact={contact} />
                     ))}
                   </div>
                 ) : (

@@ -1283,6 +1283,7 @@ export class LeadContact extends Model {
   public email!: string | null;
   public phone!: string | null;
   public role!: string | null;
+  public message!: string | null;
   public createdAt!: Date;
 }
 
@@ -1295,6 +1296,7 @@ LeadContact.init(
     email: { type: DataTypes.STRING, allowNull: true },
     phone: { type: DataTypes.STRING, allowNull: true },
     role: { type: DataTypes.STRING, allowNull: true },
+    message: { type: DataTypes.TEXT, allowNull: true },
     createdAt: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
   },
   { sequelize, modelName: "LeadContact", tableName: "LeadContacts", updatedAt: false }
