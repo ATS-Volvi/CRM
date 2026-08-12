@@ -33,6 +33,11 @@ export const getLeads = async (req: Request, res: Response) => {
           model: sequelize.models.User,
           as: "assignedTo",
           attributes: ["id", "name", "email"]
+        },
+        {
+          model: sequelize.models.LeadContact,
+          as: "contacts",
+          attributes: ["id", "firstName", "lastName", "email", "phone", "role", "message", "sourceChannel", "createdAt"]
         }
       ],
       // WhatsApp leads with recent messages bubble to the top;

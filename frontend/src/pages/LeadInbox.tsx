@@ -200,19 +200,26 @@ export default function LeadInbox() {
 
       // Check channel filter first if active
       if (cf) {
+        const hasWaContact = lead.contacts?.some((c: any) => c.sourceChannel?.toLowerCase().includes("whatsapp"));
+        const hasEmailContact = lead.contacts?.some((c: any) => c.sourceChannel?.toLowerCase().includes("email"));
+        const hasIgContact = lead.contacts?.some((c: any) => c.sourceChannel?.toLowerCase().includes("instagram") || c.sourceChannel?.toLowerCase().includes("ig"));
+        const hasWebContact = lead.contacts?.some((c: any) => c.sourceChannel?.toLowerCase().includes("web") || c.sourceChannel?.toLowerCase().includes("site"));
+        const hasColdContact = lead.contacts?.some((c: any) => c.sourceChannel?.toLowerCase().includes("cold"));
+        const hasFbContact = lead.contacts?.some((c: any) => c.sourceChannel?.toLowerCase().includes("fb") || c.sourceChannel?.toLowerCase().includes("facebook"));
+
         if (cf === "whatsapp") {
-          const isWa = sourceStr.includes("whatsapp") || channelStr.includes("whatsapp") || (lead.unreadWhatsappCount || 0) > 0 || !!lead.lastWhatsappAt;
+          const isWa = sourceStr.includes("whatsapp") || channelStr.includes("whatsapp") || (lead.unreadWhatsappCount || 0) > 0 || !!lead.lastWhatsappAt || hasWaContact;
           if (!isWa) return false;
         } else if (cf === "email") {
-          if (!sourceStr.includes("email") && !channelStr.includes("email")) return false;
+          if (!sourceStr.includes("email") && !channelStr.includes("email") && !hasEmailContact) return false;
         } else if (cf === "instagram") {
-          if (!sourceStr.includes("instagram") && !sourceStr.includes("ig") && !channelStr.includes("instagram")) return false;
+          if (!sourceStr.includes("instagram") && !sourceStr.includes("ig") && !channelStr.includes("instagram") && !hasIgContact) return false;
         } else if (cf === "website") {
-          if (!sourceStr.includes("web") && !sourceStr.includes("site") && !channelStr.includes("website")) return false;
+          if (!sourceStr.includes("web") && !sourceStr.includes("site") && !channelStr.includes("website") && !hasWebContact) return false;
         } else if (cf === "cold call") {
-          if (!sourceStr.includes("cold")) return false;
+          if (!sourceStr.includes("cold") && !hasColdContact) return false;
         } else if (cf === "facebook") {
-          if (!sourceStr.includes("fb") && !sourceStr.includes("facebook")) return false;
+          if (!sourceStr.includes("fb") && !sourceStr.includes("facebook") && !hasFbContact) return false;
         }
       }
 

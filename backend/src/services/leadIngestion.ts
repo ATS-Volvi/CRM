@@ -151,7 +151,8 @@ export async function ingestLead(payload: LeadPayload) {
               email: email,
               phone: payload.phone || null,
               role: "Additional Contact",
-              message: payload.message || null
+              message: payload.message || null,
+              sourceChannel: payload.source || null
             });
 
             const messageSnippet = payload.message

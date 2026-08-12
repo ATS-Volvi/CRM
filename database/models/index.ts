@@ -1284,6 +1284,7 @@ export class LeadContact extends Model {
   public phone!: string | null;
   public role!: string | null;
   public message!: string | null;
+  public sourceChannel!: string | null;
   public createdAt!: Date;
 }
 
@@ -1297,6 +1298,7 @@ LeadContact.init(
     phone: { type: DataTypes.STRING, allowNull: true },
     role: { type: DataTypes.STRING, allowNull: true },
     message: { type: DataTypes.TEXT, allowNull: true },
+    sourceChannel: { type: DataTypes.STRING, allowNull: true },
     createdAt: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
   },
   { sequelize, modelName: "LeadContact", tableName: "LeadContacts", updatedAt: false }
