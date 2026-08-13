@@ -1,9 +1,6 @@
 import { Request, Response } from "express";
 import crypto from "crypto";
-import { Lead, Activity } from "@nexus-crm/database";
-import { assignLeadToSalesperson } from "../services/leadAssignmentService";
-import { routeChannelLead } from "../services/channelRoutingEngine";
-import { handleInboundActivity } from "../services/leadTemperatureService";
+import { Activity } from "@nexus-crm/database";
 
 interface SenderProfile {
   name: string;
@@ -79,82 +76,40 @@ async function processInstagramMessage(msg: NormalizedIgMessage) {
   const firstName = nameParts[0] || "Instagram";
   const lastName = nameParts.slice(1).join(" ") || "User";
 
-  const routingResult = await routeChannelLead({
-    channel: "instagram",
-    subject: msg.text,
-    text: msg.text,
-    recipientEmail: null,
-    leadData: {
-      firstName,
-      lastName,
-      email: null,
-      phone: "",
-      company: "",
-      source: "instagram"
-    }
-  });
-
-  const { assignedToId, assignmentMethod, isFuzzyNameMatch, matchedNameStr } = routingResult;
-
-  const lead = await Lead.create({
+  const { ingestLead } = require("../services/leadIngestion");
+  
+  // By passing the payload to ingestLead, we let the Deal Splitter create an Account, Contact, and Deal automatically.
+  const dealId = await ingestLead({
     firstName,
     lastName,
-    email: null,
+    email: `inbound-${msg.username || Date.now()}@instagram.local`,
     phone: "",
-    company: "",
+    company: "Instagram User",
     source: "instagram",
-    status: "New Lead",
-    subject: msg.text,
-    body: msg.text,
     sourceDetail: `@${msg.username}`,
-    rawPayload: JSON.stringify(msg.raw),
-    assignedToId: null,
-    assignmentMethod
+    message: msg.text,
+    rawPayload: JSON.stringify(msg.raw)
   });
-
-  if (assignedToId) {
-    await assignLeadToSalesperson(lead, assignedToId);
-  }
-
-  if (isFuzzyNameMatch && (lead as any).id) {
-    try {
-      await Activity.create({
-        type: "Assignment Flag",
-        outcome: `Fuzzy Name Match: Assigned to '${matchedNameStr}' based on single name mention in Instagram message. Please verify assignment.`,
-        leadId: (lead as any).id,
-        createdById: assignedToId,
-        pinned: false,
-        priority: "Medium",
-        direction: "internal"
-      });
-    } catch (actErr) {
-      console.warn("Failed to create fuzzy match activity log:", actErr);
-    }
-  }
 
   // Create the actual Instagram DM activity record for the Communication Center
   try {
     await Activity.create({
+      id: require("crypto").randomUUID(),
       type: "instagram_dm",
       notes: msg.text,
       outcome: "received",
-      leadId: (lead as any).id,
-      createdById: assignedToId || null,
+      dealId: dealId,
       pinned: false,
       priority: "Low",
       direction: "inbound"
     });
-    
-    await handleInboundActivity((lead as any).id);
-
   } catch (err) {
     console.warn("Failed to create instagram_dm activity log:", err);
   }
 
   return {
-    leadId: (lead as any).id,
-    assignedToId,
-    assignmentMethod
+    dealId: dealId,
+    assignmentMethod: "DealSplitter"
   };
 }
 

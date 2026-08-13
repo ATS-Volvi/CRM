@@ -1,4 +1,4 @@
-import { Lead, User } from "@nexus-crm/database";
+import { Deal, User } from "@nexus-crm/database";
 import { Op } from "sequelize";
 import { assignLead } from "./assignmentEngine";
 
@@ -214,7 +214,7 @@ export async function routeChannelLead(input: RoutingInput): Promise<RoutingResu
       const candidateWorkloads: { user: any; openCount: number }[] = [];
 
       for (const candidate of availableCandidates) {
-        const openCount = await Lead.count({
+        const openCount = await Deal.count({
           where: {
             assignedToId: candidate.id,
             status: { [Op.notIn]: TERMINAL_LEAD_STATUSES }

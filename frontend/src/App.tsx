@@ -31,7 +31,7 @@ import LeadSources from "./pages/master-data/LeadSources";
 import Kpis from "./pages/master-data/Kpis";
 import Accounts from "./pages/Accounts";
 import Contacts from "./pages/Contacts";
-import Assets from "./pages/Assets";
+
 import AIReports from "./pages/AIReports";
 import Settings from "./pages/Settings";
 import LeadCreate from "./pages/LeadCreate";
@@ -93,7 +93,7 @@ function App() {
                 <Route path="/salespersons/:id" element={<SalespersonDetail />} />
                 <Route path="/accounts" element={<Accounts />} />
                 <Route path="/contacts" element={<Contacts />} />
-                <Route path="/assets" element={<Assets />} />
+        
                 <Route path="/activities" element={<ActivitiesHub />} />
                 <Route path="/communications" element={<CommunicationCenter />} />
                 <Route path="/automation" element={<WorkflowAutomation />} />

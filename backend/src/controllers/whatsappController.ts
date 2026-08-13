@@ -389,170 +389,36 @@ export const handleIncomingWebhook = async (req: Request, res: Response) => {
       return;
     }
 
-    // ── PHONE LOOKUP ──────────────────────────────────────────────────────────
-    const cleanPhone = phoneKey(from, 10);
-
-    // Try SQL query first
-    let existingLead: any = null;
-    if (cleanPhone.length >= 7) {
-      existingLead = await sequelize.models.Lead.findOne({
-        where: {
-          [Op.or]: [
-            { whatsappPhone: { [Op.like]: `%${cleanPhone}` } },
-            { phone: { [Op.like]: `%${cleanPhone}` } },
-          ],
-        },
-        include: [
-          { model: sequelize.models.User, as: "assignedTo", attributes: ["id", "name", "email"] },
-        ],
-      });
-    }
-
-    // Fallback in-memory matching if SQL LIKE did not match formatted phone numbers
-    if (!existingLead) {
-      const candidateLeads = await sequelize.models.Lead.findAll({
-        where: {
-          [Op.or]: [
-            { phone: { [Op.ne]: null } },
-            { whatsappPhone: { [Op.ne]: null } },
-          ],
-        },
-        include: [
-          { model: sequelize.models.User, as: "assignedTo", attributes: ["id", "name", "email"] },
-        ],
-        order: [["updatedAt", "DESC"]],
-        limit: 200,
-      });
-
-      for (const lead of candidateLeads as any[]) {
-        if (matchesPhoneNumber(lead.whatsappPhone, from) || matchesPhoneNumber(lead.phone, from)) {
-          existingLead = lead;
-          break;
-        }
-      }
-    }
-
-    // Try Customer if no lead found
-    let existingCustomer: any = null;
-    if (!existingLead) {
-      if (cleanPhone.length >= 7) {
-        existingCustomer = await sequelize.models.Customer.findOne({
-          where: { phone: { [Op.like]: `%${cleanPhone}` } },
-        });
-      }
-      if (!existingCustomer) {
-        const candidateCustomers = await sequelize.models.Customer.findAll({
-          where: { phone: { [Op.ne]: null } },
-          limit: 200,
-        });
-        for (const cust of candidateCustomers as any[]) {
-          if (matchesPhoneNumber(cust.phone, from)) {
-            existingCustomer = cust;
-            break;
-          }
-        }
-      }
-    }
-
-    let leadId: string;
-    let assignedToId: string | null = null;
-    let isNewLead = false;
-    let leadDisplayName = senderName || `WhatsApp User ${from.slice(-4)}`;
-
     // Run AI Requirement Extraction on inbound message
     const extractedAI = await extractLeadDetailsFromText(msgBody);
 
-    if (existingLead) {
-      // ── EXISTING LEAD: Update & append activity ───────────────────────────
-      leadId = existingLead.id;
-      assignedToId = existingLead.assignedToId;
-      leadDisplayName = `${existingLead.firstName} ${existingLead.lastName}`;
+    const nameParts = senderName ? senderName.trim().split(" ") : [];
+    const firstName = extractedAI.firstName && extractedAI.firstName !== "Voice" ? extractedAI.firstName : (nameParts[0] || "WhatsApp");
+    const lastName = extractedAI.lastName && extractedAI.lastName !== "Lead" ? extractedAI.lastName : (nameParts.slice(1).join(" ") || `User ${from.slice(-4)}`);
+    const uniqueEmail = extractedAI.email && !extractedAI.email.includes("voice.lead") ? extractedAI.email : `inbound-${from}@whatsapp.local`;
 
-      const updateData: any = {
-        lastWhatsappAt: msgTimestamp,
-        unreadWhatsappCount: (existingLead.unreadWhatsappCount || 0) + 1,
-        whatsappPhone: from, // ensure canonical format is stored
-        communicationChannel: "whatsapp",
-        body: msgBody,
-      };
+    // ── DELEGATE TO DEAL INGESTION ENGINE ─────────────────────────────────────
+    const { ingestLead } = require("../services/leadIngestion");
+    const dealId = await ingestLead({
+      firstName,
+      lastName,
+      email: uniqueEmail,
+      phone: from,
+      company: extractedAI.company || "Unknown WhatsApp Company",
+      source: "WhatsApp",
+      sourceDetail: `WhatsApp Message ID: ${metaMessageId}`,
+      industry: extractedAI.industry || "General",
+      budgetRange: extractedAI.budgetRange || "N/A",
+      message: msgBody,
+      rawPayload: { from, senderName, firstMessage: msgBody, metaMessageId, extractedAI }
+    });
 
-      // Only update requirement fields if meaningful new info surfaced
-      if (extractedAI.subject && extractedAI.subject !== "General Inquiry" && (!existingLead.subject || existingLead.subject === "Inbound WhatsApp Inquiry")) {
-        updateData.subject = extractedAI.subject;
-      }
-      if (extractedAI.industry && extractedAI.industry !== "General" && (!existingLead.industry || existingLead.industry === "General")) {
-        updateData.industry = extractedAI.industry;
-      }
-      if (extractedAI.budgetRange && (!existingLead.budgetRange || existingLead.budgetRange === "N/A")) {
-        updateData.budgetRange = extractedAI.budgetRange;
-      }
-
-      await existingLead.update(updateData);
-
-      console.log(`[WhatsApp Inbound] Appended to existing lead ${leadId} (${leadDisplayName}) with AI updates:`, updateData);
-
-    } else {
-      // ── NEW LEAD: Create via assignment engine ────────────────────────────
-      isNewLead = true;
-
-      const nameParts = senderName ? senderName.trim().split(" ") : [];
-      const firstName = extractedAI.firstName && extractedAI.firstName !== "Voice" ? extractedAI.firstName : (nameParts[0] || "WhatsApp");
-      const lastName = extractedAI.lastName && extractedAI.lastName !== "Lead" ? extractedAI.lastName : (nameParts.slice(1).join(" ") || `User ${from.slice(-4)}`);
-      leadDisplayName = `${firstName} ${lastName}`;
-
-      // Generate a unique email per inbound lead to avoid UniqueConstraintError
-      const uniqueEmail = extractedAI.email && !extractedAI.email.includes("voice.lead") ? extractedAI.email : `inbound-${extractDigits(from) || "user"}-${Date.now()}@whatsapp.local`;
-
-      const assignmentRes = await assignLead({
-        firstName,
-        lastName,
-        email: uniqueEmail,
-        phone: from,
-        source: "WhatsApp",
-      });
-      assignedToId = assignmentRes.assignedToId;
-
-      const leadNumber = await generateLeadNumber();
-      leadId = crypto.randomUUID();
-
-      await sequelize.models.Lead.create({
-        id: leadId,
-        firstName,
-        lastName,
-        email: uniqueEmail,
-        phone: from,
-        whatsappPhone: from,
-        source: "WhatsApp",
-        status: "New",
-        communicationChannel: "whatsapp",
-        leadScore: 65,
-        subject: extractedAI.subject || "Inbound WhatsApp Inquiry",
-        industry: extractedAI.industry || "General",
-        budgetRange: extractedAI.budgetRange || "N/A",
-        body: msgBody,
-        lastWhatsappAt: msgTimestamp,
-        unreadWhatsappCount: 1,
-        assignedToId,
-        leadNumber,
-        customerId: existingCustomer ? existingCustomer.id : null,
-        rawPayload: JSON.stringify({ from, senderName, firstMessage: msgBody, metaMessageId, extractedAI }),
-      } as any);
-
-      console.log(`[WhatsApp Inbound] Created new lead ${leadId} (${leadDisplayName}) → assigned to ${assignedToId}. AI extracted subject: "${extractedAI.subject}"`);
-
-      // Trigger salesperson assignment notification with AI extracted requirement
-      const { triggerCommunication } = require("../services/communicationService");
-      await triggerCommunication("new_lead_assigned", {
-        leadId,
-        salespersonId: assignedToId || undefined
-      });
-    }
-
-    // ── CREATE ACTIVITY ───────────────────────────────────────────────────────
+    // ── CREATE SPECIFIC WHATSAPP MEDIA ACTIVITY ───────────────────────────────
+    // The ingestion engine creates a generic inbound note, but WhatsApp has specific media URLs etc.
     const adminId = await getFirstAdminId();
     await sequelize.models.Activity.create({
       id: crypto.randomUUID(),
-      leadId,
+      dealId: dealId,
       type: "whatsapp_sms",
       notes: msgBody,
       outcome: "message received",
@@ -564,20 +430,12 @@ export const handleIncomingWebhook = async (req: Request, res: Response) => {
       createdById: adminId,
       direction: "inbound"
     } as any);
-    
-    // Trigger temperature recalculation for inbound WhatsApp
-    await handleInboundActivity(leadId);
 
     // ── IN-APP NOTIFICATION ───────────────────────────────────────────────────
-    if (assignedToId) {
-      await createWhatsAppNotification(
-        assignedToId,
-        leadId,
-        leadDisplayName,
-        msgBody,
-        isNewLead
-      );
-    }
+    // We let the ingestion engine handle basic deal notifications, but if you have a specific WhatsApp UI:
+    // This could be updated later to point to the Deal ID.
+    // For now we will just skip the duplicate notification since ingestLead handles it.
+
 
     // ── MARK WEBHOOK EVENT PROCESSED ─────────────────────────────────────────
     if (webhookEventId) {
@@ -587,7 +445,7 @@ export const handleIncomingWebhook = async (req: Request, res: Response) => {
       ).catch(() => {});
     }
 
-    console.log(`[WhatsApp Inbound] ✅ Processed messageId=${metaMessageId} → leadId=${leadId}`);
+    console.log(`[WhatsApp Inbound] ✅ Processed messageId=${metaMessageId} → dealId=${dealId}`);
 
     if (!res.headersSent) {
       return res.status(200).type("text/xml").send("<Response></Response>");

@@ -11,7 +11,7 @@ function isDummyKey(val?: string): boolean {
   return lower.includes("your_") || lower.includes("change_me") || lower.includes("test_user") || lower.includes("mock_");
 }
 
-interface LeadPayload {
+export interface LeadPayload {
   firstName: string;
   lastName: string;
   email: string;
@@ -22,6 +22,7 @@ interface LeadPayload {
   campaign?: string;
   industry?: string;
   message?: string;
+  assignedToId?: string;
   rawPayload?: any;
   budgetRange?: string;
   categoriesData?: any;
@@ -97,7 +98,7 @@ export async function ingestLead(payload: LeadPayload) {
     if (leadScore > 100) leadScore = 100;
 
     // 4. Deal Assignment
-    let assignedToId = await assignDeal({
+    let assignedToId = payload.assignedToId || await assignDeal({
       firstName: payload.firstName,
       lastName: payload.lastName,
       email: payload.email,

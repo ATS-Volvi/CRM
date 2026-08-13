@@ -1,7 +1,6 @@
 import { Request, Response } from "express";
-import { Lead, User, Activity, sequelize } from "@nexus-crm/database";
+import { User, Activity, sequelize } from "@nexus-crm/database";
 import { assignLead } from "../services/assignmentEngine";
-import { assignLeadToSalesperson } from "../services/leadAssignmentService";
 import { routeChannelLead } from "../services/channelRoutingEngine";
 import { Op } from "sequelize";
 
@@ -114,49 +113,28 @@ export const receiveInboundEmail = async (req: Request, res: Response) => {
 
     const { assignedToId, assignmentMethod, isFuzzyNameMatch, matchedNameStr } = routingResult;
 
-    const lead = await Lead.create({
+    const { ingestLead } = require("../services/leadIngestion");
+    const dealId = await ingestLead({
       firstName,
       lastName,
       email,
       phone: "",
       company: "",
       source: "email",
-      status: "New Lead",
-      subject: emailSubject,
-      body: emailBody,
-      assignedToId: null,
-      recipientEmail,
-      assignmentMethod,
-      lastInboundAt: new Date(),
+      sourceDetail: emailSubject,
+      message: emailBody,
+      assignedToId: assignedToId,
+      rawPayload: { subject: emailSubject, body: emailBody, recipientEmail }
     });
-
-    if (assignedToId) {
-      await assignLeadToSalesperson(lead, assignedToId);
-    }
-
-    // Log the inbound email as an Activity so it triggers temperature logic correctly
-    await Activity.create({
-      id: require("crypto").randomUUID(),
-      type: "email",
-      outcome: "Email received",
-      notes: emailBody ? emailBody.substring(0, 500) : "No body",
-      leadId: (lead as any).id,
-      createdById: assignedToId || null,
-      pinned: false,
-      direction: "inbound"
-    });
-    
-    // Trigger temperature recalculation for inbound Email
-    const { handleInboundActivity } = require("../services/leadTemperatureService");
-    await handleInboundActivity((lead as any).id);
 
     // If assigned via fuzzy name-match, log an activity entry for audit transparency
-    if (isFuzzyNameMatch && (lead as any).id) {
+    if (isFuzzyNameMatch && dealId) {
       try {
         await Activity.create({
+          id: require("crypto").randomUUID(),
           type: "Assignment Flag",
           outcome: `Fuzzy Name Match: Assigned to '${matchedNameStr}' based on single name mention in email text. Please verify assignment.`,
-          leadId: (lead as any).id,
+          dealId: dealId,
           createdById: assignedToId,
           pinned: false,
           priority: "Medium",
@@ -169,7 +147,7 @@ export const receiveInboundEmail = async (req: Request, res: Response) => {
 
     res.status(201).json({
       message: "Inbound email ingested successfully",
-      leadId: (lead as any).id,
+      dealId: dealId,
       assignedToId,
       assignmentMethod
     });
