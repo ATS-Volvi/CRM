@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
-import { X, Phone, Play, ChevronRight, User, Mail, Calendar, DollarSign, Unlock, ChevronDown, Building, Plus, FileText, CheckCircle2, Clock, Star, AlertCircle, Link } from "lucide-react";
+import { ChevronDown, ChevronRight, Unlock, X, Phone, Mail, Building, Plus, FileText, CheckCircle2, Clock, Star, AlertCircle, Link, Users } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
 import { formatCurrency } from "../utils/currency";
+import { RelatedInquiriesModal } from "./RelatedInquiriesModal";
 
 function ContactCard({ contact }: { contact: any }) {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -45,6 +46,7 @@ interface SplitViewDrawerProps {
 export function SplitViewDrawer({ isOpen, onClose, record }: SplitViewDrawerProps) {
   const { token } = useAuth();
   const queryClient = useQueryClient();
+  const [showInquiriesModal, setShowInquiriesModal] = useState(false);
   const [activeTab, setActiveTab] = useState<"overview" | "timeline">("overview");
   const [callStatus, setCallStatus] = useState<string | null>(null);
   const [telephonyConfigured, setTelephonyConfigured] = useState<boolean | null>(null);
@@ -244,7 +246,15 @@ export function SplitViewDrawer({ isOpen, onClose, record }: SplitViewDrawerProp
 
               {/* Secondary Contacts List */}
               <div className="p-4 bg-card border border-border rounded-xl space-y-2">
-                <h4 className="font-bold text-foreground">Secondary Contacts</h4>
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-foreground">Secondary Contacts</h4>
+                  <button
+                    onClick={() => setShowInquiriesModal(true)}
+                    className="text-[10px] flex items-center gap-1 text-primary hover:underline font-bold bg-primary/10 px-2 py-1 rounded"
+                  >
+                    <Users className="w-3 h-3" /> View All Inquiries
+                  </button>
+                </div>
                 {isLoadingContacts ? (
                   <p className="text-xs text-muted-foreground">Loading contacts...</p>
                 ) : contacts.length > 0 ? (
@@ -260,8 +270,17 @@ export function SplitViewDrawer({ isOpen, onClose, record }: SplitViewDrawerProp
             </div>
           )}
         </div>
-
       </div>
+      
+      {/* Related Inquiries Modal */}
+      {record && (
+        <RelatedInquiriesModal
+          isOpen={showInquiriesModal}
+          onClose={() => setShowInquiriesModal(false)}
+          // Merge contacts into record for the modal
+          lead={{...record, contacts: contacts}} 
+        />
+      )}
     </div>
   );
 }

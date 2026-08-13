@@ -21,8 +21,10 @@ import {
   ArrowUpDown,
   SlidersHorizontal,
   MessageCircle,
-  Phone
+  Phone,
+  Users
 } from "lucide-react";
+import { RelatedInquiriesModal } from "../components/RelatedInquiriesModal";
 
 /** WhatsApp Badge: shown on any lead with communicationChannel=whatsapp or source=WhatsApp */
 function WhatsAppBadge({ lead }: { lead: any }) {
@@ -130,6 +132,7 @@ export default function LeadInbox() {
   const [temperatureFilter, setTemperatureFilter] = useState("all");
   const [showAllColumns, setShowAllColumns] = useState(false);
   const [isViewPopoverOpen, setIsViewPopoverOpen] = useState(false);
+  const [relatedInquiriesLead, setRelatedInquiriesLead] = useState<any>(null);
 
   // Inline Editing Dropdown States
   const [editingStatusId, setEditingStatusId] = useState<string | null>(null);
@@ -343,6 +346,15 @@ export default function LeadInbox() {
           <div className="flex items-center gap-2">
             <TemperatureBadge temperature={lead.temperature} />
             <WhatsAppBadge lead={lead} />
+            {lead.contacts && lead.contacts.length > 0 && (
+              <button 
+                onClick={(e) => { e.stopPropagation(); setRelatedInquiriesLead(lead); }}
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-muted/50 border border-border rounded text-[10px] font-bold text-muted-foreground hover:bg-muted transition-colors shadow-2xs"
+              >
+                <Users className="w-2.5 h-2.5" />
+                +{lead.contacts.length} more
+              </button>
+            )}
           </div>
         </div>
       )
@@ -636,6 +648,13 @@ export default function LeadInbox() {
         /* SHARED LEAD BOARD VIEW (Used on LeadInbox and Sales Pipeline Leads tab) */
         <LeadBoard searchQuery={searchQuery} onSearchChange={setSearchQuery} />
       )}
+
+      {/* Related Inquiries Modal */}
+      <RelatedInquiriesModal
+        isOpen={!!relatedInquiriesLead}
+        onClose={() => setRelatedInquiriesLead(null)}
+        lead={relatedInquiriesLead}
+      />
     </div>
   );
 }
