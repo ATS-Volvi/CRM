@@ -144,8 +144,11 @@ export const createPurchaseOrder = async (req: Request, res: Response) => {
     const deal = (quote as any).deal;
     if (deal) {
       const wonStage = await sequelize.models.PipelineStage.findOne({
-        where: { name: "Closed Won" }
+        where: { name: "Won" }
+      }) || await sequelize.models.PipelineStage.findOne({
+        order: [["order", "DESC"]]
       });
+
       if (wonStage) {
         await deal.update({ stageId: (wonStage as any).id });
       }
@@ -155,10 +158,10 @@ export const createPurchaseOrder = async (req: Request, res: Response) => {
           id: require('crypto').randomUUID(),
           leadId: (deal as any).leadId,
           type: "note",
-          outcome: `Purchase Order Received: ${poNumber} (Amount: $${amount}) - Status: ${mismatch ? "Flagged/Mismatch" : "Accepted"}`,
+          outcome: `Purchase Order Received: ${poNumber} (Amount: SAR ${amount}) - Status: ${mismatch ? "Flagged/Mismatch" : "Accepted"}`,
           mentioned_user_ids: "[]",
           pinned: false,
-          createdById: "system",
+          createdById: (req as any).user?.id || (deal as any).ownerId || null,
           direction: "internal"
         });
         

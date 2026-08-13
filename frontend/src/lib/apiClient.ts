@@ -59,3 +59,15 @@ export async function apiClient(path: string, options: ApiOptions = {}): Promise
   
   return res;
 }
+
+apiClient.get = async function <T = any>(path: string, options: ApiOptions = {}): Promise<T> {
+  const res = await apiClient(path, { ...options, method: "GET" });
+  if (!res.ok) return [] as any;
+  return res.json();
+};
+
+apiClient.post = async function <T = any>(path: string, body?: any, options: ApiOptions = {}): Promise<T> {
+  const res = await apiClient(path, { ...options, method: "POST", body: body ? JSON.stringify(body) : undefined });
+  if (!res.ok) return null as any;
+  return res.json();
+};

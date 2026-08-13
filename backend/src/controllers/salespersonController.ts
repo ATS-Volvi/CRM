@@ -83,7 +83,7 @@ export const getSalespersonsPerformance = async (req: Request, res: Response) =>
     // 1. Fetch scoped users
     const users = await sequelize.models.User.findAll({
       where: { id: { [Op.in]: scopedUserIds } },
-      attributes: ["id", "name", "role", "isAvailable", "maxOpenLeads", "department", "territory", "team"]
+      attributes: ["id", "name", "email", "role", "isAvailable", "maxOpenLeads", "department", "territory", "team", "managerId"]
     });
 
     const salespersonStats = [];

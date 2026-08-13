@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { formatCurrency, formatCurrencyCompact } from "../utils/currency";
 import { apiClient } from "../lib/apiClient";
+import { LossReasonAnalyticsSection } from "../components/LossReasonAnalyticsSection";
 
 export default function ManagementDashboard() {
   const queryClient = useQueryClient();
@@ -239,6 +240,11 @@ export default function ManagementDashboard() {
               </div>
             </div>
 
+          </div>
+
+          {/* Loss Reason Categorization & Analytics Dashboard Section */}
+          <div className="mt-8">
+            <LossReasonAnalyticsSection />
           </div>
 
           {/* Today's Action Priorities */}

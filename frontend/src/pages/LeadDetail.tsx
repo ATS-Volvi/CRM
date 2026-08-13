@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { formatCurrency } from "../utils/currency";
 import { formatDistanceToNow } from "date-fns";
+import { CommentThreadSection } from "../components/CommentThreadSection";
 
 export default function LeadDetail() {
   const { id } = useParams();
@@ -802,6 +803,107 @@ export default function LeadDetail() {
             </div>
           </div>
 
+          {/* COMPACT AUTOMATION CARD (Requirement 7 & 13) */}
+          <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-4 shadow-sm space-y-3">
+            <div className="flex items-center justify-between border-b border-outline-variant pb-2">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400 flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4 text-indigo-600" /> Intake Automation
+              </h3>
+              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-300 uppercase">
+                ● Active
+              </span>
+            </div>
+
+            {/* Checklist */}
+            <div className="space-y-2 text-xs">
+              <div className="flex items-center justify-between text-slate-700 dark:text-slate-300">
+                <span className="flex items-center gap-1.5 text-emerald-600 font-bold">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Lead Received
+                </span>
+                <span className="text-[10px] text-slate-500 font-medium">Verified</span>
+              </div>
+
+              <div className="flex items-center justify-between text-slate-700 dark:text-slate-300">
+                <span className="flex items-center gap-1.5 text-emerald-600 font-bold">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Source Identified
+                </span>
+                <span className="font-extrabold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded text-[11px] border border-indigo-100">
+                  {lead.source || "Website"}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between text-slate-700 dark:text-slate-300">
+                <span className="flex items-center gap-1.5 text-emerald-600 font-bold">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Owner Assigned
+                </span>
+                <span className="font-bold text-slate-900 dark:text-white">
+                  {lead.assignedTo?.name || "Unassigned"}
+                </span>
+              </div>
+
+              {/* First Response status */}
+              {activities.some((a: any) => a.outcome && a.outcome.includes("Automation Failed")) ? (
+                <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg text-xs space-y-1">
+                  <div className="flex items-center gap-1.5 text-amber-800 font-bold">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600" /> Automated Response Failed
+                  </div>
+                  <p className="text-[10px] text-amber-700 font-medium">Delivery error encountered</p>
+                  <div className="flex gap-1.5 pt-1">
+                    <button onClick={() => setActiveModal("email")} className="px-2 py-1 bg-amber-600 text-white font-bold text-[10px] rounded hover:bg-amber-700">
+                      Retry Response
+                    </button>
+                    <button onClick={() => setActiveModal("call")} className="px-2 py-1 bg-white border border-amber-300 text-amber-900 font-bold text-[10px] rounded hover:bg-amber-100">
+                      Contact Manually
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between text-slate-700 dark:text-slate-300">
+                  <span className="flex items-center gap-1.5 text-emerald-600 font-bold">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> First Response
+                  </span>
+                  <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                    {lead.source === "Cold Call" || lead.source === "Manual Entry" ? "Task Generated" : "Response Sent"}
+                  </span>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between text-slate-700 dark:text-slate-300">
+                <span className="flex items-center gap-1.5 text-emerald-600 font-bold">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Follow-up Task Created
+                </span>
+                <span className="text-[10px] text-slate-500 font-semibold">Active</span>
+              </div>
+            </div>
+
+            {/* NEXT ACTION */}
+            <div className="bg-indigo-50/70 border border-indigo-100 p-2.5 rounded-xl space-y-1">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-indigo-600 block">Next Action</span>
+              <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                {tasks.find((t: any) => t.status !== "Completed")?.title || `Follow up with ${lead.firstName} ${lead.lastName}`}
+              </p>
+              <p className="text-[10px] text-indigo-700 font-medium flex items-center gap-1">
+                <Clock className="w-3 h-3 text-indigo-500" /> SLA SLA Target: Active Follow-Up
+              </p>
+            </div>
+
+            {/* Quick Action Buttons (Req 13) */}
+            <div className="pt-1 border-t border-outline-variant/60 flex flex-wrap gap-1.5">
+              <button onClick={() => setActiveModal("email")} className="flex-1 py-1.5 bg-surface border border-outline-variant text-on-surface hover:bg-surface-container-high rounded-lg text-[10px] font-bold flex items-center justify-center gap-1">
+                <Mail className="w-3 h-3 text-primary" /> Email
+              </button>
+              <button onClick={() => { setActivityFilter("whatsapp"); const el = document.getElementById("activity-timeline"); if (el) el.scrollIntoView({ behavior: "smooth" }); }} className="flex-1 py-1.5 bg-emerald-50 border border-emerald-200 text-emerald-800 hover:bg-emerald-100 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1">
+                <MessageSquare className="w-3 h-3 text-emerald-600" /> WhatsApp
+              </button>
+              <button onClick={() => setActiveModal("call")} className="flex-1 py-1.5 bg-surface border border-outline-variant text-on-surface hover:bg-surface-container-high rounded-lg text-[10px] font-bold flex items-center justify-center gap-1">
+                <Phone className="w-3 h-3 text-blue-600" /> Call
+              </button>
+              <button onClick={() => setActiveModal("task")} className="flex-1 py-1.5 bg-surface border border-outline-variant text-on-surface hover:bg-surface-container-high rounded-lg text-[10px] font-bold flex items-center justify-center gap-1">
+                <CheckSquare className="w-3 h-3 text-purple-600" /> Task
+              </button>
+            </div>
+          </div>
+
           {/* Quick Tasks Widget */}
           <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-5 shadow-sm space-y-3">
             <div className="flex justify-between items-center border-b border-outline-variant pb-2">
@@ -1006,6 +1108,15 @@ export default function LeadDetail() {
                           <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
                             <span className="font-bold text-foreground">{authorName}</span>
                             <span className="text-muted-foreground font-normal text-[11px] capitalize">· {titleText}</span>
+                            {(act.outcome?.includes("[AUTOMATED]") || act.outcome?.toLowerCase().includes("automated") || act.type === "stage_change") ? (
+                              <span className="text-[9px] font-extrabold text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-950/60 px-1.5 py-0.5 rounded border border-purple-200 dark:border-purple-800 uppercase tracking-wider flex items-center gap-1">
+                                <Sparkles className="w-2.5 h-2.5 text-purple-600" /> Automated
+                              </span>
+                            ) : (
+                              <span className="text-[9px] font-bold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">
+                                Manual
+                              </span>
+                            )}
                             {isPinned && (
                               <span className="text-[9px] font-bold text-primary bg-primary/10 px-1 py-0.2 rounded border border-primary/20">Pinned</span>
                             )}
@@ -1242,6 +1353,9 @@ export default function LeadDetail() {
               </div>
             )}
           </div>
+
+          {/* Team Comments & @Mentions Section */}
+          <CommentThreadSection leadId={id} />
 
           {/* Scheduled Meetings Widget */}
           <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-5 shadow-sm space-y-3">

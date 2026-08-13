@@ -213,6 +213,34 @@ export function SplitViewDrawer({ isOpen, onClose, record }: SplitViewDrawerProp
                 </div>
               </div>
 
+              {/* Compact Intake Automation Card */}
+              <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl space-y-2 text-xs">
+                <div className="flex items-center justify-between border-b border-primary/20 pb-2">
+                  <h4 className="font-bold text-primary flex items-center gap-1.5">⚡ Intake Automation</h4>
+                  <span className="text-[10px] font-black bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded border border-emerald-200 uppercase">Active</span>
+                </div>
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex justify-between items-center text-foreground">
+                    <span className="font-medium text-emerald-600">✓ Lead Received</span>
+                    <span className="font-extrabold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded text-[10px]">{record.source || "Website"}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-foreground">
+                    <span className="font-medium text-emerald-600">✓ Owner Assigned</span>
+                    <span className="font-bold">{record.assignedTo?.name || "Unassigned"}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-foreground">
+                    <span className="font-medium text-emerald-600">✓ First Response</span>
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                      {record.source === "Cold Call" || record.source === "Manual Entry" ? "Task Generated" : "Sent"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center text-foreground">
+                    <span className="font-medium text-emerald-600">✓ Follow-up Task</span>
+                    <span className="text-[10px] text-slate-500 font-semibold">Active SLA</span>
+                  </div>
+                </div>
+              </div>
+
               {/* Temperature Control */}
               <div className="p-4 bg-card border border-border rounded-xl space-y-2">
                 <div className="flex items-center justify-between">

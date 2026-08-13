@@ -190,7 +190,7 @@ export async function routeChannelLead(input: RoutingInput): Promise<RoutingResu
   // Priority 4: Criteria-Based Assignment Rules Engine
   // -------------------------------------------------------------
   if (!assignedToId) {
-    const rulesAssignedId = await assignLead({
+    const rulesRes = await assignLead({
       firstName: leadData.firstName,
       lastName: leadData.lastName,
       email: leadData.email || "",
@@ -198,8 +198,8 @@ export async function routeChannelLead(input: RoutingInput): Promise<RoutingResu
       company: leadData.company || "",
       source: leadData.source
     });
-    if (rulesAssignedId) {
-      assignedToId = rulesAssignedId;
+    if (rulesRes.assignedToId) {
+      assignedToId = rulesRes.assignedToId;
       assignmentMethod = "assignment-rules";
     }
   }

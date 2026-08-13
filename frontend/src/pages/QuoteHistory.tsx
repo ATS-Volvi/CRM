@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { ChevronRight, FileText, Download, CheckCircle, Clock, AlertTriangle, Plus, Search, Filter, Calendar, MoreVertical, TrendingUp, Timer, Bolt } from "lucide-react";
+import { ChevronRight, FileText, Download, CheckCircle, CheckCircle2, Clock, AlertTriangle, Plus, Search, Filter, Calendar, MoreVertical, TrendingUp, Timer, Bolt, X } from "lucide-react";
 import { formatCurrency, formatCurrencyCompact } from "../utils/currency";
 import { downloadAuthenticatedFile } from "../utils/download";
 
@@ -15,6 +15,8 @@ export default function QuoteHistory() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [showAuditModal, setShowAuditModal] = useState(false);
+  const [poModalQuote, setPoModalQuote] = useState<any | null>(null);
+  const [poNumberInput, setPoNumberInput] = useState("");
   const [page, setPage] = useState(1);
   const pageSize = 10;
   const [showDates, setShowDates] = useState(false);
@@ -341,10 +343,40 @@ export default function QuoteHistory() {
                       </td>
                       {!isSimpleView && (
                         <td className="px-6 py-4">
-                          <div className="w-32 h-1.5 bg-surface-variant rounded-full overflow-hidden flex">
-                            <div className="h-full bg-primary w-2/3"></div>
-                          </div>
-                          <p className="text-[10px] text-outline mt-1 uppercase">{quote.deal?.stage?.name || 'In Progress'}</p>
+                          {(() => {
+                            const status = quote.status || "Draft";
+                            const stageName = quote.deal?.stage?.name;
+                            let barWidth = "w-1/4";
+                            let barColor = "bg-blue-500";
+                            let label = stageName || "DRAFT";
+
+                            if (status === "Accepted" || stageName === "Won" || stageName === "Closed Won") {
+                              barWidth = "w-full";
+                              barColor = "bg-emerald-500";
+                              label = stageName || "CLOSED WON";
+                            } else if (status === "Approved") {
+                              barWidth = "w-5/6";
+                              barColor = "bg-emerald-500";
+                              label = stageName || "APPROVED";
+                            } else if (status === "Pending Approval" || status === "Pending") {
+                              barWidth = "w-1/2";
+                              barColor = "bg-amber-500";
+                              label = stageName || "PENDING APPROVAL";
+                            } else if (status === "Rejected" || status === "Declined") {
+                              barWidth = "w-full";
+                              barColor = "bg-rose-500";
+                              label = stageName || "REJECTED";
+                            }
+
+                            return (
+                              <>
+                                <div className="w-32 h-1.5 bg-slate-200 rounded-full overflow-hidden flex">
+                                  <div className={`h-full ${barColor} ${barWidth} transition-all duration-300`}></div>
+                                </div>
+                                <p className="text-[10px] font-bold text-outline mt-1 uppercase tracking-wider">{label}</p>
+                              </>
+                            );
+                          })()}
                         </td>
                       )}
                       <td className="px-6 py-4">
@@ -391,7 +423,8 @@ export default function QuoteHistory() {
                                     alert("Quote signed successfully!");
                                     window.location.reload();
                                   } else {
-                                    alert("Failed to sign quote");
+                                    const errData = await res.json().catch(() => ({}));
+                                    alert(`Failed to sign quote: ${errData.error || res.statusText || "Server error"}`);
                                   }
                                 }
                               }}
@@ -405,15 +438,13 @@ export default function QuoteHistory() {
                               <button 
                                 onClick={(e) => { 
                                   e.stopPropagation(); 
-                                  const poNum = prompt("Enter Purchase Order (PO) Number:");
-                                  if (poNum) {
-                                    recordPoMutation.mutate({ quoteId: quote.id, amount: quote.totalAmount, poNumber: poNum });
-                                  }
+                                  setPoModalQuote(quote);
+                                  setPoNumberInput(`PO-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`);
                                 }}
                                 disabled={recordPoMutation.isPending}
-                                className="px-3 py-1 bg-amber-600 text-white text-[10px] font-bold uppercase rounded hover:opacity-90 transition-all shadow-sm whitespace-nowrap"
+                                className="px-3 py-1 bg-amber-600 text-white text-[10px] font-bold uppercase rounded hover:opacity-90 transition-all shadow-xs whitespace-nowrap flex items-center gap-1"
                               >
-                                Record PO
+                                <Plus className="w-3 h-3" /> Record PO
                               </button>
                               <button 
                                 onClick={(e) => { e.stopPropagation(); invoiceMutation.mutate(quote.id); }}
@@ -595,6 +626,62 @@ export default function QuoteHistory() {
             </div>
           </div>
         )}
+
+      {/* Modern Record Purchase Order (PO) Modal */}
+      {poModalQuote && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-surface border border-outline-variant rounded-2xl max-w-md w-full p-6 shadow-2xl animate-in fade-in zoom-in duration-150">
+            <div className="flex justify-between items-center pb-3 border-b border-outline-variant">
+              <h3 className="text-sm font-bold text-on-surface flex items-center gap-2">
+                <FileText className="w-4 h-4 text-amber-600" /> Record Purchase Order (PO)
+              </h3>
+              <button onClick={() => setPoModalQuote(null)} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="py-4 space-y-3">
+              <div className="bg-surface-container-low p-3.5 rounded-xl border border-outline-variant/60 text-xs text-on-surface-variant space-y-1.5">
+                <div className="flex justify-between"><span className="font-semibold text-slate-500">Customer / Lead:</span> <span className="font-bold text-on-surface">{poModalQuote.deal?.lead ? `${poModalQuote.deal.lead.firstName} ${poModalQuote.deal.lead.lastName}` : "Client"}</span></div>
+                <div className="flex justify-between"><span className="font-semibold text-slate-500">Quote Ref:</span> <span className="font-mono text-on-surface">{poModalQuote.quoteNumber || "QT-2026-00159"}</span></div>
+                <div className="flex justify-between"><span className="font-semibold text-slate-500">Total Value:</span> <span className="font-bold text-green-700">{formatCurrency(poModalQuote.totalAmount || 24000)}</span></div>
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">
+                  Enter Purchase Order (PO) Number
+                </label>
+                <input
+                  type="text"
+                  value={poNumberInput}
+                  onChange={(e) => setPoNumberInput(e.target.value)}
+                  placeholder="e.g. PO-2026-9941"
+                  className="w-full px-3.5 py-2.5 border border-outline-variant rounded-xl text-sm bg-surface text-on-surface focus:ring-2 focus:ring-amber-500 font-mono shadow-2xs"
+                  autoFocus
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-3 border-t border-outline-variant">
+              <button
+                onClick={() => setPoModalQuote(null)}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-surface-container rounded-lg transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  if (poNumberInput.trim()) {
+                    recordPoMutation.mutate({ quoteId: poModalQuote.id, amount: poModalQuote.totalAmount, poNumber: poNumberInput.trim() });
+                    setPoModalQuote(null);
+                  }
+                }}
+                disabled={recordPoMutation.isPending || !poNumberInput.trim()}
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+              >
+                <CheckCircle2 className="w-4 h-4" /> Confirm & Record PO
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       </div>
     </div>

@@ -691,6 +691,29 @@ async function seedEnterpriseDatabase() {
       });
     }
 
+    // Seed Admin Approval Policy
+    await models.AdminApprovalPolicy.create({
+      id: crypto.randomUUID(),
+      maximumSalesRepApproval: 2500000,
+      maximumTeamLeadApproval: 10000000,
+      maximumRepDiscount: 0.10,
+      maximumTeamLeadDiscount: 0.20,
+      minimumAllowedMargin: 0.15
+    });
+
+    // Seed Sales Approval Profiles for all sales representatives
+    for (const r of repsOnly) {
+      await models.SalesApprovalProfile.create({
+        id: crypto.randomUUID(),
+        salesRepId: r.id,
+        selfApprovalLimit: 1000000,
+        discountApprovalLimit: 0.10,
+        minimumMargin: 0.20,
+        teamLeadId: r.managerId || manager1.id,
+        approvalEnabled: true
+      });
+    }
+
     console.log("==========================================");
     console.log("ENTERPRISE DEMO SEEDING COMPLETED SUCCESSFULLY!");
     console.log("==========================================");

@@ -47,7 +47,11 @@ export function Sidebar({
   };
 
   const userRole = (user?.role || "admin").toLowerCase();
-  const isAdminOrManager = userRole === "admin" || userRole === "director" || userRole === "sales_manager";
+  const isManager = userRole === "sales_manager" || userRole === "team_lead";
+  const isAdmin = userRole === "admin" || userRole === "director";
+  const isAdminOrManager = isManager || isAdmin;
+
+  const queueLabel = isManager ? "Team Queue" : isAdmin ? "Lead Intake" : "My Inbox";
 
   const rawNavCategories: NavCategory[] = [
     {
@@ -56,7 +60,7 @@ export function Sidebar({
       icon: Home,
       items: [
         { label: "Dashboard", path: "/", icon: LayoutDashboard },
-        { label: "Live Queue", path: "/leads-table", icon: Inbox, badge: "Inbound" },
+        { label: queueLabel, path: "/leads", icon: Inbox, badge: "Inbound" },
       ]
     },
     {
@@ -65,7 +69,6 @@ export function Sidebar({
       icon: Users,
       items: [
         { label: "Customer Workspace", path: "/customers", icon: Users },
-        { label: "Asset Tracking", path: "/assets", icon: Package },
         { label: "Sales & Pipeline", path: "/pipeline", icon: Trello },
         { label: "Quotations", path: "/quotes", icon: FileText },
         ...(isAdminOrManager ? [{ label: "Invoices", path: "/invoices", icon: Receipt }] : []),

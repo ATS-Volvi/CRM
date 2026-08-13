@@ -23,29 +23,111 @@ export const getCoachingNotes = async (req: Request, res: Response) => {
   }
 };
 
-// POST /coaching-notes — manager creates a note for a rep
+// GET /coaching-notes/record — fetch thread of team comments & coaching notes for a lead or deal
+export const getRecordComments = async (req: Request, res: Response) => {
+  try {
+    const { leadId, dealId } = req.query;
+    if (!leadId && !dealId) {
+      return res.status(400).json({ error: "leadId or dealId is required" });
+    }
+    const where: any = {};
+    if (leadId) where.leadId = leadId;
+    if (dealId) where.dealId = dealId;
+
+    const CoachingNote = sequelize.models.CoachingNote;
+    const notes = await CoachingNote.findAll({
+      where,
+      include: [
+        { model: sequelize.models.User, as: "author", attributes: ["id", "name", "role", "email"] },
+        { model: sequelize.models.User, as: "targetUser", attributes: ["id", "name", "role"] }
+      ],
+      order: [["createdAt", "ASC"]]
+    });
+    res.json(notes);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// POST /coaching-notes — create team comment or manager coaching note with @mentions
 export const createCoachingNote = async (req: Request, res: Response) => {
   try {
     const { dealId, leadId, targetUserId, content } = req.body;
     const authorUserId = (req as any).user?.id;
     const authorRole = (req as any).user?.role;
+    const authorName = (req as any).user?.name || "Team Member";
 
-    if (!["admin", "sales_manager"].includes(authorRole)) {
-      return res.status(403).json({ error: "Only managers and admins can create coaching notes" });
+    if (!content || !content.trim()) {
+      return res.status(400).json({ error: "Comment content is required" });
     }
-    if (!targetUserId || !content) {
-      return res.status(400).json({ error: "targetUserId and content are required" });
+
+    // If targetUserId is set (manager-directed coaching note), require manager/admin role
+    if (targetUserId && !["admin", "sales_manager"].includes(authorRole)) {
+      return res.status(403).json({ error: "Only managers and admins can create directed coaching notes" });
     }
 
     const note = await sequelize.models.CoachingNote.create({
+      id: require("crypto").randomUUID(),
       dealId: dealId || null,
       leadId: leadId || null,
       authorUserId,
-      targetUserId,
+      targetUserId: targetUserId || null,
       content,
       isRead: false,
     });
-    res.status(201).json(note);
+
+    // ── @mention Parsing & Notification Dispatch ─────────────────────────────
+    const mentionMatches = content.match(/@([\w\.\s]+)/g) || [];
+    if (mentionMatches.length > 0) {
+      const allUsers: any[] = await sequelize.models.User.findAll({
+        attributes: ["id", "name", "email"]
+      });
+
+      const { createNotification } = await import("../services/notificationService");
+      const notifiedUserIds = new Set<string>();
+
+      for (const rawMatch of mentionMatches) {
+        const queryName = rawMatch.replace("@", "").trim().toLowerCase();
+        const matchedUser = allUsers.find((u: any) =>
+          u.name.toLowerCase().includes(queryName) || u.email.toLowerCase().includes(queryName)
+        );
+
+        if (matchedUser && matchedUser.id !== authorUserId && !notifiedUserIds.has(matchedUser.id)) {
+          notifiedUserIds.add(matchedUser.id);
+
+          let link = "/pipeline";
+          let recordName = "a record";
+
+          if (leadId) {
+            const lead: any = await sequelize.models.Lead.findByPk(leadId);
+            recordName = lead ? `${lead.firstName} ${lead.lastName}` : "a lead";
+            link = `/leads/${leadId}`;
+          } else if (dealId) {
+            const deal: any = await sequelize.models.Deal.findByPk(dealId);
+            recordName = deal ? deal.name : "a deal";
+            link = `/pipeline`;
+          }
+
+          await createNotification(
+            matchedUser.id,
+            "mention",
+            `Mentioned in comment by ${authorName}`,
+            `${authorName} mentioned you on ${recordName}: "${content.slice(0, 80)}${content.length > 80 ? "..." : ""}"`,
+            link
+          );
+        }
+      }
+    }
+
+    // Fetch created note with associations
+    const fullNote = await sequelize.models.CoachingNote.findByPk((note as any).id, {
+      include: [
+        { model: sequelize.models.User, as: "author", attributes: ["id", "name", "role", "email"] },
+        { model: sequelize.models.User, as: "targetUser", attributes: ["id", "name", "role"] }
+      ]
+    });
+
+    res.status(201).json(fullNote);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -97,7 +179,7 @@ export const getStaleDeal = async (req: Request, res: Response) => {
 
     // Get active deals
     const stages = await sequelize.models.PipelineStage.findAll({
-      where: { name: { [Op.notIn]: ["Closed Won", "Closed Lost"] } },
+      where: { name: { [Op.notIn]: ["Won", "Closed Won", "Lost", "Closed Lost"] } },
     });
     const stageIds = stages.map((s: any) => s.id);
 
@@ -183,7 +265,7 @@ export const getTopAccounts = async (req: Request, res: Response) => {
 
     const wonDeals = await sequelize.models.Deal.findAll({
       include: [
-        { model: sequelize.models.PipelineStage, as: "stage", where: { name: "Closed Won" } },
+        { model: sequelize.models.PipelineStage, as: "stage", where: { name: { [Op.in]: ["Won", "Closed Won"] } } },
         { model: sequelize.models.Customer, as: "customer", attributes: ["id", "name", "industry"] },
       ],
       where: { updatedAt: { [Op.gte]: quarterStart } },
@@ -256,7 +338,7 @@ export const getWinCelebrations = async (req: Request, res: Response) => {
     since.setDate(since.getDate() - 14); // last 2 weeks
 
     const wonStages = await sequelize.models.PipelineStage.findAll({
-      where: { name: "Closed Won" },
+      where: { name: { [Op.in]: ["Won", "Closed Won"] } },
     });
     const wonStageIds = wonStages.map((s: any) => s.id);
 

@@ -62,8 +62,8 @@ export const getPipeline = async (req: Request, res: Response) => {
 export const moveDealStage = async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
-    const { toStageId, reason, recontactDate } = req.body;
-    const userId = (req as any).user?.id || "mock-user"; // Fallback to mock user if auth is bypassed
+    const { toStageId, reason, lossReasonCategory, recontactDate } = req.body;
+    const userId = (req as any).user?.id || "mock-user";
 
     const deal: any = await Deal.findByPk(id);
     if (!deal) return res.status(404).json({ error: "Deal not found" });
@@ -74,31 +74,37 @@ export const moveDealStage = async (req: Request, res: Response) => {
     const fromStageObj: any = await PipelineStage.findByPk(fromStageId);
     const toStageObj: any = await PipelineStage.findByPk(toStageId);
 
-    if (toStageObj.name === "Closed Lost" && !reason) {
-      return res.status(400).json({ error: "Loss reason is required." });
+    const isLostStage = toStageObj && (toStageObj.name === "Closed Lost" || toStageObj.name === "Lost");
+    if (isLostStage && !lossReasonCategory) {
+      return res.status(400).json({
+        error: "Loss reason category is required. Allowed values: Price, Competitor, Timing, No Budget, Product Fit, Other."
+      });
     }
 
     // Write history
     await LeadStageHistory.create({
-      leadId: deal.leadId || id, // Fallback to deal id if leadId is null for now
+      leadId: deal.leadId || id,
       fromStage: fromStageObj ? fromStageObj.name : 'Unknown',
       toStage: toStageObj ? toStageObj.name : 'Unknown',
       changedById: userId,
-      reason: reason || null
+      reason: reason || lossReasonCategory || null
     });
 
     // Write Activity
     await Activity.create({
       leadId: deal.leadId || id,
       type: "stage_change",
-      outcome: `Stage updated to ${toStageObj ? toStageObj.name : 'Unknown'}${reason ? ' - Reason: ' + reason : ''}`,
+      outcome: `Stage updated to ${toStageObj ? toStageObj.name : 'Unknown'}${lossReasonCategory ? ' [Category: ' + lossReasonCategory + ']' : ''}${reason ? ' - Detail: ' + reason : ''}`,
       createdById: userId,
       direction: "internal"
     });
 
     // Update Deal
     if (toStageId) deal.stageId = toStageId;
-    if (toStageObj && toStageObj.name === "Lost") deal.lossReason = reason;
+    if (isLostStage) {
+      deal.lossReasonCategory = lossReasonCategory;
+      if (reason !== undefined) deal.lossReason = reason;
+    }
     if (toStageObj && toStageObj.name === "On Hold") deal.recontactDate = recontactDate;
     if (req.body.competitors !== undefined) deal.competitors = req.body.competitors;
     if (req.body.probability !== undefined) deal.probability = req.body.probability;

@@ -30,7 +30,8 @@ export const createInvoiceFromQuote = async (req: Request, res: Response) => {
     const quote = await sequelize.models.Quote.findByPk(quoteId);
 
     if (!quote) return res.status(404).json({ error: "Quote not found" });
-    if ((quote as any).status !== 'Approved') return res.status(400).json({ error: "Only approved quotes can be invoiced" });
+    const allowedStatuses = ['Approved', 'Accepted', 'Sent'];
+    if (!allowedStatuses.includes((quote as any).status)) return res.status(400).json({ error: "Only approved or accepted quotes can be invoiced" });
 
     // Ensure not already invoiced
     const existing = await sequelize.models.Invoice.findOne({ where: { quoteId } });

@@ -8,7 +8,7 @@ import {
   Calendar, MessageSquare, ChevronRight,
   Shield, Zap, UserPlus, RefreshCw, Send, Check, X,
   Briefcase, DollarSign, Target, Award, BarChart2,
-  FileText, ArrowUpRight, Flame, Layers, CircleCheck, AlertCircle, Plus, Info, Eye
+  FileText, ArrowUpRight, Flame, Layers, CircleCheck, AlertCircle, Plus, Info, Eye, Sliders
 } from "lucide-react";
 import { apiClient } from "../lib/apiClient";
 import { formatCurrency, formatCurrencyCompact } from "../utils/currency";
@@ -259,7 +259,11 @@ export default function SalespersonDetail() {
             <Info className="w-3.5 h-3.5 text-slate-500" />
             Employee Information
           </button>
-          <button onClick={() => navigate("/approvals")} className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 dark:text-slate-900 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5">
+          <button onClick={() => navigate("/approvals?tab=profiles")} className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer">
+            <Sliders className="w-3.5 h-3.5" />
+            Configure Limits
+          </button>
+          <button onClick={() => navigate("/approvals")} className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 dark:text-slate-900 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer">
             <Shield className="w-3.5 h-3.5" />
             Approvals ({pendingApprovalsCount})
           </button>

@@ -535,3 +535,77 @@ export const getHomeDashboard = async (req: Request, res: Response) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+// GET /api/v1/dashboard/loss-analytics — role-scoped loss reason category breakdown & coaching signals
+export const getLossAnalytics = async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    const scopedUserIds = await getScopedUserIds(user);
+    const { period = "all" } = req.query;
+
+    const where: any = {
+      ownerId: { [Op.in]: scopedUserIds }
+    };
+
+    if (period === "month") {
+      const startOfMonth = new Date();
+      startOfMonth.setDate(1);
+      startOfMonth.setHours(0, 0, 0, 0);
+      where.updatedAt = { [Op.gte]: startOfMonth };
+    } else if (period === "quarter") {
+      const now = new Date();
+      const startOfQuarter = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
+      where.updatedAt = { [Op.gte]: startOfQuarter };
+    } else if (period === "year") {
+      const startOfYear = new Date(new Date().getFullYear(), 0, 1);
+      where.updatedAt = { [Op.gte]: startOfYear };
+    }
+
+    const lostStages = await sequelize.models.PipelineStage.findAll({
+      where: { name: { [Op.in]: ["Closed Lost", "Lost"] } }
+    });
+    const lostStageIds = lostStages.map((s: any) => s.id);
+
+    where.stageId = { [Op.in]: lostStageIds };
+
+    const deals: any[] = await sequelize.models.Deal.findAll({
+      where,
+      include: [
+        { model: sequelize.models.User, as: "owner", attributes: ["id", "name", "email"] }
+      ]
+    });
+
+    const categories = ["Price", "Competitor", "Timing", "No Budget", "Product Fit", "Other"];
+    const categoryTotals = categories.map(cat => {
+      const catDeals = deals.filter(d => d.lossReasonCategory === cat || (!d.lossReasonCategory && cat === "Other"));
+      const count = catDeals.length;
+      const totalAmount = catDeals.reduce((sum, d) => sum + Number(d.amount || 0), 0);
+      return { category: cat, count, totalAmount };
+    });
+
+    const repMap: { [userId: string]: { name: string; categories: { [cat: string]: number }; totalLost: number } } = {};
+    deals.forEach(d => {
+      const ownerId = d.ownerId || "Unassigned";
+      const ownerName = d.owner?.name || "Unassigned Rep";
+      const cat = d.lossReasonCategory || "Other";
+
+      if (!repMap[ownerId]) {
+        repMap[ownerId] = { name: ownerName, categories: {}, totalLost: 0 };
+        categories.forEach(c => (repMap[ownerId].categories[c] = 0));
+      }
+      repMap[ownerId].categories[cat] = (repMap[ownerId].categories[cat] || 0) + 1;
+      repMap[ownerId].totalLost += 1;
+    });
+
+    const repBreakdown = Object.values(repMap);
+
+    res.json({
+      totalLostDeals: deals.length,
+      totalLostAmount: deals.reduce((sum, d) => sum + Number(d.amount || 0), 0),
+      categoryTotals,
+      repBreakdown
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};

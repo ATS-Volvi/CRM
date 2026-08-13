@@ -57,7 +57,10 @@ async function escalateUnactionedApprovals() {
       }
     });
 
-    const director = await sequelize.models.User.findOne({ where: { role: "director" } });
+    const director = await sequelize.models.User.findOne({
+      where: { role: "director" },
+      attributes: ["id", "name", "email", "role"]
+    });
     const directorId = director ? (director as any).id : null;
 
     let escalatedCount = 0;
@@ -96,7 +99,7 @@ async function checkOutstandingPOs() {
           where: { status: "Accepted" },
           include: [{ model: sequelize.models.PurchaseOrder, as: "PurchaseOrder", required: false }]
         },
-        { model: sequelize.models.User, as: "owner" }
+        { model: sequelize.models.User, as: "owner", attributes: ["id", "name", "email", "role"] }
       ]
     });
 
@@ -144,7 +147,9 @@ async function checkOverdueTasksAndSendDigests() {
     const { Op } = require("sequelize");
     console.log("Checking overdue tasks and generating daily task digests...");
 
-    const users = await sequelize.models.User.findAll();
+    const users = await sequelize.models.User.findAll({
+      attributes: ["id", "name", "email", "role"]
+    });
     for (const user of users) {
       const u = user as any;
       

@@ -2,7 +2,7 @@ import { useAuth } from "../context/AuthContext";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
 import { useSearchParams, Link } from "react-router-dom";
-import { Search, PlusCircle, Trash2, Lightbulb, ZoomIn, Printer, Maximize, BarChart2, Clock, MessageSquare, History } from "lucide-react";
+import { Search, PlusCircle, Trash2, Lightbulb, ZoomIn, Printer, Maximize, BarChart2, Clock, MessageSquare, History, CheckCircle2, AlertTriangle, Shield } from "lucide-react";
 import { formatCurrency, formatCurrencyCompact } from "../utils/currency";
 import QuotationDocumentRenderer from "../components/QuotationDocumentRenderer";
 
@@ -127,6 +127,35 @@ export default function QuotationBuilder() {
 
   const [items, setItems] = useState<any[]>([]);
   const activeProductId = items[focusedIndex]?.productId;
+
+  const currentTotalAmount = items
+    .filter((item: any) => !item.isOptional)
+    .reduce((acc: number, item: any) => {
+      const qty = Number(item.quantity || 1);
+      const uPrice = Number(item.unitPrice || 0);
+      const discPct = Number(item.discount || 0);
+      const discRatio = 1 - (discPct / 100);
+      const itemTotal = item.total !== undefined && !isNaN(item.total) ? Number(item.total) : (qty * uPrice * discRatio);
+      return acc + itemTotal;
+    }, 0);
+
+  const { data: evaluation } = useQuery({
+    queryKey: ["quoteEvaluation", selectedDealId, currentTotalAmount, items.length],
+    queryFn: async () => {
+      const res = await fetch(`/api/v1/quotes/preview/evaluate-approval`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({
+          totalAmount: currentTotalAmount,
+          items: items.map(i => ({ productId: i.productId, quantity: i.quantity, unitPrice: i.unitPrice, isOptional: i.isOptional })),
+          salesRepId: selectedDeal?.ownerId
+        })
+      });
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: items.length > 0
+  });
 
   const uniqueProductIds = Array.from(new Set(items.map((i: any) => i.productId).filter(Boolean)));
   const productIdsQuery = uniqueProductIds.join(",");
@@ -337,10 +366,14 @@ export default function QuotationBuilder() {
     if (field === 'productId') {
       const prod = products?.find((p: any) => p.id === value);
       if (prod) {
-        newItems[index].unitPrice = parseFloat(prod.msrp || prod.listPrice || 0);
+        newItems[index].unitPrice = parseFloat(prod.unitPrice || prod.msrp || prod.listPrice || 0);
       }
     }
-    newItems[index].total = newItems[index].quantity * newItems[index].unitPrice;
+    const qty = Number(newItems[index].quantity || 1);
+    const uPrice = Number(newItems[index].unitPrice || 0);
+    const discPct = Number(newItems[index].discount || 0);
+    const discRatio = 1 - (discPct / 100);
+    newItems[index].total = qty * uPrice * discRatio;
     setItems(newItems);
   };
 
@@ -601,6 +634,80 @@ export default function QuotationBuilder() {
                 </tbody>
               </table>
             </div>
+
+            {/* Salesperson Approval Hierarchy Status Banner */}
+            {items.length > 0 && evaluation && (
+              <div className="mt-4 p-4 rounded-xl border shadow-2xs transition-all">
+                {evaluation.approvalLevel === "SALES_REP" && (
+                  <div className="bg-green-50 border border-green-200 p-4 rounded-xl flex justify-between items-center">
+                    <div>
+                      <div className="text-[11px] font-bold uppercase tracking-wider text-green-800 flex items-center gap-1.5">
+                        <Shield className="w-4 h-4 text-green-600" /> Quotation Approval Status
+                      </div>
+                      <div className="text-sm font-bold text-green-900 mt-1 flex items-center gap-1.5">
+                        <CheckCircle2 className="w-4 h-4 text-green-600" /> ✓ You can approve this quotation
+                      </div>
+                      <div className="text-xs text-green-700 font-medium mt-0.5">
+                        Quote total {formatCurrency(currentTotalAmount)} is within your self-approval limit of ₹{(evaluation.repLimit || 1000000).toLocaleString()}.
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => saveMutation.mutate("Approved")}
+                      disabled={saveMutation.isPending}
+                      className="bg-green-600 hover:bg-green-700 text-white font-bold text-xs px-5 py-2.5 rounded-lg shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <CheckCircle2 className="w-4 h-4" /> Approve Quotation
+                    </button>
+                  </div>
+                )}
+
+                {evaluation.approvalLevel === "TEAM_LEAD" && (
+                  <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl flex justify-between items-center">
+                    <div>
+                      <div className="text-[11px] font-bold uppercase tracking-wider text-amber-800 flex items-center gap-1.5">
+                        <Shield className="w-4 h-4 text-amber-600" /> Quotation Approval Status
+                      </div>
+                      <div className="text-sm font-bold text-amber-900 mt-1 flex items-center gap-1.5">
+                        <AlertTriangle className="w-4 h-4 text-amber-600" /> Team Lead approval required
+                      </div>
+                      <div className="text-xs text-amber-800 font-medium mt-0.5">
+                        {evaluation.reason || `Quote exceeds your approval limit of ₹${(evaluation.repLimit || 1000000).toLocaleString()}.`}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => saveMutation.mutate("Pending Approval")}
+                      disabled={saveMutation.isPending}
+                      className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-5 py-2.5 rounded-lg shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Clock className="w-4 h-4" /> Submit for Team Lead Approval
+                    </button>
+                  </div>
+                )}
+
+                {evaluation.approvalLevel === "ADMIN" && (
+                  <div className="bg-red-50 border border-red-200 p-4 rounded-xl flex justify-between items-center">
+                    <div>
+                      <div className="text-[11px] font-bold uppercase tracking-wider text-red-800 flex items-center gap-1.5">
+                        <Shield className="w-4 h-4 text-red-600" /> Quotation Approval Status
+                      </div>
+                      <div className="text-sm font-bold text-red-900 mt-1 flex items-center gap-1.5">
+                        <AlertTriangle className="w-4 h-4 text-red-600" /> Admin approval required
+                      </div>
+                      <div className="text-xs text-red-800 font-medium mt-0.5">
+                        {evaluation.reason || `This quotation exceeds the Team Lead approval threshold.`}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => saveMutation.mutate("Pending Approval")}
+                      disabled={saveMutation.isPending}
+                      className="bg-error hover:bg-error/95 text-white font-bold text-xs px-5 py-2.5 rounded-lg shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Clock className="w-4 h-4" /> Submit for Admin Approval
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* PDF Preview Pane */}

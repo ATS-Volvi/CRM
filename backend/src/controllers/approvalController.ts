@@ -1,6 +1,340 @@
 import { Request, Response } from "express";
 import { sequelize } from "@nexus-crm/database";
+import { Op } from "sequelize";
 import { createNotification } from "../services/notificationService";
+import { evaluateQuoteApproval, createApprovalAuditLog } from "../services/approvalEngine";
+
+// ── ADMIN GLOBAL APPROVAL POLICY ─────────────────────────────
+
+export const getAdminApprovalPolicy = async (req: Request, res: Response) => {
+  try {
+    let policy: any = await sequelize.models.AdminApprovalPolicy.findOne({
+      order: [["createdAt", "DESC"]]
+    });
+    if (!policy) {
+      policy = await sequelize.models.AdminApprovalPolicy.create({
+        id: require("crypto").randomUUID(),
+        maximumSalesRepApproval: 2500000,
+        maximumTeamLeadApproval: 10000000,
+        maximumRepDiscount: 0.10,
+        maximumTeamLeadDiscount: 0.20,
+        minimumAllowedMargin: 0.15
+      });
+    }
+    res.json(policy);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const updateAdminApprovalPolicy = async (req: Request, res: Response) => {
+  try {
+    const userRole = (req as any).user?.role;
+    if (userRole !== "admin") {
+      return res.status(403).json({ error: "Forbidden: Only Admin can update global approval policies." });
+    }
+
+    const {
+      maximumSalesRepApproval,
+      maximumTeamLeadApproval,
+      maximumRepDiscount,
+      maximumTeamLeadDiscount,
+      minimumAllowedMargin
+    } = req.body;
+
+    let policy: any = await sequelize.models.AdminApprovalPolicy.findOne({
+      order: [["createdAt", "DESC"]]
+    });
+
+    const updateData = {
+      maximumSalesRepApproval: maximumSalesRepApproval !== undefined ? Number(maximumSalesRepApproval) : 2500000,
+      maximumTeamLeadApproval: maximumTeamLeadApproval !== undefined ? Number(maximumTeamLeadApproval) : 10000000,
+      maximumRepDiscount: maximumRepDiscount !== undefined ? Number(maximumRepDiscount) : 0.10,
+      maximumTeamLeadDiscount: maximumTeamLeadDiscount !== undefined ? Number(maximumTeamLeadDiscount) : 0.20,
+      minimumAllowedMargin: minimumAllowedMargin !== undefined ? Number(minimumAllowedMargin) : 0.15,
+      updatedById: (req as any).user?.id || null
+    };
+
+    if (policy) {
+      await policy.update(updateData);
+    } else {
+      policy = await sequelize.models.AdminApprovalPolicy.create({
+        id: require("crypto").randomUUID(),
+        ...updateData
+      });
+    }
+
+    res.json(policy);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// ── SALES REP APPROVAL PROFILES ─────────────────────────────
+
+export const getSalesApprovalProfiles = async (req: Request, res: Response) => {
+  try {
+    // 1. Fetch team leads / managers
+    const managers = await sequelize.models.User.findAll({
+      where: { role: { [Op.in]: ["sales_manager", "admin"] } }
+    });
+    const marcus: any = managers.find((m: any) => m.name === "Marcus Vance" || m.email === "marcus@nexus.com") || managers[0];
+    const helena: any = managers.find((m: any) => m.name === "Helena Rostova" || m.email === "helena@nexus.com") || managers[1] || marcus;
+
+    // 2. Fetch all sales reps
+    const reps = await sequelize.models.User.findAll({
+      where: { role: { [Op.ne]: "admin" } }
+    });
+
+    // 3. Ensure Team Leads also have their own Approval Authority Profiles
+    for (const mgr of managers) {
+      if ((mgr as any).role === "admin") continue;
+      let mgrProf: any = await sequelize.models.SalesApprovalProfile.findOne({
+        where: { salesRepId: (mgr as any).id }
+      });
+      if (!mgrProf) {
+        await sequelize.models.SalesApprovalProfile.create({
+          id: require("crypto").randomUUID(),
+          salesRepId: (mgr as any).id,
+          selfApprovalLimit: 5000000, // ₹50L Default Team Lead Limit
+          discountApprovalLimit: 0.20, // 20% Default Team Lead Discount
+          minimumMargin: 0.15,
+          teamLeadId: null,
+          approvalEnabled: true
+        });
+      }
+    }
+
+    // 4. Ensure every rep has a SalesApprovalProfile & assigned team lead
+    for (let i = 0; i < reps.length; i++) {
+      const r = reps[i] as any;
+      if (r.role === "sales_manager" || r.role === "admin") continue;
+
+      let assignedLeadId = r.managerId;
+      if (!assignedLeadId && marcus) {
+        // Balance reps between Marcus Vance (NA) & Helena Rostova (EMEA/APAC)
+        const isEmeaApac = (r.territory || r.department || "").toLowerCase().includes("emea") || 
+                           (r.territory || r.department || "").toLowerCase().includes("apac");
+        assignedLeadId = isEmeaApac ? (helena?.id || marcus?.id) : (marcus?.id || helena?.id);
+        if (i % 2 === 1 && helena) assignedLeadId = helena.id;
+        
+        await r.update({ managerId: assignedLeadId });
+      }
+
+      let profile: any = await sequelize.models.SalesApprovalProfile.findOne({
+        where: { salesRepId: r.id }
+      });
+
+      if (!profile) {
+        await sequelize.models.SalesApprovalProfile.create({
+          id: require("crypto").randomUUID(),
+          salesRepId: r.id,
+          selfApprovalLimit: 1000000,
+          discountApprovalLimit: 0.10,
+          minimumMargin: 0.20,
+          teamLeadId: assignedLeadId || (marcus as any)?.id || null,
+          approvalEnabled: true
+        });
+      } else if (!profile.teamLeadId && assignedLeadId) {
+        await profile.update({ teamLeadId: assignedLeadId });
+      }
+    }
+
+    const profiles = await sequelize.models.SalesApprovalProfile.findAll({
+      include: [
+        { model: sequelize.models.User, as: "salesRep", attributes: ["id", "name", "email", "role", "team"] },
+        { model: sequelize.models.User, as: "teamLead", attributes: ["id", "name", "email"] }
+      ]
+    });
+    res.json(profiles);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const upsertSalesApprovalProfile = async (req: Request, res: Response) => {
+  try {
+    const {
+      salesRepId,
+      selfApprovalLimit,
+      discountApprovalLimit,
+      minimumMargin,
+      teamLeadId,
+      approvalEnabled,
+      effectiveFrom,
+      effectiveUntil
+    } = req.body;
+
+    const targetIds = Array.isArray(req.body.salesRepIds) 
+      ? req.body.salesRepIds 
+      : (salesRepId ? [salesRepId] : []);
+
+    if (targetIds.length === 0) {
+      return res.status(400).json({ error: "salesRepId or salesRepIds is required." });
+    }
+
+    // Load Admin Global Policy to enforce authority ceilings
+    let adminPolicy: any = await sequelize.models.AdminApprovalPolicy.findOne({
+      order: [["createdAt", "DESC"]]
+    });
+    const maxSalesRepApproval = Number(adminPolicy?.maximumSalesRepApproval ?? 2500000);
+    const maxRepDiscount = Number(adminPolicy?.maximumRepDiscount ?? 0.10);
+    const maxTLApproval = Number(adminPolicy?.maximumTeamLeadApproval ?? 10000000);
+    const maxTLDiscount = Number(adminPolicy?.maximumTeamLeadDiscount ?? 0.20);
+
+    const requestedLimit = Number(selfApprovalLimit ?? 1000000);
+    const requestedDiscount = Number(discountApprovalLimit ?? 0.10);
+
+    // Validate per user role
+    for (const id of targetIds) {
+      const targetUser: any = await sequelize.models.User.findByPk(id);
+      const isTeamLead = targetUser && (targetUser.role === "sales_manager");
+
+      if (isTeamLead) {
+        if (requestedLimit > maxTLApproval || requestedDiscount > maxTLDiscount) {
+          return res.status(400).json({
+            error: `Team Lead limit cannot exceed the Admin Team Lead Ceiling (SAR ${maxTLApproval.toLocaleString()}, Max Discount ${(maxTLDiscount * 100).toFixed(1)}%).`
+          });
+        }
+      } else {
+        if (requestedLimit > maxSalesRepApproval || requestedDiscount > maxRepDiscount) {
+          return res.status(400).json({
+            error: `Sales Rep limit cannot exceed the Admin Sales Rep Ceiling (SAR ${maxSalesRepApproval.toLocaleString()}, Max Discount ${(maxRepDiscount * 100).toFixed(1)}%).`
+          });
+        }
+      }
+    }
+
+    const updatedProfiles = [];
+    for (const id of targetIds) {
+      let profile: any = await sequelize.models.SalesApprovalProfile.findOne({
+        where: { salesRepId: id }
+      });
+
+      const dataPayload = {
+        salesRepId: id,
+        selfApprovalLimit: requestedLimit,
+        discountApprovalLimit: requestedDiscount,
+        minimumMargin: Number(minimumMargin ?? 0.20),
+        teamLeadId: teamLeadId || null,
+        approvalEnabled: approvalEnabled !== undefined ? Boolean(approvalEnabled) : true,
+        effectiveFrom: effectiveFrom ? new Date(effectiveFrom) : null,
+        effectiveUntil: effectiveUntil ? new Date(effectiveUntil) : null
+      };
+
+      if (profile) {
+        await profile.update(dataPayload);
+      } else {
+        profile = await sequelize.models.SalesApprovalProfile.create({
+          id: require("crypto").randomUUID(),
+          ...dataPayload
+        });
+      }
+      updatedProfiles.push(profile);
+    }
+
+    res.json(updatedProfiles.length === 1 ? updatedProfiles[0] : updatedProfiles);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// ── QUOTE EVALUATION & SUBMISSION ─────────────────────────────
+
+export const evaluateQuote = async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const overrideData = req.method === "POST" ? req.body : undefined;
+    if (overrideData && !overrideData.salesRepId && (req as any).user?.id) {
+      overrideData.salesRepId = (req as any).user.id;
+    }
+    const evaluation = await evaluateQuoteApproval(id, overrideData);
+    res.json(evaluation);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const submitQuoteForApproval = async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const quote: any = await sequelize.models.Quote.findByPk(id, {
+      include: [{ model: sequelize.models.Deal, as: "deal" }]
+    });
+
+    if (!quote) {
+      return res.status(404).json({ error: "Quote not found" });
+    }
+
+    const evaluation = await evaluateQuoteApproval(id);
+    const userId = (req as any).user?.id || evaluation.salesRepId;
+
+    // Update Quote status to Pending Approval
+    const prevStatus = quote.status;
+    await quote.update({ status: "Pending Approval", statusChangedAt: new Date() });
+
+    // Find existing pending request or create new
+    let approvalReq: any = await sequelize.models.ApprovalRequest.findOne({
+      where: { targetId: id, type: "Quote", status: "Pending" }
+    });
+
+    if (!approvalReq) {
+      approvalReq = await sequelize.models.ApprovalRequest.create({
+        id: require("crypto").randomUUID(),
+        targetId: id,
+        type: "Quote",
+        status: "Pending",
+        requestedById: userId,
+        assignedApproverId: evaluation.requiredApproverId,
+        comments: evaluation.reason
+      });
+    } else {
+      await approvalReq.update({
+        assignedApproverId: evaluation.requiredApproverId,
+        comments: evaluation.reason
+      });
+    }
+
+    // Create Audit Log
+    await createApprovalAuditLog({
+      quoteId: id,
+      salesRepId: evaluation.salesRepId,
+      approvalLevel: evaluation.approvalLevel,
+      requiredLimit: evaluation.approvalLevel === "TEAM_LEAD" ? evaluation.repLimit : evaluation.teamLeadLimit,
+      actualQuoteValue: evaluation.quoteValue,
+      discount: evaluation.discount,
+      margin: evaluation.margin,
+      approverId: evaluation.requiredApproverId,
+      decision: "Submitted",
+      comment: evaluation.reason,
+      previousStatus: prevStatus,
+      newStatus: "Pending Approval",
+      reason: evaluation.reason
+    });
+
+    // Send Real-time Notification to Approver
+    if (evaluation.requiredApproverId) {
+      await createNotification(
+        evaluation.requiredApproverId,
+        "alert",
+        "Quote Approval Required",
+        `Quotation ${quote.quoteNumber || id} requires your ${evaluation.approvalLevel.replace("_", " ")} approval: ${evaluation.reason}`,
+        "/approvals"
+      );
+    }
+
+    res.json({
+      message: "Quote submitted for approval",
+      quote,
+      evaluation,
+      approvalRequest: approvalReq
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// ── APPROVAL QUEUE & ACTION HANDLERS WITH SECURITY ─────────────
 
 export const getApprovals = async (req: Request, res: Response) => {
   try {
@@ -10,21 +344,28 @@ export const getApprovals = async (req: Request, res: Response) => {
         { model: sequelize.models.User, as: "approvedBy" },
         { model: sequelize.models.User, as: "assignedApprover" },
       ],
-      order: [['createdAt', 'DESC']]
+      order: [["createdAt", "DESC"]]
     });
 
-    // Manually fetch targets since polymorphic associations in Sequelize can be tricky
-    const approvalsWithTargets = await Promise.all(approvals.map(async (approval: any) => {
-      const data = approval.toJSON();
-      if (data.type === 'Quote') {
-        data.target = await sequelize.models.Quote.findByPk(data.targetId, {
-          include: [{ model: sequelize.models.Deal, as: "deal", include: [{ model: sequelize.models.Lead, as: "lead" }] }]
-        });
-      }
-      return data;
-    }));
+    const approvalsWithDetails = await Promise.all(
+      approvals.map(async (approval: any) => {
+        const data = approval.toJSON();
+        if (data.type === "Quote") {
+          data.target = await sequelize.models.Quote.findByPk(data.targetId, {
+            include: [
+              { model: sequelize.models.QuoteLineItem, as: "QuoteLineItems", include: [{ model: sequelize.models.PriceBookEntry, as: "product" }] },
+              { model: sequelize.models.Deal, as: "deal", include: [{ model: sequelize.models.Lead, as: "lead" }, { model: sequelize.models.User, as: "owner" }] }
+            ]
+          });
+          if (data.target) {
+            data.evaluation = await evaluateQuoteApproval(data.targetId);
+          }
+        }
+        return data;
+      })
+    );
 
-    res.json(approvalsWithTargets);
+    res.json(approvalsWithDetails);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -32,95 +373,113 @@ export const getApprovals = async (req: Request, res: Response) => {
 
 export const updateApproval = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const { status, comments } = req.body;
-    const approval = await sequelize.models.ApprovalRequest.findByPk(id as string);
+    const authUser = (req as any).user;
+
+    const approval = await sequelize.models.ApprovalRequest.findByPk(id);
     if (!approval) {
       return res.status(404).json({ error: "Approval request not found" });
     }
-    
-    // In a real app we'd get the approver from the token (req.user.id)
-    // For now we assume the frontend passes it or we omit it for testing.
 
-    await approval.update({
-      status,
-      comments: comments || (approval as any).comments
-    });
-    
-    // If it's a quote approval, update Quote status and auto-generate Invoice for the salesperson
-    if ((approval as any).type === 'Quote' && status === 'Approved') {
-       const quote = await sequelize.models.Quote.findByPk((approval as any).targetId, {
-         include: [{ model: sequelize.models.QuoteLineItem, as: "QuoteLineItems" }]
-       });
-       if (quote) {
-         await quote.update({ status: 'Approved' });
+    const targetQuoteId = (approval as any).targetId;
+    const evaluation = await evaluateQuoteApproval(targetQuoteId);
 
-         // Auto-generate invoice if not already generated
-         const existingInvoice = await sequelize.models.Invoice.findOne({ where: { quoteId: (quote as any).id } });
-         if (!existingInvoice) {
-           let targetLeadId: string | null = null;
-           if ((quote as any).dealId) {
-             const dealObj: any = await sequelize.models.Deal.findByPk((quote as any).dealId);
-             if (dealObj && dealObj.leadId) {
-               targetLeadId = dealObj.leadId;
-             }
-           }
-
-           const invoiceId = require('crypto').randomUUID();
-           const invNumber = `INV-${Date.now().toString().slice(-6)}`;
-           const invoice = await sequelize.models.Invoice.create({
-             id: invoiceId,
-             invoiceNumber: invNumber,
-             quoteId: (quote as any).id,
-             leadId: targetLeadId,
-             status: 'Draft',
-             issueDate: new Date(),
-             dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-             subtotal: (quote as any).subtotal || (quote as any).totalAmount || 0,
-             taxTotal: (quote as any).taxAmount || 0,
-             discountTotal: (quote as any).discountAmount || 0,
-             totalAmount: (quote as any).totalAmount || 0,
-             notes: 'Auto-generated invoice upon Admin approval.'
-           }) as any;
-
-           // Copy line items to InvoiceLineItems
-           if ((quote as any).QuoteLineItems && (quote as any).QuoteLineItems.length > 0) {
-             for (const item of (quote as any).QuoteLineItems) {
-               await sequelize.models.InvoiceLineItem.create({
-                 id: require('crypto').randomUUID(),
-                 invoiceId: invoice.id,
-                 productId: item.productId,
-                 description: item.description || 'Line Item',
-                 quantity: item.quantity,
-                 unitPrice: item.unitPrice,
-                 amount: item.amount || (item.quantity * item.unitPrice)
-               });
-             }
-           }
-         }
-       }
-    } else if ((approval as any).type === 'Quote' && status === 'Rejected') {
-       const quote = await sequelize.models.Quote.findByPk((approval as any).targetId);
-       if (quote) {
-         await quote.update({ status: 'Rejected' });
-       }
+    // SECURITY ENFORCEMENT
+    if (authUser && authUser.role !== "admin") {
+      if (evaluation.approvalLevel === "ADMIN") {
+        return res.status(403).json({
+          error: "Security Violation: Only Admin can approve or modify quotations requiring Admin approval."
+        });
+      }
+      if (evaluation.approvalLevel === "TEAM_LEAD") {
+        const isAssigned = (approval as any).assignedApproverId === authUser.id;
+        const isTeamLead = evaluation.teamLeadId === authUser.id;
+        const isManagerRole = authUser.role === "sales_manager" || authUser.role === "director";
+        if (!isAssigned && !isTeamLead && !isManagerRole) {
+          return res.status(403).json({
+            error: "Security Violation: You do not have authority to approve this quotation. Team Lead approval is required."
+          });
+        }
+      }
     }
 
-    if ((approval as any).type === 'Quote') {
-      const quote = await sequelize.models.Quote.findByPk((approval as any).targetId, {
-        include: [{ model: sequelize.models.Deal, as: "deal" }]
+    const prevApprovalStatus = (approval as any).status;
+    await approval.update({
+      status,
+      approvedById: authUser?.id || (approval as any).assignedApproverId,
+      comments: comments || (approval as any).comments
+    });
+
+    if ((approval as any).type === "Quote") {
+      const quote = await sequelize.models.Quote.findByPk(targetQuoteId, {
+        include: [{ model: sequelize.models.QuoteLineItem, as: "QuoteLineItems" }]
       });
-      if (quote && (quote as any).deal?.leadId) {
-        await sequelize.models.Activity.create({
-          id: require('crypto').randomUUID(),
-          leadId: (quote as any).deal.leadId,
-          type: "note",
-          outcome: `Quote ${(quote as any).quoteNumber || (quote as any).id} Approval Request: ${status}`,
-          mentioned_user_ids: "[]",
-          pinned: false,
-          createdById: (req as any).user?.id || "system",
-      direction: "internal"
+
+      if (quote) {
+        const prevQuoteStatus = (quote as any).status;
+        const newQuoteStatus = status === "Approved" ? "Approved" : (status === "Rejected" ? "Rejected" : "Draft");
+        await quote.update({ status: newQuoteStatus, statusChangedAt: new Date() });
+
+        // Log Audit Trail
+        await createApprovalAuditLog({
+          quoteId: targetQuoteId,
+          salesRepId: evaluation.salesRepId,
+          approvalLevel: evaluation.approvalLevel,
+          requiredLimit: evaluation.repLimit,
+          actualQuoteValue: evaluation.quoteValue,
+          discount: evaluation.discount,
+          margin: evaluation.margin,
+          approverId: authUser?.id || null,
+          decision: status,
+          comment: comments || null,
+          previousStatus: prevQuoteStatus,
+          newStatus: newQuoteStatus,
+          reason: `Quote status updated to ${status} by ${authUser?.name || authUser?.role || "Authorized Approver"}. Reason: ${evaluation.reason}`
         });
+
+        // Auto-generate invoice if approved
+        if (status === "Approved") {
+          const existingInvoice = await sequelize.models.Invoice.findOne({ where: { quoteId: (quote as any).id } });
+          if (!existingInvoice) {
+            let targetLeadId: string | null = null;
+            if ((quote as any).dealId) {
+              const dealObj: any = await sequelize.models.Deal.findByPk((quote as any).dealId);
+              if (dealObj && dealObj.leadId) {
+                targetLeadId = dealObj.leadId;
+              }
+            }
+
+            const invoiceId = require("crypto").randomUUID();
+            const invNumber = `INV-${Date.now().toString().slice(-6)}`;
+            const invoice = await sequelize.models.Invoice.create({
+              id: invoiceId,
+              invoiceNumber: invNumber,
+              quoteId: (quote as any).id,
+              leadId: targetLeadId,
+              status: "Draft",
+              issueDate: new Date(),
+              dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+              subtotal: (quote as any).totalAmount || 0,
+              totalAmount: (quote as any).totalAmount || 0,
+              notes: "Auto-generated invoice upon Quote approval."
+            }) as any;
+
+            if ((quote as any).QuoteLineItems && (quote as any).QuoteLineItems.length > 0) {
+              for (const item of (quote as any).QuoteLineItems) {
+                await sequelize.models.InvoiceLineItem.create({
+                  id: require("crypto").randomUUID(),
+                  invoiceId: invoice.id,
+                  productId: item.productId,
+                  description: item.description || "Line Item",
+                  quantity: item.quantity,
+                  unitPrice: item.unitPrice,
+                  amount: item.quantity * item.unitPrice
+                });
+              }
+            }
+          }
+        }
       }
     }
 
@@ -130,42 +489,110 @@ export const updateApproval = async (req: Request, res: Response) => {
   }
 };
 
-export const createApproval = async (req: Request, res: Response) => {
+// ── DIRECT QUOTE APPROVAL / REJECTION BY SALES REP OR MANAGER ──
+
+export const approveQuoteDirectly = async (req: Request, res: Response) => {
   try {
-    const { targetId, type, requestedById, comments } = req.body;
+    const id = String(req.params.id);
+    const { comments } = req.body;
+    const authUser = (req as any).user;
 
-    const approval = await sequelize.models.ApprovalRequest.create({
-      id: require('crypto').randomUUID(),
-      targetId,
-      type,
-      requestedById,
-      status: "Pending",
-      comments
+    const quote: any = await sequelize.models.Quote.findByPk(id, {
+      include: [{ model: sequelize.models.Deal, as: "deal" }]
     });
+    if (!quote) return res.status(404).json({ error: "Quote not found" });
 
-    // Mock notify the designated approver (we'll assume admin user for now)
-    const admin = await sequelize.models.User.findOne({ where: { role: 'admin' } });
-    if (admin) {
-      await createNotification(
-        (admin as any).id,
-        'alert',
-        'New Approval Request',
-        `A new ${type} approval request requires your attention.`,
-        `/approvals`
-      );
+    const evaluation = await evaluateQuoteApproval(id);
+
+    // SECURITY ENFORCEMENT
+    if (evaluation.approvalLevel === "ADMIN") {
+      if (authUser?.role !== "admin") {
+        return res.status(403).json({
+          error: "Security Violation: Quotation exceeds Team Lead limits. Admin approval is required."
+        });
+      }
+    } else if (evaluation.approvalLevel === "TEAM_LEAD") {
+      const isTeamLead = evaluation.teamLeadId === authUser?.id;
+      const isManagerRole = authUser?.role === "admin" || authUser?.role === "sales_manager" || authUser?.role === "director";
+      if (!isTeamLead && !isManagerRole) {
+        return res.status(403).json({
+          error: "Security Violation: Quotation exceeds sales representative limit. Team Lead approval is required."
+        });
+      }
     }
 
-    res.status(201).json(approval);
+    const prevStatus = quote.status;
+    await quote.update({ status: "Approved", statusChangedAt: new Date() });
+
+    // Update or mark pending approval requests as Approved
+    const pendingReq: any = await sequelize.models.ApprovalRequest.findOne({
+      where: { targetId: id, type: "Quote", status: "Pending" }
+    });
+    if (pendingReq) {
+      await pendingReq.update({
+        status: "Approved",
+        approvedById: authUser?.id || null,
+        comments: comments || "Approved"
+      });
+    }
+
+    // Log Audit Trail
+    await createApprovalAuditLog({
+      quoteId: id,
+      salesRepId: evaluation.salesRepId,
+      approvalLevel: evaluation.approvalLevel,
+      requiredLimit: evaluation.repLimit,
+      actualQuoteValue: evaluation.quoteValue,
+      discount: evaluation.discount,
+      margin: evaluation.margin,
+      approverId: authUser?.id || null,
+      decision: "Approved",
+      comment: comments || "Self-approved or manager approved",
+      previousStatus: prevStatus,
+      newStatus: "Approved",
+      reason: `Quotation approved. Level: ${evaluation.approvalLevel}`
+    });
+
+    res.json({ message: "Quote approved successfully", quote });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
 };
 
+// ── AUDIT LOGS QUERY ──────────────────────────────────────────
+
+export const getApprovalAuditLogs = async (req: Request, res: Response) => {
+  try {
+    const { quoteId, salesRepId } = req.query;
+    const where: any = {};
+
+    if (quoteId) where.quoteId = quoteId;
+    if (salesRepId) where.salesRepId = salesRepId;
+
+    const logs = await sequelize.models.ApprovalAuditLog.findAll({
+      where,
+      include: [
+        { model: sequelize.models.User, as: "salesRep", attributes: ["id", "name", "email"] },
+        { model: sequelize.models.User, as: "approver", attributes: ["id", "name", "email", "role"] },
+        { model: sequelize.models.Quote, as: "quote", attributes: ["id", "quoteNumber", "totalAmount", "status"] }
+      ],
+      order: [["createdAt", "DESC"]]
+    });
+
+    res.json(logs);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Standard fallback exports for tier management
+export const createApproval = async (req: Request, res: Response) => {
+  return submitQuoteForApproval(req, res);
+};
+
 export const getApprovalTiers = async (req: Request, res: Response) => {
   try {
-    const tiers = await sequelize.models.ApprovalTier.findAll({
-      order: [["thresholdValue", "ASC"]]
-    });
+    const tiers = await sequelize.models.ApprovalTier.findAll({ order: [["thresholdValue", "ASC"]] });
     res.json(tiers);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -175,17 +602,12 @@ export const getApprovalTiers = async (req: Request, res: Response) => {
 export const createApprovalTier = async (req: Request, res: Response) => {
   try {
     const { name, thresholdValue, requiredRole } = req.body;
-    if (!name || thresholdValue === undefined) {
-      return res.status(400).json({ error: "name and thresholdValue are required." });
-    }
-
     const tier = await sequelize.models.ApprovalTier.create({
-      id: require('crypto').randomUUID(),
+      id: require("crypto").randomUUID(),
       name,
       thresholdValue,
       requiredRole: requiredRole || "sales_manager"
     });
-
     res.status(201).json(tier);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -197,7 +619,6 @@ export const deleteApprovalTier = async (req: Request, res: Response) => {
     const { id } = req.params;
     const tier = await sequelize.models.ApprovalTier.findByPk(id as string);
     if (!tier) return res.status(404).json({ error: "Approval tier not found." });
-
     await tier.destroy();
     res.json({ message: "Approval tier deleted successfully." });
   } catch (error: any) {

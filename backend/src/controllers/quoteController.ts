@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { sequelize } from "@nexus-crm/database";
 import { createNotification } from "../services/notificationService";
+import { evaluateQuoteApproval, createApprovalAuditLog } from "../services/approvalEngine";
 
 export const getQuotes = async (req: Request, res: Response) => {
   try {
@@ -147,17 +148,6 @@ export const createQuote = async (req: Request, res: Response) => {
     // Verify items and check pricing limits
     const verifiedItems = [];
     const userId = (req as any).user?.id || "mock-user";
-    const userRole = (req as any).user?.role || "sales_rep";
-
-    // Define standard discount limits
-    const roleDiscountLimits: Record<string, number> = {
-      sales_rep: 5,
-      sales_manager: 15,
-      director: 25,
-      admin: 100
-    };
-    const maxAllowedDiscount = roleDiscountLimits[userRole] || 5;
-    let approvalRequired = false;
 
     if (items && items.length > 0) {
       for (const item of items) {
@@ -177,12 +167,6 @@ export const createQuote = async (req: Request, res: Response) => {
           });
         }
 
-        // Check if discount exceeds user threshold
-        const discountPct = ((listPrice - requestedPrice) / listPrice) * 100;
-        if (discountPct > maxAllowedDiscount) {
-          approvalRequired = true;
-        }
-
         verifiedItems.push({
           id: require('crypto').randomUUID(),
           productId: item.productId,
@@ -194,22 +178,35 @@ export const createQuote = async (req: Request, res: Response) => {
       }
     }
 
-    // Bypass approval if it's a strategic account
-    if (isStrategic) {
-      approvalRequired = false;
-    }
-
     // Exclude optional items from the main total amount
     const totalAmount = verifiedItems
       .filter(item => !item.isOptional)
       .reduce((acc, item) => acc + item.totalPrice, 0);
 
+    // Evaluate quote approval requirements via Approval Hierarchy Engine
+    const salesRepId = (deal as any)?.ownerId || userId;
+    const evaluation = await evaluateQuoteApproval("", {
+      salesRepId,
+      totalAmount,
+      items: verifiedItems
+    });
+
+    const approvalRequired = !isStrategic && evaluation.approvalRequired;
+    const isSubmitted = status === "Pending" || status === "Pending Approval" || status === "Pending_Approval" || status === "Approved";
+
+    // If approval is NOT required and salesperson submits/saves, auto-approve under salesperson's self-approval limit
+    let finalStatus = status || "Draft";
+    if (approvalRequired) {
+      finalStatus = "Pending Approval";
+    } else if (isSubmitted) {
+      finalStatus = "Approved";
+    }
+
     // Create quote
-    const isPendingApprovalStatus = status === "Pending" || status === "Pending Approval" || status === "Pending_Approval";
     const quote = await sequelize.models.Quote.create({
       id: require('crypto').randomUUID(),
       dealId,
-      status: (approvalRequired || isPendingApprovalStatus) ? "Pending Approval" : (status || "Draft"),
+      status: finalStatus,
       totalAmount,
       expirationDate: expirationDate || null,
       quoteNumber: quoteNum,
@@ -225,36 +222,58 @@ export const createQuote = async (req: Request, res: Response) => {
       await sequelize.models.QuoteLineItem.bulkCreate(lineItemsData);
     }
 
-    // Auto-create approval request whenever quote is submitted for approval
-    if (approvalRequired || isPendingApprovalStatus) {
-      let assignedApproverId = null;
-      let commentsExtra = "";
-      
-      const adminOrManager = await sequelize.models.User.findOne({ where: { role: "admin" } }) || await sequelize.models.User.findOne({ where: { role: "sales_manager" } });
-      if (adminOrManager) {
-        assignedApproverId = (adminOrManager as any).id;
-      }
+    // Auto-create approval request only if approval is required
+    if (approvalRequired) {
+      const assignedApproverId = evaluation.requiredApproverId;
 
-      const approvalReq = await sequelize.models.ApprovalRequest.create({
+      await sequelize.models.ApprovalRequest.create({
         id: require('crypto').randomUUID(),
         targetId: (quote as any).id,
         type: "Quote",
         status: "Pending",
         requestedById: userId,
         assignedApproverId,
-        comments: `Quote submitted for Admin approval by Sales Representative.${commentsExtra}`
+        comments: `Quote value ${totalAmount} requires ${evaluation.approvalLevel} approval. Reason: ${evaluation.reason}`
       });
 
-      // Send real-time notification to Admin users
-      if (adminOrManager) {
+      // Audit Log
+      await createApprovalAuditLog({
+        quoteId: (quote as any).id,
+        salesRepId,
+        approvalLevel: evaluation.approvalLevel,
+        requiredLimit: evaluation.repLimit,
+        actualQuoteValue: totalAmount,
+        discount: evaluation.discount,
+        margin: evaluation.margin,
+        approverId: assignedApproverId,
+        decision: "Submitted",
+        reason: evaluation.reason
+      });
+
+      // Send real-time notification to Approver
+      if (assignedApproverId) {
         await createNotification(
-          (adminOrManager as any).id,
+          assignedApproverId,
           "alert",
           "New Quote Approval Request",
-          `A new quotation approval request for deal #${dealId?.substring(0, 8)} requires your approval.`,
+          `A new quotation approval request (${quoteNum}) requires your approval.`,
           "/approvals"
         );
       }
+    } else if (isSubmitted) {
+      // Audit log self-approval
+      await createApprovalAuditLog({
+        quoteId: (quote as any).id,
+        salesRepId,
+        approvalLevel: "SALES_REP",
+        requiredLimit: evaluation.repLimit,
+        actualQuoteValue: totalAmount,
+        discount: evaluation.discount,
+        margin: evaluation.margin,
+        approverId: salesRepId,
+        decision: "Approved",
+        reason: "Self-approved within Sales Representative authority limit."
+      });
     }
 
     res.status(201).json(quote);
@@ -265,21 +284,110 @@ export const createQuote = async (req: Request, res: Response) => {
 
 export const updateQuote = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
-    const { status, expirationDate } = req.body;
+    const id = String(req.params.id);
+    const { status, expirationDate, totalAmount, items } = req.body;
     
-    const quote = await sequelize.models.Quote.findByPk(String(id));
+    const quote = await sequelize.models.Quote.findByPk(String(id), {
+      include: [{ model: sequelize.models.QuoteLineItem, as: "QuoteLineItems" }]
+    });
     if (!quote) return res.status(404).json({ error: "Quote not found" });
 
     const q = quote as any;
-    if (status && status !== q.status) {
-      q.status = status;
-      q.statusChangedAt = new Date();
+    const prevStatus = q.status;
+    let itemsUpdated = false;
+
+    // Update items if provided
+    if (items && Array.isArray(items)) {
+      await sequelize.models.QuoteLineItem.destroy({ where: { quoteId: id } });
+      const newItems = items.map((item: any) => ({
+        id: require("crypto").randomUUID(),
+        quoteId: id,
+        productId: item.productId,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        totalPrice: item.quantity * item.unitPrice,
+        isOptional: item.isOptional || false
+      }));
+      await sequelize.models.QuoteLineItem.bulkCreate(newItems);
+      itemsUpdated = true;
     }
-    
+
+    if (totalAmount !== undefined) {
+      q.totalAmount = totalAmount;
+    } else if (itemsUpdated) {
+      const updatedLineItems: any = await sequelize.models.QuoteLineItem.findAll({ where: { quoteId: id } });
+      q.totalAmount = updatedLineItems
+        .filter((item: any) => !item.isOptional)
+        .reduce((acc: number, item: any) => acc + Number(item.totalPrice), 0);
+    }
+
     if (expirationDate) q.expirationDate = expirationDate;
 
+    // Re-evaluate approval hierarchy if items or total changed
+    if (itemsUpdated || totalAmount !== undefined) {
+      const evaluation = await evaluateQuoteApproval(id);
+      
+      // Edge Case 15 & Acceptance Test 6: If quote was approved or pending approval and now requires higher level
+      if (prevStatus === "Approved" || prevStatus === "Pending Approval") {
+        if (evaluation.approvalRequired) {
+          q.status = "Pending Approval";
+          
+          // Invalidate existing pending/approved approval request
+          await sequelize.models.ApprovalRequest.update(
+            { status: "Invalidated" },
+            { where: { targetId: id, type: "Quote" } }
+          );
+
+          // Create new pending request for required approver
+          await sequelize.models.ApprovalRequest.create({
+            id: require("crypto").randomUUID(),
+            targetId: id,
+            type: "Quote",
+            status: "Pending",
+            requestedById: (req as any).user?.id || evaluation.salesRepId,
+            assignedApproverId: evaluation.requiredApproverId,
+            comments: `Re-evaluated after quote modification. ${evaluation.reason}`
+          });
+
+          await createApprovalAuditLog({
+            quoteId: id,
+            salesRepId: evaluation.salesRepId,
+            approvalLevel: evaluation.approvalLevel,
+            requiredLimit: evaluation.repLimit,
+            actualQuoteValue: evaluation.quoteValue,
+            discount: evaluation.discount,
+            margin: evaluation.margin,
+            approverId: (req as any).user?.id || null,
+            decision: "Invalidated",
+            comment: "Quote modified after approval request. Previous approval invalidated and new approval required.",
+            previousStatus: prevStatus,
+            newStatus: "Pending Approval",
+            reason: evaluation.reason
+          });
+        }
+      }
+    } else if (status && status !== q.status) {
+      q.status = status;
+      q.statusChangedAt = new Date();
+      if (status === "Accepted") {
+        q.acceptedAt = new Date();
+      }
+    }
+
     await q.save();
+
+    if (status === "Accepted" && q.dealId) {
+      const deal = await sequelize.models.Deal.findByPk(q.dealId);
+      if (deal) {
+        const wonStage = await sequelize.models.PipelineStage.findOne({
+          where: { name: "Won" }
+        });
+        if (wonStage) {
+          await deal.update({ stageId: (wonStage as any).id });
+        }
+      }
+    }
+
     res.json(q);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -288,8 +396,8 @@ export const updateQuote = async (req: Request, res: Response) => {
 
 export const sendQuote = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
-    const quote = await sequelize.models.Quote.findByPk(id as string);
+    const id = String(req.params.id);
+    const quote = await sequelize.models.Quote.findByPk(id);
     if (!quote) return res.status(404).json({ error: "Quote not found" });
 
     await quote.update({
@@ -326,8 +434,8 @@ export const sendQuote = async (req: Request, res: Response) => {
 
 export const getPublicQuote = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params; // Using id directly for viewing public quote
-    const quote = await sequelize.models.Quote.findByPk(id as string, {
+    const id = String(req.params.id);
+    const quote = await sequelize.models.Quote.findByPk(id, {
       include: [
         { model: sequelize.models.QuoteLineItem, as: "QuoteLineItems", include: [{ model: sequelize.models.PriceBookEntry, as: "product" }] },
         { model: sequelize.models.Deal, as: "deal", include: [{ model: sequelize.models.Lead, as: "lead" }] }
@@ -448,91 +556,201 @@ export const generateQuotePdf = async (req: Request, res: Response) => {
 
     if (!quote) return res.status(404).json({ error: "Quote not found" });
 
-    const doc = new PDFDocument({ margin: 50 });
+    const doc = new PDFDocument({ margin: 40, size: "A4" });
 
     // Set Response Headers
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename=Quote_${(quote as any).quoteNumber || id}.pdf`
+      `inline; filename=Quote_${(quote as any).quoteNumber || id}.pdf`
     );
 
     doc.pipe(res);
 
-    // PDF Layout Styling
+    const formatCurr = (val: number) => {
+      const formatted = Number(val || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      return `SAR ${formatted}`;
+    };
+
+    // ── 1. HEADER BAND ──────────────────────────────────────────
+    doc.rect(40, 40, 515, 60).fill("#1e293b");
+
     doc
-      .fillColor("#0f172a")
+      .fillColor("#ffffff")
       .fontSize(20)
-      .text("NEXUS CRM - QUOTATION", { align: "center" })
-      .moveDown(1.5);
+      .font("Helvetica-Bold")
+      .text("NEXUS CRM", 55, 55);
 
-    // Quote Info block
     doc
-      .fontSize(10)
-      .fillColor("#475569")
-      .text(`Quote Number: ${(quote as any).quoteNumber || "N/A"}`)
-      .text(`Version: ${(quote as any).version || 1}`)
-      .text(`Date: ${new Date((quote as any).createdAt).toLocaleDateString()}`)
-      .text(`Valid Until: ${(quote as any).expirationDate ? new Date((quote as any).expirationDate).toLocaleDateString() : "30 Days from Issue"}`)
-      .moveDown();
+      .fontSize(9)
+      .font("Helvetica")
+      .fillColor("#94a3b8")
+      .text("ENTERPRISE SALES & QUOTATION SYSTEM", 55, 78);
 
-    // Client details
+    doc
+      .fontSize(18)
+      .font("Helvetica-Bold")
+      .fillColor("#ffffff")
+      .text("QUOTATION", 380, 58, { align: "right", width: 160 });
+
+    // ── 2. METADATA CARDS ───────────────────────────────────────
+    let currentY = 115;
+
+    // Prepared For Card (Left)
+    doc.rect(40, currentY, 250, 95).fillAndStroke("#f8fafc", "#e2e8f0");
+    doc
+      .fillColor("#4f46e5")
+      .fontSize(10)
+      .font("Helvetica-Bold")
+      .text("PREPARED FOR", 52, currentY + 10);
+
     const lead = (quote as any).deal?.lead;
-    if (lead) {
-      doc
-        .fontSize(12)
-        .fillColor("#0f172a")
-        .text("Prepared For:", { underline: true })
-        .fontSize(10)
-        .fillColor("#475569")
-        .text(`Name: ${lead.firstName} ${lead.lastName}`)
-        .text(`Company: ${lead.company || "N/A"}`)
-        .text(`Email: ${lead.email}`)
-        .moveDown(1.5);
-    }
-
-    // Line Items Title
     doc
-      .fontSize(12)
       .fillColor("#0f172a")
-      .text("Line Items:", { underline: true })
-      .moveDown(0.5);
-
-    // Items table header
-    doc
       .fontSize(10)
-      .text("Product/Service Description", 50, doc.y, { width: 250 })
-      .text("Qty", 320, doc.y)
-      .text("Unit Price", 380, doc.y)
-      .text("Total", 470, doc.y)
-      .moveDown(0.3);
+      .font("Helvetica-Bold")
+      .text(lead ? `${lead.firstName || ""} ${lead.lastName || ""}` : "Client Contact", 52, currentY + 26)
+      .font("Helvetica")
+      .fontSize(9)
+      .fillColor("#475569")
+      .text(`Company: ${lead?.company || "N/A"}`, 52, currentY + 42)
+      .text(`Email: ${lead?.email || "N/A"}`, 52, currentY + 56)
+      .text(`Phone: ${lead?.phone || "N/A"}`, 52, currentY + 70);
 
-    doc.moveTo(50, doc.y).lineTo(550, doc.y).strokeColor("#cbd5e1").stroke().moveDown(0.5);
+    // Quote Info Card (Right)
+    doc.rect(305, currentY, 250, 95).fillAndStroke("#f8fafc", "#e2e8f0");
+    doc
+      .fillColor("#4f46e5")
+      .fontSize(10)
+      .font("Helvetica-Bold")
+      .text("QUOTATION DETAILS", 317, currentY + 10);
+
+    const createdDate = (quote as any).createdAt ? new Date((quote as any).createdAt).toLocaleDateString() : new Date().toLocaleDateString();
+    const expDate = (quote as any).expirationDate ? new Date((quote as any).expirationDate).toLocaleDateString() : "30 Days from Issue";
+
+    doc
+      .fillColor("#475569")
+      .fontSize(9)
+      .font("Helvetica")
+      .text(`Quote Ref: `, 317, currentY + 26, { continued: true })
+      .font("Helvetica-Bold").fillColor("#0f172a").text((quote as any).quoteNumber || "N/A")
+      .font("Helvetica").fillColor("#475569").text(`Date: `, 317, currentY + 42, { continued: true })
+      .font("Helvetica-Bold").fillColor("#0f172a").text(createdDate)
+      .font("Helvetica").fillColor("#475569").text(`Valid Until: `, 317, currentY + 56, { continued: true })
+      .font("Helvetica-Bold").fillColor("#0f172a").text(expDate)
+      .font("Helvetica").fillColor("#475569").text(`Status: `, 317, currentY + 70, { continued: true })
+      .font("Helvetica-Bold").fillColor("#16a34a").text((quote as any).status || "Draft");
+
+    // ── 3. LINE ITEMS TABLE ─────────────────────────────────────
+    currentY = 225;
+
+    // Table Header Bar
+    doc.rect(40, currentY, 515, 24).fill("#334155");
+
+    doc
+      .fillColor("#ffffff")
+      .fontSize(9)
+      .font("Helvetica-Bold");
+
+    doc.text("PRODUCT / SERVICE DESCRIPTION", 50, currentY + 7, { width: 230, align: "left" });
+    doc.text("QTY", 285, currentY + 7, { width: 45, align: "center" });
+    doc.text("UNIT PRICE", 335, currentY + 7, { width: 100, align: "right" });
+    doc.text("TOTAL", 445, currentY + 7, { width: 100, align: "right" });
+
+    currentY += 24;
 
     const items = (quote as any).QuoteLineItems || [];
-    items.forEach((item: any) => {
-      const productName = item.product?.name || "Product/Service";
-      const qty = item.quantity;
-      const unit = Number(item.unitPrice).toFixed(2);
-      const total = Number(item.totalPrice).toFixed(2);
+    let isEven = false;
 
-      doc
-        .fillColor("#475569")
-        .text(productName, 50, doc.y, { width: 250 })
-        .text(qty.toString(), 320, doc.y)
-        .text(`$${unit}`, 380, doc.y)
-        .text(`$${total}`, 470, doc.y)
-        .moveDown(0.5);
-    });
+    if (items.length === 0) {
+      doc.rect(40, currentY, 515, 25).fill("#ffffff");
+      doc.fillColor("#64748b").fontSize(9).font("Helvetica-Oblique").text("No line items specified.", 50, currentY + 8);
+      currentY += 25;
+    } else {
+      items.forEach((item: any) => {
+        const itemY = currentY;
+        const productName = item.product?.name || item.nameOverride || "Product / Service";
+        const qty = Number(item.quantity || 1);
+        const unitPrice = Number(item.unitPrice || 0);
+        const totalPrice = Number(item.totalPrice || qty * unitPrice);
 
-    doc.moveTo(50, doc.y).lineTo(550, doc.y).strokeColor("#cbd5e1").stroke().moveDown(0.5);
+        // Row background
+        const rowBg = isEven ? "#f8fafc" : "#ffffff";
+        doc.rect(40, itemY, 515, 25).fill(rowBg);
+        isEven = !isEven;
 
-    // Total Amount Block
-    const totalAmount = Number((quote as any).totalAmount).toFixed(2);
+        doc
+          .fontSize(9)
+          .font("Helvetica")
+          .fillColor("#0f172a");
+
+        doc.text(productName, 50, itemY + 7, { width: 230, ellipsis: true });
+        doc.text(qty.toString(), 285, itemY + 7, { width: 45, align: "center" });
+        doc.text(formatCurr(unitPrice), 335, itemY + 7, { width: 100, align: "right" });
+        doc.font("Helvetica-Bold").text(formatCurr(totalPrice), 445, itemY + 7, { width: 100, align: "right" });
+
+        // Bottom border for row
+        doc.moveTo(40, itemY + 25).lineTo(555, itemY + 25).strokeColor("#e2e8f0").stroke();
+
+        currentY += 25;
+      });
+    }
+
+    // ── 4. SUMMARY & TOTALS BOX ──────────────────────────────────
+    currentY += 15;
+
+    const totalAmount = Number((quote as any).totalAmount || 0);
+
+    // Summary Card on Right
+    doc.rect(320, currentY, 235, 45).fillAndStroke("#4f46e5", "#4338ca");
+
     doc
-      .fontSize(12)
-      .fillColor("#0f172a")
-      .text(`Total Amount: $${totalAmount}`, 400, doc.y, { align: "right" });
+      .fillColor("#ffffff")
+      .fontSize(10)
+      .font("Helvetica-Bold")
+      .text("TOTAL AMOUNT", 332, currentY + 16);
+
+    doc
+      .fontSize(13)
+      .font("Helvetica-Bold")
+      .text(formatCurr(totalAmount), 430, currentY + 14, { width: 115, align: "right" });
+
+    currentY += 65;
+
+    // ── 5. TERMS & SIGNATURE BOXES ──────────────────────────────
+    doc
+      .fillColor("#1e293b")
+      .fontSize(10)
+      .font("Helvetica-Bold")
+      .text("TERMS & CONDITIONS", 40, currentY);
+
+    currentY += 14;
+
+    doc
+      .fillColor("#64748b")
+      .fontSize(8)
+      .font("Helvetica")
+      .text("1. Prices are valid for 30 days from date of issuance.", 40, currentY)
+      .text("2. Payment terms: 100% upon invoice unless otherwise specified.", 40, currentY + 12)
+      .text("3. Subject to standard Nexus CRM terms of service.", 40, currentY + 24);
+
+    currentY += 55;
+
+    // Signature Line 1 (Left)
+    doc.moveTo(40, currentY).lineTo(230, currentY).strokeColor("#cbd5e1").stroke();
+    doc
+      .fillColor("#475569")
+      .fontSize(8)
+      .font("Helvetica-Bold")
+      .text("AUTHORIZED REPRESENTATIVE", 40, currentY + 5);
+
+    // Signature Line 2 (Right)
+    doc.moveTo(320, currentY).lineTo(555, currentY).strokeColor("#cbd5e1").stroke();
+    doc
+      .fillColor("#475569")
+      .fontSize(8)
+      .font("Helvetica-Bold")
+      .text("CLIENT ACCEPTANCE", 320, currentY + 5);
 
     doc.end();
   } catch (error: any) {
@@ -545,7 +763,7 @@ export const signQuote = async (req: Request, res: Response) => {
     const { id } = req.params;
     const { signedBy } = req.body;
 
-    const quote = await sequelize.models.Quote.findByPk(id as string, {
+    const quote: any = await sequelize.models.Quote.findByPk(id as string, {
       include: [{ model: sequelize.models.Deal, as: "deal" }]
     });
     if (!quote) return res.status(404).json({ error: "Quote not found" });
@@ -555,18 +773,21 @@ export const signQuote = async (req: Request, res: Response) => {
       acceptedAt: new Date()
     });
 
+    const createdById = (req as any).user?.id || quote.deal?.ownerId || null;
+
     // Create Activity Log
     await sequelize.models.Activity.create({
       id: require('crypto').randomUUID(),
-      leadId: (quote as any).deal?.leadId || null,
+      leadId: quote.deal?.leadId || null,
       type: "note",
-      outcome: `Quote ${(quote as any).quoteNumber} signed via simulated DocuSign by ${signedBy || "Client"}.`,
-      createdById: (req as any).user?.id || "mock-user",
+      outcome: `Quote ${quote.quoteNumber || id} signed via simulated DocuSign by ${signedBy || "Client"}.`,
+      createdById: createdById,
       direction: "internal"
     });
 
     res.json({ message: "Quote successfully signed via DocuSign simulation.", quote });
   } catch (error: any) {
+    console.error("Error in signQuote:", error);
     res.status(500).json({ error: error.message });
   }
 };

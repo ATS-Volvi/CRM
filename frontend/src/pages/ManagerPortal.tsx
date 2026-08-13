@@ -1,94 +1,131 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import {
-  Users, TrendingUp, Target, Award, DollarSign, CheckSquare, Shield,
-  BarChart2, Zap, AlertTriangle, Plus, ChevronRight, ArrowUpRight,
-  CheckCircle2, Clock, Filter, User, Building2, Trello, Sparkles, MessageSquare,
-  RefreshCw, MapPin
+  Users, TrendingUp, Target, DollarSign, Shield,
+  BarChart2, ChevronRight, ArrowUpRight,
+  CheckCircle2, Clock, User, Building2, Sparkles,
+  MapPin, AlertTriangle, Inbox, PieChart, XCircle,
+  ChevronDown, Activity, Eye, FileText
 } from "lucide-react";
 import { apiClient } from "../lib/apiClient";
-import { formatCurrencyCompact } from "../utils/currency";
+import { formatCurrency, formatCurrencyCompact } from "../utils/currency";
+import { LossReasonAnalyticsSection } from "../components/LossReasonAnalyticsSection";
 
 export default function ManagerPortal() {
   const navigate = useNavigate();
-  const { user, token } = useAuth();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  const [activeTab, setActiveTab] = useState<"team" | "approvals" | "forecast" | "distribution" | "coaching" | "ai">("team");
-  const [selectedRepId, setSelectedRepId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"overview" | "approvals" | "pipeline" | "revenue" | "leads" | "losses">("overview");
 
-  // Form for coaching note
-  const [coachingText, setCoachingText] = useState("");
-  const [selectedCoachingRep, setSelectedCoachingRep] = useState("Henry Cavill");
+  const managerName = user?.name || "Manager";
 
-  const managerName = user?.name || "Marcus Vance";
-  const managerRole = "Regional Sales Director";
-  const territory = "EMEA & APAC Operations";
+  // ── Real data queries ──
 
-  // Team performance metrics
-  const teamMetrics = {
-    totalRevenue: 3840000,
-    targetQuota: 4500000,
-    pipelineValue: 14200000,
-    forecastedRevenue: 4120000,
-    teamWinRate: 38.5,
-    pendingApprovals: 4,
-    repsAtRisk: 2
-  };
-
-  const [showAddRepModal, setShowAddRepModal] = useState(false);
-  const [newRepName, setNewRepName] = useState("");
-  const [newRepEmail, setNewRepEmail] = useState("");
-  const [newRepTerritory, setNewRepTerritory] = useState("North America - East");
-  const [newRepMaxLeads, setNewRepMaxLeads] = useState("35");
-
-  const createRepMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiClient("/api/v1/salespersons", {
-        method: "POST",
-        body: JSON.stringify({
-          name: newRepName,
-          email: newRepEmail,
-          territory: newRepTerritory,
-          maxOpenLeads: parseInt(newRepMaxLeads),
-          role: "sales_rep"
-        })
-      });
-      if (!res.ok) throw new Error("Failed to create sales representative");
+  const { data: mgmtKpi } = useQuery<any>({
+    queryKey: ["managementKpi"],
+    queryFn: async () => {
+      const res = await apiClient("/api/v1/dashboard/management");
+      if (!res.ok) return null;
       return res.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["salespersonsPerformance"] });
-      setShowAddRepModal(false);
-      setNewRepName("");
-      setNewRepEmail("");
-    }
   });
 
-  const teamReps = [
-    { id: "1", name: "Henry Cavill", avatar: "HC", territory: "Nordics & DACH", email: "h.cavill@apex.com", target: "$1,200,000", revenue: "$1,300,000", pct: 108, winRate: "42%", dealsWon: 14, pipeline: "$4.2M", status: "Exceeding" },
-    { id: "2", name: "Sophia Martinez", avatar: "SM", territory: "UK & Southern Europe", email: "s.martinez@apex.com", target: "$1,100,000", revenue: "$980,000", pct: 89, winRate: "36%", dealsWon: 11, pipeline: "$3.1M", status: "On Track" },
-    { id: "3", name: "Liam Carter", avatar: "LC", territory: "North America - East", email: "l.carter@apex.com", target: "$1,000,000", revenue: "$720,000", pct: 72, winRate: "28%", dealsWon: 8, pipeline: "$2.5M", status: "Coaching Needed" },
-  ];
+  const { data: homeKpi } = useQuery<any>({
+    queryKey: ["homeDashboard"],
+    queryFn: async () => {
+      const res = await apiClient("/api/v1/dashboard/home");
+      if (!res.ok) return null;
+      return res.json();
+    },
+  });
 
-  const pendingApprovals = [
-    { id: "a1", type: "Quote Discount Approval", client: "Aegis Systems Group", rep: "Sophia Martinez", amount: "$268,500", discount: "12% Enterprise Bundle", status: "Pending" },
-    { id: "a2", type: "Special Pricing Request", client: "Apex Pharmaceuticals", rep: "Henry Cavill", amount: "$380,000", discount: "15% Multi-Year SLA", status: "Pending" },
-    { id: "a3", type: "Purchase Order Verification", client: "Starlight Energy Inc.", rep: "Liam Carter", amount: "$520,000", discount: "Verified PO #9412", status: "Pending" },
-  ];
+  const { data: teamReps = [] } = useQuery<any[]>({
+    queryKey: ["salespersonsPerformance"],
+    queryFn: async () => {
+      const res = await apiClient("/api/v1/salespersons/performance");
+      if (!res.ok) return [];
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    },
+  });
 
-  const coachingFeed = [
-    { id: "c1", rep: "Henry Cavill", manager: "Marcus Vance", text: "Outstanding performance hitting 108% of quota in Nordics! Share your cleanroom proposal playbook with Noah Bennett.", date: "Today" },
-    { id: "c2", rep: "Liam Carter", manager: "Marcus Vance", text: "Focus on accelerating proposal delivery for North America East leads to hit Q3 forecast.", date: "Yesterday" },
-  ];
+  const { data: pendingApprovals = [] } = useQuery<any[]>({
+    queryKey: ["pendingApprovals"],
+    queryFn: async () => {
+      const res = await apiClient("/api/v1/approvals/pending");
+      if (!res.ok) return [];
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    },
+  });
 
-  const handleAddCoachingNote = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!coachingText.trim()) return;
-    setCoachingText("");
-  };
+  const { data: leads = [] } = useQuery<any[]>({
+    queryKey: ["leads"],
+    queryFn: async () => {
+      const res = await apiClient("/api/v1/leads");
+      if (!res.ok) return [];
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    },
+  });
+
+  const { data: deals = [] } = useQuery<any[]>({
+    queryKey: ["allDeals"],
+    queryFn: async () => {
+      const res = await apiClient("/api/v1/pipeline/deals");
+      if (!res.ok) return [];
+      const data = await res.json();
+      return Array.isArray(data) ? data.flat?.() || data : [];
+    },
+  });
+
+  const { data: staleDeals = [] } = useQuery<any[]>({
+    queryKey: ["staleDeals"],
+    queryFn: async () => {
+      const res = await apiClient("/api/v1/dashboard/stale-deals");
+      if (!res.ok) return [];
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    },
+  });
+
+  // ── Derived metrics ──
+
+  const totalReps = teamReps.length;
+  const availableReps = teamReps.filter((r: any) => r.isAvailable).length;
+  const avgQuota = totalReps > 0 ? Math.round(teamReps.reduce((a: number, r: any) => a + (r.targetAchievementPct || 0), 0) / totalReps) : 0;
+  const teamRevenue = teamReps.reduce((a: number, r: any) => a + (r.revenueClosed || 0), 0);
+
+  const pipelineValue = mgmtKpi?.totalPipelineValue || 0;
+  const totalWon = mgmtKpi?.totalWon || 0;
+  const winRate = mgmtKpi?.winRate || 0;
+
+  const newLeads = leads.filter((l: any) => l.status === "New").length;
+  const unassignedLeads = leads.filter((l: any) => !l.assignedToId).length;
+  const slaRiskLeads = leads.filter((l: any) => !l.assignedToId && l.status === "New").length;
+
+  // Pipeline stage breakdown
+  const allDeals = Array.isArray(deals) ? deals.flat() : [];
+  const stageMap: Record<string, { count: number; value: number }> = {};
+  allDeals.forEach((d: any) => {
+    const stageName = d.stage?.name || d.stageName || "Unknown";
+    if (!stageMap[stageName]) stageMap[stageName] = { count: 0, value: 0 };
+    stageMap[stageName].count++;
+    stageMap[stageName].value += d.value || 0;
+  });
+  const stageBreakdown = Object.entries(stageMap).sort(([, a], [, b]) => b.value - a.value);
+
+  const tabs = [
+    { key: "overview", label: "Team Overview", icon: Users, badge: totalReps },
+    { key: "approvals", label: "Approvals", icon: Shield, badge: pendingApprovals.length },
+    { key: "pipeline", label: "Pipeline Health", icon: BarChart2 },
+    { key: "revenue", label: "Revenue & Targets", icon: DollarSign },
+    { key: "leads", label: "Lead Intake", icon: Inbox, badge: newLeads },
+    { key: "losses", label: "Loss Analytics", icon: PieChart },
+  ];
 
   return (
     <div className="bg-slate-50 min-h-[calc(100vh-64px)] p-6 space-y-6">
@@ -97,41 +134,46 @@ export default function ManagerPortal() {
       <div className="bg-gradient-to-r from-purple-900 via-indigo-900 to-slate-900 rounded-2xl p-6 text-white shadow-md flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 rounded-2xl bg-white/10 backdrop-blur border border-white/20 flex items-center justify-center font-black text-xl text-amber-300 shadow-inner">
-            MV
+            {(managerName || "M").slice(0, 2).toUpperCase()}
           </div>
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-black tracking-tight">{managerName}</h1>
               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-400 text-slate-950 uppercase tracking-wider">
-                Sales Manager Portal
+                Dashboard
               </span>
             </div>
-            <p className="text-xs text-indigo-200 mt-1">{managerRole} · Region: {territory}</p>
+            <p className="text-xs text-indigo-200 mt-1">{user?.role === "admin" ? "Administrator" : "Sales Manager"} · {(user as any)?.department || "Operations"}</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-4 bg-white/10 backdrop-blur p-4 rounded-xl border border-white/10">
-          <div className="text-right">
-            <p className="text-[10px] font-bold text-indigo-200 uppercase">Team Quota Achievement</p>
-            <p className="text-lg font-black text-amber-300">{formatCurrencyCompact(teamMetrics.totalRevenue)} / {formatCurrencyCompact(teamMetrics.targetQuota)}</p>
-            <p className="text-xs font-semibold text-emerald-300">Pipeline Coverage: 3.8x Quota</p>
+        {/* Key KPI Strip */}
+        <div className="flex items-center gap-6 bg-white/10 backdrop-blur p-4 rounded-xl border border-white/10">
+          <div className="text-center">
+            <p className="text-[9px] font-bold text-indigo-300 uppercase">Team Revenue</p>
+            <p className="text-lg font-black text-amber-300">{formatCurrencyCompact(teamRevenue)}</p>
           </div>
-          <div className="w-14 h-14 rounded-full border-4 border-emerald-400 flex items-center justify-center font-black text-sm text-white">
-            85%
+          <div className="w-px h-8 bg-white/20" />
+          <div className="text-center">
+            <p className="text-[9px] font-bold text-indigo-300 uppercase">Pipeline</p>
+            <p className="text-lg font-black text-white">{formatCurrencyCompact(pipelineValue)}</p>
+          </div>
+          <div className="w-px h-8 bg-white/20" />
+          <div className="text-center">
+            <p className="text-[9px] font-bold text-indigo-300 uppercase">Win Rate</p>
+            <p className="text-lg font-black text-emerald-300">{winRate}%</p>
+          </div>
+          <div className="w-px h-8 bg-white/20" />
+          <div className="text-center">
+            <p className="text-[9px] font-bold text-indigo-300 uppercase">Avg Quota</p>
+            <p className="text-lg font-black text-white">{avgQuota}%</p>
           </div>
         </div>
       </div>
 
       {/* Workspace Tabs */}
       <div className="bg-white border border-slate-200 rounded-2xl p-2 flex items-center gap-1 overflow-x-auto no-scrollbar shadow-xs">
-        {[
-          { key: "team", label: "Team Performance & Reps", icon: Users, badge: teamReps.length },
-          { key: "approvals", label: "Approval Center", icon: Shield, badge: pendingApprovals.length },
-          { key: "forecast", label: "Revenue Forecasting", icon: TrendingUp },
-          { key: "distribution", label: "Lead Distribution", icon: Target },
-          { key: "coaching", label: "Coaching Center", icon: User },
-          { key: "ai", label: "AI Manager Assistant", icon: Sparkles },
-        ].map(t => {
+        {tabs.map(t => {
           const Icon = t.icon;
           const isActive = activeTab === t.key;
           return (
@@ -144,8 +186,8 @@ export default function ManagerPortal() {
             >
               <Icon className="w-3.5 h-3.5" />
               {t.label}
-              {t.badge !== undefined && (
-                <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${isActive ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"}`}>
+              {t.badge !== undefined && t.badge > 0 && (
+                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-extrabold ${isActive ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"}`}>
                   {t.badge}
                 </span>
               )}
@@ -154,272 +196,389 @@ export default function ManagerPortal() {
         })}
       </div>
 
-      {/* TEAM PERFORMANCE TAB */}
-      {activeTab === "team" && (
+      {/* ═══════════════════════════════════════════════════════════ */}
+      {/* TAB 1: TEAM OVERVIEW */}
+      {/* ═══════════════════════════════════════════════════════════ */}
+      {activeTab === "overview" && (
         <div className="space-y-6">
-          {/* Manager Action Strip */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs flex items-center justify-between gap-3 flex-wrap">
-            <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">Manager Quick Tools:</span>
-            <div className="flex gap-2 flex-wrap">
-              <button onClick={() => navigate("/rules")} className="px-3.5 py-2 bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 rounded-xl text-xs font-bold transition-colors">
-                ⚙ Assignment Rules
-              </button>
-              <button onClick={() => navigate("/approvals")} className="px-3.5 py-2 bg-secondary/10 text-secondary border border-secondary/20 hover:bg-secondary/20 rounded-xl text-xs font-bold transition-colors">
-                🛡 Approval Queues ({pendingApprovals.length})
-              </button>
-              <button onClick={() => setShowAddRepModal(true)} className="px-3.5 py-2 bg-[#2563EB] text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-xs hover:bg-blue-700 transition-all">
-                <Plus className="w-3.5 h-3.5" /> + Add Sales Representative
-              </button>
+          {/* Quick stats */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Active Reps</span>
+              <p className="text-2xl font-black text-slate-900">{totalReps}</p>
+              <span className="text-[11px] text-emerald-600 font-bold">{availableReps} available for routing</span>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Team Revenue</span>
+              <p className="text-2xl font-black text-emerald-600">{formatCurrencyCompact(teamRevenue)}</p>
+              <span className="text-[11px] text-slate-500 font-semibold">Combined closed value</span>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Avg Quota Attainment</span>
+              <p className={`text-2xl font-black ${avgQuota >= 80 ? "text-emerald-600" : avgQuota >= 50 ? "text-amber-600" : "text-rose-600"}`}>{avgQuota}%</p>
+              <span className="text-[11px] text-slate-500 font-semibold">Target achievement</span>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Pending Approvals</span>
+              <p className="text-2xl font-black text-purple-600">{pendingApprovals.length}</p>
+              <Link to="/approvals" className="text-[11px] text-primary font-bold hover:underline">View queue →</Link>
             </div>
           </div>
 
-          {/* Rep Performance Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {teamReps.map(rep => (
-              <div
-                key={rep.id}
-                onClick={() => navigate(`/salespersons/${rep.id}`)}
-                className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer space-y-4 group"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-extrabold text-xs flex items-center justify-center">
-                      {rep.avatar}
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-bold text-slate-900 group-hover:text-purple-600 transition-colors">{rep.name}</h3>
-                      <p className="text-[11px] text-slate-500">{rep.territory}</p>
-                    </div>
-                  </div>
-                  <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
-                    rep.status === "Exceeding" ? "bg-emerald-100 text-emerald-700" :
-                    rep.status === "On Track" ? "bg-indigo-100 text-indigo-700" : "bg-red-100 text-red-700"
-                  }`}>
-                    {rep.status}
-                  </span>
-                </div>
+          {/* Rep performance list */}
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-slate-100">
+              <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                <Users className="w-4 h-4 text-primary" /> Team Performance
+              </h3>
+              <Link to="/salespersons" className="text-xs font-bold text-primary hover:underline flex items-center gap-1">
+                Open Team Hub <ChevronRight className="w-3 h-3" />
+              </Link>
+            </div>
 
-                <div className="space-y-1.5 pt-2 border-t border-slate-100">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-slate-500">Monthly Target</span>
-                    <span className="font-bold text-slate-800">{rep.revenue} / {rep.target}</span>
-                  </div>
-                  <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full ${rep.pct >= 90 ? "bg-emerald-500" : rep.pct >= 70 ? "bg-indigo-500" : "bg-red-500"}`}
-                      style={{ width: `${Math.min(100, rep.pct)}%` }}
-                    />
-                  </div>
-                  <div className="flex justify-between text-[10px] text-slate-400 pt-0.5">
-                    <span>{rep.pct}% Achieved</span>
-                    <span>Win Rate: {rep.winRate}</span>
-                  </div>
-                </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 text-slate-500 font-bold border-b border-slate-200 uppercase tracking-wider text-[10px]">
+                  <tr>
+                    <th className="p-3.5">Rep</th>
+                    <th className="p-3.5">Department</th>
+                    <th className="p-3.5">Territory</th>
+                    <th className="p-3.5">Leads</th>
+                    <th className="p-3.5">Deals</th>
+                    <th className="p-3.5">Revenue</th>
+                    <th className="p-3.5">Quota %</th>
+                    <th className="p-3.5">Status</th>
+                    <th className="p-3.5"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-medium">
+                  {teamReps.length === 0 ? (
+                    <tr><td colSpan={9} className="p-8 text-center text-slate-400 italic">No team data available</td></tr>
+                  ) : (
+                    teamReps.slice(0, 10).map((rep: any, idx: number) => {
+                      const pct = rep.targetAchievementPct || 0;
+                      const pctColor = pct >= 90 ? "text-emerald-600 bg-emerald-50" : pct >= 60 ? "text-indigo-600 bg-indigo-50" : pct >= 30 ? "text-amber-600 bg-amber-50" : "text-rose-600 bg-rose-50";
 
-                <div className="grid grid-cols-2 gap-2 text-center text-xs bg-slate-50 p-2.5 rounded-xl">
-                  <div>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase">Deals Won</p>
-                    <p className="font-extrabold text-slate-800">{rep.dealsWon}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase">Pipeline</p>
-                    <p className="font-extrabold text-indigo-600">{rep.pipeline}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
+                      return (
+                        <tr key={rep.id} className="hover:bg-slate-50 transition-colors">
+                          <td className="p-3.5">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-bold text-[10px] flex items-center justify-center">
+                                {(rep.name || "?").split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase()}
+                              </div>
+                              <div>
+                                <p className="font-bold text-slate-900">{rep.name}</p>
+                                <p className="text-[10px] text-slate-400">{rep.email}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="p-3.5 text-slate-600">{rep.department || "Sales"}</td>
+                          <td className="p-3.5 text-slate-600">{rep.territory || "—"}</td>
+                          <td className="p-3.5 font-bold text-slate-800">{rep.totalLeads || 0}</td>
+                          <td className="p-3.5 font-bold text-slate-800">{rep.totalDeals || 0}</td>
+                          <td className="p-3.5 font-bold text-slate-900">{formatCurrencyCompact(rep.revenueClosed || 0)}</td>
+                          <td className="p-3.5">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${pctColor}`}>
+                              {pct}%
+                            </span>
+                          </td>
+                          <td className="p-3.5">
+                            <div className={`w-2 h-2 rounded-full ${rep.isAvailable ? "bg-emerald-500" : "bg-slate-400"}`} />
+                          </td>
+                          <td className="p-3.5">
+                            <button onClick={() => navigate(`/salespersons/${rep.id}`)} className="text-primary font-bold hover:underline text-[10px]">
+                              View
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
 
-      {/* APPROVALS TAB */}
+      {/* ═══════════════════════════════════════════════════════════ */}
+      {/* TAB 2: APPROVALS */}
+      {/* ═══════════════════════════════════════════════════════════ */}
       {activeTab === "approvals" && (
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
-              <Shield className="w-5 h-5 text-purple-600" /> Pending Manager Approval Queue ({pendingApprovals.length})
+              <Shield className="w-5 h-5 text-purple-600" /> Pending Approvals ({pendingApprovals.length})
             </h3>
             <Link to="/approvals" className="text-xs font-bold text-purple-600 hover:underline">Open Full Approval Queue →</Link>
           </div>
 
-          <div className="space-y-3">
-            {pendingApprovals.map(app => (
-              <div key={app.id} className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-100 text-purple-700 uppercase">{app.type}</span>
-                    <h4 className="text-sm font-bold text-slate-900">{app.client}</h4>
+          {pendingApprovals.length === 0 ? (
+            <div className="text-center py-12 text-slate-400">
+              <CheckCircle2 className="w-10 h-10 mx-auto mb-3 opacity-40" />
+              <p className="text-sm font-bold">All caught up!</p>
+              <p className="text-xs mt-1">No pending approvals at this time.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {pendingApprovals.map((app: any) => (
+                <div key={app.id} className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-100 text-purple-700 uppercase">
+                        {app.type || "Quote Approval"}
+                      </span>
+                      <h4 className="text-sm font-bold text-slate-900">{app.entityName || app.quoteNumber || `Approval #${app.id?.slice(0, 8)}`}</h4>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Requested by: <span className="font-bold text-slate-700">{app.requestedByName || "Sales Rep"}</span>
+                      {app.reason && ` · ${app.reason}`}
+                    </p>
                   </div>
-                  <p className="text-xs text-slate-500 mt-1">Requested by: <span className="font-bold text-slate-700">{app.rep}</span> · Details: {app.discount}</p>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <span className="text-sm font-extrabold text-slate-900">{formatCurrencyCompact(app.amount || app.totalAmount || 0)}</span>
+                    <button onClick={() => navigate("/approvals")} className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700">
+                      Review
+                    </button>
+                  </div>
                 </div>
-
-                <div className="flex items-center gap-3 shrink-0">
-                  <span className="text-sm font-extrabold text-slate-900">{app.amount}</span>
-                  <button onClick={() => navigate("/approvals")} className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700">Approve</button>
-                  <button onClick={() => navigate("/approvals")} className="px-3 py-1.5 bg-slate-200 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-300">Reject</button>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
-      {/* FORECAST TAB */}
-      {activeTab === "forecast" && (
-        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
-          <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-indigo-600" /> Q3 Weighted Revenue Forecast
-          </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl">
-              <p className="text-xs font-bold text-slate-400 uppercase">Committed (Won Deals)</p>
-              <p className="text-2xl font-black text-emerald-600 mt-1">$3,840,000</p>
-              <p className="text-xs text-slate-500 mt-1">100% Probability</p>
-            </div>
-            <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl">
-              <p className="text-xs font-bold text-slate-400 uppercase">Best Case Projection</p>
-              <p className="text-2xl font-black text-indigo-600 mt-1">$4,850,000</p>
-              <p className="text-xs text-slate-500 mt-1">Proposal & Negotiation Deals</p>
-            </div>
-            <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl">
-              <p className="text-xs font-bold text-slate-400 uppercase">Weighted Forecast</p>
-              <p className="text-2xl font-black text-purple-600 mt-1">$4,120,000</p>
-              <p className="text-xs text-emerald-600 font-bold mt-1">91.5% of Q3 Target</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* COACHING TAB */}
-      {activeTab === "coaching" && (
+      {/* ═══════════════════════════════════════════════════════════ */}
+      {/* TAB 3: PIPELINE HEALTH */}
+      {/* ═══════════════════════════════════════════════════════════ */}
+      {activeTab === "pipeline" && (
         <div className="space-y-6">
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
-            <h3 className="text-base font-bold text-slate-800">Add Manager Coaching Note</h3>
-
-            <form onSubmit={handleAddCoachingNote} className="space-y-3">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Select Sales Representative</label>
-                  <select value={selectedCoachingRep} onChange={e => setSelectedCoachingRep(e.target.value)} className="w-full border border-slate-200 rounded-lg p-2.5 text-xs font-semibold">
-                    {teamReps.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Coaching Feedback / Action Item</label>
-                <textarea value={coachingText} onChange={e => setCoachingText(e.target.value)} rows={3} placeholder="Provide specific feedback or deal action items..." className="w-full border border-slate-200 rounded-lg p-2.5 text-xs font-semibold resize-none" />
-              </div>
-
-              <button type="submit" className="px-4 py-2 bg-purple-600 text-white text-xs font-bold rounded-xl hover:bg-purple-700">
-                Save Coaching Note
-              </button>
-            </form>
+          {/* Pipeline KPIs */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Total Pipeline Value</span>
+              <p className="text-2xl font-black text-indigo-600">{formatCurrencyCompact(pipelineValue)}</p>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Total Won</span>
+              <p className="text-2xl font-black text-emerald-600">{formatCurrencyCompact(totalWon)}</p>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Win Rate</span>
+              <p className="text-2xl font-black text-blue-600">{winRate}%</p>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Stale Deals</span>
+              <p className="text-2xl font-black text-amber-600">{staleDeals.length}</p>
+              <span className="text-[11px] text-slate-500 font-semibold">No activity &gt;7 days</span>
+            </div>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-3">
-            <h4 className="text-sm font-bold text-slate-800">Recent Coaching Feed</h4>
-            {coachingFeed.map(c => (
-              <div key={c.id} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
-                <p className="text-xs font-bold text-slate-800">Rep: {c.rep}</p>
-                <p className="text-xs text-slate-600">{c.text}</p>
-                <p className="text-[10px] text-slate-400 text-right">{c.date}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* AI ASSISTANT & DISTRIBUTION TABS */}
-      {(activeTab === "distribution" || activeTab === "ai") && (
-        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs text-center py-12 space-y-3">
-          <Sparkles className="w-12 h-12 text-purple-500 mx-auto animate-pulse" />
-          <h3 className="text-base font-bold text-slate-800">AI Manager Assistant & Lead Redistribution</h3>
-          <p className="text-xs text-slate-500 max-w-md mx-auto">AI recommends rebalancing leads from Noah Bennett to Henry Cavill based on active capacity and win rate.</p>
-        </div>
-      )}
-
-      {/* ADD SALES REPRESENTATIVE MODAL */}
-      {showAddRepModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-4 animate-scale-up">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-              <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
-                <Users className="w-4 h-4 text-[#2563EB]" /> Add New Sales Representative
+          {/* Stage Breakdown */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                <BarChart2 className="w-4 h-4 text-indigo-600" /> Pipeline by Stage
               </h3>
-              <button onClick={() => setShowAddRepModal(false)} className="p-1 text-slate-400 hover:text-slate-700">
-                ✕
-              </button>
+              <Link to="/pipeline" className="text-xs font-bold text-primary hover:underline">Open Kanban →</Link>
             </div>
 
-            <div className="space-y-3 text-xs">
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">Full Name</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Vikram Sharma"
-                  value={newRepName}
-                  onChange={(e) => setNewRepName(e.target.value)}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl"
-                />
+            {stageBreakdown.length === 0 ? (
+              <p className="text-center text-xs text-slate-400 py-8">No pipeline data available yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {stageBreakdown.map(([stage, data]) => {
+                  const maxVal = Math.max(...stageBreakdown.map(([, d]) => d.value), 1);
+                  const pct = Math.round((data.value / maxVal) * 100);
+                  return (
+                    <div key={stage} className="flex items-center gap-4">
+                      <span className="w-36 text-xs font-bold text-slate-700 truncate">{stage}</span>
+                      <div className="flex-1 bg-slate-100 h-3 rounded-full overflow-hidden">
+                        <div className="h-full bg-indigo-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                      </div>
+                      <span className="text-xs font-extrabold text-slate-800 w-20 text-right">{formatCurrencyCompact(data.value)}</span>
+                      <span className="text-[10px] text-slate-400 font-bold w-12 text-right">{data.count} deals</span>
+                    </div>
+                  );
+                })}
               </div>
+            )}
+          </div>
 
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">Work Email</label>
-                <input
-                  type="email"
-                  placeholder="e.g. vikram@nexus.com"
-                  value={newRepEmail}
-                  onChange={(e) => setNewRepEmail(e.target.value)}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Territory</label>
-                  <select
-                    value={newRepTerritory}
-                    onChange={(e) => setNewRepTerritory(e.target.value)}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium"
-                  >
-                    <option value="North America - East">North America - East</option>
-                    <option value="North America - West">North America - West</option>
-                    <option value="EMEA - UK & Ireland">EMEA - UK & Ireland</option>
-                    <option value="EMEA - DACH Region">EMEA - DACH Region</option>
-                    <option value="APAC - India & SEA">APAC - India & SEA</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Max Open Lead Capacity</label>
-                  <input
-                    type="number"
-                    value={newRepMaxLeads}
-                    onChange={(e) => setNewRepMaxLeads(e.target.value)}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-blue-600"
-                  />
-                </div>
+          {/* Stale Deals */}
+          {staleDeals.length > 0 && (
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs">
+              <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-4">
+                <AlertTriangle className="w-4 h-4 text-amber-500" /> Stale Deals Requiring Attention ({staleDeals.length})
+              </h3>
+              <div className="space-y-2">
+                {staleDeals.slice(0, 5).map((deal: any) => (
+                  <div key={deal.id} className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-bold text-slate-900">{deal.name || deal.title}</p>
+                      <p className="text-[10px] text-slate-500">Owner: {deal.ownerName || "Unassigned"} · Stage: {deal.stageName || "Unknown"}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs font-extrabold text-slate-900">{formatCurrencyCompact(deal.value || 0)}</p>
+                      <p className="text-[10px] text-amber-600 font-bold">{deal.daysSinceUpdate || "7+"} days idle</p>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
+          )}
+        </div>
+      )}
 
-            <div className="flex gap-2 pt-3 border-t border-slate-100">
-              <button onClick={() => setShowAddRepModal(false)} className="px-4 py-2 bg-slate-100 font-bold rounded-xl text-xs flex-1">
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  if (!newRepName || !newRepEmail) return alert("Name and Email are required");
-                  createRepMutation.mutate();
-                }}
-                disabled={createRepMutation.isPending}
-                className="px-5 py-2 bg-[#2563EB] text-white font-bold rounded-xl text-xs flex-1 shadow-xs hover:bg-blue-700"
-              >
-                {createRepMutation.isPending ? "Creating..." : "Add Representative"}
-              </button>
+      {/* ═══════════════════════════════════════════════════════════ */}
+      {/* TAB 4: REVENUE & TARGETS */}
+      {/* ═══════════════════════════════════════════════════════════ */}
+      {activeTab === "revenue" && (
+        <div className="space-y-6">
+          {/* Revenue KPIs */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Total Revenue (Closed)</span>
+              <p className="text-2xl font-black text-emerald-600">{formatCurrencyCompact(totalWon)}</p>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Pipeline Value</span>
+              <p className="text-2xl font-black text-indigo-600">{formatCurrencyCompact(pipelineValue)}</p>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Team Avg Quota</span>
+              <p className={`text-2xl font-black ${avgQuota >= 80 ? "text-emerald-600" : avgQuota >= 50 ? "text-amber-600" : "text-rose-600"}`}>{avgQuota}%</p>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Conversion Rate</span>
+              <p className="text-2xl font-black text-blue-600">{homeKpi?.conversionRate || 0}%</p>
+            </div>
+          </div>
+
+          {/* Per-Rep Revenue Breakdown */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs">
+            <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-4">
+              <DollarSign className="w-4 h-4 text-emerald-600" /> Revenue by Representative
+            </h3>
+
+            {teamReps.length === 0 ? (
+              <p className="text-center text-xs text-slate-400 py-8">No revenue data available.</p>
+            ) : (
+              <div className="space-y-3">
+                {[...teamReps]
+                  .sort((a: any, b: any) => (b.revenueClosed || 0) - (a.revenueClosed || 0))
+                  .slice(0, 10)
+                  .map((rep: any) => {
+                    const maxRev = Math.max(...teamReps.map((r: any) => r.revenueClosed || 0), 1);
+                    const barPct = Math.round(((rep.revenueClosed || 0) / maxRev) * 100);
+                    const pct = rep.targetAchievementPct || 0;
+
+                    return (
+                      <div key={rep.id} className="flex items-center gap-4">
+                        <div className="w-28 flex items-center gap-2 shrink-0">
+                          <div className="w-6 h-6 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-bold text-[8px] flex items-center justify-center">
+                            {(rep.name || "?").split(" ").map((n: string) => n[0]).join("").slice(0, 2)}
+                          </div>
+                          <span className="text-xs font-bold text-slate-700 truncate">{rep.name}</span>
+                        </div>
+                        <div className="flex-1 bg-slate-100 h-3 rounded-full overflow-hidden">
+                          <div className={`h-full rounded-full transition-all ${pct >= 90 ? "bg-emerald-500" : pct >= 60 ? "bg-indigo-500" : "bg-amber-500"}`} style={{ width: `${barPct}%` }} />
+                        </div>
+                        <span className="text-xs font-extrabold text-slate-800 w-20 text-right">{formatCurrencyCompact(rep.revenueClosed || 0)}</span>
+                        <span className={`text-[10px] font-extrabold w-10 text-right ${pct >= 90 ? "text-emerald-600" : pct >= 60 ? "text-indigo-600" : "text-amber-600"}`}>
+                          {pct}%
+                        </span>
+                      </div>
+                    );
+                  })
+                }
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════ */}
+      {/* TAB 5: LEAD INTAKE SUMMARY */}
+      {/* ═══════════════════════════════════════════════════════════ */}
+      {activeTab === "leads" && (
+        <div className="space-y-6">
+          {/* Lead KPIs */}
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Total Leads</span>
+              <p className="text-2xl font-black text-slate-900">{leads.length}</p>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs">
+              <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-wider block mb-1">New Inbound</span>
+              <p className="text-2xl font-black text-emerald-600">{newLeads}</p>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs">
+              <span className="text-[10px] font-bold text-rose-500 uppercase tracking-wider block mb-1">Unassigned</span>
+              <p className="text-2xl font-black text-rose-600">{unassignedLeads}</p>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs">
+              <span className="text-[10px] font-bold text-amber-500 uppercase tracking-wider block mb-1">SLA Risk</span>
+              <p className="text-2xl font-black text-amber-600">{slaRiskLeads}</p>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs">
+              <span className="text-[10px] font-bold text-blue-500 uppercase tracking-wider block mb-1">Contacted</span>
+              <p className="text-2xl font-black text-blue-600">{leads.filter((l: any) => l.status === "Contacted").length}</p>
+            </div>
+          </div>
+
+          {/* Channel Breakdown */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                <Inbox className="w-4 h-4 text-primary" /> Lead Source Breakdown
+              </h3>
+              <Link to="/leads" className="text-xs font-bold text-primary hover:underline">Open Lead Queue →</Link>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+              {["WhatsApp", "Website", "Email", "Instagram", "LinkedIn", "Manual"].map(source => {
+                const count = leads.filter((l: any) => (l.source || "").toLowerCase().includes(source.toLowerCase())).length;
+                return (
+                  <div key={source} className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-center">
+                    <p className="text-xl font-black text-slate-900">{count}</p>
+                    <p className="text-[10px] font-bold text-slate-500 uppercase">{source}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Status Distribution */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs">
+            <h3 className="text-sm font-bold text-slate-800 mb-4">Lead Status Distribution</h3>
+            <div className="space-y-2">
+              {["New", "Contacted", "Qualified", "Meeting/Demo", "Proposal", "Negotiation", "Won", "Lost"].map(status => {
+                const count = leads.filter((l: any) => l.status === status).length;
+                const maxCount = Math.max(...["New", "Contacted", "Qualified", "Meeting/Demo", "Proposal", "Negotiation", "Won", "Lost"].map(s => leads.filter((l: any) => l.status === s).length), 1);
+                const barPct = Math.round((count / maxCount) * 100);
+                const barColor = status === "Won" ? "bg-emerald-500" : status === "Lost" ? "bg-rose-500" : "bg-indigo-500";
+
+                return (
+                  <div key={status} className="flex items-center gap-3">
+                    <span className="w-28 text-xs font-bold text-slate-600">{status}</span>
+                    <div className="flex-1 bg-slate-100 h-2.5 rounded-full overflow-hidden">
+                      <div className={`h-full ${barColor} rounded-full`} style={{ width: `${barPct}%` }} />
+                    </div>
+                    <span className="text-xs font-extrabold text-slate-800 w-10 text-right">{count}</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════ */}
+      {/* TAB 6: LOSS ANALYTICS */}
+      {/* ═══════════════════════════════════════════════════════════ */}
+      {activeTab === "losses" && (
+        <LossReasonAnalyticsSection />
       )}
 
     </div>

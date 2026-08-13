@@ -503,13 +503,14 @@ export const handleIncomingWebhook = async (req: Request, res: Response) => {
       // Generate a unique email per inbound lead to avoid UniqueConstraintError
       const uniqueEmail = extractedAI.email && !extractedAI.email.includes("voice.lead") ? extractedAI.email : `inbound-${extractDigits(from) || "user"}-${Date.now()}@whatsapp.local`;
 
-      assignedToId = await assignLead({
+      const assignmentRes = await assignLead({
         firstName,
         lastName,
         email: uniqueEmail,
         phone: from,
         source: "WhatsApp",
       });
+      assignedToId = assignmentRes.assignedToId;
 
       const leadNumber = await generateLeadNumber();
       leadId = crypto.randomUUID();

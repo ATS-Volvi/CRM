@@ -16,11 +16,22 @@ export const sequelize = process.env.USE_SQLITE === "true"
   ? new Sequelize(process.env.DATABASE_URL, {
       dialect: "postgres",
       logging: false,
+      pool: {
+        max: 10,
+        min: 0,
+        acquire: 30000,
+        idle: 10000,
+        evict: 1000,
+      },
+      retry: {
+        max: 5,
+      },
       dialectOptions: {
         ssl: {
           require: true,
           rejectUnauthorized: false
-        }
+        },
+        keepAlive: true,
       }
     })
   : new Sequelize(

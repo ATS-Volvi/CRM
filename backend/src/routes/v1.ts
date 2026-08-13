@@ -26,8 +26,12 @@ import { getPriceBookEntries, createPriceBookEntry, updatePriceBookEntry, delete
 import { getQuotes, createQuote, getQuoteRecommendations, sendQuote, getPublicQuote, generateQuotePdf, signQuote, getQuoteHistoryByClient, getSimilarQuotesStats, getSimilarClientQuotes } from '../controllers/quoteController';
 import { getInvoices, createInvoiceFromQuote, updateInvoiceStatus, generateInvoicePdf } from '../controllers/invoiceController';
 import { getPurchaseOrders, createPurchaseOrder, updatePurchaseOrder } from '../controllers/purchaseOrderController';
-import { getApprovals, updateApproval, getApprovalTiers, createApprovalTier, deleteApprovalTier } from '../controllers/approvalController';
-import { getKpiDashboard, getManagementDashboard, getMyTodayDashboard, getMyHomeDashboard, getKpiTarget, updateKpiTarget, getActivitiesReports, getHomeDashboard } from '../controllers/dashboardController';
+import { 
+  getApprovals, updateApproval, getApprovalTiers, createApprovalTier, deleteApprovalTier,
+  getAdminApprovalPolicy, updateAdminApprovalPolicy, getSalesApprovalProfiles, upsertSalesApprovalProfile,
+  evaluateQuote, submitQuoteForApproval, approveQuoteDirectly, getApprovalAuditLogs, createApproval
+} from '../controllers/approvalController';
+import { getKpiDashboard, getManagementDashboard, getMyTodayDashboard, getMyHomeDashboard, getKpiTarget, updateKpiTarget, getActivitiesReports, getHomeDashboard, getLossAnalytics } from '../controllers/dashboardController';
 import { getAssignmentRules, createAssignmentRule, updateAssignmentRule, deleteAssignmentRule, getSalespersonsCapacities, balanceSalespersonsCapacities } from '../controllers/assignmentRuleController';
 import { getBundleTemplates, createBundleTemplate, deleteBundleTemplate } from '../controllers/bundleController';
 import { exportLeads, exportQuotes, exportPurchaseOrders } from '../controllers/exportController';
@@ -45,7 +49,6 @@ import { getQuoteTemplates, createQuoteTemplate, parseReferenceDocument } from '
 import { receiveInboundEmail } from "../controllers/emailController";
 import { verifyInstagramWebhook, receiveInstagramMessage } from "../controllers/instagramController";
 import { getCustomers, getCustomerById } from "../controllers/customerController";
-import { getAssets, getAssetById, createAsset, updateAsset, updateAssetStatus, getAssetHistory } from "../controllers/assetController";
 import { getLeadSources, createLeadSource, updateLeadSource, deleteLeadSource } from "../controllers/leadSourceController";
 import { queryAiReport } from "../controllers/aiReportController";
 import { parseVoiceLead } from "../controllers/voiceLeadController";
@@ -63,7 +66,7 @@ import { getTelephonyStatus, initiateCall } from "../controllers/telephonyContro
 import { getDealMilestones, toggleDealMilestone, createDealMilestone } from "../controllers/milestoneController";
 import whatsappRoutes from "./whatsappRoutes";
 import {
-  getCoachingNotes, createCoachingNote, markCoachingNoteRead, getAuthoredCoachingNotes,
+  getCoachingNotes, createCoachingNote, markCoachingNoteRead, getAuthoredCoachingNotes, getRecordComments,
   getStaleDeal, getQuoteExpiry, getTopAccounts, getCustomerBirthdays, getWinCelebrations
 } from "../controllers/coachingNotesController";
 
@@ -233,7 +236,6 @@ router.use("/whatsapp", whatsappRoutes);
 // Protect all following routes
 router.use(authMiddleware);
 
-import { createApproval } from '../controllers/approvalController';
 import { getNotifications, markAsRead, markAllAsRead } from '../controllers/notificationController';
 import { getMessageTemplates, getMessageTemplateById, createMessageTemplate, updateMessageTemplate, deleteMessageTemplate } from '../controllers/messageTemplateController';
 // ==========================================
@@ -333,11 +335,30 @@ router.post("/purchase-orders", authMiddleware, createPurchaseOrder);
 router.put("/purchase-orders/:id", authMiddleware, updatePurchaseOrder);
 
 // ==========================================
-// APPROVALS
+// APPROVALS & APPROVAL HIERARCHY ENGINE
 // ==========================================
 router.get("/approvals", authMiddleware, getApprovals);
 router.post("/approvals", authMiddleware, createApproval);
 router.put("/approvals/:id", authMiddleware, updateApproval);
+
+// Policy & Profiles
+router.get("/approval-policy", authMiddleware, getAdminApprovalPolicy);
+router.put("/approval-policy", authMiddleware, updateAdminApprovalPolicy);
+router.get("/sales-approval-profiles", authMiddleware, getSalesApprovalProfiles);
+router.post("/sales-approval-profiles", authMiddleware, upsertSalesApprovalProfile);
+router.put("/sales-approval-profiles", authMiddleware, upsertSalesApprovalProfile);
+router.get("/approvals/profiles", authMiddleware, getSalesApprovalProfiles);
+router.post("/approvals/profiles", authMiddleware, upsertSalesApprovalProfile);
+router.put("/approvals/profiles", authMiddleware, upsertSalesApprovalProfile);
+
+// Quote Evaluation & Security
+router.get("/quotes/:id/evaluate-approval", authMiddleware, evaluateQuote);
+router.post("/quotes/:id/evaluate-approval", authMiddleware, evaluateQuote);
+router.post("/quotes/:id/submit-approval", authMiddleware, submitQuoteForApproval);
+router.post("/quotes/:id/approve", authMiddleware, approveQuoteDirectly);
+
+// Audit Logs
+router.get("/approval-audit-logs", authMiddleware, getApprovalAuditLogs);
 
 // ==========================================
 // APPROVAL TIERS
@@ -454,16 +475,6 @@ router.get("/customers", authMiddleware, getCustomers);
 router.get("/customers/:id", authMiddleware, getCustomerById);
 
 // ==========================================
-// ASSETS / EQUIPMENT TRACKING
-// ==========================================
-router.get("/assets", authMiddleware, getAssets);
-router.get("/assets/:id", authMiddleware, getAssetById);
-router.post("/assets", authMiddleware, createAsset);
-router.put("/assets/:id", authMiddleware, updateAsset);
-router.post("/assets/:id/status", authMiddleware, updateAssetStatus);
-router.get("/assets/:id/history", authMiddleware, getAssetHistory);
-
-// ==========================================
 // LEAD SOURCES
 // ==========================================
 router.get("/lead-sources", authMiddleware, getLeadSources);
@@ -525,6 +536,11 @@ router.post("/automations", authMiddleware, createAutomationRule);
 router.put("/automations/:id", authMiddleware, updateAutomationRule);
 router.delete("/automations/:id", authMiddleware, deleteAutomationRule);
 
+router.get("/automation-rules", authMiddleware, getAutomationRules);
+router.post("/automation-rules", authMiddleware, createAutomationRule);
+router.put("/automation-rules/:id", authMiddleware, updateAutomationRule);
+router.delete("/automation-rules/:id", authMiddleware, deleteAutomationRule);
+
 // ==========================================
 // TELEPHONY (TWILIO CLICK-TO-CALL)
 // ==========================================
@@ -539,12 +555,18 @@ router.post("/deals/milestones", authMiddleware, createDealMilestone);
 router.put("/deals/milestones/:id/toggle", authMiddleware, toggleDealMilestone);
 
 // ==========================================
-// COACHING NOTES (MANAGER → REP)
+// COACHING NOTES & TEAM COMMENTS
 // ==========================================
 router.get("/coaching-notes", authMiddleware, getCoachingNotes);
+router.get("/coaching-notes/record", authMiddleware, getRecordComments);
 router.get("/coaching-notes/authored", authMiddleware, getAuthoredCoachingNotes);
 router.post("/coaching-notes", authMiddleware, createCoachingNote);
 router.patch("/coaching-notes/:id/read", authMiddleware, markCoachingNoteRead);
+
+// ==========================================
+// DASHBOARD & ANALYTICS
+// ==========================================
+router.get("/dashboard/loss-analytics", authMiddleware, getLossAnalytics);
 
 // ==========================================
 // DASHBOARD EXTRAS
