@@ -16,6 +16,19 @@ export class User extends Model {
   public territory!: string | null;
   public team!: string | null;
   public emailAlias!: string | null;
+  public skills!: string | null;
+  public status!: string | null;
+  public weight!: number | null;
+  public lastAssignedAt!: Date | null;
+  public dedicatedEmail!: string | null;
+  public dedicatedPhone!: string | null;
+  public experienceYears!: number;
+  public experienceTier!: string;
+  public averageFirstResponseMinutes!: number;
+  public slaComplianceRate!: number;
+  public managerPerformanceRating!: number;
+  public recentHighValueLeadCount!: number;
+  public recentLeadValueAssigned!: number;
 }
 
 User.init(
@@ -33,7 +46,20 @@ User.init(
     department: { type: DataTypes.STRING, allowNull: true },
     territory: { type: DataTypes.STRING, allowNull: true },
     team: { type: DataTypes.STRING, allowNull: true },
-    emailAlias: { type: DataTypes.STRING, allowNull: true }
+    emailAlias: { type: DataTypes.STRING, allowNull: true },
+    skills: { type: DataTypes.TEXT, allowNull: true },
+    status: { type: DataTypes.STRING, defaultValue: "Available" },
+    weight: { type: DataTypes.INTEGER, defaultValue: 100 },
+    lastAssignedAt: { type: DataTypes.DATE, allowNull: true },
+    dedicatedEmail: { type: DataTypes.STRING, allowNull: true },
+    dedicatedPhone: { type: DataTypes.STRING, allowNull: true },
+    experienceYears: { type: DataTypes.DECIMAL(4, 1), defaultValue: 2.0 },
+    experienceTier: { type: DataTypes.STRING, defaultValue: "Sales Representative" },
+    averageFirstResponseMinutes: { type: DataTypes.DECIMAL(6, 1), defaultValue: 15.0 },
+    slaComplianceRate: { type: DataTypes.DECIMAL(5, 4), defaultValue: 0.95 },
+    managerPerformanceRating: { type: DataTypes.DECIMAL(3, 2), defaultValue: 4.0 },
+    recentHighValueLeadCount: { type: DataTypes.INTEGER, defaultValue: 0 },
+    recentLeadValueAssigned: { type: DataTypes.DECIMAL(15, 2), defaultValue: 0 }
   },
   { sequelize, modelName: "User" }
 );
@@ -1359,5 +1385,195 @@ LeadContact.init(
 // LeadContact Associations
 Lead.hasMany(LeadContact, { foreignKey: "leadId", as: "contacts" });
 LeadContact.belongsTo(Lead, { foreignKey: "leadId", as: "lead" });
+
+// ── Approval Hierarchy Engine Models ────────────────────────
+export class SalesApprovalProfile extends Model {
+  public id!: string;
+  public salesRepId!: string;
+  public selfApprovalLimit!: number;
+  public discountApprovalLimit!: number;
+  public minimumMargin!: number;
+  public teamLeadId!: string | null;
+  public approvalEnabled!: boolean;
+  public effectiveFrom!: Date | null;
+  public effectiveUntil!: Date | null;
+  public createdAt!: Date;
+  public updatedAt!: Date;
+}
+
+SalesApprovalProfile.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    salesRepId: { type: DataTypes.UUID, allowNull: false, unique: true },
+    selfApprovalLimit: { type: DataTypes.DECIMAL(15, 2), defaultValue: 1000000 },
+    discountApprovalLimit: { type: DataTypes.DECIMAL(5, 4), defaultValue: 0.10 },
+    minimumMargin: { type: DataTypes.DECIMAL(5, 4), defaultValue: 0.20 },
+    teamLeadId: { type: DataTypes.UUID, allowNull: true },
+    approvalEnabled: { type: DataTypes.BOOLEAN, defaultValue: true },
+    effectiveFrom: { type: DataTypes.DATE, allowNull: true },
+    effectiveUntil: { type: DataTypes.DATE, allowNull: true },
+  },
+  { sequelize, modelName: "SalesApprovalProfile", tableName: "SalesApprovalProfiles" }
+);
+
+export class AdminApprovalPolicy extends Model {
+  public id!: string;
+  public maximumSalesRepApproval!: number;
+  public maximumTeamLeadApproval!: number;
+  public maximumRepDiscount!: number;
+  public maximumTeamLeadDiscount!: number;
+  public minimumAllowedMargin!: number;
+  public updatedById!: string | null;
+  public createdAt!: Date;
+  public updatedAt!: Date;
+}
+
+AdminApprovalPolicy.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    maximumSalesRepApproval: { type: DataTypes.DECIMAL(15, 2), defaultValue: 2500000 },
+    maximumTeamLeadApproval: { type: DataTypes.DECIMAL(15, 2), defaultValue: 10000000 },
+    maximumRepDiscount: { type: DataTypes.DECIMAL(5, 4), defaultValue: 0.10 },
+    maximumTeamLeadDiscount: { type: DataTypes.DECIMAL(5, 4), defaultValue: 0.20 },
+    minimumAllowedMargin: { type: DataTypes.DECIMAL(5, 4), defaultValue: 0.15 },
+    updatedById: { type: DataTypes.UUID, allowNull: true },
+  },
+  { sequelize, modelName: "AdminApprovalPolicy", tableName: "AdminApprovalPolicies" }
+);
+
+export class ApprovalAuditLog extends Model {
+  public id!: string;
+  public quoteId!: string;
+  public salesRepId!: string;
+  public approvalLevel!: string;
+  public requiredLimit!: number | null;
+  public actualQuoteValue!: number;
+  public discount!: number;
+  public margin!: number | null;
+  public approverId!: string | null;
+  public decision!: string;
+  public comment!: string | null;
+  public previousStatus!: string | null;
+  public newStatus!: string | null;
+  public reason!: string;
+  public createdAt!: Date;
+}
+
+ApprovalAuditLog.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    quoteId: { type: DataTypes.UUID, allowNull: false },
+    salesRepId: { type: DataTypes.UUID, allowNull: false },
+    approvalLevel: { type: DataTypes.STRING, allowNull: false },
+    requiredLimit: { type: DataTypes.DECIMAL(15, 2), allowNull: true },
+    actualQuoteValue: { type: DataTypes.DECIMAL(15, 2), allowNull: false },
+    discount: { type: DataTypes.DECIMAL(5, 4), defaultValue: 0 },
+    margin: { type: DataTypes.DECIMAL(5, 4), allowNull: true },
+    approverId: { type: DataTypes.UUID, allowNull: true },
+    decision: { type: DataTypes.STRING, allowNull: false },
+    comment: { type: DataTypes.TEXT, allowNull: true },
+    previousStatus: { type: DataTypes.STRING, allowNull: true },
+    newStatus: { type: DataTypes.STRING, allowNull: true },
+    reason: { type: DataTypes.TEXT, allowNull: false },
+    createdAt: { type: DataTypes.DATE, defaultValue: DataTypes.NOW }
+  },
+  { sequelize, modelName: "ApprovalAuditLog", tableName: "ApprovalAuditLogs", updatedAt: false }
+);
+
+// ── Performance-Aware Lead Assignment Policy & Auditing ──────
+export class SalesAssignmentPolicy extends Model {
+  public id!: string;
+  public weights!: string; // JSON
+  public highValueThreshold!: number;
+  public strategicLeadScoreThreshold!: number;
+  public minSampleSize!: number;
+  public bayesianPrior!: number;
+  public bayesianWeight!: number;
+  public highValueExperienceTiers!: string; // JSON
+  public isPerformanceRoutingEnabled!: boolean;
+  public createdAt!: Date;
+  public updatedAt!: Date;
+}
+
+SalesAssignmentPolicy.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    weights: {
+      type: DataTypes.TEXT,
+      defaultValue: JSON.stringify({
+        conversionRate: 0.20,
+        industrySkill: 0.20,
+        territoryMatch: 0.10,
+        revenuePerformance: 0.10,
+        experienceTier: 0.10,
+        responseTime: 0.05,
+        slaCompliance: 0.05,
+        workloadCapacity: 0.10,
+        fairnessDistribution: 0.05,
+        managerRating: 0.05
+      })
+    },
+    highValueThreshold: { type: DataTypes.DECIMAL(15, 2), defaultValue: 10000000 },
+    strategicLeadScoreThreshold: { type: DataTypes.INTEGER, defaultValue: 85 },
+    minSampleSize: { type: DataTypes.INTEGER, defaultValue: 5 },
+    bayesianPrior: { type: DataTypes.DECIMAL(5, 4), defaultValue: 0.25 },
+    bayesianWeight: { type: DataTypes.INTEGER, defaultValue: 3 },
+    highValueExperienceTiers: {
+      type: DataTypes.TEXT,
+      defaultValue: JSON.stringify(["Senior Sales Representative", "Enterprise AE", "Strategic AE", "senior_ae", "sales_manager"])
+    },
+    isPerformanceRoutingEnabled: { type: DataTypes.BOOLEAN, defaultValue: true }
+  },
+  { sequelize, modelName: "SalesAssignmentPolicy", tableName: "SalesAssignmentPolicies" }
+);
+
+export class LeadAssignmentAudit extends Model {
+  public id!: string;
+  public leadId!: string | null;
+  public previousOwnerId!: string | null;
+  public assignedToId!: string;
+  public assignmentType!: string;
+  public leadPriorityScore!: number;
+  public expectedRevenue!: number;
+  public candidateScores!: string; // JSON string
+  public winningScore!: number;
+  public reason!: string;
+  public triggerSource!: string;
+  public createdAt!: Date;
+}
+
+LeadAssignmentAudit.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    leadId: { type: DataTypes.UUID, allowNull: true },
+    previousOwnerId: { type: DataTypes.UUID, allowNull: true },
+    assignedToId: { type: DataTypes.UUID, allowNull: false },
+    assignmentType: { type: DataTypes.STRING, allowNull: false },
+    leadPriorityScore: { type: DataTypes.DECIMAL(5, 2), defaultValue: 50.0 },
+    expectedRevenue: { type: DataTypes.DECIMAL(15, 2), defaultValue: 0 },
+    candidateScores: { type: DataTypes.TEXT, allowNull: false },
+    winningScore: { type: DataTypes.DECIMAL(5, 2), allowNull: false },
+    reason: { type: DataTypes.TEXT, allowNull: false },
+    triggerSource: { type: DataTypes.STRING, defaultValue: "automated" },
+    createdAt: { type: DataTypes.DATE, defaultValue: DataTypes.NOW }
+  },
+  { sequelize, modelName: "LeadAssignmentAudit", tableName: "LeadAssignmentAudits", updatedAt: false }
+);
+
+// Approval Hierarchy Associations
+User.hasOne(SalesApprovalProfile, { foreignKey: "salesRepId", as: "approvalProfile" });
+SalesApprovalProfile.belongsTo(User, { foreignKey: "salesRepId", as: "salesRep" });
+SalesApprovalProfile.belongsTo(User, { foreignKey: "teamLeadId", as: "teamLead" });
+
+Quote.hasMany(ApprovalAuditLog, { foreignKey: "quoteId", as: "auditLogs" });
+ApprovalAuditLog.belongsTo(Quote, { foreignKey: "quoteId", as: "quote" });
+ApprovalAuditLog.belongsTo(User, { foreignKey: "salesRepId", as: "salesRep" });
+ApprovalAuditLog.belongsTo(User, { foreignKey: "approverId", as: "approver" });
+
+// LeadAssignment Audit Associations
+Lead.hasMany(LeadAssignmentAudit, { foreignKey: "leadId", as: "assignmentAudits" });
+LeadAssignmentAudit.belongsTo(Lead, { foreignKey: "leadId", as: "lead" });
+LeadAssignmentAudit.belongsTo(User, { foreignKey: "assignedToId", as: "assignedTo" });
+LeadAssignmentAudit.belongsTo(User, { foreignKey: "previousOwnerId", as: "previousOwner" });
 
 export { sequelize };

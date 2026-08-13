@@ -1,5 +1,13 @@
 import { sequelize } from "@nexus-crm/database";
 import { Op } from "sequelize";
+import { createNotification } from "./notificationService";
+import {
+  calculateRepPerformanceProfile,
+  calculateLeadPriorityScore,
+  calculateRepSuitabilityScore,
+  CandidateEvaluationResult,
+  LeadPriorityDetails
+} from "./repPerformanceService";
 
 export interface AssignmentContext {
   leadId?: string;
@@ -12,6 +20,7 @@ export interface AssignmentContext {
   industry?: string;
   territory?: string;
   budgetRange?: string;
+  expectedValue?: number;
   leadScore?: number;
   isStrategic?: boolean;
   destinationEmail?: string;
@@ -19,26 +28,30 @@ export interface AssignmentContext {
   assignedChannelUserId?: string;
   isManualEntry?: boolean;
   createdById?: string;
+  urgency?: string;
   [key: string]: any;
 }
 
 export interface AssignmentResult {
   assignedToId: string | null;
-  assignmentType: "AUTOMATIC" | "DIRECT" | "MANUAL" | "EXISTING_ACCOUNT";
+  assignmentType: "AUTOMATIC" | "DIRECT" | "MANUAL" | "EXISTING_ACCOUNT" | "PERFORMANCE_BEST_FIT";
+  auditId?: string;
 }
 
 /**
- * Enterprise 9-Step Lead Assignment Engine
+ * Intelligent Performance-Aware Lead Assignment Engine
  * 
- * 0. Reassignment Protection Check (MANUAL/DIRECT/EXISTING_ACCOUNT protected from automation theft)
- * 1. Dedicated Channel / Destination Ownership (Dedicated WhatsApp/Email wins)
- * 2. Existing Customer / Account Owner (General Company Channel -> Sarah)
- * 3. Existing Contact Owner (Phone / Email match)
- * 4. Existing Opportunity Owner (Deal match)
- * 5. Strategic / VIP Account AE
- * 6 & 7. Territory + Industry + Skill Candidate Scoring & Capacity Cap
- * 8. Persistent Database Weighted Round-Robin (Oldest lastAssignedAt in DB)
- * 9. Fallback to Manager / Unassigned Pool
+ * Hierarchy:
+ * 0. Manual Entry Protection & Reassignment Shield
+ * 1. Dedicated Channel Ownership (Email/WhatsApp)
+ * 2. Existing Customer / Account Owner
+ * 3. Existing Contact Owner
+ * 4. Existing Opportunity Owner
+ * 5. Strategic / Named Account Routing
+ * 6. Eligible Candidate Pool Filtering (Availability, Leave, Capacity Cap)
+ * 7. Multi-Factor Rep Performance & Suitability Scoring (Conversion %, Win Rate, Revenue, Industry/Skill Match, Response Speed, SLA, Workload, Fairness)
+ * 8. Audit Trail Logging & High-Value Lead SLA Escalation
+ * 9. Fallback Manager / Unassigned Pool
  */
 export async function assignLead(leadContext: AssignmentContext): Promise<AssignmentResult> {
   try {
@@ -52,7 +65,19 @@ export async function assignLead(leadContext: AssignmentContext): Promise<Assign
     // STEP 0: MANUAL ENTRY & REASSIGNMENT PROTECTION CHECK
     // ─────────────────────────────────────────────────────────────
     if (isManualEntry && createdById) {
-      console.log(`[ASSIGNMENT STEP 0] Manual lead creation by sales rep: ${createdById}. Setting assignmentType = MANUAL.`);
+      console.log(`[ASSIGNMENT STEP 0] Manual lead creation by user: ${createdById}. Setting assignmentType = MANUAL.`);
+      await logAssignmentAudit({
+        leadId,
+        previousOwnerId: null,
+        assignedToId: createdById,
+        assignmentType: "MANUAL",
+        leadPriorityScore: 50,
+        expectedRevenue: Number(leadContext.expectedValue || 0),
+        candidateScores: [],
+        winningScore: 100,
+        reason: "Manual lead creation by sales representative. Ownership protected.",
+        triggerSource: leadContext.source || "manual_entry"
+      });
       return { assignedToId: createdById, assignmentType: "MANUAL" };
     }
 
@@ -92,6 +117,18 @@ export async function assignLead(leadContext: AssignmentContext): Promise<Assign
       if (isEligible) {
         console.log(`[ASSIGNMENT STEP 1] Dedicated Channel Match! Assigned to channel owner: ${dedicatedOwnerId}`);
         await updateRepAssignedTimestamp(dedicatedOwnerId);
+        await logAssignmentAudit({
+          leadId,
+          previousOwnerId: null,
+          assignedToId: dedicatedOwnerId,
+          assignmentType: "DIRECT",
+          leadPriorityScore: 60,
+          expectedRevenue: Number(leadContext.expectedValue || 0),
+          candidateScores: [],
+          winningScore: 100,
+          reason: "Assigned via Dedicated Sales Representative Channel (Email / WhatsApp routing).",
+          triggerSource: leadContext.source || "channel_direct"
+        });
         return { assignedToId: dedicatedOwnerId, assignmentType: "DIRECT" };
       }
     }
@@ -127,6 +164,18 @@ export async function assignLead(leadContext: AssignmentContext): Promise<Assign
       if (isEligible) {
         console.log(`[ASSIGNMENT STEP 2] Assigned to Existing Account Owner: ${accountOwnerId}`);
         await updateRepAssignedTimestamp(accountOwnerId);
+        await logAssignmentAudit({
+          leadId,
+          previousOwnerId: null,
+          assignedToId: accountOwnerId,
+          assignmentType: "EXISTING_ACCOUNT",
+          leadPriorityScore: 70,
+          expectedRevenue: Number(leadContext.expectedValue || 0),
+          candidateScores: [],
+          winningScore: 100,
+          reason: `Preserved existing company account relationship (${company || 'Company Account'}).`,
+          triggerSource: leadContext.source || "account_match"
+        });
         return { assignedToId: accountOwnerId, assignmentType: "EXISTING_ACCOUNT" };
       }
     }
@@ -153,6 +202,18 @@ export async function assignLead(leadContext: AssignmentContext): Promise<Assign
       if (isEligible) {
         console.log(`[ASSIGNMENT STEP 3] Assigned to Existing Contact Owner: ${contactOwnerId}`);
         await updateRepAssignedTimestamp(contactOwnerId);
+        await logAssignmentAudit({
+          leadId,
+          previousOwnerId: null,
+          assignedToId: contactOwnerId,
+          assignmentType: "EXISTING_ACCOUNT",
+          leadPriorityScore: 70,
+          expectedRevenue: Number(leadContext.expectedValue || 0),
+          candidateScores: [],
+          winningScore: 100,
+          reason: `Preserved existing contact relationship (${email || phone}).`,
+          triggerSource: leadContext.source || "contact_match"
+        });
         return { assignedToId: contactOwnerId, assignmentType: "EXISTING_ACCOUNT" };
       }
     }
@@ -177,160 +238,219 @@ export async function assignLead(leadContext: AssignmentContext): Promise<Assign
         if (isEligible) {
           console.log(`[ASSIGNMENT STEP 4] Assigned to Opportunity Owner: ${deal.ownerId}`);
           await updateRepAssignedTimestamp(deal.ownerId);
+          await logAssignmentAudit({
+            leadId,
+            previousOwnerId: null,
+            assignedToId: deal.ownerId,
+            assignmentType: "EXISTING_ACCOUNT",
+            leadPriorityScore: 80,
+            expectedRevenue: Number(deal.amount || 0),
+            candidateScores: [],
+            winningScore: 100,
+            reason: `Preserved existing opportunity ownership (Deal #${deal.id.substring(0,8)}).`,
+            triggerSource: leadContext.source || "opportunity_match"
+          });
           return { assignedToId: deal.ownerId, assignmentType: "EXISTING_ACCOUNT" };
         }
       }
     }
 
     // ─────────────────────────────────────────────────────────────
-    // STEP 5: NAMED / STRATEGIC ACCOUNT AE
+    // STEP 5: NAMED / STRATEGIC ACCOUNT AE ROUTING
     // ─────────────────────────────────────────────────────────────
     const isVipBudget = budgetRange && (budgetRange.includes("100") || budgetRange.includes("50") || budgetRange.includes("Enterprise"));
-    if (isStrategic || isVipBudget || (leadScore >= 85 && budgetRange)) {
+    if (isStrategic || isVipBudget) {
       const seniorAe: any = await sequelize.models.User.findOne({
         where: {
-          role: { [Op.or]: ["admin", "sales_manager", "senior_ae"] },
+          role: { [Op.or]: ["senior_ae", "sales_manager", "admin"] },
           isAvailable: true
         }
       });
       if (seniorAe && (await checkRepEligibility(seniorAe.id))) {
         console.log(`[ASSIGNMENT STEP 5] Assigned to Strategic/VIP Account AE: ${seniorAe.name} (${seniorAe.id})`);
         await updateRepAssignedTimestamp(seniorAe.id);
+        await logAssignmentAudit({
+          leadId,
+          previousOwnerId: null,
+          assignedToId: seniorAe.id,
+          assignmentType: "AUTOMATIC",
+          leadPriorityScore: 90,
+          expectedRevenue: Number(leadContext.expectedValue || 15000000),
+          candidateScores: [],
+          winningScore: 95,
+          reason: `Routed to Strategic Account AE (${seniorAe.name}) due to Named/Strategic Account status.`,
+          triggerSource: leadContext.source || "strategic_account"
+        });
         return { assignedToId: seniorAe.id, assignmentType: "AUTOMATIC" };
       }
     }
 
     // ─────────────────────────────────────────────────────────────
-    // STEPS 6 & 7: RULE MATCHING, LAYER 1 ELIGIBILITY & LAYER 2 CANDIDATE SCORING
+    // STEPS 6-8: INTELLIGENT PERFORMANCE-AWARE SUITABILITY SCORING
     // ─────────────────────────────────────────────────────────────
-    const rules = await sequelize.models.AssignmentRule.findAll({
-      where: { isActive: true },
-      order: [["priority", "ASC"]],
-      include: [{ model: sequelize.models.User, as: "assignTo" }]
-    });
+    // 1. Calculate Lead Priority & Expected Value
+    const priorityDetails: LeadPriorityDetails = calculateLeadPriorityScore(leadContext);
+    console.log(`[ASSIGNMENT ENGINE] ${priorityDetails.reasonSummary}`);
 
-    for (const rule of rules) {
-      const ruleData = rule.toJSON() as any;
-      let isMatch = false;
-
-      try {
-        const criteria = JSON.parse(ruleData.criteria);
-        if (Array.isArray(criteria)) {
-          isMatch = criteria.every((c: any) => evaluateCriterion(c, leadContext));
-        } else {
-          isMatch = Object.keys(criteria).every(key => {
-            const val = criteria[key];
-            const contextVal = leadContext[key];
-            if (typeof val === "string" && typeof contextVal === "string") {
-              return contextVal.toLowerCase() === val.toLowerCase();
-            }
-            return contextVal === val;
-          });
-        }
-      } catch (err) {
-        console.error(`Invalid criteria format in rule ${ruleData.id}:`, err);
-        continue;
-      }
-
-      if (!isMatch) continue;
-
-      const targetUser = await sequelize.models.User.findByPk(ruleData.assignToId);
-      const targetRole = targetUser ? (targetUser as any).role : "sales_rep";
-
-      const allTeamUsers = await sequelize.models.User.findAll({
-        where: { role: targetRole, isAvailable: true }
-      });
-
-      // Layer 1 Eligibility
-      const eligibleCandidates = [];
-      for (const u of allTeamUsers) {
-        const userObj = u.toJSON() as any;
-        if (await checkRepEligibility(userObj.id)) {
-          eligibleCandidates.push(userObj);
-        }
-      }
-
-      if (eligibleCandidates.length === 0) continue;
-
-      // Layer 2 Best-Match Scoring
-      const scoredCandidates = await Promise.all(
-        eligibleCandidates.map(async (rep) => {
-          let score = 0;
-
-          // Territory Match (+30 pts)
-          if (territory && rep.territory && rep.territory.toLowerCase().includes(territory.toLowerCase())) {
-            score += 30;
-          }
-
-          // Skill / Industry Match (+30 pts)
-          if (industry && rep.skills) {
-            const skillsList = typeof rep.skills === "string" ? JSON.parse(rep.skills || "[]") : rep.skills;
-            if (Array.isArray(skillsList) && skillsList.some((s: string) => s.toLowerCase().includes(industry.toLowerCase()))) {
-              score += 30;
-            }
-          }
-
-          // Workload Balance (+20 pts)
-          const openLeadsCount = await getActiveLeadCount(rep.id);
-          const maxLeads = rep.maxOpenLeads || 20;
-          const capacityRatio = openLeadsCount / maxLeads;
-          score += Math.round((1 - capacityRatio) * 20);
-
-          // Weight (+10 pts)
-          const repWeight = rep.weight || 100;
-          score += Math.round(repWeight / 10);
-
-          return { rep, score, openLeadsCount };
-        })
-      );
-
-      scoredCandidates.sort((a, b) => b.score - a.score);
-      const bestCandidate = scoredCandidates[0];
-
-      // STEP 8: Persistent Database Weighted Round-Robin
-      const topScore = bestCandidate.score;
-      const topScorers = scoredCandidates.filter(c => c.score === topScore);
-
-      let selectedRep = bestCandidate.rep;
-      if (topScorers.length > 1 || ruleData.ruleType === "Round-robin") {
-        topScorers.sort((a, b) => {
-          const timeA = a.rep.lastAssignedAt ? new Date(a.rep.lastAssignedAt).getTime() : 0;
-          const timeB = b.rep.lastAssignedAt ? new Date(b.rep.lastAssignedAt).getTime() : 0;
-          return timeA - timeB;
+    // 2. Load Assignment Policy Settings
+    let policy: any = null;
+    try {
+      if (sequelize.models.SalesAssignmentPolicy) {
+        policy = await sequelize.models.SalesAssignmentPolicy.findOne({
+          order: [["createdAt", "DESC"]]
         });
-        selectedRep = topScorers[0].rep;
       }
-
-      console.log(`[ASSIGNMENT STEPS 6-8] Lead assigned via Rule '${ruleData.id}' to Rep ${selectedRep.name} (${selectedRep.id}) [Score: ${bestCandidate.score}]`);
-
-      await updateRepAssignedTimestamp(selectedRep.id);
-      await rule.update({
-        lastAssignedRepId: selectedRep.id,
-        lastAssignedAt: new Date()
-      });
-
-      return { assignedToId: selectedRep.id, assignmentType: "AUTOMATIC" };
+    } catch (err) {
+      policy = null;
     }
 
-    // ─────────────────────────────────────────────────────────────
-    // STEP 9: FALLBACK TO AVAILABLE MANAGER OR UNASSIGNED POOL
-    // ─────────────────────────────────────────────────────────────
-    const defaultManager: any = await sequelize.models.User.findOne({
-      where: { role: { [Op.or]: ["admin", "sales_manager"] }, isAvailable: true }
+    if (!policy) {
+      policy = {
+        weights: JSON.stringify({
+          conversionRate: 0.20,
+          industrySkill: 0.20,
+          territoryMatch: 0.10,
+          revenuePerformance: 0.10,
+          experienceTier: 0.10,
+          responseTime: 0.05,
+          slaCompliance: 0.05,
+          workloadCapacity: 0.10,
+          fairnessDistribution: 0.05,
+          managerRating: 0.05
+        }),
+        highValueExperienceTiers: JSON.stringify(["Senior Sales Representative", "Enterprise AE", "Strategic AE", "senior_ae", "sales_manager"])
+      };
+    }
+
+    const policyWeights = typeof policy.weights === "string" ? JSON.parse(policy.weights) : policy.weights;
+    const allowedTiers = typeof policy.highValueExperienceTiers === "string" 
+      ? JSON.parse(policy.highValueExperienceTiers) 
+      : policy.highValueExperienceTiers;
+
+    // 3. Fetch All Sales Reps
+    const allReps: any[] = await sequelize.models.User.findAll({
+      where: {
+        role: { [Op.ne]: "admin" }
+      }
     });
 
-    if (defaultManager && (await checkRepEligibility(defaultManager.id))) {
-      console.log(`[ASSIGNMENT STEP 9] Lead routed to Fallback Manager: ${defaultManager.name} (${defaultManager.id})`);
-      await updateRepAssignedTimestamp(defaultManager.id);
-      return { assignedToId: defaultManager.id, assignmentType: "AUTOMATIC" };
+    // 4. Build Eligible Candidate Pool
+    let eligibleReps = [];
+    for (const r of allReps) {
+      if (await checkRepEligibility(r.id)) {
+        eligibleReps.push(r);
+      }
     }
 
-    console.log("[ASSIGNMENT STEP 9] No eligible sales reps matched. Lead left as Unassigned.");
-    return { assignedToId: null, assignmentType: "AUTOMATIC" };
+    // High-Value Experience Tier Gating (If high value lead & senior reps exist)
+    if (priorityDetails.isHighValueLead && Array.isArray(allowedTiers) && allowedTiers.length > 0) {
+      const seniorEligible = eligibleReps.filter(r => 
+        allowedTiers.includes(r.experienceTier) || allowedTiers.includes(r.role)
+      );
+      if (seniorEligible.length > 0) {
+        console.log(`[ASSIGNMENT HIGH-VALUE GATE] Gated ${eligibleReps.length} reps down to ${seniorEligible.length} Senior/Enterprise AEs for High-Value Lead.`);
+        eligibleReps = seniorEligible;
+      }
+    }
+
+    if (eligibleReps.length === 0) {
+      console.log("[ASSIGNMENT ENGINE] No eligible sales reps available under capacity cap. Falling back to Manager pool.");
+      return await fallbackToManager(leadContext, priorityDetails);
+    }
+
+    // 5. Calculate Performance Profile & Multi-Factor Suitability Score for Candidates
+    const candidateEvaluations: CandidateEvaluationResult[] = [];
+
+    for (const rep of eligibleReps) {
+      const profile = await calculateRepPerformanceProfile(rep.id);
+      const evalResult = calculateRepSuitabilityScore(profile, leadContext, policyWeights, priorityDetails);
+      candidateEvaluations.push(evalResult);
+    }
+
+    // Sort Candidates by Final Suitability Score descending
+    candidateEvaluations.sort((a, b) => b.finalScore - a.finalScore);
+
+    const winningCandidate = candidateEvaluations[0];
+
+    console.log(`[ASSIGNMENT ENGINE] WINNING CANDIDATE: ${winningCandidate.repName} (${winningCandidate.repRole}) with Score ${winningCandidate.finalScore}/100`);
+
+    // 6. Update Winner Stats
+    await updateRepAssignedTimestamp(winningCandidate.repId);
+
+    if (priorityDetails.isHighValueLead) {
+      const winnerModel: any = await sequelize.models.User.findByPk(winningCandidate.repId);
+      if (winnerModel) {
+        await winnerModel.update({
+          recentHighValueLeadCount: Number(winnerModel.recentHighValueLeadCount || 0) + 1,
+          recentLeadValueAssigned: Number(winnerModel.recentLeadValueAssigned || 0) + priorityDetails.expectedRevenue
+        });
+      }
+
+      // Notify Team Lead & Admin for High-Value Lead Assignment
+      const managers = await sequelize.models.User.findAll({
+        where: { role: { [Op.or]: ["sales_manager", "admin"] } }
+      });
+      for (const mgr of managers) {
+        await createNotification(
+          (mgr as any).id,
+          "system",
+          `High-Value Lead Assigned (₹${(priorityDetails.expectedRevenue / 100000).toFixed(1)}L)`,
+          `Intelligent Assignment Engine assigned high-value lead ${leadContext.firstName} ${leadContext.lastName} (${leadContext.company || 'Enterprise Prospect'}) to ${winningCandidate.repName} (Score: ${winningCandidate.finalScore}/100).`,
+          leadId ? `/leads/${leadId}` : "/sales/queue"
+        );
+      }
+    }
+
+    // 7. Save Audit Explanation Log
+    const auditRecord = await logAssignmentAudit({
+      leadId: leadId || null,
+      previousOwnerId: null,
+      assignedToId: winningCandidate.repId,
+      assignmentType: "PERFORMANCE_BEST_FIT",
+      leadPriorityScore: priorityDetails.priorityScore,
+      expectedRevenue: priorityDetails.expectedRevenue,
+      candidateScores: candidateEvaluations,
+      winningScore: winningCandidate.finalScore,
+      reason: `Assigned to ${winningCandidate.repName} (${winningCandidate.experienceTier}): ${winningCandidate.explanationText}`,
+      triggerSource: leadContext.source || "inbound_web"
+    });
+
+    return {
+      assignedToId: winningCandidate.repId,
+      assignmentType: "PERFORMANCE_BEST_FIT",
+      auditId: auditRecord?.id
+    };
   } catch (error) {
-    console.error("Advanced 9-Step Lead Assignment Engine error:", error);
+    console.error("Performance-Aware Lead Assignment Engine error:", error);
     return { assignedToId: null, assignmentType: "AUTOMATIC" };
   }
+}
+
+async function fallbackToManager(leadContext: AssignmentContext, priorityDetails: LeadPriorityDetails): Promise<AssignmentResult> {
+  const defaultManager: any = await sequelize.models.User.findOne({
+    where: { role: { [Op.or]: ["admin", "sales_manager"] }, isAvailable: true }
+  });
+
+  if (defaultManager && (await checkRepEligibility(defaultManager.id))) {
+    console.log(`[ASSIGNMENT FALLBACK] Lead routed to Manager: ${defaultManager.name} (${defaultManager.id})`);
+    await updateRepAssignedTimestamp(defaultManager.id);
+    await logAssignmentAudit({
+      leadId: leadContext.leadId || null,
+      previousOwnerId: null,
+      assignedToId: defaultManager.id,
+      assignmentType: "AUTOMATIC",
+      leadPriorityScore: priorityDetails.priorityScore,
+      expectedRevenue: priorityDetails.expectedRevenue,
+      candidateScores: [],
+      winningScore: 50,
+      reason: `Routed to Manager (${defaultManager.name}) because no sales reps were available under capacity limits.`,
+      triggerSource: leadContext.source || "manager_fallback"
+    });
+    return { assignedToId: defaultManager.id, assignmentType: "AUTOMATIC" };
+  }
+
+  console.log("[ASSIGNMENT FALLBACK] No available reps or managers. Lead left as Unassigned.");
+  return { assignedToId: null, assignmentType: "AUTOMATIC" };
 }
 
 async function checkRepEligibility(userId: string): Promise<boolean> {
@@ -339,21 +459,17 @@ async function checkRepEligibility(userId: string): Promise<boolean> {
 
   if (!user.isAvailable) return false;
   if (user.onLeave) return false;
-  if (user.status === "On Leave" || user.status === "Offline") return false;
+  if (user.status === "On Leave" || user.status === "Offline" || user.status === "Suspended") return false;
 
-  const openCount = await getActiveLeadCount(userId);
-  const maxLeads = user.maxOpenLeads || 20;
-
-  return openCount < maxLeads;
-}
-
-async function getActiveLeadCount(userId: string): Promise<number> {
-  return await sequelize.models.Lead.count({
+  const openCount = await sequelize.models.Lead.count({
     where: {
       assignedToId: userId,
-      status: { [Op.in]: ["New", "Contacted", "Qualified"] }
+      status: { [Op.notIn]: ["Converted", "Lost", "Disqualified"] }
     }
   });
+
+  const maxLeads = user.maxOpenLeads || 20;
+  return openCount < maxLeads;
 }
 
 async function updateRepAssignedTimestamp(userId: string): Promise<void> {
@@ -363,33 +479,26 @@ async function updateRepAssignedTimestamp(userId: string): Promise<void> {
   }
 }
 
-function evaluateCriterion(c: any, leadContext: AssignmentContext): boolean {
-  if (!c.field) return true;
-  const contextVal = leadContext[c.field];
-  const op = c.operator || "equals";
-  const targetVal = c.value;
-
-  if (contextVal === undefined || contextVal === null) return false;
-
-  switch (op) {
-    case "equals":
-    case "=":
-      return String(contextVal).trim().toLowerCase() === String(targetVal).trim().toLowerCase();
-    case "greaterThan":
-    case ">":
-      return Number(contextVal) > Number(targetVal);
-    case "lessThan":
-    case "<":
-      return Number(contextVal) < Number(targetVal);
-    case "contains":
-      return String(contextVal).toLowerCase().includes(String(targetVal).toLowerCase());
-    case "in":
-      if (Array.isArray(targetVal)) {
-        return targetVal.map(v => String(v).toLowerCase()).includes(String(contextVal).toLowerCase());
-      }
-      return String(targetVal).toLowerCase().includes(String(contextVal).toLowerCase());
-    default:
-      return String(contextVal).toLowerCase() === String(targetVal).toLowerCase();
+async function logAssignmentAudit(data: any): Promise<any> {
+  try {
+    if (!sequelize.models.LeadAssignmentAudit) return null;
+    return await sequelize.models.LeadAssignmentAudit.create({
+      id: require("crypto").randomUUID(),
+      leadId: data.leadId || null,
+      previousOwnerId: data.previousOwnerId || null,
+      assignedToId: data.assignedToId,
+      assignmentType: data.assignmentType,
+      leadPriorityScore: data.leadPriorityScore || 50,
+      expectedRevenue: data.expectedRevenue || 0,
+      candidateScores: JSON.stringify(data.candidateScores || []),
+      winningScore: data.winningScore || 0,
+      reason: data.reason || "Automated lead assignment",
+      triggerSource: data.triggerSource || "automated",
+      createdAt: new Date()
+    });
+  } catch (err) {
+    console.error("Failed to log lead assignment audit:", err);
+    return null;
   }
 }
 

@@ -29,6 +29,7 @@ import { getPurchaseOrders, createPurchaseOrder, updatePurchaseOrder } from '../
 import { getApprovals, updateApproval, getApprovalTiers, createApprovalTier, deleteApprovalTier } from '../controllers/approvalController';
 import { getKpiDashboard, getManagementDashboard, getMyTodayDashboard, getMyHomeDashboard, getKpiTarget, updateKpiTarget, getActivitiesReports, getHomeDashboard } from '../controllers/dashboardController';
 import { getAssignmentRules, createAssignmentRule, updateAssignmentRule, deleteAssignmentRule, getSalespersonsCapacities, balanceSalespersonsCapacities } from '../controllers/assignmentRuleController';
+import { getAssignmentPolicy, updateAssignmentPolicy, getRepPerformanceProfiles, getAssignmentAudits, reassignLeadManually } from '../controllers/assignmentController';
 import { getBundleTemplates, createBundleTemplate, deleteBundleTemplate } from '../controllers/bundleController';
 import { exportLeads, exportQuotes, exportPurchaseOrders } from '../controllers/exportController';
 import {
@@ -381,6 +382,13 @@ router.get("/assignment-rules", authMiddleware, getAssignmentRules);
 router.post("/assignment-rules", authMiddleware, createAssignmentRule);
 router.put("/assignment-rules/:id", authMiddleware, updateAssignmentRule);
 router.delete("/assignment-rules/:id", authMiddleware, deleteAssignmentRule);
+
+// Performance-Aware Assignment Policy, Profiles, Audits & Overrides
+router.get("/assignment/policy", authMiddleware, getAssignmentPolicy);
+router.put("/assignment/policy", authMiddleware, updateAssignmentPolicy);
+router.get("/assignment/rep-profiles", authMiddleware, getRepPerformanceProfiles);
+router.get("/assignment/audits", authMiddleware, getAssignmentAudits);
+router.post("/assignment/reassign", authMiddleware, reassignLeadManually);
 
 // ==========================================
 // ==========================================
