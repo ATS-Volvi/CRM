@@ -139,25 +139,32 @@ export async function assignLead(leadContext: AssignmentContext): Promise<Assign
     let accountOwnerId: string | null = null;
 
     if (company) {
-      const existingCustomer: any = await sequelize.models.Customer.findOne({
-        where: { name: { [Op.like]: company } }
-      });
-      if (existingCustomer) {
-        const linkedLead: any = await sequelize.models.Lead.findOne({
-          where: { customerId: existingCustomer.id, assignedToId: { [Op.ne]: null } }
+      // Check if an Account record exists for this company name, then find the rep who owns that account's leads
+      let accountOwnerId2: string | null = null;
+      if (sequelize.models.Account) {
+        const existingAccount: any = await sequelize.models.Account.findOne({
+          where: { name: { [Op.like]: `%${company}%` } }
         });
-        if (linkedLead && linkedLead.assignedToId) {
-          accountOwnerId = linkedLead.assignedToId;
+        if (existingAccount) {
+          const linkedLead: any = await sequelize.models.Lead.findOne({
+            where: { company: { [Op.like]: `%${company}%` }, assignedToId: { [Op.ne]: null } }
+          });
+          if (linkedLead && linkedLead.assignedToId) {
+            accountOwnerId2 = linkedLead.assignedToId;
+          }
         }
       }
 
-      if (!accountOwnerId) {
+      if (!accountOwnerId2) {
         const existingLeadComp: any = await sequelize.models.Lead.findOne({
-          where: { company: { [Op.like]: company }, assignedToId: { [Op.ne]: null } }
+          where: { company: { [Op.like]: `%${company}%` }, assignedToId: { [Op.ne]: null } }
         });
-        if (existingLeadComp) accountOwnerId = existingLeadComp.assignedToId;
+        if (existingLeadComp) accountOwnerId2 = existingLeadComp.assignedToId;
       }
+
+      accountOwnerId = accountOwnerId2;
     }
+
 
     if (accountOwnerId) {
       const isEligible = await checkRepEligibility(accountOwnerId);
