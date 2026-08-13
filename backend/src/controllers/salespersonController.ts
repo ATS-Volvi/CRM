@@ -80,142 +80,184 @@ export const getSalespersonsPerformance = async (req: Request, res: Response) =>
     const { getScopedUserIds } = require("../services/scopeHelper");
     const scopedUserIds = await getScopedUserIds(caller);
 
-    // 1. Fetch scoped users
+    if (!scopedUserIds || scopedUserIds.length === 0) {
+      return res.json([]);
+    }
+
+    // 1. Fetch all scoped users in 1 batch query
     const users = await sequelize.models.User.findAll({
       where: { id: { [Op.in]: scopedUserIds } },
       attributes: ["id", "name", "email", "role", "isAvailable", "maxOpenLeads", "department", "territory", "team", "managerId"]
     });
 
-    const salespersonStats = [];
-
-    // Fetch active KPI Master names once
+    // 2. Fetch active KPI Master names in 1 query
     const activeMasters = await sequelize.models.KpiMaster.findAll({ where: { isActive: true }, attributes: ["name"] });
     const activeKpiNames = activeMasters.map((m: any) => m.name);
 
-    for (const user of users) {
-      const u = user as any;
+    // 3. Bulk fetch KPI Targets for all users in 1 query
+    const allTargets = await sequelize.models.KpiTarget.findAll({
+      where: { 
+        salespersonId: { [Op.in]: scopedUserIds },
+        kpiName: { [Op.in]: activeKpiNames }
+      }
+    });
 
-      // Fetch KPI Targets summary restricted to active master KPIs
-      const targets = await sequelize.models.KpiTarget.findAll({
-        where: { 
-          salespersonId: u.id,
-          kpiName: { [Op.in]: activeKpiNames }
+    // 4. Bulk fetch all Leads for all users in 1 query
+    const allLeads = await sequelize.models.Lead.findAll({
+      where: { assignedToId: { [Op.in]: scopedUserIds } }
+    });
+
+    // 5. Bulk fetch all Deals for all users in 1 query
+    const allDeals = await sequelize.models.Deal.findAll({
+      where: { ownerId: { [Op.in]: scopedUserIds } },
+      include: [{ model: sequelize.models.PipelineStage, as: "stage" }]
+    });
+
+    // 6. Bulk fetch Quotes for all deal IDs in 1 query
+    const allDealIds = allDeals.map((d: any) => d.id);
+    let allQuotes: any[] = [];
+    if (allDealIds.length > 0) {
+      allQuotes = await sequelize.models.Quote.findAll({
+        where: { dealId: { [Op.in]: allDealIds } },
+        include: [
+          {
+            model: sequelize.models.Deal,
+            as: "deal",
+            include: [{ model: sequelize.models.Lead, as: "lead" }]
+          },
+          { model: sequelize.models.PurchaseOrder, as: "PurchaseOrder" }
+        ],
+        order: [["createdAt", "DESC"]]
+      });
+    }
+
+    // 7. Bulk fetch ApprovalRequests in 1 query
+    const allQuoteIds = allQuotes.map((q: any) => q.id);
+    const approvalsByQuoteId: Record<string, any> = {};
+    if (allQuoteIds.length > 0) {
+      const approvals = await sequelize.models.ApprovalRequest.findAll({
+        where: { targetId: { [Op.in]: allQuoteIds }, type: "Quote" }
+      });
+      approvals.forEach((ar: any) => {
+        if (
+          !approvalsByQuoteId[ar.targetId] ||
+          new Date(ar.createdAt) > new Date(approvalsByQuoteId[ar.targetId].createdAt)
+        ) {
+          approvalsByQuoteId[ar.targetId] = ar;
         }
       });
+    }
+
+    // 8. Bulk fetch Activities for all users in 1 query
+    const allActivities = await sequelize.models.Activity.findAll({
+      where: { createdById: { [Op.in]: scopedUserIds } },
+      include: [{ model: sequelize.models.Lead, as: "lead" }],
+      order: [["createdAt", "DESC"]]
+    });
+
+    // Group items by user ID in Maps for fast O(1) in-memory assembly
+    const targetsByUser = new Map<string, any[]>();
+    allTargets.forEach((t: any) => {
+      const list = targetsByUser.get(t.salespersonId) || [];
+      list.push(t);
+      targetsByUser.set(t.salespersonId, list);
+    });
+
+    const leadsByUser = new Map<string, any[]>();
+    allLeads.forEach((l: any) => {
+      const list = leadsByUser.get(l.assignedToId) || [];
+      list.push(l);
+      leadsByUser.set(l.assignedToId, list);
+    });
+
+    const dealsByUser = new Map<string, any[]>();
+    allDeals.forEach((d: any) => {
+      const list = dealsByUser.get(d.ownerId) || [];
+      list.push(d);
+      dealsByUser.set(d.ownerId, list);
+    });
+
+    const quotesByOwner = new Map<string, any[]>();
+    allQuotes.forEach((q: any) => {
+      const ownerId = q.deal?.ownerId;
+      if (ownerId) {
+        const list = quotesByOwner.get(ownerId) || [];
+        list.push(q);
+        quotesByOwner.set(ownerId, list);
+      }
+    });
+
+    const activitiesByUser = new Map<string, any[]>();
+    allActivities.forEach((act: any) => {
+      const list = activitiesByUser.get(act.createdById) || [];
+      list.push(act);
+      activitiesByUser.set(act.createdById, list);
+    });
+
+    const salespersonStats = users.map((user: any) => {
+      const u = user.toJSON() as any;
+      const targets = targetsByUser.get(u.id) || [];
+      const leads = leadsByUser.get(u.id) || [];
+      const deals = dealsByUser.get(u.id) || [];
+      const quotes = quotesByOwner.get(u.id) || [];
+      const rawActivities = (activitiesByUser.get(u.id) || []).slice(0, 50);
+
       const activeKpiCount = targets.filter((t: any) => t.targetValue > 0).length;
-      
+
       const revClosedModel = targets.find((t: any) => t.kpiName === "Revenue Closed");
       const revenueClosed = revClosedModel ? (revClosedModel as any).currentValue : 0;
-      
+
       const monthlyAchievementModel = targets.find((t: any) => t.kpiName === "Monthly Achievement");
       const targetAchievementPct = monthlyAchievementModel ? (monthlyAchievementModel as any).currentValue : 0;
 
-      // 2. Fetch all leads assigned to this user
-      const leads = await sequelize.models.Lead.findAll({
-        where: { assignedToId: u.id }
-      });
+      const purchaseOrders: any[] = [];
+      const quotesResult: any[] = [];
 
-      // 3. Fetch all deals owned by this user
-      const deals = await sequelize.models.Deal.findAll({
-        where: { ownerId: u.id },
-        include: [{ model: sequelize.models.PipelineStage, as: "stage" }]
-      });
-
-      const dealIds = deals.map((d: any) => d.id);
-      let purchaseOrders: any[] = [];
-      let wonClients: any[] = [];
-      let quotesResult: any[] = [];
-
-      if (dealIds.length > 0) {
-        // 4a. Fetch quotes with deal->lead chain for client name resolution
-        const rawQuotes = await sequelize.models.Quote.findAll({
-          where: { dealId: dealIds },
-          include: [
-            {
-              model: sequelize.models.Deal,
-              as: "deal",
-              include: [{ model: sequelize.models.Lead, as: "lead" }]
-            },
-            { model: sequelize.models.PurchaseOrder, as: "PurchaseOrder" }
-          ],
-          order: [["createdAt", "DESC"]]
-        });
-
-        // 4b. Fetch ApprovalRequests separately — targetId is a plain string, not a real FK
-        const quoteIds = rawQuotes.map((q: any) => q.id);
-        const approvalsByQuoteId: Record<string, any> = {};
-
-        if (quoteIds.length > 0) {
-          const approvals = await sequelize.models.ApprovalRequest.findAll({
-            where: { targetId: { [Op.in]: quoteIds }, type: "Quote" }
-          });
-          approvals.forEach((ar: any) => {
-            // Keep the most recent approval entry per quote
-            if (
-              !approvalsByQuoteId[ar.targetId] ||
-              new Date(ar.createdAt) > new Date(approvalsByQuoteId[ar.targetId].createdAt)
-            ) {
-              approvalsByQuoteId[ar.targetId] = ar;
-            }
+      quotes.forEach((q: any) => {
+        if (q.PurchaseOrder) {
+          purchaseOrders.push({
+            id: q.PurchaseOrder.id,
+            poNumber: q.PurchaseOrder.poNumber,
+            amount: q.PurchaseOrder.amount,
+            status: q.PurchaseOrder.status,
+            createdAt: q.PurchaseOrder.createdAt
           });
         }
 
-        // 4c. Build enriched quotes list and extract purchase orders
-        rawQuotes.forEach((q: any) => {
-          if (q.PurchaseOrder) {
-            purchaseOrders.push({
-              id: q.PurchaseOrder.id,
-              poNumber: q.PurchaseOrder.poNumber,
-              amount: q.PurchaseOrder.amount,
-              status: q.PurchaseOrder.status,
-              createdAt: q.PurchaseOrder.createdAt
-            });
-          }
+        const lead = q.deal?.lead;
+        const dealName = lead
+          ? lead.company || `${lead.firstName || ''} ${lead.lastName || ''}`.trim()
+          : (q.deal?.name ?? "Unknown");
 
-          const lead = q.deal?.lead;
-          const dealName = lead
-            ? lead.company || `${lead.firstName} ${lead.lastName}`.trim()
-            : (q.deal?.name ?? "Unknown");
+        const approval = approvalsByQuoteId[q.id];
 
-          const approval = approvalsByQuoteId[q.id];
-
-          quotesResult.push({
-            id: q.id,
-            quoteNumber: q.quoteNumber ?? null,
-            version: q.version ?? 1,
-            status: q.status,
-            cycleStage: deriveCycleStage(q),
-            totalAmount: parseFloat(q.totalAmount) || 0,
-            dealId: q.dealId,
-            dealName,
-            createdAt: q.createdAt,
-            sentAt: q.sentAt ?? null,
-            viewedAt: q.viewedAt ?? null,
-            acceptedAt: q.acceptedAt ?? null,
-            expirationDate: q.expirationDate ?? null,
-            approvalStatus: approval?.status ?? null,
-            approvalComments: approval?.comments ?? null,
-            approvedBy: approval?.approvedById ?? null
-          });
+        quotesResult.push({
+          id: q.id,
+          quoteNumber: q.quoteNumber ?? null,
+          version: q.version ?? 1,
+          status: q.status,
+          cycleStage: deriveCycleStage(q),
+          totalAmount: parseFloat(q.totalAmount) || 0,
+          dealId: q.dealId,
+          dealName,
+          createdAt: q.createdAt,
+          sentAt: q.sentAt ?? null,
+          viewedAt: q.viewedAt ?? null,
+          acceptedAt: q.acceptedAt ?? null,
+          expirationDate: q.expirationDate ?? null,
+          approvalStatus: approval?.status ?? null,
+          approvalComments: approval?.comments ?? null,
+          approvedBy: approval?.approvedById ?? null
         });
-
-        wonClients = leads.filter((l: any) => l.status === "Qualified" || l.status === "Contacted");
-      }
-
-      // 5. Fetch last 50 activities created by this user, with lead context
-      const rawActivities = await sequelize.models.Activity.findAll({
-        where: { createdById: u.id },
-        include: [{ model: sequelize.models.Lead, as: "lead" }],
-        order: [["createdAt", "DESC"]],
-        limit: 50
       });
 
-      // Pin pinned items to the top, then sort by date descending
-      const activities = (rawActivities as any[])
+      const wonClients = leads.filter((l: any) => l.status === "Qualified" || l.status === "Contacted");
+
+      const activities = rawActivities
         .map((act: any) => {
           const lead = act.lead ?? null;
           const leadName = lead
-            ? lead.company || `${lead.firstName} ${lead.lastName}`.trim()
+            ? lead.company || `${lead.firstName || ''} ${lead.lastName || ''}`.trim()
             : null;
           return {
             id: act.id,
@@ -234,10 +276,8 @@ export const getSalespersonsPerformance = async (req: Request, res: Response) =>
           return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
         });
 
-      // Lead sources distribution
       const leadSources = normalizeLeadSources(leads);
 
-      // Deal stage mix
       const dealTypeMap: Record<string, number> = {};
       deals.forEach((d: any) => {
         const stageName = d.stage?.name || "Draft";
@@ -248,7 +288,6 @@ export const getSalespersonsPerformance = async (req: Request, res: Response) =>
         count: dealTypeMap[name]
       }));
 
-      // Compute Streak & Badges from existing activity and deal data
       const badges: string[] = [];
       if (revenueClosed >= 50000 || deals.length >= 3) badges.push("🏆 Top Closer");
       if (rawActivities.length >= 10) badges.push("🔥 Fast Responder");
@@ -259,7 +298,7 @@ export const getSalespersonsPerformance = async (req: Request, res: Response) =>
       const activeDays = new Set(rawActivities.map((a: any) => new Date(a.createdAt).toISOString().split('T')[0]));
       const streak = Math.max(1, activeDays.size);
 
-      salespersonStats.push({
+      return {
         id: u.id,
         name: u.name,
         email: u.email,
@@ -279,7 +318,7 @@ export const getSalespersonsPerformance = async (req: Request, res: Response) =>
         purchaseOrders,
         wonClients: wonClients.map((c: any) => ({
           id: c.id,
-          name: `${c.firstName} ${c.lastName}`,
+          name: `${c.firstName || ''} ${c.lastName || ''}`.trim(),
           company: c.company || "N/A",
           email: c.email,
           status: c.status
@@ -288,8 +327,8 @@ export const getSalespersonsPerformance = async (req: Request, res: Response) =>
         dealTypes,
         quotes: quotesResult,
         activities
-      });
-    }
+      };
+    });
 
     res.json(salespersonStats);
   } catch (error: any) {
