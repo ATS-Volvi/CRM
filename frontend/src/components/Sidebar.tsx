@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { 
   LayoutDashboard, Home, Inbox, Trello, FileText, Receipt, 
   Users, BarChart, Settings, Clock, ChevronLeft, 
-  ChevronRight, MessageSquare, CheckSquare, Search, Bell, Sparkles, LogOut, ChevronDown, Layers, Package
+  ChevronRight, MessageSquare, CheckSquare, Search, Bell, Sparkles, LogOut, ChevronDown, Layers, Package, Building2
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
@@ -47,11 +47,7 @@ export function Sidebar({
   };
 
   const userRole = (user?.role || "admin").toLowerCase();
-  const isManager = userRole === "sales_manager" || userRole === "team_lead";
-  const isAdmin = userRole === "admin" || userRole === "director";
-  const isAdminOrManager = isManager || isAdmin;
-
-  const queueLabel = isManager ? "Team Queue" : isAdmin ? "Lead Intake" : "My Inbox";
+  const isAdminOrManager = userRole === "admin" || userRole === "director" || userRole === "sales_manager";
 
   const rawNavCategories: NavCategory[] = [
     {
@@ -60,7 +56,7 @@ export function Sidebar({
       icon: Home,
       items: [
         { label: "Dashboard", path: "/", icon: LayoutDashboard },
-        { label: queueLabel, path: "/leads", icon: Inbox, badge: "Inbound" },
+        { label: "Live Queue", path: "/leads-table", icon: Inbox, badge: "Inbound" },
       ]
     },
     {
@@ -68,7 +64,9 @@ export function Sidebar({
       category: "Operations",
       icon: Users,
       items: [
-        { label: "Customer Workspace", path: "/customers", icon: Users },
+        { label: "Accounts", path: "/accounts", icon: Building2 },
+        { label: "Contacts", path: "/contacts", icon: Users },
+        { label: "Asset Tracking", path: "/assets", icon: Package },
         { label: "Sales & Pipeline", path: "/pipeline", icon: Trello },
         { label: "Quotations", path: "/quotes", icon: FileText },
         ...(isAdminOrManager ? [{ label: "Invoices", path: "/invoices", icon: Receipt }] : []),

@@ -29,7 +29,9 @@ import ConstructionItems from "./pages/master-data/ConstructionItems";
 import Pricing from "./pages/master-data/Pricing";
 import LeadSources from "./pages/master-data/LeadSources";
 import Kpis from "./pages/master-data/Kpis";
-import Customers from "./pages/Customers";
+import Accounts from "./pages/Accounts";
+import Contacts from "./pages/Contacts";
+import Assets from "./pages/Assets";
 import AIReports from "./pages/AIReports";
 import Settings from "./pages/Settings";
 import LeadCreate from "./pages/LeadCreate";
@@ -53,20 +55,8 @@ const RoleBasedLayout = () => {
   return <Layout />;
 };
 
-/** Redirect / to initial landing dashboard based on user role */
+/** Redirect / to initial landing dashboard (My Work / Operational Dashboard) */
 const RoleBasedHome = () => {
-  const { user } = useAuth();
-  const role = (user?.role || "").toLowerCase();
-  
-  if (role === "sales_rep" || role === "rep") {
-    return <RepPortal />;
-  }
-  if (role === "sales_manager" || role === "manager" || role === "director") {
-    return <ManagerPortal />;
-  }
-  if (role === "executive" || role === "csuite") {
-    return <ExecutiveDashboard />;
-  }
   return <MyDashboard />;
 };
 
@@ -85,9 +75,8 @@ function App() {
                 <Route path="/" element={<RoleBasedHome />} />
                 <Route path="/home" element={<MyDashboard />} />
                 <Route path="/kpi" element={<KpiDashboard />} />
-                <Route path="/leads" element={<LeadInbox />} />
-                <Route path="/sales-queue" element={<LeadInbox />} />
-                <Route path="/live-queue" element={<LeadInbox />} />
+                <Route path="/leads" element={<SalesQueue />} />
+                <Route path="/sales-queue" element={<SalesQueue />} />
                 <Route path="/leads-table" element={<LeadInbox />} />
                 <Route path="/leads/new" element={<LeadCreate />} />
                 <Route path="/leads/:id" element={<LeadDetail />} />
@@ -102,7 +91,9 @@ function App() {
                 <Route path="/rules" element={<AssignmentRules />} />
                 <Route path="/salespersons" element={<SalespersonTracker />} />
                 <Route path="/salespersons/:id" element={<SalespersonDetail />} />
-                <Route path="/customers" element={<Customers />} />
+                <Route path="/accounts" element={<Accounts />} />
+                <Route path="/contacts" element={<Contacts />} />
+                <Route path="/assets" element={<Assets />} />
                 <Route path="/activities" element={<ActivitiesHub />} />
                 <Route path="/communications" element={<CommunicationCenter />} />
                 <Route path="/automation" element={<WorkflowAutomation />} />

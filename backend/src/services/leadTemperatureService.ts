@@ -140,3 +140,9 @@ export async function handleInboundActivity(leadId: string): Promise<void> {
   await lead.reload();
   await updateLeadTemperature(lead);
 }
+
+export async function handleDealInboundActivity(dealId: string): Promise<void> {
+  // We can just log for now to avoid duplicating the entire temperature engine
+  // until we completely deprecate Leads in Phase 4.
+  console.log(`[Temperature] handleDealInboundActivity called for Deal ${dealId}`);
+}

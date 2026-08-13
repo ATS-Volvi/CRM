@@ -16,12 +16,6 @@ export class User extends Model {
   public territory!: string | null;
   public team!: string | null;
   public emailAlias!: string | null;
-  public skills!: string | null;
-  public status!: string | null;
-  public weight!: number | null;
-  public lastAssignedAt!: Date | null;
-  public dedicatedEmail!: string | null;
-  public dedicatedPhone!: string | null;
 }
 
 User.init(
@@ -39,13 +33,7 @@ User.init(
     department: { type: DataTypes.STRING, allowNull: true },
     territory: { type: DataTypes.STRING, allowNull: true },
     team: { type: DataTypes.STRING, allowNull: true },
-    emailAlias: { type: DataTypes.STRING, allowNull: true },
-    skills: { type: DataTypes.TEXT, allowNull: true },
-    status: { type: DataTypes.STRING, defaultValue: "Available" },
-    weight: { type: DataTypes.INTEGER, defaultValue: 100 },
-    lastAssignedAt: { type: DataTypes.DATE, allowNull: true },
-    dedicatedEmail: { type: DataTypes.STRING, allowNull: true },
-    dedicatedPhone: { type: DataTypes.STRING, allowNull: true }
+    emailAlias: { type: DataTypes.STRING, allowNull: true }
   },
   { sequelize, modelName: "User" }
 );
@@ -86,7 +74,6 @@ export class Lead extends Model {
   public temperatureOverride!: boolean;
   public lastInboundAt!: Date | null;
   public responsivenessScore!: number;
-  public assignmentType!: string | null;
 }
 
 Lead.init(
@@ -114,7 +101,6 @@ Lead.init(
     categoriesData: { type: DataTypes.JSON, allowNull: true },
     recipientEmail: { type: DataTypes.STRING, allowNull: true },
     assignmentMethod: { type: DataTypes.STRING, allowNull: true },
-    assignmentType: { type: DataTypes.STRING, defaultValue: "AUTOMATIC" },
     // WhatsApp tracking
     lastWhatsappAt: { type: DataTypes.DATE, allowNull: true },
     unreadWhatsappCount: { type: DataTypes.INTEGER, defaultValue: 0 },
@@ -145,7 +131,8 @@ PipelineStage.init(
   {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
     name: { 
-      type: DataTypes.STRING, 
+      type: DataTypes.ENUM, 
+      values: ["Qualification", "Needs Analysis", "Proposal", "Negotiation", "Closed Won", "Closed Lost"],
       allowNull: false 
     },
     order: { type: DataTypes.INTEGER, allowNull: false },
@@ -183,10 +170,10 @@ export class Deal extends Model {
   public ownerId!: string;
   public recontactDate!: Date | null;
   public lossReason!: string | null;
-  public lossReasonCategory!: string | null;
   public competitors!: string | null;
   public probability!: number | null;
   public customerId!: string | null;
+  public accountId!: string | null;
 }
 
 Deal.init(
@@ -197,10 +184,10 @@ Deal.init(
     expectedCloseDate: { type: DataTypes.DATE, allowNull: true },
     recontactDate: { type: DataTypes.DATE, allowNull: true },
     lossReason: { type: DataTypes.TEXT, allowNull: true },
-    lossReasonCategory: { type: DataTypes.STRING, allowNull: true },
     competitors: { type: DataTypes.TEXT, allowNull: true },
     probability: { type: DataTypes.INTEGER, allowNull: true },
     customerId: { type: DataTypes.UUID, allowNull: true },
+    accountId: { type: DataTypes.UUID, allowNull: true },
   },
   { sequelize, modelName: "Deal" }
 );
@@ -249,7 +236,6 @@ export class PriceBookEntry extends Model {
   public minPrice!: number | null;
   public maxPrice!: number | null;
   public segmentPricing!: string | null; // JSON String
-  public costPrice!: number | null;
   public startDate!: Date | null;
   public endDate!: Date | null;
 }
@@ -264,7 +250,6 @@ PriceBookEntry.init(
     category: { type: DataTypes.STRING, allowNull: true },
     minPrice: { type: DataTypes.DECIMAL(10, 2), allowNull: true },
     maxPrice: { type: DataTypes.DECIMAL(10, 2), allowNull: true },
-    costPrice: { type: DataTypes.DECIMAL(10, 2), allowNull: true },
     segmentPricing: { type: DataTypes.TEXT, defaultValue: "{}" },
     startDate: { type: DataTypes.DATE, allowNull: true },
     endDate: { type: DataTypes.DATE, allowNull: true }
@@ -343,8 +328,6 @@ export class AssignmentRule extends Model {
   public priority!: number;
   public isActive!: boolean;
   public ruleType!: string;
-  public lastAssignedRepId!: string | null;
-  public lastAssignedAt!: Date | null;
 }
 
 AssignmentRule.init(
@@ -354,8 +337,6 @@ AssignmentRule.init(
     priority: { type: DataTypes.INTEGER, defaultValue: 0 },
     isActive: { type: DataTypes.BOOLEAN, defaultValue: true },
     ruleType: { type: DataTypes.STRING, defaultValue: "Round-robin" },
-    lastAssignedRepId: { type: DataTypes.UUID, allowNull: true },
-    lastAssignedAt: { type: DataTypes.DATE, allowNull: true }
   },
   { sequelize, modelName: "AssignmentRule" }
 );
@@ -786,7 +767,7 @@ LineItem.belongsTo(Requirement, { foreignKey: "requirementId", as: "requirement"
 LineItem.hasMany(ConstructionItem, { foreignKey: "lineItemId", as: "constructionItems", onDelete: "CASCADE" });
 ConstructionItem.belongsTo(LineItem, { foreignKey: "lineItemId", as: "lineItem" });
 
-export class Customer extends Model {
+export class Account extends Model {
   public id!: string;
   public name!: string;
   public primaryContactName!: string | null;
@@ -794,11 +775,11 @@ export class Customer extends Model {
   public phone!: string | null;
   public address!: string | null;
   public industry!: string | null;
-  public birthday!: string | null;          // DATEONLY, e.g. "1985-03-15"
-  public anniversaryDate!: string | null;   // DATEONLY, e.g. "2018-06-01"
+  public birthday!: string | null;
+  public anniversaryDate!: string | null;
 }
 
-Customer.init(
+Account.init(
   {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
     name: { type: DataTypes.STRING, allowNull: false },
@@ -810,7 +791,7 @@ Customer.init(
     birthday: { type: DataTypes.DATEONLY, allowNull: true },
     anniversaryDate: { type: DataTypes.DATEONLY, allowNull: true }
   },
-  { sequelize, modelName: "Customer" }
+  { sequelize, modelName: "Account", tableName: "Accounts" }
 );
 
 // ── Coaching Notes ───────────────────────────────────────────────────────────
@@ -861,14 +842,14 @@ LeadSource.init(
   { sequelize, modelName: "LeadSource" }
 );
 
-Customer.hasMany(Lead, { foreignKey: "customerId", as: "leads" });
-Lead.belongsTo(Customer, { foreignKey: "customerId", as: "customer" });
+Account.hasMany(Lead, { foreignKey: "customerId", as: "leads" });
+Lead.belongsTo(Account, { foreignKey: "customerId", as: "customer" });
 
-Customer.hasMany(Deal, { foreignKey: "customerId", as: "deals" });
-Deal.belongsTo(Customer, { foreignKey: "customerId", as: "customer" });
+Account.hasMany(Deal, { foreignKey: "customerId", as: "deals" });
+Deal.belongsTo(Account, { foreignKey: "customerId", as: "customer" });
 
-Customer.hasMany(Activity, { foreignKey: "customerId", as: "activities" });
-Activity.belongsTo(Customer, { foreignKey: "customerId", as: "customer" });
+Account.hasMany(Activity, { foreignKey: "customerId", as: "activities" });
+Activity.belongsTo(Account, { foreignKey: "customerId", as: "customer" });
 
 export class LeadReassignmentHistory extends Model {
   public id!: string;
@@ -1204,27 +1185,147 @@ DealMilestone.init(
   { sequelize, modelName: "DealMilestone" }
 );
 
-Customer.hasMany(Activity, { foreignKey: "customerId", as: "customerActivities" });
+Account.hasMany(Activity, { foreignKey: "customerId", as: "customerActivities" });
+export class Contact extends Model {
+  public id!: string;
+  public accountId!: string;
+  public firstName!: string | null;
+  public lastName!: string | null;
+  public email!: string | null;
+  public phone!: string | null;
+  public role!: string | null;
+  public sourceChannel!: string | null;
+  public createdAt!: Date;
+}
+Contact.init({
+  id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+  accountId: { type: DataTypes.UUID, allowNull: false },
+  firstName: { type: DataTypes.STRING, allowNull: true },
+  lastName: { type: DataTypes.STRING, allowNull: true },
+  email: { type: DataTypes.STRING, allowNull: true },
+  phone: { type: DataTypes.STRING, allowNull: true },
+  role: { type: DataTypes.STRING, allowNull: true },
+  sourceChannel: { type: DataTypes.STRING, allowNull: true },
+  createdAt: { type: DataTypes.DATE, defaultValue: DataTypes.NOW }
+}, { sequelize, modelName: "Contact", tableName: "Contacts", updatedAt: false });
+
+export class DealContact extends Model {
+  public id!: string;
+  public dealId!: string;
+  public contactId!: string;
+  public role!: string | null;
+  public isPrimary!: boolean;
+  public createdAt!: Date;
+}
+DealContact.init({
+  id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+  dealId: { type: DataTypes.UUID, allowNull: false },
+  contactId: { type: DataTypes.UUID, allowNull: false },
+  role: { type: DataTypes.STRING, allowNull: true },
+  isPrimary: { type: DataTypes.BOOLEAN, defaultValue: false },
+  createdAt: { type: DataTypes.DATE, defaultValue: DataTypes.NOW }
+}, { sequelize, modelName: "DealContact", tableName: "DealContacts", updatedAt: false });
+
+// New Salesforce Relationships
+Account.hasMany(Contact, { foreignKey: "accountId", as: "contacts" });
+Contact.belongsTo(Account, { foreignKey: "accountId", as: "account" });
+
+Account.hasMany(Deal, { foreignKey: "accountId", as: "accountDeals" });
+Deal.belongsTo(Account, { foreignKey: "accountId", as: "account" });
+
+Deal.belongsToMany(Contact, { through: DealContact, foreignKey: "dealId", as: "dealContacts" });
+Contact.belongsToMany(Deal, { through: DealContact, foreignKey: "contactId", as: "contactDeals" });
+
 // Associations
 Task.belongsTo(User, { foreignKey: "ownerId", as: "owner" });
 Task.belongsTo(Lead, { foreignKey: "leadId", as: "lead" });
-Task.belongsTo(Customer, { foreignKey: "customerId", as: "customer" });
+Task.belongsTo(Account, { foreignKey: "customerId", as: "customer" });
 
 CallLog.belongsTo(Lead, { foreignKey: "leadId", as: "lead" });
-CallLog.belongsTo(Customer, { foreignKey: "customerId", as: "customer" });
+CallLog.belongsTo(Account, { foreignKey: "customerId", as: "customer" });
 CallLog.belongsTo(User, { foreignKey: "userId", as: "user" });
 
 CrmDocument.belongsTo(Lead, { foreignKey: "leadId", as: "lead" });
-CrmDocument.belongsTo(Customer, { foreignKey: "customerId", as: "customer" });
+CrmDocument.belongsTo(Account, { foreignKey: "customerId", as: "customer" });
 CrmDocument.belongsTo(User, { foreignKey: "uploadedById", as: "uploadedBy" });
 
 Meeting.belongsTo(Lead, { foreignKey: "leadId", as: "lead" });
-Meeting.belongsTo(Customer, { foreignKey: "customerId", as: "customer" });
+Meeting.belongsTo(Account, { foreignKey: "customerId", as: "customer" });
 Meeting.belongsTo(User, { foreignKey: "organizerId", as: "organizer" });
 
 EmailMessage.belongsTo(Lead, { foreignKey: "leadId", as: "lead" });
-EmailMessage.belongsTo(Customer, { foreignKey: "customerId", as: "customer" });
+EmailMessage.belongsTo(Account, { foreignKey: "customerId", as: "customer" });
 EmailMessage.belongsTo(User, { foreignKey: "senderId", as: "sender" });
+
+export class Asset extends Model {
+  public id!: string;
+  public name!: string;
+  public type!: string;
+  public serialNumber!: string | null;
+  public status!: string;
+  public condition!: string;
+  public customerId!: string | null;
+  public dealId!: string | null;
+  public deployedAt!: Date | null;
+  public expectedReturnDate!: Date | null;
+  public notes!: string | null;
+}
+
+Asset.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    name: { type: DataTypes.STRING, allowNull: false },
+    type: { type: DataTypes.STRING, allowNull: false },
+    serialNumber: { type: DataTypes.STRING, allowNull: true, unique: true },
+    status: { type: DataTypes.STRING, allowNull: false, defaultValue: "In Storage" },
+    condition: { type: DataTypes.STRING, allowNull: false, defaultValue: "Good" },
+    customerId: { type: DataTypes.UUID, allowNull: true },
+    dealId: { type: DataTypes.UUID, allowNull: true },
+    deployedAt: { type: DataTypes.DATE, allowNull: true },
+    expectedReturnDate: { type: DataTypes.DATE, allowNull: true },
+    notes: { type: DataTypes.TEXT, allowNull: true },
+  },
+  { sequelize, modelName: "Asset" }
+);
+
+export class AssetStatusHistory extends Model {
+  public id!: string;
+  public assetId!: string;
+  public previousStatus!: string | null;
+  public newStatus!: string | null;
+  public previousCondition!: string | null;
+  public newCondition!: string | null;
+  public changedById!: string | null;
+  public notes!: string | null;
+  public createdAt!: Date;
+}
+
+AssetStatusHistory.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    assetId: { type: DataTypes.UUID, allowNull: false },
+    previousStatus: { type: DataTypes.STRING, allowNull: true },
+    newStatus: { type: DataTypes.STRING, allowNull: true },
+    previousCondition: { type: DataTypes.STRING, allowNull: true },
+    newCondition: { type: DataTypes.STRING, allowNull: true },
+    changedById: { type: DataTypes.UUID, allowNull: true },
+    notes: { type: DataTypes.TEXT, allowNull: true },
+  },
+  { sequelize, modelName: "AssetStatusHistory", updatedAt: false }
+);
+
+// Asset Associations
+Asset.belongsTo(Account, { foreignKey: "customerId", as: "customer" });
+Account.hasMany(Asset, { foreignKey: "customerId", as: "assets" });
+
+Asset.belongsTo(Deal, { foreignKey: "dealId", as: "deal" });
+Deal.hasMany(Asset, { foreignKey: "dealId", as: "assets" });
+
+Asset.hasMany(AssetStatusHistory, { foreignKey: "assetId", as: "statusHistory" });
+AssetStatusHistory.belongsTo(Asset, { foreignKey: "assetId", as: "asset" });
+
+AssetStatusHistory.belongsTo(User, { foreignKey: "changedById", as: "changedBy" });
+User.hasMany(AssetStatusHistory, { foreignKey: "changedById", as: "assetStatusChanges" });
 
 export class LeadContact extends Model {
   public id!: string;
@@ -1258,109 +1359,5 @@ LeadContact.init(
 // LeadContact Associations
 Lead.hasMany(LeadContact, { foreignKey: "leadId", as: "contacts" });
 LeadContact.belongsTo(Lead, { foreignKey: "leadId", as: "lead" });
-
-// ── Approval Hierarchy Engine Models ────────────────────────
-export class SalesApprovalProfile extends Model {
-  public id!: string;
-  public salesRepId!: string;
-  public selfApprovalLimit!: number;
-  public discountApprovalLimit!: number;
-  public minimumMargin!: number;
-  public teamLeadId!: string | null;
-  public approvalEnabled!: boolean;
-  public effectiveFrom!: Date | null;
-  public effectiveUntil!: Date | null;
-  public createdAt!: Date;
-  public updatedAt!: Date;
-}
-
-SalesApprovalProfile.init(
-  {
-    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
-    salesRepId: { type: DataTypes.UUID, allowNull: false, unique: true },
-    selfApprovalLimit: { type: DataTypes.DECIMAL(15, 2), defaultValue: 1000000 },
-    discountApprovalLimit: { type: DataTypes.DECIMAL(5, 4), defaultValue: 0.10 },
-    minimumMargin: { type: DataTypes.DECIMAL(5, 4), defaultValue: 0.20 },
-    teamLeadId: { type: DataTypes.UUID, allowNull: true },
-    approvalEnabled: { type: DataTypes.BOOLEAN, defaultValue: true },
-    effectiveFrom: { type: DataTypes.DATE, allowNull: true },
-    effectiveUntil: { type: DataTypes.DATE, allowNull: true },
-  },
-  { sequelize, modelName: "SalesApprovalProfile", tableName: "SalesApprovalProfiles" }
-);
-
-export class AdminApprovalPolicy extends Model {
-  public id!: string;
-  public maximumSalesRepApproval!: number;
-  public maximumTeamLeadApproval!: number;
-  public maximumRepDiscount!: number;
-  public maximumTeamLeadDiscount!: number;
-  public minimumAllowedMargin!: number;
-  public updatedById!: string | null;
-  public createdAt!: Date;
-  public updatedAt!: Date;
-}
-
-AdminApprovalPolicy.init(
-  {
-    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
-    maximumSalesRepApproval: { type: DataTypes.DECIMAL(15, 2), defaultValue: 2500000 },
-    maximumTeamLeadApproval: { type: DataTypes.DECIMAL(15, 2), defaultValue: 10000000 },
-    maximumRepDiscount: { type: DataTypes.DECIMAL(5, 4), defaultValue: 0.10 },
-    maximumTeamLeadDiscount: { type: DataTypes.DECIMAL(5, 4), defaultValue: 0.20 },
-    minimumAllowedMargin: { type: DataTypes.DECIMAL(5, 4), defaultValue: 0.15 },
-    updatedById: { type: DataTypes.UUID, allowNull: true },
-  },
-  { sequelize, modelName: "AdminApprovalPolicy", tableName: "AdminApprovalPolicies" }
-);
-
-export class ApprovalAuditLog extends Model {
-  public id!: string;
-  public quoteId!: string;
-  public salesRepId!: string;
-  public approvalLevel!: string;
-  public requiredLimit!: number | null;
-  public actualQuoteValue!: number;
-  public discount!: number;
-  public margin!: number | null;
-  public approverId!: string | null;
-  public decision!: string;
-  public comment!: string | null;
-  public previousStatus!: string | null;
-  public newStatus!: string | null;
-  public reason!: string;
-  public createdAt!: Date;
-}
-
-ApprovalAuditLog.init(
-  {
-    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
-    quoteId: { type: DataTypes.UUID, allowNull: false },
-    salesRepId: { type: DataTypes.UUID, allowNull: false },
-    approvalLevel: { type: DataTypes.STRING, allowNull: false },
-    requiredLimit: { type: DataTypes.DECIMAL(15, 2), allowNull: true },
-    actualQuoteValue: { type: DataTypes.DECIMAL(15, 2), allowNull: false },
-    discount: { type: DataTypes.DECIMAL(5, 4), defaultValue: 0 },
-    margin: { type: DataTypes.DECIMAL(5, 4), allowNull: true },
-    approverId: { type: DataTypes.UUID, allowNull: true },
-    decision: { type: DataTypes.STRING, allowNull: false },
-    comment: { type: DataTypes.TEXT, allowNull: true },
-    previousStatus: { type: DataTypes.STRING, allowNull: true },
-    newStatus: { type: DataTypes.STRING, allowNull: true },
-    reason: { type: DataTypes.TEXT, allowNull: false },
-    createdAt: { type: DataTypes.DATE, defaultValue: DataTypes.NOW }
-  },
-  { sequelize, modelName: "ApprovalAuditLog", tableName: "ApprovalAuditLogs", updatedAt: false }
-);
-
-// Approval Hierarchy Associations
-User.hasOne(SalesApprovalProfile, { foreignKey: "salesRepId", as: "approvalProfile" });
-SalesApprovalProfile.belongsTo(User, { foreignKey: "salesRepId", as: "salesRep" });
-SalesApprovalProfile.belongsTo(User, { foreignKey: "teamLeadId", as: "teamLead" });
-
-Quote.hasMany(ApprovalAuditLog, { foreignKey: "quoteId", as: "auditLogs" });
-ApprovalAuditLog.belongsTo(Quote, { foreignKey: "quoteId", as: "quote" });
-ApprovalAuditLog.belongsTo(User, { foreignKey: "salesRepId", as: "salesRep" });
-ApprovalAuditLog.belongsTo(User, { foreignKey: "approverId", as: "approver" });
 
 export { sequelize };

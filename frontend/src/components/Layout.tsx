@@ -80,9 +80,9 @@ export function Layout() {
         if (key === "n") {
           e.preventDefault();
           navigate("/leads/new");
-        } else if (key === "c") {
+        } else if (key === "a") {
           e.preventDefault();
-          navigate("/customers");
+          navigate("/accounts");
         } else if (key === "p") {
           e.preventDefault();
           navigate("/pipeline");
