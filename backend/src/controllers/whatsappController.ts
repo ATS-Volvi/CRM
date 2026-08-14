@@ -397,28 +397,77 @@ export const handleIncomingWebhook = async (req: Request, res: Response) => {
     const lastName = extractedAI.lastName && extractedAI.lastName !== "Lead" ? extractedAI.lastName : (nameParts.slice(1).join(" ") || `User ${from.slice(-4)}`);
     const uniqueEmail = extractedAI.email && !extractedAI.email.includes("voice.lead") ? extractedAI.email : `inbound-${from}@whatsapp.local`;
 
-    // ── DELEGATE TO DEAL INGESTION ENGINE ─────────────────────────────────────
-    const { ingestLead } = require("../services/leadIngestion");
-    const dealId = await ingestLead({
-      firstName,
-      lastName,
-      email: uniqueEmail,
-      phone: from,
-      company: extractedAI.company || "Unknown WhatsApp Company",
-      source: "WhatsApp",
-      sourceDetail: `WhatsApp Message ID: ${metaMessageId}`,
-      industry: extractedAI.industry || "General",
-      budgetRange: extractedAI.budgetRange || "N/A",
-      message: msgBody,
-      rawPayload: { from, senderName, firstMessage: msgBody, metaMessageId, extractedAI }
-    });
+    // ── MATCH EXISTING LEAD / CONTACT / CUSTOMER BY PHONE ───────────────────
+    const cleanDigits = phoneKey(from, 10);
+    let targetLeadId: string | null = null;
+    let targetCustomerId: string | null = null;
+    let targetDealId: string | null = null;
+
+    if (cleanDigits.length >= 7) {
+      // 1. Search existing Lead by phone or whatsappPhone
+      if (sequelize.models.Lead) {
+        const matchingLead = await sequelize.models.Lead.findOne({
+          where: {
+            [Op.or]: [
+              { phone: { [Op.like]: `%${cleanDigits}%` } },
+              { whatsappPhone: { [Op.like]: `%${cleanDigits}%` } }
+            ]
+          }
+        }) as any;
+
+        if (matchingLead) {
+          targetLeadId = matchingLead.id;
+          targetCustomerId = matchingLead.customerId || null;
+          await matchingLead.update({ updatedAt: new Date() }).catch(() => {});
+        }
+      }
+
+      // 2. Search existing Contact / Account
+      if (sequelize.models.Contact) {
+        const matchingContact = await sequelize.models.Contact.findOne({
+          where: { phone: { [Op.like]: `%${cleanDigits}%` } }
+        }) as any;
+        if (matchingContact && !targetCustomerId) {
+          targetCustomerId = matchingContact.accountId;
+        }
+      }
+
+      // 3. Search existing Deal linked to Lead or Customer
+      if (sequelize.models.Deal && targetLeadId) {
+        const matchingDeal = await sequelize.models.Deal.findOne({
+          where: { leadId: targetLeadId }
+        }) as any;
+        if (matchingDeal) {
+          targetDealId = matchingDeal.id;
+        }
+      }
+    }
+
+    // If no existing lead found, delegate to Deal Ingestion Engine to capture a new lead/deal
+    if (!targetLeadId && !targetDealId) {
+      const { ingestLead } = require("../services/leadIngestion");
+      targetDealId = await ingestLead({
+        firstName,
+        lastName,
+        email: uniqueEmail,
+        phone: from,
+        company: extractedAI.company || "Unknown WhatsApp Company",
+        source: "WhatsApp",
+        sourceDetail: `WhatsApp Message ID: ${metaMessageId}`,
+        industry: extractedAI.industry || "General",
+        budgetRange: extractedAI.budgetRange || "N/A",
+        message: msgBody,
+        rawPayload: { from, senderName, firstMessage: msgBody, metaMessageId, extractedAI }
+      });
+    }
 
     // ── CREATE SPECIFIC WHATSAPP MEDIA ACTIVITY ───────────────────────────────
-    // The ingestion engine creates a generic inbound note, but WhatsApp has specific media URLs etc.
     const adminId = await getFirstAdminId();
     await sequelize.models.Activity.create({
       id: crypto.randomUUID(),
-      dealId: dealId,
+      leadId: targetLeadId || null,
+      customerId: targetCustomerId || null,
+      dealId: targetDealId || null,
       type: "whatsapp_sms",
       notes: msgBody,
       outcome: "message received",
@@ -431,11 +480,6 @@ export const handleIncomingWebhook = async (req: Request, res: Response) => {
       direction: "inbound"
     } as any);
 
-    // ── IN-APP NOTIFICATION ───────────────────────────────────────────────────
-    // We let the ingestion engine handle basic deal notifications, but if you have a specific WhatsApp UI:
-    // This could be updated later to point to the Deal ID.
-    // For now we will just skip the duplicate notification since ingestLead handles it.
-
 
     // ── MARK WEBHOOK EVENT PROCESSED ─────────────────────────────────────────
     if (webhookEventId) {
@@ -445,7 +489,7 @@ export const handleIncomingWebhook = async (req: Request, res: Response) => {
       ).catch(() => {});
     }
 
-    console.log(`[WhatsApp Inbound] ✅ Processed messageId=${metaMessageId} → dealId=${dealId}`);
+    console.log(`[WhatsApp Inbound] ✅ Processed messageId=${metaMessageId} → targetId=${targetDealId || targetLeadId}`);
 
     if (!res.headersSent) {
       return res.status(200).type("text/xml").send("<Response></Response>");
