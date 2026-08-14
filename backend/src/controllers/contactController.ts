@@ -8,7 +8,7 @@ export const getContacts = async (req: Request, res: Response) => {
         { model: Account, as: "account" },
         { 
           model: Deal, 
-          as: "deals",
+          as: "contactDeals",
           through: { attributes: ['role', 'isPrimary'] }
         }
       ],
@@ -29,7 +29,7 @@ export const getContactById = async (req: Request, res: Response) => {
         { model: Account, as: "account" },
         { 
           model: Deal, 
-          as: "deals",
+          as: "contactDeals",
           through: { attributes: ['role', 'isPrimary'] }
         }
       ]
