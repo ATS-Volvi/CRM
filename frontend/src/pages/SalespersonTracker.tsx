@@ -94,7 +94,6 @@ const DEPARTMENTS = ["All", "Sales", "Enterprise", "Commercial", "SMB", "Inside 
 const TERRITORIES = ["All", "EMEA", "APAC", "Americas", "Dubai", "MEA", "South Asia"];
 const TEAMS = ["All", "Aces", "Velocity", "Global", "Hawks", "Phoenix"];
 
-import { useQuery } from "@tanstack/react-query";
 
 export default function SalespersonTracker() {
   const [search, setSearch] = useState("");
