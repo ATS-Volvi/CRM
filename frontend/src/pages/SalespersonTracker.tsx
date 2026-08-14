@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { apiClient } from "../lib/apiClient";
 import {
@@ -115,6 +116,7 @@ export default function SalespersonTracker() {
     managerId: "", department: "Sales", territory: "EMEA", team: "Aces"
   });
 
+  const queryClient = useQueryClient();
   const { data: salespersons = [], isLoading: loading } = useQuery<Salesperson[]>({
     queryKey: ["salespersonsPerformance"],
     queryFn: async () => {
@@ -164,14 +166,17 @@ export default function SalespersonTracker() {
 
   const handleToggleAvailability = async (rep: Salesperson) => {
     try {
-      setSalespersons(prev => prev.map(s => s.id === rep.id ? { ...s, isAvailable: !s.isAvailable } : s));
+      // Optimistic update
+      queryClient.setQueryData<Salesperson[]>(["salespersonsPerformance"], prev =>
+        (prev || []).map(s => s.id === rep.id ? { ...s, isAvailable: !s.isAvailable } : s)
+      );
       await apiClient(`/api/v1/settings/availability`, {
         method: "PUT",
         body: JSON.stringify({ isAvailable: !rep.isAvailable, userId: rep.id })
       });
     } catch (err) {
       console.error(err);
-      fetchSalespersons();
+      queryClient.invalidateQueries({ queryKey: ["salespersonsPerformance"] });
     }
   };
 
@@ -180,7 +185,9 @@ export default function SalespersonTracker() {
     try {
       const res = await apiClient(`/api/v1/salespersons/${id}`, { method: "DELETE" });
       if (res.ok) {
-        setSalespersons(prev => prev.filter(s => s.id !== id));
+        queryClient.setQueryData<Salesperson[]>(["salespersonsPerformance"], prev =>
+          (prev || []).filter(s => s.id !== id)
+        );
       } else {
         const err = await res.json();
         alert(err.error || "Delete failed.");
@@ -207,7 +214,7 @@ export default function SalespersonTracker() {
       } else {
         setIsFormOpen(false);
         setForm({ name: "", email: "", password: "", role: "sales_rep", maxOpenLeads: 20, isAvailable: true, managerId: "", department: "Sales", territory: "EMEA", team: "Aces" });
-        await fetchSalespersons();
+        await queryClient.invalidateQueries({ queryKey: ["salespersonsPerformance"] });
         if (data?.id) navigate(`/salespersons/${data.id}`);
       }
     } catch (err: any) {
