@@ -113,13 +113,46 @@ export async function ingestLead(payload: LeadPayload) {
       assignedToId = await getFirstAdminId();
     }
 
-    // 5. Create Deal
+    // 5. Create Lead for dual-compatibility (Live Queue & Lead Detail screens)
+    const { Lead } = sequelize.models;
+    let leadRecord: any = null;
+    const leadId = crypto.randomUUID();
+
+    if (Lead) {
+      try {
+        leadRecord = await Lead.create({
+          id: leadId,
+          firstName: payload.firstName,
+          lastName: payload.lastName,
+          email: email,
+          phone: payload.phone || null,
+          company: companyName,
+          industry: payload.industry || null,
+          source: payload.source || 'Website',
+          sourceDetail: payload.sourceDetail || null,
+          campaign: payload.campaign || null,
+          budgetRange: payload.budgetRange || null,
+          status: 'New',
+          leadScore: leadScore,
+          assignedToId: assignedToId,
+          customerId: (account as any).id,
+          body: payload.message || null,
+          rawPayload: payload.rawPayload ? JSON.stringify(payload.rawPayload) : null
+        });
+      } catch (leadErr) {
+        console.warn("Lead dual-write note:", leadErr);
+      }
+    }
+
+    // 6. Create Deal
     const dealId = crypto.randomUUID();
     const dealName = `${companyName} - ${payload.firstName} Opportunity`;
 
     const newDeal = await Deal.create({
       id: dealId,
       accountId: (account as any).id,
+      leadId: leadRecord ? leadRecord.id : null,
+      customerId: (account as any).id,
       name: dealName,
       status: "New",
       amount: 0,
@@ -133,7 +166,7 @@ export async function ingestLead(payload: LeadPayload) {
       rawPayload: payload.rawPayload ? JSON.stringify(payload.rawPayload) : null
     });
 
-    // 6. Link Contact to Deal
+    // 7. Link Contact to Deal
     await DealContact.create({
       id: crypto.randomUUID(),
       dealId: dealId,
@@ -146,7 +179,7 @@ export async function ingestLead(payload: LeadPayload) {
     const assignedUser = await sequelize.models.User.findByPk(assignedToId);
     triggerLeadAssignedNotifications(newDeal, assignedUser).catch(e => console.error("Notification dispatch failed:", e));
 
-    // 7. Initial Activity Logging
+    // 8. Initial Activity Logging
     const messageSnippet = payload.message
       ? payload.message.substring(0, 60) + (payload.message.length > 60 ? '...' : '')
       : 'No specific message provided.';
@@ -154,7 +187,9 @@ export async function ingestLead(payload: LeadPayload) {
     await Activity.create({
       id: crypto.randomUUID(),
       type: "note",
-      dealId: dealId, // NOTE: Assuming Activity schema supports dealId. If not, this might need fallback to targetId
+      leadId: leadRecord ? leadRecord.id : null,
+      customerId: (account as any).id,
+      dealId: dealId,
       outcome: `Inbound Inquiry Captured via ${payload.source || 'Website'}. Message: ${messageSnippet}`,
       mentioned_user_ids: "[]",
       pinned: true,
