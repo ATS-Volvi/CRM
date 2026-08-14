@@ -11,3 +11,9 @@ build/
 dev.sqlite
 quote-flow-pro-18/
 frontend/tsconfig.app.tsbuildinfo
+junk_leads_backup.json
+export_backup.js
+analyze_backup.js
+execute_deletion.js
+test_query.js
+dry_run_query.sql
