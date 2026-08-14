@@ -47,6 +47,7 @@ import { receiveInboundEmail } from "../controllers/emailController";
 import { verifyInstagramWebhook, receiveInstagramMessage } from "../controllers/instagramController";
 import { getAccounts, getAccountById } from "../controllers/accountController";
 import { getContacts, getContactById } from "../controllers/contactController";
+import { getAssets, getAssetById, createAsset, updateAsset, deleteAsset } from "../controllers/assetController";
 
 import { getLeadSources, createLeadSource, updateLeadSource, deleteLeadSource } from "../controllers/leadSourceController";
 import { queryAiReport } from "../controllers/aiReportController";
@@ -469,6 +470,11 @@ router.get("/contacts/:id", authMiddleware, getContactById);
 // ==========================================
 // ASSETS / EQUIPMENT TRACKING
 // ==========================================
+router.get("/assets", authMiddleware, getAssets);
+router.get("/assets/:id", authMiddleware, getAssetById);
+router.post("/assets", authMiddleware, createAsset);
+router.put("/assets/:id", authMiddleware, updateAsset);
+router.delete("/assets/:id", authMiddleware, deleteAsset);
 
 // ==========================================
 // LEAD SOURCES

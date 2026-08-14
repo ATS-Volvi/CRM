@@ -42,6 +42,7 @@ import ExecutiveDashboard from "./pages/ExecutiveDashboard";
 import RepPortal from "./pages/RepPortal";
 import ManagerPortal from "./pages/ManagerPortal";
 import QuotationTemplateManager from "./pages/QuotationTemplateManager";
+import AssetTracking from "./pages/AssetTracking";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { Navigate, Outlet } from "react-router-dom";
 
@@ -101,6 +102,7 @@ function App() {
                 <Route path="/rep-portal" element={<RepPortal />} />
                 <Route path="/manager-portal" element={<ManagerPortal />} />
                 <Route path="/ai-reports" element={<AIReports />} />
+                <Route path="/assets" element={<AssetTracking />} />
                 <Route path="/settings" element={<Settings />} />
                 
                 {/* Master Data Routing */}
