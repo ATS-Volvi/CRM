@@ -1073,6 +1073,10 @@ export default function LeadDetail() {
             {tasks.length === 0 ? (
               <p className="text-xs text-on-surface-variant italic">No pending tasks for this lead.</p>
             ) : (
+              <div className="space-y-2 max-h-48 overflow-y-auto">
+                {tasks.map((task: any) => (
+                  <div key={task.id} className="p-2 bg-surface border border-outline-variant/60 rounded flex justify-between items-start text-xs">
+                    <div>
                       <p className="font-bold text-on-surface">{task.title}</p>
                       <p className="text-[10px] text-on-surface-variant">Priority: {task.priority} | Status: {task.status}</p>
                     </div>
