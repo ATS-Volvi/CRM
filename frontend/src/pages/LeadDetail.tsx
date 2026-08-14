@@ -862,22 +862,50 @@ export default function LeadDetail() {
                   </div>
                 </div>
 
-                {/* AI-Extracted Requirement Highlight Section */}
-                <div className="border-t border-outline-variant/60 pt-3 bg-primary-container/20 p-3 rounded-xl space-y-1.5 border border-primary/20">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-primary">
-                    <Sparkles className="w-4 h-4 text-primary" />
-                    <span>AI-Extracted Requirement</span>
-                  </div>
-                  <div>
-                    <span className="block text-[10px] font-bold text-on-surface-variant uppercase">Extracted Requirement</span>
-                    <span className="font-semibold text-on-surface text-xs block">{lead.subject || "General Inquiry"}</span>
-                  </div>
-                  {lead.budgetRange && lead.budgetRange !== "N/A" && (
-                    <div>
-                      <span className="block text-[10px] font-bold text-on-surface-variant uppercase">Budget / Scope</span>
-                      <span className="font-bold text-emerald-700 text-xs">{lead.budgetRange}</span>
+                {/* Form Inquiry & Submitted Requirements Summary */}
+                <div className="border-t border-outline-variant/60 pt-3 bg-primary-container/20 p-3.5 rounded-xl space-y-2 border border-primary/20">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-primary">
+                      <Sparkles className="w-4 h-4 text-primary" />
+                      <span>Form Inquiry & Requirements</span>
                     </div>
+                    {lead.sourceDetail && (
+                      <span className="text-[10px] font-bold bg-primary/10 text-primary px-2 py-0.5 rounded border border-primary/20">
+                        {lead.sourceDetail}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Submitted Message / Form Body */}
+                  {(lead.body || lead.subject) ? (
+                    <div>
+                      <span className="block text-[10px] font-bold text-on-surface-variant uppercase mb-1">Customer Request</span>
+                      <div className="bg-surface/95 border border-outline-variant/70 rounded-lg p-2.5 text-xs text-on-surface whitespace-pre-line leading-relaxed font-medium">
+                        {lead.body || lead.subject}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-on-surface-variant italic">No specific text provided in form submission.</p>
                   )}
+
+                  {/* Campaign & Budget Grid */}
+                  <div className="grid grid-cols-2 gap-2 pt-1 border-t border-primary/10">
+                    <div>
+                      <span className="block text-[10px] font-bold text-on-surface-variant uppercase">Channel / Source</span>
+                      <span className="font-semibold text-on-surface text-xs block">{lead.source || "Inbound Form"}</span>
+                    </div>
+                    {lead.campaign ? (
+                      <div>
+                        <span className="block text-[10px] font-bold text-on-surface-variant uppercase">Campaign</span>
+                        <span className="font-semibold text-on-surface text-xs block truncate">{lead.campaign}</span>
+                      </div>
+                    ) : lead.budgetRange && lead.budgetRange !== "N/A" ? (
+                      <div>
+                        <span className="block text-[10px] font-bold text-on-surface-variant uppercase">Budget / Scope</span>
+                        <span className="font-bold text-emerald-700 text-xs">{lead.budgetRange}</span>
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               </div>
             )}
@@ -1045,10 +1073,6 @@ export default function LeadDetail() {
             {tasks.length === 0 ? (
               <p className="text-xs text-on-surface-variant italic">No pending tasks for this lead.</p>
             ) : (
-              <div className="space-y-2 max-h-48 overflow-y-auto">
-                {tasks.map((task: any) => (
-                  <div key={task.id} className="p-2 bg-surface border border-outline-variant/60 rounded flex justify-between items-start text-xs">
-                    <div>
                       <p className="font-bold text-on-surface">{task.title}</p>
                       <p className="text-[10px] text-on-surface-variant">Priority: {task.priority} | Status: {task.status}</p>
                     </div>
@@ -1062,6 +1086,31 @@ export default function LeadDetail() {
 
         {/* CENTER PANEL: Activity Timeline & Interaction Feed */}
         <div id="activity-timeline" className="col-span-12 lg:col-span-6 flex flex-col gap-6">
+
+          {/* Prominent Inbound Inquiry / Form Summary Banner */}
+          {(lead.body || lead.subject) && (
+            <div className="bg-gradient-to-r from-blue-50/90 to-indigo-50/90 border border-blue-200/80 rounded-2xl p-4 shadow-sm space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs font-black text-blue-900">
+                  <FileText className="w-4 h-4 text-blue-600" />
+                  <span>Submitted Inbound Form & Inquiry Details</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200 uppercase">
+                    {lead.source || "Inbound"}
+                  </span>
+                  {lead.sourceDetail && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white text-slate-700 border border-slate-200">
+                      {lead.sourceDetail}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <p className="text-xs text-slate-800 leading-relaxed font-medium bg-white/95 p-3 rounded-xl border border-blue-100 whitespace-pre-line shadow-2xs">
+                {lead.body || lead.subject}
+              </p>
+            </div>
+          )}
 
           {/* Minimal Interactive Timeline Feed */}
           <div className="bg-card border border-border rounded-2xl p-5 space-y-4 flex flex-col">
@@ -1098,24 +1147,25 @@ export default function LeadDetail() {
                         : "hover:text-foreground"
                     }`}
                   >
-                    {f.key === "whatsapp" ? "💬 WhatsApp" : f.label}
+                    {f.label}
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Minimal Inline Note Box (Non-WhatsApp filter views) */}
+            {/* Note Composer Bar */}
             {activityFilter !== "whatsapp" && (
-              <div className="flex items-center gap-2 bg-muted/60 px-3 py-1.5 rounded-xl border border-border focus-within:border-primary/40 focus-within:bg-card transition-all">
+              <div className="flex gap-2 items-center bg-muted/40 p-1.5 rounded-xl border border-border/60">
                 <input
                   type="text"
                   placeholder="Add a quick note or comment..."
                   value={noteText}
-                  onChange={e => setNoteText(e.target.value)}
-                  className="flex-1 bg-transparent py-1 text-xs font-medium focus:outline-none text-foreground placeholder:text-muted-foreground/70"
-                  onKeyDown={e => {
-                    if (e.key === "Enter" && noteText.trim()) {
-                      addNoteMutation.mutate();
+                  onChange={(e) => setNoteText(e.target.value)}
+                  className="flex-1 bg-transparent px-2.5 py-1 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      if (noteText.trim()) addNoteMutation.mutate();
                     }
                   }}
                 />
@@ -1278,43 +1328,43 @@ export default function LeadDetail() {
               <div className="space-y-2 pt-1">
                 {/* 1-Click Quick Template Pills */}
                 <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-[11px]">
-                  <span className="text-[10px] font-extrabold uppercase text-slate-400 shrink-0 mr-0.5 select-none">Quick Reply:</span>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0">Quick Reply:</span>
                   {[
-                    "Hi! Thanks for reaching out. How can we help you today?",
-                    "We've sent the requested catalog to your email. Please review!",
-                    "Would you be available for a quick 10-min demo call tomorrow?",
-                    "Your quotation is ready! Let us know if you need any adjustments."
-                  ].map((template, idx) => (
+                    "Hi! Thanks for reaching out. How can we assist you with our Porta Cabin solutions today?",
+                    "We've sent the requested catalog & specs. When would be a good time for a 5-min review call?",
+                    "Would you be available for a quick site visit or video demo of our modular units?"
+                  ].map((tpl, idx) => (
                     <button
                       key={idx}
-                      onClick={() => setWhatsAppText(template)}
-                      className="px-2.5 py-1 bg-emerald-100/70 hover:bg-emerald-200/80 text-emerald-900 border border-emerald-300/80 rounded-full font-semibold transition-all shrink-0 active:scale-95 shadow-2xs"
+                      onClick={() => setWhatsAppText(tpl)}
+                      className="px-2.5 py-1 rounded-full border border-emerald-300 text-emerald-800 bg-emerald-50 hover:bg-emerald-100 transition-colors shrink-0 max-w-[220px] truncate font-medium text-[11px]"
+                      title={tpl}
                     >
-                      {template.length > 32 ? template.slice(0, 32) + "…" : template}
+                      {tpl}
                     </button>
                   ))}
                 </div>
 
-                <div className="flex items-center gap-2 bg-emerald-50/80 p-2 rounded-2xl border border-emerald-200 focus-within:border-emerald-500 focus-within:bg-white transition-all shadow-2xs">
+                <div className="flex gap-2 items-center">
                   <input
                     type="text"
                     placeholder={`Send WhatsApp message to ${lead.firstName}...`}
                     value={whatsAppText}
-                    onChange={e => setWhatsAppText(e.target.value)}
-                    className="flex-1 bg-transparent px-3 py-1.5 text-xs font-semibold focus:outline-none text-emerald-950 placeholder:text-emerald-700/60"
-                    onKeyDown={e => {
-                      if (e.key === "Enter" && whatsAppText.trim() && !sendWhatsAppMutation.isPending) {
-                        sendWhatsAppMutation.mutate();
+                    onChange={(e) => setWhatsAppText(e.target.value)}
+                    className="flex-1 bg-white border border-emerald-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        if (whatsAppText.trim()) sendWhatsAppMutation.mutate();
                       }
                     }}
                   />
                   <button
                     disabled={!whatsAppText.trim() || sendWhatsAppMutation.isPending}
                     onClick={() => sendWhatsAppMutation.mutate()}
-                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs shrink-0"
+                    className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 disabled:opacity-30 transition-all flex items-center gap-1.5 shrink-0 shadow-2xs"
                   >
-                    <Send className="w-3.5 h-3.5" />
-                    <span>Send</span>
+                    <Send className="w-3.5 h-3.5" /> Send
                   </button>
                 </div>
               </div>
@@ -1338,7 +1388,7 @@ export default function LeadDetail() {
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Primary Recommended Action
                 </span>
                 <p className="text-emerald-950 font-medium leading-relaxed">
-                  Send technical specification sheet for <strong>{lead?.subject || "Porta Cabins"}</strong> and schedule 15-min discovery call.
+                  Send technical specification sheet for <strong>{lead?.body?.slice(0, 45) || lead?.subject || "Requested Items"}</strong> and schedule discovery call.
                 </p>
               </div>
 
@@ -1347,7 +1397,7 @@ export default function LeadDetail() {
                   <FileText className="w-3.5 h-3.5 text-indigo-600" /> Quote Readiness
                 </span>
                 <p className="text-indigo-950 font-medium leading-relaxed">
-                  Requirements extracted from WhatsApp. Pre-fill quote with 4x units at standard list price.
+                  Inbound request captured via {lead.source || "form"}. Review specs and prepare initial pricing.
                 </p>
               </div>
             </div>
