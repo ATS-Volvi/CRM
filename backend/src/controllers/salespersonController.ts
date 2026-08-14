@@ -102,32 +102,37 @@ export const getSalespersonsPerformance = async (req: Request, res: Response) =>
       }
     });
 
-    // 4. Bulk fetch all Leads for all users in 1 query
+    // 4. Bulk fetch all Leads for all users in 1 query with pruned attributes
     const allLeads = await sequelize.models.Lead.findAll({
-      where: { assignedToId: { [Op.in]: scopedUserIds } }
+      where: { assignedToId: { [Op.in]: scopedUserIds } },
+      attributes: ["id", "assignedToId", "status", "leadScore", "createdAt"]
     });
 
-    // 5. Bulk fetch all Deals for all users in 1 query
+    // 5. Bulk fetch all Deals for all users in 1 query with pruned attributes
     const allDeals = await sequelize.models.Deal.findAll({
       where: { ownerId: { [Op.in]: scopedUserIds } },
-      include: [{ model: sequelize.models.PipelineStage, as: "stage" }]
+      attributes: ["id", "ownerId", "amount", "stageId"],
+      include: [{ model: sequelize.models.PipelineStage, as: "stage", attributes: ["id", "name"] }]
     });
 
-    // 6. Bulk fetch Quotes for all deal IDs in 1 query
+    // 6. Bulk fetch Quotes for all deal IDs in 1 query with pruned attributes
     const allDealIds = allDeals.map((d: any) => d.id);
     let allQuotes: any[] = [];
     if (allDealIds.length > 0) {
       allQuotes = await sequelize.models.Quote.findAll({
         where: { dealId: { [Op.in]: allDealIds } },
+        attributes: ["id", "dealId", "totalAmount", "status", "quoteNumber", "createdAt"],
         include: [
           {
             model: sequelize.models.Deal,
             as: "deal",
-            include: [{ model: sequelize.models.Lead, as: "lead" }]
+            attributes: ["id", "ownerId", "name"],
+            include: [{ model: sequelize.models.Lead, as: "lead", attributes: ["id", "firstName", "lastName", "company"] }]
           },
-          { model: sequelize.models.PurchaseOrder, as: "PurchaseOrder" }
+          { model: sequelize.models.PurchaseOrder, as: "PurchaseOrder", attributes: ["id", "poNumber", "amount", "status", "createdAt"] }
         ],
-        order: [["createdAt", "DESC"]]
+        order: [["createdAt", "DESC"]],
+        limit: 1000
       });
     }
 
@@ -136,7 +141,8 @@ export const getSalespersonsPerformance = async (req: Request, res: Response) =>
     const approvalsByQuoteId: Record<string, any> = {};
     if (allQuoteIds.length > 0) {
       const approvals = await sequelize.models.ApprovalRequest.findAll({
-        where: { targetId: { [Op.in]: allQuoteIds }, type: "Quote" }
+        where: { targetId: { [Op.in]: allQuoteIds }, type: "Quote" },
+        attributes: ["id", "targetId", "status", "createdAt"]
       });
       approvals.forEach((ar: any) => {
         if (
@@ -148,11 +154,12 @@ export const getSalespersonsPerformance = async (req: Request, res: Response) =>
       });
     }
 
-    // 8. Bulk fetch Activities for all users in 1 query
+    // 8. Bulk fetch Activities for all users in 1 query (recent only)
     const allActivities = await sequelize.models.Activity.findAll({
       where: { createdById: { [Op.in]: scopedUserIds } },
-      include: [{ model: sequelize.models.Lead, as: "lead" }],
-      order: [["createdAt", "DESC"]]
+      attributes: ["id", "createdById", "type", "createdAt"],
+      order: [["createdAt", "DESC"]],
+      limit: 500
     });
 
     // Group items by user ID in Maps for fast O(1) in-memory assembly

@@ -100,6 +100,11 @@ export class Lead extends Model {
   public temperatureOverride!: boolean;
   public lastInboundAt!: Date | null;
   public responsivenessScore!: number;
+
+  // Stage + Next Action Engine & Qualification fields
+  public nextAction!: string | null;
+  public nextActionDue!: Date | null;
+  public qualificationData!: any | null;
 }
 
 Lead.init(
@@ -136,6 +141,10 @@ Lead.init(
     temperatureOverride: { type: DataTypes.BOOLEAN, defaultValue: false },
     lastInboundAt: { type: DataTypes.DATE, allowNull: true },
     responsivenessScore: { type: DataTypes.INTEGER, defaultValue: 0 },
+    // Stage + Next Action Engine
+    nextAction: { type: DataTypes.STRING, allowNull: true, defaultValue: "Reply to Lead" },
+    nextActionDue: { type: DataTypes.DATE, allowNull: true },
+    qualificationData: { type: DataTypes.JSON, allowNull: true },
   },
   { 
     sequelize, 
@@ -458,21 +467,42 @@ InvoiceLineItem.init(
 export class Notification extends Model {
   public id!: string;
   public userId!: string;
+  public role!: string;
   public type!: string;
+  public severity!: string; // INFO, ACTION_REQUIRED, WARNING, CRITICAL
   public title!: string;
   public message!: string;
   public link!: string | null;
+  public actionUrl!: string | null;
+  public entityType!: string | null;
+  public entityId!: string | null;
+  public source!: string | null;
+  public groupKey!: string | null;
+  public eventId!: string | null;
+  public metadata!: any | null;
   public isRead!: boolean;
+  public readAt!: Date | null;
 }
 
 Notification.init(
   {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    userId: { type: DataTypes.UUID, allowNull: true },
+    role: { type: DataTypes.STRING, defaultValue: "SALES_REP" },
     type: { type: DataTypes.STRING, allowNull: false },
+    severity: { type: DataTypes.STRING, defaultValue: "INFO" },
     title: { type: DataTypes.STRING, allowNull: false },
     message: { type: DataTypes.TEXT, allowNull: false },
     link: { type: DataTypes.STRING, allowNull: true },
+    actionUrl: { type: DataTypes.STRING, allowNull: true },
+    entityType: { type: DataTypes.STRING, allowNull: true },
+    entityId: { type: DataTypes.STRING, allowNull: true },
+    source: { type: DataTypes.STRING, allowNull: true },
+    groupKey: { type: DataTypes.STRING, allowNull: true },
+    eventId: { type: DataTypes.STRING, allowNull: true },
+    metadata: { type: DataTypes.JSON, allowNull: true },
     isRead: { type: DataTypes.BOOLEAN, defaultValue: false },
+    readAt: { type: DataTypes.DATE, allowNull: true }
   },
   { sequelize, modelName: "Notification" }
 );

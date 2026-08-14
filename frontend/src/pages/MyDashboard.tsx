@@ -355,30 +355,58 @@ export default function MyDashboard() {
             </div>
           ))}
 
-          {/* Weekly Interaction Heatmap Card */}
-          <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-2xs flex flex-col justify-between space-y-3">
+          {/* Weekly Activity Volume & Breakdown Card */}
+          <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-2xs flex flex-col justify-between space-y-4">
             <div>
-              <h4 className="text-xs font-bold text-[#111827]">Weekly Activity Heatmap</h4>
-              <p className="text-[10px] text-[#6B7280] uppercase tracking-wider">Interaction Frequency</p>
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold text-[#111827]">Weekly Activity Volume</h4>
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-[#2563EB]">151 Total</span>
+              </div>
+              <p className="text-[10px] text-[#6B7280] uppercase tracking-wider">Interactions Logged (Mon – Sun)</p>
             </div>
 
-            {/* Grid Heatmap Visual */}
-            <div className="grid grid-cols-7 gap-1.5 py-1">
+            {/* Clear 7-Day Activity Volume Bar Chart */}
+            <div className="flex items-end justify-between h-20 px-1 pt-2">
               {[
-                ["bg-blue-100", "bg-blue-200", "bg-blue-400", "bg-blue-600", "bg-blue-300", "bg-blue-100", "bg-slate-100"],
-                ["bg-blue-200", "bg-blue-500", "bg-blue-300", "bg-blue-700", "bg-blue-400", "bg-blue-200", "bg-slate-100"],
-                ["bg-blue-300", "bg-blue-600", "bg-blue-500", "bg-blue-600", "bg-[#2563EB]", "bg-blue-100", "bg-slate-100"],
-              ].map((row, rIdx) => (
-                <React.Fragment key={rIdx}>
-                  {row.map((cell, cIdx) => (
-                    <div key={cIdx} className={`h-6 rounded-md ${cell}`} />
-                  ))}
-                </React.Fragment>
+                { day: "Mon", count: 14, pct: 50 },
+                { day: "Tue", count: 22, pct: 78 },
+                { day: "Wed", count: 18, pct: 64 },
+                { day: "Thu", count: 28, pct: 100 },
+                { day: "Fri", count: 25, pct: 89 },
+                { day: "Sat", count: 6, pct: 21 },
+                { day: "Sun", count: 3, pct: 10 },
+              ].map((item, idx) => (
+                <div key={idx} className="flex flex-col items-center gap-1.5 group cursor-pointer">
+                  <span className="text-[9px] font-black text-slate-500 group-hover:text-[#2563EB] transition-colors">{item.count}</span>
+                  <div className="w-5 bg-slate-100 rounded-t-md h-12 flex items-end overflow-hidden">
+                    <div
+                      className="w-full bg-[#2563EB]/80 group-hover:bg-[#2563EB] rounded-t-md transition-all duration-300"
+                      style={{ height: `${item.pct}%` }}
+                    />
+                  </div>
+                  <span className="text-[9px] font-bold text-[#6B7280] uppercase">{item.day}</span>
+                </div>
               ))}
             </div>
 
-            <div className="flex justify-between text-[9px] font-bold text-[#6B7280] uppercase px-1">
-              <span>W</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span>
+            {/* Channel Breakdown Tags */}
+            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 text-[10px] font-semibold text-slate-600">
+              <div className="flex items-center justify-between px-2 py-1 bg-slate-50 rounded-lg">
+                <span className="flex items-center gap-1">💬 WhatsApp</span>
+                <strong className="text-slate-900">68</strong>
+              </div>
+              <div className="flex items-center justify-between px-2 py-1 bg-slate-50 rounded-lg">
+                <span className="flex items-center gap-1">📞 Calls</span>
+                <strong className="text-slate-900">42</strong>
+              </div>
+              <div className="flex items-center justify-between px-2 py-1 bg-slate-50 rounded-lg">
+                <span className="flex items-center gap-1">✉️ Emails</span>
+                <strong className="text-slate-900">29</strong>
+              </div>
+              <div className="flex items-center justify-between px-2 py-1 bg-slate-50 rounded-lg">
+                <span className="flex items-center gap-1">📅 Meetings</span>
+                <strong className="text-slate-900">12</strong>
+              </div>
             </div>
           </div>
         </div>

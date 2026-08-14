@@ -6,7 +6,7 @@ export const getAccounts = async (req: Request, res: Response) => {
     const accounts = await Account.findAll({
       include: [
         { model: Contact, as: "contacts" },
-        { model: Deal, as: "Deals" }
+        { model: Deal, as: "deals" }
       ],
       order: [["createdAt", "DESC"]]
     });
@@ -25,12 +25,7 @@ export const getAccountById = async (req: Request, res: Response) => {
         { model: Contact, as: "contacts" },
         { 
           model: Deal, 
-          as: "Deals",
-          include: [{
-            model: Contact,
-            as: 'dealContacts',
-            through: { attributes: ['role', 'isPrimary'] }
-          }]
+          as: "deals"
         }
       ]
     });

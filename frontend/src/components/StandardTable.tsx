@@ -28,6 +28,12 @@ interface StandardTableProps {
   ownerFilter?: string;
   onOwnerChange?: (val: string) => void;
   ownerOptions?: { value: string; label: string }[];
+  temperatureFilter?: string;
+  onTemperatureChange?: (val: string) => void;
+  temperatureOptions?: { value: string; label: string }[];
+  sortBy?: string;
+  onSortByChange?: (val: string) => void;
+  sortOptions?: { value: string; label: string }[];
   onExport?: () => void;
   page?: number;
   totalPages?: number;
@@ -54,6 +60,12 @@ export function StandardTable({
   ownerFilter,
   onOwnerChange,
   ownerOptions = [],
+  temperatureFilter,
+  onTemperatureChange,
+  temperatureOptions = [],
+  sortBy,
+  onSortByChange,
+  sortOptions = [],
   onExport,
   page = 1,
   totalPages = 1,
@@ -108,6 +120,37 @@ export function StandardTable({
               >
                 <option value="all">All Statuses</option>
                 {statusOptions.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {temperatureOptions.length > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-muted-foreground">Priority:</span>
+              <select
+                value={temperatureFilter}
+                onChange={(e) => onTemperatureChange && onTemperatureChange(e.target.value)}
+                className="bg-muted border border-border rounded-lg px-3 py-1.5 text-xs font-bold focus:outline-none cursor-pointer"
+              >
+                <option value="all">All Priorities</option>
+                {temperatureOptions.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {sortOptions.length > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-muted-foreground">Arrange / Sort:</span>
+              <select
+                value={sortBy}
+                onChange={(e) => onSortByChange && onSortByChange(e.target.value)}
+                className="bg-muted border border-border rounded-lg px-3 py-1.5 text-xs font-bold focus:outline-none cursor-pointer"
+              >
+                {sortOptions.map(opt => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
               </select>

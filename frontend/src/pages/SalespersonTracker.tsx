@@ -93,14 +93,14 @@ const DEPARTMENTS = ["All", "Sales", "Enterprise", "Commercial", "SMB", "Inside 
 const TERRITORIES = ["All", "EMEA", "APAC", "Americas", "Dubai", "MEA", "South Asia"];
 const TEAMS = ["All", "Aces", "Velocity", "Global", "Hawks", "Phoenix"];
 
+import { useQuery } from "@tanstack/react-query";
+
 export default function SalespersonTracker() {
-  const [salespersons, setSalespersons] = useState<Salesperson[]>([]);
   const [search, setSearch] = useState("");
   const [filterDept, setFilterDept] = useState("All");
   const [filterTerritory, setFilterTerritory] = useState("All");
   const [filterTeam, setFilterTeam] = useState("All");
   const [filterStatus, setFilterStatus] = useState("All");
-  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   // Expanded team tracking
@@ -114,71 +114,53 @@ export default function SalespersonTracker() {
     role: "sales_rep", maxOpenLeads: 20, isAvailable: true,
     managerId: "", department: "Sales", territory: "EMEA", team: "Aces"
   });
-  const [managers, setManagers] = useState<any[]>([]);
 
-  useEffect(() => {
-    fetchSalespersons();
-    fetchManagers();
-  }, []);
-
-  const fetchSalespersons = async () => {
-    try {
-      // Try the full performance endpoint first
-      const res = await apiClient("/api/v1/salespersons/performance");
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
-          setSalespersons(data);
-          setLoading(false);
-          return;
+  const { data: salespersons = [], isLoading: loading } = useQuery<Salesperson[]>({
+    queryKey: ["salespersonsPerformance"],
+    queryFn: async () => {
+      try {
+        const res = await apiClient("/api/v1/salespersons/performance");
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0) return data;
         }
-      }
-    } catch (err) {
-      console.error("Performance endpoint failed, falling back to list:", err);
-    }
+      } catch (e) {}
 
-    // Fallback: use the simple salespersons list endpoint
-    try {
       const res2 = await apiClient("/api/v1/salespersons");
-      if (res2.ok) {
-        const list = await res2.json();
-        if (Array.isArray(list)) {
-          // Map to the shape the UI expects, with safe defaults
-          const mapped: Salesperson[] = list.map((u: any) => ({
-            id: u.id,
-            name: u.name,
-            email: u.email || "",
-            role: u.role || "sales_rep",
-            isAvailable: u.isAvailable ?? true,
-            maxOpenLeads: u.maxOpenLeads ?? 35,
-            totalLeads: u.totalLeads ?? 0,
-            totalDeals: u.totalDeals ?? 0,
-            department: u.department || "Sales",
-            territory: u.territory || "EMEA",
-            team: u.team || "Aces",
-            activeKpiCount: 0,
-            revenueClosed: 0,
-            targetAchievementPct: 0,
-            managerId: u.managerId || null,
-          }));
-          setSalespersons(mapped);
-        }
-      }
-    } catch (err2) {
-      console.error("Fallback list also failed:", err2);
-    }
-    setLoading(false);
-  };
+      if (!res2.ok) return [];
+      const list = await res2.json();
+      return (list || []).map((u: any) => ({
+        id: u.id,
+        name: u.name,
+        email: u.email || "",
+        role: u.role || "sales_rep",
+        isAvailable: u.isAvailable ?? true,
+        maxOpenLeads: u.maxOpenLeads ?? 35,
+        totalLeads: u.totalLeads ?? 0,
+        totalDeals: u.totalDeals ?? 0,
+        department: u.department || "Sales",
+        territory: u.territory || "EMEA",
+        team: u.team || "Aces",
+        activeKpiCount: 0,
+        revenueClosed: 0,
+        targetAchievementPct: 0,
+        managerId: u.managerId || null,
+      }));
+    },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000
+  });
 
-  const fetchManagers = async () => {
-    try {
+  const { data: managers = [] } = useQuery<any[]>({
+    queryKey: ["salespersonManagers"],
+    queryFn: async () => {
       const res = await apiClient("/api/v1/salespersons");
-      const data = await res.json();
-      if (Array.isArray(data)) {
-        setManagers(data.filter((u: any) => u.role === "sales_manager" || u.role === "admin" || u.role === "director"));
-      }
-    } catch (err) { console.error(err); }
-  };
+      if (!res.ok) return [];
+      const list = await res.json();
+      return (list || []).filter((u: any) => u.role === "sales_manager" || u.role === "admin" || u.role === "director");
+    },
+    staleTime: 5 * 60 * 1000
+  });
 
   const handleToggleAvailability = async (rep: Salesperson) => {
     try {

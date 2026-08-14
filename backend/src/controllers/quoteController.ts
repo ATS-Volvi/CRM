@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { sequelize } from "@nexus-crm/database";
 import { createNotification } from "../services/notificationService";
 import { evaluateQuoteApproval, createApprovalAuditLog } from "../services/approvalEngine";
+import { triggerQuoteApprovalNotifications } from "../services/notificationEngine";
 
 export const getQuotes = async (req: Request, res: Response) => {
   try {
@@ -261,7 +262,6 @@ export const createQuote = async (req: Request, res: Response) => {
         );
       }
     } else if (isSubmitted) {
-      // Audit log self-approval
       await createApprovalAuditLog({
         quoteId: (quote as any).id,
         salesRepId,
@@ -272,9 +272,12 @@ export const createQuote = async (req: Request, res: Response) => {
         margin: evaluation.margin,
         approverId: salesRepId,
         decision: "Approved",
-        reason: "Self-approved within Sales Representative authority limit."
+        reason: "Self-approved within limit."
       });
     }
+
+    // Trigger Role-Based Notification Engine Dispatcher (Hierarchical Approval Notification)
+    triggerQuoteApprovalNotifications(quote, deal, (req as any).user).catch(e => console.error("Quote notification engine error:", e));
 
     res.status(201).json(quote);
   } catch (error: any) {

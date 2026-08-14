@@ -7,11 +7,12 @@ import {
   ChevronRight, Calendar, DollarSign, Activity, ShoppingBag, FileText, ChevronDown, Loader2,
   Users, TrendingUp, MessageSquare, CheckSquare, AlertCircle, Sparkles, Send, Upload, Plus,
   FilePlus, Award, ShieldAlert, CheckCircle2, Clock, MapPin, Video, ExternalLink, Pin,
-  FileEdit, Landmark, Inbox, User, Receipt, AlertTriangle
+  FileEdit, Landmark, Inbox, User, Receipt, AlertTriangle, Target
 } from "lucide-react";
 import { formatCurrency } from "../utils/currency";
 import { formatDistanceToNow } from "date-fns";
 import { CommentThreadSection } from "../components/CommentThreadSection";
+import { QualificationDrawer } from "../components/QualificationDrawer";
 
 export default function LeadDetail() {
   const { id } = useParams();
@@ -35,6 +36,7 @@ export default function LeadDetail() {
 
   // Quick Action Modal States
   const [activeModal, setActiveModal] = useState<string | null>(null);
+  const [isQualifyDrawerOpen, setIsQualifyDrawerOpen] = useState(false);
 
   // Activity Timeline Filter & Note States
   const [activityFilter, setActivityFilter] = useState<string>("all");
@@ -87,12 +89,10 @@ export default function LeadDetail() {
   const { data: lead, isLoading } = useQuery<any>({
     queryKey: ["lead", id],
     queryFn: async () => {
-      const res = await fetch(`/api/v1/leads`, { headers: { "Authorization": `Bearer ${token}` } });
-      if (!res.ok) throw new Error("Failed to fetch leads");
-      const leads = await res.json();
-      const match = leads.find((l: any) => l.id === id);
-      if (!match) throw new Error("Lead not found");
-      return match;
+      // Direct single-record PK lookup — previously fetched ALL leads and searched client-side
+      const res = await fetch(`/api/v1/leads/${id}`, { headers: { "Authorization": `Bearer ${token}` } });
+      if (!res.ok) throw new Error("Lead not found");
+      return res.json();
     },
     enabled: !!id && !!token
   });
@@ -127,7 +127,7 @@ export default function LeadDetail() {
       return res.json();
     },
     enabled: !!id && !!token,
-    refetchInterval: 3000, // Poll every 3s so live WhatsApp replies pop up in real-time
+    refetchInterval: 15000, // Poll every 15s (was 3s — 5× less server load)
     refetchOnWindowFocus: true,
   });
 
@@ -523,61 +523,189 @@ export default function LeadDetail() {
         </div>
       </div>
 
-      {/* 13-Stage Enterprise OS Flow Progression Ribbon */}
+      {/* ─── STAGE + NEXT ACTION ENGINE HERO BANNER ─────────────────────────────── */}
+      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-3xl p-6 text-white shadow-xl border border-indigo-900/50 flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative overflow-hidden">
+        <div className="absolute right-0 top-0 bottom-0 w-96 bg-indigo-500/10 blur-3xl pointer-events-none" />
+
+        <div className="space-y-3 max-w-2xl">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="px-3 py-1 bg-indigo-500/20 border border-indigo-400/30 rounded-full text-[11px] font-black uppercase tracking-wider text-indigo-300 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+              Stage: {lead.status || "New"}
+            </span>
+
+            <span className="px-3 py-1 bg-emerald-500/20 border border-emerald-400/30 rounded-full text-[11px] font-bold text-emerald-300 flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5 text-emerald-400" />
+              Next Action Due: {lead.nextActionDue ? new Date(lead.nextActionDue).toLocaleDateString([], { month: "short", day: "numeric" }) : "Today 5:00 PM"}
+            </span>
+
+            {lead.assignedTo && (
+              <span className="px-3 py-1 bg-white/10 rounded-full text-[11px] font-medium text-slate-300 flex items-center gap-1">
+                <UserCheck className="w-3.5 h-3.5 text-slate-400" /> Owner: {lead.assignedTo.name}
+              </span>
+            )}
+          </div>
+
+          <div>
+            <h3 className="text-2xl font-extrabold tracking-tight text-white flex items-center gap-2">
+              Next Action: {lead.nextAction || (lead.status === "New" ? "Reply to Lead" : lead.status === "Contacted" ? "Qualify Lead" : "Prepare Quote")}
+            </h3>
+            <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+              {lead.status === "New" && "Lead has been ingested and assigned. Send initial reply via WhatsApp or Email to move to Contacted."}
+              {lead.status === "Contacted" && "Lead responded. Open the Qualification Drawer to record requirement, budget, and timeline."}
+              {lead.status === "Qualified" && "Lead is qualified! Opportunity auto-created. Generate formal quotation for client approval."}
+              {(lead.status === "Proposal" || lead.status === "Quote Sent") && "Quotation has been submitted. Follow up on client review or discuss pricing."}
+              {lead.status === "Negotiation" && "Client requested pricing discussion. Finalize discount terms to close deal."}
+              {lead.status === "Won" && "Deal is Closed Won! Create invoice to initiate billing and delivery."}
+              {lead.status === "Lost" && "Deal is Closed Lost. Review loss reason category."}
+            </p>
+          </div>
+
+          {/* Qualified Summary Pills (if qualificationData exists) */}
+          {lead.qualificationData && (
+            <div className="pt-2 flex flex-wrap gap-2 text-[11px]">
+              <span className="px-2.5 py-1 bg-white/10 rounded-lg text-slate-200">
+                <strong>Req:</strong> {lead.qualificationData.requirement?.slice(0, 30)}…
+              </span>
+              <span className="px-2.5 py-1 bg-emerald-500/20 text-emerald-300 font-bold rounded-lg border border-emerald-400/30">
+                <strong>Est. Value:</strong> {formatCurrency(lead.qualificationData.estimatedValue || 500000)}
+              </span>
+              <span className="px-2.5 py-1 bg-indigo-500/20 text-indigo-300 rounded-lg">
+                <strong>Timeline:</strong> {lead.qualificationData.timeline}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* DOMINANT SINGLE PRIMARY CTA ACTION BUTTON */}
+        <div className="shrink-0 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          {(lead.status === "New" || lead.status === "New Lead") && (
+            <button
+              onClick={() => {
+                if (isWhatsAppRelevant) {
+                  setActivityFilter("whatsapp");
+                  const el = document.getElementById("activity-timeline");
+                  if (el) el.scrollIntoView({ behavior: "smooth" });
+                } else {
+                  setActiveModal("email");
+                }
+              }}
+              className="px-8 py-4 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-extrabold text-sm rounded-2xl shadow-lg shadow-emerald-500/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <MessageSquare className="w-5 h-5 fill-white" />
+              <span>💬 Reply to Lead</span>
+            </button>
+          )}
+
+          {lead.status === "Contacted" && (
+            <button
+              onClick={() => setIsQualifyDrawerOpen(true)}
+              className="px-8 py-4 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-extrabold text-sm rounded-2xl shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <Target className="w-5 h-5" />
+              <span>🎯 Qualify Lead (5 Questions)</span>
+            </button>
+          )}
+
+          {(lead.status === "Qualified" || lead.status === "Meeting/Demo") && (
+            <button
+              onClick={handleConvertToQuotation}
+              disabled={isConverting}
+              className="px-8 py-4 bg-primary hover:bg-blue-600 active:scale-95 text-white font-extrabold text-sm rounded-2xl shadow-lg shadow-blue-500/30 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+            >
+              {isConverting ? <Loader2 className="w-5 h-5 animate-spin" /> : <FileText className="w-5 h-5" />}
+              <span>📄 Prepare Formal Quote</span>
+            </button>
+          )}
+
+          {(lead.status === "Proposal" || lead.status === "Quote Sent") && (
+            <button
+              onClick={() => setActiveModal("email")}
+              className="px-8 py-4 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-extrabold text-sm rounded-2xl shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <Send className="w-5 h-5" />
+              <span>🚀 Follow Up on Quote</span>
+            </button>
+          )}
+
+          {lead.status === "Negotiation" && (
+            <button
+              onClick={() => handleConvertToQuotation()}
+              className="px-8 py-4 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-extrabold text-sm rounded-2xl shadow-lg shadow-amber-500/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <TrendingUp className="w-5 h-5" />
+              <span>🤝 Finalize Discount & Terms</span>
+            </button>
+          )}
+
+          {lead.status === "Won" && (
+            <button
+              onClick={() => navigate("/invoices")}
+              className="px-8 py-4 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-extrabold text-sm rounded-2xl shadow-lg shadow-emerald-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <Receipt className="w-5 h-5" />
+              <span>🧾 Generate Customer Invoice</span>
+            </button>
+          )}
+
+          {/* Secondary Quick Qualify trigger if not qualified yet */}
+          {lead.status !== "Contacted" && lead.status !== "Qualified" && lead.status !== "Won" && (
+            <button
+              onClick={() => setIsQualifyDrawerOpen(true)}
+              className="px-4 py-3 bg-white/10 hover:bg-white/20 text-slate-200 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5"
+            >
+              <Target className="w-4 h-4 text-indigo-400" />
+              <span>{lead.qualificationData ? "Edit Qualification" : "Qualify Drawer"}</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Standard Pipeline Stage Progression Ribbon */}
       <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-5 shadow-sm space-y-3">
         <div className="flex items-center justify-between">
           <span className="text-xs font-bold uppercase tracking-wider text-on-surface-variant flex items-center gap-1.5">
-            <TrendingUp className="w-4 h-4 text-primary" /> Lifecycle Progression
+            <TrendingUp className="w-4 h-4 text-primary" /> Pipeline Progression Stage
           </span>
           <select 
-            value={lead.status}
+            value={lead.status || "New"}
             onChange={(e) => updateStatusMutation.mutate(e.target.value)}
             className="bg-surface border border-outline rounded-lg px-3 py-1.5 text-xs font-bold focus:ring-primary cursor-pointer"
           >
-            {[
-              "Lead Queue", "Customer Workspace", "Generate Quote", "Quote Draft", "Send for Approval",
-              "Approval Center", "Approved", "Send to Customer", "Waiting Customer", "Negotiation",
-              "Accepted", "Invoice", "Payment", "Closed Won"
-            ].map(st => (
+            {["New", "Contacted", "Qualified", "Proposal", "Negotiation", "Won", "Lost"].map(st => (
               <option key={st} value={st}>{st}</option>
             ))}
           </select>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 xl:grid-cols-14 gap-1.5 pt-1">
-          {[
-            { name: "Lead Queue", icon: Inbox, path: "/leads-table" },
-            { name: "Customer Workspace", icon: User, path: `/leads/${lead.id}` },
-            { name: "Generate Quote", icon: Plus, action: handleConvertToQuotation },
-            { name: "Quote Draft", icon: FileEdit, path: `/quotes/new?leadId=${lead.id}` },
-            { name: "Send for Approval", icon: AlertTriangle, path: "/approvals" },
-            { name: "Approval Center", icon: Landmark, path: "/approvals" },
-            { name: "Approved", icon: CheckCircle2, path: "/quotes" },
-            { name: "Send to Customer", icon: Mail, path: "/quotes" },
-            { name: "Waiting Customer", icon: Clock, path: "/quotes" },
-            { name: "Negotiation", icon: MessageSquare, path: "/quotes" },
-            { name: "Accepted", icon: CheckCircle2, path: "/quotes" },
-            { name: "Invoice", icon: Receipt, path: "/invoices" },
-            { name: "Payment", icon: DollarSign, path: "/invoices" },
-            { name: "Closed Won", icon: CheckCircle2, path: "/pipeline" },
-          ].map((stepObj, idx) => {
-            const isCurrent = (lead.status || "").toLowerCase().includes(stepObj.name.toLowerCase());
-            const Icon = stepObj.icon;
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2 pt-1">
+          {["New", "Contacted", "Qualified", "Proposal", "Negotiation", "Won", "Lost"].map((stageName, idx) => {
+            const pipelineStages = ["New", "Contacted", "Qualified", "Proposal", "Negotiation", "Won", "Lost"];
+            const currentIdx = pipelineStages.indexOf(lead.status || "New");
+            const isCurrent = lead.status === stageName;
+            const isPast = currentIdx > idx;
+
             return (
-              <div 
-                key={stepObj.name}
-                onClick={() => {
-                  if (stepObj.action) stepObj.action();
-                  else if (stepObj.path) navigate(stepObj.path);
-                }}
-                className={`p-2 rounded-xl border flex flex-col items-center justify-center text-center cursor-pointer transition-all ${
-                  isCurrent 
-                    ? "bg-primary text-white border-primary shadow-sm ring-2 ring-primary/20 scale-105" 
-                    : "bg-surface-container-low/50 hover:bg-surface-container-high text-on-surface border-outline-variant/60"
+              <button 
+                key={stageName}
+                onClick={() => updateStatusMutation.mutate(stageName)}
+                className={`py-3 px-3 rounded-xl border text-center text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  isCurrent
+                    ? "bg-primary text-white border-primary shadow-md scale-102"
+                    : isPast
+                    ? "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100"
+                    : "bg-surface-container-lowest text-slate-600 border-outline-variant hover:bg-slate-100"
                 }`}
               >
-                <Icon className={`w-3.5 h-3.5 mb-1 ${isCurrent ? "text-white" : "text-primary"}`} />
-                <span className="text-[10px] font-bold leading-tight line-clamp-2">{stepObj.name}</span>
-              </div>
+                {isCurrent ? (
+                  <CheckCircle2 className="w-4 h-4 text-white" />
+                ) : isPast ? (
+                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                ) : (
+                  <Clock className="w-3.5 h-3.5 opacity-40 text-slate-400" />
+                )}
+                <span>{stageName}</span>
+              </button>
             );
           })}
         </div>
@@ -1577,6 +1705,18 @@ export default function LeadDetail() {
           </div>
         </div>
       )}
+
+      {/* Qualification Drawer Modal */}
+      <QualificationDrawer
+        isOpen={isQualifyDrawerOpen}
+        onClose={() => setIsQualifyDrawerOpen(false)}
+        lead={lead}
+        token={token}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ["lead", id] });
+          queryClient.invalidateQueries({ queryKey: ["leadActivities", id] });
+        }}
+      />
     </div>
   );
 }
