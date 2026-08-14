@@ -130,6 +130,7 @@ export default function LeadInbox() {
   const [channelFilter, setChannelFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [temperatureFilter, setTemperatureFilter] = useState("all");
+  const [sortBy, setSortBy] = useState<string>("newest");
   const [showAllColumns, setShowAllColumns] = useState(false);
   const [isViewPopoverOpen, setIsViewPopoverOpen] = useState(false);
   const [relatedInquiriesLead, setRelatedInquiriesLead] = useState<any>(null);
@@ -243,16 +244,43 @@ export default function LeadInbox() {
       const matchesTemp = temperatureFilter === "all" || lead.temperature === temperatureFilter;
       return matchesSearch && matchesStatus && matchesTemp;
     })?.slice()?.sort((a: any, b: any) => {
-      // Sort WhatsApp unread leads first, then by lastWhatsappAt, then by createdAt
+      // Sorting Options
+      if (sortBy === "oldest") {
+        return new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime();
+      }
+      if (sortBy === "hot_first") {
+        const tempOrder: Record<string, number> = { Hot: 3, Warm: 2, Cold: 1 };
+        const scoreA = (tempOrder[a.temperature] || 2) * 100 + (a.leadScore || 0);
+        const scoreB = (tempOrder[b.temperature] || 2) * 100 + (b.leadScore || 0);
+        return scoreB - scoreA;
+      }
+      if (sortBy === "cold_first") {
+        const tempOrder: Record<string, number> = { Hot: 3, Warm: 2, Cold: 1 };
+        const scoreA = (tempOrder[a.temperature] || 2) * 100 + (a.leadScore || 0);
+        const scoreB = (tempOrder[b.temperature] || 2) * 100 + (b.leadScore || 0);
+        return scoreA - scoreB;
+      }
+      if (sortBy === "profit_high") {
+        const valA = parseFloat(a.estimatedValue || a.dealValue || a.amount || 0);
+        const valB = parseFloat(b.estimatedValue || b.dealValue || b.amount || 0);
+        return valB - valA;
+      }
+      if (sortBy === "profit_low") {
+        const valA = parseFloat(a.estimatedValue || a.dealValue || a.amount || 0);
+        const valB = parseFloat(b.estimatedValue || b.dealValue || b.amount || 0);
+        return valA - valB;
+      }
+
+      // Default: Newest Arrival / WhatsApp unread leads first
       if ((b.unreadWhatsappCount || 0) !== (a.unreadWhatsappCount || 0)) {
         return (b.unreadWhatsappCount || 0) - (a.unreadWhatsappCount || 0);
       }
       const bTime = b.lastWhatsappAt ? new Date(b.lastWhatsappAt).getTime() : 0;
       const aTime = a.lastWhatsappAt ? new Date(a.lastWhatsappAt).getTime() : 0;
       if (bTime !== aTime) return bTime - aTime;
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
     }) || [];
-  }, [leads, searchQuery, channelFilter, statusFilter, temperatureFilter]);
+  }, [leads, searchQuery, channelFilter, statusFilter, temperatureFilter, sortBy]);
 
   // Source metrics computation including WhatsApp
   const sourceStats = useMemo(() => {
@@ -368,6 +396,25 @@ export default function LeadInbox() {
           <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${cfg.bg} ${cfg.text} ${cfg.border} shadow-2xs`}>
             {lead.status}
           </span>
+        );
+      }
+    },
+    {
+      key: "nextAction",
+      header: "Next Action",
+      render: (lead: any) => {
+        const nextAct = lead.nextAction || (lead.status === "New" ? "Reply to Lead" : lead.status === "Contacted" ? "Qualify Lead" : "Prepare Quote");
+        return (
+          <div className="flex flex-col gap-0.5">
+            <span className="px-2 py-0.5 rounded-lg text-[10px] font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-200 inline-flex items-center gap-1 w-fit">
+              🎯 {nextAct}
+            </span>
+            {lead.nextActionDue && (
+              <span className="text-[10px] text-slate-500 font-medium">
+                Due {new Date(lead.nextActionDue).toLocaleDateString([], { month: "short", day: "numeric" })}
+              </span>
+            )}
+          </div>
         );
       }
     },
@@ -635,6 +682,23 @@ export default function LeadInbox() {
             { value: "Negotiation", label: "Negotiation" },
             { value: "Won", label: "Won" },
             { value: "Lost", label: "Lost" }
+          ]}
+          temperatureFilter={temperatureFilter}
+          onTemperatureChange={setTemperatureFilter}
+          temperatureOptions={[
+            { value: "Hot", label: "🔥 Hot Prospects" },
+            { value: "Warm", label: "🟡 Warm Prospects" },
+            { value: "Cold", label: "🧊 Cold Prospects" }
+          ]}
+          sortBy={sortBy}
+          onSortByChange={setSortBy}
+          sortOptions={[
+            { value: "newest", label: "⏱️ Arrival: Newest First" },
+            { value: "oldest", label: "⌛ Arrival: Oldest First" },
+            { value: "hot_first", label: "🔥 Hot Prospects First" },
+            { value: "cold_first", label: "🧊 Cold Prospects First" },
+            { value: "profit_high", label: "💰 Highest Profit / Deal Value" },
+            { value: "profit_low", label: "📉 Lowest Profit / Deal Value" }
           ]}
           addLabel="+ Add Lead"
           onAddClick={() => navigate("/leads/new")}

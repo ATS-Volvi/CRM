@@ -9,10 +9,10 @@ import crypto from "crypto";
 
 export const getLeads = async (req: Request, res: Response) => {
   try {
-    const { source, status, search } = req.query;
+    const { source, status, search, page, limit } = req.query;
     const user = (req as any).user;
     const where: any = {};
-    
+
     // Data isolation for Sales Representatives: Only return leads assigned to them
     if (user && user.role === "sales_rep") {
       where.assignedToId = user.id;
@@ -21,11 +21,65 @@ export const getLeads = async (req: Request, res: Response) => {
     if (source && source !== "All Sources") {
       where.source = source.toString();
     }
-    
+
     if (status && status !== "All Statuses") {
       where.status = status;
     }
 
+    if (search) {
+      const q = `%${search}%`;
+      where[Op.or] = [
+        { firstName: { [Op.like]: q } },
+        { lastName: { [Op.like]: q } },
+        { company: { [Op.like]: q } },
+        { email: { [Op.like]: q } },
+        { phone: { [Op.like]: q } }
+      ];
+    }
+
+    // Server-side pagination: ?page=1&limit=50 (default 50, max 200)
+    const pageNum = Math.max(1, parseInt(page as string) || 1);
+    const limitNum = Math.min(200, Math.max(1, parseInt(limit as string) || 50));
+    const offset = (pageNum - 1) * limitNum;
+
+    const isPaginated = !!(page || limit);
+
+    if (isPaginated) {
+      // Paginated response: return envelope with metadata
+      const { count, rows } = await sequelize.models.Lead.findAndCountAll({
+        where,
+        include: [
+          {
+            model: sequelize.models.User,
+            as: "assignedTo",
+            attributes: ["id", "name", "email"]
+          },
+          {
+            model: sequelize.models.LeadContact,
+            as: "contacts",
+            attributes: ["id", "firstName", "lastName", "email", "phone", "role", "sourceChannel", "createdAt"]
+          }
+        ],
+        order: [
+          ["lastWhatsappAt", "DESC NULLS LAST"],
+          ["createdAt", "DESC"]
+        ],
+        limit: limitNum,
+        offset,
+        distinct: true // avoid inflated count due to hasMany include
+      });
+
+      return res.json({
+        data: rows,
+        total: count,
+        page: pageNum,
+        totalPages: Math.ceil(count / limitNum),
+        limit: limitNum
+      });
+    }
+
+    // Non-paginated (legacy) — keep backward compatibility for pages that
+    // haven't been updated yet; returns plain array
     const leads = await sequelize.models.Lead.findAll({
       where,
       include: [
@@ -49,6 +103,43 @@ export const getLeads = async (req: Request, res: Response) => {
     });
 
     res.json(leads);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * GET /api/v1/leads/:id
+ * Fetches a SINGLE lead by primary key — avoids downloading all leads for detail view.
+ */
+export const getLeadById = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const user = (req as any).user;
+
+    const lead = await sequelize.models.Lead.findByPk(String(id), {
+      include: [
+        {
+          model: sequelize.models.User,
+          as: "assignedTo",
+          attributes: ["id", "name", "email", "role"]
+        },
+        {
+          model: sequelize.models.LeadContact,
+          as: "contacts",
+          attributes: ["id", "firstName", "lastName", "email", "phone", "role", "message", "sourceChannel", "createdAt"]
+        }
+      ]
+    });
+
+    if (!lead) return res.status(404).json({ error: "Lead not found" });
+
+    // Data isolation: sales reps can only view their own leads
+    if (user && user.role === "sales_rep" && (lead as any).assignedToId !== user.id) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+
+    res.json(lead);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -84,16 +175,29 @@ export const createLead = async (req: Request, res: Response) => {
   }
 };
 
+import { computeStageNextAction, qualifyLeadWorkflow } from "../services/stageNextActionEngine";
+
 export const updateLead = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const updateData = req.body;
     const lead = await sequelize.models.Lead.findByPk(id as string);
     if (!lead) return res.status(404).json({ error: "Lead not found" });
-    
+
     if (updateData.assignedToId && updateData.assignedToId !== (lead as any).assignedToId) {
       await assignLeadToSalesperson(lead, updateData.assignedToId);
       delete updateData.assignedToId;
+    }
+
+    // Auto-calculate nextAction & nextActionDue when status changes if not manually provided
+    if (updateData.status && updateData.status !== (lead as any).status && !updateData.nextAction) {
+      const config = computeStageNextAction(updateData.status);
+      updateData.nextAction = config.nextAction;
+      if (config.hoursDue > 0) {
+        updateData.nextActionDue = new Date(Date.now() + config.hoursDue * 3600 * 1000);
+      } else {
+        updateData.nextActionDue = null;
+      }
     }
 
     await lead.update(updateData);
@@ -103,6 +207,27 @@ export const updateLead = async (req: Request, res: Response) => {
   }
 };
 
+/**
+ * POST /api/v1/leads/:id/qualify
+ * Qualifies a lead using the 5-field Qualification Drawer payload.
+ * Auto-creates linked Account (Customer) and Deal (Opportunity),
+ * sets status -> Qualified, and updates nextAction -> Prepare Quote.
+ */
+export const qualifyLeadEndpoint = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const user = (req as any).user;
+    const qualificationData = req.body;
+    const { convertLeadToOpportunity } = require("../services/leadJourneyWorkflowEngine");
+
+    const result = await convertLeadToOpportunity(String(id), qualificationData, user?.id);
+    res.json(result);
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+};
+
+
 export const convertLead = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -111,19 +236,22 @@ export const convertLead = async (req: Request, res: Response) => {
 
     const l = lead as any;
 
-    // Check if customer already exists for this lead
-    let customer = l.customerId ? await sequelize.models.Customer.findByPk(l.customerId) : null;
-    if (!customer) {
-      customer = await sequelize.models.Customer.create({
+    // Check if Account already exists for this company name
+    // (Account is the CRM's customer record — 'Customer' model does not exist)
+    let account: any = l.company
+      ? await sequelize.models.Account.findOne({ where: { name: { [Op.like]: `%${l.company}%` } } })
+      : null;
+
+    if (!account) {
+      account = await sequelize.models.Account.create({
         id: crypto.randomUUID(),
         name: l.company || `${l.firstName} ${l.lastName}`.trim(),
         primaryContactName: `${l.firstName} ${l.lastName}`.trim(),
         email: l.email,
         phone: l.phone,
-        address: l.address || null,
         industry: l.industry || "General"
       });
-      await l.update({ customerId: (customer as any).id, status: "Qualified" });
+      await l.update({ status: "Qualified" });
     }
 
     // Get or create deal for this lead
@@ -138,14 +266,11 @@ export const convertLead = async (req: Request, res: Response) => {
         amount: l.leadScore ? l.leadScore * 1000 : 50000,
         stageId: stage ? (stage as any).id : null,
         leadId: l.id,
-        ownerId: l.assignedToId || (req as any).user?.id,
-        customerId: (customer as any).id
+        ownerId: l.assignedToId || (req as any).user?.id
       });
-    } else {
-      await deal.update({ customerId: (customer as any).id });
     }
 
-    res.json({ message: "Lead converted to Customer and Deal successfully", customer, deal });
+    res.json({ message: "Lead converted to Account and Deal successfully", account, deal });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -598,5 +723,17 @@ export const getLeadContacts = async (req: Request, res: Response) => {
     res.status(200).json(contacts);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
+  }
+};
+
+export const runE2eLeadJourneyEndpoint = async (req: Request, res: Response) => {
+  try {
+    const { runEndToEndLeadJourneySim } = require("../services/leadJourneyWorkflowEngine");
+    const { testEmail } = req.body || {};
+    
+    const result = await runEndToEndLeadJourneySim(testEmail);
+    return res.status(result.success ? 200 : 500).json(result);
+  } catch (error: any) {
+    return res.status(500).json({ success: false, error: error.message });
   }
 };

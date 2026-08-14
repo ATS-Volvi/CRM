@@ -4,6 +4,7 @@ import crypto from "crypto";
 import { assignDeal } from "./assignmentEngine";
 import { createNotification } from "./notificationService";
 import { handleDealInboundActivity } from "./leadTemperatureService";
+import { triggerLeadAssignedNotifications } from "./notificationEngine";
 
 function isDummyKey(val?: string): boolean {
   if (!val) return true;
@@ -140,6 +141,10 @@ export async function ingestLead(payload: LeadPayload) {
       role: 'Initiator',
       isPrimary: true
     });
+
+    // Dispatch Role-Based Notifications
+    const assignedUser = await sequelize.models.User.findByPk(assignedToId);
+    triggerLeadAssignedNotifications(newDeal, assignedUser).catch(e => console.error("Notification dispatch failed:", e));
 
     // 7. Initial Activity Logging
     const messageSnippet = payload.message

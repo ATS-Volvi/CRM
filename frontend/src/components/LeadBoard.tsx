@@ -268,6 +268,7 @@ export function LeadBoard({ searchQuery = "", onSearchChange }: LeadBoardProps) 
                           <th className="py-2.5 px-4 w-72">Company & Contact</th>
                           <th className="py-2.5 px-4 w-28">Priority</th>
                           <th className="py-2.5 px-4 w-32">Status</th>
+                          <th className="py-2.5 px-4 w-36">Next Action</th>
                           <th className="py-2.5 px-4 w-44">Assigned Rep</th>
                           <th className="py-2.5 px-4 w-32 text-right">Expected Value</th>
                           <th className="py-2.5 px-4 w-44">Contact Email</th>
@@ -277,7 +278,7 @@ export function LeadBoard({ searchQuery = "", onSearchChange }: LeadBoardProps) 
                       <tbody className="divide-y divide-slate-100">
                         {groupItems.length === 0 ? (
                           <tr>
-                            <td colSpan={7} className="py-6 text-center text-xs text-slate-400 italic">
+                            <td colSpan={8} className="py-6 text-center text-xs text-slate-400 italic">
                               No leads in this stage
                             </td>
                           </tr>
@@ -288,6 +289,7 @@ export function LeadBoard({ searchQuery = "", onSearchChange }: LeadBoardProps) 
                             const isEditingStatus = editingStatusId === lead.id;
                             const isEditingOwner = editingOwnerId === lead.id;
                             const expectedVal = Number(lead.leadScore || 50) * 100;
+                            const nextAct = lead.nextAction || (lead.status === "New" ? "Reply to Lead" : lead.status === "Contacted" ? "Qualify Lead" : "Prepare Quote");
 
                             return (
                               <tr key={lead.id} className="hover:bg-slate-50/80 transition-colors group">
@@ -350,6 +352,12 @@ export function LeadBoard({ searchQuery = "", onSearchChange }: LeadBoardProps) 
                                       })}
                                     </div>
                                   )}
+                                </td>
+
+                                <td className="py-3 px-4">
+                                  <span className="px-2 py-0.5 rounded-lg text-[10px] font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-200 inline-flex items-center gap-1">
+                                    🎯 {nextAct}
+                                  </span>
                                 </td>
 
                                 <td className="py-3 px-4 relative">

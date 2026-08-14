@@ -1,14 +1,18 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
+
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ChevronRight, FileText, Download, CheckCircle, CheckCircle2, Clock, AlertTriangle, Plus, Search, Filter, Calendar, MoreVertical, TrendingUp, Timer, Bolt, X } from "lucide-react";
 import { formatCurrency, formatCurrencyCompact } from "../utils/currency";
 import { downloadAuthenticatedFile } from "../utils/download";
 
 export default function QuoteHistory() {
   const { token } = useAuth();
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState(""); // fires after 300ms pause
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [status, setStatus] = useState("All Statuses");
   const [valueBand, setValueBand] = useState("");
   const [category, setCategory] = useState("");
@@ -22,11 +26,18 @@ export default function QuoteHistory() {
   const [showDates, setShowDates] = useState(false);
   const [isSimpleView, setIsSimpleView] = useState(true);
 
+  // Debounce search — only fire API after user pauses 300ms
+  const handleSearchChange = (value: string) => {
+    setSearch(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => setDebouncedSearch(value), 300);
+  };
+
   const { data: quotes, isLoading, refetch } = useQuery<any[]>({
-    queryKey: ["quotes", search, status, valueBand, category, startDate, endDate],
+    queryKey: ["quotes", debouncedSearch, status, valueBand, category, startDate, endDate],
     queryFn: async () => {
       const params = new URLSearchParams();
-      if (search) params.append("search", search);
+      if (debouncedSearch) params.append("search", debouncedSearch);
       if (status && status !== "All Statuses") params.append("status", status);
       if (valueBand) params.append("valueBand", valueBand);
       if (category) params.append("category", category);
@@ -179,7 +190,8 @@ export default function QuoteHistory() {
               type="text"
               placeholder="Search Ref / Client..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => handleSearchChange(e.target.value)}
+
               className="bg-surface border border-outline-variant rounded-lg py-1.5 px-3 text-sm focus:ring-1 focus:ring-primary outline-none w-48"
             />
             
@@ -421,7 +433,8 @@ export default function QuoteHistory() {
                                   });
                                   if (res.ok) {
                                     alert("Quote signed successfully!");
-                                    window.location.reload();
+                                    // Targeted cache invalidation — replaces window.location.reload()
+                                    queryClient.invalidateQueries({ queryKey: ["quotes"] });
                                   } else {
                                     const errData = await res.json().catch(() => ({}));
                                     alert(`Failed to sign quote: ${errData.error || res.statusText || "Server error"}`);
