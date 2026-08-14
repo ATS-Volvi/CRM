@@ -901,7 +901,7 @@ LeadSource.init(
 Account.hasMany(Lead, { foreignKey: "customerId", as: "leads" });
 Lead.belongsTo(Account, { foreignKey: "customerId", as: "customer" });
 
-Account.hasMany(Deal, { foreignKey: "customerId", as: "deals" });
+// NOTE: Deal.belongsTo(Account, { foreignKey: "customerId", as: "customer" }) kept for legacy Deal data compatibility
 Deal.belongsTo(Account, { foreignKey: "customerId", as: "customer" });
 
 Account.hasMany(Activity, { foreignKey: "customerId", as: "activities" });
