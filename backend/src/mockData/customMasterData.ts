@@ -49,7 +49,7 @@ export const customMasterData: MasterDataItem[] = [
   { sNo: 39, category: "Residential Interior Fit-out", lineItem: "Wardrobes", unit: "running ft", rate: 1800, sku: "RES-039" },
   { sNo: 40, category: "Residential Interior Fit-out", lineItem: "False ceiling with cove lighting", unit: "sq.ft", rate: 95, sku: "RES-040" },
   { sNo: 41, category: "Residential Interior Fit-out", lineItem: "TV unit / entertainment unit", unit: "nos", rate: 25000, sku: "RES-041" },
-  { sNo: 42, category: "Residential Interior Fit-out", lineItem: "Modular kitchen (complete)", unit: "lump sum", rate: 18000, sku: "RES-042" },
+  { sNo: 42, category: "Residential Interior Fit-out", lineItem: "Modular kitchen (complete)", unit: "lump sum", rate: 180000, sku: "RES-042" },
   { sNo: 43, category: "Residential Interior Fit-out", lineItem: "Bedroom wardrobes", unit: "running ft", rate: 1800, sku: "RES-043" },
   { sNo: 44, category: "Residential Interior Fit-out", lineItem: "Wall panelling", unit: "sq.ft", rate: 150, sku: "RES-044" },
   { sNo: 45, category: "Residential Interior Fit-out", lineItem: "Flooring — tiles/wood", unit: "sq.ft", rate: 85, sku: "RES-045" },
