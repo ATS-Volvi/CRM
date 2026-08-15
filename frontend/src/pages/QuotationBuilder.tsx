@@ -189,12 +189,20 @@ export default function QuotationBuilder() {
     logDebug("Raw QuoteLineItems count: " + rawItems.length);
 
     const newItems = rawItems.map((li: any) => {
+      const prod = li.product || products?.find((p: any) => p.id === li.productId);
+      const name = li.name || prod?.name || li.product?.name || "Quote Item";
+      const desc = li.description || prod?.description || name;
       const qty = Number(li.quantity || 1);
       const price = parseFloat(li.unitPrice || 0);
       return {
         productId: li.productId,
+        name: name,
+        description: desc,
+        unit: prod?.unit || "nos",
+        uom: prod?.unit || "nos",
         quantity: qty,
         unitPrice: price,
+        discount: Number(li.discount || 0),
         total: qty * price,
         isOptional: !!li.isOptional
       };
@@ -225,14 +233,21 @@ export default function QuotationBuilder() {
     }
 
     try {
-      const mappedItems = quoteItems.map((li: any) => ({
-        productId: li.productId,
-        quantity: Number(li.quantity || 1),
-        unitPrice: parseFloat(li.unitPrice || 0),
-        discount: 0,
-        taxRate: 15,
-        isOptional: !!li.isOptional
-      }));
+      const mappedItems = quoteItems.map((li: any) => {
+        const prod = li.product || products?.find((p: any) => p.id === li.productId);
+        const name = li.name || prod?.name || li.product?.name || "Quote Item";
+        const desc = li.description || prod?.description || name;
+        return {
+          productId: li.productId,
+          name: name,
+          description: desc,
+          quantity: Number(li.quantity || 1),
+          unitPrice: parseFloat(li.unitPrice || 0),
+          discount: Number(li.discount || 0),
+          taxRate: 15,
+          isOptional: !!li.isOptional
+        };
+      });
       logDebug("handleSendAsIs posting payload: " + JSON.stringify({
         dealId: selectedDealId,
         items: mappedItems,
@@ -299,7 +314,7 @@ export default function QuotationBuilder() {
   });
 
   const addItem = () => {
-    setItems([...items, { productId: "", quantity: 1, unitPrice: 0, total: 0, isOptional: false }]);
+    setItems([...items, { productId: "", name: "", description: "", unit: "nos", uom: "nos", quantity: 1, unitPrice: 0, discount: 0, total: 0, isOptional: false }]);
     setFocusedIndex(items.length);
   };
 
@@ -307,14 +322,25 @@ export default function QuotationBuilder() {
     if (!recommendations || recommendations.length === 0) return;
     const toAdd = recommendations
       .filter((rec: any) => rec.productId)
-      .map((rec: any) => ({
-        productId: rec.productId,
-        quantity: rec.quantity || 1,
-        unitPrice: rec.unitPrice,
-        discount: 0,
-        total: (rec.quantity || 1) * rec.unitPrice,
-        isOptional: false
-      }));
+      .map((rec: any) => {
+        const prod = products?.find((p: any) => p.id === rec.productId);
+        const name = rec.name || rec.productName || prod?.name || "Recommended Item";
+        const desc = rec.description || prod?.description || name;
+        const qty = rec.quantity || 1;
+        const uPrice = rec.unitPrice || prod?.unitPrice || 0;
+        return {
+          productId: rec.productId,
+          name: name,
+          description: desc,
+          unit: prod?.unit || "nos",
+          uom: prod?.unit || "nos",
+          quantity: qty,
+          unitPrice: uPrice,
+          discount: 0,
+          total: qty * uPrice,
+          isOptional: false
+        };
+      });
     if (toAdd.length > 0) {
       setItems([...items, ...toAdd]);
     }
@@ -324,13 +350,25 @@ export default function QuotationBuilder() {
     if (!bundleId) return;
     const bundle = bundles?.find((b: any) => b.id === bundleId);
     if (!bundle) return;
-    const newItems = bundle.items.map((item: any) => ({
-      productId: item.productId,
-      quantity: item.quantity || 1,
-      unitPrice: parseFloat(item.product?.msrp || item.product?.listPrice || item.product?.unitPrice || 0),
-      isOptional: !!item.isOptional,
-      total: (item.quantity || 1) * parseFloat(item.product?.msrp || item.product?.listPrice || item.product?.unitPrice || 0)
-    }));
+    const newItems = bundle.items.map((item: any) => {
+      const prod = item.product || products?.find((p: any) => p.id === item.productId);
+      const name = prod?.name || item.product?.name || item.name || "Bundle Item";
+      const desc = prod?.description || item.description || name;
+      const uPrice = parseFloat(prod?.unitPrice || prod?.msrp || prod?.listPrice || item.unitPrice || 0);
+      const qty = item.quantity || 1;
+      return {
+        productId: item.productId,
+        name: name,
+        description: desc,
+        unit: prod?.unit || "nos",
+        uom: prod?.unit || "nos",
+        quantity: qty,
+        unitPrice: uPrice,
+        discount: 0,
+        isOptional: !!item.isOptional,
+        total: qty * uPrice
+      };
+    });
     setItems([...items, ...newItems]);
   };
 
@@ -348,6 +386,10 @@ export default function QuotationBuilder() {
       const qty = li.defaultQuantity || 1;
       return {
         productId: matchedProd?.id || "",
+        name: li.name,
+        description: li.description || matchedProd?.description || li.name,
+        unit: li.unit || "nos",
+        uom: li.unit || "nos",
         nameOverride: li.name,
         quantity: qty,
         unitPrice: unitPrice,
@@ -366,8 +408,21 @@ export default function QuotationBuilder() {
     if (field === 'productId') {
       const prod = products?.find((p: any) => p.id === value);
       if (prod) {
+        newItems[index].name = prod.name;
+        newItems[index].description = prod.description || prod.name;
+        newItems[index].unit = prod.unit || "nos";
+        newItems[index].uom = prod.unit || "nos";
         newItems[index].unitPrice = parseFloat(prod.unitPrice || prod.msrp || prod.listPrice || 0);
+      } else if (!value) {
+        newItems[index].name = "";
+        newItems[index].description = "";
       }
+    }
+    if (field === 'name') {
+      newItems[index].description = value;
+    }
+    if (field === 'description' && !newItems[index].name) {
+      newItems[index].name = value;
     }
     const qty = Number(newItems[index].quantity || 1);
     const uPrice = Number(newItems[index].unitPrice || 0);
@@ -543,16 +598,30 @@ export default function QuotationBuilder() {
                         onClick={() => setFocusedIndex(i)}
                       >
                         <td className="px-4 py-4">
-                          <select 
-                            className="w-full border border-outline-variant rounded p-1 text-sm bg-transparent"
-                            value={item.productId}
-                            onChange={(e) => updateItem(i, 'productId', e.target.value)}
-                          >
-                            <option value="">Select Product...</option>
-                            {products?.map((p: any) => (
-                              <option key={p.id} value={p.id}>{p.name}</option>
-                            ))}
-                          </select>
+                          <div className="space-y-1">
+                            <select 
+                              className="w-full border border-outline-variant rounded p-1 text-sm bg-transparent"
+                              value={item.productId || ""}
+                              onChange={(e) => updateItem(i, 'productId', e.target.value)}
+                            >
+                              <option value="">Select Product...</option>
+                              {products?.map((p: any) => (
+                                <option key={p.id} value={p.id}>{p.name} {p.sku ? `(${p.sku})` : ''}</option>
+                              ))}
+                            </select>
+                            {(!item.productId || item.nameOverride || item.name) && (
+                              <input 
+                                type="text"
+                                placeholder="Item description / Custom name"
+                                className="w-full border border-outline-variant/60 rounded px-2 py-0.5 text-xs text-on-surface bg-surface-container-low/30"
+                                value={item.name || item.description || item.nameOverride || ""}
+                                onChange={(e) => {
+                                  updateItem(i, 'name', e.target.value);
+                                  updateItem(i, 'description', e.target.value);
+                                }}
+                              />
+                            )}
+                          </div>
                         </td>
                         <td className="px-4 py-4"><input className="w-full text-center border-outline-variant rounded py-1 text-base focus:ring-primary focus:border-primary" type="number" min="1" value={item.quantity} onChange={(e) => updateItem(i, 'quantity', parseInt(e.target.value) || 0)} /></td>
                         <td className="px-4 py-4 text-sm font-medium"><input className="w-full text-center border-outline-variant rounded py-1 text-base focus:ring-primary focus:border-primary" type="number" value={item.unitPrice} onChange={(e) => updateItem(i, 'unitPrice', parseFloat(e.target.value) || 0)} /></td>
@@ -601,7 +670,22 @@ export default function QuotationBuilder() {
                                     <span className="font-bold text-primary text-sm">{formatCurrency(rec.unitPrice)}</span>
                                     <button 
                                       onClick={() => {
-                                        setItems([...items, { productId: rec.productId, quantity: rec.quantity, unitPrice: rec.unitPrice, discount: 10, total: rec.unitPrice }]);
+                                        const prod = products?.find((p: any) => p.id === rec.productId);
+                                        const name = rec.name || rec.productName || prod?.name || "Recommended Item";
+                                        const qty = rec.quantity || 1;
+                                        const uPrice = rec.unitPrice || prod?.unitPrice || 0;
+                                        setItems([...items, {
+                                          productId: rec.productId,
+                                          name: name,
+                                          description: rec.description || prod?.description || name,
+                                          unit: prod?.unit || "nos",
+                                          uom: prod?.unit || "nos",
+                                          quantity: qty,
+                                          unitPrice: uPrice,
+                                          discount: 10,
+                                          total: qty * uPrice * 0.9,
+                                          isOptional: false
+                                        }]);
                                       }}
                                       className="px-3 py-1 bg-primary text-on-primary text-[12px] font-bold rounded hover:opacity-90 transition-colors"
                                     >

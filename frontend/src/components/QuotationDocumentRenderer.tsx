@@ -143,8 +143,10 @@ export default function QuotationDocumentRenderer({
                   const key = col.key;
                   let val = item[key];
                   if (key === "item" || key === "slNo" || key === "lineNumber") val = item.lineNumber || String(idx + 1).padStart(2, '0');
-                  if (key === "description") val = item.description || item.name || "Line Item Description";
-                  if (key === "uom") val = item.uom || item.unit || "Lot";
+                  if (key === "description" || key === "name" || key === "product" || key === "itemDescription") {
+                    val = item.name || item.description || item.nameOverride || "Line Item Description";
+                  }
+                  if (key === "uom" || key === "unit") val = item.uom || item.unit || "Lot";
                   if (key === "qty" || key === "quantity") val = item.qty || item.quantity || 1;
                   if (key === "unitPrice") val = `${currency} ${Number(item.unitPrice || 0).toLocaleString('en-US')}`;
                   if (key === "amount" || key === "price" || key === "total") val = `${currency} ${Number(item.amount || item.total || ((item.qty || item.quantity || 1) * item.unitPrice) || 0).toLocaleString('en-US')}`;
