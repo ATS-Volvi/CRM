@@ -8,21 +8,15 @@ import { MasterDataNav } from "../components/MasterDataNav";
 export default function PriceBook() {
   const { token } = useAuth();
 
-  const [activeTab, setActiveTab] = useState("All Products");
+  const [activeTab, setActiveTab] = useState("All Categories");
+  const [searchQuery, setSearchQuery] = useState("");
   const [page, setPage] = useState(1);
-  const pageSize = 10;
-  
-  const tabs = [
-    "All Products",
-    "Standard Tier",
-    "Enterprise / VIP",
-    "Regional (GCC)",
-    "Distributor Book"
-  ];
+  const pageSize = 15;
+
   const { data: priceBook, isLoading } = useQuery<any[]>({
     queryKey: ["priceBook", activeTab],
     queryFn: async () => {
-      const url = activeTab === "All Products" ? "/api/v1/price-book" : `/api/v1/price-book?category=${activeTab}`;
+      const url = activeTab === "All Categories" ? "/api/v1/price-book" : `/api/v1/price-book?category=${encodeURIComponent(activeTab)}`;
       const res = await fetch(url, {
         headers: { "Authorization": `Bearer ${token}` }
       });
@@ -31,8 +25,33 @@ export default function PriceBook() {
     }
   });
 
-  const totalPages = priceBook ? Math.ceil(priceBook.length / pageSize) : 1;
-  const paginatedPriceBook = priceBook?.slice((page - 1) * pageSize, page * pageSize) || [];
+  // Extract dynamic categories from price book data
+  const { data: allEntries } = useQuery<any[]>({
+    queryKey: ["priceBookAllCategories"],
+    queryFn: async () => {
+      const res = await fetch("/api/v1/price-book", {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!res.ok) return [];
+      return res.json();
+    }
+  });
+
+  const categories = ["All Categories", ...Array.from(new Set(allEntries?.map((p: any) => p.category).filter(Boolean) || []))];
+
+  const filteredItems = (priceBook || []).filter((item: any) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      (item.name && item.name.toLowerCase().includes(q)) ||
+      (item.sku && item.sku.toLowerCase().includes(q)) ||
+      (item.category && item.category.toLowerCase().includes(q)) ||
+      (item.description && item.description.toLowerCase().includes(q))
+    );
+  });
+
+  const totalPages = Math.ceil(filteredItems.length / pageSize) || 1;
+  const paginatedPriceBook = filteredItems.slice((page - 1) * pageSize, page * pageSize);
 
   const queryClient = useQueryClient();
   const [showModal, setShowModal] = useState(false);
@@ -232,21 +251,35 @@ export default function PriceBook() {
           </div>
         </div>
 
-        {/* Segment Tabs */}
-        <div className="flex border-b border-outline-variant gap-6 overflow-x-auto">
-          {tabs.map((tab) => (
-            <button
-              key={tab}
-              onClick={() => { setActiveTab(tab); setPage(1); }}
-              className={`px-4 py-3 font-bold text-[12px] uppercase whitespace-nowrap transition-colors ${
-                activeTab === tab
-                  ? "border-b-2 border-primary text-primary"
-                  : "text-on-surface-variant hover:text-primary"
-              }`}
-            >
-              {tab}
-            </button>
-          ))}
+        {/* Search Bar & Category Filter */}
+        <div className="flex flex-col md:flex-row gap-4 justify-between items-stretch md:items-center">
+          {/* Category Tabs / Pills */}
+          <div className="flex border-b border-outline-variant gap-2 overflow-x-auto pb-1 max-w-full scrollbar-thin">
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => { setActiveTab(cat); setPage(1); }}
+                className={`px-3 py-2 rounded-lg font-bold text-xs whitespace-nowrap transition-all ${
+                  activeTab === cat
+                    ? "bg-primary text-white shadow-2xs"
+                    : "bg-surface text-on-surface-variant hover:bg-surface-container-high border border-outline-variant/60"
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+
+          {/* Search Box */}
+          <div className="relative min-w-[240px]">
+            <input
+              type="text"
+              placeholder="Search 215 master items..."
+              value={searchQuery}
+              onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
+              className="w-full bg-surface border border-outline-variant rounded-xl px-3.5 py-2 text-xs text-on-surface placeholder:text-on-surface-variant/70 focus:outline-none focus:ring-2 focus:ring-primary/20"
+            />
+          </div>
         </div>
 
         {/* Data Table Section */}
@@ -255,55 +288,51 @@ export default function PriceBook() {
             <table className="w-full text-left border-collapse">
               <thead className="bg-surface-container-low sticky top-0 border-b border-outline-variant">
                 <tr>
-                  <th className="px-6 py-4 text-[12px] font-semibold text-on-surface-variant uppercase tracking-wider">SKU / Product Name</th>
-                  <th className="px-6 py-4 text-[12px] font-semibold text-on-surface-variant uppercase tracking-wider">Category</th>
-                  <th className="px-6 py-4 text-[12px] font-semibold text-on-surface-variant uppercase tracking-wider">MSRP (SAR)</th>
-                  <th className="px-6 py-4 text-[12px] font-semibold text-on-surface-variant uppercase tracking-wider">Floor Price</th>
-                  <th className="px-6 py-4 text-[12px] font-semibold text-on-surface-variant uppercase tracking-wider">GCC Uplift</th>
-                  <th className="px-6 py-4 text-[12px] font-semibold text-on-surface-variant uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-4 text-[12px] font-semibold text-on-surface-variant uppercase tracking-wider">SKU / Line Item</th>
+                  <th className="px-6 py-4 text-[12px] font-semibold text-on-surface-variant uppercase tracking-wider">Category (Service Type)</th>
+                  <th className="px-6 py-4 text-[12px] font-semibold text-on-surface-variant uppercase tracking-wider">Estimated Rate</th>
+                  <th className="px-6 py-4 text-[12px] font-semibold text-on-surface-variant uppercase tracking-wider">Floor Rate</th>
+                  <th className="px-6 py-4 text-[12px] font-semibold text-on-surface-variant uppercase tracking-wider">UoM / Details</th>
                   <th className="px-6 py-4 text-[12px] font-semibold text-on-surface-variant uppercase tracking-wider text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="text-sm text-on-surface divide-y divide-outline-variant">
                 {isLoading ? (
                   <tr>
-                    <td colSpan={7} className="px-6 py-8 text-center text-on-surface-variant animate-pulse">Loading price book...</td>
+                    <td colSpan={6} className="px-6 py-8 text-center text-on-surface-variant animate-pulse">Loading price book...</td>
+                  </tr>
+                ) : paginatedPriceBook.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-8 text-center text-on-surface-variant italic">No items found matching filter.</td>
                   </tr>
                 ) : (
-                  paginatedPriceBook?.map((item: any, i: number) => (
-                    <tr key={item.id} className="hover:bg-surface-container-high transition-colors group">
-                      <td className="px-6 py-5">
+                  paginatedPriceBook.map((item: any, i: number) => (
+                    <tr key={item.id || i} className="hover:bg-surface-container-high transition-colors group">
+                      <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-surface-container flex items-center justify-center rounded">
-                            {i % 4 === 0 ? <Cloud className="w-5 h-5 text-outline" /> :
-                             i % 4 === 1 ? <ShieldCheck className="w-5 h-5 text-outline" /> :
-                             i % 4 === 2 ? <Cpu className="w-5 h-5 text-outline" /> :
-                             <Settings className="w-5 h-5 text-outline" />}
+                          <div className="w-9 h-9 bg-primary/10 text-primary flex items-center justify-center rounded-lg font-bold text-xs shrink-0">
+                            {item.sku ? item.sku.split("-")[0] : "ITM"}
                           </div>
                           <div>
-                            <span className="font-bold block">{item.name}</span>
-                            <span className="text-xs text-on-surface-variant opacity-70">SKU: {item.sku}</span>
+                            <span className="font-bold block text-xs">{item.name}</span>
+                            <span className="text-[11px] text-on-surface-variant font-mono">{item.sku}</span>
                           </div>
                         </div>
                       </td>
-                      <td className="px-6 py-5">{item.category}</td>
-                      <td className="px-6 py-5 font-medium">{formatCurrency(item.msrp)}</td>
-                      <td className="px-6 py-5 font-medium text-error font-bold">{formatCurrency(item.floor_price)}</td>
-                      <td className="px-6 py-5">
-                        <span className="text-primary font-bold">+{item.uplift}%</span>
-                      </td>
-                      <td className="px-6 py-5">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-700">{item.status}</span>
-                      </td>
-                      <td className="px-6 py-5 text-right flex justify-end gap-2">
+                      <td className="px-6 py-4 text-xs font-semibold text-on-surface-variant">{item.category}</td>
+                      <td className="px-6 py-4 text-xs font-bold text-emerald-700">{formatCurrency(item.unitPrice || item.msrp || 0)}</td>
+                      <td className="px-6 py-4 text-xs font-medium text-on-surface-variant">{formatCurrency(item.minPrice || item.floor_price || (item.unitPrice ? item.unitPrice * 0.85 : 0))}</td>
+                      <td className="px-6 py-4 text-xs text-on-surface-variant">{item.description || "Standard UoM"}</td>
+                      <td className="px-6 py-4 text-right flex justify-end gap-1.5">
                         <button 
                           onClick={() => {
                             setFormData(item);
                             setShowModal(true);
                           }}
-                          className="p-2 hover:bg-surface-container-lowest rounded-full transition-colors text-outline"
+                          className="p-1.5 hover:bg-surface-container-lowest rounded-lg transition-colors text-outline"
+                          title="Edit"
                         >
-                          <Edit className="w-5 h-5" />
+                          <Edit className="w-4 h-4" />
                         </button>
                         <button 
                           onClick={() => {
@@ -311,9 +340,10 @@ export default function PriceBook() {
                               deleteMutation.mutate(item.id);
                             }
                           }}
-                          className="p-2 hover:bg-error-container rounded-full transition-colors text-error"
+                          className="p-1.5 hover:bg-error-container rounded-lg transition-colors text-error"
+                          title="Delete"
                         >
-                          <span className="font-bold">X</span>
+                          <span className="font-bold text-xs">X</span>
                         </button>
                       </td>
                     </tr>
@@ -322,10 +352,11 @@ export default function PriceBook() {
               </tbody>
             </table>
           </div>
+
           {/* Pagination */}
           <div className="flex justify-between items-center px-6 py-4 border-t border-outline-variant bg-surface-container-low">
             <span className="text-sm text-on-surface-variant">
-              Showing {Math.min((page - 1) * pageSize + 1, priceBook?.length || 0)}-{Math.min(page * pageSize, priceBook?.length || 0)} of {priceBook?.length || 0} results
+              Showing {Math.min((page - 1) * pageSize + 1, filteredItems.length)}-{Math.min(page * pageSize, filteredItems.length)} of {filteredItems.length} results
             </span>
             <div className="flex gap-2">
               <button 
@@ -335,7 +366,7 @@ export default function PriceBook() {
               >
                 <ChevronLeft className="w-5 h-5" />
               </button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+              {Array.from({ length: totalPages }, (_, i) => i + 1).slice(0, 10).map(p => (
                 <button 
                   key={p}
                   onClick={() => setPage(p)}
