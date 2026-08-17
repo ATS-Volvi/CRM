@@ -442,6 +442,8 @@ export class Invoice extends Model {
   public totalAmount!: number;
   public dueDate!: Date;
   public notes!: string;
+  public amountPaid!: number;
+  public paymentStatus!: string;
 }
 
 Invoice.init(
@@ -451,8 +453,33 @@ Invoice.init(
     totalAmount: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
     dueDate: { type: DataTypes.DATE, allowNull: true },
     notes: { type: DataTypes.TEXT, allowNull: true },
+    amountPaid: { type: DataTypes.DECIMAL(15, 2), defaultValue: 0 },
+    paymentStatus: { type: DataTypes.ENUM("unpaid", "partial", "paid", "overdue"), defaultValue: "unpaid" },
   },
   { sequelize, modelName: "Invoice" }
+);
+
+export type PaymentMethod = "bank_transfer" | "cheque" | "cash" | "card" | "other";
+
+export class Payment extends Model {
+  public id!: string;
+  public invoiceId!: string;
+  public amount!: number;
+  public paymentDate!: Date;
+  public method!: PaymentMethod;
+  public reference!: string | null;
+  public recordedBy!: string | null;
+}
+
+Payment.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    amount: { type: DataTypes.DECIMAL(15, 2), allowNull: false },
+    paymentDate: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
+    method: { type: DataTypes.ENUM("bank_transfer", "cheque", "cash", "card", "other"), defaultValue: "bank_transfer" },
+    reference: { type: DataTypes.STRING, allowNull: true },
+  },
+  { sequelize, modelName: "Payment" }
 );
 
 export class InvoiceLineItem extends Model {
@@ -682,6 +709,11 @@ Invoice.belongsTo(Quote, { foreignKey: "quoteId", as: "quote" });
 
 Invoice.hasMany(InvoiceLineItem, { foreignKey: "invoiceId", as: "lineItems" });
 InvoiceLineItem.belongsTo(Invoice, { foreignKey: "invoiceId", as: "invoice" });
+
+Invoice.hasMany(Payment, { foreignKey: "invoiceId", as: "payments" });
+Payment.belongsTo(Invoice, { foreignKey: "invoiceId", as: "invoice" });
+Payment.belongsTo(User, { foreignKey: "recordedBy", as: "recordedByUser" });
+User.hasMany(Payment, { foreignKey: "recordedBy", as: "recordedPayments" });
 
 PriceBookEntry.hasMany(InvoiceLineItem, { foreignKey: "productId" });
 InvoiceLineItem.belongsTo(PriceBookEntry, { foreignKey: "productId", as: "product" });
@@ -1341,17 +1373,51 @@ Asset.init(
   {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
     name: { type: DataTypes.STRING, allowNull: false },
-    type: { type: DataTypes.STRING, allowNull: false },
-    serialNumber: { type: DataTypes.STRING, allowNull: true, unique: true },
-    status: { type: DataTypes.STRING, allowNull: false, defaultValue: "In Storage" },
-    condition: { type: DataTypes.STRING, allowNull: false, defaultValue: "Good" },
+    type: { type: DataTypes.STRING, allowNull: true },
+    serialNumber: { type: DataTypes.STRING, allowNull: true },
+    status: { type: DataTypes.STRING, defaultValue: "Available" },
+    condition: { type: DataTypes.STRING, defaultValue: "New" },
     customerId: { type: DataTypes.UUID, allowNull: true },
     dealId: { type: DataTypes.UUID, allowNull: true },
     deployedAt: { type: DataTypes.DATE, allowNull: true },
     expectedReturnDate: { type: DataTypes.DATE, allowNull: true },
     notes: { type: DataTypes.TEXT, allowNull: true },
+    assetNumber: { type: DataTypes.STRING, allowNull: true },
+    modelNumber: { type: DataTypes.STRING, allowNull: true },
+    description: { type: DataTypes.TEXT, allowNull: true },
+    location: { type: DataTypes.STRING, allowNull: true },
+    installationDate: { type: DataTypes.DATE, allowNull: true },
+    commissionDate: { type: DataTypes.DATE, allowNull: true },
+    warrantyStart: { type: DataTypes.DATE, allowNull: true },
+    warrantyEnd: { type: DataTypes.DATE, allowNull: true },
+    purchaseDate: { type: DataTypes.DATE, allowNull: true },
   },
   { sequelize, modelName: "Asset" }
+);
+
+export type SupportTicketStatus = "open" | "in_progress" | "resolved" | "closed";
+export type SupportTicketCategory = "issue" | "maintenance" | "other";
+
+export class SupportTicket extends Model {
+  public id!: string;
+  public accountId!: string;
+  public assetId!: string | null;
+  public raisedBy!: string | null;
+  public status!: SupportTicketStatus;
+  public category!: SupportTicketCategory;
+  public description!: string | null;
+  public resolvedAt!: Date | null;
+}
+
+SupportTicket.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    status: { type: DataTypes.ENUM("open", "in_progress", "resolved", "closed"), defaultValue: "open" },
+    category: { type: DataTypes.ENUM("issue", "maintenance", "other"), defaultValue: "issue" },
+    description: { type: DataTypes.TEXT, allowNull: true },
+    resolvedAt: { type: DataTypes.DATE, allowNull: true },
+  },
+  { sequelize, modelName: "SupportTicket" }
 );
 
 export class AssetStatusHistory extends Model {
@@ -1392,6 +1458,15 @@ AssetStatusHistory.belongsTo(Asset, { foreignKey: "assetId", as: "asset" });
 
 AssetStatusHistory.belongsTo(User, { foreignKey: "changedById", as: "changedBy" });
 User.hasMany(AssetStatusHistory, { foreignKey: "changedById", as: "assetStatusChanges" });
+
+SupportTicket.belongsTo(Account, { foreignKey: "accountId", as: "account" });
+Account.hasMany(SupportTicket, { foreignKey: "accountId", as: "supportTickets" });
+
+SupportTicket.belongsTo(Asset, { foreignKey: "assetId", as: "asset" });
+Asset.hasMany(SupportTicket, { foreignKey: "assetId", as: "supportTickets" });
+
+SupportTicket.belongsTo(User, { foreignKey: "raisedBy", as: "raisedByUser" });
+User.hasMany(SupportTicket, { foreignKey: "raisedBy", as: "supportTicketsRaised" });
 
 export class LeadContact extends Model {
   public id!: string;

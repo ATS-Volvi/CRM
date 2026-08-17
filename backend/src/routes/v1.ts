@@ -104,6 +104,8 @@ import {
   getStaleDeal, getQuoteExpiry, getTopAccounts, getCustomerBirthdays, getWinCelebrations
 } from "../controllers/coachingNotesController";
 import { getDealOwners, updateDealOwners, getWorkspaceSetting, updateWorkspaceSetting } from "../controllers/dealOwnerController";
+import { createPayment, getPaymentsForInvoice } from "../controllers/paymentController";
+import { createSupportTicket, listSupportTickets, updateSupportTicket } from "../controllers/supportTicketController";
 
 const router = Router();
 
@@ -367,12 +369,14 @@ router.post("/quotes/:id/accept", authMiddleware, acceptQuote);
 router.get("/quotes/:id/pdf", authMiddleware, generateQuotePdf);
 
 // ==========================================
-// INVOICES
+// INVOICES & PAYMENTS
 // ==========================================
 router.get("/invoices", authMiddleware, getInvoices);
 router.post("/invoices/from-quote", authMiddleware, createInvoiceFromQuote);
 router.put("/invoices/:id/status", authMiddleware, updateInvoiceStatus);
 router.get("/invoices/:id/pdf", authMiddleware, generateInvoicePdf);
+router.get("/invoices/:invoiceId/payments", authMiddleware, getPaymentsForInvoice);
+router.post("/invoices/:invoiceId/payments", authMiddleware, createPayment);
 
 // ==========================================
 // PRICE BOOK
@@ -686,5 +690,12 @@ router.post("/leads/:id/attribution", authMiddleware, recordManualTouch);
 router.get("/lead-sources/taxonomy", authMiddleware, getAttributionTaxonomy);
 router.get("/analytics/lead-sources", authMiddleware, getLeadSourceAnalytics);
 router.get("/analytics/campaigns", authMiddleware, getCampaignsAnalytics);
+
+// ==========================================
+// SUPPORT & MAINTENANCE
+// ==========================================
+router.post("/support-tickets", authMiddleware, createSupportTicket);
+router.get("/support-tickets", authMiddleware, listSupportTickets);
+router.put("/support-tickets/:id", authMiddleware, updateSupportTicket);
 
 export default router;
