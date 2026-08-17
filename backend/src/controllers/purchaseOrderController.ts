@@ -200,3 +200,59 @@ export const updatePurchaseOrder = async (req: Request, res: Response) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+import { createOrderFromFinalQuote as domainCreateOrderFromFinalQuote } from "../services/supplyFulfillmentService";
+
+export const createOrderFromQuote = async (req: Request, res: Response) => {
+  try {
+    const quoteId = String(req.params.quoteId);
+    const userId = (req as any).user?.id;
+    const { deliveryAddress, requestedDeliveryDate, notes } = req.body || {};
+    const result = await domainCreateOrderFromFinalQuote(quoteId, userId, {
+      deliveryAddress,
+      requestedDeliveryDate: requestedDeliveryDate ? new Date(requestedDeliveryDate) : undefined,
+      notes
+    });
+    res.status(result.isExisting ? 200 : 201).json({
+      message: result.isExisting
+        ? "Order already exists for this agreed quote (Idempotent response)"
+        : "Order created successfully from final agreed quote with operational fulfillment",
+      ...result
+    });
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+};
+
+export const createOrderFromFinalQuote = domainCreateOrderFromFinalQuote;
+
+export const getOrderById = async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const order = await sequelize.models.PurchaseOrder.findByPk(id, {
+      include: [
+        {
+          model: sequelize.models.Quote,
+          as: "quote",
+          include: [
+            { model: sequelize.models.QuoteLineItem, as: "QuoteLineItems" },
+            {
+              model: sequelize.models.Deal,
+              as: "deal",
+              include: [
+                { model: sequelize.models.Account, as: "account" },
+                { model: sequelize.models.User, as: "owner" }
+              ]
+            }
+          ]
+        }
+      ]
+    });
+
+    if (!order) return res.status(404).json({ error: "Order not found" });
+    res.json(order);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+

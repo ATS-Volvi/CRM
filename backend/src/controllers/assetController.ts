@@ -61,13 +61,17 @@ async function seedSampleAssetsIfNeeded() {
 
 /**
  * GET /api/v1/assets
- * Fetch all assets with customer & deal relations, search & filter options
+ * Fetch all assets with customer, deal, order & product relations, search & pagination
  */
 export const getAssets = async (req: Request, res: Response) => {
   try {
     await seedSampleAssetsIfNeeded();
 
-    const { search, status, type } = req.query;
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 50));
+    const offset = (page - 1) * limit;
+
+    const { search, status, type, accountId, customerId, orderId } = req.query;
     const where: any = {};
 
     if (status && status !== "all") {
@@ -78,26 +82,49 @@ export const getAssets = async (req: Request, res: Response) => {
       where.type = type;
     }
 
+    const targetAccount = accountId || customerId;
+    if (targetAccount) {
+      where.customerId = targetAccount;
+    }
+
+    if (orderId) {
+      where.orderId = orderId;
+    }
+
     if (search) {
       const q = String(search).trim();
       where[Op.or] = [
         { name: { [Op.iLike]: `%${q}%` } },
         { serialNumber: { [Op.iLike]: `%${q}%` } },
+        { assetNumber: { [Op.iLike]: `%${q}%` } },
         { type: { [Op.iLike]: `%${q}%` } },
+        { location: { [Op.iLike]: `%${q}%` } },
         { notes: { [Op.iLike]: `%${q}%` } }
       ];
     }
 
-    const assets = await sequelize.models.Asset.findAll({
+    const { rows, count } = await sequelize.models.Asset.findAndCountAll({
       where,
+      limit,
+      offset,
       include: [
         { model: sequelize.models.Account, as: "customer", attributes: ["id", "name", "email", "industry"] },
-        { model: sequelize.models.Deal, as: "deal", attributes: ["id", "name", "amount"] }
+        { model: sequelize.models.Deal, as: "deal", attributes: ["id", "name", "amount"] },
+        { model: sequelize.models.PurchaseOrder, as: "order", attributes: ["id", "poNumber", "status"] },
+        { model: sequelize.models.PriceBookEntry, as: "product", attributes: ["id", "name", "sku", "category"] }
       ],
       order: [["createdAt", "DESC"]]
     });
 
-    res.json(assets);
+    res.json({
+      data: rows,
+      meta: {
+        page,
+        limit,
+        total: count,
+        totalPages: Math.ceil(count / limit)
+      }
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -105,7 +132,7 @@ export const getAssets = async (req: Request, res: Response) => {
 
 /**
  * GET /api/v1/assets/:id
- * Fetch single asset by ID with full status history
+ * Fetch single asset by ID with full status history and order trace
  */
 export const getAssetById = async (req: Request, res: Response) => {
   try {
@@ -115,6 +142,8 @@ export const getAssetById = async (req: Request, res: Response) => {
       include: [
         { model: sequelize.models.Account, as: "customer", attributes: ["id", "name", "email", "phone"] },
         { model: sequelize.models.Deal, as: "deal", attributes: ["id", "name", "amount"] },
+        { model: sequelize.models.PurchaseOrder, as: "order" },
+        { model: sequelize.models.PriceBookEntry, as: "product" },
         {
           model: sequelize.models.AssetStatusHistory,
           as: "statusHistory",

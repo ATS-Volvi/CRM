@@ -6,6 +6,8 @@ import { createNotification } from "./notificationService";
 import { handleDealInboundActivity } from "./leadTemperatureService";
 import { triggerLeadAssignedNotifications } from "./notificationEngine";
 
+import { recordLeadTouch } from "./attributionService";
+
 function isDummyKey(val?: string): boolean {
   if (!val) return true;
   const lower = val.toLowerCase();
@@ -19,8 +21,25 @@ export interface LeadPayload {
   phone?: string;
   company?: string;
   source?: string;
+  sourceType?: string;
+  sourceChannel?: string;
+  sourceName?: string;
   sourceDetail?: string;
+  sourceEntityId?: string;
+  referringAccountId?: string;
   campaign?: string;
+  campaignCode?: string;
+  campaignId?: string;
+  adId?: string;
+  adName?: string;
+  landingPage?: string;
+  referrer?: string;
+  utmSource?: string;
+  utmMedium?: string;
+  utmCampaign?: string;
+  utmTerm?: string;
+  utmContent?: string;
+  clickId?: string;
   industry?: string;
   message?: string;
   assignedToId?: string;
@@ -46,48 +65,19 @@ export async function ingestLead(payload: LeadPayload) {
       companyName = `${payload.firstName} ${payload.lastName}`;
     }
 
-    const { Account, Contact, Deal, DealContact, Activity } = sequelize.models;
+    const { Lead, Account, Contact, Activity } = sequelize.models;
 
-    // 1. Account Lookup or Creation
+    // 1. Account Lookup or Link (if existing company found)
     let account = await Account.findOne({
       where: { name: { [Op.like]: companyName } }
     });
 
-    if (!account) {
-      account = await Account.create({
-        id: crypto.randomUUID(),
-        name: companyName,
-        industry: payload.industry || null,
-      });
-    }
-
-    // 2. Contact Lookup or Creation
+    // 2. Contact Lookup (if existing contact found)
     let contact = await Contact.findOne({
       where: { email: { [Op.like]: email } }
     });
 
-    if (!contact) {
-      contact = await Contact.create({
-        id: crypto.randomUUID(),
-        accountId: (account as any).id,
-        firstName: payload.firstName,
-        lastName: payload.lastName,
-        email: email,
-        phone: payload.phone || null,
-        sourceChannel: payload.source || 'Website'
-      });
-    } else {
-      // Update missing phone number if provided
-      if (payload.phone && !(contact as any).phone) {
-        await (contact as any).update({ phone: payload.phone });
-      }
-      // Link to account if not linked
-      if (!(contact as any).accountId) {
-        await (contact as any).update({ accountId: (account as any).id });
-      }
-    }
-
-    // 3. Deal Scoring
+    // 3. Lead Scoring
     let leadScore = 50; // base score
     if (email && !email.endsWith("@gmail.com") && !email.endsWith("@yahoo.com") && !email.endsWith("@hotmail.com") && !email.endsWith("@outlook.com")) {
       leadScore += 15; // Corporate email bonus
@@ -98,7 +88,7 @@ export async function ingestLead(payload: LeadPayload) {
     if (payload.source === "LinkedIn" || payload.source === "LinkedIn Ads") leadScore += 10;
     if (leadScore > 100) leadScore = 100;
 
-    // 4. Deal Assignment
+    // 4. Lead Assignment
     let assignedToId = payload.assignedToId || await assignDeal({
       firstName: payload.firstName,
       lastName: payload.lastName,
@@ -113,6 +103,7 @@ export async function ingestLead(payload: LeadPayload) {
       assignedToId = await getFirstAdminId();
     }
 
+<<<<<<< HEAD
     // 5. Create Lead for dual-compatibility (Live Queue & Lead Detail screens)
     const { Lead } = sequelize.models;
     let leadRecord: any = null;
@@ -174,12 +165,98 @@ export async function ingestLead(payload: LeadPayload) {
       role: 'Initiator',
       isPrimary: true
     });
+=======
+    // 5. Generate Collision-Proof Unique Lead Number with Concurrent Retry Protection
+    const year = new Date().getFullYear();
+    const leadId = crypto.randomUUID();
 
-    // Dispatch Role-Based Notifications
+    let newLead: any = null;
+    let attempts = 0;
+    const maxAttempts = 5;
+
+    while (!newLead && attempts < maxAttempts) {
+      attempts++;
+      const count = await Lead.count();
+      const randomEntropy = Math.floor(1000 + Math.random() * 9000);
+      const timeMs = Date.now().toString().slice(-4);
+      // Format: LD-YYYY-XXXXX or LD-YYYY-XXXXX-RRRR if high concurrency
+      const leadNumber = attempts === 1
+        ? `LD-${year}-${String(count + attempts).padStart(5, '0')}-${randomEntropy}`
+        : `LD-${year}-${timeMs}-${randomEntropy}`;
+>>>>>>> 8c31a7e (feat: complete CRM architecture and UI redesign (Phases 1-6))
+
+      try {
+        newLead = await Lead.create({
+          id: leadId,
+          leadNumber,
+          firstName: payload.firstName,
+          lastName: payload.lastName,
+          email: email,
+          phone: payload.phone || null,
+          company: companyName,
+          source: payload.source || 'Website',
+          sourceDetail: payload.sourceDetail || null,
+          campaign: payload.campaign || null,
+          industry: payload.industry || null,
+          body: payload.message || null,
+          status: "NEW",
+          assignedToId: assignedToId,
+          accountId: account ? (account as any).id : null,
+          customerId: account ? (account as any).id : null,
+          leadScore: leadScore,
+          budgetRange: payload.budgetRange || null,
+          nextAction: "Reply to Lead",
+          nextActionDue: new Date(Date.now() + 2 * 60 * 60 * 1000), // 2h SLA
+          rawPayload: payload.rawPayload ? JSON.stringify(payload.rawPayload) : null
+        });
+      } catch (err: any) {
+        if (err.name === 'SequelizeUniqueConstraintError' && attempts < maxAttempts) {
+          // Jittered backoff to avoid thundering herd on concurrent connector runs
+          await new Promise(resolve => setTimeout(resolve, Math.random() * 80 + 20));
+          continue;
+        }
+        throw err;
+      }
+    }
+
+    if (!newLead) {
+      throw new Error("Failed to generate a unique lead record after maximum attempts.");
+    }
+
+    // 5b. Record Attribution Touch & Multi-Touch History
+    try {
+      await recordLeadTouch({
+        leadId: newLead.id,
+        channel: payload.sourceChannel || payload.source || "Website",
+        source: payload.source,
+        sourceType: payload.sourceType,
+        sourceName: payload.sourceName || payload.sourceDetail,
+        sourceEntityId: payload.sourceEntityId,
+        referringAccountId: payload.referringAccountId,
+        campaign: payload.campaign,
+        campaignCode: payload.campaignCode,
+        campaignId: payload.campaignId,
+        adId: payload.adId,
+        adName: payload.adName,
+        landingPage: payload.landingPage,
+        referrer: payload.referrer,
+        utmSource: payload.utmSource,
+        utmMedium: payload.utmMedium,
+        utmCampaign: payload.utmCampaign,
+        utmTerm: payload.utmTerm,
+        utmContent: payload.utmContent,
+        clickId: payload.clickId,
+        metadata: payload.rawPayload
+      });
+    } catch (attrErr) {
+      console.warn("Non-blocking attribution tracking error:", attrErr);
+    }
+
+    // 6. Dispatch Role-Based Notifications
     const assignedUser = await sequelize.models.User.findByPk(assignedToId);
-    triggerLeadAssignedNotifications(newDeal, assignedUser).catch(e => console.error("Notification dispatch failed:", e));
+    triggerLeadAssignedNotifications(newLead, assignedUser).catch(e => console.error("Notification dispatch failed:", e));
 
-    // 8. Initial Activity Logging
+    // 7. Initial Inbound Activity Logging on Lead
     const messageSnippet = payload.message
       ? payload.message.substring(0, 60) + (payload.message.length > 60 ? '...' : '')
       : 'No specific message provided.';
@@ -187,10 +264,9 @@ export async function ingestLead(payload: LeadPayload) {
     await Activity.create({
       id: crypto.randomUUID(),
       type: "note",
-      leadId: leadRecord ? leadRecord.id : null,
-      customerId: (account as any).id,
-      dealId: dealId,
-      outcome: `Inbound Inquiry Captured via ${payload.source || 'Website'}. Message: ${messageSnippet}`,
+      leadId: leadId,
+      customerId: account ? (account as any).id : null,
+      outcome: `Inbound Inquiry Captured via ${payload.source || 'Website'}. Campaign: ${payload.campaign || 'Direct'}. Message: ${messageSnippet}`,
       mentioned_user_ids: "[]",
       pinned: true,
       isCompleted: true,
@@ -202,13 +278,13 @@ export async function ingestLead(payload: LeadPayload) {
       await createNotification(
         assignedToId,
         "system",
-        "New Deal Assigned",
-        `A new deal for ${companyName} (${payload.firstName} ${payload.lastName}) was just assigned to you via ${payload.source || 'Website'}.`,
-        `/pipeline` // Directing to pipeline
+        "New Lead Assigned",
+        `A new lead '${payload.firstName} ${payload.lastName}' from ${companyName} was just assigned to you via ${payload.source || 'Website'}.`,
+        `/leads`
       );
     }
 
-    return dealId;
+    return leadId;
   } catch (error) {
     console.error("Lead Ingestion Error:", error);
     throw error;

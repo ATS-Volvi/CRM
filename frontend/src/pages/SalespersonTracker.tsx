@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "../lib/apiClient";
 import {
   Users, Search, Plus, Trash2, X, TrendingUp, MapPin, Briefcase,
@@ -94,7 +95,6 @@ const DEPARTMENTS = ["All", "Sales", "Enterprise", "Commercial", "SMB", "Inside 
 const TERRITORIES = ["All", "EMEA", "APAC", "Americas", "Dubai", "MEA", "South Asia"];
 const TEAMS = ["All", "Aces", "Velocity", "Global", "Hawks", "Phoenix"];
 
-
 export default function SalespersonTracker() {
   const [search, setSearch] = useState("");
   const [filterDept, setFilterDept] = useState("All");
@@ -116,7 +116,7 @@ export default function SalespersonTracker() {
   });
 
   const queryClient = useQueryClient();
-  const { data: salespersons = [], isLoading: loading } = useQuery<Salesperson[]>({
+  const { data: salespersons = [], isLoading: loading, refetch: fetchSalespersons } = useQuery<Salesperson[]>({
     queryKey: ["salespersonsPerformance"],
     queryFn: async () => {
       try {
@@ -165,14 +165,18 @@ export default function SalespersonTracker() {
 
   const handleToggleAvailability = async (rep: Salesperson) => {
     try {
+<<<<<<< HEAD
       // Optimistic update
       queryClient.setQueryData<Salesperson[]>(["salespersonsPerformance"], prev =>
         (prev || []).map(s => s.id === rep.id ? { ...s, isAvailable: !s.isAvailable } : s)
       );
+=======
+>>>>>>> 8c31a7e (feat: complete CRM architecture and UI redesign (Phases 1-6))
       await apiClient(`/api/v1/settings/availability`, {
         method: "PUT",
         body: JSON.stringify({ isAvailable: !rep.isAvailable, userId: rep.id })
       });
+      queryClient.invalidateQueries({ queryKey: ["salespersonsPerformance"] });
     } catch (err) {
       console.error(err);
       queryClient.invalidateQueries({ queryKey: ["salespersonsPerformance"] });
@@ -184,9 +188,13 @@ export default function SalespersonTracker() {
     try {
       const res = await apiClient(`/api/v1/salespersons/${id}`, { method: "DELETE" });
       if (res.ok) {
+<<<<<<< HEAD
         queryClient.setQueryData<Salesperson[]>(["salespersonsPerformance"], prev =>
           (prev || []).filter(s => s.id !== id)
         );
+=======
+        queryClient.invalidateQueries({ queryKey: ["salespersonsPerformance"] });
+>>>>>>> 8c31a7e (feat: complete CRM architecture and UI redesign (Phases 1-6))
       } else {
         const err = await res.json();
         alert(err.error || "Delete failed.");

@@ -3,18 +3,16 @@ import crypto from "crypto";
 import { assignLead } from "./assignmentEngine";
 import { evaluateQuoteApproval } from "./approvalEngine";
 import { createNotification } from "./notificationEngine";
+import { carryOverAttributionToOpportunity } from "./attributionService";
 
 // ─── STEP 1: LEAD LIFECYCLE & STRICT STATE MACHINE CONTRACT ──────────────────
 
 export type LeadStage =
-  | "New"
-  | "Contacted"
-  | "Qualified"
-  | "Meeting"
-  | "Proposal"
-  | "Negotiation"
-  | "Won"
-  | "Lost";
+  | "NEW"
+  | "CONTACTED"
+  | "QUALIFIED"
+  | "CONVERTED"
+  | "NOT_CONVERTED";
 
 export interface StageRules {
   allowedTransitions: LeadStage[];
@@ -24,60 +22,42 @@ export interface StageRules {
 }
 
 export const LIFECYCLE_STAGE_RULES: Record<LeadStage, StageRules> = {
-  New: {
-    allowedTransitions: ["Contacted", "Qualified", "Lost"],
+  NEW: {
+    allowedTransitions: ["CONTACTED", "QUALIFIED", "NOT_CONVERTED"],
     requiredNextAction: "Reply to Lead",
     slaHours: 2,
     mandatoryFields: []
   },
-  Contacted: {
-    allowedTransitions: ["Qualified", "Lost"],
+  CONTACTED: {
+    allowedTransitions: ["QUALIFIED", "NOT_CONVERTED"],
     requiredNextAction: "Qualify Lead",
     slaHours: 24,
     mandatoryFields: []
   },
-  Qualified: {
-    allowedTransitions: ["Meeting", "Proposal", "Won", "Lost"],
-    requiredNextAction: "Schedule Meeting",
+  QUALIFIED: {
+    allowedTransitions: ["CONVERTED", "NOT_CONVERTED"],
+    requiredNextAction: "Prepare Quote",
     slaHours: 24,
     mandatoryFields: ["requirement", "estimatedValue"]
   },
-  Meeting: {
-    allowedTransitions: ["Proposal", "Won", "Lost"],
-    requiredNextAction: "Prepare Quote",
-    slaHours: 24,
-    mandatoryFields: []
-  },
-  Proposal: {
-    allowedTransitions: ["Negotiation", "Won", "Lost"],
-    requiredNextAction: "Follow Up on Quote",
-    slaHours: 48,
-    mandatoryFields: []
-  },
-  Negotiation: {
-    allowedTransitions: ["Won", "Lost"],
-    requiredNextAction: "Finalize Terms & Close",
-    slaHours: 24,
-    mandatoryFields: []
-  },
-  Won: {
+  CONVERTED: {
     allowedTransitions: [],
-    requiredNextAction: "Generate Customer Invoice",
+    requiredNextAction: "Follow Up on Opportunity",
     slaHours: 0,
     mandatoryFields: []
   },
-  Lost: {
+  NOT_CONVERTED: {
     allowedTransitions: [],
     requiredNextAction: "Log Loss Reason",
     slaHours: 0,
-    mandatoryFields: ["lossReason"]
+    mandatoryFields: []
   }
 };
 
 export function validateStageTransition(currentStage: string, nextStage: LeadStage): void {
-  const normCurrent = (currentStage || "New").trim() as LeadStage;
+  const normCurrent = (currentStage || "NEW").trim().toUpperCase() as LeadStage;
   const rules = LIFECYCLE_STAGE_RULES[normCurrent];
-  if (!rules) return; // fallback for unlisted stages
+  if (!rules) return; // fallback for unlisted stages — allow
 
   if (normCurrent === nextStage) return; // Same stage update is allowed
 
@@ -101,14 +81,14 @@ export function computeNextActionEngine(
   estimatedValue: number = 0,
   ownerId: string | null = null
 ): NextActionState {
-  const rules = LIFECYCLE_STAGE_RULES[stage] || LIFECYCLE_STAGE_RULES.New;
+  const rules = LIFECYCLE_STAGE_RULES[stage] || LIFECYCLE_STAGE_RULES.NEW;
   const slaHours = rules.slaHours || 24;
   const dueDate = new Date(Date.now() + slaHours * 3600 * 1000);
 
   let priority: "Low" | "Medium" | "High" | "Urgent" = "Medium";
   if (estimatedValue >= 5000000) priority = "Urgent"; // >= ₹50L
   else if (estimatedValue >= 1000000) priority = "High"; // >= ₹10L
-  else if (stage === "New") priority = "High";
+  else if (stage === "NEW") priority = "High";
 
   return {
     currentStage: stage,
@@ -154,104 +134,174 @@ export function validateQualificationData(data: Partial<QualificationModel>): Qu
 
 // ─── STEP 4: OPPORTUNITY CONVERSION & CONTEXT INHERITANCE ─────────────────────
 
-export async function convertLeadToOpportunity(leadId: string, qualificationData: QualificationModel, userId?: string) {
+export async function convertLeadToOpportunity(leadId: string, qualificationData?: Partial<QualificationModel>, userId?: string) {
   const lead = await sequelize.models.Lead.findByPk(leadId);
   if (!lead) throw new Error("Lead not found");
   const l = lead as any;
 
-  // 1. Validate Stage Transition & Qualification Model
-  validateStageTransition(l.status, "Qualified");
-  const validQual = validateQualificationData(qualificationData);
-
-  // 2. Compute Next Action Engine
-  const nextState = computeNextActionEngine("Qualified", validQual.estimatedValue, l.assignedToId || userId);
-
-  // 3. Inherit Customer Account
-  const accountName = l.company || `${l.firstName} ${l.lastName}`.trim();
-  let account: any = await sequelize.models.Account.findOne({ where: { name: accountName } });
-  if (!account) {
-    account = await sequelize.models.Account.create({
-      id: crypto.randomUUID(),
-      name: accountName,
-      primaryContactName: `${l.firstName} ${l.lastName}`.trim(),
-      email: l.email,
-      phone: l.phone,
-      industry: l.industry || "General"
-    });
+  // 1. Eligibility Check
+  if (l.status === "CONVERTED") {
+    throw new Error("Lead is already converted.");
+  }
+  if (l.status === "NOT_CONVERTED") {
+    throw new Error("Cannot convert a disqualified/not-converted lead.");
   }
 
-  // 4. Inherit Primary Contact
-  let contact: any = null;
-  if (sequelize.models.Contact) {
-    contact = await sequelize.models.Contact.findOne({ where: { email: l.email } });
-    if (!contact) {
-      contact = await sequelize.models.Contact.create({
+  // 2. Validate qualification model (provide sensible defaults if converting directly)
+  const defaultQual: Partial<QualificationModel> = {
+    requirement: qualificationData?.requirement || l.body || l.notes || `${l.firstName} ${l.lastName} requirement`,
+    estimatedValue: Number(qualificationData?.estimatedValue || l.leadScore ? (l.leadScore * 10000) : 500000),
+    budget: qualificationData?.budget || l.budgetRange || "Standard",
+    timeline: qualificationData?.timeline || "Within 30 Days",
+    decisionMaker: qualificationData?.decisionMaker || `${l.firstName} ${l.lastName}`
+  };
+  const validQual = validateQualificationData({ ...defaultQual, ...qualificationData });
+
+  // 3. Compute Next Action Engine
+  const nextState = computeNextActionEngine("CONVERTED" as any, validQual.estimatedValue, l.assignedToId || userId);
+
+  // Run conversion within a managed transaction
+  return await sequelize.transaction(async (t) => {
+    // 4. Inherit / Find or Create Customer Account (Duplicate Protection)
+    const accountName = (l.company || `${l.firstName} ${l.lastName}`).trim();
+    let account: any = await sequelize.models.Account.findOne({
+      where: { name: accountName },
+      transaction: t
+    });
+
+    if (!account) {
+      account = await sequelize.models.Account.create({
         id: crypto.randomUUID(),
-        accountId: account.id,
-        firstName: l.firstName,
-        lastName: l.lastName,
+        name: accountName,
+        primaryContactName: `${l.firstName} ${l.lastName}`.trim(),
         email: l.email,
         phone: l.phone,
-        role: "Decision Maker"
-      });
+        industry: l.industry || "General"
+      }, { transaction: t });
     }
-  }
 
-  // 5. Create Opportunity (Deal) inheriting full context
-  let deal: any = await sequelize.models.Deal.findOne({ where: { leadId: l.id } });
-  if (!deal) {
-    const stage = await sequelize.models.PipelineStage.findOne({ where: { name: "Qualified" } })
-      || await sequelize.models.PipelineStage.findOne({ order: [["order", "ASC"]] });
+    // 5. Inherit / Find or Create Primary Contact (Duplicate Protection)
+    let contact: any = null;
+    if (sequelize.models.Contact) {
+      if (l.email) {
+        contact = await sequelize.models.Contact.findOne({
+          where: { email: l.email, accountId: account.id },
+          transaction: t
+        }) || await sequelize.models.Contact.findOne({
+          where: { email: l.email },
+          transaction: t
+        });
+      }
 
-    deal = await sequelize.models.Deal.create({
-      id: crypto.randomUUID(),
-      name: l.company ? `${l.company} Opportunity` : `${l.firstName} ${l.lastName} Opportunity`,
-      amount: validQual.estimatedValue,
-      stageId: stage ? (stage as any).id : null,
-      leadId: l.id,
+      if (!contact) {
+        contact = await sequelize.models.Contact.create({
+          id: crypto.randomUUID(),
+          accountId: account.id,
+          firstName: l.firstName,
+          lastName: l.lastName,
+          email: l.email,
+          phone: l.phone,
+          role: "Primary Contact",
+          sourceChannel: l.source || "Direct"
+        }, { transaction: t });
+      } else if (!contact.accountId) {
+        await contact.update({ accountId: account.id }, { transaction: t });
+      }
+    }
+
+    // 6. Create Opportunity (Deal) inheriting full context
+    let deal: any = await sequelize.models.Deal.findOne({
+      where: { leadId: l.id },
+      transaction: t
+    });
+
+    if (!deal) {
+      const stage = await sequelize.models.PipelineStage.findOne({ where: { name: "Discovery" }, transaction: t })
+        || await sequelize.models.PipelineStage.findOne({ where: { name: "Requirements" }, transaction: t })
+        || await sequelize.models.PipelineStage.findOne({ order: [["order", "ASC"]], transaction: t });
+
+      deal = await sequelize.models.Deal.create({
+        id: crypto.randomUUID(),
+        name: l.company ? `${l.company} Opportunity` : `${l.firstName} ${l.lastName} Opportunity`,
+        amount: validQual.estimatedValue,
+        stageId: stage ? (stage as any).id : null,
+        leadId: l.id,
+        accountId: account.id,
+        customerId: account.id,
+        ownerId: l.assignedToId || userId || (account as any).ownerId
+      }, { transaction: t });
+    } else {
+      await deal.update({
+        amount: validQual.estimatedValue,
+        accountId: account.id,
+        customerId: account.id
+      }, { transaction: t });
+    }
+
+    // 7. Link Contact to Deal
+    if (contact && sequelize.models.DealContact) {
+      const existing = await sequelize.models.DealContact.findOne({
+        where: { dealId: deal.id, contactId: contact.id },
+        transaction: t
+      });
+      if (!existing) {
+        await sequelize.models.DealContact.create({
+          id: crypto.randomUUID(),
+          dealId: deal.id,
+          contactId: contact.id,
+          role: "Primary",
+          isPrimary: true
+        }, { transaction: t });
+      }
+    }
+
+    // 7b. Carry over marketing/lead attribution to Opportunity
+    await carryOverAttributionToOpportunity(l.id, deal.id, t);
+
+    // 8. Update Lead record — status -> CONVERTED, link accountId and conversion metadata
+    const convertedTimestamp = new Date().toISOString();
+    const updatedLead = await l.update({
+      status: "CONVERTED",
+      nextAction: nextState.nextAction,
+      nextActionDue: nextState.dueDate,
+      accountId: account.id,
       customerId: account.id,
-      ownerId: l.assignedToId || userId
-    });
-  } else {
-    await deal.update({
-      amount: validQual.estimatedValue,
-      customerId: account.id
-    });
-  }
+      qualificationData: {
+        ...validQual,
+        qualifiedAt: convertedTimestamp,
+        qualifiedBy: userId || l.assignedToId,
+        opportunityId: deal.id,
+        accountId: account.id,
+        convertedAt: convertedTimestamp,
+        convertedAccountId: account.id,
+        convertedContactId: contact?.id || null,
+        convertedOpportunityId: deal.id
+      },
+      leadScore: Math.min(100, (l.leadScore || 50) + 25)
+    }, { transaction: t });
 
-  // 6. Update Lead record with Qualification details & Next Action
-  await l.update({
-    status: "Qualified",
-    nextAction: nextState.nextAction,
-    nextActionDue: nextState.dueDate,
-    customerId: account.id,
-    qualificationData: {
-      ...validQual,
-      qualifiedAt: new Date().toISOString(),
-      qualifiedBy: userId || l.assignedToId,
-      opportunityId: deal.id,
-      accountId: account.id
-    },
-    leadScore: Math.min(100, (l.leadScore || 50) + 25)
+    // 9. Notify Sales Rep
+    if (l.assignedToId) {
+      createNotification({
+        userId: l.assignedToId,
+        type: "LEAD_QUALIFIED",
+        title: "Lead Converted to Opportunity",
+        message: `Lead '${l.firstName} ${l.lastName}' has been converted. Opportunity created with value ₹${validQual.estimatedValue.toLocaleString()}.`
+      }).catch(e => console.error("Notification dispatch error:", e));
+    }
+
+    return {
+      lead: updatedLead,
+      deal,
+      account,
+      contact
+    };
   });
-
-  // 7. Notify Sales Rep
-  if (l.assignedToId) {
-    await createNotification({
-      userId: l.assignedToId,
-      type: "LEAD_QUALIFIED",
-      title: "Lead Qualified & Opportunity Created",
-      message: `Lead '${l.firstName} ${l.lastName}' has been qualified. Opportunity created with value ₹${validQual.estimatedValue.toLocaleString()}.`
-    });
-  }
-
-  return {
-    lead: l,
-    deal,
-    account,
-    contact
-  };
 }
+
+/** Canonical alias for convertLead */
+export const convertLead = (leadId: string, userId?: string, qualificationData?: Partial<QualificationModel>) =>
+  convertLeadToOpportunity(leadId, qualificationData, userId);
 
 // ─── STEP 5: QUOTE ➔ HIERARCHICAL APPROVAL ENGINE INTEGRATION ──────────────────
 
@@ -450,14 +500,14 @@ export async function runEndToEndLeadJourneySim(testEmail?: string) {
     // 7. Sales Rep opens My Inbox
     logStep(7, "Rep Opens Inbox", "SUCCESS", `Lead appears at top of Rep Inbox with Next Action 'Reply to Lead' due in 2 hours.`);
 
-    // 8. Responds (Stage -> Contacted)
-    validateStageTransition(lead.status, "Contacted");
+    // 8. Responds (Stage -> CONTACTED)
+    validateStageTransition(lead.status, "CONTACTED");
     await lead.update({
-      status: "Contacted",
+      status: "CONTACTED",
       nextAction: "Qualify Lead",
       nextActionDue: new Date(Date.now() + 24 * 3600 * 1000)
     });
-    logStep(8, "Rep Responds", "SUCCESS", `Rep dispatched initial WhatsApp response. Stage updated to 'Contacted'.`);
+    logStep(8, "Rep Responds", "SUCCESS", `Rep dispatched initial WhatsApp response. Stage updated to 'CONTACTED'.`);
 
     // 9. Qualifies Lead & 10. Lead -> Opportunity
     const qualResult = await convertLeadToOpportunity(
@@ -486,7 +536,7 @@ export async function runEndToEndLeadJourneySim(testEmail?: string) {
       leadId: lead.id
     });
     await lead.update({
-      status: "Meeting",
+      status: "CONVERTED",
       nextAction: "Prepare Quote",
       nextActionDue: new Date(Date.now() + 24 * 3600 * 1000)
     });
@@ -495,7 +545,7 @@ export async function runEndToEndLeadJourneySim(testEmail?: string) {
     // 12. Generate Quote & 13. Approval Engine
     quote = await sequelize.models.Quote.create({
       id: crypto.randomUUID(),
-      quoteNumber: `QT-${Date.now().toString().slice(-5)}`,
+      quoteNumber: `QT-${Date.now().toString().slice(-6)}`,
       dealId: deal.id,
       totalAmount: 2500000,
       status: "Draft"
@@ -511,17 +561,19 @@ export async function runEndToEndLeadJourneySim(testEmail?: string) {
     logStep(14, "Quote Approved & Sent", "SUCCESS", `Team Lead approved Quote #${quote.quoteNumber}. Quote status set to 'Approved'.`);
 
     // 15. Customer Responds & 16. Negotiation
+    const negStage = await sequelize.models.PipelineStage.findOne({ where: { name: "Negotiation" } });
+    if (negStage) {
+      await deal.update({ stageId: (negStage as any).id });
+    }
     await lead.update({
-      status: "Negotiation",
       nextAction: "Finalize Discount & Close Deal",
       nextActionDue: new Date(Date.now() + 24 * 3600 * 1000)
     });
     logStep(15, "Customer Responds", "SUCCESS", `Customer viewed quote and requested 5% commercial discount.`);
-    logStep(16, "Negotiation", "SUCCESS", `Rep finalized 5% discount terms. Stage updated to 'Negotiation'.`);
+    logStep(16, "Negotiation", "SUCCESS", `Rep finalized 5% discount terms. Opportunity stage updated to 'Negotiation'.`);
 
     // 17. Won / Lost
     await lead.update({
-      status: "Won",
       nextAction: "Generate Customer Invoice",
       nextActionDue: new Date()
     });

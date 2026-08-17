@@ -14,7 +14,7 @@ export const getTasks = async (req: Request, res: Response) => {
       include: [
         { model: sequelize.models.User, as: "owner", attributes: ["id", "name", "email"] },
         { model: sequelize.models.Lead, as: "lead", attributes: ["id", "firstName", "lastName", "company"] },
-        { model: sequelize.models.Customer, as: "customer", attributes: ["id", "name", "email"] }
+        { model: sequelize.models.Account, as: "customer", attributes: ["id", "name", "email"] }
       ],
       order: [["createdAt", "DESC"]]
     });

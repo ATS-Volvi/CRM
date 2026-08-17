@@ -1,10 +1,12 @@
 import React, { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { apiClient } from "../lib/apiClient";
 import { Building2, TrendingUp, Users, ArrowUpRight, Search, AlertCircle, RefreshCw } from "lucide-react";
 import { formatCurrency } from "../utils/currency";
 
 export default function Accounts() {
+  const navigate = useNavigate();
   const [search, setSearch] = useState("");
 
   const { data: accountsData, isLoading, error, refetch } = useQuery({
@@ -142,7 +144,11 @@ export default function Accounts() {
               const nameInitial = (account.name || "A").trim().charAt(0).toUpperCase();
 
               return (
-                <tr key={account.id} className="hover:bg-slate-50/80 transition-colors group">
+                <tr
+                  key={account.id}
+                  onClick={() => navigate(`/accounts/${account.id}`)}
+                  className="hover:bg-slate-50/80 transition-colors group cursor-pointer"
+                >
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <div className="h-10 w-10 flex-shrink-0 flex items-center justify-center rounded-xl bg-gradient-to-br from-indigo-100 to-purple-100 border border-white shadow-2xs group-hover:scale-105 transition-transform">
@@ -178,7 +184,7 @@ export default function Accounts() {
 
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className="px-2.5 py-1 inline-flex text-[11px] font-bold rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200">
-                      {deals.length} Deals
+                      {deals.length} Opportunities
                     </span>
                   </td>
 
@@ -187,8 +193,14 @@ export default function Accounts() {
                   </td>
 
                   <td className="px-6 py-4 whitespace-nowrap text-right text-xs font-medium">
-                    <button className="text-indigo-600 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors inline-flex items-center gap-1 font-bold">
-                      <span>View Account</span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/accounts/${account.id}`);
+                      }}
+                      className="text-indigo-600 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors inline-flex items-center gap-1 font-bold"
+                    >
+                      <span>Customer 360</span>
                       <ArrowUpRight className="w-3.5 h-3.5" />
                     </button>
                   </td>

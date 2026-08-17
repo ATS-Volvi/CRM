@@ -7,15 +7,16 @@ export const globalSearch = async (req: Request, res: Response) => {
     const q = (req.query.q as string || "").trim();
     if (!q || q.length < 2) {
       return res.json({
-        leads: [], customers: [], deals: [], quotes: [], tasks: [],
-        meetings: [], salespersons: [], calls: []
+        leads: [], accounts: [], contacts: [], opportunities: [], deals: [], quotes: [], orders: [],
+        tasks: [], meetings: [], salespersons: [], calls: []
       });
     }
 
     const likeQuery = `%${q}%`;
+    const models = sequelize.models;
 
-    const [leads, customers, deals, quotes, tasks, meetings, salespersons, calls] = await Promise.all([
-      sequelize.models.Lead.findAll({
+    const [leads, accounts, contacts, deals, quotes, orders, tasks, users, assetsRes] = await Promise.all([
+      models.Lead.findAll({
         where: {
           [Op.or]: [
             { firstName: { [Op.like]: likeQuery } },
@@ -24,10 +25,10 @@ export const globalSearch = async (req: Request, res: Response) => {
             { email: { [Op.like]: likeQuery } }
           ]
         },
-        limit: 5,
-        attributes: ["id", "firstName", "lastName", "company", "email", "status"]
+        limit: 10,
+        attributes: ["id", "firstName", "lastName", "company", "email", "status", "leadScore"]
       }),
-      sequelize.models.Customer.findAll({
+      models.Account ? models.Account.findAll({
         where: {
           [Op.or]: [
             { name: { [Op.like]: likeQuery } },
@@ -36,28 +37,49 @@ export const globalSearch = async (req: Request, res: Response) => {
             { industry: { [Op.like]: likeQuery } }
           ]
         },
-        limit: 5,
+        limit: 10,
         attributes: ["id", "name", "email", "primaryContactName", "industry", "phone"]
-      }),
-      sequelize.models.Deal.findAll({
+      }) : Promise.resolve([]),
+      models.Contact ? models.Contact.findAll({
+        where: {
+          [Op.or]: [
+            { firstName: { [Op.like]: likeQuery } },
+            { lastName: { [Op.like]: likeQuery } },
+            { email: { [Op.like]: likeQuery } },
+            { phone: { [Op.like]: likeQuery } }
+          ]
+        },
+        limit: 10,
+        attributes: ["id", "firstName", "lastName", "email", "phone", "role", "accountId"]
+      }) : Promise.resolve([]),
+      models.Deal.findAll({
         where: {
           [Op.or]: [
             { name: { [Op.like]: likeQuery } }
           ]
         },
-        limit: 5,
-        attributes: ["id", "name", "amount", "stageId"]
+        limit: 10,
+        attributes: ["id", "name", "amount", "stageId", "accountId"]
       }),
-      sequelize.models.Quote.findAll({
+      models.Quote.findAll({
         where: {
           [Op.or]: [
             { quoteNumber: { [Op.like]: likeQuery } }
           ]
         },
-        limit: 5,
-        attributes: ["id", "quoteNumber", "totalAmount", "status"]
+        limit: 10,
+        attributes: ["id", "quoteNumber", "totalAmount", "status", "version", "dealId"]
       }),
-      sequelize.models.Task.findAll({
+      models.PurchaseOrder ? models.PurchaseOrder.findAll({
+        where: {
+          [Op.or]: [
+            { poNumber: { [Op.like]: likeQuery } }
+          ]
+        },
+        limit: 10,
+        attributes: ["id", "poNumber", "amount", "status", "quoteId"]
+      }) : Promise.resolve([]),
+      models.Task.findAll({
         where: {
           [Op.or]: [
             { title: { [Op.like]: likeQuery } }
@@ -66,15 +88,7 @@ export const globalSearch = async (req: Request, res: Response) => {
         limit: 5,
         attributes: ["id", "title", "priority", "dueDate"]
       }),
-      sequelize.models.Meeting ? sequelize.models.Meeting.findAll({
-        where: {
-          [Op.or]: [
-            { title: { [Op.like]: likeQuery } }
-          ]
-        },
-        limit: 5
-      }).catch(() => []) : Promise.resolve([]),
-      sequelize.models.User.findAll({
+      models.User.findAll({
         where: {
           [Op.or]: [
             { name: { [Op.like]: likeQuery } },
@@ -85,19 +99,35 @@ export const globalSearch = async (req: Request, res: Response) => {
         limit: 5,
         attributes: ["id", "name", "email", "role", "department", "territory"]
       }),
-      sequelize.models.CallLog ? sequelize.models.CallLog.findAll({
+      models.Asset ? models.Asset.findAll({
         where: {
           [Op.or]: [
-            { subject: { [Op.like]: likeQuery } },
-            { notes: { [Op.like]: likeQuery } }
+            { assetNumber: { [Op.like]: likeQuery } },
+            { name: { [Op.like]: likeQuery } },
+            { serialNumber: { [Op.like]: likeQuery } }
           ]
         },
-        limit: 5
-      }).catch(() => []) : Promise.resolve([])
+        limit: 10,
+        attributes: ["id", "assetNumber", "name", "serialNumber", "status", "accountId", "orderId"]
+      }) : Promise.resolve([])
     ]);
 
-    res.json({ leads, customers, deals, quotes, tasks, meetings, salespersons, calls });
+    const assets = (assetsRes || []).map((a: any) => ({ ...a.toJSON(), entityType: "ASSET" }));
+
+    res.json({
+      leads: leads.map(l => ({ ...l.toJSON(), entityType: "LEAD" })),
+      accounts: accounts.map(a => ({ ...a.toJSON(), entityType: "ACCOUNT" })),
+      contacts: contacts.map(c => ({ ...c.toJSON(), entityType: "CONTACT" })),
+      opportunities: deals.map(d => ({ ...d.toJSON(), entityType: "OPPORTUNITY" })),
+      deals: deals.map(d => ({ ...d.toJSON(), entityType: "OPPORTUNITY" })),
+      quotes: quotes.map(q => ({ ...q.toJSON(), entityType: "QUOTE" })),
+      orders: orders.map(o => ({ ...o.toJSON(), entityType: "ORDER" })),
+      assets,
+      tasks,
+      salespersons: users
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
 };
+

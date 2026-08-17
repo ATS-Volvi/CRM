@@ -4,8 +4,19 @@ import { Activity, User } from "@nexus-crm/database";
 export const getLeadActivities = async (req: Request, res: Response) => {
   try {
     const { leadId } = req.params;
+    const { accountId, dealId } = req.query;
+    const where: any = {};
+
+    if (leadId && leadId !== "all") {
+      where.leadId = leadId;
+    } else if (accountId) {
+      where.customerId = accountId;
+    } else if (dealId) {
+      where.dealId = dealId;
+    }
+
     const activities = await Activity.findAll({ 
-      where: { leadId },
+      where,
       include: [
         { model: User, as: "createdBy", attributes: ["id", "name", "email", "role"] }
       ],
@@ -22,8 +33,23 @@ export const getLeadActivities = async (req: Request, res: Response) => {
 
 export const createActivity = async (req: Request, res: Response) => {
   try {
-    const { leadId } = req.params;
-    const { type, title, notes, duration, outcome, mentioned_user_ids, pinned, dueDate, priority, isCompleted } = req.body;
+    const leadId = req.params.leadId || req.body.leadId;
+    const {
+      accountId,
+      customerId,
+      dealId,
+      type,
+      title,
+      notes,
+      duration,
+      outcome,
+      mentioned_user_ids,
+      pinned,
+      dueDate,
+      priority,
+      isCompleted,
+      direction
+    } = req.body;
     const userId = (req as any).user?.id || "mock-user";
 
     // Validate tasks have a due date
@@ -31,9 +57,12 @@ export const createActivity = async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Tasks must have a due date." });
     }
 
+    const targetCustomerId = accountId || customerId || null;
+
     const activity = await Activity.create({
       id: require('crypto').randomUUID(),
-      leadId,
+      leadId: leadId || null,
+      customerId: targetCustomerId,
       type: type || "note",
       notes: notes || title || "",
       duration: duration || null,
@@ -44,7 +73,7 @@ export const createActivity = async (req: Request, res: Response) => {
       dueDate: dueDate || null,
       priority: priority || null,
       isCompleted: isCompleted || false,
-      direction: "internal"
+      direction: direction || "internal"
     });
 
     res.status(201).json(activity);

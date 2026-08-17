@@ -1,9 +1,30 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { 
-  LayoutDashboard, Home, Inbox, Trello, FileText, Receipt, 
-  Users, BarChart, Settings, Clock, ChevronLeft, 
-  ChevronRight, MessageSquare, CheckSquare, Search, Bell, Sparkles, LogOut, ChevronDown, Layers, Package, Building2
+import {
+  LayoutDashboard,
+  Home,
+  Inbox,
+  Target,
+  FileText,
+  ShoppingBag,
+  Package,
+  Building2,
+  Users,
+  CheckSquare,
+  BarChart2,
+  Megaphone,
+  Settings,
+  Calendar,
+  Layers,
+  ChevronLeft,
+  ChevronRight,
+  LogOut,
+  Search,
+  Sparkles,
+  Truck,
+  Activity,
+  Sliders,
+  ShieldCheck
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
@@ -14,17 +35,14 @@ interface NavItem {
   badge?: string;
 }
 
-interface NavCategory {
-  id: string;
-  category: string;
-  icon: any;
+interface NavSection {
+  title: string;
   items: NavItem[];
 }
 
 export function Sidebar({
   onOpenSearch,
-  onOpenAi,
-  onOpenNotifications
+  onOpenAi
 }: {
   onOpenSearch?: () => void;
   onOpenAi?: () => void;
@@ -39,256 +57,246 @@ export function Sidebar({
   });
 
   const toggleCollapse = () => {
-    setIsCollapsed(prev => {
+    setIsCollapsed((prev) => {
       const next = !prev;
       localStorage.setItem("sidebar_collapsed", String(next));
       return next;
     });
   };
 
-  const userRole = (user?.role || "admin").toLowerCase();
-  const isAdminOrManager = userRole === "admin" || userRole === "director" || userRole === "sales_manager";
+  const userRole = (user?.role || "sales_rep").toLowerCase();
+  const isSalesRep = userRole === "sales_rep" || userRole === "salesperson";
+  const isTeamLead = userRole === "team_lead" || userRole === "sales_manager";
+  const isAdmin = !isSalesRep && !isTeamLead; // admin, director, executive
 
-  const rawNavCategories: NavCategory[] = [
-    {
-      id: "command",
-      category: "Command",
-      icon: Home,
-      items: [
-        { label: "Dashboard", path: "/", icon: LayoutDashboard },
-        { label: "Live Queue", path: "/leads-table", icon: Inbox, badge: "Inbound" },
-      ]
-    },
-    {
-      id: "operations",
-      category: "Operations",
-      icon: Users,
-      items: [
-        { label: "Accounts", path: "/accounts", icon: Building2 },
-        { label: "Contacts", path: "/contacts", icon: Users },
-        { label: "Asset Tracking", path: "/assets", icon: Package },
-        { label: "Sales & Pipeline", path: "/pipeline", icon: Trello },
-        { label: "Quotations", path: "/quotes", icon: FileText },
-        ...(isAdminOrManager ? [{ label: "Invoices", path: "/invoices", icon: Receipt }] : []),
-      ]
-    },
-    ...(isAdminOrManager ? [{
-      id: "admin",
-      category: "Management & Config",
-      icon: Settings,
-      items: [
-        { label: "Team Hub", path: "/salespersons", icon: BarChart },
-        { label: "Approval Center", path: "/approvals", icon: CheckSquare },
-        { label: "Master Data & Admin", path: "/master-data/requirements", icon: Settings },
-      ]
-    }] : [])
-  ];
+  // Construct Role-Specific Navigation Model
+  let navSections: NavSection[] = [];
 
-  const navCategories = rawNavCategories;
+  if (isSalesRep) {
+    navSections = [
+      {
+        title: "Workspace",
+        items: [
+          { label: "My Workspace", path: "/home", icon: Home },
+          { label: "My Inbox", path: "/inbox", icon: Inbox },
+          { label: "Activities", path: "/activities", icon: Activity },
+          { label: "Performance", path: "/rep-portal", icon: BarChart2 }
+        ]
+      },
+      {
+        title: "Sales Pipeline",
+        items: [
+          { label: "Leads", path: "/leads", icon: Users },
+          { label: "Opportunities", path: "/opportunities", icon: Target },
+          { label: "Accounts", path: "/accounts", icon: Building2 },
+          { label: "Quotes", path: "/quotes", icon: FileText }
+        ]
+      }
+    ];
+  } else if (isTeamLead) {
+    navSections = [
+      {
+        title: "Team Supervision",
+        items: [
+          { label: "Team Workspace", path: "/manager-portal", icon: LayoutDashboard },
+          { label: "Team Queue", path: "/inbox", icon: Inbox },
+          { label: "Approvals", path: "/approvals", icon: CheckSquare },
+          { label: "Targets & Performance", path: "/salespersons", icon: BarChart2 },
+          { label: "Team Activities", path: "/activities", icon: Activity }
+        ]
+      },
+      {
+        title: "Sales & Commercial",
+        items: [
+          { label: "Leads", path: "/leads", icon: Users },
+          { label: "Opportunities", path: "/opportunities", icon: Target },
+          { label: "Accounts", path: "/accounts", icon: Building2 },
+          { label: "Quotes", path: "/quotes", icon: FileText },
+          { label: "Orders", path: "/purchase-orders", icon: ShoppingBag }
+        ]
+      }
+    ];
+  } else {
+    // Admin / Executive Navigation
+    navSections = [
+      {
+        title: "Executive & Intake",
+        items: [
+          { label: "Admin Workspace", path: "/executive-bi", icon: LayoutDashboard },
+          { label: "Lead Intake", path: "/inbox", icon: Inbox },
+          { label: "Analytics & KPIs", path: "/kpi", icon: BarChart2 }
+        ]
+      },
+      {
+        title: "CRM Core",
+        items: [
+          { label: "Leads", path: "/leads", icon: Users },
+          { label: "Accounts", path: "/accounts", icon: Building2 },
+          { label: "Opportunities", path: "/opportunities", icon: Target },
+          { label: "Quotes", path: "/quotes", icon: FileText },
+          { label: "Orders", path: "/purchase-orders", icon: ShoppingBag }
+        ]
+      },
+      {
+        title: "Operations & Marketing",
+        items: [
+          { label: "Supply / Fulfillment", path: "/supply", icon: Truck },
+          { label: "Assets", path: "/assets", icon: Package },
+          { label: "Campaigns", path: "/campaigns", icon: Megaphone }
+        ]
+      },
+      {
+        title: "Governance & Master Data",
+        items: [
+          { label: "Approval Center", path: "/approvals", icon: CheckSquare },
+          { label: "Assignment Rules", path: "/rules", icon: Sliders },
+          { label: "Automation", path: "/automation", icon: ShieldCheck },
+          { label: "Master Data", path: "/master-data/catalog", icon: Layers },
+          { label: "Settings", path: "/settings", icon: Settings }
+        ]
+      }
+    ];
+  }
 
-  // Track expanded accordion categories
-  const [openCategories, setOpenCategories] = useState<Record<string, boolean>>(() => {
-    const initial: Record<string, boolean> = { workspace: true, commerce: true, crm: true, admin: true };
-    return initial;
-  });
-
-  // Auto-expand category containing current active route
-  useEffect(() => {
-    const activeCat = navCategories.find(cat => 
-      cat.items.some(item => location.pathname === item.path || (item.path !== "/" && location.pathname.startsWith(item.path)))
-    );
-    if (activeCat) {
-      setOpenCategories(prev => ({ ...prev, [activeCat.id]: true }));
-    }
-  }, [location.pathname]);
-
-  const toggleCategory = (id: string) => {
-    setOpenCategories(prev => ({ ...prev, [id]: !prev[id] }));
+  const handleLogout = () => {
+    logout();
+    navigate("/login");
   };
+
+  const roleBadgeText = isSalesRep ? "Sales Rep" : isTeamLead ? "Team Lead" : "Admin";
 
   return (
     <aside
-      className={`bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col justify-between transition-all duration-300 z-20 shrink-0 select-none ${
-        isCollapsed ? "w-16" : "w-64"
+      className={`relative h-full z-30 shrink-0 bg-white border-r border-slate-200 transition-all duration-200 flex flex-col ${
+        isCollapsed ? "w-16" : "w-60"
       }`}
     >
-      {/* Sidebar Header */}
-      <div className="p-4 border-b border-slate-100 dark:border-slate-800 space-y-3">
-        <div className="flex items-center justify-between">
-          {!isCollapsed && <div className="flex items-center gap-2.5">
-                <div className={`w-8 h-8 rounded-xl text-white flex items-center justify-center font-black text-xs shadow-md ${
-                  userRole === "sales_rep" 
-                    ? "bg-gradient-to-tr from-purple-600 via-indigo-600 to-emerald-500 shadow-purple-500/30" 
-                    : "bg-gradient-to-tr from-blue-600 to-indigo-600 shadow-blue-500/20"
-                }`}>
-                  NX
-                </div>
-                <div>
-                  <span className="font-extrabold text-sm tracking-tight text-slate-900 dark:text-white block leading-none">
-                    NEXUS CRM
-                  </span>
-                  <span className={`text-[10px] font-bold block ${
-                    userRole === "sales_rep" ? "text-purple-600 dark:text-purple-400" : "text-blue-600 dark:text-blue-400"
-                  }`}>
-                    {userRole === "sales_rep" ? "Sales OS Rep" : "Workspace OS"}
-                  </span>
-                </div>
-              </div>
-            }
-            {isCollapsed && (
-              <div className={`w-8 h-8 rounded-xl text-white flex items-center justify-center font-black text-xs mx-auto shadow-md ${
-                userRole === "sales_rep"
-                  ? "bg-gradient-to-tr from-purple-600 to-emerald-500 shadow-purple-500/30"
-                  : "bg-gradient-to-tr from-blue-600 to-indigo-600 shadow-blue-500/20"
-              }`}>
-                NX
-              </div>
-            )}
-          <button
-            onClick={toggleCollapse}
-            className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors hidden sm:block"
-            title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-          >
-            {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-          </button>
-        </div>
+      {/* Brand Header */}
+      <div className="h-14 flex items-center justify-between px-3 border-b border-slate-100 shrink-0">
+        {!isCollapsed && (
+          <div className="flex items-center gap-2 overflow-hidden">
+            <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-xs">
+              N
+            </div>
+            <div className="truncate">
+              <span className="font-bold text-slate-800 text-sm tracking-tight">Nexus CRM</span>
+              <span className="ml-1.5 px-1.5 py-0.2 text-[10px] font-semibold bg-slate-100 text-slate-600 rounded border border-slate-200">
+                {roleBadgeText}
+              </span>
+            </div>
+          </div>
+        )}
+        {isCollapsed && (
+          <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-sm mx-auto shadow-xs">
+            N
+          </div>
+        )}
 
-        {/* Global Search & AI Quick Triggers in Sidebar */}
-        <div className="space-y-1.5 pt-1">
-          {onOpenSearch && (
-            <button
-              onClick={onOpenSearch}
-              className={`w-full flex items-center gap-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl px-2.5 py-2 text-xs font-bold transition-all ${
-                isCollapsed ? "justify-center" : ""
-              }`}
-              title="Search (Ctrl+K)"
-            >
-              <Search className="w-4 h-4 text-blue-600 shrink-0" />
-              {!isCollapsed && (
-                <div className="flex-1 flex justify-between items-center">
-                  <span>Search...</span>
-                  <kbd className="px-1.5 py-0.5 text-[9px] font-mono bg-white dark:bg-slate-900 border rounded text-slate-400">Ctrl+K</kbd>
-                </div>
-              )}
-            </button>
+        <button
+          onClick={toggleCollapse}
+          className="p-1 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors ml-auto"
+          title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+        </button>
+      </div>
+
+      {/* Global Quick Action: Search & Copilot */}
+      <div className="p-2 space-y-1 border-b border-slate-100">
+        <button
+          onClick={onOpenSearch}
+          className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-500 bg-slate-50 hover:bg-slate-100 border border-slate-200/80 transition-colors ${
+            isCollapsed ? "justify-center" : "justify-between"
+          }`}
+          title="Search (Ctrl+K)"
+        >
+          <div className="flex items-center gap-2 truncate">
+            <Search className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            {!isCollapsed && <span>Search CRM...</span>}
+          </div>
+          {!isCollapsed && (
+            <kbd className="text-[10px] bg-white text-slate-400 px-1.5 py-0.5 rounded border border-slate-200 font-semibold">
+              ⌘K
+            </kbd>
           )}
+        </button>
 
-          <div className="flex gap-1">
-            {onOpenAi && (
-              <button
-                onClick={onOpenAi}
-                className={`flex-1 flex items-center gap-2 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-xl px-2.5 py-1.5 text-xs font-bold transition-all ${
-                  isCollapsed ? "justify-center" : ""
-                }`}
-                title="AI Copilot"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0 animate-pulse" />
-                {!isCollapsed && <span>AI Copilot</span>}
-              </button>
-            )}
-
-            {onOpenNotifications && (
-              <button
-                onClick={onOpenNotifications}
-                className="p-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-300 rounded-xl transition-colors shrink-0"
-                title="Notifications"
-              >
-                <Bell className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Accordion Categorized Nav List */}
-      <div className="flex-1 overflow-y-auto p-2 space-y-3 no-scrollbar">
-        {navCategories.map((cat) => {
-          const CatIcon = cat.icon;
-          const isOpen = openCategories[cat.id];
-          const hasActiveItem = cat.items.some(
-            item => location.pathname === item.path || (item.path !== "/" && location.pathname.startsWith(item.path))
-          );
-
-          return (
-            <div key={cat.id} className="space-y-1">
-              {!isCollapsed && (
-                <button
-                  onClick={() => toggleCategory(cat.id)}
-                  className="w-full flex items-center justify-between px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
-                >
-                  <span className="flex items-center gap-1.5">
-                    <CatIcon className="w-3 h-3 text-blue-500" />
-                    <span>{cat.category}</span>
-                  </span>
-                  <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${isOpen ? "" : "-rotate-90"}`} />
-                </button>
-              )}
-
-              {(isOpen || isCollapsed) && (
-                <div className="space-y-0.5">
-                  {cat.items.map((item) => {
-                    const Icon = item.icon;
-                    const isActive = location.pathname === item.path || (item.path !== "/" && location.pathname.startsWith(item.path));
-
-                    return (
-                      <Link
-                        key={item.path}
-                        to={item.path}
-                        className={`flex items-center gap-3 px-3 py-2 rounded-xl font-bold text-xs transition-all group relative ${
-                          isActive
-                            ? "bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 shadow-2xs"
-                            : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-slate-100"
-                        }`}
-                        title={isCollapsed ? item.label : undefined}
-                      >
-                        <div className={`p-1.5 rounded-lg transition-colors ${
-                          isActive ? "bg-blue-600 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 group-hover:text-slate-800 dark:group-hover:text-white"
-                        }`}>
-                          <Icon className="w-3.5 h-3.5" />
-                        </div>
-
-                        {!isCollapsed && (
-                          <div className="flex-1 flex items-center justify-between">
-                            <span className="truncate">{item.label}</span>
-                            {item.badge && (
-                              <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                                {item.badge}
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </Link>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Sidebar Footer User Info */}
-      <div className="p-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
-        {!isCollapsed ? (
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-300 font-black text-xs flex items-center justify-center border border-blue-200 dark:border-blue-800 shrink-0">
-                {user?.name?.charAt(0) || "U"}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">{user?.name || "Logged User"}</p>
-                <p className="text-[10px] text-slate-400 truncate uppercase font-extrabold">{user?.role?.replace("_", " ") || "Sales Rep"}</p>
-              </div>
-            </div>
-            <button onClick={() => logout()} className="p-1.5 text-slate-400 hover:text-rose-500 rounded-lg transition-colors" title="Sign Out">
-              <LogOut className="w-4 h-4" />
-            </button>
-          </div>
-        ) : (
-          <button onClick={() => logout()} className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-300 font-black text-xs flex items-center justify-center mx-auto border border-blue-200 dark:border-blue-800" title="Sign Out">
-            {user?.name?.charAt(0) || "U"}
+        {onOpenAi && !isCollapsed && (
+          <button
+            onClick={onOpenAi}
+            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-blue-700 bg-blue-50/70 hover:bg-blue-100/70 border border-blue-200/60 transition-colors"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+            <span>AI Assistant</span>
           </button>
         )}
+      </div>
+
+      {/* Navigation Sections */}
+      <div className="flex-1 overflow-y-auto px-2 py-3 space-y-4">
+        {navSections.map((section, idx) => (
+          <div key={idx} className="space-y-1">
+            {!isCollapsed && (
+              <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                {section.title}
+              </div>
+            )}
+            {section.items.map((item) => {
+              const Icon = item.icon;
+              const isActive =
+                location.pathname === item.path ||
+                (item.path !== "/" && item.path !== "/home" && location.pathname.startsWith(item.path));
+
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                    isActive
+                      ? "bg-blue-50 text-blue-700 font-semibold shadow-xs"
+                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                  } ${isCollapsed ? "justify-center" : ""}`}
+                  title={isCollapsed ? item.label : undefined}
+                >
+                  <Icon
+                    className={`w-4 h-4 shrink-0 ${
+                      isActive ? "text-blue-600" : "text-slate-400 group-hover:text-slate-600"
+                    }`}
+                  />
+                  {!isCollapsed && <span className="truncate">{item.label}</span>}
+                  {!isCollapsed && item.badge && (
+                    <span className="ml-auto text-[10px] font-semibold bg-blue-100 text-blue-700 px-1.5 py-0.2 rounded-full">
+                      {item.badge}
+                    </span>
+                  )}
+                </Link>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+
+      {/* User Footer Profile */}
+      <div className="p-2 border-t border-slate-100 shrink-0">
+        <div
+          className={`flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50 transition-colors ${
+            isCollapsed ? "justify-center" : "justify-between"
+          }`}
+        >
+          {!isCollapsed && (
+            <div className="truncate min-w-0">
+              <div className="text-xs font-semibold text-slate-800 truncate">{user?.name || "User"}</div>
+              <div className="text-[11px] text-slate-400 truncate">{user?.email || ""}</div>
+            </div>
+          )}
+          <button
+            onClick={handleLogout}
+            className="p-1 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"
+            title="Logout"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
+        </div>
       </div>
     </aside>
   );

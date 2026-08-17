@@ -230,47 +230,46 @@ export const qualifyLeadEndpoint = async (req: Request, res: Response) => {
 
 export const convertLead = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
-    const lead = await sequelize.models.Lead.findByPk(String(id));
+    const id = String(req.params.id);
+    const { convertLeadToOpportunity } = require("../services/leadJourneyWorkflowEngine");
+    const result = await convertLeadToOpportunity(
+      id,
+      req.body,
+      (req as any).user?.id
+    );
+
+    res.json({
+      message: "Lead converted to Account, Contact and Opportunity successfully",
+      account: result.account,
+      contact: result.contact,
+      deal: result.deal,
+      opportunity: result.deal,
+      lead: result.lead
+    });
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+};
+
+export const markLeadNotConverted = async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const { reason } = req.body;
+    const lead = await sequelize.models.Lead.findByPk(id);
     if (!lead) return res.status(404).json({ error: "Lead not found" });
 
-    const l = lead as any;
-
-    // Check if Account already exists for this company name
-    // (Account is the CRM's customer record — 'Customer' model does not exist)
-    let account: any = l.company
-      ? await sequelize.models.Account.findOne({ where: { name: { [Op.like]: `%${l.company}%` } } })
-      : null;
-
-    if (!account) {
-      account = await sequelize.models.Account.create({
-        id: crypto.randomUUID(),
-        name: l.company || `${l.firstName} ${l.lastName}`.trim(),
-        primaryContactName: `${l.firstName} ${l.lastName}`.trim(),
-        email: l.email,
-        phone: l.phone,
-        industry: l.industry || "General"
-      });
-      await l.update({ status: "Qualified" });
+    if ((lead as any).status === "CONVERTED") {
+      return res.status(400).json({ error: "Cannot mark an already converted lead as not converted." });
     }
 
-    // Get or create deal for this lead
-    let deal = await sequelize.models.Deal.findOne({ where: { leadId: l.id } });
-    if (!deal) {
-      const stage = await sequelize.models.PipelineStage.findOne({ where: { name: "Qualified" } })
-        || await sequelize.models.PipelineStage.findOne({ order: [["order", "ASC"]] });
+    await (lead as any).update({
+      status: "NOT_CONVERTED",
+      nextAction: "Archive or Re-engage Later",
+      nextActionDue: null,
+      notes: reason ? `${(lead as any).notes || ""}\nDisqualification Reason: ${reason}`.trim() : (lead as any).notes
+    });
 
-      deal = await sequelize.models.Deal.create({
-        id: crypto.randomUUID(),
-        name: l.company ? `${l.company} Opportunity` : `${l.firstName} ${l.lastName} Opportunity`,
-        amount: l.leadScore ? l.leadScore * 1000 : 50000,
-        stageId: stage ? (stage as any).id : null,
-        leadId: l.id,
-        ownerId: l.assignedToId || (req as any).user?.id
-      });
-    }
-
-    res.json({ message: "Lead converted to Account and Deal successfully", account, deal });
+    res.json({ message: "Lead marked as not converted", lead });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -559,20 +558,6 @@ ${conversationText}`;
           .filter(p => p.status === "Accepted" || p.status === "Approved")
           .reduce((sum, p) => sum + p.amount, 0);
       }
-    }
-
-    if (clientHistory.previousPurchases.length === 0) {
-      clientHistory.previousPurchases = [
-        { id: "p1", quoteNumber: "QT-2025-089", dealName: "Annual Enterprise License", amount: 45000, status: "Accepted", date: "2025-11-14" },
-        { id: "p2", quoteNumber: "QT-2025-042", dealName: "24/7 SLA Priority Support", amount: 12000, status: "Accepted", date: "2025-06-20" }
-      ];
-      clientHistory.totalPastRevenue = 57000;
-    }
-    if (clientHistory.previousReps.length === 0) {
-      clientHistory.previousReps = [
-        { id: "u1", name: "Alexander Wright", email: "alexander@nexus.com", role: "Senior Sales Executive" },
-        { id: "u2", name: "Sophia Martinez", email: "sophia@nexus.com", role: "Account Director" }
-      ];
     }
 
     const groqKey = process.env.GROQ_API_KEY;

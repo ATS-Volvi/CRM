@@ -2,9 +2,10 @@ import { useAuth } from "../context/AuthContext";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
 import { useSearchParams, Link } from "react-router-dom";
-import { Search, PlusCircle, Trash2, Lightbulb, ZoomIn, Printer, Maximize, BarChart2, Clock, MessageSquare, History, CheckCircle2, AlertTriangle, Shield } from "lucide-react";
+import { Search, PlusCircle, Trash2, Lightbulb, ZoomIn, Printer, Maximize, BarChart2, Clock, MessageSquare, History, CheckCircle2, AlertTriangle, Shield, Package, Plus } from "lucide-react";
 import { formatCurrency, formatCurrencyCompact } from "../utils/currency";
 import QuotationDocumentRenderer from "../components/QuotationDocumentRenderer";
+import { CatalogSearchModal } from "../components/CatalogSearchModal";
 
 export default function QuotationBuilder() {
   const { token } = useAuth();
@@ -74,6 +75,7 @@ export default function QuotationBuilder() {
   const [selectedTemplateId, setSelectedTemplateId] = useState("tpl-ftc-standard");
   const [focusedIndex, setFocusedIndex] = useState(0);
   const [dealIdError, setDealIdError] = useState("");
+  const [isCatalogModalOpen, setIsCatalogModalOpen] = useState(false);
   const logDebug = (msg: string) => {
     console.log(msg);
   };
@@ -391,15 +393,33 @@ export default function QuotationBuilder() {
         unit: li.unit || "nos",
         uom: li.unit || "nos",
         nameOverride: li.name,
-        quantity: qty,
-        unitPrice: unitPrice,
-        discount: 0,
         total: qty * unitPrice,
         isOptional: false
       };
     });
 
-    setItems([...items, ...toAdd]);
+    setItems(prev => [...prev, ...toAdd]);
+  };
+
+  const handleCatalogItemSelect = (catItem: any) => {
+    const qty = 1;
+    const unitPrice = parseFloat(catItem.unitPrice || 0);
+    const tax = parseFloat(catItem.tax || 0);
+    const newItem = {
+      productId: catItem.id,
+      catalogItemId: catItem.id,
+      nameOverride: catItem.name,
+      quantity: qty,
+      unitPrice: unitPrice,
+      minSellingPrice: catItem.minSellingPrice ? parseFloat(catItem.minSellingPrice) : null,
+      tax: tax,
+      discount: 0,
+      total: qty * unitPrice,
+      isOptional: false,
+      isCustom: false,
+      uom: catItem.uom || "nos"
+    };
+    setItems(prev => [...prev, newItem]);
   };
 
   const updateItem = (index: number, field: string, value: any) => {
@@ -561,11 +581,19 @@ export default function QuotationBuilder() {
 
           {/* Line Items Table */}
           <div className="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden shadow-sm">
-            <div className="p-4 border-b border-outline-variant flex justify-between items-center">
+            <div className="p-4 border-b border-outline-variant flex justify-between items-center bg-slate-50/50">
               <span className="text-[12px] font-bold text-on-surface-variant uppercase tracking-wider">Line Items</span>
-              <button onClick={addItem} className="text-primary font-semibold text-sm flex items-center gap-1">
-                <PlusCircle className="w-4 h-4" /> Add Product
-              </button>
+              <div className="flex items-center gap-3">
+                <button 
+                  onClick={() => setIsCatalogModalOpen(true)} 
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-2xs transition-colors"
+                >
+                  <Package className="w-3.5 h-3.5" /> Add from Catalog
+                </button>
+                <button onClick={addItem} className="text-slate-600 hover:text-slate-900 font-bold text-xs flex items-center gap-1">
+                  <PlusCircle className="w-3.5 h-3.5" /> Add Blank Row
+                </button>
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
@@ -1080,6 +1108,12 @@ export default function QuotationBuilder() {
 
         </div>
       </div>
+      {/* Catalog Search Modal */}
+      <CatalogSearchModal
+        isOpen={isCatalogModalOpen}
+        onClose={() => setIsCatalogModalOpen(false)}
+        onSelect={handleCatalogItemSelect}
+      />
     </div>
   );
 }

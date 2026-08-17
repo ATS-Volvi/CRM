@@ -2,7 +2,10 @@ import { Router } from "express";
 import { register, login } from "../controllers/auth";
 import { createPublicLead } from "../controllers/publicLeads";
 import { authMiddleware } from "../middleware/auth";
-import { getPipeline, moveDealStage, createDeal, getDeals } from "../controllers/pipelineController";
+import {
+  getPipeline, moveDealStage, createDeal, getDeals, validateTransition,
+  getOpportunities, getOpportunityById, createOpportunity, updateOpportunity, moveOpportunityStage
+} from "../controllers/pipelineController";
 import { getLeadActivities, createActivity, togglePinActivity, completeTask, getOverdueTasks } from "../controllers/activityController";
 import {
   getLeads,
@@ -10,6 +13,7 @@ import {
   getLead,
   updateLead,
   convertLead,
+  markLeadNotConverted,
   deleteLead,
   reassignLead,
   getLeadReassignmentHistory,
@@ -22,10 +26,14 @@ import {
   updateTemperature,
   unlockTemperature
 } from "../controllers/leadController";
-import { getPriceBookEntries, createPriceBookEntry, updatePriceBookEntry, deletePriceBookEntry, importPriceBookEntries, getPriceSuggestion, importPriceBookEntriesPreview } from '../controllers/priceBookController';
-import { getQuotes, createQuote, getQuoteRecommendations, sendQuote, getPublicQuote, generateQuotePdf, signQuote, getQuoteHistoryByClient, getSimilarQuotesStats, getSimilarClientQuotes } from '../controllers/quoteController';
+import { getPriceBookEntries, createPriceBookEntry, updatePriceBookEntry, deletePriceBookEntry, importPriceBookEntries, getPriceSuggestion, importPriceBookEntriesPreview, getCatalogCategories, getCatalogUoms } from '../controllers/priceBookController';
+import {
+  getQuotes, getQuoteById, createQuote, updateQuote, getQuoteRecommendations, sendQuote, acceptQuote, createQuoteRevision,
+  getOpportunityQuotes, createOpportunityQuote, getPublicQuote, generateQuotePdf, signQuote, getQuoteHistoryByClient,
+  getSimilarQuotesStats, getSimilarClientQuotes
+} from '../controllers/quoteController';
 import { getInvoices, createInvoiceFromQuote, updateInvoiceStatus, generateInvoicePdf } from '../controllers/invoiceController';
-import { getPurchaseOrders, createPurchaseOrder, updatePurchaseOrder } from '../controllers/purchaseOrderController';
+import { getPurchaseOrders, getOrderById, createPurchaseOrder, updatePurchaseOrder, createOrderFromQuote } from '../controllers/purchaseOrderController';
 import { getApprovals, updateApproval, getApprovalTiers, createApprovalTier, deleteApprovalTier } from '../controllers/approvalController';
 import { getKpiDashboard, getManagementDashboard, getMyTodayDashboard, getMyHomeDashboard, getKpiTarget, updateKpiTarget, getActivitiesReports, getHomeDashboard } from '../controllers/dashboardController';
 import { getAssignmentRules, createAssignmentRule, updateAssignmentRule, deleteAssignmentRule, getSalespersonsCapacities, balanceSalespersonsCapacities } from '../controllers/assignmentRuleController';
@@ -46,8 +54,34 @@ import { getQuoteTemplates, createQuoteTemplate, parseReferenceDocument } from '
 import { receiveInboundEmail } from "../controllers/emailController";
 import { verifyInstagramWebhook, receiveInstagramMessage } from "../controllers/instagramController";
 import { getAccounts, getAccountById } from "../controllers/accountController";
-import { getContacts, getContactById } from "../controllers/contactController";
+import { getContacts, getContactById, createContact, updateContact } from "../controllers/contactController";
 import { getAssets, getAssetById, createAsset, updateAsset, deleteAsset } from "../controllers/assetController";
+import {
+  getFulfillments,
+  getFulfillmentById,
+  getFulfillmentByOrderId,
+  changeFulfillmentStatus,
+  updateFulfillmentItemStatus
+} from "../controllers/fulfillmentController";
+import {
+  getCampaigns,
+  getCampaignById,
+  createCampaign,
+  updateCampaign,
+  deleteCampaign,
+  createCampaignAd,
+  getCampaignLeads,
+  getCampaignOpportunities,
+  getCampaignPerformanceReport
+} from "../controllers/campaignController";
+import {
+  getLeadAttribution,
+  getLeadAttributionHistory,
+  recordManualTouch,
+  getLeadSourceAnalytics,
+  getCampaignsAnalytics,
+  getAttributionTaxonomy
+} from "../controllers/attributionController";
 
 import { getLeadSources, createLeadSource, updateLeadSource, deleteLeadSource } from "../controllers/leadSourceController";
 import { queryAiReport } from "../controllers/aiReportController";
@@ -281,7 +315,9 @@ router.get("/leads", authMiddleware, getLeads);
 router.post("/leads", authMiddleware, createLead);
 router.get("/leads/:id", authMiddleware, getLead);
 router.put("/leads/:id", authMiddleware, updateLead);
+router.patch("/leads/:id", authMiddleware, updateLead);
 router.post("/leads/:id/convert", authMiddleware, convertLead);
+router.post("/leads/:id/not-converted", authMiddleware, markLeadNotConverted);
 router.post("/leads/:id/temperature", authMiddleware, updateTemperature);
 router.post("/leads/:id/temperature/unlock", authMiddleware, unlockTemperature);
 router.delete("/leads/:id", authMiddleware, deleteLead);
@@ -292,11 +328,24 @@ router.get("/leads/:id/deal-for-quote", authMiddleware, getLeadDealForQuote);
 router.get("/leads/:id/contacts", authMiddleware, getLeadContacts);
 router.put("/leads/:id/clear-unread", authMiddleware, clearUnreadCount);
 
-
+// ==========================================
+// OPPORTUNITIES / DEALS
+// ==========================================
 router.get("/deals", authMiddleware, getDeals);
+router.get("/opportunities", authMiddleware, getOpportunities);
+router.get("/opportunities/:id", authMiddleware, getOpportunityById);
+router.post("/opportunities", authMiddleware, createOpportunity);
+router.put("/opportunities/:id", authMiddleware, updateOpportunity);
+router.patch("/opportunities/:id", authMiddleware, updateOpportunity);
+router.post("/opportunities/:id/stage", authMiddleware, moveOpportunityStage);
+router.post("/opportunities/:id/convert-from-lead", authMiddleware, convertLead);
+router.get("/opportunities/:id/quotes", authMiddleware, getOpportunityQuotes);
+router.post("/opportunities/:id/quotes", authMiddleware, createOpportunityQuote);
+
 router.get("/pipeline", authMiddleware, getPipeline);
 router.post("/pipeline/deals", authMiddleware, createDeal);
 router.put("/pipeline/deals/:id/stage", authMiddleware, moveDealStage);
+router.post("/pipeline/validate-transition", authMiddleware, validateTransition);
 
 // ==========================================
 // QUOTES
@@ -308,7 +357,12 @@ router.get("/quotes/history/client/:leadId", getQuoteHistoryByClient);
 router.get("/quotes/history/similar/:productId", authMiddleware, getSimilarQuotesStats);
 router.get("/quotes", authMiddleware, getQuotes);
 router.post("/quotes", authMiddleware, createQuote);
+router.get("/quotes/:id", authMiddleware, getQuoteById);
+router.put("/quotes/:id", authMiddleware, updateQuote);
+router.patch("/quotes/:id", authMiddleware, updateQuote);
+router.post("/quotes/:id/create-revision", authMiddleware, createQuoteRevision);
 router.post("/quotes/:id/send", authMiddleware, sendQuote);
+router.post("/quotes/:id/accept", authMiddleware, acceptQuote);
 router.get("/quotes/:id/pdf", authMiddleware, generateQuotePdf);
 
 // ==========================================
@@ -322,18 +376,36 @@ router.get("/invoices/:id/pdf", authMiddleware, generateInvoicePdf);
 // ==========================================
 // PRICE BOOK
 // ==========================================
+router.get("/price-book/categories", authMiddleware, getCatalogCategories);
+router.get("/price-book/uoms", authMiddleware, getCatalogUoms);
 router.get("/price-book", authMiddleware, getPriceBookEntries);
 router.post("/price-book", authMiddleware, createPriceBookEntry);
 router.post("/price-book/import-preview", authMiddleware, importPriceBookEntriesPreview);
 router.post("/price-book/import", authMiddleware, importPriceBookEntries);
 router.get("/price-book/suggest/:id", authMiddleware, getPriceSuggestion);
 router.put("/price-book/:id", authMiddleware, updatePriceBookEntry);
+router.delete("/price-book/:id", authMiddleware, deletePriceBookEntry);
+
 // ==========================================
-// PURCHASE ORDERS
+// ORDERS / PURCHASE ORDERS
 // ==========================================
+router.get("/orders", authMiddleware, getPurchaseOrders);
+router.get("/orders/:id", authMiddleware, getOrderById);
+router.post("/orders/from-quote/:quoteId", authMiddleware, createOrderFromQuote);
+router.post("/orders", authMiddleware, createPurchaseOrder);
 router.get("/purchase-orders", authMiddleware, getPurchaseOrders);
 router.post("/purchase-orders", authMiddleware, createPurchaseOrder);
 router.put("/purchase-orders/:id", authMiddleware, updatePurchaseOrder);
+router.get("/orders/:id/fulfillment", authMiddleware, getFulfillmentByOrderId);
+
+// ==========================================
+// SUPPLY & FULFILLMENT
+// ==========================================
+router.get("/fulfillments", authMiddleware, getFulfillments);
+router.get("/fulfillments/:id", authMiddleware, getFulfillmentById);
+router.patch("/fulfillments/:id/status", authMiddleware, changeFulfillmentStatus);
+router.put("/fulfillments/:id/status", authMiddleware, changeFulfillmentStatus);
+router.patch("/fulfillments/items/:itemId", authMiddleware, updateFulfillmentItemStatus);
 
 // ==========================================
 // APPROVALS
@@ -466,6 +538,8 @@ router.get("/accounts/:id", authMiddleware, getAccountById);
 // Contacts
 router.get("/contacts", authMiddleware, getContacts);
 router.get("/contacts/:id", authMiddleware, getContactById);
+router.post("/contacts", authMiddleware, createContact);
+router.put("/contacts/:id", authMiddleware, updateContact);
 
 // ==========================================
 // ASSETS / EQUIPMENT TRACKING
@@ -539,6 +613,17 @@ router.put("/automations/:id", authMiddleware, updateAutomationRule);
 router.delete("/automations/:id", authMiddleware, deleteAutomationRule);
 
 // ==========================================
+// ACTIVITIES & TIMELINE
+// ==========================================
+router.get("/activities", authMiddleware, getLeadActivities);
+router.post("/activities", authMiddleware, createActivity);
+router.get("/leads/:leadId/activities", authMiddleware, getLeadActivities);
+router.post("/leads/:leadId/activities", authMiddleware, createActivity);
+router.put("/activities/:id/pin", authMiddleware, togglePinActivity);
+router.put("/activities/:id/complete", authMiddleware, completeTask);
+router.get("/activities/overdue", authMiddleware, getOverdueTasks);
+
+// ==========================================
 // TELEPHONY (TWILIO CLICK-TO-CALL)
 // ==========================================
 router.get("/telephony/status", authMiddleware, getTelephonyStatus);
@@ -567,5 +652,26 @@ router.get("/dashboard/quote-expiry", authMiddleware, getQuoteExpiry);
 router.get("/dashboard/top-accounts", authMiddleware, getTopAccounts);
 router.get("/dashboard/customer-birthdays", authMiddleware, getCustomerBirthdays);
 router.get("/dashboard/win-celebrations", authMiddleware, getWinCelebrations);
+
+// ==========================================
+// PHASE 5: CAMPAIGNS & ATTRIBUTION
+// ==========================================
+router.get("/campaigns", authMiddleware, getCampaigns);
+router.get("/campaigns/:id", authMiddleware, getCampaignById);
+router.post("/campaigns", authMiddleware, createCampaign);
+router.patch("/campaigns/:id", authMiddleware, updateCampaign);
+router.delete("/campaigns/:id", authMiddleware, deleteCampaign);
+router.post("/campaigns/:id/ads", authMiddleware, createCampaignAd);
+router.get("/campaigns/:id/leads", authMiddleware, getCampaignLeads);
+router.get("/campaigns/:id/opportunities", authMiddleware, getCampaignOpportunities);
+router.get("/campaigns/:id/performance", authMiddleware, getCampaignPerformanceReport);
+
+router.get("/leads/:id/attribution", authMiddleware, getLeadAttribution);
+router.get("/leads/:id/attribution-history", authMiddleware, getLeadAttributionHistory);
+router.post("/leads/:id/attribution", authMiddleware, recordManualTouch);
+
+router.get("/lead-sources/taxonomy", authMiddleware, getAttributionTaxonomy);
+router.get("/analytics/lead-sources", authMiddleware, getLeadSourceAnalytics);
+router.get("/analytics/campaigns", authMiddleware, getCampaignsAnalytics);
 
 export default router;

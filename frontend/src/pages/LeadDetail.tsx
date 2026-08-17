@@ -13,6 +13,7 @@ import { formatCurrency } from "../utils/currency";
 import { formatDistanceToNow } from "date-fns";
 import { CommentThreadSection } from "../components/CommentThreadSection";
 import { QualificationDrawer } from "../components/QualificationDrawer";
+import { LeadConversionModal } from "../components/LeadConversionModal";
 
 export default function LeadDetail() {
   const { id } = useParams();
@@ -33,6 +34,7 @@ export default function LeadDetail() {
   const [newAssigneeId, setNewAssigneeId] = useState("");
   const [reassignReason, setReassignReason] = useState("");
   const [isConverting, setIsConverting] = useState(false);
+  const [isConversionModalOpen, setIsConversionModalOpen] = useState(false);
 
   // Quick Action Modal States
   const [activeModal, setActiveModal] = useState<string | null>(null);
@@ -66,23 +68,8 @@ export default function LeadDetail() {
   const [docName, setDocName] = useState("");
   const [docType, setDocType] = useState("PDF");
 
-  const handleConvertToQuotation = async () => {
-    if (!lead) return;
-    setIsConverting(true);
-    try {
-      const res = await fetch(`/api/v1/leads/${lead.id}/deal-for-quote`, {
-        headers: { "Authorization": `Bearer ${token}` }
-      });
-      if (!res.ok) {
-        throw new Error(await res.text() || "Failed to get or create deal.");
-      }
-      const deal = await res.json();
-      navigate(`/quotes/new?dealId=${deal.id}`);
-    } catch (err: any) {
-      alert("Error: " + err.message);
-    } finally {
-      setIsConverting(false);
-    }
+  const handleOpenConversionModal = () => {
+    setIsConversionModalOpen(true);
   };
 
   // Queries
@@ -506,18 +493,17 @@ export default function LeadDetail() {
           >
             <Phone className="w-4 h-4 text-emerald-600" /> Log Call
           </button>
-          {lead.status !== "Won" && lead.status !== "Lost" ? (
+          {lead.status !== "CONVERTED" && lead.status !== "NOT_CONVERTED" && lead.status !== "Won" && lead.status !== "Lost" ? (
             <button 
-              onClick={handleConvertToQuotation}
-              disabled={isConverting}
-              className="px-5 py-2.5 bg-primary text-white font-bold text-xs rounded-lg shadow hover:opacity-90 active:scale-95 transition-all flex items-center gap-2 disabled:opacity-50"
+              onClick={handleOpenConversionModal}
+              className="px-5 py-2.5 bg-primary text-white font-bold text-xs rounded-lg shadow hover:opacity-90 active:scale-95 transition-all flex items-center gap-2"
             >
-              {isConverting && <Loader2 className="w-4 h-4 animate-spin" />}
-              Generate Proposal / Quote
+              <Target className="w-4 h-4" />
+              Convert Lead
             </button>
           ) : (
             <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5">
-              <CheckCircle2 className="w-4 h-4" /> Closed ({lead.status})
+              <CheckCircle2 className="w-4 h-4" /> {lead.status === "CONVERTED" || lead.status === "Won" ? "Converted" : "Not Converted"}
             </span>
           )}
         </div>
@@ -531,7 +517,7 @@ export default function LeadDetail() {
           <div className="flex flex-wrap items-center gap-2">
             <span className="px-3 py-1 bg-indigo-500/20 border border-indigo-400/30 rounded-full text-[11px] font-black uppercase tracking-wider text-indigo-300 flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-              Stage: {lead.status || "New"}
+              Stage: {lead.status || "NEW"}
             </span>
 
             <span className="px-3 py-1 bg-emerald-500/20 border border-emerald-400/30 rounded-full text-[11px] font-bold text-emerald-300 flex items-center gap-1.5">
@@ -548,16 +534,14 @@ export default function LeadDetail() {
 
           <div>
             <h3 className="text-2xl font-extrabold tracking-tight text-white flex items-center gap-2">
-              Next Action: {lead.nextAction || (lead.status === "New" ? "Reply to Lead" : lead.status === "Contacted" ? "Qualify Lead" : "Prepare Quote")}
+              Next Action: {lead.nextAction || ((lead.status === "NEW" || lead.status === "New") ? "Reply to Lead" : (lead.status === "CONTACTED" || lead.status === "Contacted") ? "Qualify Lead" : "Prepare Quote")}
             </h3>
             <p className="text-xs text-slate-300 mt-1 leading-relaxed">
-              {lead.status === "New" && "Lead has been ingested and assigned. Send initial reply via WhatsApp or Email to move to Contacted."}
-              {lead.status === "Contacted" && "Lead responded. Open the Qualification Drawer to record requirement, budget, and timeline."}
-              {lead.status === "Qualified" && "Lead is qualified! Opportunity auto-created. Generate formal quotation for client approval."}
-              {(lead.status === "Proposal" || lead.status === "Quote Sent") && "Quotation has been submitted. Follow up on client review or discuss pricing."}
-              {lead.status === "Negotiation" && "Client requested pricing discussion. Finalize discount terms to close deal."}
-              {lead.status === "Won" && "Deal is Closed Won! Create invoice to initiate billing and delivery."}
-              {lead.status === "Lost" && "Deal is Closed Lost. Review loss reason category."}
+              {(lead.status === "NEW" || lead.status === "New") && "Lead has been ingested and assigned. Send initial reply via WhatsApp or Email to move to Contacted."}
+              {(lead.status === "CONTACTED" || lead.status === "Contacted") && "Lead responded. Open the Qualification Drawer to record requirement, budget, and timeline."}
+              {(lead.status === "QUALIFIED" || lead.status === "Qualified") && "Lead is qualified! Opportunity auto-created. Generate formal quotation for client approval."}
+              {(lead.status === "CONVERTED" || lead.status === "Won") && "Lead successfully converted to Account & Opportunity! Track deal progression in Pipeline."}
+              {(lead.status === "NOT_CONVERTED" || lead.status === "Lost") && "Lead not converted. Review reasons and re-engage if appropriate."}
             </p>
           </div>
 
@@ -579,7 +563,7 @@ export default function LeadDetail() {
 
         {/* DOMINANT SINGLE PRIMARY CTA ACTION BUTTON */}
         <div className="shrink-0 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-          {(lead.status === "New" || lead.status === "New Lead") && (
+          {(lead.status === "NEW" || lead.status === "New" || lead.status === "New Lead") && (
             <button
               onClick={() => {
                 if (isWhatsAppRelevant) {
@@ -597,7 +581,7 @@ export default function LeadDetail() {
             </button>
           )}
 
-          {lead.status === "Contacted" && (
+          {(lead.status === "CONTACTED" || lead.status === "Contacted") && (
             <button
               onClick={() => setIsQualifyDrawerOpen(true)}
               className="px-8 py-4 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-extrabold text-sm rounded-2xl shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
@@ -607,49 +591,28 @@ export default function LeadDetail() {
             </button>
           )}
 
-          {(lead.status === "Qualified" || lead.status === "Meeting/Demo") && (
+          {(lead.status === "QUALIFIED" || lead.status === "Qualified") && (
             <button
-              onClick={handleConvertToQuotation}
-              disabled={isConverting}
-              className="px-8 py-4 bg-primary hover:bg-blue-600 active:scale-95 text-white font-extrabold text-sm rounded-2xl shadow-lg shadow-blue-500/30 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-            >
-              {isConverting ? <Loader2 className="w-5 h-5 animate-spin" /> : <FileText className="w-5 h-5" />}
-              <span>📄 Prepare Formal Quote</span>
-            </button>
-          )}
-
-          {(lead.status === "Proposal" || lead.status === "Quote Sent") && (
-            <button
-              onClick={() => setActiveModal("email")}
-              className="px-8 py-4 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-extrabold text-sm rounded-2xl shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <Send className="w-5 h-5" />
-              <span>🚀 Follow Up on Quote</span>
-            </button>
-          )}
-
-          {lead.status === "Negotiation" && (
-            <button
-              onClick={() => handleConvertToQuotation()}
-              className="px-8 py-4 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-extrabold text-sm rounded-2xl shadow-lg shadow-amber-500/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <TrendingUp className="w-5 h-5" />
-              <span>🤝 Finalize Discount & Terms</span>
-            </button>
-          )}
-
-          {lead.status === "Won" && (
-            <button
-              onClick={() => navigate("/invoices")}
+              onClick={handleOpenConversionModal}
               className="px-8 py-4 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-extrabold text-sm rounded-2xl shadow-lg shadow-emerald-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
-              <Receipt className="w-5 h-5" />
-              <span>🧾 Generate Customer Invoice</span>
+              <Target className="w-5 h-5" />
+              <span>🎯 Convert to Opportunity</span>
+            </button>
+          )}
+
+          {(lead.status === "CONVERTED" || lead.status === "Won") && (
+            <button
+              onClick={() => navigate("/pipeline")}
+              className="px-8 py-4 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-extrabold text-sm rounded-2xl shadow-lg shadow-emerald-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <TrendingUp className="w-5 h-5" />
+              <span>📊 View Opportunity Pipeline</span>
             </button>
           )}
 
           {/* Secondary Quick Qualify trigger if not qualified yet */}
-          {lead.status !== "Contacted" && lead.status !== "Qualified" && lead.status !== "Won" && (
+          {lead.status !== "CONTACTED" && lead.status !== "Contacted" && lead.status !== "QUALIFIED" && lead.status !== "Qualified" && lead.status !== "CONVERTED" && lead.status !== "Won" && (
             <button
               onClick={() => setIsQualifyDrawerOpen(true)}
               className="px-4 py-3 bg-white/10 hover:bg-white/20 text-slate-200 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5"
@@ -661,34 +624,46 @@ export default function LeadDetail() {
         </div>
       </div>
 
-      {/* Standard Pipeline Stage Progression Ribbon */}
+      {/* Standard Lead Stage Progression Ribbon */}
       <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-5 shadow-sm space-y-3">
         <div className="flex items-center justify-between">
           <span className="text-xs font-bold uppercase tracking-wider text-on-surface-variant flex items-center gap-1.5">
-            <TrendingUp className="w-4 h-4 text-primary" /> Pipeline Progression Stage
+            <TrendingUp className="w-4 h-4 text-primary" /> Lead Lifecycle Stage
           </span>
           <select 
-            value={lead.status || "New"}
+            value={lead.status || "NEW"}
             onChange={(e) => updateStatusMutation.mutate(e.target.value)}
             className="bg-surface border border-outline rounded-lg px-3 py-1.5 text-xs font-bold focus:ring-primary cursor-pointer"
           >
-            {["New", "Contacted", "Qualified", "Proposal", "Negotiation", "Won", "Lost"].map(st => (
-              <option key={st} value={st}>{st}</option>
+            {[
+              { key: "NEW", label: "New" },
+              { key: "CONTACTED", label: "Contacted" },
+              { key: "QUALIFIED", label: "Qualified" },
+              { key: "CONVERTED", label: "Converted" },
+              { key: "NOT_CONVERTED", label: "Not Converted" }
+            ].map(st => (
+              <option key={st.key} value={st.key}>{st.label}</option>
             ))}
           </select>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2 pt-1">
-          {["New", "Contacted", "Qualified", "Proposal", "Negotiation", "Won", "Lost"].map((stageName, idx) => {
-            const pipelineStages = ["New", "Contacted", "Qualified", "Proposal", "Negotiation", "Won", "Lost"];
-            const currentIdx = pipelineStages.indexOf(lead.status || "New");
-            const isCurrent = lead.status === stageName;
-            const isPast = currentIdx > idx;
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-1">
+          {[
+            { key: "NEW", label: "New" },
+            { key: "CONTACTED", label: "Contacted" },
+            { key: "QUALIFIED", label: "Qualified" },
+            { key: "CONVERTED", label: "Converted" },
+            { key: "NOT_CONVERTED", label: "Not Converted" }
+          ].map((stage, idx) => {
+            const leadStageKeys = ["NEW", "CONTACTED", "QUALIFIED", "CONVERTED", "NOT_CONVERTED"];
+            const currentIdx = leadStageKeys.indexOf((lead.status || "NEW").toUpperCase());
+            const isCurrent = (lead.status || "NEW").toUpperCase() === stage.key;
+            const isPast = currentIdx > idx && stage.key !== "NOT_CONVERTED";
 
             return (
               <button 
-                key={stageName}
-                onClick={() => updateStatusMutation.mutate(stageName)}
+                key={stage.key}
+                onClick={() => updateStatusMutation.mutate(stage.key)}
                 className={`py-3 px-3 rounded-xl border text-center text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                   isCurrent
                     ? "bg-primary text-white border-primary shadow-md scale-102"
@@ -704,7 +679,7 @@ export default function LeadDetail() {
                 ) : (
                   <Clock className="w-3.5 h-3.5 opacity-40 text-slate-400" />
                 )}
-                <span>{stageName}</span>
+                <span>{stage.label}</span>
               </button>
             );
           })}
@@ -1411,11 +1386,11 @@ export default function LeadDetail() {
                 Last activity logged: {activities.length > 0 ? "Recently" : "None yet"}
               </span>
               <button
-                onClick={handleConvertToQuotation}
+                onClick={handleOpenConversionModal}
                 className="px-3.5 py-1.5 bg-primary text-white text-xs font-bold rounded-xl shadow-2xs hover:opacity-90 transition-all flex items-center gap-1.5"
               >
-                <FileText className="w-3.5 h-3.5" />
-                <span>Create Quotation Now</span>
+                <Target className="w-3.5 h-3.5" />
+                <span>Convert to Opportunity</span>
               </button>
             </div>
           </div>
@@ -1499,11 +1474,11 @@ export default function LeadDetail() {
               </button>
 
               <button 
-                onClick={handleConvertToQuotation}
+                onClick={handleOpenConversionModal}
                 className="p-3 bg-surface hover:bg-surface-container border border-outline-variant rounded-xl font-bold text-on-surface flex flex-col items-center gap-1.5 transition-all group"
               >
-                <FileText className="w-5 h-5 text-indigo-600 group-hover:scale-110 transition-transform" />
-                <span>Quote</span>
+                <Target className="w-5 h-5 text-indigo-600 group-hover:scale-110 transition-transform" />
+                <span>Convert</span>
               </button>
             </div>
           </div>
@@ -1771,6 +1746,18 @@ export default function LeadDetail() {
           queryClient.invalidateQueries({ queryKey: ["leadActivities", id] });
         }}
       />
+
+      {/* Structured Lead Conversion Modal */}
+      {lead && (
+        <LeadConversionModal
+          isOpen={isConversionModalOpen}
+          onClose={() => setIsConversionModalOpen(false)}
+          lead={lead}
+          onConverted={() => {
+            queryClient.invalidateQueries({ queryKey: ["lead", id] });
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -47,7 +47,8 @@ export default function AssetTracking() {
 
       const res = await apiClient(`/api/v1/assets?${query.toString()}`);
       if (!res.ok) throw new Error("Failed to fetch assets");
-      return res.json();
+      const result = await res.json();
+      return Array.isArray(result) ? result : (result.data || []);
     }
   });
 

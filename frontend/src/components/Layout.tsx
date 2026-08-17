@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { CommandPalette } from "./CommandPalette";
+import { GlobalSearchModal } from "./GlobalSearchModal";
 import { NotificationDrawer } from "./NotificationDrawer";
 import { QuickActionFab } from "./QuickActionFab";
 import { AiCopilotDrawer } from "./AiCopilotDrawer";
@@ -141,7 +142,7 @@ export function Layout() {
         </div>
 
         {/* MODALS & DRAWERS */}
-        <CommandPalette isOpen={isCommandPaletteOpen} onClose={() => setIsCommandPaletteOpen(false)} />
+        <GlobalSearchModal isOpen={isCommandPaletteOpen} onClose={() => setIsCommandPaletteOpen(false)} />
         <NotificationDrawer isOpen={isNotificationsOpen} onClose={() => setIsNotificationsOpen(false)} />
         <AiCopilotDrawer isOpen={isAiCopilotOpen} onClose={() => setIsAiCopilotOpen(false)} />
         <QuickActionFab />

@@ -74,9 +74,9 @@ async function seedEnterpriseDatabase() {
       }));
     }
 
-    // Pipeline Stages matching database ENUM: ENUM("New", "Contacted", "Qualified", "Meeting/Demo", "Proposal", "Negotiation", "Won", "Lost", "On Hold")
-    const stageNames = ["Qualified", "Meeting/Demo", "Proposal", "Negotiation", "Won", "Lost"];
-    const stageProbabilities = [20, 40, 60, 80, 100, 0];
+    // Pipeline Stages for Opportunities
+    const stageNames = ["Discovery", "Requirements", "Solution/Scope", "Quote Preparation", "Quote Sent", "Negotiation", "Agreed", "Won", "Lost"];
+    const stageProbabilities = [10, 20, 40, 60, 70, 80, 90, 100, 0];
     const seededStages: any[] = [];
     for (let i = 0; i < stageNames.length; i++) {
       seededStages.push(await models.PipelineStage.create({
@@ -327,7 +327,7 @@ async function seedEnterpriseDatabase() {
     // ==========================================
     console.log("Seeding 500 Enterprise Leads with detailed tracking history...");
 
-    const leadStatuses = ["New", "Contacted", "Qualified", "Meeting Scheduled", "Proposal Sent", "Unqualified"];
+    const leadStatuses = ["NEW", "CONTACTED", "QUALIFIED", "CONVERTED", "NOT_CONVERTED"];
     const campaigns = ["Q1 Enterprise Tech Expo", "Cloud Transformation Webinar", "Executive CXO Summit", "Inbound Google Organic", "LinkedIn Account Based Marketing", "Direct Executive Outreach"];
 
     const seededLeads: any[] = [];
@@ -350,7 +350,7 @@ async function seedEnterpriseDatabase() {
         company: i === 0 ? "Sharma Global Enterprises" : comp.name,
         email: i === 0 ? "rahul.sharma@sharmaglobal.com" : `${fn.toLowerCase()}.${ln.toLowerCase()}@${comp.name.toLowerCase().replace(/[^a-z]/g, "")}.com`,
         phone: i === 0 ? "+919632217484" : `+1 (${randomInt(200, 999)}) ${randomInt(100, 999)}-${randomInt(1000, 9999)}`,
-        status: status === "Meeting Scheduled" ? "Contacted" : status === "Proposal Sent" ? "Qualified" : status,
+        status,
         source: isWa ? "WhatsApp Inbound" : src.name,
         industry: comp.industry,
         assignedToId: rep.id,
@@ -360,6 +360,7 @@ async function seedEnterpriseDatabase() {
         isStrategic: i % 7 === 0,
         unreadWhatsappCount: isWa ? randomInt(1, 3) : 0,
         lastWhatsappAt: isWa ? daysAgo(randomInt(0, 2)) : null,
+        accountId: comp.id,
         customerId: comp.id,
         createdAt: created,
         updatedAt: daysAgo(randomInt(0, 4))
@@ -369,9 +370,9 @@ async function seedEnterpriseDatabase() {
     }
 
     // ==========================================
-    // 6. DEALS & PIPELINE: 200 Deals Across All 8 Stages
+    // 6. DEALS & PIPELINE: 200 Deals Across All 9 Stages
     // ==========================================
-    console.log("Seeding Deals & Pipeline across all 8 stages...");
+    console.log("Seeding Deals & Pipeline across all 9 stages...");
 
     const dealNames = [
       "Enterprise Cloud Migration & Data Suite", "Global Multi-Site ERP Integration", "Predictive Analytics & AI Deployment",
@@ -389,7 +390,7 @@ async function seedEnterpriseDatabase() {
       const rep = pick(repsOnly);
       const amount = randomInt(40, 450) * 1000;
       const created = daysAgo(randomInt(10, 300));
-      const expectedClose = stage.name === "Closed Won" ? daysAgo(randomInt(5, 180)) : daysFromNow(randomInt(10, 90));
+      const expectedClose = stage.name === "Won" ? daysAgo(randomInt(5, 180)) : daysFromNow(randomInt(10, 90));
 
       const dealRecord = await models.Deal.create({
         id: crypto.randomUUID(),
@@ -398,6 +399,7 @@ async function seedEnterpriseDatabase() {
         expectedCloseDate: expectedClose,
         stageId: stage.id,
         leadId: lead.id,
+        accountId: comp.id,
         customerId: comp.id,
         ownerId: rep.id,
         probability: stage.probability,

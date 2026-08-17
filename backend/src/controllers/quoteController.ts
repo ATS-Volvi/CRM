@@ -146,35 +146,47 @@ export const createQuote = async (req: Request, res: Response) => {
     });
     const isStrategic = deal && (deal as any).lead && (deal as any).lead.isStrategic;
 
-    // Verify items and check pricing limits
-    const verifiedItems = [];
+    // Verify items and calculate totals
+    const verifiedItems: any[] = [];
     const userId = (req as any).user?.id || "mock-user";
 
     if (items && items.length > 0) {
       for (const item of items) {
-        const product = await sequelize.models.PriceBookEntry.findByPk(item.productId);
-        if (!product) {
-          return res.status(400).json({ error: `Product with ID ${item.productId} not found.` });
+        const isCustom = !!item.isCustom;
+        let product: any = null;
+        const catalogId = item.catalogItemId || item.productId;
+
+        if (!isCustom && catalogId) {
+          product = await sequelize.models.PriceBookEntry.findByPk(catalogId);
         }
 
-        const listPrice = Number((product as any).unitPrice);
-        const floorPrice = (product as any).minPrice !== null ? Number((product as any).minPrice) : null;
-        const requestedPrice = Number(item.unitPrice);
+        const requestedPrice = Number(item.unitPrice || 0);
+        const minSellingPrice = product?.minSellingPrice ? Number(product.minSellingPrice) : (product?.minPrice ? Number(product.minPrice) : null);
+        const qty = Number(item.quantity || 1);
+        const discountPct = Number(item.discount || 0);
+        const taxPct = Number(item.tax || 0);
 
-        // Enforce hard floor price check
-        if (floorPrice !== null && requestedPrice < floorPrice) {
-          return res.status(400).json({ 
-            error: `Hard limit violation: Price for product '${(product as any).name}' ($${requestedPrice}) is below the floor price limit ($${floorPrice}).` 
-          });
-        }
+        // Pre-tax line price after discount
+        const lineSubtotal = qty * requestedPrice * (1 - discountPct / 100);
+        const lineTaxAmount = lineSubtotal * (taxPct / 100);
+        const lineTotal = lineSubtotal + lineTaxAmount;
 
         verifiedItems.push({
           id: require('crypto').randomUUID(),
-          productId: item.productId,
-          quantity: item.quantity,
+          productId: catalogId || null,
+          catalogItemId: catalogId || null,
+          quantity: qty,
           unitPrice: requestedPrice,
-          totalPrice: item.quantity * requestedPrice,
-          isOptional: item.isOptional || false
+          discount: discountPct,
+          tax: taxPct,
+          totalPrice: parseFloat(lineSubtotal.toFixed(2)),
+          totalAmount: parseFloat(lineTotal.toFixed(2)),
+          isOptional: item.isOptional || false,
+          isCustom,
+          customDescription: isCustom ? (item.customDescription || item.description || item.nameOverride || "Custom Line Item") : null,
+          description: item.description || item.nameOverride || product?.name || null,
+          internalCostSnapshot: product?.internalCost ? Number(product.internalCost) : null,
+          belowFloorPrice: minSellingPrice !== null && requestedPrice < minSellingPrice
         });
       }
     }
@@ -1037,4 +1049,156 @@ export const getSimilarClientQuotes = async (req: Request, res: Response) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+export const getQuoteById = async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const quote = await sequelize.models.Quote.findByPk(id, {
+      include: [
+        { model: sequelize.models.QuoteLineItem, as: "QuoteLineItems", include: [{ model: sequelize.models.PriceBookEntry, as: "product" }] },
+        {
+          model: sequelize.models.Deal,
+          as: "deal",
+          include: [
+            { model: sequelize.models.Account, as: "account" },
+            { model: sequelize.models.Lead, as: "lead" },
+            { model: sequelize.models.User, as: "owner" }
+          ]
+        }
+      ]
+    });
+    if (!quote) return res.status(404).json({ error: "Quote not found" });
+    res.json(quote);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const getOpportunityQuotes = async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const quotes = await sequelize.models.Quote.findAll({
+      where: { dealId: id },
+      include: [
+        { model: sequelize.models.QuoteLineItem, as: "QuoteLineItems", include: [{ model: sequelize.models.PriceBookEntry, as: "product" }] }
+      ],
+      order: [["version", "ASC"], ["createdAt", "ASC"]]
+    });
+    res.json(quotes);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const createOpportunityQuote = async (req: Request, res: Response) => {
+  req.body.dealId = String(req.params.id);
+  return createQuote(req, res);
+};
+
+export const createQuoteRevision = async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const { items, notes, discountOverride } = req.body;
+
+    const parentQuote = await sequelize.models.Quote.findByPk(id, {
+      include: [{ model: sequelize.models.QuoteLineItem, as: "QuoteLineItems" }]
+    });
+
+    if (!parentQuote) return res.status(404).json({ error: "Parent quote not found" });
+    const p = parentQuote as any;
+
+    if (p.status === "Cancelled") {
+      return res.status(400).json({ error: "Cannot create a revision from a cancelled quote." });
+    }
+
+    // Mark previous quote as Superseded
+    await p.update({ status: "Superseded" });
+
+    // Build items: either use payload items or clone from parent
+    const revisionItems = (items && Array.isArray(items) && items.length > 0)
+      ? items
+      : (p.QuoteLineItems || []).map((li: any) => ({
+          productId: li.productId,
+          catalogItemId: li.catalogItemId || li.productId,
+          quantity: li.quantity,
+          unitPrice: li.unitPrice,
+          discount: discountOverride !== undefined ? discountOverride : li.discount,
+          tax: li.tax,
+          description: li.description,
+          isOptional: li.isOptional
+        }));
+
+    req.body = {
+      dealId: p.dealId,
+      parentQuoteId: p.id,
+      items: revisionItems,
+      status: "Draft",
+      notes: notes || `Revision of ${p.quoteNumber} v${p.version}`
+    };
+
+    return createQuote(req, res);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const acceptQuote = async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const { Op } = require("sequelize");
+    const quote = await sequelize.models.Quote.findByPk(id);
+    if (!quote) return res.status(404).json({ error: "Quote not found" });
+    const q = quote as any;
+
+    if (q.status === "Superseded") {
+      return res.status(400).json({ error: "Cannot accept a superseded quote revision." });
+    }
+    if (q.status === "Cancelled") {
+      return res.status(400).json({ error: "Cannot accept a cancelled quote." });
+    }
+
+    // Enforce only one Final Agreed Quote per Opportunity: Mark all other quotes for this deal as Superseded
+    await sequelize.models.Quote.update(
+      { status: "Superseded" },
+      { where: { dealId: q.dealId, id: { [Op.ne]: id } } }
+    );
+
+    // Accept this quote
+    await q.update({
+      status: "Accepted",
+      acceptedAt: new Date(),
+      statusChangedAt: new Date()
+    });
+
+    // Advance Opportunity Stage to Agreed or Won
+    if (q.dealId) {
+      const deal = await sequelize.models.Deal.findByPk(q.dealId);
+      if (deal) {
+        const agreedStage = await sequelize.models.PipelineStage.findOne({ where: { name: "Agreed" } })
+          || await sequelize.models.PipelineStage.findOne({ where: { name: "Won" } });
+        if (agreedStage) {
+          await deal.update({ stageId: (agreedStage as any).id });
+        }
+      }
+    }
+
+    // Log universal activity
+    await sequelize.models.Activity.create({
+      id: require("crypto").randomUUID(),
+      leadId: null,
+      customerId: (quote as any).accountId || null,
+      type: "note",
+      outcome: `Quote ${q.quoteNumber || q.id} (v${q.version}) Accepted as Final Agreed Quote`,
+      mentioned_user_ids: "[]",
+      pinned: true,
+      createdById: (req as any).user?.id || "mock-user",
+      direction: "internal"
+    });
+
+    res.json({ message: "Quote accepted as final agreed quote", quote: q });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 

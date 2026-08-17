@@ -1,724 +1,291 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useMemo } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
-import { formatCurrency } from "../utils/currency";
-import { StandardTable } from "../components/StandardTable";
-import { LeadBoard } from "../components/LeadBoard";
+import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import {
-  Table,
-  Kanban,
-  ChevronDown,
-  ChevronRight,
-  Plus,
-  User,
-  Tag,
-  Calendar,
-  DollarSign,
-  Layers,
-  Check,
+  Inbox,
   Search,
-  ArrowUpDown,
-  SlidersHorizontal,
-  MessageCircle,
+  Filter,
   Phone,
-  Users
+  Mail,
+  MessageSquare,
+  Building2,
+  Calendar,
+  Flame,
+  Clock,
+  ArrowRight,
+  Sparkles,
+  AlertCircle,
+  CheckCircle2
 } from "lucide-react";
-import { RelatedInquiriesModal } from "../components/RelatedInquiriesModal";
-
-/** WhatsApp Badge: shown on any lead with communicationChannel=whatsapp or source=WhatsApp */
-function WhatsAppBadge({ lead }: { lead: any }) {
-  const isWhatsApp =
-    (lead.communicationChannel || "").toLowerCase() === "whatsapp" ||
-    (lead.source || "").toLowerCase() === "whatsapp";
-  if (!isWhatsApp) return null;
-
-  const unread = lead.unreadWhatsappCount || 0;
-  const preview = lead.body ? lead.body.slice(0, 40) + (lead.body.length > 40 ? "…" : "") : null;
-  const lastTime = lead.lastWhatsappAt
-    ? new Date(lead.lastWhatsappAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-    : null;
-
-  return (
-    <div className="flex flex-col gap-0.5 mt-1">
-      <div className="flex items-center gap-1">
-        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-emerald-50 border border-emerald-200 rounded text-[10px] font-bold text-emerald-700">
-          <MessageCircle className="w-2.5 h-2.5 fill-emerald-500 text-emerald-500" />
-          WhatsApp
-        </span>
-        {unread > 0 && (
-          <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] font-black">
-            {unread > 9 ? "9+" : unread}
-          </span>
-        )}
-        {lastTime && (
-          <span className="text-[10px] text-on-surface-variant font-medium ml-0.5">{lastTime}</span>
-        )}
-      </div>
-      {preview && (
-        <p className="text-[10px] text-on-surface-variant italic truncate max-w-[200px]">"{preview}"</p>
-      )}
-    </div>
-  );
-}
-
-
-/** Temperature Badge */
-function TemperatureBadge({ temperature }: { temperature?: string }) {
-  if (!temperature) return null;
-  const config: Record<string, { bg: string, text: string, icon: string }> = {
-    Hot: { bg: "bg-red-50 border-red-200", text: "text-red-700", icon: "🔥" },
-    Warm: { bg: "bg-amber-50 border-amber-200", text: "text-amber-700", icon: "🟡" },
-    Cold: { bg: "bg-blue-50 border-blue-200", text: "text-blue-700", icon: "🧊" }
-  };
-  const cfg = config[temperature] || config["Warm"];
-
-  return (
-    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 border rounded text-[10px] font-bold ${cfg.bg} ${cfg.text} shadow-2xs`}>
-      {cfg.icon} {temperature}
-    </span>
-  );
-}
-
-// Status Color Palette (Soft Muted Style)
-const STATUS_CONFIG: Record<string, { bg: string; text: string; bar: string; border: string; hover: string }> = {
-  New: { bg: "bg-blue-50", text: "text-blue-700", bar: "#93c5fd", border: "border-blue-200", hover: "hover:bg-blue-100/70 hover:border-blue-300" },
-  Contacted: { bg: "bg-amber-50", text: "text-amber-700", bar: "#fcd34d", border: "border-amber-200", hover: "hover:bg-amber-100/70 hover:border-amber-300" },
-  Qualified: { bg: "bg-purple-50", text: "text-purple-700", bar: "#d8b4fe", border: "border-purple-200", hover: "hover:bg-purple-100/70 hover:border-purple-300" },
-  Proposal: { bg: "bg-indigo-50", text: "text-indigo-700", bar: "#a5b4fc", border: "border-indigo-200", hover: "hover:bg-indigo-100/70 hover:border-indigo-300" },
-  Negotiation: { bg: "bg-cyan-50", text: "text-cyan-700", bar: "#67e8f9", border: "border-cyan-200", hover: "hover:bg-cyan-100/70 hover:border-cyan-300" },
-  Won: { bg: "bg-emerald-50", text: "text-emerald-700", bar: "#6ee7b7", border: "border-emerald-200", hover: "hover:bg-emerald-100/70 hover:border-emerald-300" },
-  Lost: { bg: "bg-rose-50", text: "text-rose-700", bar: "#fda4af", border: "border-rose-200", hover: "hover:bg-rose-100/70 hover:border-rose-300" },
-  "On Hold": { bg: "bg-slate-100", text: "text-slate-600", bar: "#cbd5e1", border: "border-slate-300", hover: "hover:bg-slate-200/70 hover:border-slate-400" },
-};
-
-const DEFAULT_STATUS_CONFIG = { bg: "bg-slate-100", text: "text-slate-600", bar: "#cbd5e1", border: "border-slate-300", hover: "hover:bg-slate-200/70 hover:border-slate-400" };
-
-// Avatar color helper
-function getAvatarColor(name: string) {
-  const colors = [
-    "bg-blue-600 text-white",
-    "bg-purple-600 text-white",
-    "bg-emerald-600 text-white",
-    "bg-amber-600 text-white",
-    "bg-rose-600 text-white",
-    "bg-indigo-600 text-white",
-    "bg-cyan-600 text-white",
-  ];
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  return colors[Math.abs(hash) % colors.length];
-}
-
-// Helper to get initials
-function getInitials(name?: string) {
-  if (!name || name === "Unassigned") return "UN";
-  const parts = name.trim().split(" ");
-  if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
+import { useAuth } from "../context/AuthContext";
+import { apiClient } from "../lib/apiClient";
 
 export default function LeadInbox() {
-  const { token } = useAuth();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const [filterTab, setFilterTab] = useState<"all" | "new" | "urgent" | "followup" | "overdue">("all");
+  const [search, setSearch] = useState("");
 
-  // View state: Table is now default
-  const [viewMode, setViewMode] = useState<"table" | "board">("table");
-  const [groupBy, setGroupBy] = useState<"status" | "owner">("status");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [channelFilter, setChannelFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [temperatureFilter, setTemperatureFilter] = useState("all");
-  const [sortBy, setSortBy] = useState<string>("newest");
-  const [showAllColumns, setShowAllColumns] = useState(false);
-  const [isViewPopoverOpen, setIsViewPopoverOpen] = useState(false);
-  const [relatedInquiriesLead, setRelatedInquiriesLead] = useState<any>(null);
+  const userRole = (user?.role || "sales_rep").toLowerCase();
+  const isSalesRep = userRole === "sales_rep" || userRole === "salesperson";
+  const isTeamLead = userRole === "team_lead" || userRole === "sales_manager";
 
-  // Inline Editing Dropdown States
-  const [editingStatusId, setEditingStatusId] = useState<string | null>(null);
-  const [editingOwnerId, setEditingOwnerId] = useState<string | null>(null);
-
-  // Group collapse state
-  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
-
-  // SINGLE SHARED DATA FETCH with 15s polling for real-time WhatsApp lead updates
-  const { data: leads, isLoading } = useQuery<any[]>({
-    queryKey: ["leads"],
+  // Fetch Inbox Leads
+  const { data: leadsData, isLoading } = useQuery({
+    queryKey: ["inbox-leads", user?.id],
     queryFn: async () => {
-      const res = await fetch("/api/v1/leads", {
-        headers: { "Authorization": `Bearer ${token}` }
-      });
-      if (!res.ok) throw new Error("Failed to fetch leads");
-      return res.json();
-    },
-    enabled: !!token,
-    refetchInterval: 15000, // Poll every 15s — new WhatsApp leads appear automatically
-    refetchIntervalInBackground: false,
-  });
-
-  // Salespersons list for inline owner editing
-  const { data: salespersons } = useQuery<any[]>({
-    queryKey: ["salespersons"],
-    queryFn: async () => {
-      const res = await fetch("/api/v1/salespersons", {
-        headers: { "Authorization": `Bearer ${token}` }
-      });
-      if (!res.ok) return [];
-      return res.json();
-    },
-    enabled: !!token
-  });
-
-  // Shared Inline Lead Update Mutation (Status & Owner inline editing)
-  const updateLeadMutation = useMutation({
-    mutationFn: async ({ leadId, payload }: { leadId: string; payload: any }) => {
-      const res = await fetch(`/api/v1/leads/${leadId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
-        body: JSON.stringify(payload)
-      });
-      if (!res.ok) throw new Error("Failed to update lead");
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["leads"] });
-      setEditingStatusId(null);
-      setEditingOwnerId(null);
+      const res = await apiClient.get("/api/v1/leads?limit=100");
+      return Array.isArray(res) ? res : res?.data || [];
     }
   });
 
-  // Filtered Leads (Used by both Table and Board views)
+  const allLeads: any[] = Array.isArray(leadsData) ? leadsData : [];
+
+  // Filter for logged-in user if Sales Rep
+  const userLeads = useMemo(() => {
+    if (isSalesRep && user?.id) {
+      return allLeads.filter((l) => l.assignedToId === user.id || l.assignedTo?.id === user.id);
+    }
+    return allLeads;
+  }, [allLeads, isSalesRep, user?.id]);
+
+  // Tab Filtering
   const filteredLeads = useMemo(() => {
-    return leads?.filter((lead: any) => {
-      const numberStr = lead.leadNumber || "";
-      const nameStr = `${lead.firstName} ${lead.lastName}`.toLowerCase();
-      const companyStr = (lead.company || "").toLowerCase();
-      const sourceStr = (lead.source || "").toLowerCase();
-      const channelStr = (lead.communicationChannel || "").toLowerCase();
-      const q = searchQuery.toLowerCase();
-      const cf = channelFilter.toLowerCase();
+    let list = userLeads;
 
-      // Check channel filter first if active
-      if (cf) {
-        const hasWaContact = lead.contacts?.some((c: any) => c.sourceChannel?.toLowerCase().includes("whatsapp"));
-        const hasEmailContact = lead.contacts?.some((c: any) => c.sourceChannel?.toLowerCase().includes("email"));
-        const hasIgContact = lead.contacts?.some((c: any) => c.sourceChannel?.toLowerCase().includes("instagram") || c.sourceChannel?.toLowerCase().includes("ig"));
-        const hasWebContact = lead.contacts?.some((c: any) => c.sourceChannel?.toLowerCase().includes("web") || c.sourceChannel?.toLowerCase().includes("site"));
-        const hasColdContact = lead.contacts?.some((c: any) => c.sourceChannel?.toLowerCase().includes("cold"));
-        const hasFbContact = lead.contacts?.some((c: any) => c.sourceChannel?.toLowerCase().includes("fb") || c.sourceChannel?.toLowerCase().includes("facebook"));
-
-        if (cf === "whatsapp") {
-          const isWa = sourceStr.includes("whatsapp") || channelStr.includes("whatsapp") || (lead.unreadWhatsappCount || 0) > 0 || !!lead.lastWhatsappAt || hasWaContact;
-          if (!isWa) return false;
-        } else if (cf === "email") {
-          if (!sourceStr.includes("email") && !channelStr.includes("email") && !hasEmailContact) return false;
-        } else if (cf === "instagram") {
-          if (!sourceStr.includes("instagram") && !sourceStr.includes("ig") && !channelStr.includes("instagram") && !hasIgContact) return false;
-        } else if (cf === "website") {
-          if (!sourceStr.includes("web") && !sourceStr.includes("site") && !channelStr.includes("website") && !hasWebContact) return false;
-        } else if (cf === "cold call") {
-          if (!sourceStr.includes("cold") && !hasColdContact) return false;
-        } else if (cf === "facebook") {
-          if (!sourceStr.includes("fb") && !sourceStr.includes("facebook") && !hasFbContact) return false;
-        }
-      }
-
-      // If search box has 'whatsapp' (e.g. from user typing), match any WhatsApp lead
-      if (q === "whatsapp") {
-        return sourceStr.includes("whatsapp") || channelStr.includes("whatsapp") || (lead.unreadWhatsappCount || 0) > 0 || !!lead.lastWhatsappAt;
-      }
-
-      const matchesSearch =
-        !q || q === cf ||
-        numberStr.toLowerCase().includes(q) ||
-        nameStr.includes(q) ||
-        companyStr.includes(q) ||
-        sourceStr.includes(q) ||
-        channelStr.includes(q);
-
-      const matchesStatus = statusFilter === "all" || lead.status === statusFilter;
-      const matchesTemp = temperatureFilter === "all" || lead.temperature === temperatureFilter;
-      return matchesSearch && matchesStatus && matchesTemp;
-    })?.slice()?.sort((a: any, b: any) => {
-      // Sorting Options
-      if (sortBy === "oldest") {
-        return new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime();
-      }
-      if (sortBy === "hot_first") {
-        const tempOrder: Record<string, number> = { Hot: 3, Warm: 2, Cold: 1 };
-        const scoreA = (tempOrder[a.temperature] || 2) * 100 + (a.leadScore || 0);
-        const scoreB = (tempOrder[b.temperature] || 2) * 100 + (b.leadScore || 0);
-        return scoreB - scoreA;
-      }
-      if (sortBy === "cold_first") {
-        const tempOrder: Record<string, number> = { Hot: 3, Warm: 2, Cold: 1 };
-        const scoreA = (tempOrder[a.temperature] || 2) * 100 + (a.leadScore || 0);
-        const scoreB = (tempOrder[b.temperature] || 2) * 100 + (b.leadScore || 0);
-        return scoreA - scoreB;
-      }
-      if (sortBy === "profit_high") {
-        const valA = parseFloat(a.estimatedValue || a.dealValue || a.amount || 0);
-        const valB = parseFloat(b.estimatedValue || b.dealValue || b.amount || 0);
-        return valB - valA;
-      }
-      if (sortBy === "profit_low") {
-        const valA = parseFloat(a.estimatedValue || a.dealValue || a.amount || 0);
-        const valB = parseFloat(b.estimatedValue || b.dealValue || b.amount || 0);
-        return valA - valB;
-      }
-
-      // Default: Newest Arrival / WhatsApp unread leads first
-      if ((b.unreadWhatsappCount || 0) !== (a.unreadWhatsappCount || 0)) {
-        return (b.unreadWhatsappCount || 0) - (a.unreadWhatsappCount || 0);
-      }
-      const bTime = b.lastWhatsappAt ? new Date(b.lastWhatsappAt).getTime() : 0;
-      const aTime = a.lastWhatsappAt ? new Date(a.lastWhatsappAt).getTime() : 0;
-      if (bTime !== aTime) return bTime - aTime;
-      return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
-    }) || [];
-  }, [leads, searchQuery, channelFilter, statusFilter, temperatureFilter, sortBy]);
-
-  // Source metrics computation including WhatsApp
-  const sourceStats = useMemo(() => {
-    const counts: Record<string, number> = {
-      WhatsApp: 0,
-      Email: 0,
-      Instagram: 0,
-      "Cold Call": 0,
-      Website: 0,
-      Facebook: 0,
-      Other: 0
-    };
-
-    (leads || []).forEach((l: any) => {
-      const src = (l.source || "").toLowerCase().trim();
-      const channel = (l.communicationChannel || "").toLowerCase();
-      const hasWa = (l.unreadWhatsappCount || 0) > 0 || !!l.lastWhatsappAt;
-
-      if (src.includes("whatsapp") || channel === "whatsapp" || hasWa) counts["WhatsApp"]++;
-      else if (src.includes("email") || channel === "email") counts["Email"]++;
-      else if (src.includes("ig") || src.includes("instagram") || channel === "instagram") counts["Instagram"]++;
-      else if (src.includes("cold")) counts["Cold Call"]++;
-      else if (src.includes("web") || src.includes("site") || channel === "website") counts["Website"]++;
-      else if (src.includes("fb") || src.includes("facebook")) counts["Facebook"]++;
-      else counts["Other"]++;
-    });
-
-    return counts;
-  }, [leads]);
-
-
-  const totalValue = useMemo(() => {
-    return filteredLeads.reduce((acc: number, l: any) => acc + (Number(l.leadScore || 50) * 100), 0);
-  }, [filteredLeads]);
-
-  const hotLeadsCount = useMemo(() => {
-    return filteredLeads.filter((l: any) => (Number(l.leadScore || 50) * 100) >= 50000).length;
-  }, [filteredLeads]);
-
-  const avgScore = useMemo(() => {
-    if (filteredLeads.length === 0) return 0;
-    return Math.round(filteredLeads.reduce((acc: number, l: any) => acc + Number(l.leadScore || 50), 0) / filteredLeads.length);
-  }, [filteredLeads]);
-
-  // Grouped Leads calculation for Board View
-  const groupedLeads = useMemo(() => {
-    const groups: Record<string, any[]> = {};
-
-    if (groupBy === "status") {
-      const allStatuses = ["New", "Contacted", "Qualified", "Proposal", "Negotiation", "Won", "Lost"];
-      allStatuses.forEach(st => { groups[st] = []; });
-
-      filteredLeads.forEach((lead: any) => {
-        const status = lead.status || "New";
-        if (!groups[status]) groups[status] = [];
-        groups[status].push(lead);
-      });
-    } else {
-      groups["Unassigned"] = [];
-      if (salespersons) {
-        salespersons.forEach((sp: any) => {
-          groups[sp.name] = [];
-        });
-      }
-
-      filteredLeads.forEach((lead: any) => {
-        const ownerName = lead.assignedTo?.name || "Unassigned";
-        if (!groups[ownerName]) groups[ownerName] = [];
-        groups[ownerName].push(lead);
-      });
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter(
+        (l) =>
+          l.company?.toLowerCase().includes(q) ||
+          l.firstName?.toLowerCase().includes(q) ||
+          l.lastName?.toLowerCase().includes(q) ||
+          l.email?.toLowerCase().includes(q) ||
+          l.phone?.includes(q)
+      );
     }
 
-    return groups;
-  }, [filteredLeads, groupBy, salespersons]);
-
-  const toggleGroupCollapse = (groupKey: string) => {
-    setCollapsedGroups(prev => ({ ...prev, [groupKey]: !prev[groupKey] }));
-  };
-
-  // Table Columns Definition
-  const allColumns = [
-    {
-      key: "name",
-      header: "Client Name",
-      render: (lead: any) => (
-        <div>
-          <span className="font-bold text-foreground hover:text-primary transition-colors">
-            {lead.firstName} {lead.lastName}
-          </span>
-          <p className="text-[10px] text-muted-foreground mb-1">{lead.company || "No Company"}</p>
-          <div className="flex items-center gap-2">
-            <TemperatureBadge temperature={lead.temperature} />
-            <WhatsAppBadge lead={lead} />
-            {lead.contacts && lead.contacts.length > 0 && (
-              <button 
-                onClick={(e) => { e.stopPropagation(); setRelatedInquiriesLead(lead); }}
-                className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-muted/50 border border-border rounded text-[10px] font-bold text-muted-foreground hover:bg-muted transition-colors shadow-2xs"
-              >
-                <Users className="w-2.5 h-2.5" />
-                +{lead.contacts.length} more
-              </button>
-            )}
-          </div>
-        </div>
-      )
-    },
-    {
-      key: "status",
-      header: "Status",
-      render: (lead: any) => {
-        const cfg = STATUS_CONFIG[lead.status] || DEFAULT_STATUS_CONFIG;
-        return (
-          <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${cfg.bg} ${cfg.text} ${cfg.border} shadow-2xs`}>
-            {lead.status}
-          </span>
-        );
-      }
-    },
-    {
-      key: "nextAction",
-      header: "Next Action",
-      render: (lead: any) => {
-        const nextAct = lead.nextAction || (lead.status === "New" ? "Reply to Lead" : lead.status === "Contacted" ? "Qualify Lead" : "Prepare Quote");
-        return (
-          <div className="flex flex-col gap-0.5">
-            <span className="px-2 py-0.5 rounded-lg text-[10px] font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-200 inline-flex items-center gap-1 w-fit">
-              🎯 {nextAct}
-            </span>
-            {lead.nextActionDue && (
-              <span className="text-[10px] text-slate-500 font-medium">
-                Due {new Date(lead.nextActionDue).toLocaleDateString([], { month: "short", day: "numeric" })}
-              </span>
-            )}
-          </div>
-        );
-      }
-    },
-    {
-      key: "owner",
-      header: "Owner",
-      render: (lead: any) => lead.assignedTo?.name || "Unassigned"
-    },
-    {
-      key: "leadScore",
-      header: "Revenue Value",
-      align: "right" as const,
-      render: (lead: any) => formatCurrency((lead.leadScore || 50) * 100)
-    },
-    {
-      key: "leadNumber",
-      header: "Lead #",
-      render: (lead: any) => (
-        <span className="text-primary font-bold">
-          {lead.leadNumber || "N/A"}
-        </span>
-      )
-    },
-    {
-      key: "company",
-      header: "Company",
-      render: (lead: any) => lead.company || "N/A"
-    },
-    {
-      key: "industry",
-      header: "Pipeline / Industry",
-      render: (lead: any) => lead.industry || "General"
-    },
-    {
-      key: "createdAt",
-      header: "Last Contact Date",
-      render: (lead: any) => {
-        const wa = lead.lastWhatsappAt;
-        if (wa) return <span className="text-emerald-700 font-semibold">{new Date(wa).toLocaleDateString()}</span>;
-        return new Date(lead.createdAt).toLocaleDateString();
-      }
+    if (filterTab === "new") {
+      return list.filter((l) => l.status === "NEW" || l.status === "New");
     }
-  ];
+    if (filterTab === "urgent") {
+      return list.filter((l) => l.temperature === "Hot" || l.leadScore >= 75);
+    }
+    if (filterTab === "followup") {
+      return list.filter((l) => l.status === "CONTACTED" || l.status === "Contacted");
+    }
+    if (filterTab === "overdue") {
+      const now = new Date();
+      return list.filter((l) => l.nextActionDue && new Date(l.nextActionDue) < now && l.status !== "CONVERTED");
+    }
 
-  const columns = showAllColumns ? allColumns : allColumns.slice(0, 4);
+    return list;
+  }, [userLeads, filterTab, search]);
 
+  const newCount = userLeads.filter((l) => l.status === "NEW" || l.status === "New").length;
+  const urgentCount = userLeads.filter((l) => l.temperature === "Hot" || l.leadScore >= 75).length;
+  const followUpCount = userLeads.filter((l) => l.status === "CONTACTED" || l.status === "Contacted").length;
+  const overdueCount = userLeads.filter(
+    (l) => l.nextActionDue && new Date(l.nextActionDue) < new Date() && l.status !== "CONVERTED"
+  ).length;
 
-  const availableStatuses = ["New", "Contacted", "Qualified", "Proposal", "Negotiation", "Won", "Lost"];
+  const title = isSalesRep ? "My Inbox" : isTeamLead ? "Team Live Queue" : "Lead Intake Queue";
+  const subtitle = isSalesRep
+    ? "Your personal incoming messages, inquiries, and pending actions."
+    : "Supervise team incoming lead streams and SLA statuses.";
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto">
-      {/* HEADER BAR WITH VIEW SWITCHER */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-surface-container-lowest border border-outline-variant rounded-2xl p-5 shadow-sm">
+    <div className="p-6 space-y-5 max-w-7xl mx-auto">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200/80 pb-4">
         <div>
-          <h1 className="text-2xl font-black text-on-surface tracking-tight flex items-center gap-2">
-            Leads Workspace
+          <h1 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+            <Inbox className="w-5 h-5 text-blue-600" /> {title}
           </h1>
-          <p className="text-xs text-on-surface-variant font-medium mt-0.5">
-            Manage, track, and convert sales pipeline opportunities
-          </p>
+          <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>
         </div>
+      </div>
 
-        {/* CONTROLS RIGHT SIDE */}
-        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
-          {/* CONSOLIDATED SINGLE "VIEW" CONTROL DROPDOWN */}
-          <div className="relative">
-            <button
-              onClick={() => setIsViewPopoverOpen(!isViewPopoverOpen)}
-              className="flex items-center gap-2 bg-muted hover:bg-muted/80 border border-border text-foreground px-3.5 py-2 rounded-xl text-xs font-bold transition-all shadow-2xs"
-            >
-              <SlidersHorizontal className="w-4 h-4 text-primary" />
-              <span>{viewMode === "table" ? "Table View" : `Board (${groupBy === "status" ? "Status" : "Owner"})`}</span>
-              {statusFilter !== "all" && (
-                <span className="w-2 h-2 rounded-full bg-primary" />
-              )}
-              <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
-            </button>
-
-            {isViewPopoverOpen && (
-              <div className="absolute right-0 mt-2 w-64 bg-card border border-border rounded-2xl shadow-xl z-50 p-3 space-y-3 animate-scale-up text-xs">
-                {/* View Mode Toggle */}
-                <div>
-                  <label className="block font-bold text-muted-foreground text-[10px] uppercase tracking-wider mb-1.5">View Layout</label>
-                  <div className="grid grid-cols-2 gap-1 bg-muted p-1 rounded-xl">
-                    <button
-                      onClick={() => setViewMode("table")}
-                      className={`flex items-center justify-center gap-1.5 py-1.5 rounded-lg font-bold transition-all ${
-                        viewMode === "table" ? "bg-card text-primary shadow-xs" : "text-muted-foreground hover:text-foreground"
-                      }`}
-                    >
-                      <Table className="w-3.5 h-3.5" /> Table
-                    </button>
-                    <button
-                      onClick={() => setViewMode("board")}
-                      className={`flex items-center justify-center gap-1.5 py-1.5 rounded-lg font-bold transition-all ${
-                        viewMode === "board" ? "bg-card text-primary shadow-xs" : "text-muted-foreground hover:text-foreground"
-                      }`}
-                    >
-                      <Kanban className="w-3.5 h-3.5" /> Board
-                    </button>
-                  </div>
-                </div>
-
-                {/* Group By (in Board Mode) */}
-                {viewMode === "board" && (
-                  <div>
-                    <label className="block font-bold text-muted-foreground text-[10px] uppercase tracking-wider mb-1.5">Group Cards By</label>
-                    <div className="grid grid-cols-2 gap-1 bg-muted p-1 rounded-xl">
-                      <button
-                        onClick={() => setGroupBy("status")}
-                        className={`py-1.5 rounded-lg font-bold transition-all ${
-                          groupBy === "status" ? "bg-card text-primary shadow-xs" : "text-muted-foreground hover:text-foreground"
-                        }`}
-                      >
-                        Status
-                      </button>
-                      <button
-                        onClick={() => setGroupBy("owner")}
-                        className={`py-1.5 rounded-lg font-bold transition-all ${
-                          groupBy === "owner" ? "bg-card text-primary shadow-xs" : "text-muted-foreground hover:text-foreground"
-                        }`}
-                      >
-                        Owner
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* TEMPERATURE FILTER */}
-                <div>
-                  <label className="block font-bold text-muted-foreground text-[10px] uppercase tracking-wider mb-1.5">Filter Temperature</label>
-                  <select
-                    value={temperatureFilter}
-                    onChange={(e) => setTemperatureFilter(e.target.value)}
-                    className="w-full bg-muted border border-border rounded-xl px-3 py-1.5 text-xs font-bold text-foreground focus:outline-none"
-                  >
-                    <option value="all">All Temperatures</option>
-                    <option value="Hot">🔥 Hot</option>
-                    <option value="Warm">🟡 Warm</option>
-                    <option value="Cold">🧊 Cold</option>
-                  </select>
-                </div>
-
-                {/* Filter By Status */}
-                <div>
-                  <label className="block font-bold text-muted-foreground text-[10px] uppercase tracking-wider mb-1.5">Filter Status</label>
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="w-full bg-muted border border-border rounded-xl px-3 py-1.5 text-xs font-bold text-foreground focus:outline-none"
-                  >
-                    <option value="all">All Statuses</option>
-                    {availableStatuses.map(st => (
-                      <option key={st} value={st}>{st}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Table Columns Density Toggle (Table Mode) */}
-          {viewMode === "table" && (
-            <button
-              onClick={() => setShowAllColumns(!showAllColumns)}
-              className="flex items-center gap-1.5 bg-muted hover:bg-muted/80 text-foreground border border-border text-xs font-bold px-3 py-2 rounded-xl transition-all"
-              title="Toggle additional columns"
-            >
-              <Layers className="w-3.5 h-3.5 text-primary" />
-              <span>{showAllColumns ? "Compact Columns" : "All Columns"}</span>
-            </button>
-          )}
-
-          {/* ADD LEAD BUTTON */}
+      {/* Filter Tabs & Search Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-lg border border-slate-200 shadow-xs">
+        <div className="flex items-center gap-1.5 overflow-x-auto">
           <button
-            onClick={() => navigate("/leads/new")}
-            className="flex items-center gap-1.5 bg-primary hover:bg-primary/90 text-white text-xs font-bold px-4 py-2 rounded-xl transition-all shadow-sm hover:shadow"
+            onClick={() => setFilterTab("all")}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+              filterTab === "all"
+                ? "bg-slate-900 text-white"
+                : "text-slate-600 hover:bg-slate-100"
+            }`}
           >
-            <Plus className="w-4 h-4" />
-            <span>New Lead</span>
+            All Items ({userLeads.length})
+          </button>
+          <button
+            onClick={() => setFilterTab("new")}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+              filterTab === "new"
+                ? "bg-blue-600 text-white"
+                : "text-slate-600 hover:bg-slate-100"
+            }`}
+          >
+            <span>New</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-blue-100 text-blue-800">
+              {newCount}
+            </span>
+          </button>
+          <button
+            onClick={() => setFilterTab("urgent")}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+              filterTab === "urgent"
+                ? "bg-red-600 text-white"
+                : "text-slate-600 hover:bg-slate-100"
+            }`}
+          >
+            <Flame className="w-3.5 h-3.5" />
+            <span>Urgent</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-red-100 text-red-800">
+              {urgentCount}
+            </span>
+          </button>
+          <button
+            onClick={() => setFilterTab("followup")}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+              filterTab === "followup"
+                ? "bg-amber-600 text-white"
+                : "text-slate-600 hover:bg-slate-100"
+            }`}
+          >
+            <span>Follow-ups</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-amber-100 text-amber-800">
+              {followUpCount}
+            </span>
+          </button>
+          <button
+            onClick={() => setFilterTab("overdue")}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+              filterTab === "overdue"
+                ? "bg-rose-700 text-white"
+                : "text-slate-600 hover:bg-slate-100"
+            }`}
+          >
+            <span>Overdue</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-rose-100 text-rose-800">
+              {overdueCount}
+            </span>
           </button>
         </div>
+
+        <div className="relative w-full sm:w-64">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+          <input
+            type="text"
+            placeholder="Filter inbox items..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="enterprise-input pl-9 w-full"
+          />
+        </div>
       </div>
 
-      {/* TOP KPI SUMMARY METRICS */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-card border border-border rounded-xl p-4 shadow-2xs space-y-1">
-          <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Total Pipeline Value</span>
-          <p className="text-xl font-black text-emerald-600">{formatCurrency(totalValue)}</p>
-          <span className="text-[11px] text-muted-foreground font-semibold">{filteredLeads.length} active leads</span>
+      {/* Inbox List */}
+      {isLoading ? (
+        <div className="p-12 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
+          <span className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          Loading your inbox items...
         </div>
-        <div className="bg-card border border-border rounded-xl p-4 shadow-2xs space-y-1">
-          <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Hot Prospects (&gt;₹50k)</span>
-          <p className="text-xl font-black text-primary">{hotLeadsCount}</p>
-          <span className="text-[11px] text-muted-foreground font-semibold">High revenue priority</span>
-        </div>
-        <div className="bg-card border border-border rounded-xl p-4 shadow-2xs space-y-1">
-          <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Avg Lead Score</span>
-          <p className="text-xl font-black text-amber-600">{avgScore} / 100</p>
-          <span className="text-[11px] text-muted-foreground font-semibold">Quality index</span>
-        </div>
-        <div className="bg-card border border-border rounded-xl p-4 shadow-2xs space-y-1">
-          <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Lead Win Rate</span>
-          <p className="text-xl font-black text-purple-600">
-            {(leads || []).length > 0 ? Math.round(((leads || []).filter((l: any) => l.status === "Won").length / (leads || []).length) * 100) : 0}%
+      ) : filteredLeads.length === 0 ? (
+        <div className="enterprise-card p-12 text-center space-y-3">
+          <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto" />
+          <h3 className="text-sm font-semibold text-slate-800">No items in this queue</h3>
+          <p className="text-xs text-slate-400">
+            You are all caught up for this filter category.
           </p>
-          <span className="text-[11px] text-muted-foreground font-semibold">Conversion ratio</span>
         </div>
-      </div>
-
-      {/* LEAD SOURCE ATTRIBUTION DISTRIBUTION (EMAIL, INSTAGRAM, COLD CALL, WEBSITE, FACEBOOK) */}
-      <div className="bg-card border border-border rounded-xl p-3.5 shadow-2xs flex flex-wrap items-center justify-between gap-3">
-        <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
-          <Tag className="w-3.5 h-3.5 text-primary" /> Lead Source Channels:
-        </span>
-        <div className="flex flex-wrap items-center gap-2">
-          {Object.entries(sourceStats).map(([src, count]) => {
-            const isActive = channelFilter.toLowerCase() === src.toLowerCase() || (searchQuery.toLowerCase() === src.toLowerCase() && !channelFilter);
+      ) : (
+        <div className="enterprise-card overflow-hidden divide-y divide-slate-100">
+          {filteredLeads.map((item: any) => {
+            const isHot = item.temperature === "Hot" || item.leadScore >= 75;
             return (
-              <button 
-                key={src}
-                onClick={() => {
-                  if (isActive) {
-                    setChannelFilter("");
-                    setSearchQuery("");
-                  } else {
-                    setChannelFilter(src);
-                    setSearchQuery(src);
-                  }
-                }}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border flex items-center gap-1.5 ${
-                  isActive
-                    ? "bg-primary text-primary-foreground border-primary shadow-2xs"
-                    : "bg-muted/50 hover:bg-muted text-foreground border-border"
-                }`}
+              <div
+                key={item.id}
+                onClick={() => navigate(`/leads/${item.id}`)}
+                className="p-4 hover:bg-slate-50/80 transition-colors cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-4 group"
               >
-                <span>{src}</span>
-                <span className={`px-1.5 py-0.2 rounded text-[10px] font-bold ${
-                  isActive ? "bg-primary-foreground/20 text-primary-foreground" : "bg-card text-foreground border border-border"
-                }`}>
-                  {count}
-                </span>
-              </button>
+                <div className="space-y-1.5 min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-900 group-hover:text-blue-600">
+                      {item.company || `${item.firstName} ${item.lastName}`}
+                    </span>
+                    <span className="text-[11px] text-slate-400">• {item.firstName} {item.lastName}</span>
+                    {isHot && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-50 text-red-700 border border-red-200 rounded text-[10px] font-bold">
+                        <Flame className="w-3 h-3 text-red-500 fill-red-500" /> Hot
+                      </span>
+                    )}
+                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                      {item.sourceChannel || item.source || "Website"}
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-slate-600 line-clamp-1 italic">
+                    &ldquo;{item.body || item.subject || "New commercial enquiry captured."}&rdquo;
+                  </p>
+
+                  <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-400 pt-0.5">
+                    <span className="flex items-center gap-1 text-slate-700 font-medium">
+                      <Clock className="w-3 h-3 text-slate-400" />
+                      Next Action: <strong>{item.nextAction || "Reply to Lead"}</strong>
+                    </span>
+                    <span>•</span>
+                    <span>Received {new Date(item.createdAt).toLocaleDateString()}</span>
+                  </div>
+                </div>
+
+                {/* Quick Action Buttons */}
+                <div
+                  className="flex items-center gap-1.5 shrink-0"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <button
+                    onClick={() => navigate(`/leads/${item.id}`)}
+                    className="enterprise-btn-primary py-1 px-3 text-xs"
+                  >
+                    <span>Open</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      if (item.email) {
+                        window.location.href = `mailto:${item.email}`;
+                      } else {
+                        navigate(`/leads/${item.id}`);
+                      }
+                    }}
+                    className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:text-blue-600 hover:bg-slate-50 transition-colors"
+                    title="Send Email"
+                  >
+                    <Mail className="w-4 h-4" />
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      if (item.phone) {
+                        window.location.href = `tel:${item.phone}`;
+                      } else {
+                        navigate(`/leads/${item.id}`);
+                      }
+                    }}
+                    className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:text-emerald-600 hover:bg-slate-50 transition-colors"
+                    title="Call"
+                  >
+                    <Phone className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
             );
           })}
         </div>
-      </div>
-
-      {/* VIEW RENDER: TABLE OR BOARD */}
-      {viewMode === "table" ? (
-        /* EXISTING TABLE VIEW (Kept 100% intact) */
-        <StandardTable
-          columns={columns}
-          data={filteredLeads}
-          isLoading={isLoading}
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          statusFilter={statusFilter}
-          onStatusChange={setStatusFilter}
-          statusOptions={[
-            { value: "New", label: "New" },
-            { value: "Contacted", label: "Contacted" },
-            { value: "Qualified", label: "Qualified" },
-            { value: "Proposal", label: "Proposal" },
-            { value: "Negotiation", label: "Negotiation" },
-            { value: "Won", label: "Won" },
-            { value: "Lost", label: "Lost" }
-          ]}
-          temperatureFilter={temperatureFilter}
-          onTemperatureChange={setTemperatureFilter}
-          temperatureOptions={[
-            { value: "Hot", label: "🔥 Hot Prospects" },
-            { value: "Warm", label: "🟡 Warm Prospects" },
-            { value: "Cold", label: "🧊 Cold Prospects" }
-          ]}
-          sortBy={sortBy}
-          onSortByChange={setSortBy}
-          sortOptions={[
-            { value: "newest", label: "⏱️ Arrival: Newest First" },
-            { value: "oldest", label: "⌛ Arrival: Oldest First" },
-            { value: "hot_first", label: "🔥 Hot Prospects First" },
-            { value: "cold_first", label: "🧊 Cold Prospects First" },
-            { value: "profit_high", label: "💰 Highest Profit / Deal Value" },
-            { value: "profit_low", label: "📉 Lowest Profit / Deal Value" }
-          ]}
-          addLabel="+ Add Lead"
-          onAddClick={() => navigate("/leads/new")}
-          onExport={() => window.open("/api/v1/exports/leads", "_blank")}
-          onRowClick={(lead) => navigate(`/leads/${lead.id}`)}
-          quickActionIcon={Phone}
-          quickActionLabel="Call"
-          onQuickAction={(lead) => navigate(`/leads/${lead.id}?action=log_call`)}
-        />
-      ) : (
-        /* SHARED LEAD BOARD VIEW (Used on LeadInbox and Sales Pipeline Leads tab) */
-        <LeadBoard searchQuery={searchQuery} onSearchChange={setSearchQuery} />
       )}
-
-      {/* Related Inquiries Modal */}
-      <RelatedInquiriesModal
-        isOpen={!!relatedInquiriesLead}
-        onClose={() => setRelatedInquiriesLead(null)}
-        lead={relatedInquiriesLead}
-      />
     </div>
   );
 }

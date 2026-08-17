@@ -276,9 +276,10 @@ export function TopWorkspaceNav({
           <div className="flex items-center gap-4 overflow-x-auto no-scrollbar">
             <Link to="/pipeline" className="hover:text-[#2563EB] font-bold text-[#111827]">Pipeline</Link>
             <Link to="/quotes" className="hover:text-[#2563EB]">Quotes</Link>
+            <Link to="/purchase-orders" className="hover:text-[#2563EB]">Orders</Link>
+            <Link to="/supply/queue" className="hover:text-[#2563EB]">Supply / Fulfillment</Link>
+            <Link to="/assets" className="hover:text-[#2563EB]">Assets</Link>
             <Link to="/invoices" className="hover:text-[#2563EB]">Invoices</Link>
-            <Link to="/purchase-orders" className="hover:text-[#2563EB]">Purchase Orders</Link>
-            <Link to="/sales-orders" className="hover:text-[#2563EB]">Sales Orders</Link>
             <Link to="/payments" className="hover:text-[#2563EB]">Payments</Link>
             <Link to="/forecast" className="hover:text-[#2563EB]">Forecast</Link>
           </div>

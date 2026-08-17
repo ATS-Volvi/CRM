@@ -43,7 +43,17 @@ export const getManagementDashboard = async (req: Request, res: Response) => {
     });
 
     // Funnel distribution count
-    const funnelStages = ["Qualification", "Needs Analysis", "Proposal", "Negotiation", "Closed Won", "Closed Lost"];
+    const funnelStages = [
+      "Discovery",
+      "Requirements",
+      "Solution/Scope",
+      "Quote Preparation",
+      "Quote Sent",
+      "Negotiation",
+      "Agreed",
+      "Won",
+      "Lost"
+    ];
     const funnel = funnelStages.map(stageName => {
       const stageDeals = deals.filter((d: any) => d.stage?.name === stageName);
       return {
@@ -90,7 +100,7 @@ export const getMyTodayDashboard = async (req: Request, res: Response) => {
     const leads = await sequelize.models.Lead.findAll({
       where: {
         assignedToId: userId,
-        status: ["New", "Contacted"]
+        status: ["NEW", "CONTACTED", "New", "Contacted"]
       },
       include: [{
         model: sequelize.models.Activity,

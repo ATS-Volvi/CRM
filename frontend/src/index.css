@@ -5,59 +5,44 @@
 @tailwind utilities;
 
 :root {
-  /* Pulse OS Light Design Tokens */
-  --background: 250 100% 98.8%; /* #faf8ff */
-  --foreground: 228 17% 12%;   /* #191b23 */
+  /* Enterprise Light Design Tokens */
+  --background: 210 40% 98%;    /* #f8fafc */
+  --foreground: 222 47% 11%;    /* #0f172a */
   
   --card: 0 0% 100%;             /* #ffffff */
-  --card-foreground: 228 17% 12%;
+  --card-foreground: 222 47% 11%;
   
   --popover: 0 0% 100%;
-  --popover-foreground: 228 17% 12%;
+  --popover-foreground: 222 47% 11%;
   
-  /* Brand Primary & Surfaces */
-  --primary: 217 100% 38.8%;     /* #004ac6 */
+  /* Brand Primary & Actions - Restrained Enterprise Blue */
+  --primary: 221 83% 53%;        /* #2563eb */
   --primary-foreground: 0 0% 100%;
-  --primary-container: 221 83% 53%; /* #2563eb */
+  --primary-container: 224 76% 48%; /* #1d4ed8 */
   
-  --secondary: 218 10% 38%;     /* #585f6c */
+  --secondary: 215 16% 47%;      /* #64748b */
   --secondary-foreground: 0 0% 100%;
   
-  --muted: 240 40% 96%;          /* #f3f3fe */
-  --muted-foreground: 226 12% 37%; /* #434655 */
+  --muted: 210 40% 96.1%;        /* #f1f5f9 */
+  --muted-foreground: 215 16% 47%; /* #64748b */
   
-  --accent: 240 45% 95%;         /* #ededf9 */
-  --accent-foreground: 217 100% 38.8%;
+  --accent: 210 40% 96.1%;       /* #f1f5f9 */
+  --accent-foreground: 221 83% 53%;
   
-  --destructive: 0 75% 42%;      /* #ba1a1a */
+  --destructive: 0 84% 60%;      /* #ef4444 */
   --destructive-foreground: 0 0% 100%;
   
-  --border: 228 20% 81%;         /* #c3c6d7 */
-  --input: 228 20% 81%;
+  --border: 214 32% 91%;         /* #e2e8f0 */
+  --input: 214 32% 91%;
   --ring: 221 83% 53%;
   
-  --radius: 0.75rem;
+  --radius: 0.5rem;              /* 8px radius */
 
-  /* Modern Corporate Surface Hierarchy */
-  --surface-dim: #d9d9e5;
-  --surface-container-lowest: #ffffff;
-  --surface-container-low: #f3f3fe;
-  --surface-container: #ededf9;
-  --surface-container-high: #e7e7f3;
-  --surface-container-highest: #e1e2ed;
-  
-  --success: 142 71% 45%;        /* #22C55E */
-  --warning: 38 92% 50%;         /* #F59E0B */
-  --danger: 0 84% 60%;          /* #EF4444 */
-}
-
-/* Sales Representative Theme (Vibrant Violet / Emerald Action Accent) */
-.role-sales-rep {
-  --primary: 262 83% 58%;        /* #7c3aed Vibrant Violet */
-  --primary-foreground: 0 0% 100%;
-  --primary-container: 263 70% 50%; /* #6d28d9 */
-  --accent: 160 84% 39%;         /* #059669 Emerald Green */
-  --ring: 262 83% 58%;
+  /* Meaningful Semantic Status Colors */
+  --success: 142 71% 45%;        /* #22c55e */
+  --warning: 38 92% 50%;         /* #f59e0b */
+  --danger: 0 84% 60%;           /* #ef4444 */
+  --info: 199 89% 48%;           /* #0ea5e9 */
 }
 
 @layer base {
@@ -65,10 +50,9 @@
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
     font-family: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif;
-    @apply antialiased tracking-tight;
+    @apply antialiased tracking-tight text-sm;
   }
 
-  /* Smooth scroll and selection */
   ::selection {
     background-color: hsl(var(--primary) / 0.15);
     color: hsl(var(--primary));
@@ -79,137 +63,52 @@
   .enterprise-card {
     background-color: hsl(var(--card));
     border: 1px solid hsl(var(--border));
-    @apply rounded-xl shadow-xs hover:shadow-md hover:-translate-y-0.5 transition-all duration-300;
+    @apply rounded-lg shadow-sm hover:border-slate-300 transition-all duration-200;
   }
+
   .enterprise-input {
-    background-color: hsl(var(--muted));
+    background-color: #ffffff;
     border: 1px solid hsl(var(--border));
-    @apply rounded-xl px-3.5 py-2 text-xs font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all;
+    @apply rounded-lg px-3 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all;
   }
+
   .enterprise-btn-primary {
-    background: linear-gradient(135deg, hsl(var(--primary)), hsl(265 85% 58%));
+    background-color: hsl(var(--primary));
     color: hsl(var(--primary-foreground));
-    @apply px-4 py-2 rounded-xl text-xs font-bold shadow-sm hover:shadow-lg hover:shadow-primary/25 hover:brightness-110 active:scale-95 transition-all duration-200 flex items-center gap-1.5 justify-center;
+    @apply px-3.5 py-1.5 rounded-lg text-xs font-semibold hover:bg-blue-700 active:scale-[0.98] transition-all duration-150 flex items-center gap-1.5 justify-center shadow-sm;
   }
+
   .enterprise-btn-secondary {
-    background: linear-gradient(135deg, hsl(var(--secondary)), hsl(180 70% 36%));
-    color: hsl(var(--secondary-foreground));
-    @apply px-4 py-2 rounded-xl text-xs font-bold shadow-sm hover:shadow-lg hover:shadow-secondary/25 hover:brightness-110 active:scale-95 transition-all duration-200 flex items-center gap-1.5 justify-center;
-  }
-  .enterprise-btn-outline {
-    background-color: hsl(var(--card));
-    border: 1px solid hsl(var(--border));
+    background-color: hsl(var(--muted));
     color: hsl(var(--foreground));
-    @apply px-4 py-2 rounded-xl text-xs font-bold shadow-2xs hover:bg-accent/60 hover:text-accent-foreground hover:border-primary/30 active:scale-95 transition-all duration-200 flex items-center gap-1.5 justify-center;
+    border: 1px solid hsl(var(--border));
+    @apply px-3.5 py-1.5 rounded-lg text-xs font-semibold hover:bg-slate-200 active:scale-[0.98] transition-all duration-150 flex items-center gap-1.5 justify-center;
   }
-  .enterprise-pill {
-    @apply px-2.5 py-0.5 rounded-full text-[11px] font-semibold border whitespace-nowrap inline-flex items-center gap-1 transition-transform hover:scale-105;
+
+  .enterprise-btn-outline {
+    background-color: transparent;
+    color: hsl(var(--foreground));
+    border: 1px solid hsl(var(--border));
+    @apply px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-slate-100 transition-all duration-150 flex items-center gap-1.5 justify-center;
   }
-  .glass-card {
-    background: rgba(255, 255, 255, 0.75);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.4);
-    @apply rounded-2xl shadow-sm hover:shadow-md transition-all duration-300;
+
+  .enterprise-badge {
+    @apply inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold border;
   }
-  .glow-primary {
-    box-shadow: 0 0 20px -4px hsl(var(--primary) / 0.35);
+
+  .enterprise-table {
+    @apply w-full text-left text-xs border-collapse;
+  }
+
+  .enterprise-table th {
+    @apply bg-slate-50 text-slate-500 font-semibold px-3 py-2.5 border-b border-slate-200 text-[11px] uppercase tracking-wider select-none;
+  }
+
+  .enterprise-table td {
+    @apply px-3 py-3 border-b border-slate-100 text-slate-700 align-middle;
+  }
+
+  .enterprise-table tr:hover td {
+    @apply bg-slate-50/60;
   }
 }
-
-/* Custom scrollbars */
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
-}
-.no-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-
-/* Enterprise Micro-animations */
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes slideLeft {
-  from { transform: translateX(100%); }
-  to { transform: translateX(0); }
-}
-
-@keyframes scaleUp {
-  from { opacity: 0; transform: scale(0.97); }
-  to { opacity: 1; transform: scale(1); }
-}
-
-.animate-fade-in {
-  animation: fadeIn 200ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-.animate-slide-left {
-  animation: slideLeft 250ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-.animate-scale-up {
-  animation: scaleUp 180ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-/* React Grid Layout Dynamic Styles */
-.react-grid-layout {
-  position: relative;
-  transition: height 200ms ease;
-}
-
-.react-grid-item {
-  position: absolute;
-  transition: all 200ms ease;
-  transition-property: transform, left, top, width, height;
-}
-
-.react-grid-item.cssTransforms {
-  transition-property: transform;
-}
-
-.react-grid-item.resizing {
-  z-index: 30;
-  will-change: width, height;
-}
-
-.react-grid-item.react-draggable-dragging {
-  transition: none;
-  z-index: 30;
-  will-change: transform;
-  box-shadow: 0 10px 25px -5px rgba(99, 102, 241, 0.25), 0 8px 10px -6px rgba(99, 102, 241, 0.2);
-  opacity: 0.9;
-}
-
-.react-grid-item > .react-resizable-handle {
-  position: absolute;
-  width: 16px;
-  height: 16px;
-  bottom: 4px;
-  right: 4px;
-  cursor: se-resize;
-}
-
-.react-grid-item > .react-resizable-handle::after {
-  content: "";
-  position: absolute;
-  right: 4px;
-  bottom: 4px;
-  width: 8px;
-  height: 8px;
-  border-right: 2px solid #94a3b8;
-  border-bottom: 2px solid #94a3b8;
-  border-radius: 1px;
-}
-
-.react-grid-placeholder {
-  background: rgba(99, 102, 241, 0.1) !important;
-  border: 2px dashed rgba(99, 102, 241, 0.4) !important;
-  border-radius: 1rem !important;
-  transition-duration: 100ms;
-  z-index: 2;
-  user-select: none;
-}
-

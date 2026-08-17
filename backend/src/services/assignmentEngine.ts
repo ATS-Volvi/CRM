@@ -341,13 +341,14 @@ export async function assignLead(leadContext: AssignmentContext): Promise<Assign
       }
     });
 
-    // 4. Build Eligible Candidate Pool
-    let eligibleReps = [];
-    for (const r of allReps) {
-      if (await checkRepEligibility(r.id)) {
-        eligibleReps.push(r);
-      }
-    }
+    // 4. Build Eligible Candidate Pool concurrently
+    const eligibilityResults = await Promise.all(
+      allReps.map(async (r) => ({
+        rep: r,
+        isEligible: await checkRepEligibility(r.id)
+      }))
+    );
+    let eligibleReps = eligibilityResults.filter(item => item.isEligible).map(item => item.rep);
 
     // High-Value Experience Tier Gating (If high value lead & senior reps exist)
     if (priorityDetails.isHighValueLead && Array.isArray(allowedTiers) && allowedTiers.length > 0) {
@@ -365,14 +366,13 @@ export async function assignLead(leadContext: AssignmentContext): Promise<Assign
       return await fallbackToManager(leadContext, priorityDetails);
     }
 
-    // 5. Calculate Performance Profile & Multi-Factor Suitability Score for Candidates
-    const candidateEvaluations: CandidateEvaluationResult[] = [];
-
-    for (const rep of eligibleReps) {
-      const profile = await calculateRepPerformanceProfile(rep.id);
-      const evalResult = calculateRepSuitabilityScore(profile, leadContext, policyWeights, priorityDetails);
-      candidateEvaluations.push(evalResult);
-    }
+    // 5. Calculate Performance Profile & Multi-Factor Suitability Score for Candidates concurrently
+    const candidateEvaluations: CandidateEvaluationResult[] = await Promise.all(
+      eligibleReps.map(async (rep) => {
+        const profile = await calculateRepPerformanceProfile(rep.id);
+        return calculateRepSuitabilityScore(profile, leadContext, policyWeights, priorityDetails);
+      })
+    );
 
     // Sort Candidates by Final Suitability Score descending
     candidateEvaluations.sort((a, b) => b.finalScore - a.finalScore);

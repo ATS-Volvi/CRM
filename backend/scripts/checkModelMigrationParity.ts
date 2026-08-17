@@ -40,7 +40,20 @@ const tableMap: Record<string, string> = {
   Meeting: 'Meetings',
   EmailMessage: 'EmailMessages',
   AutomationRule: 'AutomationRules',
-  DealMilestone: 'DealMilestones'
+  DealMilestone: 'DealMilestones',
+  Account: 'Accounts',
+  Contact: 'Contacts',
+  DealContact: 'DealContacts',
+  Asset: 'Assets',
+  AssetStatusHistory: 'AssetStatusHistories',
+  LeadContact: 'LeadContacts',
+  SalesApprovalProfile: 'SalesApprovalProfiles',
+  AdminApprovalPolicy: 'AdminApprovalPolicies',
+  ApprovalAuditLog: 'ApprovalAuditLogs',
+  SalesAssignmentPolicy: 'SalesAssignmentPolicies',
+  LeadAssignmentAudit: 'LeadAssignmentAudits',
+  GmailConfig: 'GmailConfigs',
+  KpiMaster: 'KpiMasters'
 };
 
 const modelsPath = path.resolve(__dirname, '../../database/models/index.ts');
@@ -93,6 +106,7 @@ function main() {
 
   for (const [modelName, fields] of Object.entries(modelFields)) {
     const tableName = tableMap[modelName] || (modelName + 's');
+    const tableNames = modelName === 'Account' ? ['Accounts', 'Customers'] : [tableName];
     
     for (const field of fields) {
       let hasMigration = false;
@@ -101,7 +115,7 @@ function main() {
       // Check all migration contents
       for (const m of migrationFiles) {
         // Match table name and field name in either createTable or addColumn
-        const hasTableName = m.content.includes(`'${tableName}'`) || m.content.includes(`"${tableName}"`);
+        const hasTableName = tableNames.some(t => m.content.includes(`'${t}'`) || m.content.includes(`"${t}"`));
         const hasField = new RegExp(`\\b${field}\\s*:`, 'i').test(m.content) || new RegExp(`['"\`]${field}['"\`]`, 'i').test(m.content);
 
         if (hasTableName && hasField) {

@@ -2,6 +2,28 @@ import { Request, Response } from "express";
 import { Deal, PipelineStage, LeadStageHistory, Activity, User, sequelize } from "@nexus-crm/database";
 import { createNotification } from "../services/notificationService";
 import { triggerStageChangeAutomations } from "../services/automationService";
+import { validateStageTransition } from "../services/stageValidationService";
+
+export const validateTransition = async (req: Request, res: Response) => {
+  try {
+    const { recordId, fromStage, toStage, lossReasonCategory } = req.body;
+    const userId = (req as any).user?.id || "mock-user";
+    const userRole = (req as any).user?.role || "sales_rep";
+
+    const validation = await validateStageTransition(
+      recordId,
+      fromStage,
+      toStage,
+      userId,
+      userRole,
+      lossReasonCategory
+    );
+
+    res.json(validation);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
 
 export const getPipeline = async (req: Request, res: Response) => {
   try {
@@ -35,21 +57,29 @@ export const getPipeline = async (req: Request, res: Response) => {
         stage: stage.name,
         group: stageToGroupMap[stage.name] || "Prospecting",
         totalValue,
-        deals: stageDeals.map((d: any) => ({
-          id: d.id,
-          name: d.name,
-          value: Number(d.amount),
-          company: d.name, // Mocking company since it's not on Deal right now
-          lastActivity: "2 days ago", // Mocking until Activity model
-          isUrgent: false,
-          competitors: d.competitors,
-          probability: d.probability,
-          group: stageToGroupMap[stage.name] || "Prospecting",
-          leadId: d.leadId,
-          customerId: d.customerId,
-          ownerId: d.ownerId,
-          owner: d.owner ? { id: d.owner.id, name: d.owner.name, email: d.owner.email } : null
-        }))
+        deals: stageDeals.map((d: any) => {
+          const enteredAt = d.enteredStageAt ? new Date(d.enteredStageAt) : new Date(d.createdAt || Date.now());
+          const daysInStage = Math.max(0, Math.floor((Date.now() - enteredAt.getTime()) / (1000 * 60 * 60 * 24)));
+
+          return {
+            id: d.id,
+            name: d.name,
+            value: Number(d.amount),
+            company: d.name,
+            lastActivity: d.lastCustomerActivityAt ? new Date(d.lastCustomerActivityAt).toLocaleDateString() : "Recent",
+            daysInStage,
+            verificationStatus: d.stageVerificationStatus || "VERIFIED",
+            stageEvidence: d.stageEvidence ? JSON.parse(d.stageEvidence) : [],
+            isUrgent: daysInStage > 14,
+            competitors: d.competitors,
+            probability: d.probability,
+            group: stageToGroupMap[stage.name] || "Prospecting",
+            leadId: d.leadId,
+            customerId: d.customerId,
+            ownerId: d.ownerId,
+            owner: d.owner ? { id: d.owner.id, name: d.owner.name, email: d.owner.email } : null
+          };
+        })
       };
     });
 
@@ -62,49 +92,76 @@ export const getPipeline = async (req: Request, res: Response) => {
 export const moveDealStage = async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
-    const { toStageId, reason, lossReasonCategory, recontactDate } = req.body;
+    const { toStageId, reason, lossReasonCategory, recontactDate, forceBypass } = req.body;
     const userId = (req as any).user?.id || "mock-user";
+    const userRole = (req as any).user?.role || "sales_rep";
 
     const deal: any = await Deal.findByPk(id);
     if (!deal) return res.status(404).json({ error: "Deal not found" });
 
     const fromStageId = deal.stageId;
-    
-    // Get stage names for history
     const fromStageObj: any = await PipelineStage.findByPk(fromStageId);
     const toStageObj: any = await PipelineStage.findByPk(toStageId);
 
-    const isLostStage = toStageObj && (toStageObj.name === "Closed Lost" || toStageObj.name === "Lost");
-    if (isLostStage && !lossReasonCategory) {
+    const fromStageName = fromStageObj ? fromStageObj.name : "Unknown";
+    const toStageName = toStageObj ? toStageObj.name : "Unknown";
+
+    // Run Stage Validation Engine
+    const validation = await validateStageTransition(
+      id,
+      fromStageName,
+      toStageName,
+      userId,
+      userRole,
+      lossReasonCategory || reason
+    );
+
+    // If validation fails and forceBypass is not granted by admin, reject transition
+    if (!validation.allowed && !forceBypass) {
       return res.status(400).json({
-        error: "Loss reason category is required. Allowed values: Price, Competitor, Timing, No Budget, Product Fit, Other."
+        error: `Cannot transition to ${toStageName}. Stage entry criteria not satisfied.`,
+        validation
       });
     }
 
-    // Write history
+    // Write LeadStageHistory audit log
     await LeadStageHistory.create({
       leadId: deal.leadId || id,
-      fromStage: fromStageObj ? fromStageObj.name : 'Unknown',
-      toStage: toStageObj ? toStageObj.name : 'Unknown',
+      fromStage: fromStageName,
+      toStage: toStageName,
       changedById: userId,
-      reason: reason || lossReasonCategory || null
+      reason: reason || lossReasonCategory || null,
+      transitionType: validation.transitionType,
+      evidenceData: JSON.stringify(validation.evidence),
+      isVerified: validation.allowed
     });
 
     // Write Activity
     await Activity.create({
       leadId: deal.leadId || id,
       type: "stage_change",
-      outcome: `Stage updated to ${toStageObj ? toStageObj.name : 'Unknown'}${lossReasonCategory ? ' [Category: ' + lossReasonCategory + ']' : ''}${reason ? ' - Detail: ' + reason : ''}`,
+      outcome: `Stage updated to ${toStageName} [${validation.verificationStatus}]${lossReasonCategory ? ' [Category: ' + lossReasonCategory + ']' : ''}${reason ? ' - Detail: ' + reason : ''}`,
+      notes: JSON.stringify(validation.evidence),
       createdById: userId,
       direction: "internal"
     });
 
-    // Update Deal
+    // Update Deal fields
     if (toStageId) deal.stageId = toStageId;
+    deal.enteredStageAt = new Date();
+    deal.stageVerificationStatus = validation.verificationStatus;
+    deal.stageEvidence = JSON.stringify(validation.evidence);
+
+    const isLostStage = toStageObj && (toStageObj.name === "Closed Lost" || toStageObj.name === "Lost");
     if (isLostStage) {
       deal.lossReasonCategory = lossReasonCategory;
       if (reason !== undefined) deal.lossReason = reason;
     }
+    if (toStageObj && toStageObj.name === "On Hold") deal.recontactDate = recontactDate;
+    if (req.body.competitors !== undefined) deal.competitors = req.body.competitors;
+    if (req.body.probability !== undefined) deal.probability = req.body.probability;
+
+    await deal.save();
     if (toStageObj && toStageObj.name === "On Hold") deal.recontactDate = recontactDate;
     if (req.body.competitors !== undefined) deal.competitors = req.body.competitors;
     if (req.body.probability !== undefined) deal.probability = req.body.probability;
@@ -191,7 +248,9 @@ export const getDeals = async (req: Request, res: Response) => {
   try {
     const deals = await Deal.findAll({
       include: [
-        { model: PipelineStage, as: "stage" }
+        { model: PipelineStage, as: "stage" },
+        { model: sequelize.models.Account, as: "account" },
+        { model: sequelize.models.User, as: "owner" }
       ],
       order: [["createdAt", "DESC"]]
     });
@@ -200,3 +259,48 @@ export const getDeals = async (req: Request, res: Response) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+export const getOpportunityById = async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const deal = await Deal.findByPk(id, {
+      include: [
+        { model: PipelineStage, as: "stage" },
+        { model: sequelize.models.Account, as: "account" },
+        { model: sequelize.models.User, as: "owner" },
+        { model: sequelize.models.Quote, as: "quotes" }
+      ]
+    });
+    if (!deal) return res.status(404).json({ error: "Opportunity not found" });
+    res.json(deal);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const updateOpportunity = async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const { name, amount, stageId, ownerId, competitors, probability } = req.body;
+    const deal = await Deal.findByPk(id);
+    if (!deal) return res.status(404).json({ error: "Opportunity not found" });
+
+    await deal.update({
+      name: name !== undefined ? name : (deal as any).name,
+      amount: amount !== undefined ? amount : (deal as any).amount,
+      stageId: stageId !== undefined ? stageId : (deal as any).stageId,
+      ownerId: ownerId !== undefined ? ownerId : (deal as any).ownerId,
+      competitors: competitors !== undefined ? competitors : (deal as any).competitors,
+      probability: probability !== undefined ? probability : (deal as any).probability
+    });
+
+    res.json(deal);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const getOpportunities = getDeals;
+export const createOpportunity = createDeal;
+export const moveOpportunityStage = moveDealStage;
+

@@ -62,14 +62,26 @@ function WhatsAppBadge({ lead }: { lead: any }) {
 }
 
 const STATUS_CONFIG: Record<string, { bg: string; text: string; bar: string; border: string; hover: string }> = {
+  NEW: { bg: "bg-blue-50", text: "text-blue-700", bar: "#93c5fd", border: "border-blue-200", hover: "hover:bg-blue-100/70 hover:border-blue-300" },
+  CONTACTED: { bg: "bg-amber-50", text: "text-amber-700", bar: "#fcd34d", border: "border-amber-200", hover: "hover:bg-amber-100/70 hover:border-amber-300" },
+  QUALIFIED: { bg: "bg-purple-50", text: "text-purple-700", bar: "#d8b4fe", border: "border-purple-200", hover: "hover:bg-purple-100/70 hover:border-purple-300" },
+  CONVERTED: { bg: "bg-emerald-50", text: "text-emerald-700", bar: "#6ee7b7", border: "border-emerald-200", hover: "hover:bg-emerald-100/70 hover:border-emerald-300" },
+  NOT_CONVERTED: { bg: "bg-rose-50", text: "text-rose-700", bar: "#fda4af", border: "border-rose-200", hover: "hover:bg-rose-100/70 hover:border-rose-300" },
+  // Legacy display fallbacks (normalised server-side, kept for graceful degradation)
   New: { bg: "bg-blue-50", text: "text-blue-700", bar: "#93c5fd", border: "border-blue-200", hover: "hover:bg-blue-100/70 hover:border-blue-300" },
   Contacted: { bg: "bg-amber-50", text: "text-amber-700", bar: "#fcd34d", border: "border-amber-200", hover: "hover:bg-amber-100/70 hover:border-amber-300" },
   Qualified: { bg: "bg-purple-50", text: "text-purple-700", bar: "#d8b4fe", border: "border-purple-200", hover: "hover:bg-purple-100/70 hover:border-purple-300" },
-  Proposal: { bg: "bg-indigo-50", text: "text-indigo-700", bar: "#a5b4fc", border: "border-indigo-200", hover: "hover:bg-indigo-100/70 hover:border-indigo-300" },
-  Negotiation: { bg: "bg-cyan-50", text: "text-cyan-700", bar: "#67e8f9", border: "border-cyan-200", hover: "hover:bg-cyan-100/70 hover:border-cyan-300" },
   Won: { bg: "bg-emerald-50", text: "text-emerald-700", bar: "#6ee7b7", border: "border-emerald-200", hover: "hover:bg-emerald-100/70 hover:border-emerald-300" },
   Lost: { bg: "bg-rose-50", text: "text-rose-700", bar: "#fda4af", border: "border-rose-200", hover: "hover:bg-rose-100/70 hover:border-rose-300" },
-  "On Hold": { bg: "bg-slate-100", text: "text-slate-600", bar: "#cbd5e1", border: "border-slate-300", hover: "hover:bg-slate-200/70 hover:border-slate-400" },
+};
+
+/** Human-readable label for Lead status enum values */
+const LEAD_STATUS_LABEL: Record<string, string> = {
+  NEW: "New",
+  CONTACTED: "Contacted",
+  QUALIFIED: "Qualified",
+  CONVERTED: "Converted",
+  NOT_CONVERTED: "Not Converted"
 };
 
 const DEFAULT_STATUS_CONFIG = { bg: "bg-slate-100", text: "text-slate-600", bar: "#cbd5e1", border: "border-slate-300", hover: "hover:bg-slate-200/70 hover:border-slate-400" };
@@ -174,19 +186,19 @@ export function LeadBoard({ searchQuery = "", onSearchChange }: LeadBoardProps) 
 
   const groupedLeads = useMemo(() => {
     const groups: Record<string, any[]> = {
-      New: [],
-      Contacted: [],
-      Qualified: [],
-      Proposal: [],
-      Negotiation: [],
-      Won: [],
-      Lost: []
+      NEW: [],
+      CONTACTED: [],
+      QUALIFIED: [],
+      CONVERTED: [],
+      NOT_CONVERTED: []
     };
 
     filteredLeads.forEach((lead: any) => {
-      const status = lead.status || "New";
-      if (!groups[status]) groups[status] = [];
-      groups[status].push(lead);
+      const status = (lead.status || "NEW").toUpperCase();
+      const normKey = ["NEW", "CONTACTED", "QUALIFIED", "CONVERTED", "NOT_CONVERTED"].includes(status)
+        ? status
+        : "NEW";
+      groups[normKey].push(lead);
     });
 
     return groups;
@@ -196,7 +208,7 @@ export function LeadBoard({ searchQuery = "", onSearchChange }: LeadBoardProps) 
     setCollapsedGroups(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const availableStatuses = ["New", "Contacted", "Qualified", "Proposal", "Negotiation", "Won", "Lost"];
+  const availableStatuses = ["NEW", "CONTACTED", "QUALIFIED", "CONVERTED", "NOT_CONVERTED"];
 
   return (
     <div className="space-y-6">
@@ -245,7 +257,7 @@ export function LeadBoard({ searchQuery = "", onSearchChange }: LeadBoardProps) 
                       {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                     </button>
                     <h2 className="text-sm font-black text-slate-900 flex items-center gap-2">
-                      <span>{groupKey}</span>
+                      <span>{LEAD_STATUS_LABEL[groupKey] || groupKey}</span>
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${groupConfig.bg} ${groupConfig.text} ${groupConfig.border}`}>
                         {groupItems.length} {groupItems.length === 1 ? "item" : "items"}
                       </span>

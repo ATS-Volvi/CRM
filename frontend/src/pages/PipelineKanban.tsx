@@ -1,10 +1,11 @@
 import { useAuth } from "../context/AuthContext";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Search, Plus, Filter, MoreVertical, View, List, CheckCircle2, XCircle, X, Clock, Calendar, CheckSquare, ChevronRight, Building2 } from "lucide-react";
+import { Search, Plus, Filter, MoreVertical, View, List, CheckCircle2, XCircle, X, Clock, Calendar, CheckSquare, ChevronRight, Building2, AlertTriangle, ShieldAlert } from "lucide-react";
 import { formatCurrency, formatCurrencyCompact } from "../utils/currency";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { LeadBoard } from "../components/LeadBoard";
+import { StageEvidenceModal } from "../components/StageEvidenceModal";
 
 function DealMilestonesWidget({ dealId, token }: { dealId: string; token: string }) {
   const queryClient = useQueryClient();
@@ -124,6 +125,8 @@ export default function PipelineKanban() {
   const [reason, setReason] = useState("");
   const [recontactDate, setRecontactDate] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [stageFilter, setStageFilter] = useState("all");
+  const [verificationFilter, setVerificationFilter] = useState("all");
   const [activeTab, setActiveTab] = useState<"leads" | "opportunities" | "deals">("opportunities");
 
   // Tab mapping via group field returned by the pipeline API:
@@ -174,15 +177,39 @@ export default function PipelineKanban() {
     },
   });
 
+  const [evidenceModal, setEvidenceModal] = useState<{
+    isOpen: boolean;
+    recordName: string;
+    recordId: string;
+    validation: any;
+    daysInStage?: number;
+    lastCustomerActivity?: string;
+    pendingTargetStageId?: string;
+  }>({ isOpen: false, recordName: "", recordId: "", validation: null });
+
   const updateStageMutation = useMutation({
-    mutationFn: async ({ dealId, toStageId, reason, recontactDate }: any) => {
+    mutationFn: async ({ dealId, toStageId, reason, recontactDate, forceBypass, dealObj }: any) => {
       const res = await fetch(`/api/v1/pipeline/deals/${dealId}/stage`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', "Authorization": `Bearer ${token}` },
-        body: JSON.stringify({ toStageId, reason, recontactDate })
+        body: JSON.stringify({ toStageId, reason, recontactDate, forceBypass })
       });
-      if (!res.ok) throw new Error(await res.text());
-      return res.json();
+      const data = await res.json();
+      if (!res.ok) {
+        if (data.validation) {
+          setEvidenceModal({
+            isOpen: true,
+            recordName: dealObj?.name || "Pipeline Deal",
+            recordId: dealId,
+            validation: data.validation,
+            daysInStage: dealObj?.daysInStage || 0,
+            lastCustomerActivity: dealObj?.lastActivity || "Recent",
+            pendingTargetStageId: toStageId
+          });
+        }
+        throw new Error(data.error || "Stage transition failed");
+      }
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pipeline"] });
@@ -201,12 +228,14 @@ export default function PipelineKanban() {
     const dealId = e.dataTransfer.getData("dealId");
     if (!dealId) return;
 
+    const targetDeal = allDeals.find((d: any) => d.id === dealId);
+
     if (stageName === "Closed Lost") {
       setTransitionModal({ dealId, toStageId: stageId, toStageName: stageName });
       setReason("");
       setRecontactDate("");
     } else {
-      updateStageMutation.mutate({ dealId, toStageId: stageId });
+      updateStageMutation.mutate({ dealId, toStageId: stageId, dealObj: targetDeal });
     }
   };
 
@@ -245,104 +274,158 @@ export default function PipelineKanban() {
         </div>
       </header>
 
-      {/* SEGMENTED TOP TABS (Leads / Opportunities / Deals) */}
+      {/* TOP CONTROLS SECTION */}
       <section className="px-8 pt-5 pb-3 flex items-center justify-between">
-        <div className="bg-slate-200/60 p-1.5 rounded-2xl flex items-center gap-1 border border-slate-200">
-          {/* 1. LEADS TAB */}
-          <button
-            onClick={() => setActiveTab("leads")}
-            className={`px-8 py-2.5 rounded-xl text-xs font-extrabold transition-all flex items-center gap-2 ${
-              activeTab === "leads"
-                ? "bg-amber-500 text-white shadow-md"
-                : "text-slate-600 hover:text-slate-900"
-            }`}
-          >
-            <span>Leads ({leadsCount})</span>
-          </button>
+        {viewMode === "kanban" ? (
+          /* KANBAN BOARD: SEGMENTED TABS (Leads / Opportunities / Deals) */
+          <div className="bg-slate-200/60 p-1.5 rounded-2xl flex items-center gap-1 border border-slate-200">
+            {/* 1. LEADS TAB */}
+            <button
+              onClick={() => setActiveTab("leads")}
+              className={`px-8 py-2.5 rounded-xl text-xs font-extrabold transition-all flex items-center gap-2 ${
+                activeTab === "leads"
+                  ? "bg-amber-500 text-white shadow-md"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <span>Leads ({leadsCount})</span>
+            </button>
 
-          {/* 2. OPPORTUNITIES TAB */}
-          <button
-            onClick={() => setActiveTab("opportunities")}
-            className={`px-8 py-2.5 rounded-xl text-xs font-extrabold transition-all flex items-center gap-2 ${
-              activeTab === "opportunities"
-                ? "bg-blue-600 text-white shadow-md"
-                : "text-slate-600 hover:text-slate-900"
-            }`}
-          >
-            <span>Opportunities ({oppsCount})</span>
-          </button>
+            {/* 2. OPPORTUNITIES TAB */}
+            <button
+              onClick={() => setActiveTab("opportunities")}
+              className={`px-8 py-2.5 rounded-xl text-xs font-extrabold transition-all flex items-center gap-2 ${
+                activeTab === "opportunities"
+                  ? "bg-blue-600 text-white shadow-md"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <span>Opportunities ({oppsCount})</span>
+            </button>
 
-          {/* 3. DEALS TAB */}
-          <button
-            onClick={() => setActiveTab("deals")}
-            className={`px-8 py-2.5 rounded-xl text-xs font-extrabold transition-all flex items-center gap-2 ${
-              activeTab === "deals"
-                ? "bg-blue-600 text-white shadow-md"
-                : "text-slate-600 hover:text-slate-900"
-            }`}
-          >
-            <span>Deals ({dealsCount})</span>
-          </button>
-        </div>
+            {/* 3. DEALS TAB */}
+            <button
+              onClick={() => setActiveTab("deals")}
+              className={`px-8 py-2.5 rounded-xl text-xs font-extrabold transition-all flex items-center gap-2 ${
+                activeTab === "deals"
+                  ? "bg-blue-600 text-white shadow-md"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <span>Deals ({dealsCount})</span>
+            </button>
+          </div>
+        ) : (
+          /* LIST VIEW: FILTER OPTIONS ON TOP */
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Search Input */}
+            <div className="relative w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-3.5 h-3.5" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search pipeline records..."
+                className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              />
+            </div>
 
-        {/* View Mode Toggle (Board / List / Timeline for Opportunities & Deals) */}
-        {activeTab !== "leads" && (
-          <div className="flex items-center gap-2">
-            <div className="flex items-center bg-slate-200/60 p-1 rounded-xl border border-slate-200">
-              <button 
-                onClick={() => setViewMode("kanban")}
-                className={`px-3 py-1.5 rounded-lg text-xs font-extrabold flex items-center gap-1.5 transition-all ${viewMode === "kanban" ? "bg-white text-blue-600 shadow-2xs" : "text-slate-600 hover:text-slate-900"}`}
+            {/* Filter Pipeline Stage */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-500">Pipeline Stage:</span>
+              <select
+                value={stageFilter}
+                onChange={(e) => setStageFilter(e.target.value)}
+                className="bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-800 focus:outline-none cursor-pointer"
               >
-                <View className="w-3.5 h-3.5" /> Board
-              </button>
-              <button 
-                onClick={() => setViewMode("list")}
-                className={`px-3 py-1.5 rounded-lg text-xs font-extrabold flex items-center gap-1.5 transition-all ${viewMode === "list" ? "bg-white text-blue-600 shadow-2xs" : "text-slate-600 hover:text-slate-900"}`}
+                <option value="all">All 8 Pipeline Stages</option>
+                <option value="New">1. New</option>
+                <option value="Contacted">2. Contacted</option>
+                <option value="Qualification">3. Qualification</option>
+                <option value="Needs Analysis">4. Needs Analysis</option>
+                <option value="Proposal">5. Proposal</option>
+                <option value="Negotiation">6. Negotiation</option>
+                <option value="Closed Won">7. Closed Won 🟢</option>
+                <option value="Closed Lost">8. Closed Lost 🔴</option>
+              </select>
+            </div>
+
+            {/* Filter Verification Status */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-500">Verification:</span>
+              <select
+                value={verificationFilter}
+                onChange={(e) => setVerificationFilter(e.target.value)}
+                className="bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-800 focus:outline-none cursor-pointer"
               >
-                <List className="w-3.5 h-3.5" /> List
-              </button>
+                <option value="all">All Verification Statuses</option>
+                <option value="VERIFIED">Verified ✓ Only</option>
+                <option value="NEEDS_REVIEW">Needs Review ⚠ Only</option>
+                <option value="stuck">Stuck in Stage (&gt; 14 Days)</option>
+              </select>
             </div>
           </div>
         )}
+
+        {/* View Mode Toggle (Board / List) */}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center bg-slate-200/60 p-1 rounded-xl border border-slate-200">
+            <button 
+              onClick={() => setViewMode("kanban")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-extrabold flex items-center gap-1.5 transition-all ${viewMode === "kanban" ? "bg-white text-blue-600 shadow-2xs" : "text-slate-600 hover:text-slate-900"}`}
+            >
+              <View className="w-3.5 h-3.5" /> Board
+            </button>
+            <button 
+              onClick={() => setViewMode("list")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-extrabold flex items-center gap-1.5 transition-all ${viewMode === "list" ? "bg-white text-blue-600 shadow-2xs" : "text-slate-600 hover:text-slate-900"}`}
+            >
+              <List className="w-3.5 h-3.5" /> List
+            </button>
+          </div>
+        </div>
       </section>
 
-      {/* SHARED TOOLBAR: Filter button + Context-appropriate primary action button */}
-      <section className="px-8 py-2 flex items-center justify-between">
-        <button 
-          onClick={() => navigate("/rules")}
-          className="px-4 py-2 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 font-extrabold text-xs rounded-xl shadow-2xs transition-all flex items-center gap-2"
-        >
-          <Filter className="w-3.5 h-3.5 text-slate-500" /> Filter
-        </button>
+      {/* SHARED TOOLBAR: Action Button */}
+      {viewMode === "kanban" && (
+        <section className="px-8 py-2 flex items-center justify-between">
+          <button 
+            onClick={() => navigate("/rules")}
+            className="px-4 py-2 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 font-extrabold text-xs rounded-xl shadow-2xs transition-all flex items-center gap-2"
+          >
+            <Filter className="w-3.5 h-3.5 text-slate-500" /> Filter
+          </button>
 
-        {activeTab === "leads" ? (
-          <button 
-            onClick={() => navigate("/leads/new")}
-            className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5"
-          >
-            <Plus className="w-4 h-4" /> + Add Lead
-          </button>
-        ) : activeTab === "opportunities" ? (
-          <button 
-            onClick={() => setShowAddDealModal(true)}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5"
-          >
-            <Plus className="w-4 h-4" /> + Add Opportunity
-          </button>
-        ) : (
-          <button 
-            onClick={() => setShowAddDealModal(true)}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5"
-          >
-            <Plus className="w-4 h-4" /> + Record Deal
-          </button>
-        )}
-      </section>
+          {activeTab === "leads" ? (
+            <button 
+              onClick={() => navigate("/leads/new")}
+              className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5"
+            >
+              <Plus className="w-4 h-4" /> + Add Lead
+            </button>
+          ) : activeTab === "opportunities" ? (
+            <button 
+              onClick={() => setShowAddDealModal(true)}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5"
+            >
+              <Plus className="w-4 h-4" /> + Add Opportunity
+            </button>
+          ) : (
+            <button 
+              onClick={() => setShowAddDealModal(true)}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5"
+            >
+              <Plus className="w-4 h-4" /> + Record Deal
+            </button>
+          )}
+        </section>
+      )}
 
       {/* MAIN CONTENT AREA */}
       <section className="flex-1 overflow-auto px-8 py-4">
-        {/* KANBAN BOARD FOR ALL 3 TABS (LEADS, OPPORTUNITIES, DEALS) */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-start">
+        {viewMode === "kanban" ? (
+          /* KANBAN BOARD FOR ALL 3 TABS (LEADS, OPPORTUNITIES, DEALS) */
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-start">
             {activeTab === "leads" ? (
               /* LEADS KANBAN COLUMNS */
               ["New", "Contacted", "Qualified"].map((leadStage) => {
@@ -449,7 +532,7 @@ export default function PipelineKanban() {
                                 </div>
 
                                 <div
-                                  className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 border border-blue-200 font-black text-[9px] flex items-center justify-center shadow-2xs shrink-0"
+                                  className="w-6 h-6 rounded-full bg-slate-100 text-slate-700 border border-slate-200 font-black text-[9px] flex items-center justify-center shadow-2xs shrink-0"
                                   title={`Assigned Rep: ${repName}`}
                                 >
                                   {initials}
@@ -466,22 +549,24 @@ export default function PipelineKanban() {
             ) : (
               /* OPPORTUNITIES & DEALS KANBAN COLUMNS */
               (() => {
-                const activeStages = pipelineColumns?.filter((col: any) =>
+                const targetColumns = pipelineColumns?.filter((col: any) =>
                   activeTab === "opportunities" ? isOpenGroup(col.group) : isClosedGroup(col.group)
                 ) || [];
 
-                return activeStages.map((stageCol: any) => {
+                return targetColumns.map((stageCol: any) => {
                   const colorScheme = getStageColor(stageCol.stage, stageCol.group);
 
-                  const filteredDeals = stageCol.deals.filter((d: any) => {
+                  const filteredDeals = (stageCol.deals || []).filter((d: any) => {
                     if (!searchQuery) return true;
-                    return d.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                           (d.company && d.company.toLowerCase().includes(searchQuery.toLowerCase()));
+                    const searchLower = searchQuery.toLowerCase();
+                    const nameStr = (d.name || "").toLowerCase();
+                    const companyStr = (d.company || "").toLowerCase();
+                    return nameStr.includes(searchLower) || companyStr.includes(searchLower);
                   });
 
                   return (
                     <div 
-                      key={stageCol.id}
+                      key={stageCol.id} 
                       onDragOver={handleDragOver}
                       onDrop={(e) => handleDrop(e, stageCol.id, stageCol.stage)}
                       className="flex flex-col gap-3 min-w-[270px]"
@@ -489,11 +574,9 @@ export default function PipelineKanban() {
                       {/* Tinted Stage Header Card */}
                       <div className={`p-4 rounded-2xl border ${colorScheme.bg} ${colorScheme.border} shadow-2xs flex items-center justify-between`}>
                         <div>
-                          <h3 className={`text-sm font-black ${colorScheme.text}`}>
-                            {stageCol.stage}
-                          </h3>
+                          <h3 className={`text-sm font-black ${colorScheme.text}`}>{stageCol.stage}</h3>
                           <p className="text-[11px] font-semibold text-slate-500 mt-0.5">
-                            {filteredDeals.length} opps
+                            {filteredDeals.length} {activeTab === "opportunities" ? "opportunities" : "deals"}
                           </p>
                         </div>
                         <div className="text-base font-black text-slate-900 tracking-tight font-mono">
@@ -612,6 +695,152 @@ export default function PipelineKanban() {
               })()
             )}
           </div>
+        ) : (
+          /* STRUCTURED UNIFIED LIST VIEW TABLE FOR PIPELINE */
+          <div className="bg-white border border-slate-200/90 rounded-2xl shadow-2xs overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left divide-y divide-slate-100 text-xs">
+                <thead>
+                  <tr className="bg-slate-50/70 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
+                    <th className="py-3.5 px-4">Record / Client Name</th>
+                    <th className="py-3.5 px-4">Company</th>
+                    <th className="py-3.5 px-4">Stage / Status</th>
+                    <th className="py-3.5 px-4">Pipeline Value</th>
+                    <th className="py-3.5 px-4">Assigned Rep</th>
+                    <th className="py-3.5 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-medium">
+                  {(() => {
+                    const allPipelineItems = [
+                      ...leads.map((l: any) => ({
+                        id: l.id,
+                        name: `${l.firstName || ""} ${l.lastName || ""}`.trim() || l.company || "Lead",
+                        company: l.company || "—",
+                        stageName: l.status || "New",
+                        value: Number(l.leadScore || 50) * 100,
+                        ownerName: l.assignedTo?.name || "Unassigned",
+                        verificationStatus: "VERIFIED",
+                        daysInStage: 2,
+                        stageEvidence: [],
+                        lastActivity: "Recent",
+                        type: "lead"
+                      })),
+                      ...(pipelineColumns || []).flatMap((col: any) =>
+                        (col.deals || []).map((d: any) => ({
+                          id: d.id,
+                          leadId: d.leadId,
+                          name: d.name,
+                          company: d.company || d.name,
+                          stageName: col.stage,
+                          value: d.value,
+                          ownerName: d.owner?.name || d.ownerName || "Unassigned",
+                          verificationStatus: d.verificationStatus || "VERIFIED",
+                          daysInStage: d.daysInStage || 0,
+                          stageEvidence: d.stageEvidence || [],
+                          lastActivity: d.lastActivity || "Recent",
+                          type: "deal"
+                        }))
+                      )
+                    ].filter((item: any) => {
+                      const matchesStage = stageFilter === "all" || item.stageName === stageFilter;
+                      if (!matchesStage) return false;
+
+                      const matchesVerification = verificationFilter === "all" || (
+                        verificationFilter === "stuck"
+                          ? item.daysInStage > 14
+                          : item.verificationStatus === verificationFilter
+                      );
+                      if (!matchesVerification) return false;
+
+                      if (!searchQuery) return true;
+                      const q = searchQuery.toLowerCase();
+                      return (item.name || "").toLowerCase().includes(q) || (item.company || "").toLowerCase().includes(q) || (item.stageName || "").toLowerCase().includes(q);
+                    });
+
+                    if (allPipelineItems.length === 0) {
+                      return (
+                        <tr>
+                          <td colSpan={6} className="py-8 text-center text-slate-400 font-bold">
+                            No records found matching search and verification criteria.
+                          </td>
+                        </tr>
+                      );
+                    }
+
+                    return allPipelineItems.map((item: any) => (
+                      <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="py-3.5 px-4">
+                          <button
+                            onClick={() => navigate(item.leadId ? `/leads/${item.leadId}` : `/leads/${item.id}`)}
+                            className="font-black text-slate-900 hover:text-blue-600 text-left block"
+                          >
+                            {item.name}
+                          </button>
+                          <span className="text-[10px] text-slate-400 font-medium">
+                            {item.daysInStage} days in stage
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-slate-600 font-semibold">{item.company}</td>
+                        <td className="py-3.5 px-4">
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2.5 py-1 text-[11px] font-extrabold rounded-full border ${
+                              item.stageName === "Closed Won" || item.stageName === "Won"
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                : item.stageName === "Closed Lost" || item.stageName === "Lost"
+                                ? "bg-rose-50 text-rose-700 border-rose-200"
+                                : "bg-blue-50 text-blue-700 border-blue-200"
+                            }`}>
+                              {item.stageName}
+                            </span>
+                            
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEvidenceModal({
+                                  isOpen: true,
+                                  recordName: item.name,
+                                  recordId: item.id,
+                                  validation: {
+                                    allowed: item.verificationStatus === "VERIFIED",
+                                    fromStage: item.stageName,
+                                    toStage: item.stageName,
+                                    missingRequirements: item.verificationStatus === "VERIFIED" ? [] : ["Stage entry criteria pending customer-side evidence."],
+                                    evidence: item.stageEvidence || [],
+                                    verificationStatus: item.verificationStatus || "VERIFIED"
+                                  },
+                                  daysInStage: item.daysInStage || 0,
+                                  lastCustomerActivity: item.lastActivity || "Recent"
+                                });
+                              }}
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold border transition-all cursor-pointer ${
+                                item.verificationStatus === "VERIFIED"
+                                  ? "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100"
+                                  : "bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100"
+                              }`}
+                            >
+                              {item.verificationStatus === "VERIFIED" ? "Verified ✓" : "Needs Review ⚠"}
+                            </button>
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4 font-black text-slate-900">{formatCurrency(item.value)}</td>
+                        <td className="py-3.5 px-4 text-slate-600">{item.ownerName}</td>
+                        <td className="py-3.5 px-4 text-right">
+                          <button
+                            onClick={() => navigate(item.leadId ? `/leads/${item.leadId}` : `/leads/${item.id}`)}
+                            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-[11px] transition-all cursor-pointer"
+                          >
+                            View Record
+                          </button>
+                        </td>
+                      </tr>
+                    ));
+                  })()}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </section>
 
       {/* CREATE DEAL MODAL */}
@@ -779,6 +1008,27 @@ export default function PipelineKanban() {
           </div>
         </div>
       )}
+
+      {/* STAGE EVIDENCE VERIFICATION MODAL */}
+      <StageEvidenceModal
+        isOpen={evidenceModal.isOpen}
+        onClose={() => setEvidenceModal((prev) => ({ ...prev, isOpen: false }))}
+        recordName={evidenceModal.recordName}
+        recordId={evidenceModal.recordId}
+        validation={evidenceModal.validation}
+        daysInStage={evidenceModal.daysInStage}
+        lastCustomerActivity={evidenceModal.lastCustomerActivity}
+        onForceBypass={() => {
+          if (evidenceModal.recordId && evidenceModal.pendingTargetStageId) {
+            updateStageMutation.mutate({
+              dealId: evidenceModal.recordId,
+              toStageId: evidenceModal.pendingTargetStageId,
+              forceBypass: true
+            });
+            setEvidenceModal((prev) => ({ ...prev, isOpen: false }));
+          }
+        }}
+      />
     </div>
   );
 }

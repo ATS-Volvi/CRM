@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: nexus_crm_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: nexus_user
+      POSTGRES_PASSWORD: nexus_secure_password_123
+      POSTGRES_DB: nexus_crm_prod
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexus_user -d nexus_crm_prod"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  crm_app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nexus_crm_app
+    restart: always
+    ports:
+      - "5506:5506"
+    environment:
+      - NODE_ENV=production
+      - PORT=5506
+      - DATABASE_URL=postgresql://nexus_user:nexus_secure_password_123@postgres:5432/nexus_crm_prod
+      - JWT_SECRET=change_this_to_a_secure_jwt_secret_in_production_9988
+      - CORS_ORIGIN=*
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
