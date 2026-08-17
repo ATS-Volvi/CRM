@@ -103,69 +103,6 @@ export async function ingestLead(payload: LeadPayload) {
       assignedToId = await getFirstAdminId();
     }
 
-<<<<<<< HEAD
-    // 5. Create Lead for dual-compatibility (Live Queue & Lead Detail screens)
-    const { Lead } = sequelize.models;
-    let leadRecord: any = null;
-    const leadId = crypto.randomUUID();
-
-    if (Lead) {
-      try {
-        leadRecord = await Lead.create({
-          id: leadId,
-          firstName: payload.firstName,
-          lastName: payload.lastName,
-          email: email,
-          phone: payload.phone || null,
-          company: companyName,
-          industry: payload.industry || null,
-          source: payload.source || 'Website',
-          sourceDetail: payload.sourceDetail || null,
-          campaign: payload.campaign || null,
-          budgetRange: payload.budgetRange || null,
-          status: 'New',
-          leadScore: leadScore,
-          assignedToId: assignedToId,
-          customerId: (account as any).id,
-          body: payload.message || null,
-          rawPayload: payload.rawPayload ? JSON.stringify(payload.rawPayload) : null
-        });
-      } catch (leadErr) {
-        console.warn("Lead dual-write note:", leadErr);
-      }
-    }
-
-    // 6. Create Deal
-    const dealId = crypto.randomUUID();
-    const dealName = `${companyName} - ${payload.firstName} Opportunity`;
-
-    const newDeal = await Deal.create({
-      id: dealId,
-      accountId: (account as any).id,
-      leadId: leadRecord ? leadRecord.id : null,
-      customerId: (account as any).id,
-      name: dealName,
-      status: "New",
-      amount: 0,
-      assignedToId: assignedToId,
-      leadScore: leadScore,
-      source: payload.source || 'Website',
-      sourceDetail: payload.sourceDetail || null,
-      campaign: payload.campaign || null,
-      budgetRange: payload.budgetRange || null,
-      categoriesData: payload.categoriesData || null,
-      rawPayload: payload.rawPayload ? JSON.stringify(payload.rawPayload) : null
-    });
-
-    // 7. Link Contact to Deal
-    await DealContact.create({
-      id: crypto.randomUUID(),
-      dealId: dealId,
-      contactId: (contact as any).id,
-      role: 'Initiator',
-      isPrimary: true
-    });
-=======
     // 5. Generate Collision-Proof Unique Lead Number with Concurrent Retry Protection
     const year = new Date().getFullYear();
     const leadId = crypto.randomUUID();
@@ -183,7 +120,6 @@ export async function ingestLead(payload: LeadPayload) {
       const leadNumber = attempts === 1
         ? `LD-${year}-${String(count + attempts).padStart(5, '0')}-${randomEntropy}`
         : `LD-${year}-${timeMs}-${randomEntropy}`;
->>>>>>> 8c31a7e (feat: complete CRM architecture and UI redesign (Phases 1-6))
 
       try {
         newLead = await Lead.create({
