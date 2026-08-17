@@ -23,7 +23,7 @@ export function SalesLayout() {
   const initials = repName.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
 
   const userRole = (user?.role || "sales_rep").toLowerCase();
-  const isManager = userRole === "sales_manager" || userRole === "team_lead";
+  const isManager = userRole === "manager" || userRole === "team_lead";
   const isAdmin = userRole === "admin" || userRole === "director";
 
   let navItems = [

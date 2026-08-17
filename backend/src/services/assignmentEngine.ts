@@ -269,7 +269,7 @@ export async function assignLead(leadContext: AssignmentContext): Promise<Assign
     if (isStrategic || isVipBudget) {
       const seniorAe: any = await sequelize.models.User.findOne({
         where: {
-          role: { [Op.or]: ["senior_ae", "sales_manager", "admin"] },
+          role: { [Op.or]: ["senior_ae", "manager", "admin"] },
           isAvailable: true
         }
       });
@@ -325,7 +325,7 @@ export async function assignLead(leadContext: AssignmentContext): Promise<Assign
           fairnessDistribution: 0.05,
           managerRating: 0.05
         }),
-        highValueExperienceTiers: JSON.stringify(["Senior Sales Representative", "Enterprise AE", "Strategic AE", "senior_ae", "sales_manager"])
+        highValueExperienceTiers: JSON.stringify(["Senior Sales Representative", "Enterprise AE", "Strategic AE", "senior_ae", "manager"])
       };
     }
 
@@ -395,7 +395,7 @@ export async function assignLead(leadContext: AssignmentContext): Promise<Assign
 
       // Notify Team Lead & Admin for High-Value Lead Assignment
       const managers = await sequelize.models.User.findAll({
-        where: { role: { [Op.or]: ["sales_manager", "admin"] } }
+        where: { role: { [Op.or]: ["manager", "admin"] } }
       });
       for (const mgr of managers) {
         await createNotification(
@@ -435,7 +435,7 @@ export async function assignLead(leadContext: AssignmentContext): Promise<Assign
 
 async function fallbackToManager(leadContext: AssignmentContext, priorityDetails: LeadPriorityDetails): Promise<AssignmentResult> {
   const defaultManager: any = await sequelize.models.User.findOne({
-    where: { role: { [Op.or]: ["admin", "sales_manager"] }, isAvailable: true }
+    where: { role: { [Op.or]: ["admin", "manager"] }, isAvailable: true }
   });
 
   if (defaultManager && (await checkRepEligibility(defaultManager.id))) {

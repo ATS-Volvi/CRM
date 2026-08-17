@@ -1,13 +1,17 @@
 import { DataTypes, Model, Op } from "sequelize";
 import { sequelize } from "../config/dbConn";
 
+export type UserRole = "admin" | "manager" | "senior_ae" | "sales_rep" | "director";
+
 export class User extends Model {
   public id!: string;
   public name!: string;
   public email!: string;
   public password!: string;
-  public role!: string;
+  public role!: UserRole;
   public maxOpenLeads!: number;
+  public maxActiveOpportunities!: number;
+  public hireDate!: Date | null;
   public isAvailable!: boolean;
   public onLeave!: boolean | null;
   public delegatedUserId!: string | null;
@@ -39,6 +43,8 @@ User.init(
     password: { type: DataTypes.STRING, allowNull: false },
     role: { type: DataTypes.STRING, defaultValue: "sales_rep" },
     maxOpenLeads: { type: DataTypes.INTEGER, defaultValue: 20 },
+    maxActiveOpportunities: { type: DataTypes.INTEGER, defaultValue: 10 },
+    hireDate: { type: DataTypes.DATEONLY, allowNull: true },
     isAvailable: { type: DataTypes.BOOLEAN, defaultValue: true },
     onLeave: { type: DataTypes.BOOLEAN, defaultValue: false },
     delegatedUserId: { type: DataTypes.UUID, allowNull: true },
@@ -71,7 +77,7 @@ export class Lead extends Model {
   public company!: string;
   public email!: string | null;
   public phone!: string;
-  public status!: "NEW" | "CONTACTED" | "QUALIFIED" | "CONVERTED" | "NOT_CONVERTED";
+  public status!: string;
   public source!: string;
   public industry!: string;
   public assignedToId!: string | null;
@@ -84,9 +90,7 @@ export class Lead extends Model {
   public subject!: string | null;
   public body!: string | null;
   public budgetRange!: string | null;
-  /** @deprecated Use accountId */
   public customerId!: string | null;
-  public accountId!: string | null;
   public leadNumber!: string | null;
   public categoriesData!: any | null;
   public recipientEmail!: string | null;
@@ -107,16 +111,6 @@ export class Lead extends Model {
   public nextAction!: string | null;
   public nextActionDue!: Date | null;
   public qualificationData!: any | null;
-
-  // Attribution & Campaign dimensions
-  public campaignId!: string | null;
-  public adId!: string | null;
-  public sourceType!: string | null;
-  public sourceChannel!: string | null;
-  public sourceName!: string | null;
-  public referringAccountId!: string | null;
-  public firstTouchAttribution!: any | null;
-  public lastTouchAttribution!: any | null;
 }
 
 Lead.init(
@@ -127,10 +121,7 @@ Lead.init(
     company: { type: DataTypes.STRING, allowNull: true },
     email: { type: DataTypes.STRING, allowNull: true },
     phone: { type: DataTypes.STRING, allowNull: true },
-    status: { 
-      type: DataTypes.ENUM("NEW", "CONTACTED", "QUALIFIED", "CONVERTED", "NOT_CONVERTED"), 
-      defaultValue: "NEW" 
-    },
+    status: { type: DataTypes.STRING, defaultValue: "New" },
     source: { type: DataTypes.STRING, allowNull: true },
     industry: { type: DataTypes.STRING, allowNull: true },
     leadScore: { type: DataTypes.INTEGER, defaultValue: 50 },
@@ -143,7 +134,6 @@ Lead.init(
     body: { type: DataTypes.TEXT, allowNull: true },
     budgetRange: { type: DataTypes.STRING, allowNull: true },
     customerId: { type: DataTypes.UUID, allowNull: true },
-    accountId: { type: DataTypes.UUID, allowNull: true },
     leadNumber: { type: DataTypes.STRING, allowNull: true, unique: true },
     categoriesData: { type: DataTypes.JSON, allowNull: true },
     recipientEmail: { type: DataTypes.STRING, allowNull: true },
@@ -161,15 +151,6 @@ Lead.init(
     nextAction: { type: DataTypes.STRING, allowNull: true, defaultValue: "Reply to Lead" },
     nextActionDue: { type: DataTypes.DATE, allowNull: true },
     qualificationData: { type: DataTypes.JSON, allowNull: true },
-    // Attribution & Campaign dimensions
-    campaignId: { type: DataTypes.UUID, allowNull: true },
-    adId: { type: DataTypes.UUID, allowNull: true },
-    sourceType: { type: DataTypes.STRING, allowNull: true },
-    sourceChannel: { type: DataTypes.STRING, allowNull: true },
-    sourceName: { type: DataTypes.STRING, allowNull: true },
-    referringAccountId: { type: DataTypes.UUID, allowNull: true },
-    firstTouchAttribution: { type: DataTypes.TEXT, allowNull: true },
-    lastTouchAttribution: { type: DataTypes.TEXT, allowNull: true },
   },
   { 
     sequelize, 
@@ -192,7 +173,7 @@ PipelineStage.init(
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
     name: { 
       type: DataTypes.ENUM, 
-      values: ["Discovery", "Requirements", "Solution/Scope", "Quote Preparation", "Quote Sent", "Negotiation", "Agreed", "Won", "Lost"],
+      values: ["Qualification", "Needs Analysis", "Proposal", "Negotiation", "Closed Won", "Closed Lost"],
       allowNull: false 
     },
     order: { type: DataTypes.INTEGER, allowNull: false },
@@ -208,9 +189,6 @@ export class LeadStageHistory extends Model {
   public toStage!: string;
   public changedById!: string;
   public reason!: string | null;
-  public transitionType!: string;
-  public evidenceData!: string | null;
-  public isVerified!: boolean;
 }
 
 LeadStageHistory.init(
@@ -219,9 +197,6 @@ LeadStageHistory.init(
     fromStage: { type: DataTypes.STRING, allowNull: false },
     toStage: { type: DataTypes.STRING, allowNull: false },
     reason: { type: DataTypes.TEXT, allowNull: true },
-    transitionType: { type: DataTypes.STRING, defaultValue: "VALIDATED_MANUAL" },
-    evidenceData: { type: DataTypes.TEXT, defaultValue: "[]" },
-    isVerified: { type: DataTypes.BOOLEAN, defaultValue: true },
   },
   { sequelize, modelName: "LeadStageHistory", updatedAt: false } // Only tracks creation date
 );
@@ -240,21 +215,6 @@ export class Deal extends Model {
   public probability!: number | null;
   public customerId!: string | null;
   public accountId!: string | null;
-  public enteredStageAt!: Date | null;
-  public lastCustomerActivityAt!: Date | null;
-  public stageVerificationStatus!: string;
-  public stageEvidence!: string | null;
-  // Attribution & Campaign dimensions
-  public campaignId!: string | null;
-  public adId!: string | null;
-  public sourceType!: string | null;
-  public sourceChannel!: string | null;
-  public sourceName!: string | null;
-  public referringAccountId!: string | null;
-  public firstTouchAttribution!: any | null;
-  public lastTouchAttribution!: any | null;
-  public createdAt!: Date;
-  public updatedAt!: Date;
 }
 
 Deal.init(
@@ -269,18 +229,6 @@ Deal.init(
     probability: { type: DataTypes.INTEGER, allowNull: true },
     customerId: { type: DataTypes.UUID, allowNull: true },
     accountId: { type: DataTypes.UUID, allowNull: true },
-    enteredStageAt: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
-    lastCustomerActivityAt: { type: DataTypes.DATE, allowNull: true },
-    stageVerificationStatus: { type: DataTypes.STRING, defaultValue: "VERIFIED" },
-    stageEvidence: { type: DataTypes.TEXT, defaultValue: "[]" },
-    campaignId: { type: DataTypes.UUID, allowNull: true },
-    adId: { type: DataTypes.UUID, allowNull: true },
-    sourceType: { type: DataTypes.STRING, allowNull: true },
-    sourceChannel: { type: DataTypes.STRING, allowNull: true },
-    sourceName: { type: DataTypes.STRING, allowNull: true },
-    referringAccountId: { type: DataTypes.UUID, allowNull: true },
-    firstTouchAttribution: { type: DataTypes.TEXT, allowNull: true },
-    lastTouchAttribution: { type: DataTypes.TEXT, allowNull: true },
   },
   { sequelize, modelName: "Deal" }
 );
@@ -299,8 +247,6 @@ export class Quote extends Model {
   public sentAt!: Date | null;
   public viewedAt!: Date | null;
   public acceptedAt!: Date | null;
-  public createdAt!: Date;
-  public updatedAt!: Date;
 }
 
 Quote.init(
@@ -325,24 +271,14 @@ export class PriceBookEntry extends Model {
   public id!: string;
   public sku!: string;
   public name!: string;
-  public description!: string | null;
-  public category!: string | null;
-  public uom!: string | null;                // Unit of Measure
-  // Pricing fields — three tiers
-  public internalCost!: number | null;       // Cost basis — NEVER shown to Sales Rep
-  public unitPrice!: number;                 // Default selling price
-  public minSellingPrice!: number | null;    // Floor selling price (approval below this)
-  public targetMarginPct!: number | null;    // Target margin % (e.g. 25.00)
-  public tax!: number | null;                // Default tax % (e.g. 18.00 for GST)
-  // Legacy price book fields (kept for compatibility)
+  public description!: string;
+  public unitPrice!: number;
+  public category!: string;
   public minPrice!: number | null;
   public maxPrice!: number | null;
-  public segmentPricing!: string | null;
+  public segmentPricing!: string | null; // JSON String
   public startDate!: Date | null;
   public endDate!: Date | null;
-  public isAssetTracked!: boolean;          // true = generates asset records upon fulfillment
-  public createdAt!: Date;
-  public updatedAt!: Date;
 }
 
 PriceBookEntry.init(
@@ -351,19 +287,13 @@ PriceBookEntry.init(
     sku: { type: DataTypes.STRING, allowNull: false, unique: true },
     name: { type: DataTypes.STRING, allowNull: false },
     description: { type: DataTypes.TEXT, allowNull: true },
+    unitPrice: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
     category: { type: DataTypes.STRING, allowNull: true },
-    uom: { type: DataTypes.STRING, allowNull: true, defaultValue: "nos" },
-    internalCost: { type: DataTypes.DECIMAL(12, 2), allowNull: true },
-    unitPrice: { type: DataTypes.DECIMAL(12, 2), allowNull: false, defaultValue: 0 },
-    minSellingPrice: { type: DataTypes.DECIMAL(12, 2), allowNull: true },
-    targetMarginPct: { type: DataTypes.DECIMAL(5, 2), allowNull: true },
-    tax: { type: DataTypes.DECIMAL(5, 2), allowNull: true, defaultValue: 0 },
-    minPrice: { type: DataTypes.DECIMAL(12, 2), allowNull: true },
-    maxPrice: { type: DataTypes.DECIMAL(12, 2), allowNull: true },
+    minPrice: { type: DataTypes.DECIMAL(10, 2), allowNull: true },
+    maxPrice: { type: DataTypes.DECIMAL(10, 2), allowNull: true },
     segmentPricing: { type: DataTypes.TEXT, defaultValue: "{}" },
     startDate: { type: DataTypes.DATE, allowNull: true },
-    endDate: { type: DataTypes.DATE, allowNull: true },
-    isAssetTracked: { type: DataTypes.BOOLEAN, defaultValue: true },
+    endDate: { type: DataTypes.DATE, allowNull: true }
   },
   { sequelize, modelName: "PriceBookEntry" }
 );
@@ -371,64 +301,44 @@ PriceBookEntry.init(
 export class QuoteLineItem extends Model {
   public id!: string;
   public quoteId!: string;
-  public productId!: string | null;       // FK to PriceBookEntry (null for custom lines)
-  public catalogItemId!: string | null;   // Alias for productId — explicit catalog link
+  public productId!: string;
   public quantity!: number;
   public unitPrice!: number;
-  public discount!: number;               // Line-level discount % (e.g. 5.00)
-  public tax!: number;                    // Line-level tax % (e.g. 18.00)
-  public totalPrice!: number;             // Pre-tax, post-discount line amount
+  public totalPrice!: number;
   public isOptional!: boolean;
-  public isCustom!: boolean;              // true = custom line not from catalog
-  public customDescription!: string | null; // Free-text description for custom lines
-  public sortOrder!: number;              // Display order
-  public internalCostSnapshot!: number | null; // Cost at time of quote (for margin calc)
 }
 
 QuoteLineItem.init(
   {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
-    catalogItemId: { type: DataTypes.UUID, allowNull: true },
-    quantity: { type: DataTypes.DECIMAL(10, 4), allowNull: false, defaultValue: 1 },
-    unitPrice: { type: DataTypes.DECIMAL(12, 2), allowNull: false, defaultValue: 0 },
-    discount: { type: DataTypes.DECIMAL(5, 2), allowNull: false, defaultValue: 0 },
-    tax: { type: DataTypes.DECIMAL(5, 2), allowNull: false, defaultValue: 0 },
-    totalPrice: { type: DataTypes.DECIMAL(12, 2), allowNull: false, defaultValue: 0 },
-    isOptional: { type: DataTypes.BOOLEAN, defaultValue: false },
-    isCustom: { type: DataTypes.BOOLEAN, defaultValue: false },
-    customDescription: { type: DataTypes.TEXT, allowNull: true },
-    sortOrder: { type: DataTypes.INTEGER, defaultValue: 0 },
-    internalCostSnapshot: { type: DataTypes.DECIMAL(12, 2), allowNull: true },
+    quantity: { type: DataTypes.INTEGER, allowNull: false },
+    unitPrice: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
+    totalPrice: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
+    isOptional: { type: DataTypes.BOOLEAN, defaultValue: false }
   },
   { sequelize, modelName: "QuoteLineItem" }
 );
+
+export type PurchaseOrderType = "customer_po" | "supply_order";
 
 export class PurchaseOrder extends Model {
   public id!: string;
   public quoteId!: string;
   public status!: string;
+  public type!: PurchaseOrderType;
   public amount!: number;
   public poNumber!: string;
   public generatedDate!: Date;
-  public salesOwnerId!: string | null;
-  public assignedSupplyUserId!: string | null;
-  public notes!: string | null;
-  public deliveryAddress!: string | null;
-  public requestedDeliveryDate!: Date | null;
 }
 
 PurchaseOrder.init(
   {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
     status: { type: DataTypes.STRING, defaultValue: "Pending" },
+    type: { type: DataTypes.ENUM("customer_po", "supply_order"), defaultValue: "customer_po", allowNull: false },
     amount: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
     poNumber: { type: DataTypes.STRING, allowNull: false, unique: true },
     generatedDate: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
-    salesOwnerId: { type: DataTypes.UUID, allowNull: true },
-    assignedSupplyUserId: { type: DataTypes.UUID, allowNull: true },
-    notes: { type: DataTypes.TEXT, allowNull: true },
-    deliveryAddress: { type: DataTypes.TEXT, allowNull: true },
-    requestedDeliveryDate: { type: DataTypes.DATE, allowNull: true },
   },
   { sequelize, modelName: "PurchaseOrder" }
 );
@@ -493,8 +403,6 @@ export class Activity extends Model {
   public messageId!: string | null; // Meta message ID for idempotency
   public customerId!: string | null;
   public direction!: string | null; // inbound, outbound, internal
-  public createdAt!: Date;
-  public updatedAt!: Date;
 }
 
 Activity.init(
@@ -739,7 +647,7 @@ Deal.belongsTo(User, { foreignKey: "ownerId", as: "owner" });
 Lead.hasMany(Deal, { foreignKey: "leadId" });
 Deal.belongsTo(Lead, { foreignKey: "leadId", as: "lead" });
 
-Deal.hasMany(Quote, { foreignKey: "dealId", as: "quotes" });
+Deal.hasMany(Quote, { foreignKey: "dealId" });
 Quote.belongsTo(Deal, { foreignKey: "dealId", as: "deal" });
 
 Quote.hasMany(QuoteLineItem, { foreignKey: "quoteId" });
@@ -1391,9 +1299,6 @@ Contact.belongsTo(Account, { foreignKey: "accountId", as: "account" });
 Account.hasMany(Deal, { foreignKey: "accountId", as: "accountDeals" });
 Deal.belongsTo(Account, { foreignKey: "accountId", as: "account" });
 
-Account.hasMany(Lead, { foreignKey: "accountId", as: "accountLeads" });
-Lead.belongsTo(Account, { foreignKey: "accountId", as: "account" });
-
 Deal.belongsToMany(Contact, { through: DealContact, foreignKey: "dealId", as: "dealContacts" });
 Contact.belongsToMany(Deal, { through: DealContact, foreignKey: "contactId", as: "contactDeals" });
 
@@ -1418,84 +1323,6 @@ EmailMessage.belongsTo(Lead, { foreignKey: "leadId", as: "lead" });
 EmailMessage.belongsTo(Account, { foreignKey: "customerId", as: "customer" });
 EmailMessage.belongsTo(User, { foreignKey: "senderId", as: "sender" });
 
-export class Fulfillment extends Model {
-  public id!: string;
-  public orderId!: string;
-  public status!: string;
-  public priority!: string;
-  public assignedTeam!: string;
-  public assignedUserId!: string | null;
-  public plannedStartDate!: Date | null;
-  public plannedCompletionDate!: Date | null;
-  public actualStartDate!: Date | null;
-  public actualCompletionDate!: Date | null;
-  public requestedDeliveryDate!: Date | null;
-  public actualDeliveryDate!: Date | null;
-  public deliveryAddress!: string | null;
-  public dispatchReference!: string | null;
-  public carrier!: string | null;
-  public notes!: string | null;
-  public createdAt!: Date;
-  public updatedAt!: Date;
-}
-
-Fulfillment.init(
-  {
-    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
-    orderId: { type: DataTypes.UUID, allowNull: false },
-    status: { type: DataTypes.STRING, allowNull: false, defaultValue: "PENDING" },
-    priority: { type: DataTypes.STRING, defaultValue: "MEDIUM" },
-    assignedTeam: { type: DataTypes.STRING, defaultValue: "Operations / Supply" },
-    assignedUserId: { type: DataTypes.UUID, allowNull: true },
-    plannedStartDate: { type: DataTypes.DATE, allowNull: true },
-    plannedCompletionDate: { type: DataTypes.DATE, allowNull: true },
-    actualStartDate: { type: DataTypes.DATE, allowNull: true },
-    actualCompletionDate: { type: DataTypes.DATE, allowNull: true },
-    requestedDeliveryDate: { type: DataTypes.DATE, allowNull: true },
-    actualDeliveryDate: { type: DataTypes.DATE, allowNull: true },
-    deliveryAddress: { type: DataTypes.TEXT, allowNull: true },
-    dispatchReference: { type: DataTypes.STRING, allowNull: true },
-    carrier: { type: DataTypes.STRING, allowNull: true },
-    notes: { type: DataTypes.TEXT, allowNull: true },
-  },
-  { sequelize, modelName: "Fulfillment", tableName: "Fulfillments" }
-);
-
-export class FulfillmentItem extends Model {
-  public id!: string;
-  public fulfillmentId!: string;
-  public quoteLineItemId!: string | null;
-  public productServiceId!: string | null;
-  public description!: string;
-  public quantityPlanned!: number;
-  public quantityAllocated!: number;
-  public quantityInProduction!: number;
-  public quantityReady!: number;
-  public quantityDispatched!: number;
-  public quantityDelivered!: number;
-  public status!: string;
-  public createdAt!: Date;
-  public updatedAt!: Date;
-}
-
-FulfillmentItem.init(
-  {
-    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
-    fulfillmentId: { type: DataTypes.UUID, allowNull: false },
-    quoteLineItemId: { type: DataTypes.UUID, allowNull: true },
-    productServiceId: { type: DataTypes.UUID, allowNull: true },
-    description: { type: DataTypes.TEXT, allowNull: false },
-    quantityPlanned: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },
-    quantityAllocated: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
-    quantityInProduction: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
-    quantityReady: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
-    quantityDispatched: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
-    quantityDelivered: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
-    status: { type: DataTypes.STRING, allowNull: false, defaultValue: "PENDING" },
-  },
-  { sequelize, modelName: "FulfillmentItem", tableName: "FulfillmentItems" }
-);
-
 export class Asset extends Model {
   public id!: string;
   public name!: string;
@@ -1505,23 +1332,9 @@ export class Asset extends Model {
   public condition!: string;
   public customerId!: string | null;
   public dealId!: string | null;
-  public orderId!: string | null;
-  public orderItemId!: string | null;
-  public productServiceId!: string | null;
-  public assetNumber!: string | null;
-  public modelNumber!: string | null;
-  public description!: string | null;
-  public location!: string | null;
-  public installationDate!: Date | null;
-  public commissionDate!: Date | null;
-  public warrantyStart!: Date | null;
-  public warrantyEnd!: Date | null;
-  public purchaseDate!: Date | null;
   public deployedAt!: Date | null;
   public expectedReturnDate!: Date | null;
   public notes!: string | null;
-  public createdAt!: Date;
-  public updatedAt!: Date;
 }
 
 Asset.init(
@@ -1534,18 +1347,6 @@ Asset.init(
     condition: { type: DataTypes.STRING, allowNull: false, defaultValue: "Good" },
     customerId: { type: DataTypes.UUID, allowNull: true },
     dealId: { type: DataTypes.UUID, allowNull: true },
-    orderId: { type: DataTypes.UUID, allowNull: true },
-    orderItemId: { type: DataTypes.UUID, allowNull: true },
-    productServiceId: { type: DataTypes.UUID, allowNull: true },
-    assetNumber: { type: DataTypes.STRING, allowNull: true },
-    modelNumber: { type: DataTypes.STRING, allowNull: true },
-    description: { type: DataTypes.TEXT, allowNull: true },
-    location: { type: DataTypes.STRING, allowNull: true },
-    installationDate: { type: DataTypes.DATE, allowNull: true },
-    commissionDate: { type: DataTypes.DATE, allowNull: true },
-    warrantyStart: { type: DataTypes.DATE, allowNull: true },
-    warrantyEnd: { type: DataTypes.DATE, allowNull: true },
-    purchaseDate: { type: DataTypes.DATE, allowNull: true },
     deployedAt: { type: DataTypes.DATE, allowNull: true },
     expectedReturnDate: { type: DataTypes.DATE, allowNull: true },
     notes: { type: DataTypes.TEXT, allowNull: true },
@@ -1586,32 +1387,11 @@ Account.hasMany(Asset, { foreignKey: "customerId", as: "assets" });
 Asset.belongsTo(Deal, { foreignKey: "dealId", as: "deal" });
 Deal.hasMany(Asset, { foreignKey: "dealId", as: "assets" });
 
-Asset.belongsTo(PurchaseOrder, { foreignKey: "orderId", as: "order" });
-PurchaseOrder.hasMany(Asset, { foreignKey: "orderId", as: "assets" });
-
-Asset.belongsTo(PriceBookEntry, { foreignKey: "productServiceId", as: "product" });
-
 Asset.hasMany(AssetStatusHistory, { foreignKey: "assetId", as: "statusHistory" });
 AssetStatusHistory.belongsTo(Asset, { foreignKey: "assetId", as: "asset" });
 
 AssetStatusHistory.belongsTo(User, { foreignKey: "changedById", as: "changedBy" });
 User.hasMany(AssetStatusHistory, { foreignKey: "changedById", as: "assetStatusChanges" });
-
-// Fulfillment Associations
-PurchaseOrder.hasOne(Fulfillment, { foreignKey: "orderId", as: "fulfillment" });
-Fulfillment.belongsTo(PurchaseOrder, { foreignKey: "orderId", as: "order" });
-
-Fulfillment.belongsTo(User, { foreignKey: "assignedUserId", as: "assignedUser" });
-User.hasMany(Fulfillment, { foreignKey: "assignedUserId", as: "assignedFulfillments" });
-
-PurchaseOrder.belongsTo(User, { foreignKey: "salesOwnerId", as: "salesOwner" });
-PurchaseOrder.belongsTo(User, { foreignKey: "assignedSupplyUserId", as: "assignedSupplyUser" });
-
-Fulfillment.hasMany(FulfillmentItem, { foreignKey: "fulfillmentId", as: "items" });
-FulfillmentItem.belongsTo(Fulfillment, { foreignKey: "fulfillmentId", as: "fulfillment" });
-
-FulfillmentItem.belongsTo(PriceBookEntry, { foreignKey: "productServiceId", as: "product" });
-FulfillmentItem.belongsTo(QuoteLineItem, { foreignKey: "quoteLineItemId", as: "quoteLineItem" });
 
 export class LeadContact extends Model {
   public id!: string;
@@ -1836,187 +1616,49 @@ LeadAssignmentAudit.belongsTo(Lead, { foreignKey: "leadId", as: "lead" });
 LeadAssignmentAudit.belongsTo(User, { foreignKey: "assignedToId", as: "assignedTo" });
 LeadAssignmentAudit.belongsTo(User, { foreignKey: "previousOwnerId", as: "previousOwner" });
 
-// ==========================================
-// Phase 5: Campaign & Attribution Models
-// ==========================================
-
-export class Campaign extends Model {
+// ─── DealOwner (commission split) ────────────────────────────────────────────
+export class DealOwner extends Model {
   public id!: string;
-  public name!: string;
-  public code!: string;
+  public dealId!: string;
+  public userId!: string;
+  public splitPct!: number;
+  public role!: string | null; // 'qualifying_rep' | 'closing_ae' | 'support'
+}
+
+DealOwner.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    dealId: { type: DataTypes.UUID, allowNull: false },
+    userId: { type: DataTypes.UUID, allowNull: false },
+    splitPct: { type: DataTypes.DECIMAL(5, 2), allowNull: false, defaultValue: 100.0 },
+    role: { type: DataTypes.STRING, allowNull: true }
+  },
+  { sequelize, modelName: "DealOwner", tableName: "DealOwners" }
+);
+
+Deal.hasMany(DealOwner, { foreignKey: "dealId", as: "owners" });
+DealOwner.belongsTo(Deal, { foreignKey: "dealId", as: "deal" });
+DealOwner.belongsTo(User, { foreignKey: "userId", as: "user" });
+User.hasMany(DealOwner, { foreignKey: "userId", as: "dealOwnerships" });
+
+// ─── WorkspaceSetting (admin-only key-value config) ───────────────────────────
+export class WorkspaceSetting extends Model {
+  public id!: string;
+  public key!: string;
+  public value!: string;
   public description!: string | null;
-  public channel!: string;
-  public platform!: string | null;
-  public status!: string;
-  public startDate!: Date | null;
-  public endDate!: Date | null;
-  public budget!: number | null;
-  public actualSpend!: number | null;
-  public currency!: string;
-  public ownerId!: string | null;
-  public targetAudience!: string | null;
-  public objective!: string | null;
-  public createdAt!: Date;
-  public updatedAt!: Date;
+  public updatedBy!: string | null;
 }
 
-Campaign.init(
+WorkspaceSetting.init(
   {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
-    name: { type: DataTypes.STRING, allowNull: false },
-    code: { type: DataTypes.STRING, allowNull: false, unique: true },
+    key: { type: DataTypes.STRING, allowNull: false, unique: true },
+    value: { type: DataTypes.TEXT, allowNull: false },
     description: { type: DataTypes.TEXT, allowNull: true },
-    channel: { type: DataTypes.STRING, allowNull: false, defaultValue: "Other" },
-    platform: { type: DataTypes.STRING, allowNull: true },
-    status: { type: DataTypes.STRING, allowNull: false, defaultValue: "DRAFT" },
-    startDate: { type: DataTypes.DATE, allowNull: true },
-    endDate: { type: DataTypes.DATE, allowNull: true },
-    budget: { type: DataTypes.DECIMAL(12, 2), defaultValue: 0 },
-    actualSpend: { type: DataTypes.DECIMAL(12, 2), allowNull: true },
-    currency: { type: DataTypes.STRING, defaultValue: "INR" },
-    ownerId: { type: DataTypes.UUID, allowNull: true },
-    targetAudience: { type: DataTypes.TEXT, allowNull: true },
-    objective: { type: DataTypes.STRING, allowNull: true },
+    updatedBy: { type: DataTypes.UUID, allowNull: true }
   },
-  { sequelize, modelName: "Campaign", tableName: "Campaigns" }
+  { sequelize, modelName: "WorkspaceSetting", tableName: "WorkspaceSettings" }
 );
-
-export class CampaignAd extends Model {
-  public id!: string;
-  public campaignId!: string;
-  public name!: string;
-  public externalId!: string | null;
-  public platform!: string | null;
-  public creativeType!: string | null;
-  public status!: string;
-  public createdAt!: Date;
-  public updatedAt!: Date;
-}
-
-CampaignAd.init(
-  {
-    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
-    campaignId: { type: DataTypes.UUID, allowNull: false },
-    name: { type: DataTypes.STRING, allowNull: false },
-    externalId: { type: DataTypes.STRING, allowNull: true },
-    platform: { type: DataTypes.STRING, allowNull: true },
-    creativeType: { type: DataTypes.STRING, allowNull: true },
-    status: { type: DataTypes.STRING, defaultValue: "ACTIVE" },
-  },
-  { sequelize, modelName: "CampaignAd", tableName: "CampaignAds" }
-);
-
-export class LeadAttribution extends Model {
-  public id!: string;
-  public leadId!: string;
-  public channel!: string;
-  public sourceType!: string;
-  public sourceName!: string | null;
-  public sourceEntityId!: string | null;
-  public referringAccountId!: string | null;
-  public campaignId!: string | null;
-  public adId!: string | null;
-  public landingPage!: string | null;
-  public referrer!: string | null;
-  public utmSource!: string | null;
-  public utmMedium!: string | null;
-  public utmCampaign!: string | null;
-  public utmTerm!: string | null;
-  public utmContent!: string | null;
-  public clickId!: string | null;
-  public touchType!: string;
-  public firstTouchAt!: Date | null;
-  public lastTouchAt!: Date | null;
-  public createdAt!: Date;
-  public updatedAt!: Date;
-}
-
-LeadAttribution.init(
-  {
-    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
-    leadId: { type: DataTypes.UUID, allowNull: false },
-    channel: { type: DataTypes.STRING, allowNull: false },
-    sourceType: { type: DataTypes.STRING, allowNull: false },
-    sourceName: { type: DataTypes.STRING, allowNull: true },
-    sourceEntityId: { type: DataTypes.UUID, allowNull: true },
-    referringAccountId: { type: DataTypes.UUID, allowNull: true },
-    campaignId: { type: DataTypes.UUID, allowNull: true },
-    adId: { type: DataTypes.UUID, allowNull: true },
-    landingPage: { type: DataTypes.STRING, allowNull: true },
-    referrer: { type: DataTypes.STRING, allowNull: true },
-    utmSource: { type: DataTypes.STRING, allowNull: true },
-    utmMedium: { type: DataTypes.STRING, allowNull: true },
-    utmCampaign: { type: DataTypes.STRING, allowNull: true },
-    utmTerm: { type: DataTypes.STRING, allowNull: true },
-    utmContent: { type: DataTypes.STRING, allowNull: true },
-    clickId: { type: DataTypes.STRING, allowNull: true },
-    touchType: { type: DataTypes.STRING, defaultValue: "FIRST_TOUCH" },
-    firstTouchAt: { type: DataTypes.DATE, allowNull: true },
-    lastTouchAt: { type: DataTypes.DATE, allowNull: true },
-  },
-  { sequelize, modelName: "LeadAttribution", tableName: "LeadAttributions" }
-);
-
-export class AttributionEvent extends Model {
-  public id!: string;
-  public leadId!: string | null;
-  public opportunityId!: string | null;
-  public channel!: string;
-  public sourceType!: string;
-  public sourceName!: string | null;
-  public campaignId!: string | null;
-  public adId!: string | null;
-  public timestamp!: Date;
-  public metadata!: string | null;
-  public createdAt!: Date;
-}
-
-AttributionEvent.init(
-  {
-    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
-    leadId: { type: DataTypes.UUID, allowNull: true },
-    opportunityId: { type: DataTypes.UUID, allowNull: true },
-    channel: { type: DataTypes.STRING, allowNull: false },
-    sourceType: { type: DataTypes.STRING, allowNull: false },
-    sourceName: { type: DataTypes.STRING, allowNull: true },
-    campaignId: { type: DataTypes.UUID, allowNull: true },
-    adId: { type: DataTypes.UUID, allowNull: true },
-    timestamp: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
-    metadata: { type: DataTypes.TEXT, defaultValue: "{}" },
-    createdAt: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
-  },
-  { sequelize, modelName: "AttributionEvent", tableName: "AttributionEvents", updatedAt: false }
-);
-
-// Campaign & Attribution Associations
-Campaign.belongsTo(User, { foreignKey: "ownerId", as: "owner" });
-User.hasMany(Campaign, { foreignKey: "ownerId", as: "campaigns" });
-
-Campaign.hasMany(CampaignAd, { foreignKey: "campaignId", as: "ads" });
-CampaignAd.belongsTo(Campaign, { foreignKey: "campaignId", as: "campaign" });
-
-Campaign.hasMany(Lead, { foreignKey: "campaignId", as: "leads" });
-Lead.belongsTo(Campaign, { foreignKey: "campaignId", as: "campaignModel" });
-
-Campaign.hasMany(Deal, { foreignKey: "campaignId", as: "deals" });
-Deal.belongsTo(Campaign, { foreignKey: "campaignId", as: "campaignModel" });
-
-CampaignAd.hasMany(Lead, { foreignKey: "adId", as: "leads" });
-Lead.belongsTo(CampaignAd, { foreignKey: "adId", as: "ad" });
-
-CampaignAd.hasMany(Deal, { foreignKey: "adId", as: "deals" });
-Deal.belongsTo(CampaignAd, { foreignKey: "adId", as: "ad" });
-
-Lead.hasMany(LeadAttribution, { foreignKey: "leadId", as: "attributions" });
-LeadAttribution.belongsTo(Lead, { foreignKey: "leadId", as: "lead" });
-
-Lead.hasMany(AttributionEvent, { foreignKey: "leadId", as: "attributionEvents" });
-AttributionEvent.belongsTo(Lead, { foreignKey: "leadId", as: "lead" });
-
-Deal.hasMany(AttributionEvent, { foreignKey: "opportunityId", as: "attributionEvents" });
-AttributionEvent.belongsTo(Deal, { foreignKey: "opportunityId", as: "deal" });
-
-Account.hasMany(Lead, { foreignKey: "referringAccountId", as: "referredLeads" });
-Lead.belongsTo(Account, { foreignKey: "referringAccountId", as: "referringAccount" });
 
 export { sequelize };

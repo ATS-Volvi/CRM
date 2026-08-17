@@ -103,6 +103,7 @@ import {
   getCoachingNotes, createCoachingNote, markCoachingNoteRead, getAuthoredCoachingNotes,
   getStaleDeal, getQuoteExpiry, getTopAccounts, getCustomerBirthdays, getWinCelebrations
 } from "../controllers/coachingNotesController";
+import { getDealOwners, updateDealOwners, getWorkspaceSetting, updateWorkspaceSetting } from "../controllers/dealOwnerController";
 
 const router = Router();
 
@@ -635,6 +636,18 @@ router.post("/telephony/call", authMiddleware, initiateCall);
 router.get("/deals/:dealId/milestones", authMiddleware, getDealMilestones);
 router.post("/deals/milestones", authMiddleware, createDealMilestone);
 router.put("/deals/milestones/:id/toggle", authMiddleware, toggleDealMilestone);
+
+// ==========================================
+// DEAL OWNERS (commission splits)
+// ==========================================
+router.get("/deals/:dealId/owners", authMiddleware, getDealOwners);
+router.put("/deals/:dealId/owners", authMiddleware, updateDealOwners);
+
+// ==========================================
+// WORKSPACE SETTINGS (admin-only writes)
+// ==========================================
+router.get("/workspace/settings/:key", authMiddleware, getWorkspaceSetting);
+router.put("/workspace/settings/:key", authMiddleware, updateWorkspaceSetting);
 
 // ==========================================
 // COACHING NOTES (MANAGER → REP)

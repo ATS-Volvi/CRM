@@ -509,7 +509,7 @@ export default function ApprovalQueue() {
 
         {/* TAB 3: REP APPROVAL PROFILES MANAGEMENT */}
         {activeTab === "profiles" && (() => {
-          const teamLeadsList = salespersons?.filter((s: any) => s.role === "sales_manager" || s.role === "admin") || [];
+          const teamLeadsList = salespersons?.filter((s: any) => s.role === "manager" || s.role === "admin") || [];
 
           const getRepTeamLeadId = (sp: any) => {
             const prof = profiles?.find((p: any) => p.salesRepId === sp.id || p.sales_rep_id === sp.id);
@@ -540,8 +540,8 @@ export default function ApprovalQueue() {
             return true;
           })?.sort((a: any, b: any) => {
             // Pin Team Lead to the very top of the table
-            const aIsTL = a.role === "sales_manager" || a.id === selectedTeamFilter;
-            const bIsTL = b.role === "sales_manager" || b.id === selectedTeamFilter;
+            const aIsTL = a.role === "manager" || a.id === selectedTeamFilter;
+            const bIsTL = b.role === "manager" || b.id === selectedTeamFilter;
             if (aIsTL && !bIsTL) return -1;
             if (!aIsTL && bIsTL) return 1;
             return (a.name || "").localeCompare(b.name || "");
@@ -638,7 +638,7 @@ export default function ApprovalQueue() {
                     <tbody className="divide-y divide-outline-variant text-xs font-medium">
                       {filteredSalespersons.map((sp: any) => {
                         const prof = profiles?.find((p: any) => p.salesRepId === sp.id);
-                        const isTL = sp.role === "sales_manager";
+                        const isTL = sp.role === "manager";
                         const tlName = isTL ? "Reports to Admin" : (prof?.teamLead?.name || salespersons?.find((s: any) => s.id === sp.managerId)?.name || "Unassigned");
                         const defaultSelfLimit = isTL ? 5000000 : 1000000;
                         const defaultDiscLimit = isTL ? 0.20 : 0.10;
@@ -764,7 +764,7 @@ export default function ApprovalQueue() {
 
             {/* Modal for Configuring Profile */}
             {selectedRep && (() => {
-              const isTL = selectedRep.role === "sales_manager";
+              const isTL = selectedRep.role === "manager";
               const maxAllowedLimit = isTL ? (policy?.maximumTeamLeadApproval || 10000000) : (policy?.maximumSalesRepApproval || 2500000);
               const maxAllowedDisc = isTL ? (policy?.maximumTeamLeadDiscount || 0.20) : (policy?.maximumRepDiscount || 0.10);
 

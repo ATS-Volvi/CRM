@@ -60,7 +60,7 @@ export const reassignTeamManager = async (req: Request, res: Response) => {
     const user = (req as any).user;
     if (!user) return res.status(401).json({ error: "Unauthorized" });
 
-    if (!["admin", "director", "sales_manager"].includes(user.role)) {
+    if (!["admin", "director", "manager"].includes(user.role)) {
       return res.status(403).json({ error: "Forbidden: only managers, directors and admins can reassign team managers" });
     }
 

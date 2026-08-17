@@ -2,7 +2,7 @@ import { Deal, User } from "@nexus-crm/database";
 import { Op } from "sequelize";
 import { assignLead } from "./assignmentEngine";
 
-const WHITELIST_ROLES = ["sales_rep", "sales_manager", "admin", "director"];
+const WHITELIST_ROLES = ["sales_rep", "manager", "admin", "director"];
 const TERMINAL_LEAD_STATUSES = ["Won", "Lost", "Closed", "Closed Won", "Closed Lost"];
 
 // Extract explicit "Attn:" or "For:" prefix convention from subject or first line of body

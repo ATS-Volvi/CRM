@@ -17,7 +17,7 @@ export async function getScopedUserIds(user: { id: string; role: string }): Prom
     return allUsers.map((u: any) => u.id);
   }
 
-  if (role === "sales_manager") {
+  if (role === "manager") {
     const teamMembers = await sequelize.models.User.findAll({
       where: { managerId: userId },
       attributes: ["id"]

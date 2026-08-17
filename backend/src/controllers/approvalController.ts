@@ -76,7 +76,7 @@ export const getSalesApprovalProfiles = async (req: Request, res: Response) => {
   try {
     // 1. Fetch team leads / managers
     const managers = await sequelize.models.User.findAll({
-      where: { role: { [Op.in]: ["sales_manager", "admin"] } }
+      where: { role: { [Op.in]: ["manager", "admin"] } }
     });
     const marcus: any = managers.find((m: any) => m.name === "Marcus Vance" || m.email === "marcus@nexus.com") || managers[0];
     const helena: any = managers.find((m: any) => m.name === "Helena Rostova" || m.email === "helena@nexus.com") || managers[1] || marcus;
@@ -108,7 +108,7 @@ export const getSalesApprovalProfiles = async (req: Request, res: Response) => {
     // 4. Ensure every rep has a SalesApprovalProfile & assigned team lead
     for (let i = 0; i < reps.length; i++) {
       const r = reps[i] as any;
-      if (r.role === "sales_manager" || r.role === "admin") continue;
+      if (r.role === "manager" || r.role === "admin") continue;
 
       let assignedLeadId = r.managerId;
       if (!assignedLeadId && marcus) {
@@ -188,7 +188,7 @@ export const upsertSalesApprovalProfile = async (req: Request, res: Response) =>
     // Validate per user role
     for (const id of targetIds) {
       const targetUser: any = await sequelize.models.User.findByPk(id);
-      const isTeamLead = targetUser && (targetUser.role === "sales_manager");
+      const isTeamLead = targetUser && (targetUser.role === "manager");
 
       if (isTeamLead) {
         if (requestedLimit > maxTLApproval || requestedDiscount > maxTLDiscount) {
@@ -395,7 +395,7 @@ export const updateApproval = async (req: Request, res: Response) => {
       if (evaluation.approvalLevel === "TEAM_LEAD") {
         const isAssigned = (approval as any).assignedApproverId === authUser.id;
         const isTeamLead = evaluation.teamLeadId === authUser.id;
-        const isManagerRole = authUser.role === "sales_manager" || authUser.role === "director";
+        const isManagerRole = authUser.role === "manager" || authUser.role === "director";
         if (!isAssigned && !isTeamLead && !isManagerRole) {
           return res.status(403).json({
             error: "Security Violation: You do not have authority to approve this quotation. Team Lead approval is required."
@@ -513,7 +513,7 @@ export const approveQuoteDirectly = async (req: Request, res: Response) => {
       }
     } else if (evaluation.approvalLevel === "TEAM_LEAD") {
       const isTeamLead = evaluation.teamLeadId === authUser?.id;
-      const isManagerRole = authUser?.role === "admin" || authUser?.role === "sales_manager" || authUser?.role === "director";
+      const isManagerRole = authUser?.role === "admin" || authUser?.role === "manager" || authUser?.role === "director";
       if (!isTeamLead && !isManagerRole) {
         return res.status(403).json({
           error: "Security Violation: Quotation exceeds sales representative limit. Team Lead approval is required."
@@ -606,7 +606,7 @@ export const createApprovalTier = async (req: Request, res: Response) => {
       id: require("crypto").randomUUID(),
       name,
       thresholdValue,
-      requiredRole: requiredRole || "sales_manager"
+      requiredRole: requiredRole || "manager"
     });
     res.status(201).json(tier);
   } catch (error: any) {

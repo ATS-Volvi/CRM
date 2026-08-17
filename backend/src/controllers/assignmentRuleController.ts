@@ -66,7 +66,7 @@ export const getSalespersonsCapacities = async (req: Request, res: Response) => 
     const { Op } = require("sequelize");
     const reps = await sequelize.models.User.findAll({
       where: {
-        role: { [Op.in]: ["sales_rep", "sales_manager", "admin"] }
+        role: { [Op.in]: ["sales_rep", "manager", "admin"] }
       },
       order: [["name", "ASC"]]
     });
@@ -100,7 +100,7 @@ export const balanceSalespersonsCapacities = async (req: Request, res: Response)
     // 1. Get all available reps
     const reps = await sequelize.models.User.findAll({
       where: {
-        role: { [Op.in]: ["sales_rep", "sales_manager", "admin"] },
+        role: { [Op.in]: ["sales_rep", "manager", "admin"] },
         isAvailable: true
       }
     });

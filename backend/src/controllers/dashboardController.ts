@@ -357,7 +357,7 @@ export const getActivitiesReports = async (req: Request, res: Response) => {
 export const getHomeDashboard = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user?.id;
-    const isRep = (req as any).user?.role === "sales_rep" || (req as any).user?.role === "sales_manager";
+    const isRep = (req as any).user?.role === "sales_rep" || (req as any).user?.role === "manager";
 
     const leadWhere: any = {};
     if (isRep && userId) {

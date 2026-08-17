@@ -293,7 +293,7 @@ export function calculateRepSuitabilityScore(
     "Enterprise AE": 90,
     "Senior Sales Representative": 80,
     "senior_ae": 80,
-    "sales_manager": 95,
+    "manager": 95,
     "Sales Representative": 65,
     "sales_rep": 65,
     "Associate": 50,

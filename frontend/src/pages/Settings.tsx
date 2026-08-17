@@ -139,7 +139,7 @@ export default function Settings() {
       if (!res.ok) throw new Error("Failed to fetch team members");
       return res.json();
     },
-    enabled: !!token && ["admin", "director", "sales_manager"].includes(user?.role || "")
+    enabled: !!token && ["admin", "director", "manager"].includes(user?.role || "")
   });
 
   // Fetch all potential managers
@@ -152,7 +152,7 @@ export default function Settings() {
       if (!res.ok) throw new Error("Failed to fetch representatives");
       return res.json();
     },
-    enabled: !!token && ["admin", "director", "sales_manager"].includes(user?.role || "")
+    enabled: !!token && ["admin", "director", "manager"].includes(user?.role || "")
   });
 
   const updateSettingsMutation = useMutation({
@@ -495,7 +495,7 @@ export default function Settings() {
           </div>
 
           {/* Right Column: Team Management (if applicable) */}
-          {["admin", "director", "sales_manager"].includes(mySettings?.role || user?.role || "") && (
+          {["admin", "director", "manager"].includes(mySettings?.role || user?.role || "") && (
             <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-6 shadow-sm space-y-6">
               <h3 className="text-lg font-bold text-on-surface flex items-center gap-2">
                 <Users className="w-5 h-5 text-emerald-600" />

@@ -4,7 +4,7 @@ import { assignLead } from "../services/assignmentEngine";
 import { routeChannelLead } from "../services/channelRoutingEngine";
 import { Op } from "sequelize";
 
-const WHITELIST_ROLES = ["sales_rep", "sales_manager", "admin", "director"];
+const WHITELIST_ROLES = ["sales_rep", "manager", "admin", "director"];
 const TERMINAL_LEAD_STATUSES = ["Won", "Lost", "Closed", "Closed Won", "Closed Lost"];
 
 // Helper to parse Name & Email from "First Last <email@domain.com>" format

@@ -62,7 +62,7 @@ export const createCoachingNote = async (req: Request, res: Response) => {
     }
 
     // If targetUserId is set (manager-directed coaching note), require manager/admin role
-    if (targetUserId && !["admin", "sales_manager"].includes(authorRole)) {
+    if (targetUserId && !["admin", "manager"].includes(authorRole)) {
       return res.status(403).json({ error: "Only managers and admins can create directed coaching notes" });
     }
 

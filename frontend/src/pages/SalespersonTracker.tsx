@@ -60,7 +60,7 @@ function getInitials(name: string) {
 
 function roleLabel(role: string) {
   return role === "sales_rep" ? "Sales Rep"
-    : role === "sales_manager" ? "Sales Manager"
+    : role === "manager" ? "Sales Manager"
     : role === "admin" ? "Admin"
     : role === "director" ? "Director"
     : role;
@@ -158,7 +158,7 @@ export default function SalespersonTracker() {
       const res = await apiClient("/api/v1/salespersons");
       if (!res.ok) return [];
       const list = await res.json();
-      return (list || []).filter((u: any) => u.role === "sales_manager" || u.role === "admin" || u.role === "director");
+      return (list || []).filter((u: any) => u.role === "manager" || u.role === "admin" || u.role === "director");
     },
     staleTime: 5 * 60 * 1000
   });
@@ -252,8 +252,8 @@ export default function SalespersonTracker() {
         groups[teamName] = { teamLead: null, members: [] };
       }
 
-      // Identify team lead: sales_manager, admin, or director role
-      const isLead = rep.role === "sales_manager" || rep.role === "admin" || rep.role === "director";
+      // Identify team lead: manager, admin, or director role
+      const isLead = rep.role === "manager" || rep.role === "admin" || rep.role === "director";
       if (isLead && !groups[teamName].teamLead) {
         groups[teamName].teamLead = rep;
       } else {
@@ -384,7 +384,7 @@ export default function SalespersonTracker() {
               <select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })}
                 className="w-full bg-surface border border-outline rounded-lg p-2.5 text-xs font-semibold focus:outline-none cursor-pointer">
                 <option value="sales_rep">Sales Representative</option>
-                <option value="sales_manager">Sales Manager</option>
+                <option value="manager">Sales Manager</option>
                 <option value="director">Director</option>
                 <option value="admin">Administrator</option>
               </select>

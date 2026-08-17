@@ -359,7 +359,7 @@ export const createSalesperson = async (req: Request, res: Response) => {
       return;
     }
 
-    const ALLOWED_ROLES = ["sales_rep", "sales_manager", "director", "admin"];
+    const ALLOWED_ROLES = ["sales_rep", "manager", "director", "admin"];
     if (role && !ALLOWED_ROLES.includes(role)) {
       res.status(400).json({ error: `role must be one of: ${ALLOWED_ROLES.join(", ")}` });
       return;
@@ -687,7 +687,7 @@ export const getAllSalespersons = async (req: Request, res: Response) => {
   try {
     const users = await sequelize.models.User.findAll({
       where: {
-        role: { [Op.in]: ["sales_rep", "sales_manager", "admin"] }
+        role: { [Op.in]: ["sales_rep", "manager", "admin"] }
       },
       attributes: ["id", "name", "role", "email"],
       order: [["name", "ASC"]]
@@ -973,7 +973,7 @@ export const getSalespersonKpis = async (req: Request, res: Response) => {
 export const editKpiTarget = async (req: Request, res: Response) => {
   try {
     const caller = (req as any).user;
-    if (!caller || !["admin", "director", "sales_manager"].includes(caller.role)) {
+    if (!caller || !["admin", "director", "manager"].includes(caller.role)) {
       res.status(403).json({ error: "Forbidden: Only Admin or Managers can edit targets" });
       return;
     }

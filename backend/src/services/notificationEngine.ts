@@ -120,7 +120,7 @@ export async function getTeamLeadIdForUser(repUserId: string): Promise<string | 
     // Fallback: search for sales_manager or director in same team/department
     const manager = await sequelize.models.User.findOne({
       where: {
-        role: { [Op.in]: ["sales_manager", "team_lead", "director"] },
+        role: { [Op.in]: ["manager", "team_lead", "director"] },
         [Op.or]: [
           { team: r.team || "General" },
           { department: r.department || "Sales" }
