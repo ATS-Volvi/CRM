@@ -265,7 +265,7 @@ export async function assignLead(leadContext: AssignmentContext): Promise<Assign
     // ─────────────────────────────────────────────────────────────
     // STEP 5: NAMED / STRATEGIC ACCOUNT AE ROUTING
     // ─────────────────────────────────────────────────────────────
-    const isVipBudget = budgetRange && (budgetRange.includes("100") || budgetRange.includes("50") || budgetRange.includes("Enterprise"));
+    const isVipBudget = (budgetRange && (budgetRange.includes("100") || budgetRange.includes("50") || budgetRange.includes("Enterprise"))) || (leadContext.expectedValue && leadContext.expectedValue >= 50000);
     if (isStrategic || isVipBudget) {
       const seniorAe: any = await sequelize.models.User.findOne({
         where: {

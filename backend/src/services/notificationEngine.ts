@@ -1,5 +1,5 @@
 import { sequelize } from "@nexus-crm/database";
-import crypto from "crypto";
+import * as crypto from "crypto";
 import { Op } from "sequelize";
 
 export type Role = "SALES_REP" | "TEAM_LEAD" | "ADMIN";

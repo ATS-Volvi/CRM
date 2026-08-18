@@ -1,5 +1,5 @@
 import { sequelize } from "@nexus-crm/database";
-import crypto from "crypto";
+import * as crypto from "crypto";
 import { assignLead } from "./assignmentEngine";
 import { evaluateQuoteApproval } from "./approvalEngine";
 import { createNotification } from "./notificationEngine";
@@ -228,8 +228,29 @@ export async function convertLeadToOpportunity(leadId: string, qualificationData
       const splitSetting = await WorkspaceSetting.findOne({ where: { key: "default_qualifying_split_pct" } }) as any;
       const defaultSplit = splitSetting ? Math.min(100, Math.max(0, parseFloat(splitSetting.value))) : 20;
 
-      const qualifyingRepId = l.assignedToId;
+      let qualifyingRepId = l.assignedToId;
       const closingAeId = deal.ownerId as string | null;
+
+      // Check if there was a manual escalation or SLA breach
+      const { LeadReassignmentHistory } = sequelize.models;
+      const reassignments = await LeadReassignmentHistory.findAll({
+        where: { leadId: l.id },
+        order: [["createdAt", "DESC"]]
+      }) as any[];
+
+      let didForfeit = false;
+      if (reassignments.length > 0) {
+        const lastReassignment = reassignments[0];
+        // If it was reassigned to the current closing AE
+        if (lastReassignment.newAssignedToId === closingAeId) {
+          if (lastReassignment.reason && lastReassignment.reason.includes("SLA Breach")) {
+            didForfeit = true; // Forfeit commission completely
+          } else {
+            // Manual escalation: Original rep still gets their origination split
+            qualifyingRepId = lastReassignment.oldAssignedToId;
+          }
+        }
+      }
 
       const existingCount = await DealOwner.count({ where: { dealId: deal.id } });
       if (existingCount === 0) {
@@ -240,14 +261,14 @@ export async function convertLeadToOpportunity(leadId: string, qualificationData
               id: crypto.randomUUID(),
               dealId: deal.id,
               userId: qualifyingRepId,
-              splitPct: defaultSplit,
+              splitPct: didForfeit ? 0 : defaultSplit,
               role: "qualifying_rep"
             },
             {
               id: crypto.randomUUID(),
               dealId: deal.id,
               userId: closingAeId,
-              splitPct: 100 - defaultSplit,
+              splitPct: didForfeit ? 100 : 100 - defaultSplit,
               role: "closing_ae"
             }
           ]);
