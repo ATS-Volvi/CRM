@@ -8,7 +8,7 @@ export async function autoAssignDeal(entityId: string, expectedValue: number): P
   // Find all eligible senior AEs (who are available)
   const seniorAes: any[] = await User.findAll({
     where: {
-      role: { [Op.or]: ["senior_ae", "manager"] },
+      role: "senior_ae",
       isAvailable: true
     }
   });
@@ -63,8 +63,8 @@ export async function autoAssignDeal(entityId: string, expectedValue: number): P
     return null; // Leave unassigned
   }
 
-  // Sort by capacity descending (highest remaining capacity wins)
-  repsWithCapacity.sort((a, b) => b.capacity - a.capacity);
+  // Sort by activeDeals ascending (least loaded wins)
+  repsWithCapacity.sort((a, b) => a.activeDeals - b.activeDeals);
 
   const winner = repsWithCapacity[0].rep;
   return winner.id;
