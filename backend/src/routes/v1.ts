@@ -86,7 +86,7 @@ import {
 import { getLeadSources, createLeadSource, updateLeadSource, deleteLeadSource } from "../controllers/leadSourceController";
 import { queryAiReport } from "../controllers/aiReportController";
 import { parseVoiceLead } from "../controllers/voiceLeadController";
-import { getMySettings, updateMySettings, getMyTeam, reassignTeamManager } from "../controllers/userSettingsController";
+import { getMySettings, updateMySettings, getMyTeam, reassignTeamManager, updateDealValueCutoff } from "../controllers/userSettingsController";
 import { getKpiMasters, createKpiMaster, updateKpiMaster, deleteKpiMaster } from "../controllers/kpiMasterController";
 import { getGmailAuthUrl, connectGmail, getGmailStatus, disconnectGmail, syncGmail } from "../controllers/gmailController";
 import { getTasks, createTask, updateTaskStatus } from "../controllers/taskController";
@@ -103,7 +103,8 @@ import {
   getCoachingNotes, createCoachingNote, markCoachingNoteRead, getAuthoredCoachingNotes,
   getStaleDeal, getQuoteExpiry, getTopAccounts, getCustomerBirthdays, getWinCelebrations
 } from "../controllers/coachingNotesController";
-import { getDealOwners, updateDealOwners, getWorkspaceSetting, updateWorkspaceSetting } from "../controllers/dealOwnerController";
+import { getDealOwners, updateDealOwners, getWorkspaceSetting, updateWorkspaceSetting, updateDealOwner } from "../controllers/dealOwnerController";
+import { reassignDeal, getFlaggedDeals } from "../controllers/dealAssignmentController";
 import { createPayment, getPaymentsForInvoice } from "../controllers/paymentController";
 import { createSupportTicket, listSupportTickets, updateSupportTicket } from "../controllers/supportTicketController";
 
@@ -335,6 +336,8 @@ router.put("/leads/:id/clear-unread", authMiddleware, clearUnreadCount);
 // OPPORTUNITIES / DEALS
 // ==========================================
 router.get("/deals", authMiddleware, getDeals);
+router.get("/deals/flagged", authMiddleware, getFlaggedDeals);
+router.put("/deals/:id/reassign", authMiddleware, reassignDeal);
 router.get("/opportunities", authMiddleware, getOpportunities);
 router.get("/opportunities/:id", authMiddleware, getOpportunityById);
 router.post("/opportunities", authMiddleware, createOpportunity);
@@ -580,6 +583,7 @@ router.get("/users/me/settings", authMiddleware, getMySettings);
 router.put("/users/me/settings", authMiddleware, updateMySettings);
 router.get("/users/me/team", authMiddleware, getMyTeam);
 router.put("/users/team/reassign", authMiddleware, reassignTeamManager);
+router.put("/users/:id/cutoff", authMiddleware, updateDealValueCutoff);
 
 // Gmail Connector
 router.get("/gmail/auth-url", authMiddleware, getGmailAuthUrl);

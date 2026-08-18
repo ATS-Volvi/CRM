@@ -81,3 +81,29 @@ export const reassignTeamManager = async (req: Request, res: Response) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+export const updateDealValueCutoff = async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (!user || (user.role !== "manager" && user.role !== "admin")) {
+      return res.status(403).json({ error: "Forbidden: Only managers or admins can update cutoffs" });
+    }
+
+    const { id } = req.params;
+    let { dealValueCutoff } = req.body;
+
+    const dbUser = await sequelize.models.User.findByPk(id);
+    if (!dbUser) return res.status(404).json({ error: "User not found" });
+
+    if (dealValueCutoff === undefined || dealValueCutoff === "" || dealValueCutoff === null) {
+      dealValueCutoff = null; // null means unlimited
+    } else {
+      dealValueCutoff = Number(dealValueCutoff);
+    }
+
+    await dbUser.update({ dealValueCutoff });
+    res.json({ message: "Deal value cutoff updated successfully", dealValueCutoff });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};

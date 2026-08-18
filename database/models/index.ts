@@ -33,6 +33,7 @@ export class User extends Model {
   public managerPerformanceRating!: number;
   public recentHighValueLeadCount!: number;
   public recentLeadValueAssigned!: number;
+  public dealValueCutoff!: number | null;
 }
 
 User.init(
@@ -59,6 +60,7 @@ User.init(
     lastAssignedAt: { type: DataTypes.DATE, allowNull: true },
     dedicatedEmail: { type: DataTypes.STRING, allowNull: true },
     dedicatedPhone: { type: DataTypes.STRING, allowNull: true },
+    dealValueCutoff: { type: DataTypes.DECIMAL(15, 2), allowNull: true },
     experienceYears: { type: DataTypes.DECIMAL(4, 1), defaultValue: 2.0 },
     experienceTier: { type: DataTypes.STRING, defaultValue: "Sales Representative" },
     averageFirstResponseMinutes: { type: DataTypes.DECIMAL(6, 1), defaultValue: 15.0 },
@@ -1734,6 +1736,27 @@ WorkspaceSetting.init(
     updatedBy: { type: DataTypes.UUID, allowNull: true }
   },
   { sequelize, modelName: "WorkspaceSetting", tableName: "WorkspaceSettings" }
+);
+
+export class DealReassignmentHistory extends Model {
+  public id!: string;
+  public dealId!: string;
+  public fromUserId!: string | null;
+  public toUserId!: string | null;
+  public reason!: string | null;
+  public reassignedBy!: string | null;
+}
+
+DealReassignmentHistory.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    dealId: { type: DataTypes.UUID, allowNull: false },
+    fromUserId: { type: DataTypes.UUID, allowNull: true },
+    toUserId: { type: DataTypes.UUID, allowNull: true },
+    reason: { type: DataTypes.TEXT, allowNull: true },
+    reassignedBy: { type: DataTypes.UUID, allowNull: true }
+  },
+  { sequelize, modelName: "DealReassignmentHistory", tableName: "DealReassignmentHistories" }
 );
 
 export { sequelize };

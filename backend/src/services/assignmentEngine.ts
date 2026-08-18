@@ -8,6 +8,7 @@ import {
   CandidateEvaluationResult,
   LeadPriorityDetails
 } from "./repPerformanceService";
+import { autoAssignDeal } from "./dealAssignmentEngine";
 
 export interface AssignmentContext {
   leadId?: string;
@@ -265,30 +266,33 @@ export async function assignLead(leadContext: AssignmentContext): Promise<Assign
     // ─────────────────────────────────────────────────────────────
     // STEP 5: NAMED / STRATEGIC ACCOUNT AE ROUTING
     // ─────────────────────────────────────────────────────────────
-    const isVipBudget = (budgetRange && (budgetRange.includes("100") || budgetRange.includes("50") || budgetRange.includes("Enterprise"))) || (leadContext.expectedValue && leadContext.expectedValue >= 50000);
-    if (isStrategic || isVipBudget) {
-      const seniorAe: any = await sequelize.models.User.findOne({
-        where: {
-          role: { [Op.or]: ["senior_ae", "manager", "admin"] },
-          isAvailable: true
-        }
-      });
-      if (seniorAe && (await checkRepEligibility(seniorAe.id))) {
-        console.log(`[ASSIGNMENT STEP 5] Assigned to Strategic/VIP Account AE: ${seniorAe.name} (${seniorAe.id})`);
-        await updateRepAssignedTimestamp(seniorAe.id);
+    const isVipBudget = budgetRange && (budgetRange.includes("100") || budgetRange.includes("50") || budgetRange.includes("Enterprise"));
+    const hasExpectedValue = leadContext.expectedValue && leadContext.expectedValue > 0;
+    
+    if (isStrategic || isVipBudget || hasExpectedValue) {
+      // Use the per-rep deal value cutoff logic
+      const assignedRepId = await autoAssignDeal(leadId || "new_lead", Number(leadContext.expectedValue || 0));
+      
+      if (assignedRepId) {
+        console.log(`[ASSIGNMENT STEP 5] Auto-assigned via per-rep cutoff logic: ${assignedRepId}`);
+        await updateRepAssignedTimestamp(assignedRepId);
         await logAssignmentAudit({
           leadId,
           previousOwnerId: null,
-          assignedToId: seniorAe.id,
+          assignedToId: assignedRepId,
           assignmentType: "AUTOMATIC",
           leadPriorityScore: 90,
-          expectedRevenue: Number(leadContext.expectedValue || 15000000),
+          expectedRevenue: Number(leadContext.expectedValue || 0),
           candidateScores: [],
           winningScore: 95,
-          reason: `Routed to Strategic Account AE (${seniorAe.name}) due to Named/Strategic Account status.`,
+          reason: `Routed via per-rep Deal Value Cutoff logic.`,
           triggerSource: leadContext.source || "strategic_account"
         });
-        return { assignedToId: seniorAe.id, assignmentType: "AUTOMATIC" };
+        return { assignedToId: assignedRepId, assignmentType: "AUTOMATIC" };
+      } else if (hasExpectedValue) {
+        // If we tried to auto-assign based on value but couldn't find a rep (all below cutoff or at capacity),
+        // we return unassigned and rely on the HIGH_VALUE_LEAD notification that was just triggered.
+        return { assignedToId: null, assignmentType: "MANUAL" };
       }
     }
 

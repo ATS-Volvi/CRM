@@ -1,0 +1,4 @@
+-- Manual SQL Backup via psql COPY - Mon Aug 17 16:10:19 IST 2026
+-- USERS
+-- DEALS
+-- PURCHASE_ORDERS
