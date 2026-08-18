@@ -27,15 +27,25 @@ export async function autoAssignDeal(entityId: string, expectedValue: number): P
   }
 
   // Tie-break: lowest (maxActiveOpportunities - currently assigned active Deals)
-  // But wait, the prompt says "tie-break on least-loaded (fewest current active Opportunities, using the existing maxActiveOpportunities field as the capacity reference)"
-  
-  // We'll calculate current workload for each eligible rep
+  // We'll calculate current workload for each eligible rep.
+  // First, get the stage IDs for Closed Won and Closed Lost so we can exclude them.
+  const closedStages = await sequelize.models.PipelineStage.findAll({
+    where: { name: { [Op.in]: ["Closed Won", "Closed Lost"] } },
+    attributes: ["id"]
+  });
+  const closedStageIds = closedStages.map((s: any) => s.id);
+
   const repWorkloads = await Promise.all(
     eligibleReps.map(async (rep) => {
       const activeDeals = await sequelize.models.Deal.count({
         where: {
           ownerId: rep.id,
-          stageId: { [Op.ne]: null } // Approximation of "active", or we can just count ownerId
+          stageId: { 
+            [Op.and]: [
+              { [Op.ne]: null },
+              { [Op.notIn]: closedStageIds }
+            ]
+          } // Only count deals in active stages
         }
       });
       // capacity = maxActiveOpportunities - activeDeals
