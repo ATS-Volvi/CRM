@@ -49,10 +49,10 @@ export const createPayment = async (req: Request, res: Response): Promise<void> 
       let status = "unpaid";
       if (totalPaid >= invoiceTotal && invoiceTotal > 0) {
         status = "paid";
-      } else if (totalPaid > 0) {
-        status = "partial";
       } else if (invoice.dueDate && new Date(invoice.dueDate) < new Date()) {
         status = "overdue";
+      } else if (totalPaid > 0) {
+        status = "partial";
       }
 
       await invoice.update(
