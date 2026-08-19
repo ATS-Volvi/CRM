@@ -23,13 +23,20 @@ export const getAccounts = async (req: Request, res: Response) => {
         { model: Contact, as: "contacts" },
         {
           model: Deal,
-          as: "deals",
-          include: [{ model: Quote, as: "quotes" }]
+          as: "accountDeals",
+          include: [{ model: Quote }]
         }
       ],
       order: [["createdAt", "DESC"]]
     });
-    return res.status(200).json(accounts);
+
+    const mappedAccounts = accounts.map((acc: any) => {
+      const data = acc.toJSON();
+      data.deals = data.accountDeals || [];
+      return data;
+    });
+
+    return res.status(200).json(mappedAccounts);
   } catch (error: any) {
     console.error("Error fetching accounts:", error);
     return res.status(500).json({ message: "Internal server error" });
@@ -44,8 +51,8 @@ export const getAccountById = async (req: Request, res: Response) => {
         { model: Contact, as: "contacts" },
         { 
           model: Deal, 
-          as: "deals",
-          include: [{ model: Quote, as: "quotes" }]
+          as: "accountDeals",
+          include: [{ model: Quote }]
         }
       ]
     });
@@ -63,7 +70,7 @@ export const getAccountById = async (req: Request, res: Response) => {
     });
 
     // Fetch account-associated purchase orders through quotes/deals
-    const dealIds = (account as any).deals?.map((d: any) => d.id) || [];
+    const dealIds = (account as any).accountDeals?.map((d: any) => d.id) || [];
     let quotesForDeals: any[] = [];
     if (dealIds.length > 0) {
       quotesForDeals = await Quote.findAll({
@@ -79,6 +86,7 @@ export const getAccountById = async (req: Request, res: Response) => {
     }
 
     const accountData = account.toJSON();
+    accountData.deals = accountData.accountDeals || [];
     (accountData as any).quotes = quotesForDeals;
     (accountData as any).purchaseOrders = orders;
     (accountData as any).orders = orders;
