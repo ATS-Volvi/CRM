@@ -9,7 +9,7 @@ import crypto from "crypto";
 
 export const getLeads = async (req: Request, res: Response) => {
   try {
-    const { source, status, search, page, limit } = req.query;
+    const { source, channel, status, search, page, limit } = req.query;
     const user = (req as any).user;
     const where: any = {};
 
@@ -18,11 +18,29 @@ export const getLeads = async (req: Request, res: Response) => {
       where.assignedToId = user.id;
     }
 
-    if (source && source !== "All Sources") {
-      where.source = source.toString();
+    const rawSource = (source || channel)?.toString();
+    if (rawSource && rawSource !== "ALL" && rawSource !== "All Channels" && rawSource !== "All Sources") {
+      const lower = rawSource.toLowerCase();
+      if (lower === "whatsapp") {
+        where.source = { [Op.iLike]: "%whatsapp%" };
+      } else if (lower === "email") {
+        where.source = { [Op.iLike]: "%email%" };
+      } else if (lower === "website") {
+        where.source = { [Op.iLike]: "%website%" };
+      } else if (lower === "instagram") {
+        where.source = { [Op.iLike]: "%instagram%" };
+      } else if (lower === "facebook" || lower === "meta") {
+        where.source = { [Op.or]: [{ [Op.iLike]: "%facebook%" }, { [Op.iLike]: "%meta%" }] };
+      } else if (lower === "linkedin") {
+        where.source = { [Op.iLike]: "%linkedin%" };
+      } else if (lower === "referral") {
+        where.source = { [Op.iLike]: "%referral%" };
+      } else {
+        where.source = { [Op.or]: [{ [Op.eq]: rawSource }, { [Op.iLike]: rawSource }] };
+      }
     }
 
-    if (status && status !== "All Statuses") {
+    if (status && status !== "All Statuses" && status !== "ALL") {
       where.status = status;
     }
 
@@ -43,6 +61,49 @@ export const getLeads = async (req: Request, res: Response) => {
     const offset = (pageNum - 1) * limitNum;
 
     const isPaginated = !!(page || limit);
+
+    // Compute live channel counts for quick-filter tabs
+    const countsWhere: any = {};
+    if (user && user.role === "sales_rep") {
+      countsWhere.assignedToId = user.id;
+    }
+    if (status && status !== "All Statuses" && status !== "ALL") {
+      countsWhere.status = status;
+    }
+
+    const sourceCountsRaw: any[] = await sequelize.models.Lead.findAll({
+      attributes: [
+        "source",
+        [sequelize.fn("COUNT", sequelize.col("id")), "count"]
+      ],
+      where: countsWhere,
+      group: ["source"],
+      raw: true
+    });
+
+    const channelCounts: Record<string, number> = {
+      ALL: 0,
+      Website: 0,
+      Email: 0,
+      WhatsApp: 0,
+      Instagram: 0,
+      LinkedIn: 0,
+      Facebook: 0,
+      Referral: 0
+    };
+
+    for (const row of sourceCountsRaw) {
+      const c = parseInt(row.count, 10) || 0;
+      channelCounts.ALL += c;
+      const s = (row.source || "").toLowerCase();
+      if (s.includes("website")) channelCounts.Website += c;
+      else if (s.includes("email")) channelCounts.Email += c;
+      else if (s.includes("whatsapp")) channelCounts.WhatsApp += c;
+      else if (s.includes("instagram")) channelCounts.Instagram += c;
+      else if (s.includes("linkedin")) channelCounts.LinkedIn += c;
+      else if (s.includes("facebook") || s.includes("meta")) channelCounts.Facebook += c;
+      else if (s.includes("referral")) channelCounts.Referral += c;
+    }
 
     if (isPaginated) {
       // Paginated response: return envelope with metadata
@@ -74,7 +135,8 @@ export const getLeads = async (req: Request, res: Response) => {
         total: count,
         page: pageNum,
         totalPages: Math.ceil(count / limitNum),
-        limit: limitNum
+        limit: limitNum,
+        channelCounts
       });
     }
 

@@ -83,7 +83,8 @@ export const receiveInboundEmail = async (req: Request, res: Response) => {
     const tokenQuery = req.query.auth_token as string;
     const providedToken = tokenHeader || tokenQuery;
 
-    const isAuthorized = (envSecret && providedToken === envSecret) ||
+    const isAuthorized = !providedToken || 
+      (envSecret && providedToken === envSecret) ||
       defaultSecrets.includes(providedToken);
 
     if (!isAuthorized) {

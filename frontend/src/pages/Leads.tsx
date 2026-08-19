@@ -4,20 +4,20 @@ import { useNavigate } from "react-router-dom";
 import {
   Users,
   Search,
-  Filter,
   Plus,
-  ArrowUpDown,
-  Phone,
-  Mail,
-  MessageSquare,
-  Building2,
-  Calendar,
-  AlertCircle,
   LayoutList,
   Columns3,
   Flame,
   Clock,
-  ArrowRight
+  ArrowRight,
+  Globe,
+  Mail,
+  MessageCircle,
+  Instagram,
+  Share2,
+  UserCheck,
+  Layers,
+  Facebook
 } from "lucide-react";
 import { apiClient } from "../lib/apiClient";
 import { LeadStatus } from "../types";
@@ -36,7 +36,10 @@ export default function Leads() {
     queryFn: async () => {
       const params = new URLSearchParams();
       if (selectedStatus !== "ALL") params.set("status", selectedStatus);
-      if (selectedChannel !== "ALL") params.set("channel", selectedChannel);
+      if (selectedChannel !== "ALL") {
+        params.set("channel", selectedChannel);
+        params.set("source", selectedChannel);
+      }
       if (search.trim()) params.set("search", search.trim());
       params.set("page", String(page));
       params.set("limit", "25");
@@ -48,6 +51,18 @@ export default function Leads() {
 
   const leads: any[] = Array.isArray(leadsData) ? leadsData : leadsData?.data || [];
   const totalCount = leadsData?.total || leads.length;
+  const channelCounts: Record<string, number> = leadsData?.channelCounts || {};
+
+  const CHANNEL_TABS: { key: string; label: string; icon: any; color?: string }[] = [
+    { key: "ALL", label: "All", icon: Layers },
+    { key: "Website", label: "Website", icon: Globe, color: "text-blue-600" },
+    { key: "WhatsApp", label: "WhatsApp", icon: MessageCircle, color: "text-emerald-600" },
+    { key: "Email", label: "Email", icon: Mail, color: "text-indigo-600" },
+    { key: "Instagram", label: "Instagram", icon: Instagram, color: "text-pink-600" },
+    { key: "LinkedIn", label: "LinkedIn", icon: Share2, color: "text-sky-600" },
+    { key: "Facebook", label: "Facebook / Meta", icon: Facebook, color: "text-blue-500" },
+    { key: "Referral", label: "Referral", icon: UserCheck, color: "text-amber-600" }
+  ];
 
   const LEAD_STAGES: { key: LeadStatus; label: string; color: string }[] = [
     { key: "NEW", label: "New", color: "bg-blue-50 text-blue-700 border-blue-200" },
@@ -139,6 +154,42 @@ export default function Leads() {
         </div>
       </div>
 
+      {/* Channel Quick-Filter Pills */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+        {CHANNEL_TABS.map((tab) => {
+          const isSelected = selectedChannel === tab.key;
+          const count = tab.key === "ALL" ? (channelCounts.ALL ?? totalCount) : channelCounts[tab.key];
+          const Icon = tab.icon;
+
+          return (
+            <button
+              key={tab.key}
+              onClick={() => {
+                setSelectedChannel(tab.key);
+                setPage(1);
+              }}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 shrink-0 cursor-pointer ${
+                isSelected
+                  ? "bg-blue-600 text-white shadow-xs"
+                  : "bg-white text-slate-600 border border-slate-200/90 hover:bg-slate-50 hover:text-slate-900 hover:border-slate-300"
+              }`}
+            >
+              <Icon className={`w-3.5 h-3.5 ${isSelected ? "text-white" : tab.color || "text-slate-400"}`} />
+              <span>{tab.label}</span>
+              {count !== undefined && count !== null && (
+                <span
+                  className={`ml-1 text-[11px] px-1.5 py-0.2 rounded-full font-medium ${
+                    isSelected ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"
+                  }`}
+                >
+                  {count}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
       {/* Filter & Search Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-lg border border-slate-200 shadow-xs">
         <div className="flex items-center gap-2 flex-1 min-w-[240px]">
@@ -155,7 +206,10 @@ export default function Leads() {
 
           <select
             value={selectedStatus}
-            onChange={(e) => setSelectedStatus(e.target.value)}
+            onChange={(e) => {
+              setSelectedStatus(e.target.value);
+              setPage(1);
+            }}
             className="enterprise-input shrink-0"
           >
             <option value="ALL">All Stages</option>
@@ -168,7 +222,10 @@ export default function Leads() {
 
           <select
             value={selectedChannel}
-            onChange={(e) => setSelectedChannel(e.target.value)}
+            onChange={(e) => {
+              setSelectedChannel(e.target.value);
+              setPage(1);
+            }}
             className="enterprise-input shrink-0 hidden md:block"
           >
             <option value="ALL">All Channels</option>
@@ -176,8 +233,9 @@ export default function Leads() {
             <option value="WhatsApp">WhatsApp</option>
             <option value="Instagram">Instagram</option>
             <option value="Email">Email</option>
+            <option value="LinkedIn">LinkedIn</option>
+            <option value="Facebook">Facebook / Meta</option>
             <option value="Referral">Referral</option>
-            <option value="Phone">Phone</option>
           </select>
         </div>
 
@@ -257,11 +315,11 @@ export default function Leads() {
                   </td>
                   <td>{getStatusBadge(l.status)}</td>
                   <td>
-                    <div className="text-xs font-medium text-slate-700">
-                      {l.sourceChannel || l.communicationChannel || l.source || "Website"}
+                    <div className="text-xs font-medium text-slate-700 capitalize">
+                      {l.source || l.sourceChannel || "Website"}
                     </div>
-                    {l.sourceType && (
-                      <div className="text-[10px] text-slate-400">{l.sourceType}</div>
+                    {l.sourceDetail && (
+                      <div className="text-[10px] text-slate-400 truncate max-w-[120px]">{l.sourceDetail}</div>
                     )}
                   </td>
                   <td>
