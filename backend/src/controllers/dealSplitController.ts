@@ -5,6 +5,7 @@ import {
   setDealSplits,
   deleteDealSplits
 } from "../services/dealSplitService";
+import { getStuckDeals } from "../services/dealHealthService";
 
 const MANAGER_ROLES = ["manager", "admin", "director"];
 
@@ -125,5 +126,41 @@ export async function deleteDealSplitsHandler(req: Request, res: Response) {
   } catch (error: any) {
     const status = error.message?.includes("not found") ? 404 : 500;
     return res.status(status).json({ error: error.message || "Failed to reset deal splits" });
+  }
+}
+
+/**
+ * GET /manager/stuck-deals?thresholdDays=14
+ * Returns deals owned by the manager's team that have not been updated
+ * in more than thresholdDays days (excluding closed and On Hold stages).
+ * Restricted to manager / admin / director roles.
+ */
+export async function getStuckDealsHandler(req: Request, res: Response) {
+  try {
+    const caller = (req as any).user;
+    if (!caller || !caller.id) {
+      return res.status(401).json({ error: "Unauthorized: User context missing" });
+    }
+
+    if (!caller.role || !MANAGER_ROLES.includes(caller.role.toLowerCase())) {
+      return res.status(403).json({
+        error: "Forbidden: Access restricted to sales managers and administrators."
+      });
+    }
+
+    const thresholdDays = Math.max(1, parseInt(String(req.query.thresholdDays || "14"), 10) || 14);
+
+    const stuckDeals = await getStuckDeals(caller.id, thresholdDays);
+
+    return res.status(200).json({
+      success: true,
+      managerId: caller.id,
+      thresholdDays,
+      count: stuckDeals.length,
+      stuckDeals
+    });
+  } catch (error: any) {
+    console.error("[getStuckDealsHandler] Error:", error);
+    return res.status(500).json({ error: error.message || "Failed to fetch stuck deals" });
   }
 }

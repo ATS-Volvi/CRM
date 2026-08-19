@@ -7,7 +7,7 @@ import {
   BarChart2, ChevronRight, ArrowUpRight,
   CheckCircle2, Clock, User, Building2, Sparkles,
   MapPin, AlertTriangle, Inbox, PieChart, XCircle,
-  ChevronDown, Activity, Eye, FileText, UserCheck
+  ChevronDown, Activity, Eye, FileText, UserCheck, Timer
 } from "lucide-react";
 import { apiClient } from "../lib/apiClient";
 import { formatCurrency, formatCurrencyCompact } from "../utils/currency";
@@ -19,6 +19,7 @@ export default function ManagerPortal() {
   const queryClient = useQueryClient();
 
   const [activeTab, setActiveTab] = useState<"overview" | "approvals" | "pipeline" | "revenue" | "leads" | "losses">("overview");
+  const [stuckThreshold, setStuckThreshold] = useState(14);
 
   const managerName = user?.name || "Manager";
 
@@ -102,7 +103,18 @@ export default function ManagerPortal() {
     }
   });
 
+  // Fetch Stuck Deals via /api/v1/manager/stuck-deals
+  const { data: stuckDealsData, isLoading: isLoadingStuck } = useQuery<{ success: boolean; stuckDeals: any[]; count: number }>({
+    queryKey: ["managerStuckDeals", stuckThreshold],
+    queryFn: async () => {
+      const res = await apiClient(`/api/v1/manager/stuck-deals?thresholdDays=${stuckThreshold}`);
+      if (!res.ok) return { success: false, stuckDeals: [], count: 0 };
+      return res.json();
+    }
+  });
+
   const directTeam = directTeamData?.team || [];
+  const stuckDeals = stuckDealsData?.stuckDeals || [];
 
   // ── Derived metrics ──
 
@@ -213,6 +225,120 @@ export default function ManagerPortal() {
       {/* ═══════════════════════════════════════════════════════════ */}
       {activeTab === "overview" && (
         <div className="space-y-6">
+
+          {/* ── STUCK DEALS WORKLIST ── Placed first so it's the manager's first checkpoint */}
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-amber-50/60">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
+                  <Timer className="w-4 h-4 text-amber-600" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                    Stuck Deals Worklist
+                    {!isLoadingStuck && (
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+                        stuckDeals.length > 0
+                          ? "bg-rose-100 text-rose-700 border border-rose-200"
+                          : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                      }`}>
+                        {stuckDeals.length}
+                      </span>
+                    )}
+                  </h3>
+                  <p className="text-[11px] text-slate-400">Deals with no activity for ≥ {stuckThreshold} days — click any row to reassign or move to On Hold</p>
+                </div>
+              </div>
+              {/* Threshold selector */}
+              <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg p-1">
+                {[14, 21, 30].map(d => (
+                  <button
+                    key={d}
+                    onClick={() => setStuckThreshold(d)}
+                    className={`px-2.5 py-1 rounded text-[10px] font-bold transition-all ${
+                      stuckThreshold === d
+                        ? "bg-amber-500 text-white shadow-xs"
+                        : "text-slate-500 hover:bg-slate-100"
+                    }`}
+                  >
+                    {d}d
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {isLoadingStuck ? (
+              <div className="p-6 text-center text-slate-400 text-xs">Loading stuck deals...</div>
+            ) : stuckDeals.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-10 gap-2 text-slate-400">
+                <CheckCircle2 className="w-8 h-8 text-emerald-400" />
+                <p className="text-sm font-bold text-slate-700">Pipeline is moving — no stalled deals</p>
+                <p className="text-[11px]">No open deals have been idle for more than {stuckThreshold} days.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 text-slate-500 font-bold border-b border-slate-200 uppercase tracking-wider text-[10px]">
+                    <tr>
+                      <th className="p-3.5">Deal</th>
+                      <th className="p-3.5">Amount</th>
+                      <th className="p-3.5">Owner</th>
+                      <th className="p-3.5">Stage</th>
+                      <th className="p-3.5 text-right">Days Stalled</th>
+                      <th className="p-3.5 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-medium">
+                    {stuckDeals.map((deal: any) => {
+                      const days = deal.daysSinceUpdate || 0;
+                      const urgencyColor = days >= stuckThreshold * 2
+                        ? "text-rose-600 bg-rose-50 border-rose-200"
+                        : "text-amber-600 bg-amber-50 border-amber-200";
+                      return (
+                        <tr
+                          key={deal.id}
+                          className="hover:bg-slate-50 transition-colors cursor-pointer"
+                          onClick={() => navigate(`/opportunities/${deal.id}`)}
+                        >
+                          <td className="p-3.5">
+                            <p className="font-bold text-slate-900 truncate max-w-[200px]">{deal.name}</p>
+                          </td>
+                          <td className="p-3.5 font-bold text-slate-800">{formatCurrency(deal.amount)}</td>
+                          <td className="p-3.5">
+                            <div className="flex items-center gap-2">
+                              <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 font-bold text-[9px] flex items-center justify-center shrink-0">
+                                {(deal.ownerName || "?").split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase()}
+                              </div>
+                              <span className="text-slate-700">{deal.ownerName}</span>
+                            </div>
+                          </td>
+                          <td className="p-3.5">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700">
+                              {deal.stageName}
+                            </span>
+                          </td>
+                          <td className="p-3.5 text-right">
+                            <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-extrabold border ${urgencyColor}`}>
+                              {days} days
+                            </span>
+                          </td>
+                          <td className="p-3.5 text-right">
+                            <button
+                              onClick={e => { e.stopPropagation(); navigate(`/opportunities/${deal.id}`); }}
+                              className="text-primary font-bold hover:underline text-[10px]"
+                            >
+                              View Deal →
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
           {/* Quick stats */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs">

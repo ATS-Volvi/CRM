@@ -116,7 +116,8 @@ import {
   getManagerTeamHandler,
   getDealSplitsHandler,
   setDealSplitsHandler,
-  deleteDealSplitsHandler
+  deleteDealSplitsHandler,
+  getStuckDealsHandler
 } from "../controllers/dealSplitController";
 import { createPayment, getPaymentsForInvoice } from "../controllers/paymentController";
 import { createSupportTicket, listSupportTickets, getSupportTicketById, updateSupportTicket } from "../controllers/supportTicketController";
@@ -360,8 +361,9 @@ router.get("/deals/:dealId/splits", authMiddleware, getDealSplitsHandler);
 router.put("/deals/:dealId/splits", authMiddleware, setDealSplitsHandler);
 router.delete("/deals/:dealId/splits", authMiddleware, deleteDealSplitsHandler);
 
-// Manager Team Route
+// Manager Team Routes
 router.get("/manager/team", authMiddleware, getManagerTeamHandler);
+router.get("/manager/stuck-deals", authMiddleware, getStuckDealsHandler);
 
 // Deal Assignment Settings
 router.get("/settings/deal-assignment-cutoffs", authMiddleware, getDealAssignmentCutoffs);
