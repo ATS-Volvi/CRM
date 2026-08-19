@@ -209,23 +209,25 @@ export async function convertLeadToOpportunity(leadId: string, qualificationData
       amount: validQual.estimatedValue,
       stageId: stage ? (stage as any).id : null,
       leadId: l.id,
+      accountId: account.id,
       customerId: account.id,
-      ownerId: l.assignedToId || userId
+      ownerId: userId || l.assignedToId
     });
   } else {
     await deal.update({
       amount: validQual.estimatedValue,
+      accountId: account.id,
       customerId: account.id
     });
   }
 
-  // 5b. Auto-create DealOwner rows (commission split)
+  // 5b. Auto-create DealSplit & DealOwner rows (commission split)
   // Qualifying rep = lead.assignedToId, Closing AE = deal.ownerId (may be same person)
   try {
-    const { DealOwner, WorkspaceSetting } = sequelize.models;
-    if (DealOwner && WorkspaceSetting) {
+    const { DealSplit, DealOwner, WorkspaceSetting, User } = sequelize.models;
+    if (DealSplit || DealOwner) {
       // Read default split from workspace settings (default 20% if not set)
-      const splitSetting = await WorkspaceSetting.findOne({ where: { key: "default_qualifying_split_pct" } }) as any;
+      const splitSetting = WorkspaceSetting ? (await WorkspaceSetting.findOne({ where: { key: "default_qualifying_split_pct" } }) as any) : null;
       const defaultSplit = splitSetting ? Math.min(100, Math.max(0, parseFloat(splitSetting.value))) : 20;
 
       let qualifyingRepId = l.assignedToId;
@@ -233,10 +235,12 @@ export async function convertLeadToOpportunity(leadId: string, qualificationData
 
       // Check if there was a manual escalation or SLA breach
       const { LeadReassignmentHistory } = sequelize.models;
-      const reassignments = await LeadReassignmentHistory.findAll({
-        where: { leadId: l.id },
-        order: [["createdAt", "DESC"]]
-      }) as any[];
+      const reassignments = LeadReassignmentHistory
+        ? (await LeadReassignmentHistory.findAll({
+            where: { leadId: l.id },
+            order: [["createdAt", "DESC"]]
+          }) as any[])
+        : [];
 
       let didForfeit = false;
       if (reassignments.length > 0) {
@@ -252,41 +256,43 @@ export async function convertLeadToOpportunity(leadId: string, qualificationData
         }
       }
 
-      const existingCount = await DealOwner.count({ where: { dealId: deal.id } });
-      if (existingCount === 0) {
-        if (qualifyingRepId && closingAeId && qualifyingRepId !== closingAeId) {
-          // Two distinct people — split
-          await DealOwner.bulkCreate([
-            {
+      if (DealSplit) {
+        const existingSplits = await DealSplit.count({ where: { dealId: deal.id } });
+        if (existingSplits === 0) {
+          if (qualifyingRepId && closingAeId && qualifyingRepId !== closingAeId) {
+            await DealSplit.bulkCreate([
+              {
+                id: crypto.randomUUID(),
+                dealId: deal.id,
+                userId: qualifyingRepId,
+                splitPercentage: didForfeit ? 0 : defaultSplit,
+                configuredByUserId: null,
+                isCrossTeam: false
+              },
+              {
+                id: crypto.randomUUID(),
+                dealId: deal.id,
+                userId: closingAeId,
+                splitPercentage: didForfeit ? 100 : 100 - defaultSplit,
+                configuredByUserId: null,
+                isCrossTeam: false
+              }
+            ]);
+          } else if (closingAeId || qualifyingRepId) {
+            await DealSplit.create({
               id: crypto.randomUUID(),
               dealId: deal.id,
-              userId: qualifyingRepId,
-              splitPct: didForfeit ? 0 : defaultSplit,
-              role: "qualifying_rep"
-            },
-            {
-              id: crypto.randomUUID(),
-              dealId: deal.id,
-              userId: closingAeId,
-              splitPct: didForfeit ? 100 : 100 - defaultSplit,
-              role: "closing_ae"
-            }
-          ]);
-        } else if (closingAeId || qualifyingRepId) {
-          // Same person or only one known — 100% to that person
-          await DealOwner.create({
-            id: crypto.randomUUID(),
-            dealId: deal.id,
-            userId: closingAeId || qualifyingRepId,
-            splitPct: 100,
-            role: closingAeId ? "closing_ae" : "qualifying_rep"
-          });
+              userId: closingAeId || qualifyingRepId,
+              splitPercentage: 100,
+              configuredByUserId: null,
+              isCrossTeam: false
+            });
+          }
         }
       }
     }
   } catch (splitErr) {
-    // Non-fatal — log but don't block the qualification flow
-    console.warn("[convertLeadToOpportunity] DealOwner creation failed (non-fatal):", splitErr);
+    console.warn("[convertLeadToOpportunity] DealSplit creation failed (non-fatal):", splitErr);
   }
 
   // 6. Update Lead record with Qualification details & Next Action

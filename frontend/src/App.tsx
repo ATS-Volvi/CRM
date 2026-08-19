@@ -52,6 +52,7 @@ import Opportunities from "./pages/Opportunities";
 import OpportunityDetail from "./pages/OpportunityDetail";
 import AccountDetail from "./pages/AccountDetail";
 import Campaigns from "./pages/Campaigns";
+import SupportTickets from "./pages/SupportTickets";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { Navigate, Outlet } from "react-router-dom";
 
@@ -93,11 +94,11 @@ function App() {
               <Route path="/leads/:id" element={<LeadDetail />} />
               
               {/* Commercial Opportunities Workspace */}
-              <Route path="/opportunities" element={<Opportunities />} />
+              <Route path="/opportunities" element={<Navigate to="/pipeline" replace />} />
               <Route path="/opportunities/:id" element={<OpportunityDetail />} />
-              <Route path="/deals" element={<Navigate to="/opportunities" replace />} />
+              <Route path="/deals" element={<Navigate to="/pipeline" replace />} />
               <Route path="/deals/:id" element={<OpportunityDetail />} />
-              <Route path="/pipeline" element={<Navigate to="/opportunities" replace />} />
+              <Route path="/pipeline" element={<PipelineKanban />} />
               
               {/* Quotations Workspace */}
               <Route path="/quotes/new" element={<QuotationBuilder />} />
@@ -113,6 +114,8 @@ function App() {
               <Route path="/supply/queue" element={<SupplyQueue />} />
               <Route path="/fulfillments/:id" element={<FulfillmentDetail />} />
               <Route path="/assets" element={<AssetTracking />} />
+              <Route path="/tickets" element={<SupportTickets />} />
+              <Route path="/support-tickets" element={<Navigate to="/tickets" replace />} />
               
               {/* Accounts & Contacts */}
               <Route path="/accounts" element={<Accounts />} />

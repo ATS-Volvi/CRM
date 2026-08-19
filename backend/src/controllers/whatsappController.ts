@@ -451,6 +451,7 @@ export const handleIncomingWebhook = async (req: Request, res: Response) => {
         lastName,
         email: uniqueEmail,
         phone: from,
+        whatsappPhone: from,
         company: extractedAI.company || "Unknown WhatsApp Company",
         source: "WhatsApp",
         sourceDetail: `WhatsApp Message ID: ${metaMessageId}`,

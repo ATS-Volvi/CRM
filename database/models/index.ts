@@ -34,6 +34,7 @@ export class User extends Model {
   public recentHighValueLeadCount!: number;
   public recentLeadValueAssigned!: number;
   public dealValueCutoff!: number | null;
+  public maxOpenDeals!: number | null;
 }
 
 User.init(
@@ -45,6 +46,7 @@ User.init(
     role: { type: DataTypes.STRING, defaultValue: "sales_rep" },
     maxOpenLeads: { type: DataTypes.INTEGER, defaultValue: 20 },
     maxActiveOpportunities: { type: DataTypes.INTEGER, defaultValue: 10 },
+    maxOpenDeals: { type: DataTypes.INTEGER, allowNull: true },
     hireDate: { type: DataTypes.DATEONLY, allowNull: true },
     isAvailable: { type: DataTypes.BOOLEAN, defaultValue: true },
     onLeave: { type: DataTypes.BOOLEAN, defaultValue: false },
@@ -60,7 +62,7 @@ User.init(
     lastAssignedAt: { type: DataTypes.DATE, allowNull: true },
     dedicatedEmail: { type: DataTypes.STRING, allowNull: true },
     dedicatedPhone: { type: DataTypes.STRING, allowNull: true },
-    dealValueCutoff: { type: DataTypes.DECIMAL(15, 2), allowNull: true },
+    dealValueCutoff: { type: DataTypes.DECIMAL(12, 2), allowNull: true },
     experienceYears: { type: DataTypes.DECIMAL(4, 1), defaultValue: 2.0 },
     experienceTier: { type: DataTypes.STRING, defaultValue: "Sales Representative" },
     averageFirstResponseMinutes: { type: DataTypes.DECIMAL(6, 1), defaultValue: 15.0 },
@@ -980,6 +982,77 @@ LeadReassignmentHistory.belongsTo(User, { foreignKey: "oldAssignedToId", as: "ol
 LeadReassignmentHistory.belongsTo(User, { foreignKey: "newAssignedToId", as: "newAssignee" });
 LeadReassignmentHistory.belongsTo(User, { foreignKey: "changedByUserId", as: "changedByUser" });
 
+export class DealReassignmentHistory extends Model {
+  public id!: string;
+  public dealId!: string;
+  public oldOwnerId!: string | null;
+  public newOwnerId!: string;
+  public changedByUserId!: string;
+  public assignmentType!: string;
+  public dealAmountAtReassignment!: number | null;
+  public exceededCutoff!: boolean;
+  public exceededCapacity!: boolean;
+  public reason!: string | null;
+  public createdAt!: Date;
+  public updatedAt!: Date;
+}
+
+DealReassignmentHistory.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    dealId: { type: DataTypes.UUID, allowNull: false },
+    oldOwnerId: { type: DataTypes.UUID, allowNull: true },
+    newOwnerId: { type: DataTypes.UUID, allowNull: false },
+    changedByUserId: { type: DataTypes.UUID, allowNull: false },
+    assignmentType: { type: DataTypes.STRING, allowNull: false, defaultValue: "AUTOMATIC" },
+    dealAmountAtReassignment: { type: DataTypes.DECIMAL(12, 2), allowNull: true },
+    exceededCutoff: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    exceededCapacity: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    reason: { type: DataTypes.TEXT, allowNull: true }
+  },
+  { sequelize, modelName: "DealReassignmentHistory", tableName: "DealReassignmentHistories" }
+);
+
+DealReassignmentHistory.belongsTo(Deal, { foreignKey: "dealId", as: "deal" });
+Deal.hasMany(DealReassignmentHistory, { foreignKey: "dealId", as: "reassignmentHistory" });
+
+DealReassignmentHistory.belongsTo(User, { foreignKey: "oldOwnerId", as: "oldOwner" });
+DealReassignmentHistory.belongsTo(User, { foreignKey: "newOwnerId", as: "newOwner" });
+DealReassignmentHistory.belongsTo(User, { foreignKey: "changedByUserId", as: "changedByUser" });
+
+export class DealSplit extends Model {
+  public id!: string;
+  public dealId!: string;
+  public userId!: string;
+  public splitPercentage!: number;
+  public configuredByUserId!: string | null;
+  public isCrossTeam!: boolean;
+  public createdAt!: Date;
+  public updatedAt!: Date;
+
+  public rep?: User;
+  public configuredBy?: User;
+  public deal?: Deal;
+}
+
+DealSplit.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    dealId: { type: DataTypes.UUID, allowNull: false },
+    userId: { type: DataTypes.UUID, allowNull: false },
+    splitPercentage: { type: DataTypes.DECIMAL(5, 2), allowNull: false },
+    configuredByUserId: { type: DataTypes.UUID, allowNull: true },
+    isCrossTeam: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false }
+  },
+  { sequelize, modelName: "DealSplit", tableName: "DealSplits" }
+);
+
+DealSplit.belongsTo(Deal, { foreignKey: "dealId", as: "deal" });
+Deal.hasMany(DealSplit, { foreignKey: "dealId", as: "splits" });
+
+DealSplit.belongsTo(User, { foreignKey: "userId", as: "rep" });
+DealSplit.belongsTo(User, { foreignKey: "configuredByUserId", as: "configuredBy" });
+
 export class KpiTarget extends Model {
   public id!: string;
   public salespersonId!: string;
@@ -1736,27 +1809,6 @@ WorkspaceSetting.init(
     updatedBy: { type: DataTypes.UUID, allowNull: true }
   },
   { sequelize, modelName: "WorkspaceSetting", tableName: "WorkspaceSettings" }
-);
-
-export class DealReassignmentHistory extends Model {
-  public id!: string;
-  public dealId!: string;
-  public fromUserId!: string | null;
-  public toUserId!: string | null;
-  public reason!: string | null;
-  public reassignedBy!: string | null;
-}
-
-DealReassignmentHistory.init(
-  {
-    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
-    dealId: { type: DataTypes.UUID, allowNull: false },
-    fromUserId: { type: DataTypes.UUID, allowNull: true },
-    toUserId: { type: DataTypes.UUID, allowNull: true },
-    reason: { type: DataTypes.TEXT, allowNull: true },
-    reassignedBy: { type: DataTypes.UUID, allowNull: true }
-  },
-  { sequelize, modelName: "DealReassignmentHistory", tableName: "DealReassignmentHistories" }
 );
 
 export { sequelize };

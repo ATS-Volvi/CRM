@@ -4,9 +4,11 @@ import { useNavigate } from "react-router-dom";
 import {
   Package, Plus, Search, Filter, RefreshCw, Calendar, Clock,
   CheckCircle2, AlertTriangle, Truck, ShieldAlert, FileText, User,
-  Building2, Edit, Trash2, ChevronRight, X, ArrowUpRight, Wrench, ShieldCheck
+  Building2, Edit, Trash2, ChevronRight, X, ArrowUpRight, Wrench, ShieldCheck, LifeBuoy
 } from "lucide-react";
 import { apiClient } from "../lib/apiClient";
+import { CreateSupportTicketModal } from "../components/CreateSupportTicketModal";
+import { SupportTicketDetailDrawer } from "../components/SupportTicketDetailDrawer";
 
 export default function AssetTracking() {
   const navigate = useNavigate();
@@ -20,6 +22,23 @@ export default function AssetTracking() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingAsset, setEditingAsset] = useState<any>(null);
   const [selectedAssetHistory, setSelectedAssetHistory] = useState<any>(null);
+  const [isAssetTicketModalOpen, setIsAssetTicketModalOpen] = useState(false);
+  const [selectedTicket, setSelectedTicket] = useState<any | null>(null);
+
+  // Fetch tickets for selected asset
+  const { data: assetTickets = [], refetch: refetchAssetTickets } = useQuery({
+    queryKey: ["asset-support-tickets", selectedAssetHistory?.id],
+    queryFn: async () => {
+      if (!selectedAssetHistory?.id) return [];
+      const token = localStorage.getItem("token") || "";
+      const res = await fetch(`/api/v1/support-tickets?assetId=${selectedAssetHistory.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!selectedAssetHistory?.id
+  });
 
   // Form State
   const [formState, setFormState] = useState({
@@ -621,9 +640,71 @@ export default function AssetTracking() {
                 <p className="text-xs text-slate-500 italic">No status history recorded yet.</p>
               )}
             </div>
+
+            {/* Support Tickets Section */}
+            <div className="space-y-3 pt-4 border-t border-slate-100">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                    <LifeBuoy className="w-4 h-4 text-blue-600" /> Maintenance & Support Tickets ({assetTickets.length})
+                  </h4>
+                  <button
+                    onClick={() => setIsAssetTicketModalOpen(true)}
+                    className="inline-flex items-center gap-1 text-[11px] font-bold text-primary hover:underline"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Log Ticket
+                  </button>
+                </div>
+
+                {assetTickets.length === 0 ? (
+                  <p className="text-xs text-slate-500 italic">No tickets logged for this asset.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {assetTickets.map((tick: any) => (
+                      <div
+                        key={tick.id}
+                        onClick={() => setSelectedTicket(tick)}
+                        className="p-2.5 bg-slate-50 rounded-lg border border-slate-100 hover:border-blue-300 hover:bg-white transition-all cursor-pointer text-xs space-y-1"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-mono font-bold text-primary">TICK-{tick.id.substring(0, 6).toUpperCase()}</span>
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+                            tick.status === "open"
+                              ? "bg-blue-50 text-blue-700 border-blue-200"
+                              : tick.status === "in_progress"
+                              ? "bg-amber-50 text-amber-700 border-amber-200"
+                              : tick.status === "resolved"
+                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                              : "bg-slate-100 text-slate-700 border-slate-300"
+                          }`}>
+                            {tick.status.replace("_", " ")}
+                          </span>
+                        </div>
+                        <p className="text-slate-600 truncate">{tick.description}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
           </div>
         </div>
       )}
+
+      {/* Create Support Ticket Modal for Asset */}
+      <CreateSupportTicketModal
+        isOpen={isAssetTicketModalOpen}
+        defaultAccountId={selectedAssetHistory?.customerId}
+        defaultAssetId={selectedAssetHistory?.id}
+        onClose={() => setIsAssetTicketModalOpen(false)}
+        onSuccess={() => refetchAssetTickets()}
+      />
+
+      {/* Support Ticket Detail Drawer */}
+      <SupportTicketDetailDrawer
+        isOpen={!!selectedTicket}
+        ticket={selectedTicket}
+        onClose={() => setSelectedTicket(null)}
+        onUpdated={() => refetchAssetTickets()}
+      />
     </div>
   );
 }

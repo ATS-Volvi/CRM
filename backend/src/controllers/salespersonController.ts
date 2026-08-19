@@ -546,8 +546,8 @@ export const getSalespersonPerformanceDetails = async (req: Request, res: Respon
     const dealTypes = Object.keys(dealTypeMap).map(name => ({ stage: name, count: dealTypeMap[name] }));
 
     // Won and Lost Leads derivation
-    const wonDeals = deals.filter((d: any) => d.stage?.name === "Closed Won");
-    const lostDeals = deals.filter((d: any) => d.stage?.name === "Closed Lost");
+    const wonDeals = deals.filter((d: any) => d.stage?.name === "Won" || d.stage?.name === "Closed Won");
+    const lostDeals = deals.filter((d: any) => d.stage?.name === "Lost" || d.stage?.name === "Closed Lost");
 
     const wonLeads = wonDeals.map((d: any) => {
       const l = d.lead || {};
@@ -607,14 +607,16 @@ export const getSalespersonPerformanceDetails = async (req: Request, res: Respon
     deals.forEach((d: any) => {
       if (!d.lead) return;
       const stageName = d.stage?.name;
-      if (stageName !== "Closed Won" && stageName !== "Closed Lost") return;
+      const isWon = stageName === "Won" || stageName === "Closed Won";
+      const isLost = stageName === "Lost" || stageName === "Closed Lost";
+      if (!isWon && !isLost) return;
 
       const src = (d.lead.source || "Other").toLowerCase().trim() || "other";
       if (!sourceClosedStats[src]) {
         sourceClosedStats[src] = { won: 0, lost: 0, total: 0 };
       }
       sourceClosedStats[src].total++;
-      if (stageName === "Closed Won") {
+      if (isWon) {
         sourceClosedStats[src].won++;
       } else {
         sourceClosedStats[src].lost++;

@@ -49,9 +49,11 @@ async function runTest() {
   }
 
   // Cleanup
+  const { DealSplit } = sequelize.models;
+  if (DealSplit) await DealSplit.destroy({ where: { dealId: dealId } });
   await DealOwner.destroy({ where: { dealId: dealId } });
   await sequelize.query(`DELETE FROM public."Deals" WHERE id = '${dealId}'`);
-  await sequelize.query(`DELETE FROM public."LeadReassignmentHistory" WHERE "leadId" = '${testLead.id}'`);
+  await sequelize.query(`DELETE FROM public."LeadReassignmentHistories" WHERE "leadId" = '${testLead.id}'`);
   await testLead.destroy();
   process.exit(0);
 }

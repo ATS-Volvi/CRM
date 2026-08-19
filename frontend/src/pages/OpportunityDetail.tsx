@@ -20,19 +20,37 @@ import {
   ExternalLink,
   ChevronRight,
   Sparkles,
-  AlertCircle
+  AlertCircle,
+  AlertTriangle,
+  UserCheck,
+  RefreshCw,
+  X,
+  Sliders
 } from "lucide-react";
 import { apiClient } from "../lib/apiClient";
 import { formatCurrency } from "../utils/currency";
+import { useAuth } from "../context/AuthContext";
+import { DealReassignModal } from "../components/DealReassignModal";
+import { DealReassignmentHistorySection } from "../components/DealReassignmentHistorySection";
+import { DealSplitsSection } from "../components/DealSplitsSection";
 
 export default function OpportunityDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { token } = useAuth();
 
   const [noteText, setNoteText] = useState("");
   const [isCreatingOrder, setIsCreatingOrder] = useState(false);
   const [orderCreatedSuccess, setOrderCreatedSuccess] = useState<any | null>(null);
+
+  // Phase 2: Reassign Modal & Auto-Assign Banner States
+  const [isReassignModalOpen, setIsReassignModalOpen] = useState(false);
+  const [autoAssignBanner, setAutoAssignBanner] = useState<{
+    type: "success" | "info" | "error";
+    message: string;
+    reason?: string;
+  } | null>(null);
 
   // Fetch Opportunity Detail
   const { data: opp, isLoading, error } = useQuery({
@@ -86,6 +104,48 @@ export default function OpportunityDetail() {
     }
   });
 
+  // Phase 2: Auto-Assign Mutation
+  const autoAssignMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/v1/deals/${id}/auto-assign`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        }
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Auto-assignment failed" }));
+        throw new Error(err.error || "Auto-assignment failed");
+      }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["opportunity-detail", id] });
+      queryClient.invalidateQueries({ queryKey: ["deal-reassignment-history", id] });
+      queryClient.invalidateQueries({ queryKey: ["dealAssignmentCutoffs"] });
+
+      if (data.assigned) {
+        setAutoAssignBanner({
+          type: "success",
+          message: `Deal successfully auto-assigned to ${data.assignee?.name || "Senior AE"}.`
+        });
+      } else {
+        setAutoAssignBanner({
+          type: "info",
+          message: "No Senior AE is currently eligible for automated assignment.",
+          reason: data.reason || "All reps exceed deal size cutoffs or are at open-deal capacity."
+        });
+      }
+    },
+    onError: (err: any) => {
+      setAutoAssignBanner({
+        type: "error",
+        message: err.message || "Failed to auto-assign deal."
+      });
+    }
+  });
+
   const handleCreateOrder = async (finalQuoteId: string) => {
     setIsCreatingOrder(true);
     try {
@@ -115,7 +175,7 @@ export default function OpportunityDetail() {
     return (
       <div className="p-8 text-center space-y-3">
         <div className="text-red-600 font-semibold text-sm">Opportunity not found</div>
-        <button onClick={() => navigate("/opportunities")} className="enterprise-btn-primary mx-auto">
+        <button onClick={() => navigate("/pipeline")} className="enterprise-btn-primary mx-auto">
           Back to Opportunities
         </button>
       </div>
@@ -123,24 +183,30 @@ export default function OpportunityDetail() {
   }
 
   const STAGES = [
-    { key: "DISCOVERY", label: "Discovery" },
-    { key: "REQUIREMENTS", label: "Requirements" },
-    { key: "SOLUTION_DESIGN", label: "Solution" },
-    { key: "PROPOSAL_QUOTE", label: "Quote Prep" },
-    { key: "QUOTE_SENT", label: "Quote Sent" },
-    { key: "NEGOTIATION", label: "Negotiation" },
-    { key: "AGREED_PENDING_ORDER", label: "Agreed" },
-    { key: "CLOSED_WON", label: "Won" }
+    { key: "Discovery", label: "Discovery" },
+    { key: "Requirements", label: "Requirements" },
+    { key: "Solution/Scope", label: "Solution/Scope" },
+    { key: "Quote Preparation", label: "Quote Preparation" },
+    { key: "Quote Sent", label: "Quote Sent" },
+    { key: "Negotiation", label: "Negotiation" },
+    { key: "Agreed", label: "Agreed" },
+    { key: "Won", label: "Won" },
+    { key: "Lost", label: "Lost" }
   ];
 
-  const currentStageIndex = STAGES.findIndex((s) => s.key === opp.stageId);
+  const currentStageName = opp.stage?.name || opp.stageId || "Discovery";
+  const currentStageIndex = STAGES.findIndex(
+    (s) =>
+      s.key.toLowerCase() === currentStageName.toLowerCase() ||
+      s.label.toLowerCase() === currentStageName.toLowerCase()
+  );
 
   return (
     <div className="p-6 space-y-5 max-w-7xl mx-auto">
       {/* Back Navigation & Breadcrumbs */}
       <div className="flex items-center justify-between">
         <button
-          onClick={() => navigate("/opportunities")}
+          onClick={() => navigate("/pipeline")}
           className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-900 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -148,6 +214,27 @@ export default function OpportunityDetail() {
         </button>
 
         <div className="flex items-center gap-2">
+          {/* Phase 2: Manual Reassign Button */}
+          <button
+            onClick={() => setIsReassignModalOpen(true)}
+            className="enterprise-btn-secondary flex items-center gap-1.5 text-xs"
+            title="Reassign Opportunity to a Senior AE"
+          >
+            <UserCheck className="w-3.5 h-3.5 text-indigo-600" />
+            <span>Reassign Owner</span>
+          </button>
+
+          {/* Phase 2: Auto-Assign Trigger Button */}
+          <button
+            onClick={() => autoAssignMutation.mutate()}
+            disabled={autoAssignMutation.isPending}
+            className="enterprise-btn-outline flex items-center gap-1.5 text-xs hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300"
+            title="Trigger Automated Deal Routing Engine"
+          >
+            <Sparkles className={`w-3.5 h-3.5 text-amber-500 ${autoAssignMutation.isPending ? "animate-spin" : ""}`} />
+            <span>Auto-Assign Rep</span>
+          </button>
+
           <button
             onClick={() => navigate(`/quotes/new?dealId=${opp.id}`)}
             className="enterprise-btn-primary"
@@ -157,6 +244,55 @@ export default function OpportunityDetail() {
           </button>
         </div>
       </div>
+
+      {/* Auto-Assignment Notification / Guidance Banner */}
+      {autoAssignBanner && (
+        <div
+          className={`p-4 rounded-xl border flex items-start justify-between gap-3 text-xs animate-fade-in ${
+            autoAssignBanner.type === "success"
+              ? "bg-emerald-50 border-emerald-300 text-emerald-900"
+              : autoAssignBanner.type === "info"
+              ? "bg-blue-50 border-blue-300 text-blue-950"
+              : "bg-red-50 border-red-300 text-red-900"
+          }`}
+        >
+          <div className="flex items-start gap-2.5">
+            {autoAssignBanner.type === "success" ? (
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+            ) : autoAssignBanner.type === "info" ? (
+              <AlertCircle className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+            ) : (
+              <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+            )}
+            <div className="space-y-1">
+              <div className="font-bold">{autoAssignBanner.message}</div>
+              {autoAssignBanner.reason && (
+                <p className="text-[11px] opacity-90">{autoAssignBanner.reason}</p>
+              )}
+              {autoAssignBanner.type === "info" && (
+                <div className="pt-1.5">
+                  <button
+                    onClick={() => {
+                      setAutoAssignBanner(null);
+                      setIsReassignModalOpen(true);
+                    }}
+                    className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs transition-colors"
+                  >
+                    Open Manual Reassign Modal →
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <button
+            onClick={() => setAutoAssignBanner(null)}
+            className="text-slate-400 hover:text-slate-700 p-1 rounded-lg transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* Opportunity Header Bar */}
       <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -177,6 +313,12 @@ export default function OpportunityDetail() {
             <span className="flex items-center gap-1">
               <User className="w-3.5 h-3.5 text-slate-400" />
               Owner: <strong>{opp.owner?.name || "Assigned Rep"}</strong>
+              <button
+                onClick={() => setIsReassignModalOpen(true)}
+                className="ml-1 text-[11px] text-blue-600 hover:underline font-bold"
+              >
+                (Reassign)
+              </button>
             </span>
             <span>•</span>
             <span className="flex items-center gap-1">
@@ -211,7 +353,7 @@ export default function OpportunityDetail() {
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-2">
         <div className="flex items-center justify-between text-xs font-semibold text-slate-600 mb-1">
           <span>Commercial Stage Progression</span>
-          <span className="text-blue-600">Current: {opp.stageId || "DISCOVERY"}</span>
+          <span className="text-blue-600">Current: {opp.stage?.name || opp.stageId || "Discovery"}</span>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-1.5">
           {STAGES.map((s, idx) => {
@@ -240,7 +382,7 @@ export default function OpportunityDetail() {
 
       {/* Main 3-Column Workspace */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        {/* LEFT COLUMN: Account & Contact Context (3 cols) */}
+        {/* LEFT COLUMN: Account, Contact Context & Reassignment History (3 cols) */}
         <div className="lg:col-span-3 space-y-4">
           {/* Account Card */}
           <div className="enterprise-card p-4 space-y-3">
@@ -286,6 +428,17 @@ export default function OpportunityDetail() {
             </div>
           </div>
 
+          {/* Deal Commission Split Section */}
+          <DealSplitsSection
+            dealId={opp.id}
+            dealAmount={Number(opp.amount || 0)}
+            ownerId={opp.ownerId}
+            ownerName={opp.owner?.name}
+          />
+
+          {/* Reassignment & Audit History Section */}
+          <DealReassignmentHistorySection dealId={opp.id} />
+
           {/* Source Attribution Summary */}
           {(opp.sourceChannel || opp.sourceType) && (
             <div className="enterprise-card p-4 space-y-2 bg-slate-50/50">
@@ -314,7 +467,7 @@ export default function OpportunityDetail() {
           <div className="enterprise-card p-4 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
               <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                Activity & Engagement Log
+                Activity &amp; Engagement Log
               </h3>
             </div>
 
@@ -475,6 +628,17 @@ export default function OpportunityDetail() {
           </div>
         </div>
       </div>
+
+      {/* Manual Reassign Modal */}
+      <DealReassignModal
+        isOpen={isReassignModalOpen}
+        onClose={() => setIsReassignModalOpen(false)}
+        dealId={opp.id}
+        dealName={opp.name}
+        dealAmount={Number(opp.amount || 0)}
+        currentOwnerName={opp.owner?.name}
+        currentOwnerId={opp.ownerId}
+      />
     </div>
   );
 }

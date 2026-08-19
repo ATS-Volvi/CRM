@@ -10,11 +10,48 @@ export const getInvoices = async (req: Request, res: Response) => {
           as: "quote", 
           include: [{ model: sequelize.models.Deal, as: "deal", include: [{ model: sequelize.models.Lead, as: "lead" }] }] 
         },
-        { model: sequelize.models.InvoiceLineItem, as: "lineItems", include: [{ model: sequelize.models.PriceBookEntry, as: "product" }] }
+        { model: sequelize.models.InvoiceLineItem, as: "lineItems", include: [{ model: sequelize.models.PriceBookEntry, as: "product" }] },
+        { 
+          model: sequelize.models.Payment, 
+          as: "payments", 
+          include: [{ model: sequelize.models.User, as: "recordedByUser", attributes: ["id", "name", "email"] }] 
+        }
       ],
       order: [['createdAt', 'DESC']]
     });
     res.json(invoices);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const getInvoiceById = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const invoice = await sequelize.models.Invoice.findByPk(String(id), {
+      include: [
+        { 
+          model: sequelize.models.Quote, 
+          as: "quote", 
+          include: [{ 
+            model: sequelize.models.Deal, 
+            as: "deal", 
+            include: [
+              { model: sequelize.models.Lead, as: "lead" },
+              { model: sequelize.models.User, as: "owner", attributes: ["id", "name", "email", "role"] }
+            ] 
+          }] 
+        },
+        { model: sequelize.models.InvoiceLineItem, as: "lineItems", include: [{ model: sequelize.models.PriceBookEntry, as: "product" }] },
+        { 
+          model: sequelize.models.Payment, 
+          as: "payments", 
+          include: [{ model: sequelize.models.User, as: "recordedByUser", attributes: ["id", "name", "email"] }] 
+        }
+      ]
+    });
+    if (!invoice) return res.status(404).json({ error: "Invoice not found" });
+    res.json(invoice);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -35,17 +72,20 @@ export const createInvoiceFromQuote = async (req: Request, res: Response) => {
 
     // Ensure not already invoiced
     const existing = await sequelize.models.Invoice.findOne({ where: { quoteId } });
-    if (existing) return res.status(400).json({ error: "Invoice already exists for this quote" });
+    const quoteItems: any[] = await sequelize.models.QuoteLineItem.findAll({ where: { quoteId } });
+    let invoiceTotal = Number((quote as any).totalAmount) || 0;
+    if (invoiceTotal === 0 && quoteItems.length > 0) {
+      invoiceTotal = quoteItems.reduce((acc: number, it: any) => acc + Number(it.totalPrice || 0), 0);
+    }
 
     const invoice = await sequelize.models.Invoice.create({
       id: require('crypto').randomUUID(),
       quoteId,
       status: "Draft",
-      totalAmount: (quote as any).totalAmount,
+      totalAmount: invoiceTotal,
       dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // +30 days
     });
 
-    const quoteItems: any[] = await sequelize.models.QuoteLineItem.findAll({ where: { quoteId } });
     if (quoteItems.length > 0) {
       const lineItemsData = quoteItems.map((item: any) => ({
         id: require('crypto').randomUUID(),

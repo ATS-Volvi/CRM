@@ -27,19 +27,23 @@ export const register = async (req: Request, res: Response) => {
 export const login = async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
+    console.log("[AUTH LOGIN] Attempt for email:", email);
     const user = await User.findOne({ where: { email } });
     if (!user) {
+      console.log("[AUTH LOGIN] User not found:", email);
       res.status(404).json({ error: "User not found" });
       return;
     }
 
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) {
+      console.log("[AUTH LOGIN] Invalid password for:", email);
       res.status(401).json({ error: "Invalid credentials" });
       return;
     }
 
     const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: "1d" });
+    console.log("[AUTH LOGIN] Success for:", email, "Role:", user.role);
     res.json({ user: { id: user.id, email: user.email, name: user.name, role: user.role }, token });
   } catch (error: any) {
     console.error("Login endpoint error:", error);

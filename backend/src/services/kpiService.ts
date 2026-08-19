@@ -114,10 +114,10 @@ export async function calculateTeamKpis(scopedUserIds?: string[]): Promise<any> 
       include: [{ model: sequelize.models.PipelineStage, as: "stage" }]
     });
 
-    const wonDeals = deals.filter((d: any) => d.stage?.name === "Closed Won");
+    const wonDeals = deals.filter((d: any) => d.stage?.name === "Won" || d.stage?.name === "Closed Won");
     const totalWonAmount = wonDeals.reduce((sum: number, d: any) => sum + Number(d.amount), 0);
 
-    const totalClosed = deals.filter((d: any) => d.stage?.name === "Closed Won" || d.stage?.name === "Closed Lost").length;
+    const totalClosed = deals.filter((d: any) => d.stage?.name === "Won" || d.stage?.name === "Closed Won" || d.stage?.name === "Lost" || d.stage?.name === "Closed Lost").length;
     const teamCloseRate = totalClosed > 0 ? (wonDeals.length / totalClosed) * 100 : 0;
 
     // Lead averages for team

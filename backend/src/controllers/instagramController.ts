@@ -108,6 +108,7 @@ async function processInstagramMessage(msg: NormalizedIgMessage) {
   }
 
   return {
+    leadId: dealId,
     dealId: dealId,
     assignmentMethod: "DealSplitter"
   };

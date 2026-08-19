@@ -7,7 +7,7 @@ import {
   BarChart2, ChevronRight, ArrowUpRight,
   CheckCircle2, Clock, User, Building2, Sparkles,
   MapPin, AlertTriangle, Inbox, PieChart, XCircle,
-  ChevronDown, Activity, Eye, FileText
+  ChevronDown, Activity, Eye, FileText, UserCheck
 } from "lucide-react";
 import { apiClient } from "../lib/apiClient";
 import { formatCurrency, formatCurrencyCompact } from "../utils/currency";
@@ -91,6 +91,18 @@ export default function ManagerPortal() {
       return Array.isArray(data) ? data : [];
     },
   });
+
+  // Fetch Direct Reports Team via /api/v1/manager/team
+  const { data: directTeamData, isLoading: isLoadingDirectTeam } = useQuery<{ success: boolean; team: any[] }>({
+    queryKey: ["managerDirectTeam"],
+    queryFn: async () => {
+      const res = await apiClient("/api/v1/manager/team");
+      if (!res.ok) return { success: false, team: [] };
+      return res.json();
+    }
+  });
+
+  const directTeam = directTeamData?.team || [];
 
   // ── Derived metrics ──
 
@@ -225,11 +237,106 @@ export default function ManagerPortal() {
             </div>
           </div>
 
+          {/* My Direct Reports & Capacity */}
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50/50">
+              <div>
+                <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                  <UserCheck className="w-4 h-4 text-emerald-600" /> My Direct Reports &amp; Open Deal Workload ({directTeam.length})
+                </h3>
+                <p className="text-[11px] text-slate-400">Direct reports managed by you (configured for commission splits &amp; routing)</p>
+              </div>
+              <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                Active Team
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 text-slate-500 font-bold border-b border-slate-200 uppercase tracking-wider text-[10px]">
+                  <tr>
+                    <th className="p-3.5">Representative</th>
+                    <th className="p-3.5">Role</th>
+                    <th className="p-3.5">Active Deals</th>
+                    <th className="p-3.5">Deal Cutoff</th>
+                    <th className="p-3.5">Capacity Cap</th>
+                    <th className="p-3.5">Availability</th>
+                    <th className="p-3.5 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-medium">
+                  {isLoadingDirectTeam ? (
+                    <tr>
+                      <td colSpan={7} className="p-6 text-center text-slate-400">Loading team data...</td>
+                    </tr>
+                  ) : directTeam.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="p-6 text-center text-slate-400 italic">
+                        No direct reports assigned to your manager profile.
+                      </td>
+                    </tr>
+                  ) : (
+                    directTeam.map((member: any) => (
+                      <tr key={member.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="p-3.5">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center justify-center">
+                              {member.name.slice(0, 2).toUpperCase()}
+                            </div>
+                            <div>
+                              <p className="font-bold text-slate-900">{member.name}</p>
+                              <p className="text-[10px] text-slate-400">{member.email}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="p-3.5">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700">
+                            {member.role}
+                          </span>
+                        </td>
+                        <td className="p-3.5">
+                          <span className="font-bold text-slate-900">{member.currentOpenDeals}</span>
+                          <span className="text-[10px] text-slate-400 ml-1">open deals</span>
+                        </td>
+                        <td className="p-3.5 text-slate-700">
+                          {member.dealValueCutoff ? formatCurrency(member.dealValueCutoff) : "Uncapped"}
+                        </td>
+                        <td className="p-3.5 text-slate-700">
+                          {member.maxOpenDeals ? `${member.maxOpenDeals} deals` : "Uncapped"}
+                        </td>
+                        <td className="p-3.5">
+                          <span
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              member.isAvailable
+                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                : "bg-slate-100 text-slate-500 border border-slate-200"
+                            }`}
+                          >
+                            <span className={`w-1.5 h-1.5 rounded-full ${member.isAvailable ? "bg-emerald-500" : "bg-slate-400"}`} />
+                            {member.isAvailable ? "Available" : "OOO"}
+                          </span>
+                        </td>
+                        <td className="p-3.5 text-right">
+                          <button
+                            onClick={() => navigate(`/salespersons/${member.id}`)}
+                            className="text-primary font-bold hover:underline text-xs cursor-pointer"
+                          >
+                            View Performance →
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
           {/* Rep performance list */}
           <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
             <div className="flex items-center justify-between p-4 border-b border-slate-100">
               <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                <Users className="w-4 h-4 text-primary" /> Team Performance
+                <Users className="w-4 h-4 text-primary" /> Overall Sales Rep Performance
               </h3>
               <Link to="/salespersons" className="text-xs font-bold text-primary hover:underline flex items-center gap-1">
                 Open Team Hub <ChevronRight className="w-3 h-3" />

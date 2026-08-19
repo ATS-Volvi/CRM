@@ -17,3 +17,4 @@ analyze_backup.js
 execute_deletion.js
 test_query.js
 dry_run_query.sql
+*.zip

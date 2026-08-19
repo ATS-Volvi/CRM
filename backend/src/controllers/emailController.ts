@@ -118,7 +118,7 @@ export const receiveInboundEmail = async (req: Request, res: Response) => {
     const { assignedToId, assignmentMethod, isFuzzyNameMatch, matchedNameStr } = routingResult;
 
     const { ingestLead } = require("../services/leadIngestion");
-    const dealId = await ingestLead({
+    const leadId = await ingestLead({
       firstName,
       lastName,
       email,
@@ -128,17 +128,19 @@ export const receiveInboundEmail = async (req: Request, res: Response) => {
       sourceDetail: emailSubject,
       message: emailBody,
       assignedToId: assignedToId,
+      assignmentMethod: assignmentMethod || null,
+      recipientEmail: recipientEmail || null,
       rawPayload: { subject: emailSubject, body: emailBody, recipientEmail }
     });
 
     // If assigned via fuzzy name-match, log an activity entry for audit transparency
-    if (isFuzzyNameMatch && dealId) {
+    if (isFuzzyNameMatch && leadId) {
       try {
         await Activity.create({
           id: require("crypto").randomUUID(),
           type: "Assignment Flag",
           outcome: `Fuzzy Name Match: Assigned to '${matchedNameStr}' based on single name mention in email text. Please verify assignment.`,
-          dealId: dealId,
+          leadId: leadId,
           createdById: assignedToId,
           pinned: false,
           priority: "Medium",
@@ -151,7 +153,8 @@ export const receiveInboundEmail = async (req: Request, res: Response) => {
 
     res.status(201).json({
       message: "Inbound email ingested successfully",
-      dealId: dealId,
+      leadId: leadId,
+      dealId: leadId,
       assignedToId,
       assignmentMethod
     });

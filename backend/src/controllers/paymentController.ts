@@ -3,12 +3,12 @@ import crypto from "crypto";
 import { sequelize } from "@nexus-crm/database";
 import { Transaction } from "sequelize";
 
-// Admin, manager, senior_ae check
-const checkAccess = (role: string) => ["admin", "manager", "senior_ae"].includes(role);
+// Admin, manager, senior_ae, director check
+const checkAccess = (role: string) => ["admin", "manager", "senior_ae", "director"].includes(role?.toLowerCase());
 
 export const createPayment = async (req: Request, res: Response): Promise<void> => {
   try {
-    const userRole = (req as any).user.role;
+    const userRole = (req as any).user?.role || "";
     if (!checkAccess(userRole)) {
       res.status(403).json({ error: "Access denied. Only admin, manager, or senior_ae can record payments." });
       return;
@@ -16,9 +16,14 @@ export const createPayment = async (req: Request, res: Response): Promise<void> 
 
     const invoiceId = req.params.invoiceId;
     const { amount, paymentDate, method, reference } = req.body;
-    const userId = (req as any).user.userId;
+    const userId = (req as any).user?.id || (req as any).user?.userId;
 
-    const { Invoice, Payment } = sequelize.models;
+    if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
+      res.status(400).json({ error: "Payment amount must be a positive number." });
+      return;
+    }
+
+    const { Invoice, Payment, User } = sequelize.models;
 
     const invoice: any = await Invoice.findByPk(String(invoiceId));
     if (!invoice) {
@@ -32,11 +37,11 @@ export const createPayment = async (req: Request, res: Response): Promise<void> 
         {
           id: crypto.randomUUID(),
           invoiceId,
-          amount,
+          amount: Number(amount),
           paymentDate: paymentDate || new Date(),
           method: method || "bank_transfer",
-          reference,
-          recordedBy: userId,
+          reference: reference || null,
+          recordedBy: userId || null,
         },
         { transaction: t }
       );
@@ -65,7 +70,13 @@ export const createPayment = async (req: Request, res: Response): Promise<void> 
     });
 
     const updatedInvoice = await Invoice.findByPk(String(invoiceId), {
-      include: [{ model: Payment, as: "payments" }]
+      include: [
+        {
+          model: Payment,
+          as: "payments",
+          include: [{ model: User, as: "recordedByUser", attributes: ["id", "name", "email"] }]
+        }
+      ]
     });
 
     res.status(201).json(updatedInvoice);
@@ -77,11 +88,17 @@ export const createPayment = async (req: Request, res: Response): Promise<void> 
 
 export const getPaymentsForInvoice = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { Invoice, Payment } = sequelize.models;
+    const { Invoice, Payment, User } = sequelize.models;
     const invoiceId = req.params.invoiceId;
 
     const invoice = await Invoice.findByPk(String(invoiceId), {
-      include: [{ model: Payment, as: "payments" }]
+      include: [
+        {
+          model: Payment,
+          as: "payments",
+          include: [{ model: User, as: "recordedByUser", attributes: ["id", "name", "email"] }]
+        }
+      ]
     });
 
     if (!invoice) {

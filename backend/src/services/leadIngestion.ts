@@ -19,6 +19,9 @@ export interface LeadPayload {
   lastName: string;
   email: string;
   phone?: string;
+  whatsappPhone?: string;
+  recipientEmail?: string;
+  assignmentMethod?: string;
   company?: string;
   source?: string;
   sourceType?: string;
@@ -129,6 +132,9 @@ export async function ingestLead(payload: LeadPayload) {
           lastName: payload.lastName,
           email: email,
           phone: payload.phone || null,
+          whatsappPhone: payload.whatsappPhone || (payload.source?.toLowerCase() === 'whatsapp' ? payload.phone : null),
+          recipientEmail: payload.recipientEmail || null,
+          assignmentMethod: payload.assignmentMethod || null,
           company: companyName,
           source: payload.source || 'Website',
           sourceDetail: payload.sourceDetail || null,

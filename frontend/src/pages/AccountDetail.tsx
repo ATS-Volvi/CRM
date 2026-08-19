@@ -19,17 +19,24 @@ import {
   Plus,
   ExternalLink,
   CheckCircle2,
-  Clock
+  Clock,
+  LifeBuoy,
+  Wrench
 } from "lucide-react";
 import { apiClient } from "../lib/apiClient";
 import { formatCurrency } from "../utils/currency";
+import { CreateSupportTicketModal } from "../components/CreateSupportTicketModal";
+import { SupportTicketDetailDrawer } from "../components/SupportTicketDetailDrawer";
 
 export default function AccountDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<
-    "overview" | "contacts" | "opportunities" | "quotes" | "orders" | "supply" | "assets" | "activities"
+    "overview" | "contacts" | "opportunities" | "quotes" | "orders" | "supply" | "assets" | "activities" | "tickets"
   >("overview");
+
+  const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
+  const [selectedTicket, setSelectedTicket] = useState<any | null>(null);
 
   // Fetch Account 360 data
   const { data: account, isLoading, error } = useQuery({
@@ -71,9 +78,24 @@ export default function AccountDetail() {
     enabled: !!id
   });
 
+  // Fetch related support tickets
+  const { data: ticketsData, refetch: refetchTickets } = useQuery({
+    queryKey: ["account-support-tickets", id],
+    queryFn: async () => {
+      const token = localStorage.getItem("token") || "";
+      const res = await fetch(`/api/v1/support-tickets?accountId=${id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!id
+  });
+
   const contacts: any[] = Array.isArray(contactsData) ? contactsData : [];
   const opportunities: any[] = Array.isArray(oppsData) ? oppsData : [];
   const assets: any[] = Array.isArray(assetsData) ? assetsData : [];
+  const tickets: any[] = Array.isArray(ticketsData) ? ticketsData : [];
 
   if (isLoading) {
     return (
@@ -192,6 +214,21 @@ export default function AccountDetail() {
             {assets.length}
           </span>
         </button>
+        <button
+          onClick={() => setActiveTab("tickets")}
+          className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-colors flex items-center gap-1.5 ${
+            activeTab === "tickets"
+              ? "border-blue-600 text-blue-600"
+              : "border-transparent text-slate-500 hover:text-slate-800"
+          }`}
+        >
+          <span>Support Tickets</span>
+          <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+            tickets.length > 0 ? "bg-blue-100 text-blue-700 font-bold" : "bg-slate-100 text-slate-600"
+          }`}>
+            {tickets.length}
+          </span>
+        </button>
       </div>
 
       {/* TAB CONTENT: OVERVIEW */}
@@ -267,6 +304,68 @@ export default function AccountDetail() {
                       </span>
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+
+            {/* Support Tickets Section */}
+            <div className="enterprise-card p-4 space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                  <LifeBuoy className="w-3.5 h-3.5 text-blue-600" /> Support & Service Tickets ({tickets.length})
+                </h3>
+                <button
+                  onClick={() => setIsTicketModalOpen(true)}
+                  className="inline-flex items-center gap-1 text-[11px] font-bold text-primary hover:underline"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Raise Ticket
+                </button>
+              </div>
+
+              {tickets.length === 0 ? (
+                <div className="py-6 text-center text-xs text-slate-400">
+                  No support tickets logged for this account.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {tickets.slice(0, 3).map((tick) => (
+                    <div
+                      key={tick.id}
+                      onClick={() => setSelectedTicket(tick)}
+                      className="p-3 bg-slate-50 rounded-lg border border-slate-200/80 hover:border-blue-300 hover:bg-white transition-all cursor-pointer flex items-center justify-between"
+                    >
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs font-bold text-primary">TICK-{tick.id.substring(0, 6).toUpperCase()}</span>
+                          <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-slate-200 text-slate-700">
+                            {tick.category}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-600 mt-1 truncate max-w-sm">{tick.description}</p>
+                      </div>
+                      <div className="text-right">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+                          tick.status === "open"
+                            ? "bg-blue-50 text-blue-700 border-blue-200"
+                            : tick.status === "in_progress"
+                            ? "bg-amber-50 text-amber-700 border-amber-200"
+                            : tick.status === "resolved"
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            : "bg-slate-100 text-slate-700 border-slate-300"
+                        }`}>
+                          {tick.status.replace("_", " ")}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                  {tickets.length > 3 && (
+                    <button
+                      onClick={() => setActiveTab("tickets")}
+                      className="w-full text-center text-xs text-blue-600 font-bold hover:underline py-1.5"
+                    >
+                      View all {tickets.length} tickets →
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -423,6 +522,98 @@ export default function AccountDetail() {
           </table>
         </div>
       )}
+
+      {/* TAB CONTENT: SUPPORT TICKETS */}
+      {activeTab === "tickets" && (
+        <div className="enterprise-card overflow-hidden space-y-4 p-4">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">Support & Maintenance History</h3>
+              <p className="text-xs text-slate-500">All field tickets, maintenance requests, and issues logged for this account.</p>
+            </div>
+            <button
+              onClick={() => setIsTicketModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-on-primary text-xs font-bold rounded-lg shadow-sm hover:opacity-90 transition-opacity"
+            >
+              <Plus className="w-3.5 h-3.5" /> Raise New Ticket
+            </button>
+          </div>
+
+          {tickets.length === 0 ? (
+            <div className="py-12 text-center text-slate-400 text-xs space-y-2">
+              <LifeBuoy className="w-8 h-8 opacity-30 mx-auto" />
+              <p>No support tickets found for this account.</p>
+            </div>
+          ) : (
+            <table className="enterprise-table">
+              <thead>
+                <tr>
+                  <th>Ticket ID</th>
+                  <th>Equipment / Asset</th>
+                  <th>Category</th>
+                  <th>Description</th>
+                  <th>Status</th>
+                  <th>Date Logged</th>
+                  <th className="text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tickets.map((t: any) => (
+                  <tr key={t.id} onClick={() => setSelectedTicket(t)} className="cursor-pointer hover:bg-slate-50">
+                    <td className="font-mono text-xs font-bold text-primary">
+                      TICK-{t.id.substring(0, 6).toUpperCase()}
+                    </td>
+                    <td>{t.asset?.name ? `${t.asset.name} (S/N: ${t.asset.serialNumber || "N/A"})` : "—"}</td>
+                    <td>
+                      <span className="enterprise-badge bg-slate-100 text-slate-700">
+                        {t.category}
+                      </span>
+                    </td>
+                    <td className="max-w-xs truncate text-xs text-slate-700">{t.description}</td>
+                    <td>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+                        t.status === "open"
+                          ? "bg-blue-50 text-blue-700 border-blue-200"
+                          : t.status === "in_progress"
+                          ? "bg-amber-50 text-amber-700 border-amber-200"
+                          : t.status === "resolved"
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                          : "bg-slate-100 text-slate-700 border-slate-300"
+                      }`}>
+                        {t.status.replace("_", " ")}
+                      </span>
+                    </td>
+                    <td className="text-xs text-slate-500">{new Date(t.createdAt).toLocaleDateString()}</td>
+                    <td className="text-right">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setSelectedTicket(t); }}
+                        className="enterprise-btn-outline py-1 px-2.5 text-xs"
+                      >
+                        View
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+
+      {/* Support Ticket Modal & Drawer */}
+      <CreateSupportTicketModal
+        isOpen={isTicketModalOpen}
+        defaultAccountId={id}
+        onClose={() => setIsTicketModalOpen(false)}
+        onSuccess={() => refetchTickets()}
+      />
+
+      <SupportTicketDetailDrawer
+        isOpen={!!selectedTicket}
+        ticket={selectedTicket}
+        onClose={() => setSelectedTicket(null)}
+        onUpdated={() => refetchTickets()}
+      />
     </div>
   );
 }

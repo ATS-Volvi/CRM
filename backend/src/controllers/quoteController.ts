@@ -147,11 +147,12 @@ export const createQuote = async (req: Request, res: Response) => {
     const isStrategic = deal && (deal as any).lead && (deal as any).lead.isStrategic;
 
     // Verify items and calculate totals
+    const rawItems = (items && items.length > 0) ? items : (req.body.lineItems && req.body.lineItems.length > 0 ? req.body.lineItems : []);
     const verifiedItems: any[] = [];
     const userId = (req as any).user?.id || "mock-user";
 
-    if (items && items.length > 0) {
-      for (const item of items) {
+    if (rawItems && rawItems.length > 0) {
+      for (const item of rawItems) {
         const isCustom = !!item.isCustom;
         let product: any = null;
         const catalogId = item.catalogItemId || item.productId;
@@ -160,14 +161,16 @@ export const createQuote = async (req: Request, res: Response) => {
           product = await sequelize.models.PriceBookEntry.findByPk(catalogId);
         }
 
-        const requestedPrice = Number(item.unitPrice || 0);
+        const requestedPrice = Number(item.unitPrice || item.totalPrice || 0);
         const minSellingPrice = product?.minSellingPrice ? Number(product.minSellingPrice) : (product?.minPrice ? Number(product.minPrice) : null);
         const qty = Number(item.quantity || 1);
         const discountPct = Number(item.discount || 0);
         const taxPct = Number(item.tax || 0);
 
         // Pre-tax line price after discount
-        const lineSubtotal = qty * requestedPrice * (1 - discountPct / 100);
+        const lineSubtotal = item.totalPrice && !item.unitPrice
+          ? Number(item.totalPrice)
+          : qty * requestedPrice * (1 - discountPct / 100);
         const lineTaxAmount = lineSubtotal * (taxPct / 100);
         const lineTotal = lineSubtotal + lineTaxAmount;
 
@@ -182,7 +185,7 @@ export const createQuote = async (req: Request, res: Response) => {
           totalPrice: parseFloat(lineSubtotal.toFixed(2)),
           totalAmount: parseFloat(lineTotal.toFixed(2)),
           isOptional: item.isOptional || false,
-          isCustom,
+          isCustom: isCustom || !catalogId,
           customDescription: isCustom ? (item.customDescription || item.description || item.nameOverride || "Custom Line Item") : null,
           description: item.description || item.nameOverride || product?.name || null,
           internalCostSnapshot: product?.internalCost ? Number(product.internalCost) : null,
@@ -191,10 +194,14 @@ export const createQuote = async (req: Request, res: Response) => {
       }
     }
 
-    // Exclude optional items from the main total amount
-    const totalAmount = verifiedItems
+    // Exclude optional items from the main total amount, or fallback to body totalAmount
+    const calculatedItemsTotal = verifiedItems
       .filter(item => !item.isOptional)
       .reduce((acc, item) => acc + item.totalPrice, 0);
+
+    const totalAmount = calculatedItemsTotal > 0
+      ? calculatedItemsTotal
+      : (Number(req.body.totalAmount) || 0);
 
     // Evaluate quote approval requirements via Approval Hierarchy Engine
     const salesRepId = (deal as any)?.ownerId || userId;

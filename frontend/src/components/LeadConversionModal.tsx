@@ -162,7 +162,7 @@ export const LeadConversionModal: React.FC<LeadConversionModalProps> = ({
     if (conversionSuccess?.deal?.id) {
       navigate(`/opportunities/${conversionSuccess.deal.id}`);
     } else {
-      navigate("/opportunities");
+      navigate("/pipeline");
     }
     onClose();
   };

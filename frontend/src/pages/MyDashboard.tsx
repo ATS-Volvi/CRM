@@ -63,21 +63,28 @@ export default function MyDashboard() {
   const contactedLeads = leads.filter((l) => l.status === "CONTACTED" || l.status === "Contacted");
   const qualifiedLeads = leads.filter((l) => l.status === "QUALIFIED" || l.status === "Qualified");
 
-  const discoveryOpps = opportunities.filter((o) => o.stageId === "DISCOVERY");
-  const reqOpps = opportunities.filter((o) => o.stageId === "REQUIREMENTS");
-  const quotePrepOpps = opportunities.filter((o) => o.stageId === "PROPOSAL_QUOTE");
-  const quoteSentOpps = opportunities.filter((o) => o.stageId === "QUOTE_SENT");
-  const negotiationOpps = opportunities.filter((o) => o.stageId === "NEGOTIATION");
+  const getStageName = (o: any) => (o.stage?.name || o.stageId || "").toLowerCase();
+
+  const discoveryOpps = opportunities.filter((o) => getStageName(o) === "discovery");
+  const reqOpps = opportunities.filter((o) => getStageName(o) === "requirements");
+  const solutionOpps = opportunities.filter((o) => getStageName(o) === "solution/scope");
+  const quotePrepOpps = opportunities.filter((o) => getStageName(o) === "quote preparation");
+  const quoteSentOpps = opportunities.filter((o) => getStageName(o) === "quote sent");
+  const negotiationOpps = opportunities.filter((o) => getStageName(o) === "negotiation");
+  const agreedOpps = opportunities.filter((o) => getStageName(o) === "agreed");
 
   const tasks = tasksData?.tasks || [];
   const overdueTasks = tasks.filter((t: any) => t.dueDate && new Date(t.dueDate) < new Date());
 
   const totalWonRevenue = opportunities
-    .filter((o) => o.stageId === "CLOSED_WON")
+    .filter((o) => getStageName(o) === "won" || getStageName(o) === "closed_won")
     .reduce((sum, o) => sum + Number(o.amount || 0), 0);
 
   const totalPipelineValue = opportunities
-    .filter((o) => o.stageId !== "CLOSED_WON" && o.stageId !== "CLOSED_LOST")
+    .filter((o) => {
+      const st = getStageName(o);
+      return st !== "won" && st !== "lost" && st !== "closed_won" && st !== "closed_lost";
+    })
     .reduce((sum, o) => sum + Number(o.amount || 0), 0);
 
   // Construct Focus Action Items
@@ -106,14 +113,17 @@ export default function MyDashboard() {
 
   // 2. Opportunities requiring quotes/follow-up
   opportunities
-    .filter((o) => o.stageId === "PROPOSAL_QUOTE" || o.stageId === "NEGOTIATION")
+    .filter((o) => {
+      const st = getStageName(o);
+      return st === "quote preparation" || st === "quote sent" || st === "negotiation" || st === "proposal_quote";
+    })
     .slice(0, 2)
     .forEach((o) => {
       focusItems.push({
         id: `opp-${o.id}`,
         type: "opportunity",
         title: `Commercial Follow-up: ${o.name}`,
-        subtitle: `Stage: ${o.stageId} • Value: ₹${Number(o.amount || 0).toLocaleString()}`,
+        subtitle: `Stage: ${o.stage?.name || o.stageId} • Value: ₹${Number(o.amount || 0).toLocaleString()}`,
         badge: "Commercial",
         badgeColor: "bg-emerald-50 text-emerald-700 border-emerald-200",
         url: `/opportunities/${o.id}`
@@ -335,7 +345,7 @@ export default function MyDashboard() {
                 <Target className="w-4 h-4 text-emerald-600" /> Commercial Opportunities ({opportunities.length})
               </div>
               <Link
-                to="/opportunities"
+                to="/pipeline"
                 className="text-[11px] text-blue-600 font-semibold hover:underline"
               >
                 View Pipeline →
@@ -344,7 +354,7 @@ export default function MyDashboard() {
 
             <div className="grid grid-cols-5 gap-1.5">
               <div
-                onClick={() => navigate("/opportunities")}
+                onClick={() => navigate("/pipeline")}
                 className="p-2 rounded-lg bg-slate-50 border border-slate-200 text-center cursor-pointer hover:bg-slate-100"
               >
                 <div className="text-sm font-extrabold text-slate-800">{discoveryOpps.length}</div>
@@ -352,7 +362,7 @@ export default function MyDashboard() {
               </div>
 
               <div
-                onClick={() => navigate("/opportunities")}
+                onClick={() => navigate("/pipeline")}
                 className="p-2 rounded-lg bg-cyan-50 border border-cyan-100 text-center cursor-pointer hover:bg-cyan-100"
               >
                 <div className="text-sm font-extrabold text-cyan-800">{reqOpps.length}</div>
@@ -360,7 +370,7 @@ export default function MyDashboard() {
               </div>
 
               <div
-                onClick={() => navigate("/opportunities")}
+                onClick={() => navigate("/pipeline")}
                 className="p-2 rounded-lg bg-amber-50 border border-amber-100 text-center cursor-pointer hover:bg-amber-100"
               >
                 <div className="text-sm font-extrabold text-amber-800">{quotePrepOpps.length}</div>
@@ -368,7 +378,7 @@ export default function MyDashboard() {
               </div>
 
               <div
-                onClick={() => navigate("/opportunities")}
+                onClick={() => navigate("/pipeline")}
                 className="p-2 rounded-lg bg-orange-50 border border-orange-100 text-center cursor-pointer hover:bg-orange-100"
               >
                 <div className="text-sm font-extrabold text-orange-800">{quoteSentOpps.length}</div>
@@ -376,7 +386,7 @@ export default function MyDashboard() {
               </div>
 
               <div
-                onClick={() => navigate("/opportunities")}
+                onClick={() => navigate("/pipeline")}
                 className="p-2 rounded-lg bg-violet-50 border border-violet-100 text-center cursor-pointer hover:bg-violet-100"
               >
                 <div className="text-sm font-extrabold text-violet-800">{negotiationOpps.length}</div>

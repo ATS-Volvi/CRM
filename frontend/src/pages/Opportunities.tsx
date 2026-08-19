@@ -27,15 +27,15 @@ export default function Opportunities() {
   const [page, setPage] = useState(1);
 
   const OPPORTUNITY_STAGES = [
-    { key: "DISCOVERY", label: "Discovery", color: "bg-blue-50 text-blue-700 border-blue-200" },
-    { key: "REQUIREMENTS", label: "Requirements", color: "bg-cyan-50 text-cyan-700 border-cyan-200" },
-    { key: "SOLUTION_DESIGN", label: "Solution / Scope", color: "bg-indigo-50 text-indigo-700 border-indigo-200" },
-    { key: "PROPOSAL_QUOTE", label: "Quote Preparation", color: "bg-amber-50 text-amber-700 border-amber-200" },
-    { key: "QUOTE_SENT", label: "Quote Sent", color: "bg-orange-50 text-orange-700 border-orange-200" },
-    { key: "NEGOTIATION", label: "Negotiation", color: "bg-violet-50 text-violet-700 border-violet-200" },
-    { key: "AGREED_PENDING_ORDER", label: "Agreed", color: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-    { key: "CLOSED_WON", label: "Won", color: "bg-green-100 text-green-800 border-green-300 font-bold" },
-    { key: "CLOSED_LOST", label: "Lost", color: "bg-slate-100 text-slate-600 border-slate-200" }
+    { key: "Discovery", label: "Discovery", color: "bg-blue-50 text-blue-700 border-blue-200" },
+    { key: "Requirements", label: "Requirements", color: "bg-cyan-50 text-cyan-700 border-cyan-200" },
+    { key: "Solution/Scope", label: "Solution/Scope", color: "bg-indigo-50 text-indigo-700 border-indigo-200" },
+    { key: "Quote Preparation", label: "Quote Preparation", color: "bg-amber-50 text-amber-700 border-amber-200" },
+    { key: "Quote Sent", label: "Quote Sent", color: "bg-orange-50 text-orange-700 border-orange-200" },
+    { key: "Negotiation", label: "Negotiation", color: "bg-violet-50 text-violet-700 border-violet-200" },
+    { key: "Agreed", label: "Agreed", color: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+    { key: "Won", label: "Won", color: "bg-green-100 text-green-800 border-green-300 font-bold" },
+    { key: "Lost", label: "Lost", color: "bg-slate-100 text-slate-600 border-slate-200" }
   ];
 
   const { data: oppsData, isLoading } = useQuery({
@@ -55,9 +55,14 @@ export default function Opportunities() {
   const opportunities: any[] = Array.isArray(oppsData) ? oppsData : oppsData?.data || [];
   const totalCount = oppsData?.total || opportunities.length;
 
-  const getStageBadge = (stageId: string) => {
-    const s = OPPORTUNITY_STAGES.find((st) => st.key === stageId) || {
-      label: stageId || "Discovery",
+  const getStageBadge = (stageVal: any) => {
+    const stageName = typeof stageVal === "object" && stageVal?.name ? stageVal.name : String(stageVal || "");
+    const s = OPPORTUNITY_STAGES.find(
+      (st) =>
+        st.key.toLowerCase() === stageName.toLowerCase() ||
+        st.label.toLowerCase() === stageName.toLowerCase()
+    ) || {
+      label: stageName || "Discovery",
       color: "bg-slate-100 text-slate-700 border-slate-200"
     };
     return <span className={`enterprise-badge ${s.color}`}>{s.label}</span>;
@@ -213,7 +218,7 @@ export default function Opportunities() {
                         : "—"}
                     </div>
                   </td>
-                  <td>{getStageBadge(opp.stageId)}</td>
+                  <td>{getStageBadge(opp.stage?.name || opp.stageId)}</td>
                   <td>
                     <div className="text-xs text-slate-700">{opp.owner?.name || "Assigned Rep"}</div>
                   </td>
@@ -265,8 +270,8 @@ export default function Opportunities() {
       ) : (
         /* KANBAN PIPELINE VIEW */
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3 overflow-x-auto pb-4">
-          {OPPORTUNITY_STAGES.slice(0, 7).map((stage) => {
-            const stageOpps = opportunities.filter((o) => o.stageId === stage.key);
+          {OPPORTUNITY_STAGES.map((stage) => {
+            const stageOpps = opportunities.filter((o) => (o.stage?.name === stage.key || o.stageId === stage.key));
             const stageTotal = stageOpps.reduce(
               (sum, o) => sum + Number(o.amount || o.estimatedValue || 0),
               0

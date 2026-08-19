@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { Op } from "sequelize";
 import { Deal, PipelineStage, LeadStageHistory, Activity, User, sequelize } from "@nexus-crm/database";
 import { createNotification } from "../services/notificationService";
 import { triggerStageChangeAutomations } from "../services/automationService";
@@ -40,12 +41,15 @@ export const getPipeline = async (req: Request, res: Response) => {
     });
 
     const stageToGroupMap: { [key: string]: string } = {
-      "Qualification": "Active Deal",
-      "Needs Analysis": "Active Deal",
-      "Proposal": "Active Deal",
+      "Discovery": "Prospecting",
+      "Requirements": "Active Deal",
+      "Solution/Scope": "Active Deal",
+      "Quote Preparation": "Active Deal",
+      "Quote Sent": "Active Deal",
       "Negotiation": "Active Deal",
-      "Closed Won": "Closed",
-      "Closed Lost": "Closed"
+      "Agreed": "Active Deal",
+      "Won": "Closed",
+      "Lost": "Closed"
     };
 
     const pipeline = stages.map(stage => {
@@ -171,7 +175,7 @@ export const moveDealStage = async (req: Request, res: Response) => {
     // Trigger Configured Stage Change Automation Rules
     await triggerStageChangeAutomations(deal, toStageObj ? toStageObj.name : 'Unknown', userId);
 
-    if (toStageObj.name === "Closed Won") {
+    if (toStageObj.name === "Won" || toStageObj.name === "Closed Won") {
       await createNotification(
         deal.ownerId,
         'success',
@@ -246,9 +250,40 @@ export const createDeal = async (req: Request, res: Response) => {
 
 export const getDeals = async (req: Request, res: Response) => {
   try {
+    const { stage, search } = req.query;
+    const dealWhere: any = {};
+    const stageInclude: any = { model: PipelineStage, as: "stage" };
+
+    if (stage && String(stage).trim() && String(stage).trim() !== "ALL") {
+      const stageStr = String(stage).trim();
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(stageStr);
+      if (isUuid) {
+        stageInclude.where = {
+          [Op.or]: [
+            { id: stageStr },
+            { name: { [Op.iLike]: stageStr } }
+          ]
+        };
+      } else {
+        stageInclude.where = {
+          name: { [Op.iLike]: stageStr }
+        };
+      }
+      stageInclude.required = true;
+    }
+
+    if (search && String(search).trim()) {
+      const searchStr = `%${String(search).trim()}%`;
+      dealWhere[Op.or] = [
+        { name: { [Op.iLike]: searchStr } },
+        { competitors: { [Op.iLike]: searchStr } }
+      ];
+    }
+
     const deals = await Deal.findAll({
+      where: dealWhere,
       include: [
-        { model: PipelineStage, as: "stage" },
+        stageInclude,
         { model: sequelize.models.Account, as: "account" },
         { model: sequelize.models.User, as: "owner" }
       ],

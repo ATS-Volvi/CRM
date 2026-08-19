@@ -92,7 +92,7 @@ export const updateDealValueCutoff = async (req: Request, res: Response) => {
     const { id } = req.params;
     let { dealValueCutoff } = req.body;
 
-    const dbUser = await sequelize.models.User.findByPk(id);
+    const dbUser = await sequelize.models.User.findByPk(id as string);
     if (!dbUser) return res.status(404).json({ error: "User not found" });
 
     if (dealValueCutoff === undefined || dealValueCutoff === "" || dealValueCutoff === null) {

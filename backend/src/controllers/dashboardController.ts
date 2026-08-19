@@ -195,7 +195,7 @@ export const getMyHomeDashboard = async (req: Request, res: Response) => {
       ? (await sequelize.models.Invoice.findAll({ where: { quoteId: { [Op.in]: allQuoteIds }, createdAt: dateFilter } })) as any[] : [];
     const invoicesTotal = invoices.reduce((s: number, inv: any) => s + (parseFloat(inv.amount)||0), 0);
 
-    const wonDeals = allDeals.filter((d: any) => d.stage?.name === "Closed Won");
+    const wonDeals = allDeals.filter((d: any) => d.stage?.name === "Won" || d.stage?.name === "Closed Won");
     const clientLeadIds = [...new Set<string>(wonDeals.map((d: any) => d.leadId).filter(Boolean))];
     const clientLeads: any[] = clientLeadIds.length > 0
       ? (await sequelize.models.Lead.findAll({ where: { id: { [Op.in]: clientLeadIds } }, limit: 10 })) as any[] : [];

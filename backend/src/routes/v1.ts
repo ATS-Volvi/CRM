@@ -103,10 +103,24 @@ import {
   getCoachingNotes, createCoachingNote, markCoachingNoteRead, getAuthoredCoachingNotes,
   getStaleDeal, getQuoteExpiry, getTopAccounts, getCustomerBirthdays, getWinCelebrations
 } from "../controllers/coachingNotesController";
-import { getDealOwners, updateDealOwners, getWorkspaceSetting, updateWorkspaceSetting, updateDealOwner } from "../controllers/dealOwnerController";
-import { reassignDeal, getFlaggedDeals } from "../controllers/dealAssignmentController";
+import { getDealOwners, updateDealOwners, getWorkspaceSetting, updateWorkspaceSetting } from "../controllers/dealOwnerController";
+import {
+  autoAssignDealHandler,
+  reassignDeal,
+  getDealReassignmentHistory,
+  getDealAssignmentCutoffs,
+  updateDealAssignmentCutoffs,
+  getFlaggedDeals
+} from "../controllers/dealAssignmentController";
+import {
+  getManagerTeamHandler,
+  getDealSplitsHandler,
+  setDealSplitsHandler,
+  deleteDealSplitsHandler
+} from "../controllers/dealSplitController";
 import { createPayment, getPaymentsForInvoice } from "../controllers/paymentController";
-import { createSupportTicket, listSupportTickets, updateSupportTicket } from "../controllers/supportTicketController";
+import { createSupportTicket, listSupportTickets, getSupportTicketById, updateSupportTicket } from "../controllers/supportTicketController";
+import { getInvoiceById } from "../controllers/invoiceController";
 
 const router = Router();
 
@@ -161,7 +175,7 @@ router.post("/auth/register", register);
  *       200:
  *         description: Successful login
  */
-router.post("/auth/login", login);
+
 /**
  * @swagger
  * /public/leads:
@@ -337,7 +351,21 @@ router.put("/leads/:id/clear-unread", authMiddleware, clearUnreadCount);
 // ==========================================
 router.get("/deals", authMiddleware, getDeals);
 router.get("/deals/flagged", authMiddleware, getFlaggedDeals);
-router.put("/deals/:id/reassign", authMiddleware, reassignDeal);
+router.post("/deals/:dealId/auto-assign", authMiddleware, autoAssignDealHandler);
+router.post("/deals/:dealId/reassign", authMiddleware, reassignDeal);
+router.get("/deals/:dealId/reassignment-history", authMiddleware, getDealReassignmentHistory);
+
+// Deal Commission Splits
+router.get("/deals/:dealId/splits", authMiddleware, getDealSplitsHandler);
+router.put("/deals/:dealId/splits", authMiddleware, setDealSplitsHandler);
+router.delete("/deals/:dealId/splits", authMiddleware, deleteDealSplitsHandler);
+
+// Manager Team Route
+router.get("/manager/team", authMiddleware, getManagerTeamHandler);
+
+// Deal Assignment Settings
+router.get("/settings/deal-assignment-cutoffs", authMiddleware, getDealAssignmentCutoffs);
+router.put("/settings/deal-assignment-cutoffs/:userId", authMiddleware, updateDealAssignmentCutoffs);
 router.get("/opportunities", authMiddleware, getOpportunities);
 router.get("/opportunities/:id", authMiddleware, getOpportunityById);
 router.post("/opportunities", authMiddleware, createOpportunity);
@@ -375,6 +403,7 @@ router.get("/quotes/:id/pdf", authMiddleware, generateQuotePdf);
 // INVOICES & PAYMENTS
 // ==========================================
 router.get("/invoices", authMiddleware, getInvoices);
+router.get("/invoices/:id", authMiddleware, getInvoiceById);
 router.post("/invoices/from-quote", authMiddleware, createInvoiceFromQuote);
 router.put("/invoices/:id/status", authMiddleware, updateInvoiceStatus);
 router.get("/invoices/:id/pdf", authMiddleware, generateInvoicePdf);
@@ -700,6 +729,7 @@ router.get("/analytics/campaigns", authMiddleware, getCampaignsAnalytics);
 // ==========================================
 router.post("/support-tickets", authMiddleware, createSupportTicket);
 router.get("/support-tickets", authMiddleware, listSupportTickets);
+router.get("/support-tickets/:id", authMiddleware, getSupportTicketById);
 router.put("/support-tickets/:id", authMiddleware, updateSupportTicket);
 
 export default router;

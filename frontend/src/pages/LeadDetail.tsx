@@ -1753,8 +1753,11 @@ export default function LeadDetail() {
           isOpen={isConversionModalOpen}
           onClose={() => setIsConversionModalOpen(false)}
           lead={lead}
-          onConverted={() => {
+          onConverted={(res) => {
             queryClient.invalidateQueries({ queryKey: ["lead", id] });
+            if (res?.deal?.id) {
+              navigate(`/opportunities/${res.deal.id}`);
+            }
           }}
         />
       )}

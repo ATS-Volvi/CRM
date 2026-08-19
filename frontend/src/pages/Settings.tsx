@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Settings as SettingsIcon, Shield, CheckCircle, RefreshCw, UserCheck, ToggleLeft, ToggleRight, Users, Mail, MessageCircle, Copy, ExternalLink, Check, ShieldAlert } from "lucide-react";
 import { WhatsAppDiagnosticsModal } from "../components/WhatsAppDiagnosticsModal";
+import { DealAssignmentSettingsCard } from "../components/DealAssignmentSettingsCard";
 
 export default function Settings() {
   const { token, user } = useAuth();
@@ -250,6 +251,11 @@ export default function Settings() {
             ))}
           </div>
         </div>
+
+        {/* Senior AE Deal Assignment & Capacity Settings */}
+        {["admin", "director", "manager"].includes(mySettings?.role || user?.role || "") && (
+          <DealAssignmentSettingsCard />
+        )}
 
         {message && (
           <div className="bg-emerald-50 border border-emerald-300 text-emerald-800 rounded-xl p-4 text-sm font-semibold flex items-center gap-2 animate-fade-in">

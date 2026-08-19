@@ -129,50 +129,95 @@ export async function extractLeadDetailsFromText(text: string): Promise<Extracte
 
   // 4. BUILT-IN FREE HEURISTIC PARSER (NO API KEY REQUIRED)
   const emailMatch = text.match(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/);
-  const phoneMatch = text.match(/(\+?\d[\d-\s()]{7,}\d)/);
-  const email = emailMatch ? emailMatch[0] : "voice.lead@example.com";
-  const phone = phoneMatch ? phoneMatch[0] : "555-0199";
+  const phoneMatch = text.match(/(?:\+?\d{1,3}[-.\s]?)?\(?\d{2,4}\)?[-.\s]?\d{3,4}[-.\s]?\d{3,6}/);
+  const email = emailMatch ? emailMatch[0] : "";
+  const phone = phoneMatch ? phoneMatch[0].trim() : "";
 
-  let firstName = "Voice";
-  let lastName = "Lead";
-  const myNameIsIndex = text.toLowerCase().indexOf("my name is");
-  if (myNameIsIndex !== -1) {
-    const afterName = text.substring(myNameIsIndex + 10).trim();
-    const nameParts = afterName.split(/\s+/);
-    if (nameParts.length > 0) firstName = nameParts[0].replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "");
-    if (nameParts.length > 1) lastName = nameParts[1].replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "");
+  // 4A. Name Extraction
+  let firstName = "";
+  let lastName = "";
+  
+  const namePatterns = [
+    /(?:this is|i am|i'm|my name is|speaking is|name is|it's|it is)\s+([A-Z][a-zA-Z]*(?:\s+[A-Z][a-zA-Z]*)*?)(?=\s+(?:from|at|with|here|representing|\.|\,|$))/i,
+    /(?:^|\b)([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)\s+(?:here\s+)?from\b/i,
+    /(?:this is|i am|i'm|my name is|speaking is|name is)\s+([A-Z][a-zA-Z]*(?:\s+[A-Z][a-zA-Z]*)*)/i
+  ];
+
+  for (const pat of namePatterns) {
+    const m = text.match(pat);
+    if (m && m[1]) {
+      const rawName = m[1].trim();
+      const parts = rawName.split(/\s+/);
+      if (parts.length > 0) firstName = parts[0];
+      if (parts.length > 1) lastName = parts.slice(1).join(" ");
+      break;
+    }
   }
 
+  // Fallback name from email if not extracted
+  if (!firstName && email) {
+    const localPart = email.split("@")[0].replace(/[._-]/g, " ");
+    const parts = localPart.split(/\s+/);
+    firstName = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
+    if (parts.length > 1) {
+      lastName = parts[1].charAt(0).toUpperCase() + parts[1].slice(1);
+    }
+  }
+
+  // 4B. Company Extraction (supports multi-word companies like "Emirates Global Steel")
   let company = "";
-  const atCompanyIndex = text.toLowerCase().indexOf(" at ");
-  if (atCompanyIndex !== -1) {
-    const afterCompany = text.substring(atCompanyIndex + 4).trim();
-    const companyParts = afterCompany.split(/\s+/);
-    if (companyParts.length > 0) company = companyParts[0].replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "");
+  const companyPatterns = [
+    /(?:from|at|with|representing|company(?:\s+is)?)\s+([A-Z0-9][A-Za-z0-9&.,'’\s-]+?)(?=(?:,|\.|\band\b|\bmy\b|\bwe\b|\bour\b|\bemail\b|\bphone\b|\bwith\b|\bcontact\b|\bbudget\b|$))/i,
+    /(?:works?\s+at|calling\s+from)\s+([A-Z0-9][A-Za-z0-9&.,'’\s-]+?)(?=(?:,|\.|\band\b|\bmy\b|\bwe\b|\bour\b|\bemail\b|\bphone\b|$))/i
+  ];
+
+  for (const pat of companyPatterns) {
+    const m = text.match(pat);
+    if (m && m[1]) {
+      const candidate = m[1].trim().replace(/[.,;:]+$/, "");
+      if (candidate && candidate.length > 1 && !/^(the|a|an|my|our)$/i.test(candidate)) {
+        company = candidate;
+        break;
+      }
+    }
   }
 
-  // Heuristic requirement & budget extraction
+  // 4C. Budget Extraction (handles "budget of SAR 350,000", "$450k", "500,000 USD", etc.)
   let budgetRange = "";
-  const budgetMatch = text.match(/(?:budget|around|cost|approx|for|~)\s*(\$?\d+[\d,]*\s*(?:k|thousand|million|m|sar|usd|eur)?)/i);
-  if (budgetMatch) {
-    budgetRange = budgetMatch[1].trim();
+  const budgetPatterns = [
+    /(?:budget|amount|cost|quote|worth|estimate|value)\s*(?:of|is|:)?\s*([a-zA-Z$€£]*\s*[\d,]+(?:\.\d+)?\s*(?:k|thousand|million|m|sar|usd|eur|aed|inr|gbp)?)/i,
+    /(?:sar|usd|aed|eur|gbp|\$|€|£)\s*[\d,]+(?:\.\d+)?\s*(?:k|thousand|million|m)?/i,
+    /[\d,]+(?:\.\d+)?\s*(?:k|thousand|million|m)\s*(?:sar|usd|aed|eur|gbp|\$|€|£)?/i
+  ];
+
+  for (const pat of budgetPatterns) {
+    const m = text.match(pat);
+    if (m) {
+      budgetRange = (m[1] || m[0]).trim();
+      break;
+    }
   }
 
+  // 4D. Industry Detection
   let industry = "General";
-  if (/site office|construction|cabin|building/i.test(text)) {
-    industry = "Construction & Modular Buildings";
-  } else if (/software|app|crm|tech/i.test(text)) {
-    industry = "Technology";
+  if (/steel|fabrication|metal|machinery|industrial|factory|tanks|generators|equipment/i.test(text)) {
+    industry = "Heavy Industry & Manufacturing";
+  } else if (/site office|construction|cabin|building|civil|contracting|infrastructure|camp/i.test(text)) {
+    industry = "Construction & Modular Facilities";
+  } else if (/software|app|crm|tech|cloud|it\b/i.test(text)) {
+    industry = "Technology & Software";
+  } else if (/petroleum|oil|gas|petrochemical|refinery/i.test(text)) {
+    industry = "Oil & Gas";
   }
 
   let subject = text.length > 60 ? text.slice(0, 57) + "..." : text;
 
   return {
-    firstName,
-    lastName,
-    email,
-    phone,
-    company: company || "Voice Inc",
+    firstName: firstName || "Inquiry",
+    lastName: lastName || "Lead",
+    email: email || "voice.lead@example.com",
+    phone: phone || "555-0199",
+    company: company || (firstName ? `${firstName}'s Company` : "General Inquirer"),
     message: text,
     subject,
     industry,

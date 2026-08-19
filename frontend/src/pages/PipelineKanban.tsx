@@ -1,10 +1,9 @@
 import { useAuth } from "../context/AuthContext";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Search, Plus, Filter, MoreVertical, View, List, CheckCircle2, XCircle, X, Clock, Calendar, CheckSquare, ChevronRight, Building2, AlertTriangle, ShieldAlert } from "lucide-react";
+import { Search, Plus, Filter, MoreVertical, CheckCircle2, XCircle, X, Clock, Calendar, CheckSquare, ChevronRight, Building2, AlertTriangle, ShieldAlert } from "lucide-react";
 import { formatCurrency, formatCurrencyCompact } from "../utils/currency";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { LeadBoard } from "../components/LeadBoard";
 import { StageEvidenceModal } from "../components/StageEvidenceModal";
 
 function DealMilestonesWidget({ dealId, token }: { dealId: string; token: string }) {
@@ -92,7 +91,7 @@ export default function PipelineKanban() {
   const queryClient = useQueryClient();
 
 
-  const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
+
 
   const { data: pipelineColumns, isLoading } = useQuery({
     queryKey: ["pipeline", ownerId],
@@ -106,18 +105,6 @@ export default function PipelineKanban() {
     }
   });
 
-  const { data: leads = [] } = useQuery<any[]>({
-    queryKey: ["leads"],
-    queryFn: async () => {
-      const res = await fetch("/api/v1/leads", {
-        headers: { "Authorization": `Bearer ${token}` }
-      });
-      if (!res.ok) return [];
-      return res.json();
-    },
-    enabled: !!token
-  });
-
   const [transitionModal, setTransitionModal] = useState<{ dealId: string, toStageId: string, toStageName: string } | null>(null);
   const [showAddDealModal, setShowAddDealModal] = useState(false);
   const [newDeal, setNewDeal] = useState({ name: "", amount: "", competitors: "", probability: "" });
@@ -125,33 +112,22 @@ export default function PipelineKanban() {
   const [reason, setReason] = useState("");
   const [recontactDate, setRecontactDate] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [stageFilter, setStageFilter] = useState("all");
-  const [verificationFilter, setVerificationFilter] = useState("all");
-  const [activeTab, setActiveTab] = useState<"leads" | "opportunities" | "deals">("opportunities");
 
-  // Tab mapping via group field returned by the pipeline API:
-  // Opportunities: any stage whose group is NOT "Closed"
-  // Deals: any stage whose group is "Closed"
+
   const isOpenGroup = (group: string) => group !== "Closed";
   const isClosedGroup = (group: string) => group === "Closed";
 
-  // Real Counts computation
-  const leadsCount = leads?.length || 0;
-  const oppsCount = pipelineColumns
-    ?.filter((col: any) => isOpenGroup(col.group))
-    .reduce((sum: number, col: any) => sum + (col.deals?.length || 0), 0) || 0;
-  const dealsCount = pipelineColumns
-    ?.filter((col: any) => isClosedGroup(col.group))
-    .reduce((sum: number, col: any) => sum + (col.deals?.length || 0), 0) || 0;
-
   // Stage color scheme — keyed by new stage names
   const stageHeaderColors: { [key: string]: { bg: string; text: string; border: string } } = {
-    "Qualification": { bg: "bg-blue-50/80", text: "text-blue-900", border: "border-blue-200" },
-    "Needs Analysis": { bg: "bg-indigo-50/80", text: "text-indigo-900", border: "border-indigo-200" },
-    "Proposal": { bg: "bg-amber-50/90", text: "text-amber-950", border: "border-amber-200" },
-    "Negotiation": { bg: "bg-orange-50/90", text: "text-orange-950", border: "border-orange-200" },
-    "Closed Won": { bg: "bg-emerald-50/90", text: "text-emerald-950", border: "border-emerald-200" },
-    "Closed Lost": { bg: "bg-rose-50/90", text: "text-rose-950", border: "border-rose-200" },
+    "Discovery": { bg: "bg-blue-50/80", text: "text-blue-900", border: "border-blue-200" },
+    "Requirements": { bg: "bg-indigo-50/80", text: "text-indigo-900", border: "border-indigo-200" },
+    "Solution/Scope": { bg: "bg-violet-50/80", text: "text-violet-900", border: "border-violet-200" },
+    "Quote Preparation": { bg: "bg-amber-50/90", text: "text-amber-950", border: "border-amber-200" },
+    "Quote Sent": { bg: "bg-orange-50/90", text: "text-orange-950", border: "border-orange-200" },
+    "Negotiation": { bg: "bg-rose-50/90", text: "text-rose-950", border: "border-rose-200" },
+    "Agreed": { bg: "bg-teal-50/90", text: "text-teal-950", border: "border-teal-200" },
+    "Won": { bg: "bg-emerald-50/90", text: "text-emerald-950", border: "border-emerald-200" },
+    "Lost": { bg: "bg-slate-50/90", text: "text-slate-950", border: "border-slate-200" },
   };
   const getStageColor = (stageName: string, group: string) =>
     stageHeaderColors[stageName] || (
@@ -230,7 +206,7 @@ export default function PipelineKanban() {
 
     const targetDeal = allDeals.find((d: any) => d.id === dealId);
 
-    if (stageName === "Closed Lost") {
+    if (stageName === "Lost") {
       setTransitionModal({ dealId, toStageId: stageId, toStageName: stageName });
       setReason("");
       setRecontactDate("");
@@ -276,282 +252,36 @@ export default function PipelineKanban() {
 
       {/* TOP CONTROLS SECTION */}
       <section className="px-8 pt-5 pb-3 flex items-center justify-between">
-        {viewMode === "kanban" ? (
-          /* KANBAN BOARD: SEGMENTED TABS (Leads / Opportunities / Deals) */
-          <div className="bg-slate-200/60 p-1.5 rounded-2xl flex items-center gap-1 border border-slate-200">
-            {/* 1. LEADS TAB */}
-            <button
-              onClick={() => setActiveTab("leads")}
-              className={`px-8 py-2.5 rounded-xl text-xs font-extrabold transition-all flex items-center gap-2 ${
-                activeTab === "leads"
-                  ? "bg-amber-500 text-white shadow-md"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              <span>Leads ({leadsCount})</span>
-            </button>
-
-            {/* 2. OPPORTUNITIES TAB */}
-            <button
-              onClick={() => setActiveTab("opportunities")}
-              className={`px-8 py-2.5 rounded-xl text-xs font-extrabold transition-all flex items-center gap-2 ${
-                activeTab === "opportunities"
-                  ? "bg-blue-600 text-white shadow-md"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              <span>Opportunities ({oppsCount})</span>
-            </button>
-
-            {/* 3. DEALS TAB */}
-            <button
-              onClick={() => setActiveTab("deals")}
-              className={`px-8 py-2.5 rounded-xl text-xs font-extrabold transition-all flex items-center gap-2 ${
-                activeTab === "deals"
-                  ? "bg-blue-600 text-white shadow-md"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              <span>Deals ({dealsCount})</span>
-            </button>
-          </div>
-        ) : (
-          /* LIST VIEW: FILTER OPTIONS ON TOP */
-          <div className="flex flex-wrap items-center gap-3">
-            {/* Search Input */}
-            <div className="relative w-64">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-3.5 h-3.5" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search pipeline records..."
-                className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-              />
-            </div>
-
-            {/* Filter Pipeline Stage */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-500">Pipeline Stage:</span>
-              <select
-                value={stageFilter}
-                onChange={(e) => setStageFilter(e.target.value)}
-                className="bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-800 focus:outline-none cursor-pointer"
-              >
-                <option value="all">All 8 Pipeline Stages</option>
-                <option value="New">1. New</option>
-                <option value="Contacted">2. Contacted</option>
-                <option value="Qualification">3. Qualification</option>
-                <option value="Needs Analysis">4. Needs Analysis</option>
-                <option value="Proposal">5. Proposal</option>
-                <option value="Negotiation">6. Negotiation</option>
-                <option value="Closed Won">7. Closed Won 🟢</option>
-                <option value="Closed Lost">8. Closed Lost 🔴</option>
-              </select>
-            </div>
-
-            {/* Filter Verification Status */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-500">Verification:</span>
-              <select
-                value={verificationFilter}
-                onChange={(e) => setVerificationFilter(e.target.value)}
-                className="bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-800 focus:outline-none cursor-pointer"
-              >
-                <option value="all">All Verification Statuses</option>
-                <option value="VERIFIED">Verified ✓ Only</option>
-                <option value="NEEDS_REVIEW">Needs Review ⚠ Only</option>
-                <option value="stuck">Stuck in Stage (&gt; 14 Days)</option>
-              </select>
-            </div>
-          </div>
-        )}
-
-        {/* View Mode Toggle (Board / List) */}
-        <div className="flex items-center gap-2">
-          <div className="flex items-center bg-slate-200/60 p-1 rounded-xl border border-slate-200">
-            <button 
-              onClick={() => setViewMode("kanban")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-extrabold flex items-center gap-1.5 transition-all ${viewMode === "kanban" ? "bg-white text-blue-600 shadow-2xs" : "text-slate-600 hover:text-slate-900"}`}
-            >
-              <View className="w-3.5 h-3.5" /> Board
-            </button>
-            <button 
-              onClick={() => setViewMode("list")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-extrabold flex items-center gap-1.5 transition-all ${viewMode === "list" ? "bg-white text-blue-600 shadow-2xs" : "text-slate-600 hover:text-slate-900"}`}
-            >
-              <List className="w-3.5 h-3.5" /> List
-            </button>
-          </div>
+        <div className="bg-slate-200/60 p-1.5 rounded-2xl flex items-center gap-1 border border-slate-200">
+          <span className="px-8 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2 bg-blue-600 text-white shadow-md">
+            Opportunities &amp; Deals
+          </span>
         </div>
       </section>
 
-      {/* SHARED TOOLBAR: Action Button */}
-      {viewMode === "kanban" && (
-        <section className="px-8 py-2 flex items-center justify-between">
-          <button 
-            onClick={() => navigate("/rules")}
-            className="px-4 py-2 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 font-extrabold text-xs rounded-xl shadow-2xs transition-all flex items-center gap-2"
-          >
-            <Filter className="w-3.5 h-3.5 text-slate-500" /> Filter
-          </button>
+      <section className="px-8 py-2 flex items-center justify-between">
+        <button 
+          onClick={() => navigate("/rules")}
+          className="px-4 py-2 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 font-extrabold text-xs rounded-xl shadow-2xs transition-all flex items-center gap-2"
+        >
+          <Filter className="w-3.5 h-3.5 text-slate-500" /> Filter
+        </button>
 
-          {activeTab === "leads" ? (
-            <button 
-              onClick={() => navigate("/leads/new")}
-              className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5"
-            >
-              <Plus className="w-4 h-4" /> + Add Lead
-            </button>
-          ) : activeTab === "opportunities" ? (
-            <button 
-              onClick={() => setShowAddDealModal(true)}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5"
-            >
-              <Plus className="w-4 h-4" /> + Add Opportunity
-            </button>
-          ) : (
-            <button 
-              onClick={() => setShowAddDealModal(true)}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5"
-            >
-              <Plus className="w-4 h-4" /> + Record Deal
-            </button>
-          )}
-        </section>
-      )}
+        <button 
+          onClick={() => setShowAddDealModal(true)}
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5"
+        >
+          <Plus className="w-4 h-4" /> + Add Opportunity
+        </button>
+      </section>
 
       {/* MAIN CONTENT AREA */}
       <section className="flex-1 overflow-auto px-8 py-4">
-        {viewMode === "kanban" ? (
-          /* KANBAN BOARD FOR ALL 3 TABS (LEADS, OPPORTUNITIES, DEALS) */
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-start">
-            {activeTab === "leads" ? (
-              /* LEADS KANBAN COLUMNS */
-              ["New", "Contacted", "Qualified"].map((leadStage) => {
-                const colorScheme = stageHeaderColors[leadStage] || {
-                  bg: "bg-slate-50",
-                  text: "text-slate-900",
-                  border: "border-slate-200"
-                };
-
-                const filteredStageLeads = leads.filter((l: any) => {
-                  const matchStage = (l.status || "New") === leadStage;
-                  if (!matchStage) return false;
-                  if (!searchQuery) return true;
-                  const searchLower = searchQuery.toLowerCase();
-                  const nameStr = `${l.firstName || ""} ${l.lastName || ""}`.toLowerCase();
-                  const companyStr = (l.company || "").toLowerCase();
-                  return nameStr.includes(searchLower) || companyStr.includes(searchLower);
-                });
-
-                const totalStageValue = filteredStageLeads.reduce(
-                  (acc: number, l: any) => acc + Number(l.leadScore || 50) * 100,
-                  0
-                );
-
-                return (
-                  <div key={leadStage} className="flex flex-col gap-3 min-w-[270px]">
-                    {/* Tinted Stage Header Card */}
-                    <div className={`p-4 rounded-2xl border ${colorScheme.bg} ${colorScheme.border} shadow-2xs flex items-center justify-between`}>
-                      <div>
-                        <h3 className={`text-sm font-black ${colorScheme.text}`}>{leadStage}</h3>
-                        <p className="text-[11px] font-semibold text-slate-500 mt-0.5">
-                          {filteredStageLeads.length} leads
-                        </p>
-                      </div>
-                      <div className="text-base font-black text-slate-900 tracking-tight font-mono">
-                        {formatCurrencyCompact(totalStageValue)}
-                      </div>
-                    </div>
-
-                    {/* Lead Cards Stack */}
-                    <div className="space-y-3 min-h-[160px] pb-6">
-                      {filteredStageLeads.length === 0 ? (
-                        <div className="p-6 border-2 border-dashed border-slate-200 rounded-2xl text-center text-xs text-slate-400 italic bg-white/50">
-                          No leads in {leadStage}
-                        </div>
-                      ) : (
-                        filteredStageLeads.map((lead: any) => {
-                          const repName = lead.assignedTo?.name || "Unassigned Rep";
-                          const initials = repName
-                            .split(" ")
-                            .filter(Boolean)
-                            .map((n: string) => n[0])
-                            .join("")
-                            .slice(0, 2)
-                            .toUpperCase() || "UN";
-
-                          const score = Number(lead.leadScore || 50);
-                          let priorityLabel = "Warm";
-                          let priorityStyle = "bg-amber-50 text-amber-700 border-amber-200";
-                          if (score >= 70) {
-                            priorityLabel = "Hot";
-                            priorityStyle = "bg-rose-50 text-rose-700 border-rose-200";
-                          } else if (score < 40) {
-                            priorityLabel = "Cold";
-                            priorityStyle = "bg-blue-50 text-blue-700 border-blue-200";
-                          }
-
-                          const estValue = Number(lead.leadScore || 50) * 100;
-
-                          return (
-                            <div
-                              key={lead.id}
-                              onClick={() => navigate(`/leads/${lead.id}`)}
-                              className="bg-white border border-slate-200/90 hover:border-blue-400 p-4 rounded-2xl shadow-2xs hover:shadow-md transition-all cursor-pointer space-y-3 group relative"
-                            >
-                              {/* Lead Title & Priority Badge */}
-                              <div className="flex items-start justify-between gap-2">
-                                <h4 className="text-xs font-black text-slate-900 leading-snug line-clamp-2">
-                                  {lead.company || `${lead.firstName} ${lead.lastName}`}
-                                </h4>
-                                <span className={`px-2 py-0.5 text-[10px] font-extrabold rounded-full border shrink-0 ${priorityStyle}`}>
-                                  {priorityLabel}
-                                </span>
-                              </div>
-
-                              {/* Contact Name & Building */}
-                              <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
-                                <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                <span className="truncate">{lead.firstName} {lead.lastName}</span>
-                              </div>
-
-                              {/* Formatted Expected Amount */}
-                              <div>
-                                <span className="text-base font-black text-slate-900 tracking-tight">
-                                  {formatCurrency(estValue)}
-                                </span>
-                              </div>
-
-                              {/* Source & Rep Avatar */}
-                              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
-                                <div className="flex items-center gap-1 text-[11px] font-medium text-slate-400">
-                                  <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                  <span>{lead.source || "Inbound"}</span>
-                                </div>
-
-                                <div
-                                  className="w-6 h-6 rounded-full bg-slate-100 text-slate-700 border border-slate-200 font-black text-[9px] flex items-center justify-center shadow-2xs shrink-0"
-                                  title={`Assigned Rep: ${repName}`}
-                                >
-                                  {initials}
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-                  </div>
-                );
-              })
-            ) : (
-              /* OPPORTUNITIES & DEALS KANBAN COLUMNS */
+        {/* KANBAN BOARD */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-start">
+            {
               (() => {
-                const targetColumns = pipelineColumns?.filter((col: any) =>
-                  activeTab === "opportunities" ? isOpenGroup(col.group) : isClosedGroup(col.group)
-                ) || [];
+                const targetColumns = pipelineColumns || [];
 
                 return targetColumns.map((stageCol: any) => {
                   const colorScheme = getStageColor(stageCol.stage, stageCol.group);
@@ -576,7 +306,7 @@ export default function PipelineKanban() {
                         <div>
                           <h3 className={`text-sm font-black ${colorScheme.text}`}>{stageCol.stage}</h3>
                           <p className="text-[11px] font-semibold text-slate-500 mt-0.5">
-                            {filteredDeals.length} {activeTab === "opportunities" ? "opportunities" : "deals"}
+                            {filteredDeals.length} deals
                           </p>
                         </div>
                         <div className="text-base font-black text-slate-900 tracking-tight font-mono">
@@ -693,155 +423,10 @@ export default function PipelineKanban() {
                   );
                 });
               })()
-            )}
+            }
           </div>
-        ) : (
-          /* STRUCTURED UNIFIED LIST VIEW TABLE FOR PIPELINE */
-          <div className="bg-white border border-slate-200/90 rounded-2xl shadow-2xs overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left divide-y divide-slate-100 text-xs">
-                <thead>
-                  <tr className="bg-slate-50/70 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
-                    <th className="py-3.5 px-4">Record / Client Name</th>
-                    <th className="py-3.5 px-4">Company</th>
-                    <th className="py-3.5 px-4">Stage / Status</th>
-                    <th className="py-3.5 px-4">Pipeline Value</th>
-                    <th className="py-3.5 px-4">Assigned Rep</th>
-                    <th className="py-3.5 px-4 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 font-medium">
-                  {(() => {
-                    const allPipelineItems = [
-                      ...leads.map((l: any) => ({
-                        id: l.id,
-                        name: `${l.firstName || ""} ${l.lastName || ""}`.trim() || l.company || "Lead",
-                        company: l.company || "—",
-                        stageName: l.status || "New",
-                        value: Number(l.leadScore || 50) * 100,
-                        ownerName: l.assignedTo?.name || "Unassigned",
-                        verificationStatus: "VERIFIED",
-                        daysInStage: 2,
-                        stageEvidence: [],
-                        lastActivity: "Recent",
-                        type: "lead"
-                      })),
-                      ...(pipelineColumns || []).flatMap((col: any) =>
-                        (col.deals || []).map((d: any) => ({
-                          id: d.id,
-                          leadId: d.leadId,
-                          name: d.name,
-                          company: d.company || d.name,
-                          stageName: col.stage,
-                          value: d.value,
-                          ownerName: d.owner?.name || d.ownerName || "Unassigned",
-                          verificationStatus: d.verificationStatus || "VERIFIED",
-                          daysInStage: d.daysInStage || 0,
-                          stageEvidence: d.stageEvidence || [],
-                          lastActivity: d.lastActivity || "Recent",
-                          type: "deal"
-                        }))
-                      )
-                    ].filter((item: any) => {
-                      const matchesStage = stageFilter === "all" || item.stageName === stageFilter;
-                      if (!matchesStage) return false;
+        </section>
 
-                      const matchesVerification = verificationFilter === "all" || (
-                        verificationFilter === "stuck"
-                          ? item.daysInStage > 14
-                          : item.verificationStatus === verificationFilter
-                      );
-                      if (!matchesVerification) return false;
-
-                      if (!searchQuery) return true;
-                      const q = searchQuery.toLowerCase();
-                      return (item.name || "").toLowerCase().includes(q) || (item.company || "").toLowerCase().includes(q) || (item.stageName || "").toLowerCase().includes(q);
-                    });
-
-                    if (allPipelineItems.length === 0) {
-                      return (
-                        <tr>
-                          <td colSpan={6} className="py-8 text-center text-slate-400 font-bold">
-                            No records found matching search and verification criteria.
-                          </td>
-                        </tr>
-                      );
-                    }
-
-                    return allPipelineItems.map((item: any) => (
-                      <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="py-3.5 px-4">
-                          <button
-                            onClick={() => navigate(item.leadId ? `/leads/${item.leadId}` : `/leads/${item.id}`)}
-                            className="font-black text-slate-900 hover:text-blue-600 text-left block"
-                          >
-                            {item.name}
-                          </button>
-                          <span className="text-[10px] text-slate-400 font-medium">
-                            {item.daysInStage} days in stage
-                          </span>
-                        </td>
-                        <td className="py-3.5 px-4 text-slate-600 font-semibold">{item.company}</td>
-                        <td className="py-3.5 px-4">
-                          <div className="flex items-center gap-2">
-                            <span className={`px-2.5 py-1 text-[11px] font-extrabold rounded-full border ${
-                              item.stageName === "Closed Won" || item.stageName === "Won"
-                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                : item.stageName === "Closed Lost" || item.stageName === "Lost"
-                                ? "bg-rose-50 text-rose-700 border-rose-200"
-                                : "bg-blue-50 text-blue-700 border-blue-200"
-                            }`}>
-                              {item.stageName}
-                            </span>
-                            
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setEvidenceModal({
-                                  isOpen: true,
-                                  recordName: item.name,
-                                  recordId: item.id,
-                                  validation: {
-                                    allowed: item.verificationStatus === "VERIFIED",
-                                    fromStage: item.stageName,
-                                    toStage: item.stageName,
-                                    missingRequirements: item.verificationStatus === "VERIFIED" ? [] : ["Stage entry criteria pending customer-side evidence."],
-                                    evidence: item.stageEvidence || [],
-                                    verificationStatus: item.verificationStatus || "VERIFIED"
-                                  },
-                                  daysInStage: item.daysInStage || 0,
-                                  lastCustomerActivity: item.lastActivity || "Recent"
-                                });
-                              }}
-                              className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold border transition-all cursor-pointer ${
-                                item.verificationStatus === "VERIFIED"
-                                  ? "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100"
-                                  : "bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100"
-                              }`}
-                            >
-                              {item.verificationStatus === "VERIFIED" ? "Verified ✓" : "Needs Review ⚠"}
-                            </button>
-                          </div>
-                        </td>
-                        <td className="py-3.5 px-4 font-black text-slate-900">{formatCurrency(item.value)}</td>
-                        <td className="py-3.5 px-4 text-slate-600">{item.ownerName}</td>
-                        <td className="py-3.5 px-4 text-right">
-                          <button
-                            onClick={() => navigate(item.leadId ? `/leads/${item.leadId}` : `/leads/${item.id}`)}
-                            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-[11px] transition-all cursor-pointer"
-                          >
-                            View Record
-                          </button>
-                        </td>
-                      </tr>
-                    ));
-                  })()}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-      </section>
 
       {/* CREATE DEAL MODAL */}
       {showAddDealModal && (
