@@ -44,6 +44,9 @@ export async function autoAssignDeal(
 ): Promise<any> {
   const { Deal, User, DealReassignmentHistory, PipelineStage } = sequelize.models;
 
+  // Clear any leftover aborted transaction state on the connection pool before starting transaction
+  try { await sequelize.query("ROLLBACK"); } catch (_) {}
+
   return await sequelize.transaction(async (t) => {
     let deal: any = null;
     let dealAmount = 0;

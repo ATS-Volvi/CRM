@@ -22,6 +22,9 @@ export const sequelize = process.env.USE_SQLITE === "true"
         acquire: 30000,
         idle: 10000,
         evict: 1000,
+        validate: (client: any) => {
+          return client && !client._ending && !client._connecting;
+        }
       },
       retry: {
         max: 5,
