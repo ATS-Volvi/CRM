@@ -74,7 +74,10 @@ export async function autoAssignDeal(
   const seniorAes: any[] = await User.findAll({
     where: {
       role: "senior_ae",
-      isAvailable: true
+      [Op.or]: [
+        { isAvailable: true },
+        { isAvailable: { [Op.is]: null } }
+      ]
     }
   });
 
