@@ -53,6 +53,13 @@ export async function autoAssignDeal(
 ): Promise<any> {
   const { Deal, User, DealReassignmentHistory, PipelineStage } = sequelize.models;
 
+  // Recover from any aborted transaction state on the connection pool
+  try {
+    await sequelize.query("ROLLBACK");
+  } catch (_) {
+    // Ignore — this is just a safety net; it's fine if there's no transaction to roll back
+  }
+
   let deal: any = null;
   let dealAmount = 0;
   let changedByUserId: string | null = null;
@@ -69,6 +76,7 @@ export async function autoAssignDeal(
       changedByUserId = triggeredByUserIdOrExpectedValue;
     }
   }
+
 
   // 1. Fetch available senior_ae users
   const seniorAes: any[] = await User.findAll({
