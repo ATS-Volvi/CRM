@@ -132,11 +132,11 @@ export const LeadConversionModal: React.FC<LeadConversionModalProps> = ({
     try {
       const payload: any = {
         qualificationData: {
-          requirement: requirementSummary,
-          estimatedValue: Number(estimatedValue),
+          requirement: (requirementSummary || "").trim() || (lead.subject || "").trim() || (lead.company || "").trim() || "Turnkey requirement qualified from pre-sales lead conversation.",
+          estimatedValue: Number(estimatedValue) || 500000,
           budget: lead.budgetRange || "Standard",
           timeline: "Within 30 Days",
-          decisionMaker: `${newContactFirstName} ${newContactLastName}`.trim(),
+          decisionMaker: `${newContactFirstName} ${newContactLastName}`.trim() || "Decision Maker",
           notes: `Converted from Lead #${lead.id}`
         }
       };
