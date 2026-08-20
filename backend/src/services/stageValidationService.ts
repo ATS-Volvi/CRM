@@ -40,7 +40,7 @@ export async function validateStageTransition(
 
   // Find record (Deal or Lead)
   let deal: any = await Deal.findByPk(recordId, {
-    include: [{ model: Quote, as: "quotes" }]
+    include: [{ model: Quote, as: "Quotes" }]
   });
   let lead: any = null;
 
@@ -52,14 +52,14 @@ export async function validateStageTransition(
 
   const targetId = lead ? lead.id : deal ? deal.id : recordId;
 
+  const targetCustomerId = deal?.customerId || lead?.customerId;
+  const activityWhere: any = targetCustomerId
+    ? { [Op.or]: [{ leadId: targetId }, { customerId: targetCustomerId }] }
+    : { leadId: targetId };
+
   // Fetch all activities associated with this lead/deal
   const activities = await Activity.findAll({
-    where: {
-      [Op.or]: [
-        { leadId: targetId },
-        { customerId: deal?.customerId || lead?.customerId || "non-existent" }
-      ]
-    },
+    where: activityWhere,
     order: [["createdAt", "DESC"]]
   });
 

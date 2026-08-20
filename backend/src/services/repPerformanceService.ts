@@ -1,5 +1,6 @@
 import { sequelize } from "@nexus-crm/database";
 import { Op } from "sequelize";
+import { isWonStage, isClosedStage } from "../utils/pipelineStageHelpers";
 
 export interface RepPerformanceProfile {
   userId: string;
@@ -105,18 +106,21 @@ export async function calculateRepPerformanceProfile(userId: string): Promise<Re
   let deals: any[] = [];
   try {
     if (sequelize.models.Deal) {
-      deals = await sequelize.models.Deal.findAll({ where: { ownerId: userId } });
+      deals = await sequelize.models.Deal.findAll({
+        where: { ownerId: userId },
+        include: [{ model: sequelize.models.PipelineStage, as: "stage", attributes: ["id", "name"] }]
+      });
     }
   } catch (err) {
     deals = [];
   }
 
   const totalDeals = deals.length;
-  const wonDeals = deals.filter(d => d.stage === "Closed Won").length;
+  const wonDeals = deals.filter(d => isWonStage(d.stage?.name)).length;
   const opportunityWinRate = totalDeals > 0 ? (wonDeals + (0.20 * 2)) / (totalDeals + 2) : 0.20;
 
   const totalRevenueWon = deals
-    .filter(d => d.stage === "Closed Won")
+    .filter(d => isWonStage(d.stage?.name))
     .reduce((sum, d) => sum + Number(d.amount || 0), 0);
 
   const totalAssignedPipeline = deals.reduce((sum, d) => sum + Number(d.amount || 0), 0);
@@ -131,7 +135,7 @@ export async function calculateRepPerformanceProfile(userId: string): Promise<Re
     }
   });
 
-  const activeDeals = deals.filter(d => d.stage !== "Closed Won" && d.stage !== "Closed Lost");
+  const activeDeals = deals.filter(d => !isClosedStage(d.stage?.name));
   const openOpportunityCount = activeDeals.length;
   const openPipelineValue = activeDeals.reduce((sum, d) => sum + Number(d.amount || 0), 0);
 

@@ -3,6 +3,7 @@ import { sequelize } from "@nexus-crm/database";
 import { Op } from "sequelize";
 import bcrypt from "bcrypt";
 import crypto from "crypto";
+import { isWonStage, isLostStage } from "../utils/pipelineStageHelpers";
 
 /**
  * Derives a normalized pipeline cycle stage from a quote's status and timestamps.
@@ -546,8 +547,8 @@ export const getSalespersonPerformanceDetails = async (req: Request, res: Respon
     const dealTypes = Object.keys(dealTypeMap).map(name => ({ stage: name, count: dealTypeMap[name] }));
 
     // Won and Lost Leads derivation
-    const wonDeals = deals.filter((d: any) => d.stage?.name === "Won" || d.stage?.name === "Closed Won");
-    const lostDeals = deals.filter((d: any) => d.stage?.name === "Lost" || d.stage?.name === "Closed Lost");
+    const wonDeals = deals.filter((d: any) => isWonStage(d.stage?.name));
+    const lostDeals = deals.filter((d: any) => isLostStage(d.stage?.name));
 
     const wonLeads = wonDeals.map((d: any) => {
       const l = d.lead || {};
@@ -607,8 +608,8 @@ export const getSalespersonPerformanceDetails = async (req: Request, res: Respon
     deals.forEach((d: any) => {
       if (!d.lead) return;
       const stageName = d.stage?.name;
-      const isWon = stageName === "Won" || stageName === "Closed Won";
-      const isLost = stageName === "Lost" || stageName === "Closed Lost";
+      const isWon = isWonStage(stageName);
+      const isLost = isLostStage(stageName);
       if (!isWon && !isLost) return;
 
       const src = (d.lead.source || "Other").toLowerCase().trim() || "other";

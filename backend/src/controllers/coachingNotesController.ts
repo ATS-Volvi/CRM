@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { sequelize } from "@nexus-crm/database";
 import { Op } from "sequelize";
+import { WON_STAGE_NAMES, CLOSED_STAGE_NAMES } from "../utils/pipelineStageHelpers";
 
 // GET /coaching-notes — for the logged-in target user (rep sees their notes)
 export const getCoachingNotes = async (req: Request, res: Response) => {
@@ -179,7 +180,7 @@ export const getStaleDeal = async (req: Request, res: Response) => {
 
     // Get active deals
     const stages = await sequelize.models.PipelineStage.findAll({
-      where: { name: { [Op.notIn]: ["Won", "Closed Won", "Lost", "Closed Lost"] } },
+      where: { name: { [Op.notIn]: CLOSED_STAGE_NAMES } },
     });
     const stageIds = stages.map((s: any) => s.id);
 
@@ -265,7 +266,7 @@ export const getTopAccounts = async (req: Request, res: Response) => {
 
     const wonDeals = await sequelize.models.Deal.findAll({
       include: [
-        { model: sequelize.models.PipelineStage, as: "stage", where: { name: { [Op.in]: ["Won", "Closed Won"] } } },
+        { model: sequelize.models.PipelineStage, as: "stage", where: { name: { [Op.in]: WON_STAGE_NAMES } } },
         { model: sequelize.models.Customer, as: "customer", attributes: ["id", "name", "industry"] },
       ],
       where: { updatedAt: { [Op.gte]: quarterStart } },
@@ -338,7 +339,7 @@ export const getWinCelebrations = async (req: Request, res: Response) => {
     since.setDate(since.getDate() - 14); // last 2 weeks
 
     const wonStages = await sequelize.models.PipelineStage.findAll({
-      where: { name: { [Op.in]: ["Won", "Closed Won"] } },
+      where: { name: { [Op.in]: WON_STAGE_NAMES } },
     });
     const wonStageIds = wonStages.map((s: any) => s.id);
 

@@ -343,8 +343,72 @@ PurchaseOrder.init(
     amount: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
     poNumber: { type: DataTypes.STRING, allowNull: false, unique: true },
     generatedDate: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
+    salesOwnerId: { type: DataTypes.UUID, allowNull: true },
+    notes: { type: DataTypes.TEXT, allowNull: true },
+    deliveryAddress: { type: DataTypes.TEXT, allowNull: true },
+    requestedDeliveryDate: { type: DataTypes.DATE, allowNull: true }
   },
   { sequelize, modelName: "PurchaseOrder" }
+);
+
+export class Fulfillment extends Model {
+  public id!: string;
+  public orderId!: string;
+  public status!: string;
+  public priority!: string;
+  public assignedTeam!: string;
+  public assignedUserId!: string | null;
+  public deliveryAddress!: string | null;
+  public requestedDeliveryDate!: Date | null;
+  public notes!: string | null;
+}
+
+Fulfillment.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    orderId: { type: DataTypes.UUID, allowNull: false },
+    status: { type: DataTypes.STRING, defaultValue: "PENDING" },
+    priority: { type: DataTypes.STRING, defaultValue: "MEDIUM" },
+    assignedTeam: { type: DataTypes.STRING, allowNull: true },
+    assignedUserId: { type: DataTypes.UUID, allowNull: true },
+    deliveryAddress: { type: DataTypes.TEXT, allowNull: true },
+    requestedDeliveryDate: { type: DataTypes.DATE, allowNull: true },
+    notes: { type: DataTypes.TEXT, allowNull: true }
+  },
+  { sequelize, modelName: "Fulfillment" }
+);
+
+export class FulfillmentItem extends Model {
+  public id!: string;
+  public fulfillmentId!: string;
+  public quoteLineItemId!: string | null;
+  public productServiceId!: string | null;
+  public description!: string;
+  public quantityPlanned!: number;
+  public quantityAllocated!: number;
+  public quantityInProduction!: number;
+  public quantityReady!: number;
+  public quantityDispatched!: number;
+  public quantityDelivered!: number;
+  public status!: string;
+}
+
+FulfillmentItem.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    fulfillmentId: { type: DataTypes.UUID, allowNull: false },
+    quoteLineItemId: { type: DataTypes.UUID, allowNull: true },
+    productServiceId: { type: DataTypes.UUID, allowNull: true },
+    description: { type: DataTypes.TEXT, allowNull: false },
+    quantityPlanned: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },
+    quantityAllocated: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+    quantityInProduction: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+    quantityReady: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+    quantityDispatched: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+    quantityDelivered: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+    status: { type: DataTypes.STRING, defaultValue: "PENDING" }
+  },
+  { sequelize, modelName: "FulfillmentItem" }
 );
 
 export class ApprovalRequest extends Model {
@@ -689,6 +753,12 @@ QuoteLineItem.belongsTo(PriceBookEntry, { foreignKey: "productId", as: "product"
 
 Quote.hasOne(PurchaseOrder, { foreignKey: "quoteId" });
 PurchaseOrder.belongsTo(Quote, { foreignKey: "quoteId", as: "quote" });
+
+PurchaseOrder.hasOne(Fulfillment, { foreignKey: "orderId", as: "fulfillment" });
+Fulfillment.belongsTo(PurchaseOrder, { foreignKey: "orderId", as: "order" });
+
+Fulfillment.hasMany(FulfillmentItem, { foreignKey: "fulfillmentId", as: "items" });
+FulfillmentItem.belongsTo(Fulfillment, { foreignKey: "fulfillmentId", as: "fulfillment" });
 
 User.hasMany(ApprovalRequest, { foreignKey: "requestedById", as: "requestsMade" });
 ApprovalRequest.belongsTo(User, { foreignKey: "requestedById", as: "requestedBy" });

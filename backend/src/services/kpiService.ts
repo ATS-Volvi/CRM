@@ -1,5 +1,6 @@
 import { sequelize } from "@nexus-crm/database";
 import { Op } from "sequelize";
+import { isWonStage, isClosedStage } from "../utils/pipelineStageHelpers";
 
 export async function calculateUserKpis(userId: string): Promise<any> {
   try {
@@ -19,7 +20,7 @@ export async function calculateUserKpis(userId: string): Promise<any> {
     const leadsAssigned = leads.length;
 
     // 1. Quota Attainment (Won deal values vs Target)
-    const wonDeals = deals.filter((d: any) => d.stage?.name === "Won" || d.stage?.name === "Closed Won");
+    const wonDeals = deals.filter((d: any) => isWonStage(d.stage?.name));
     const actualRevenue = wonDeals.reduce((sum: number, d: any) => sum + Number(d.amount), 0);
 
     const targetRecord = await sequelize.models.KpiTarget.findOne({
@@ -34,7 +35,7 @@ export async function calculateUserKpis(userId: string): Promise<any> {
     };
 
     // 2. Win/Close Rate
-    const totalClosed = deals.filter((d: any) => d.stage?.name === "Won" || d.stage?.name === "Closed Won" || d.stage?.name === "Lost" || d.stage?.name === "Closed Lost").length;
+    const totalClosed = deals.filter((d: any) => isClosedStage(d.stage?.name)).length;
     const closeRate = totalClosed > 0 ? (wonDeals.length / totalClosed) * 100 : 0;
 
     // 3. Contact Rate & First Response Time
@@ -114,10 +115,10 @@ export async function calculateTeamKpis(scopedUserIds?: string[]): Promise<any> 
       include: [{ model: sequelize.models.PipelineStage, as: "stage" }]
     });
 
-    const wonDeals = deals.filter((d: any) => d.stage?.name === "Won" || d.stage?.name === "Closed Won");
+    const wonDeals = deals.filter((d: any) => isWonStage(d.stage?.name));
     const totalWonAmount = wonDeals.reduce((sum: number, d: any) => sum + Number(d.amount), 0);
 
-    const totalClosed = deals.filter((d: any) => d.stage?.name === "Won" || d.stage?.name === "Closed Won" || d.stage?.name === "Lost" || d.stage?.name === "Closed Lost").length;
+    const totalClosed = deals.filter((d: any) => isClosedStage(d.stage?.name)).length;
     const teamCloseRate = totalClosed > 0 ? (wonDeals.length / totalClosed) * 100 : 0;
 
     // Lead averages for team

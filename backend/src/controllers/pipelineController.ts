@@ -4,6 +4,7 @@ import { Deal, PipelineStage, LeadStageHistory, Activity, User, sequelize } from
 import { createNotification } from "../services/notificationService";
 import { triggerStageChangeAutomations } from "../services/automationService";
 import { validateStageTransition } from "../services/stageValidationService";
+import { isWonStage, isLostStage } from "../utils/pipelineStageHelpers";
 
 export const validateTransition = async (req: Request, res: Response) => {
   try {
@@ -129,20 +130,22 @@ export const moveDealStage = async (req: Request, res: Response) => {
     }
 
     // Write LeadStageHistory audit log
-    await LeadStageHistory.create({
-      leadId: deal.leadId || id,
-      fromStage: fromStageName,
-      toStage: toStageName,
-      changedById: userId,
-      reason: reason || lossReasonCategory || null,
-      transitionType: validation.transitionType,
-      evidenceData: JSON.stringify(validation.evidence),
-      isVerified: validation.allowed
-    });
+    if (deal.leadId) {
+      await LeadStageHistory.create({
+        leadId: deal.leadId,
+        fromStage: fromStageName,
+        toStage: toStageName,
+        changedById: userId,
+        reason: reason || lossReasonCategory || null,
+        transitionType: validation.transitionType,
+        evidenceData: JSON.stringify(validation.evidence),
+        isVerified: validation.allowed
+      });
+    }
 
     // Write Activity
     await Activity.create({
-      leadId: deal.leadId || id,
+      leadId: deal.leadId || null,
       type: "stage_change",
       outcome: `Stage updated to ${toStageName} [${validation.verificationStatus}]${lossReasonCategory ? ' [Category: ' + lossReasonCategory + ']' : ''}${reason ? ' - Detail: ' + reason : ''}`,
       notes: JSON.stringify(validation.evidence),
@@ -156,8 +159,8 @@ export const moveDealStage = async (req: Request, res: Response) => {
     deal.stageVerificationStatus = validation.verificationStatus;
     deal.stageEvidence = JSON.stringify(validation.evidence);
 
-    const isLostStage = toStageObj && (toStageObj.name === "Closed Lost" || toStageObj.name === "Lost");
-    if (isLostStage) {
+    const isLost = toStageObj && isLostStage(toStageObj.name);
+    if (isLost) {
       deal.lossReasonCategory = lossReasonCategory;
       if (reason !== undefined) deal.lossReason = reason;
     }
@@ -175,7 +178,7 @@ export const moveDealStage = async (req: Request, res: Response) => {
     // Trigger Configured Stage Change Automation Rules
     await triggerStageChangeAutomations(deal, toStageObj ? toStageObj.name : 'Unknown', userId);
 
-    if (toStageObj.name === "Won" || toStageObj.name === "Closed Won") {
+    if (toStageObj && isWonStage(toStageObj.name)) {
       await createNotification(
         deal.ownerId,
         'success',
@@ -183,7 +186,65 @@ export const moveDealStage = async (req: Request, res: Response) => {
         `Congratulations! The deal ${deal.name} was marked as Won.`,
         `/pipeline`
       );
-    } else if (toStageObj.name === "Lost" && deal.leadId) {
+
+      // ── Won → Order Automation ──
+      try {
+        const { createOrderFromFinalQuote } = require("../services/supplyFulfillmentService");
+        const { Quote, PurchaseOrder } = sequelize.models;
+
+        // Check for existing quotes belonging to this deal
+        const dealQuotes: any[] = await Quote.findAll({
+          where: { dealId: deal.id }
+        });
+        const quoteIds = dealQuotes.map((q: any) => q.id);
+
+        let existingOrder: any = null;
+        if (quoteIds.length > 0) {
+          existingOrder = await PurchaseOrder.findOne({
+            where: { quoteId: { [Op.in]: quoteIds } }
+          });
+        }
+
+        if (existingOrder) {
+          console.log(`[Won -> Order Automation] Order already exists for Deal ${deal.id} (PO: ${existingOrder.poNumber})`);
+        } else {
+          // Find winning / accepted quote for this deal
+          const winningQuote = dealQuotes.find(
+            (q: any) => q.status === "Accepted" || q.status === "Approved" || q.isFinalAgreed === true
+          );
+
+          if (winningQuote) {
+            const orderResult = await createOrderFromFinalQuote(winningQuote.id, userId);
+            console.log(`[Won -> Order Automation] Order ${orderResult.orderNumber} created for Deal ${deal.id}`);
+            await createNotification(
+              deal.ownerId,
+              'info',
+              'Purchase Order Auto-Created 📦',
+              `Order #${orderResult.orderNumber} was automatically created from accepted quote for deal ${deal.name}.`,
+              `/purchase-orders`
+            );
+          } else {
+            console.log(`[Won -> Order Automation] Deal ${deal.id} marked Won, but no accepted quote found.`);
+            await createNotification(
+              deal.ownerId,
+              'info',
+              'Manual Order Required',
+              `Deal '${deal.name}' was marked as Won, but no accepted quote was found to auto-create an Order. Please create the Purchase Order manually.`,
+              `/opportunities/${deal.id}`
+            );
+          }
+        }
+      } catch (orderErr: any) {
+        console.error(`[Won -> Order Automation] Order creation error for Deal ${deal.id}:`, orderErr?.message || orderErr);
+        await createNotification(
+          deal.ownerId,
+          'warning',
+          'Order Auto-Creation Notice',
+          `Deal '${deal.name}' was marked as Won, but automatic Order creation encountered an issue: ${orderErr?.message || "Manual order required"}. Please create the Order manually if needed.`,
+          `/opportunities/${deal.id}`
+        );
+      }
+    } else if (toStageObj && isLostStage(toStageObj.name) && deal.leadId) {
       const existing = await sequelize.models.ScheduledEmail.findOne({
         where: { leadId: deal.leadId, templateName: "deal_lost_feedback", sentAt: null }
       });
@@ -303,7 +364,7 @@ export const getOpportunityById = async (req: Request, res: Response) => {
         { model: PipelineStage, as: "stage" },
         { model: sequelize.models.Account, as: "account" },
         { model: sequelize.models.User, as: "owner" },
-        { model: sequelize.models.Quote, as: "quotes" }
+        { model: sequelize.models.Quote, as: "Quotes" }
       ]
     });
     if (!deal) return res.status(404).json({ error: "Opportunity not found" });

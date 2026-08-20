@@ -3,6 +3,7 @@ import { sequelize } from "@nexus-crm/database";
 import { calculateUserKpis, calculateTeamKpis } from "../services/kpiService";
 import { getScopedUserIds } from "../services/scopeHelper";
 import { Op } from "sequelize";
+import { isWonStage, LOST_STAGE_NAMES } from "../utils/pipelineStageHelpers";
 
 export const getKpiDashboard = async (req: Request, res: Response) => {
   try {
@@ -195,7 +196,7 @@ export const getMyHomeDashboard = async (req: Request, res: Response) => {
       ? (await sequelize.models.Invoice.findAll({ where: { quoteId: { [Op.in]: allQuoteIds }, createdAt: dateFilter } })) as any[] : [];
     const invoicesTotal = invoices.reduce((s: number, inv: any) => s + (parseFloat(inv.amount)||0), 0);
 
-    const wonDeals = allDeals.filter((d: any) => d.stage?.name === "Won" || d.stage?.name === "Closed Won");
+    const wonDeals = allDeals.filter((d: any) => isWonStage(d.stage?.name));
     const clientLeadIds = [...new Set<string>(wonDeals.map((d: any) => d.leadId).filter(Boolean))];
     const clientLeads: any[] = clientLeadIds.length > 0
       ? (await sequelize.models.Lead.findAll({ where: { id: { [Op.in]: clientLeadIds } }, limit: 10 })) as any[] : [];
@@ -572,7 +573,7 @@ export const getLossAnalytics = async (req: Request, res: Response) => {
     }
 
     const lostStages = await sequelize.models.PipelineStage.findAll({
-      where: { name: { [Op.in]: ["Closed Lost", "Lost"] } }
+      where: { name: { [Op.in]: LOST_STAGE_NAMES } }
     });
     const lostStageIds = lostStages.map((s: any) => s.id);
 
