@@ -704,12 +704,7 @@ export const getAllSalespersons = async (req: Request, res: Response) => {
 export const updateSalespersonCapacity = async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
-    const { maxOpenLeads } = req.body;
-    
-    if (typeof maxOpenLeads !== "number" || maxOpenLeads < 0) {
-      res.status(400).json({ error: "maxOpenLeads must be a non-negative number" });
-      return;
-    }
+    const { maxOpenLeads, isAvailable, dealValueCutoff, maxOpenDeals } = req.body;
 
     const user = await sequelize.models.User.findByPk(id);
     if (!user) {
@@ -717,8 +712,14 @@ export const updateSalespersonCapacity = async (req: Request, res: Response) => 
       return;
     }
 
-    await user.update({ maxOpenLeads });
-    res.json({ message: "Capacity updated successfully", maxOpenLeads });
+    const updates: any = {};
+    if (typeof maxOpenLeads === "number" && maxOpenLeads >= 0) updates.maxOpenLeads = maxOpenLeads;
+    if (isAvailable !== undefined) updates.isAvailable = !!isAvailable;
+    if (dealValueCutoff !== undefined) updates.dealValueCutoff = dealValueCutoff;
+    if (maxOpenDeals !== undefined) updates.maxOpenDeals = maxOpenDeals;
+
+    await user.update(updates);
+    res.json({ message: "Capacity and availability updated successfully", user: user.toJSON() });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
