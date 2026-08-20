@@ -283,7 +283,7 @@ export const qualifyLeadEndpoint = async (req: Request, res: Response) => {
     const qualificationData = req.body;
     const { convertLeadToOpportunity } = require("../services/leadJourneyWorkflowEngine");
 
-    const result = await convertLeadToOpportunity(String(id), qualificationData, user?.id);
+    const result = await convertLeadToOpportunity(String(id), qualificationData?.qualificationData || qualificationData, user?.id);
     res.json(result);
   } catch (error: any) {
     res.status(400).json({ error: error.message });
@@ -297,7 +297,7 @@ export const convertLead = async (req: Request, res: Response) => {
     const { convertLeadToOpportunity } = require("../services/leadJourneyWorkflowEngine");
     const result = await convertLeadToOpportunity(
       id,
-      req.body,
+      req.body?.qualificationData || req.body,
       (req as any).user?.id
     );
 
