@@ -283,6 +283,25 @@ if (process.env.NODE_ENV !== "production") {
 // ==========================================
 router.post("/auth/register", register);
 router.post("/auth/login", login);
+router.post("/auth/setup-test-users", async (req, res) => {
+  try {
+    const { User } = require("@nexus-crm/database");
+    const bcrypt = require("bcrypt");
+    const hashedPassword = await bcrypt.hash("TestPassword123!", 10);
+    
+    let s1: any = await User.findOne({ where: { email: "salesman1@nexus.com" } });
+    if (s1) await s1.update({ isAvailable: true, password: hashedPassword });
+    
+    let s2: any = await User.findOne({ where: { email: "salesman2@nexus.com" } });
+    if (s2) {
+      await s2.update({ isAvailable: true, dealValueCutoff: null, maxOpenDeals: null, password: hashedPassword });
+    }
+    
+    return res.json({ message: "Test users activated", salesman1: s1?.email, salesman2: s2?.email });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
 
 // WhatsApp Router (contains public /webhook and protected /send, /conversations, /messages)
 router.use("/whatsapp", whatsappRoutes);
