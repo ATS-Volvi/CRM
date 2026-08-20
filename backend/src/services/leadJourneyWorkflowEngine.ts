@@ -152,203 +152,198 @@ export function validateQualificationData(data: Partial<QualificationModel> = {}
 // ─── STEP 4: OPPORTUNITY CONVERSION & CONTEXT INHERITANCE ─────────────────────
 
 export async function convertLeadToOpportunity(leadId: string, qualificationData: QualificationModel, userId?: string) {
-  const lead = await sequelize.models.Lead.findByPk(leadId);
-  if (!lead) throw new Error("Lead not found");
-  const l = lead as any;
+  return await sequelize.transaction(async (t) => {
+    const lead = await sequelize.models.Lead.findByPk(leadId, { transaction: t });
+    if (!lead) throw new Error("Lead not found");
+    const l = lead as any;
 
-  // 1. Validate Stage Transition & Qualification Model
-  validateStageTransition(l.status, "Qualified");
-  const validQual = validateQualificationData(qualificationData);
+    // 1. Validate Stage Transition & Qualification Model
+    validateStageTransition(l.status, "Qualified");
+    const validQual = validateQualificationData(qualificationData);
 
-  // 2. Compute Next Action Engine
-  const nextState = computeNextActionEngine("Qualified", validQual.estimatedValue, l.assignedToId || userId);
+    // 2. Compute Next Action Engine
+    const nextState = computeNextActionEngine("Qualified", validQual.estimatedValue, l.assignedToId || userId);
 
-  // 3. Inherit Customer Account
-  const accountName = l.company || `${l.firstName} ${l.lastName}`.trim();
-  let account: any = await sequelize.models.Account.findOne({ where: { name: accountName } });
-  if (!account) {
-    account = await sequelize.models.Account.create({
-      id: crypto.randomUUID(),
-      name: accountName,
-      primaryContactName: `${l.firstName} ${l.lastName}`.trim(),
-      email: l.email,
-      phone: l.phone,
-      industry: l.industry || "General"
-    });
-  }
-
-  // 4. Inherit Primary Contact
-  let contact: any = null;
-  if (sequelize.models.Contact) {
-    contact = await sequelize.models.Contact.findOne({ where: { email: l.email } });
-    if (!contact) {
-      contact = await sequelize.models.Contact.create({
+    // 3. Inherit Customer Account
+    const accountName = l.company || `${l.firstName} ${l.lastName}`.trim();
+    let account: any = await sequelize.models.Account.findOne({ where: { name: accountName }, transaction: t });
+    if (!account) {
+      account = await sequelize.models.Account.create({
         id: crypto.randomUUID(),
-        accountId: account.id,
-        firstName: l.firstName,
-        lastName: l.lastName,
+        name: accountName,
+        primaryContactName: `${l.firstName} ${l.lastName}`.trim(),
         email: l.email,
         phone: l.phone,
-        role: "Decision Maker"
+        industry: l.industry || "General"
+      }, { transaction: t });
+    }
+
+    // 4. Inherit Primary Contact
+    let contact: any = null;
+    if (sequelize.models.Contact) {
+      contact = await sequelize.models.Contact.findOne({ where: { email: l.email }, transaction: t });
+      if (!contact) {
+        contact = await sequelize.models.Contact.create({
+          id: crypto.randomUUID(),
+          accountId: account.id,
+          firstName: l.firstName,
+          lastName: l.lastName,
+          email: l.email,
+          phone: l.phone,
+          role: "Decision Maker"
+        }, { transaction: t });
+      }
+    }
+
+    // 5. Create Opportunity (Deal) inheriting full context
+    let deal: any = await sequelize.models.Deal.findOne({ where: { leadId: l.id }, transaction: t });
+    const triggerUserId = userId || l.assignedToId;
+    let autoAssigned = false;
+    let autoAssignReason: string | undefined;
+
+    if (!deal) {
+      const stage = await sequelize.models.PipelineStage.findOne({ where: { name: "Qualified" }, transaction: t })
+        || await sequelize.models.PipelineStage.findOne({ order: [["order", "ASC"]], transaction: t });
+
+      deal = await sequelize.models.Deal.create({
+        id: crypto.randomUUID(),
+        name: l.company ? `${l.company} Opportunity` : `${l.firstName} ${l.lastName} Opportunity`,
+        amount: validQual.estimatedValue,
+        stageId: stage ? (stage as any).id : null,
+        leadId: l.id,
+        accountId: account.id,
+        customerId: account.id,
+        ownerId: triggerUserId
+      }, { transaction: t });
+
+      // Attempt auto-assignment to a senior_ae using the SAME transaction t
+      try {
+        const assignResult = await autoAssignDeal(deal.id, triggerUserId, t);
+        if (assignResult && assignResult.assigned) {
+          autoAssigned = true;
+          deal.ownerId = assignResult.newOwnerId; // sync local reference for DealSplit step below
+          console.log(`[convertLeadToOpportunity] Deal ${deal.id} auto-assigned to senior_ae ${assignResult.newOwnerId}.`);
+        } else if (assignResult && !assignResult.assigned) {
+          autoAssignReason = assignResult.reason;
+          console.log(`[convertLeadToOpportunity] No eligible senior_ae for deal ${deal.id} — leaving with triggering user. Reason: ${assignResult.reason}`);
+        }
+      } catch (assignErr: any) {
+        autoAssignReason = assignErr?.message || String(assignErr);
+        console.warn("[convertLeadToOpportunity] Auto-assignment attempt failed (non-fatal):", assignErr?.message || assignErr);
+      }
+    } else {
+      await deal.update({
+        amount: validQual.estimatedValue,
+        accountId: account.id,
+        customerId: account.id
+      }, { transaction: t });
+    }
+
+    // 5b. Auto-create DealSplit & DealOwner rows (commission split)
+    try {
+      const { DealSplit, DealOwner, WorkspaceSetting } = sequelize.models;
+      if (DealSplit || DealOwner) {
+        const splitSetting = WorkspaceSetting ? (await WorkspaceSetting.findOne({ where: { key: "default_qualifying_split_pct" }, transaction: t }) as any) : null;
+        const defaultSplit = splitSetting ? Math.min(100, Math.max(0, parseFloat(splitSetting.value))) : 20;
+
+        let qualifyingRepId = l.assignedToId;
+        const closingAeId = deal.ownerId as string | null;
+
+        const { LeadReassignmentHistory } = sequelize.models;
+        const reassignments = LeadReassignmentHistory
+          ? (await LeadReassignmentHistory.findAll({
+              where: { leadId: l.id },
+              order: [["createdAt", "DESC"]],
+              transaction: t
+            }) as any[])
+          : [];
+
+        let didForfeit = false;
+        if (reassignments.length > 0) {
+          const lastReassignment = reassignments[0];
+          if (lastReassignment.newAssignedToId === closingAeId) {
+            if (lastReassignment.reason && lastReassignment.reason.includes("SLA Breach")) {
+              didForfeit = true;
+            } else {
+              qualifyingRepId = lastReassignment.oldAssignedToId;
+            }
+          }
+        }
+
+        if (DealSplit) {
+          const existingSplits = await DealSplit.count({ where: { dealId: deal.id }, transaction: t });
+          if (existingSplits === 0) {
+            if (qualifyingRepId && closingAeId && qualifyingRepId !== closingAeId) {
+              await DealSplit.bulkCreate([
+                {
+                  id: crypto.randomUUID(),
+                  dealId: deal.id,
+                  userId: qualifyingRepId,
+                  splitPercentage: didForfeit ? 0 : defaultSplit,
+                  configuredByUserId: null,
+                  isCrossTeam: false
+                },
+                {
+                  id: crypto.randomUUID(),
+                  dealId: deal.id,
+                  userId: closingAeId,
+                  splitPercentage: didForfeit ? 100 : 100 - defaultSplit,
+                  configuredByUserId: null,
+                  isCrossTeam: false
+                }
+              ], { transaction: t });
+            } else if (closingAeId || qualifyingRepId) {
+              await DealSplit.create({
+                id: crypto.randomUUID(),
+                dealId: deal.id,
+                userId: closingAeId || qualifyingRepId,
+                splitPercentage: 100,
+                configuredByUserId: null,
+                isCrossTeam: false
+              }, { transaction: t });
+            }
+          }
+        }
+      }
+    } catch (splitErr) {
+      console.warn("[convertLeadToOpportunity] DealSplit creation failed (non-fatal):", splitErr);
+    }
+
+    // 6. Update Lead record with Qualification details & Next Action
+    await l.update({
+      status: "Qualified",
+      nextAction: nextState.nextAction,
+      nextActionDue: nextState.dueDate,
+      customerId: account.id,
+      qualificationData: {
+        ...validQual,
+        qualifiedAt: new Date().toISOString(),
+        qualifiedBy: userId || l.assignedToId,
+        opportunityId: deal.id,
+        accountId: account.id
+      },
+      leadScore: Math.min(100, (l.leadScore || 50) + 25)
+    }, { transaction: t });
+
+    // 7. Notify Sales Rep
+    if (l.assignedToId) {
+      await createNotification({
+        userId: l.assignedToId,
+        type: "LEAD_QUALIFIED",
+        title: "Lead Qualified & Opportunity Created",
+        message: `Lead '${l.firstName} ${l.lastName}' has been qualified. Opportunity created with value ₹${validQual.estimatedValue.toLocaleString()}.`
       });
     }
-  }
 
-  // 5. Create Opportunity (Deal) inheriting full context
-  let deal: any = await sequelize.models.Deal.findOne({ where: { leadId: l.id } });
-  const triggerUserId = userId || l.assignedToId;
-  let autoAssigned = false;
-  let autoAssignReason: string | undefined;
-
-  if (!deal) {
-    const stage = await sequelize.models.PipelineStage.findOne({ where: { name: "Qualified" } })
-      || await sequelize.models.PipelineStage.findOne({ order: [["order", "ASC"]] });
-
-    deal = await sequelize.models.Deal.create({
-      id: crypto.randomUUID(),
-      name: l.company ? `${l.company} Opportunity` : `${l.firstName} ${l.lastName} Opportunity`,
-      amount: validQual.estimatedValue,
-      stageId: stage ? (stage as any).id : null,
-      leadId: l.id,
-      accountId: account.id,
-      customerId: account.id,
-      ownerId: triggerUserId
-    });
-
-    // Attempt auto-assignment to a senior_ae — best-effort, non-blocking.
-    // Must run BEFORE DealSplit creation so the split uses the correct (senior_ae) ownerId.
-    // autoAssignDeal persists the ownerId change to DB internally; we sync the local reference
-    // so step 5b reads the updated deal.ownerId.
-    try {
-      const assignResult = await autoAssignDeal(deal.id, triggerUserId);
-      if (assignResult && assignResult.assigned) {
-        autoAssigned = true;
-        deal.ownerId = assignResult.newOwnerId; // sync local reference for DealSplit step below
-        console.log(`[convertLeadToOpportunity] Deal ${deal.id} auto-assigned to senior_ae ${assignResult.newOwnerId}.`);
-      } else if (assignResult && !assignResult.assigned) {
-        autoAssignReason = assignResult.reason;
-        console.log(`[convertLeadToOpportunity] No eligible senior_ae for deal ${deal.id} — leaving with triggering user. Reason: ${assignResult.reason}`);
-      }
-    } catch (assignErr: any) {
-      autoAssignReason = assignErr?.message || String(assignErr);
-      console.warn("[convertLeadToOpportunity] Auto-assignment attempt failed (non-fatal):", assignErr?.message || assignErr);
-    }
-  } else {
-    await deal.update({
-      amount: validQual.estimatedValue,
-      accountId: account.id,
-      customerId: account.id
-    });
-  }
-
-  // 5b. Auto-create DealSplit & DealOwner rows (commission split)
-  // Qualifying rep = lead.assignedToId, Closing AE = deal.ownerId (may be same person)
-  try {
-    const { DealSplit, DealOwner, WorkspaceSetting, User } = sequelize.models;
-    if (DealSplit || DealOwner) {
-      // Read default split from workspace settings (default 20% if not set)
-      const splitSetting = WorkspaceSetting ? (await WorkspaceSetting.findOne({ where: { key: "default_qualifying_split_pct" } }) as any) : null;
-      const defaultSplit = splitSetting ? Math.min(100, Math.max(0, parseFloat(splitSetting.value))) : 20;
-
-      let qualifyingRepId = l.assignedToId;
-      const closingAeId = deal.ownerId as string | null;
-
-      // Check if there was a manual escalation or SLA breach
-      const { LeadReassignmentHistory } = sequelize.models;
-      const reassignments = LeadReassignmentHistory
-        ? (await LeadReassignmentHistory.findAll({
-            where: { leadId: l.id },
-            order: [["createdAt", "DESC"]]
-          }) as any[])
-        : [];
-
-      let didForfeit = false;
-      if (reassignments.length > 0) {
-        const lastReassignment = reassignments[0];
-        // If it was reassigned to the current closing AE
-        if (lastReassignment.newAssignedToId === closingAeId) {
-          if (lastReassignment.reason && lastReassignment.reason.includes("SLA Breach")) {
-            didForfeit = true; // Forfeit commission completely
-          } else {
-            // Manual escalation: Original rep still gets their origination split
-            qualifyingRepId = lastReassignment.oldAssignedToId;
-          }
-        }
-      }
-
-      if (DealSplit) {
-        const existingSplits = await DealSplit.count({ where: { dealId: deal.id } });
-        if (existingSplits === 0) {
-          if (qualifyingRepId && closingAeId && qualifyingRepId !== closingAeId) {
-            await DealSplit.bulkCreate([
-              {
-                id: crypto.randomUUID(),
-                dealId: deal.id,
-                userId: qualifyingRepId,
-                splitPercentage: didForfeit ? 0 : defaultSplit,
-                configuredByUserId: null,
-                isCrossTeam: false
-              },
-              {
-                id: crypto.randomUUID(),
-                dealId: deal.id,
-                userId: closingAeId,
-                splitPercentage: didForfeit ? 100 : 100 - defaultSplit,
-                configuredByUserId: null,
-                isCrossTeam: false
-              }
-            ]);
-          } else if (closingAeId || qualifyingRepId) {
-            await DealSplit.create({
-              id: crypto.randomUUID(),
-              dealId: deal.id,
-              userId: closingAeId || qualifyingRepId,
-              splitPercentage: 100,
-              configuredByUserId: null,
-              isCrossTeam: false
-            });
-          }
-        }
-      }
-    }
-  } catch (splitErr) {
-    console.warn("[convertLeadToOpportunity] DealSplit creation failed (non-fatal):", splitErr);
-  }
-
-  // 6. Update Lead record with Qualification details & Next Action
-  await l.update({
-    status: "Qualified",
-    nextAction: nextState.nextAction,
-    nextActionDue: nextState.dueDate,
-    customerId: account.id,
-    qualificationData: {
-      ...validQual,
-      qualifiedAt: new Date().toISOString(),
-      qualifiedBy: userId || l.assignedToId,
-      opportunityId: deal.id,
-      accountId: account.id
-    },
-    leadScore: Math.min(100, (l.leadScore || 50) + 25)
+    return {
+      lead: l,
+      deal,
+      account,
+      contact,
+      autoAssigned,
+      autoAssignReason
+    };
   });
-
-  // 7. Notify Sales Rep
-  if (l.assignedToId) {
-    await createNotification({
-      userId: l.assignedToId,
-      type: "LEAD_QUALIFIED",
-      title: "Lead Qualified & Opportunity Created",
-      message: `Lead '${l.firstName} ${l.lastName}' has been qualified. Opportunity created with value ₹${validQual.estimatedValue.toLocaleString()}.`
-    });
-  }
-
-  return {
-    lead: l,
-    deal,
-    account,
-    contact,
-    autoAssigned,
-    autoAssignReason
-  };
 }
 
 
