@@ -230,6 +230,7 @@ export async function convertLeadToOpportunity(leadId: string, qualificationData
         console.log(`[convertLeadToOpportunity] No eligible senior_ae for deal ${deal.id} — leaving with triggering user. Reason: ${assignResult.reason}`);
       }
     } catch (assignErr: any) {
+      autoAssignReason = assignErr?.message || String(assignErr);
       console.warn("[convertLeadToOpportunity] Auto-assignment attempt failed (non-fatal):", assignErr?.message || assignErr);
     }
   } else {
