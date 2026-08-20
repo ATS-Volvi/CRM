@@ -130,7 +130,7 @@ export const LeadConversionModal: React.FC<LeadConversionModalProps> = ({
     setError(null);
 
     try {
-      const reqText = (requirementSummary || "").trim() || (lead.subject || "").trim() || (lead.company || "").trim() || "Turnkey requirement qualified from pre-sales lead conversation.";
+      const reqText = (requirementSummary || "").trim() || (lead.company || "").trim() || "Turnkey requirement qualified from pre-sales lead conversation.";
       const estVal = Number(estimatedValue) || 500000;
 
       const payload: any = {
