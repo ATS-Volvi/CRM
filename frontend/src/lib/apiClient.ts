@@ -68,6 +68,18 @@ apiClient.get = async function <T = any>(path: string, options: ApiOptions = {})
 
 apiClient.post = async function <T = any>(path: string, body?: any, options: ApiOptions = {}): Promise<T> {
   const res = await apiClient(path, { ...options, method: "POST", body: body ? JSON.stringify(body) : undefined });
-  if (!res.ok) return null as any;
+  if (!res.ok) {
+    let errorText = `Request failed (${res.status})`;
+    try {
+      const errData = await res.json();
+      errorText = errData.error || errData.message || errorText;
+    } catch {
+      try {
+        const text = await res.text();
+        if (text) errorText = text;
+      } catch {}
+    }
+    throw new Error(errorText);
+  }
   return res.json();
 };

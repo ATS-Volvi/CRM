@@ -1755,9 +1755,8 @@ export default function LeadDetail() {
           lead={lead}
           onConverted={(res) => {
             queryClient.invalidateQueries({ queryKey: ["lead", id] });
-            if (res?.deal?.id) {
-              navigate(`/opportunities/${res.deal.id}`);
-            }
+            queryClient.invalidateQueries({ queryKey: ["pipeline"] });
+            queryClient.invalidateQueries({ queryKey: ["opportunities"] });
           }}
         />
       )}
