@@ -13,6 +13,7 @@ import {
   getLead,
   updateLead,
   convertLead,
+  qualifyLeadEndpoint,
   markLeadNotConverted,
   deleteLead,
   reassignLead,
@@ -335,6 +336,7 @@ router.post("/leads", authMiddleware, createLead);
 router.get("/leads/:id", authMiddleware, getLead);
 router.put("/leads/:id", authMiddleware, updateLead);
 router.patch("/leads/:id", authMiddleware, updateLead);
+router.post("/leads/:id/qualify", authMiddleware, qualifyLeadEndpoint);
 router.post("/leads/:id/convert", authMiddleware, convertLead);
 router.post("/leads/:id/not-converted", authMiddleware, markLeadNotConverted);
 router.post("/leads/:id/temperature", authMiddleware, updateTemperature);
