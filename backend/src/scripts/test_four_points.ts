@@ -165,13 +165,22 @@ async function runFourPointsTest() {
     console.log(`  - User: ${s.userId} | Split: ${s.splitPercentage}%`);
   }
 
-  const sdrSplit = newDealSplits.find((s) => s.userId === salesRep.id);
-  const aeSplit = newDealSplits.find((s) => s.userId === manager.id);
+  // After auto-assignment, the deal is owned by the eligible senior_ae (not the triggering manager).
+  // The qualifying rep (salesRep) still gets their SDR origination split; the closing AE (senior_ae)
+  // gets the remainder. Percentages must still honour the WorkspaceSetting (35%/65% here).
+  const sdrSplit = newDealSplits.find((s: any) => s.userId === salesRep.id);
+  const aeSplit  = newDealSplits.find((s: any) => s.userId === converted.deal.ownerId);
 
-  if (!sdrSplit || Number(sdrSplit.splitPercentage) !== 35 || !aeSplit || Number(aeSplit.splitPercentage) !== 65) {
-    throw new Error(`WorkspaceSetting 35% not respected! SDR: ${sdrSplit?.splitPercentage}, AE: ${aeSplit?.splitPercentage}`);
+  if (!sdrSplit || Number(sdrSplit.splitPercentage) !== 35) {
+    throw new Error(`WorkspaceSetting 35% SDR split not respected! SDR: ${sdrSplit?.splitPercentage}`);
   }
-  console.log("✓ Point 4 Verified: convertLeadToOpportunity read dynamically configured 35% from WorkspaceSettings.default_qualifying_split_pct");
+  if (!aeSplit || Number(aeSplit.splitPercentage) !== 65) {
+    throw new Error(`WorkspaceSetting 65% AE split not respected! AE split: ${aeSplit?.splitPercentage}, AE userId: ${aeSplit?.userId}`);
+  }
+  if (!converted.autoAssigned) {
+    throw new Error("Expected autoAssigned=true (a senior_ae should have been available in the test DB)");
+  }
+  console.log(`✓ Point 4 Verified: convertLeadToOpportunity auto-assigned deal to senior_ae ${converted.deal.ownerId} and respected the dynamically configured 35%/65% WorkspaceSetting split`);
 
   // Clean up
   await DealSplit.destroy({ where: { dealId: deal.id } });

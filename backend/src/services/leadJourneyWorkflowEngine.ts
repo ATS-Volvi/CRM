@@ -3,6 +3,7 @@ import * as crypto from "crypto";
 import { assignLead } from "./assignmentEngine";
 import { evaluateQuoteApproval } from "./approvalEngine";
 import { createNotification } from "./notificationEngine";
+import { autoAssignDeal } from "./dealAssignmentEngine";
 
 // ─── STEP 1: LEAD LIFECYCLE & STRICT STATE MACHINE CONTRACT ──────────────────
 
@@ -199,6 +200,10 @@ export async function convertLeadToOpportunity(leadId: string, qualificationData
 
   // 5. Create Opportunity (Deal) inheriting full context
   let deal: any = await sequelize.models.Deal.findOne({ where: { leadId: l.id } });
+  const triggerUserId = userId || l.assignedToId;
+  let autoAssigned = false;
+  let autoAssignReason: string | undefined;
+
   if (!deal) {
     const stage = await sequelize.models.PipelineStage.findOne({ where: { name: "Qualified" } })
       || await sequelize.models.PipelineStage.findOne({ order: [["order", "ASC"]] });
@@ -211,8 +216,26 @@ export async function convertLeadToOpportunity(leadId: string, qualificationData
       leadId: l.id,
       accountId: account.id,
       customerId: account.id,
-      ownerId: userId || l.assignedToId
+      ownerId: triggerUserId
     });
+
+    // Attempt auto-assignment to a senior_ae — best-effort, non-blocking.
+    // Must run BEFORE DealSplit creation so the split uses the correct (senior_ae) ownerId.
+    // autoAssignDeal persists the ownerId change to DB internally; we sync the local reference
+    // so step 5b reads the updated deal.ownerId.
+    try {
+      const assignResult = await autoAssignDeal(deal.id, triggerUserId);
+      if (assignResult && assignResult.assigned) {
+        autoAssigned = true;
+        deal.ownerId = assignResult.newOwnerId; // sync local reference for DealSplit step below
+        console.log(`[convertLeadToOpportunity] Deal ${deal.id} auto-assigned to senior_ae ${assignResult.newOwnerId}.`);
+      } else if (assignResult && !assignResult.assigned) {
+        autoAssignReason = assignResult.reason;
+        console.log(`[convertLeadToOpportunity] No eligible senior_ae for deal ${deal.id} — leaving with triggering user. Reason: ${assignResult.reason}`);
+      }
+    } catch (assignErr: any) {
+      console.warn("[convertLeadToOpportunity] Auto-assignment attempt failed (non-fatal):", assignErr?.message || assignErr);
+    }
   } else {
     await deal.update({
       amount: validQual.estimatedValue,
@@ -325,7 +348,9 @@ export async function convertLeadToOpportunity(leadId: string, qualificationData
     lead: l,
     deal,
     account,
-    contact
+    contact,
+    autoAssigned,
+    autoAssignReason
   };
 }
 

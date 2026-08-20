@@ -5,6 +5,7 @@ import { triggerTemplatedEmail } from "../services/emailService";
 import { assignLeadToSalesperson } from "../services/leadAssignmentService";
 import { ingestLead } from "../services/leadIngestion";
 import { updateLeadTemperature } from "../services/leadTemperatureService";
+import { autoAssignDeal } from "../services/dealAssignmentEngine";
 import crypto from "crypto";
 
 export const getLeads = async (req: Request, res: Response) => {
@@ -306,7 +307,10 @@ export const convertLead = async (req: Request, res: Response) => {
       contact: result.contact,
       deal: result.deal,
       opportunity: result.deal,
-      lead: result.lead
+      lead: result.lead,
+      // Surfaced so the frontend can show "needs manual assignment" if desired
+      autoAssigned: result.autoAssigned ?? false,
+      autoAssignReason: result.autoAssignReason
     });
   } catch (error: any) {
     res.status(400).json({ error: error.message });
@@ -488,7 +492,7 @@ export const getLeadDealForQuote = async (req: Request, res: Response) => {
       stage = await sequelize.models.PipelineStage.findOne({ order: [['order', 'ASC']] });
     }
 
-    const ownerId = (lead as any).assignedToId || (req as any).user?.id;
+    const triggerUserId = (lead as any).assignedToId || (req as any).user?.id;
     const name = (lead as any).company || `${(lead as any).firstName} ${(lead as any).lastName} Deal`;
     const amount = (lead as any).leadScore ? (lead as any).leadScore * 100 : 0;
 
@@ -498,9 +502,24 @@ export const getLeadDealForQuote = async (req: Request, res: Response) => {
       amount,
       stageId: stage ? (stage as any).id : null,
       leadId: (lead as any).id,
-      ownerId,
+      ownerId: triggerUserId,
       customerId: (lead as any).customerId || null
     });
+
+    // Attempt auto-assignment to a senior_ae — best-effort, non-blocking.
+    // autoAssignDeal persists the ownerId change to DB internally.
+    try {
+      const assignResult = await autoAssignDeal((deal as any).id, triggerUserId);
+      if (assignResult && assignResult.assigned) {
+        // Reload so the response body reflects the updated ownerId
+        await (deal as any).reload();
+        console.log(`[getLeadDealForQuote] Deal ${(deal as any).id} auto-assigned to senior_ae ${assignResult.newOwnerId}.`);
+      } else if (assignResult && !assignResult.assigned) {
+        console.log(`[getLeadDealForQuote] No eligible senior_ae for deal ${(deal as any).id} — leaving with triggering user. Reason: ${assignResult.reason}`);
+      }
+    } catch (assignErr: any) {
+      console.warn("[getLeadDealForQuote] Auto-assignment attempt failed (non-fatal):", assignErr?.message || assignErr);
+    }
 
     res.status(201).json(deal);
   } catch (error: any) {
