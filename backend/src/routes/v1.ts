@@ -53,7 +53,7 @@ import {
 import { getQuoteTemplates, createQuoteTemplate, parseReferenceDocument } from '../controllers/quoteTemplateController';
 import { receiveInboundEmail } from "../controllers/emailController";
 import { verifyInstagramWebhook, receiveInstagramMessage } from "../controllers/instagramController";
-import { getAccounts, getAccountById } from "../controllers/accountController";
+import { getAccounts, getAccountById, createAccount } from "../controllers/accountController";
 import { getContacts, getContactById, createContact, updateContact } from "../controllers/contactController";
 import { getAssets, getAssetById, createAsset, updateAsset, deleteAsset } from "../controllers/assetController";
 import {
@@ -569,10 +569,15 @@ router.put("/master-data/kpis/:id", authMiddleware, updateKpiMaster);
 router.delete("/master-data/kpis/:id", authMiddleware, deleteKpiMaster);
 
 // ==========================================
-// CUSTOMERS
+// CUSTOMERS & ACCOUNTS
 // ==========================================
 router.get("/accounts", authMiddleware, getAccounts);
+router.post("/accounts", authMiddleware, createAccount);
 router.get("/accounts/:id", authMiddleware, getAccountById);
+
+router.get("/customers", authMiddleware, getAccounts);
+router.post("/customers", authMiddleware, createAccount);
+router.get("/customers/:id", authMiddleware, getAccountById);
 
 // Contacts
 router.get("/contacts", authMiddleware, getContacts);

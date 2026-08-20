@@ -99,3 +99,26 @@ export const getAccountById = async (req: Request, res: Response) => {
   }
 };
 
+export const createAccount = async (req: Request, res: Response) => {
+  try {
+    const { name, primaryContactName, email, phone, industry } = req.body;
+    if (!name) {
+      return res.status(400).json({ error: "Customer name is required" });
+    }
+
+    const account = await Account.create({
+      id: crypto.randomUUID(),
+      name,
+      primaryContactName: primaryContactName || null,
+      email: email || null,
+      phone: phone || null,
+      industry: industry || "General"
+    });
+
+    return res.status(201).json(account);
+  } catch (error: any) {
+    console.error("Error creating customer account:", error);
+    return res.status(500).json({ error: error.message || "Internal server error" });
+  }
+};
+
