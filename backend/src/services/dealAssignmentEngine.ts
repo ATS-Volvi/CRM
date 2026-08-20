@@ -20,21 +20,12 @@ export async function getOpenDealsCount(userId: string): Promise<number> {
   });
   const closedStageIds = closedStages.map((s: any) => s.id);
 
-  const stageFilter: any = closedStageIds.length > 0
-    ? {
-        [Op.or]: [
-          { [Op.is]: null },
-          { [Op.notIn]: closedStageIds }
-        ]
-      }
-    : {};
+  const dealWhere: any = { ownerId: userId };
+  if (closedStageIds.length > 0) {
+    dealWhere.stageId = { [Op.notIn]: closedStageIds };
+  }
 
-  return await Deal.count({
-    where: {
-      ownerId: userId,
-      stageId: stageFilter
-    }
-  });
+  return await Deal.count({ where: dealWhere });
 }
 
 /**
@@ -94,23 +85,16 @@ export async function autoAssignDeal(
     });
     const closedStageIds = closedStages.map((s: any) => s.id);
 
-    const stageFilter: any = closedStageIds.length > 0
-      ? {
-          [Op.or]: [
-            { [Op.is]: null },
-            { [Op.notIn]: closedStageIds }
-          ]
-        }
-      : {};
-
     // 3. Filter candidates by cutoff AND capacity (both are HARD filters)
     const candidateEvaluations = await Promise.all(
       seniorAes.map(async (rep) => {
+        const dealWhere: any = { ownerId: rep.id };
+        if (closedStageIds.length > 0) {
+          dealWhere.stageId = { [Op.notIn]: closedStageIds };
+        }
+
         const openDealsCount = await Deal.count({
-          where: {
-            ownerId: rep.id,
-            stageId: stageFilter
-          },
+          where: dealWhere,
           transaction: t
         });
 
