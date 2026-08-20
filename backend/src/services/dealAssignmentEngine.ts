@@ -40,14 +40,12 @@ export async function getOpenDealsCount(userId: string): Promise<number> {
  */
 export async function autoAssignDeal(
   dealIdOrEntityId: string,
-  triggeredByUserIdOrExpectedValue?: string | number
+  triggeredByUserIdOrExpectedValue?: string | number,
+  externalTransaction?: any
 ): Promise<any> {
   const { Deal, User, DealReassignmentHistory, PipelineStage } = sequelize.models;
 
-  // Clear any leftover aborted transaction state on the connection pool before starting transaction
-  try { await sequelize.query("ROLLBACK"); } catch (_) {}
-
-  return await sequelize.transaction(async (t) => {
+  const runAssignment = async (t: any) => {
     let deal: any = null;
     let dealAmount = 0;
     let changedByUserId: string | null = null;
@@ -89,39 +87,38 @@ export async function autoAssignDeal(
     const closedStageIds = closedStages.map((s: any) => s.id);
 
     // 3. Filter candidates by cutoff AND capacity (both are HARD filters)
-    const candidateEvaluations = await Promise.all(
-      seniorAes.map(async (rep) => {
-        const dealWhere: any = { ownerId: rep.id };
-        if (closedStageIds.length > 0) {
-          dealWhere.stageId = { [Op.notIn]: closedStageIds };
-        }
+    const candidateEvaluations = [];
+    for (const rep of seniorAes) {
+      const dealWhere: any = { ownerId: rep.id };
+      if (closedStageIds.length > 0) {
+        dealWhere.stageId = { [Op.notIn]: closedStageIds };
+      }
 
-        const openDealsCount = await Deal.count({
-          where: dealWhere,
-          transaction: t
-        });
+      const openDealsCount = await Deal.count({
+        where: dealWhere,
+        transaction: t
+      });
 
-        // Cutoff check: null = uncapped
-        const withinCutoff =
-          rep.dealValueCutoff === null ||
-          rep.dealValueCutoff === undefined ||
-          Number(rep.dealValueCutoff) >= dealAmount;
+      // Cutoff check: null = uncapped
+      const withinCutoff =
+        rep.dealValueCutoff === null ||
+        rep.dealValueCutoff === undefined ||
+        Number(rep.dealValueCutoff) >= dealAmount;
 
-        // Capacity check: null = uncapped
-        const withinCapacity =
-          rep.maxOpenDeals === null ||
-          rep.maxOpenDeals === undefined ||
-          openDealsCount < Number(rep.maxOpenDeals);
+      // Capacity check: null = uncapped
+      const withinCapacity =
+        rep.maxOpenDeals === null ||
+        rep.maxOpenDeals === undefined ||
+        openDealsCount < Number(rep.maxOpenDeals);
 
-        return {
-          rep,
-          openDealsCount,
-          withinCutoff,
-          withinCapacity,
-          isEligible: withinCutoff && withinCapacity
-        };
-      })
-    );
+      candidateEvaluations.push({
+        rep,
+        openDealsCount,
+        withinCutoff,
+        withinCapacity,
+        isEligible: withinCutoff && withinCapacity
+      });
+    }
 
     const eligibleCandidates = candidateEvaluations.filter((c) => c.isEligible);
 
@@ -158,7 +155,7 @@ export async function autoAssignDeal(
 
     await deal.update({ ownerId: winner.id }, { transaction: t });
 
-    const historyRecord = await DealReassignmentHistory.create(
+    await DealReassignmentHistory.create(
       {
         id: crypto.randomUUID(),
         dealId: deal.id,
@@ -181,7 +178,13 @@ export async function autoAssignDeal(
       deal,
       oldOwnerId
     };
-  });
+  };
+
+  if (externalTransaction) {
+    return await runAssignment(externalTransaction);
+  } else {
+    return await sequelize.transaction(async (t) => await runAssignment(t));
+  }
 }
 
 /**
