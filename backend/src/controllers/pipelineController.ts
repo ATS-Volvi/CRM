@@ -192,45 +192,70 @@ export const moveDealStage = async (req: Request, res: Response) => {
         const { createOrderFromFinalQuote } = require("../services/supplyFulfillmentService");
         const { Quote, PurchaseOrder } = sequelize.models;
 
-        // Check for existing quotes belonging to this deal
+        // 1. Fetch all quotes belonging to this deal
         const dealQuotes: any[] = await Quote.findAll({
           where: { dealId: deal.id }
         });
-        const quoteIds = dealQuotes.map((q: any) => q.id);
 
-        let existingOrder: any = null;
-        if (quoteIds.length > 0) {
-          existingOrder = await PurchaseOrder.findOne({
-            where: { quoteId: { [Op.in]: quoteIds } }
-          });
-        }
+        // 2. Identify candidate winning/accepted quotes
+        const acceptedQuotes = dealQuotes.filter(
+          (q: any) => q.status === "Accepted" || q.status === "Approved" || q.isFinalAgreed === true
+        );
 
-        if (existingOrder) {
-          console.log(`[Won -> Order Automation] Order already exists for Deal ${deal.id} (PO: ${existingOrder.poNumber})`);
-        } else {
-          // Find winning / accepted quote for this deal
-          const winningQuote = dealQuotes.find(
-            (q: any) => q.status === "Accepted" || q.status === "Approved" || q.isFinalAgreed === true
+        if (acceptedQuotes.length === 0) {
+          console.log(`[Won -> Order Automation] Deal ${deal.id} marked Won, but no accepted quote found.`);
+          await createNotification(
+            deal.ownerId,
+            'info',
+            'Manual Order Required',
+            `Deal '${deal.name}' was marked as Won, but no accepted quote was found to auto-create an Order. Please create the Purchase Order manually.`,
+            `/opportunities/${deal.id}`
           );
+        } else {
+          // Select single winning quote: highest version, then latest acceptedAt / updatedAt
+          acceptedQuotes.sort((a: any, b: any) => {
+            const vA = Number(a.version || 1);
+            const vB = Number(b.version || 1);
+            if (vA !== vB) return vB - vA;
+            const tA = new Date(a.acceptedAt || a.updatedAt || 0).getTime();
+            const tB = new Date(b.acceptedAt || b.updatedAt || 0).getTime();
+            return tB - tA;
+          });
+          const winningQuote = acceptedQuotes[0];
 
-          if (winningQuote) {
+          // 3. Check for stray POs on non-final/superseded quote revisions (for warning/audit)
+          const otherQuoteIds = dealQuotes.filter((q: any) => q.id !== winningQuote.id).map((q: any) => q.id);
+          if (otherQuoteIds.length > 0) {
+            const strayOrder: any = await PurchaseOrder.findOne({
+              where: { quoteId: { [Op.in]: otherQuoteIds } }
+            });
+            if (strayOrder) {
+              console.warn(
+                `[Won -> Order Automation] Notice: Deal ${deal.id} has an existing order (PO: ${strayOrder.poNumber}) ` +
+                `on non-final quote revision ${strayOrder.quoteId}. Proceeding with order creation for final accepted quote ${winningQuote.id}.`
+              );
+            }
+          }
+
+          // 4. Idempotency check scoped specifically to the final accepted quote
+          const existingOrderForWinningQuote = await PurchaseOrder.findOne({
+            where: { quoteId: winningQuote.id }
+          });
+
+          if (existingOrderForWinningQuote) {
+            console.log(
+              `[Won -> Order Automation] Order already exists for final accepted quote ${winningQuote.id} of Deal ${deal.id} ` +
+              `(PO: ${(existingOrderForWinningQuote as any).poNumber})`
+            );
+          } else {
             const orderResult = await createOrderFromFinalQuote(winningQuote.id, userId);
-            console.log(`[Won -> Order Automation] Order ${orderResult.orderNumber} created for Deal ${deal.id}`);
+            console.log(`[Won -> Order Automation] Order ${orderResult.orderNumber} created for Deal ${deal.id} (Quote: ${winningQuote.id}, v${winningQuote.version || 1})`);
             await createNotification(
               deal.ownerId,
               'info',
               'Purchase Order Auto-Created 📦',
-              `Order #${orderResult.orderNumber} was automatically created from accepted quote for deal ${deal.name}.`,
+              `Order #${orderResult.orderNumber} was automatically created from accepted quote (v${winningQuote.version || 1}) for deal ${deal.name}.`,
               `/purchase-orders`
-            );
-          } else {
-            console.log(`[Won -> Order Automation] Deal ${deal.id} marked Won, but no accepted quote found.`);
-            await createNotification(
-              deal.ownerId,
-              'info',
-              'Manual Order Required',
-              `Deal '${deal.name}' was marked as Won, but no accepted quote was found to auto-create an Order. Please create the Purchase Order manually.`,
-              `/opportunities/${deal.id}`
             );
           }
         }

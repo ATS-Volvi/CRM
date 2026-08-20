@@ -138,8 +138,100 @@ async function runWonToOrderTest() {
   }
   console.log("  ✓ Idempotency verified: duplicate stage update did not create extra PO.");
 
+  // 7. Test Scenario D: Multi-Quote Revision Cycle (Q1 Rejected -> Q2 Superseded + Stray PO -> Q3 Accepted)
+  console.log("\n[Scenario D] Multi-Quote Revision Cycle (Q1 Rejected, Q2 Superseded + Stray PO, Q3 Accepted)...");
+
+  const dealMulti: any = await Deal.create({
+    id: crypto.randomUUID(),
+    name: `Multi-Quote Rev Deal ${timestamp}`,
+    amount: 300000,
+    stageId: proposalStage.id,
+    ownerId: testUser.id,
+    accountId: testAccount.id,
+    customerId: testAccount.id
+  });
+
+  const q1: any = await Quote.create({
+    id: crypto.randomUUID(),
+    dealId: dealMulti.id,
+    quoteNumber: `QT-REV-${timestamp}`,
+    totalAmount: 250000,
+    status: "Rejected",
+    version: 1
+  });
+
+  const q2: any = await Quote.create({
+    id: crypto.randomUUID(),
+    dealId: dealMulti.id,
+    quoteNumber: `QT-REV-${timestamp}`,
+    totalAmount: 280000,
+    status: "Superseded",
+    version: 2
+  });
+
+  const strayPO: any = await PurchaseOrder.create({
+    id: crypto.randomUUID(),
+    quoteId: q2.id,
+    amount: 280000,
+    poNumber: `STRAY-PO-${timestamp}`,
+    status: "Draft",
+    type: "customer_po",
+    generatedDate: new Date()
+  });
+
+  const q3: any = await Quote.create({
+    id: crypto.randomUUID(),
+    dealId: dealMulti.id,
+    quoteNumber: `QT-REV-${timestamp}`,
+    totalAmount: 300000,
+    status: "Accepted",
+    version: 3,
+    acceptedAt: new Date()
+  });
+
+  await QuoteLineItem.create({
+    id: crypto.randomUUID(),
+    quoteId: q3.id,
+    description: "Final Agreed Industrial Panel Pack",
+    quantity: 3,
+    unitPrice: 100000,
+    totalPrice: 300000
+  });
+
+  const mockReqD: any = {
+    params: { id: dealMulti.id },
+    body: { toStageId: wonStage.id },
+    user: { id: testUser.id, role: "admin" }
+  };
+  let resStatusD = 200;
+  let resBodyD: any = null;
+  const mockResD: any = {
+    status: (code: number) => { resStatusD = code; return mockResD; },
+    json: (data: any) => { resBodyD = data; }
+  };
+
+  await moveDealStage(mockReqD, mockResD);
+
+  const orderForQ3: any = await PurchaseOrder.findOne({
+    where: { quoteId: q3.id }
+  });
+  if (!orderForQ3) {
+    throw new Error("Order was NOT created for final accepted Quote 3 despite stray PO on superseded Quote 2!");
+  }
+  console.log(`  ✓ Multi-quote cycle verified! Order created for final Quote 3 (PO: ${orderForQ3.poNumber}) regardless of stray PO on Quote 2.`);
+
   // Cleanup
   console.log("\n[Cleanup] Removing test records...");
+  const q3Fulfillment: any = await sequelize.models.Fulfillment.findOne({ where: { orderId: orderForQ3.id } });
+  if (q3Fulfillment) await q3Fulfillment.destroy();
+  await orderForQ3.destroy();
+  await strayPO.destroy();
+  await QuoteLineItem.destroy({ where: { quoteId: q3.id } });
+  await q3.destroy();
+  await q2.destroy();
+  await q1.destroy();
+  await dealMulti.destroy();
+
   if (fulfillment) await fulfillment.destroy();
   if (createdPO) await createdPO.destroy();
   await QuoteLineItem.destroy({ where: { quoteId: quote.id } });
