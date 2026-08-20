@@ -53,12 +53,8 @@ export async function autoAssignDeal(
 ): Promise<any> {
   const { Deal, User, DealReassignmentHistory, PipelineStage } = sequelize.models;
 
-  // Recover from any aborted transaction state on the connection pool
-  try {
-    await sequelize.query("ROLLBACK");
-  } catch (_) {
-    // Ignore — this is just a safety net; it's fine if there's no transaction to roll back
-  }
+  // Recover from any aborted transaction state by issuing ROLLBACK then using a fresh transaction
+  try { await sequelize.query("ROLLBACK"); } catch (_) {}
 
   let deal: any = null;
   let dealAmount = 0;
@@ -68,25 +64,30 @@ export async function autoAssignDeal(
     dealAmount = triggeredByUserIdOrExpectedValue;
   }
 
-  // Try finding the deal
-  deal = await Deal.findByPk(dealIdOrEntityId);
-  if (deal) {
-    dealAmount = Number(deal.amount || 0);
-    if (typeof triggeredByUserIdOrExpectedValue === "string") {
-      changedByUserId = triggeredByUserIdOrExpectedValue;
+  // Try finding the deal in a fresh transaction to avoid aborted-tx contamination
+  await sequelize.transaction(async (t) => {
+    deal = await Deal.findByPk(dealIdOrEntityId, { transaction: t });
+    if (deal) {
+      dealAmount = Number(deal.amount || 0);
+      if (typeof triggeredByUserIdOrExpectedValue === "string") {
+        changedByUserId = triggeredByUserIdOrExpectedValue;
+      }
     }
-  }
+  });
 
-
-  // 1. Fetch available senior_ae users
-  const seniorAes: any[] = await User.findAll({
-    where: {
-      role: "senior_ae",
-      [Op.or]: [
-        { isAvailable: true },
-        { isAvailable: { [Op.is]: null } }
-      ]
-    }
+  // 1. Fetch available senior_ae users in a fresh transaction
+  let seniorAes: any[] = [];
+  await sequelize.transaction(async (t) => {
+    seniorAes = await User.findAll({
+      where: {
+        role: "senior_ae",
+        [Op.or]: [
+          { isAvailable: true },
+          { isAvailable: { [Op.is]: null } }
+        ]
+      },
+      transaction: t
+    });
   });
 
   // 2. Closed stages for capacity counting
