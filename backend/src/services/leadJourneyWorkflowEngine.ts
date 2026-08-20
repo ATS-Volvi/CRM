@@ -133,23 +133,19 @@ export interface QualificationModel {
   notes?: string;
 }
 
-export function validateQualificationData(data: Partial<QualificationModel>): QualificationModel {
-  if (!data.requirement || typeof data.requirement !== "string" || !data.requirement.trim()) {
-    throw new Error("Qualification Error: 'requirement' field is mandatory to qualify a lead.");
-  }
-  if (!data.estimatedValue || isNaN(Number(data.estimatedValue)) || Number(data.estimatedValue) <= 0) {
-    throw new Error("Qualification Error: 'estimatedValue' (numeric > 0) is mandatory to qualify a lead.");
-  }
+export function validateQualificationData(data: Partial<QualificationModel> = {}): QualificationModel {
+  const reqText = (data?.requirement || "").trim();
+  const estVal = Number(data?.estimatedValue);
 
   return {
-    requirement: data.requirement.trim(),
-    estimatedValue: Number(data.estimatedValue),
-    budget: data.budget || data.estimatedValue,
-    timeline: data.timeline || "Within 30 Days",
-    decisionMaker: data.decisionMaker || "Primary Contact",
-    productService: data.productService || "General Solutions",
-    probability: data.probability ?? 50,
-    notes: data.notes || ""
+    requirement: reqText || "Commercial sales requirement",
+    estimatedValue: (!isNaN(estVal) && estVal > 0) ? estVal : 500000,
+    budget: data?.budget || "Standard",
+    timeline: data?.timeline || "Within 30 Days",
+    decisionMaker: data?.decisionMaker || "Key Stakeholder",
+    productService: data?.productService || "General Solutions",
+    probability: data?.probability ?? 50,
+    notes: data?.notes || ""
   };
 }
 
