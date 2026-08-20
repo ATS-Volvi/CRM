@@ -75,7 +75,7 @@ export async function validateStageTransition(
   });
 
   // Fetch quotes linked to deal
-  const quotes = deal ? (deal.quotes || []) : await Quote.findAll({ where: { dealId: targetId } });
+  const quotes = deal ? ((deal as any).Quotes || (deal as any).quotes || (await Quote.findAll({ where: { dealId: deal.id } }))) : await Quote.findAll({ where: { dealId: targetId } });
   const activeQuotes = quotes.filter((q: any) => q.status !== "Draft" && q.status !== "Cancelled");
   const sentQuotes = quotes.filter((q: any) => q.sentAt || q.status === "Sent" || q.status === "Accepted");
   const acceptedQuotes = quotes.filter((q: any) => q.acceptedAt || q.status === "Accepted");
