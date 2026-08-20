@@ -52,7 +52,7 @@ export default function LeadCreate() {
   const createCustomerMutation = useMutation({
     mutationFn: async () => {
       if (!newCustomerName.trim()) throw new Error("Customer name is required.");
-      const res = await fetch("/api/v1/customers", {
+      let res = await fetch("/api/v1/accounts", {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
         body: JSON.stringify({
@@ -62,6 +62,18 @@ export default function LeadCreate() {
           phone: newCustomerPhone
         })
       });
+      if (!res.ok) {
+        res = await fetch("/api/v1/customers", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+          body: JSON.stringify({
+            name: newCustomerName,
+            primaryContactName: newCustomerContact,
+            email: newCustomerEmail,
+            phone: newCustomerPhone
+          })
+        });
+      }
       if (!res.ok) throw new Error(await res.text());
       return res.json();
     },
@@ -83,7 +95,10 @@ export default function LeadCreate() {
   const { data: customers } = useQuery<any[]>({
     queryKey: ["customers"],
     queryFn: async () => {
-      const res = await fetch("/api/v1/customers", { headers: { "Authorization": `Bearer ${token}` } });
+      let res = await fetch("/api/v1/accounts", { headers: { "Authorization": `Bearer ${token}` } });
+      if (!res.ok) {
+        res = await fetch("/api/v1/customers", { headers: { "Authorization": `Bearer ${token}` } });
+      }
       if (!res.ok) throw new Error("Failed to fetch customers");
       return res.json();
     }
