@@ -53,19 +53,15 @@ export async function autoAssignDeal(
 ): Promise<any> {
   const { Deal, User, DealReassignmentHistory, PipelineStage } = sequelize.models;
 
-  // Recover from any aborted transaction state by issuing ROLLBACK then using a fresh transaction
-  try { await sequelize.query("ROLLBACK"); } catch (_) {}
+  return await sequelize.transaction(async (t) => {
+    let deal: any = null;
+    let dealAmount = 0;
+    let changedByUserId: string | null = null;
 
-  let deal: any = null;
-  let dealAmount = 0;
-  let changedByUserId: string | null = null;
+    if (typeof triggeredByUserIdOrExpectedValue === "number") {
+      dealAmount = triggeredByUserIdOrExpectedValue;
+    }
 
-  if (typeof triggeredByUserIdOrExpectedValue === "number") {
-    dealAmount = triggeredByUserIdOrExpectedValue;
-  }
-
-  // Try finding the deal in a fresh transaction to avoid aborted-tx contamination
-  await sequelize.transaction(async (t) => {
     deal = await Deal.findByPk(dealIdOrEntityId, { transaction: t });
     if (deal) {
       dealAmount = Number(deal.amount || 0);
@@ -73,12 +69,9 @@ export async function autoAssignDeal(
         changedByUserId = triggeredByUserIdOrExpectedValue;
       }
     }
-  });
 
-  // 1. Fetch available senior_ae users in a fresh transaction
-  let seniorAes: any[] = [];
-  await sequelize.transaction(async (t) => {
-    seniorAes = await User.findAll({
+    // 1. Fetch available senior_ae users
+    const seniorAes: any[] = await User.findAll({
       where: {
         role: "senior_ae",
         [Op.or]: [
@@ -88,100 +81,97 @@ export async function autoAssignDeal(
       },
       transaction: t
     });
-  });
 
-  // 2. Closed stages for capacity counting
-  const closedStages: any[] = await PipelineStage.findAll({
-    where: {
-      name: {
-        [Op.in]: ["Won", "Lost", "Closed Won", "Closed Lost"]
-      }
-    },
-    attributes: ["id"]
-  });
-  const closedStageIds = closedStages.map((s: any) => s.id);
-
-  const stageFilter: any = closedStageIds.length > 0
-    ? {
-        [Op.or]: [
-          { [Op.is]: null },
-          { [Op.notIn]: closedStageIds }
-        ]
-      }
-    : {};
-
-  // 3. Filter candidates by cutoff AND capacity (both are HARD filters)
-  const candidateEvaluations = await Promise.all(
-    seniorAes.map(async (rep) => {
-      const openDealsCount = await Deal.count({
-        where: {
-          ownerId: rep.id,
-          stageId: stageFilter
+    // 2. Closed stages for capacity counting
+    const closedStages: any[] = await PipelineStage.findAll({
+      where: {
+        name: {
+          [Op.in]: ["Won", "Lost", "Closed Won", "Closed Lost"]
         }
-      });
+      },
+      attributes: ["id"],
+      transaction: t
+    });
+    const closedStageIds = closedStages.map((s: any) => s.id);
 
-      // Cutoff check: null = uncapped
-      const withinCutoff =
-        rep.dealValueCutoff === null ||
-        rep.dealValueCutoff === undefined ||
-        Number(rep.dealValueCutoff) >= dealAmount;
+    const stageFilter: any = closedStageIds.length > 0
+      ? {
+          [Op.or]: [
+            { [Op.is]: null },
+            { [Op.notIn]: closedStageIds }
+          ]
+        }
+      : {};
 
-      // Capacity check: null = uncapped
-      const withinCapacity =
-        rep.maxOpenDeals === null ||
-        rep.maxOpenDeals === undefined ||
-        openDealsCount < Number(rep.maxOpenDeals);
+    // 3. Filter candidates by cutoff AND capacity (both are HARD filters)
+    const candidateEvaluations = await Promise.all(
+      seniorAes.map(async (rep) => {
+        const openDealsCount = await Deal.count({
+          where: {
+            ownerId: rep.id,
+            stageId: stageFilter
+          },
+          transaction: t
+        });
+
+        // Cutoff check: null = uncapped
+        const withinCutoff =
+          rep.dealValueCutoff === null ||
+          rep.dealValueCutoff === undefined ||
+          Number(rep.dealValueCutoff) >= dealAmount;
+
+        // Capacity check: null = uncapped
+        const withinCapacity =
+          rep.maxOpenDeals === null ||
+          rep.maxOpenDeals === undefined ||
+          openDealsCount < Number(rep.maxOpenDeals);
+
+        return {
+          rep,
+          openDealsCount,
+          withinCutoff,
+          withinCapacity,
+          isEligible: withinCutoff && withinCapacity
+        };
+      })
+    );
+
+    const eligibleCandidates = candidateEvaluations.filter((c) => c.isEligible);
+
+    // 4. If no one is eligible, do NOT throw and do NOT force-assign
+    if (eligibleCandidates.length === 0) {
+      console.log(
+        `[autoAssignDeal] No eligible senior_ae found for deal ${dealIdOrEntityId} (amount: ${dealAmount}).`
+      );
+      await triggerManagerNotification(dealIdOrEntityId, dealAmount, "unassigned (no eligible senior_ae within cutoff/capacity)");
+
+      if (!deal) {
+        return null;
+      }
 
       return {
-        rep,
-        openDealsCount,
-        withinCutoff,
-        withinCapacity,
-        isEligible: withinCutoff && withinCapacity
+        assigned: false,
+        dealId: deal.id,
+        deal,
+        reason: "No eligible senior_ae available within cutoff and capacity constraints"
       };
-    })
-  );
-
-  const eligibleCandidates = candidateEvaluations.filter((c) => c.isEligible);
-
-  // 4. If no one is eligible, do NOT throw and do NOT force-assign
-  if (eligibleCandidates.length === 0) {
-    console.log(
-      `[autoAssignDeal] No eligible senior_ae found for deal ${dealIdOrEntityId} (amount: ${dealAmount}).`
-    );
-    await triggerManagerNotification(dealIdOrEntityId, dealAmount, "unassigned (no eligible senior_ae within cutoff/capacity)");
-
-    if (!deal) {
-      // Legacy standalone call returning null ID
-      return null;
     }
 
-    return {
-      assigned: false,
-      dealId: deal.id,
-      deal,
-      reason: "No eligible senior_ae available within cutoff and capacity constraints"
-    };
-  }
+    // 5. Tie-break: fewest open deals (least loaded)
+    eligibleCandidates.sort((a, b) => a.openDealsCount - b.openDealsCount);
+    const winner = eligibleCandidates[0].rep;
 
-  // 5. Tie-break: fewest open deals (least loaded)
-  eligibleCandidates.sort((a, b) => a.openDealsCount - b.openDealsCount);
-  const winner = eligibleCandidates[0].rep;
+    if (!deal) {
+      return winner.id;
+    }
 
-  if (!deal) {
-    // Standalone / lead context caller expecting winner ID
-    return winner.id;
-  }
+    // 6. Assign deal and record audit history
+    const oldOwnerId = deal.ownerId || null;
+    const auditChangedBy = changedByUserId || winner.id;
 
-  // 6. Assign deal and record audit history
-  const oldOwnerId = deal.ownerId || null;
-  const auditChangedBy = changedByUserId || winner.id;
-
-  let historyRecord: any = null;
-  await sequelize.transaction(async (t) => {
     await deal.update({ ownerId: winner.id }, { transaction: t });
 
-    historyRecord = await DealReassignmentHistory.create(
+    const historyRecord = await DealReassignmentHistory.create(
       {
         id: crypto.randomUUID(),
         dealId: deal.id,
@@ -196,20 +186,15 @@ export async function autoAssignDeal(
       },
       { transaction: t }
     );
-  });
 
-  return {
-    assigned: true,
-    dealId: deal.id,
-    newOwnerId: winner.id,
-    assignee: {
-      id: winner.id,
-      name: winner.name,
-      email: winner.email
-    },
-    deal,
-    reassignmentHistory: historyRecord
-  };
+    return {
+      assigned: true,
+      dealId: deal.id,
+      newOwnerId: winner.id,
+      deal,
+      oldOwnerId
+    };
+  });
 }
 
 /**
