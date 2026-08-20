@@ -588,6 +588,14 @@ router.post("/contacts", authMiddleware, createContact);
 router.put("/contacts/:id", authMiddleware, updateContact);
 
 // ==========================================
+// USER SETTINGS & PROFILE
+// ==========================================
+router.get("/my-settings", authMiddleware, getMySettings);
+router.put("/my-settings", authMiddleware, updateMySettings);
+router.get("/users/settings", authMiddleware, getMySettings);
+router.put("/users/settings", authMiddleware, updateMySettings);
+
+// ==========================================
 // ASSETS / EQUIPMENT TRACKING
 // ==========================================
 router.get("/assets", authMiddleware, getAssets);
