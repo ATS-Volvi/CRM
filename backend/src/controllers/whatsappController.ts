@@ -159,15 +159,25 @@ export const sendMessage = async (req: Request, res: Response) => {
       }
 
       if (!targetSid) {
-        // Look up default active WhatsApp template matching lead language or default to Arabic ("ar")
+        // Look up default active WhatsApp template matching lead language first, falling back to Arabic ("ar")
         const leadLang = leadObj?.language || leadObj?.preferredLanguage || "ar";
-        const tmpl = await sequelize.models.MessageTemplate.findOne({
+        let tmpl = await sequelize.models.MessageTemplate.findOne({
           where: {
             channel: "whatsapp",
             isActive: true,
-            [Op.or]: [{ language: leadLang }, { language: "ar" }]
+            language: leadLang
           }
         }) as any;
+
+        if (!tmpl && leadLang !== "ar") {
+          tmpl = await sequelize.models.MessageTemplate.findOne({
+            where: {
+              channel: "whatsapp",
+              isActive: true,
+              language: "ar"
+            }
+          }) as any;
+        }
 
         if (tmpl && tmpl.twilioContentSid) {
           targetSid = tmpl.twilioContentSid;
