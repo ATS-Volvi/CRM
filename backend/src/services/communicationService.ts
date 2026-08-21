@@ -82,6 +82,45 @@ export async function seedDefaultMessageTemplates() {
       }));
       await sequelize.models.MessageTemplate.bulkCreate(templatesToInsert);
     }
+
+    // Always ensure default WhatsApp Business Call Summary templates exist
+    const whatsappTemplates = [
+      {
+        name: "WhatsApp Call Summary (Arabic)",
+        triggerEvent: "call_summary_ar",
+        channel: "whatsapp",
+        subject: "ملخص المكالمة",
+        body: "مرحباً {{1}}، شكراً لوقتك في المكالمة. ملخص المناقشة: {{2}}. {{3}}",
+        twilioContentSid: "HX_call_summary_ar_stub",
+        contentVariables: JSON.stringify({ "1": "leadName", "2": "callNotes", "3": "nextSteps" }),
+        language: "ar",
+        isActive: true
+      },
+      {
+        name: "WhatsApp Call Summary (English)",
+        triggerEvent: "call_summary_en",
+        channel: "whatsapp",
+        subject: "Call Summary",
+        body: "Hello {{1}}, thank you for your time on the call. Here is a summary of our discussion: {{2}}. {{3}}",
+        twilioContentSid: "HX_call_summary_en_stub",
+        contentVariables: JSON.stringify({ "1": "leadName", "2": "callNotes", "3": "nextSteps" }),
+        language: "en",
+        isActive: true
+      }
+    ];
+
+    for (const tmpl of whatsappTemplates) {
+      const existing = await sequelize.models.MessageTemplate.findOne({
+        where: { name: tmpl.name }
+      });
+      if (!existing) {
+        await sequelize.models.MessageTemplate.create({
+          id: require('crypto').randomUUID(),
+          ...tmpl
+        } as any);
+        console.log(`Seeded WhatsApp Template: ${tmpl.name}`);
+      }
+    }
   } catch (error) {
     console.error("Failed to seed default message templates:", error);
   }

@@ -384,7 +384,7 @@ export const getDeals = async (req: Request, res: Response) => {
 export const getOpportunityById = async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id);
-    const deal = await Deal.findByPk(id, {
+    const deal: any = await Deal.findByPk(id, {
       include: [
         { model: PipelineStage, as: "stage" },
         { model: sequelize.models.Account, as: "account" },
@@ -393,7 +393,53 @@ export const getOpportunityById = async (req: Request, res: Response) => {
       ]
     });
     if (!deal) return res.status(404).json({ error: "Opportunity not found" });
-    res.json(deal);
+
+    const dealJson = deal.toJSON();
+
+    // Fetch activity timeline for the deal's leadId or customerId, oldest first
+    let timeline: any[] = [];
+    if (deal.leadId || deal.customerId) {
+      const whereClause: any = {};
+      if (deal.leadId && deal.customerId) {
+        whereClause[Op.or] = [{ leadId: deal.leadId }, { customerId: deal.customerId }];
+      } else if (deal.leadId) {
+        whereClause.leadId = deal.leadId;
+      } else {
+        whereClause.customerId = deal.customerId;
+      }
+
+      timeline = await sequelize.models.Activity.findAll({
+        where: whereClause,
+        include: [
+          {
+            model: sequelize.models.User,
+            as: "createdBy",
+            attributes: ["id", "name", "email", "role"]
+          }
+        ],
+        order: [["createdAt", "ASC"]]
+      });
+    }
+
+    // Fetch handoff history from LeadReassignmentHistory
+    let handoff: any[] = [];
+    if (deal.leadId) {
+      handoff = await sequelize.models.LeadReassignmentHistory.findAll({
+        where: { leadId: deal.leadId },
+        include: [
+          { model: sequelize.models.User, as: "oldAssignee", attributes: ["id", "name", "email", "role"] },
+          { model: sequelize.models.User, as: "newAssignee", attributes: ["id", "name", "email", "role"] },
+          { model: sequelize.models.User, as: "changedByUser", attributes: ["id", "name", "email", "role"] }
+        ],
+        order: [["createdAt", "ASC"]]
+      });
+    }
+
+    return res.json({
+      ...dealJson,
+      timeline,
+      handoff
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

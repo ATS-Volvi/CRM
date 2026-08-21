@@ -234,6 +234,18 @@ export default function LeadDetail() {
     }
   });
 
+  const [whatsAppText, setWhatsAppText] = useState("");
+  const [skipReason, setSkipReason] = useState("");
+  const [isSkippingSummary, setIsSkippingSummary] = useState(false);
+  const [whatsAppTemplateError, setWhatsAppTemplateError] = useState<string | null>(null);
+  const [summaryLanguage, setSummaryLanguage] = useState<"ar" | "en">("ar");
+
+  useEffect(() => {
+    if (lead?.preferredLanguage === "en" || lead?.preferredLanguage === "ar") {
+      setSummaryLanguage(lead.preferredLanguage);
+    }
+  }, [lead?.preferredLanguage]);
+
   const logCallMutation = useMutation({
     mutationFn: async () => {
       const res = await fetch(`/api/v1/call-logs`, {
@@ -252,8 +264,42 @@ export default function LeadDetail() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["leadActivities", id] });
-      setActiveModal(null);
+      const hasPhone = Boolean(lead?.phone || lead?.whatsappPhone);
+      if (hasPhone) {
+        const lang = lead?.preferredLanguage || "ar";
+        const recap = callNotes 
+          ? (lang === "ar" ? `ملخص المكالمة: ${callNotes}` : `Call Summary: ${callNotes}`)
+          : (lang === "ar" ? "ملخص المكالمة الهاتفية" : "Call summary recap");
+        setWhatsAppText(recap);
+        setWhatsAppTemplateError(null);
+        setActiveModal("call-summary");
+      } else {
+        setActiveModal(null);
+      }
       setCallNotes("");
+    }
+  });
+
+  const skipCallSummaryMutation = useMutation({
+    mutationFn: async (reason: string) => {
+      const res = await fetch(`/api/v1/leads/${id}/activities`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({
+          type: "note",
+          outcome: `Skipped WhatsApp call summary: ${reason}`,
+          notes: `Call summary WhatsApp message skipped by rep. Mandatory reason: ${reason}`
+        })
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["leadActivities", id] });
+      setActiveModal(null);
+      setSkipReason("");
+      setIsSkippingSummary(false);
+      setWhatsAppTemplateError(null);
     }
   });
 
@@ -289,8 +335,6 @@ export default function LeadDetail() {
     }
   });
 
-  const [whatsAppText, setWhatsAppText] = useState("");
-
   const sendWhatsAppMutation = useMutation({
     mutationFn: async () => {
       const res = await fetch(`/api/v1/whatsapp/send`, {
@@ -298,17 +342,35 @@ export default function LeadDetail() {
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
         body: JSON.stringify({
           leadId: id,
-          phone: lead?.phone,
-          text: whatsAppText
+          phone: lead?.phone || lead?.whatsappPhone,
+          text: whatsAppText,
+          language: summaryLanguage
         })
       });
-      if (!res.ok) throw new Error(await res.text());
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text);
+      }
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["leadActivities", id] });
       setActiveModal(null);
       setWhatsAppText("");
+      setWhatsAppTemplateError(null);
+    },
+    onError: (err: any) => {
+      let errorMsg = err.message || "Failed to send WhatsApp message";
+      try {
+        const parsed = JSON.parse(err.message);
+        if (parsed.error) {
+          errorMsg = parsed.error;
+          if (parsed.requiresTemplate) {
+            errorMsg = `No approved WhatsApp template configured for language '${summaryLanguage.toUpperCase()}' — contact your system administrator to configure Twilio Content SID.`;
+          }
+        }
+      } catch (e) {}
+      setWhatsAppTemplateError(errorMsg);
     }
   });
 
@@ -1584,6 +1646,123 @@ export default function LeadDetail() {
                 <button onClick={() => logCallMutation.mutate()} className="px-4 py-2 bg-emerald-600 text-white rounded font-bold text-xs">Save Call Log</button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Post-Call WhatsApp Summary Modal (No silent close — must send or log skip reason) */}
+      {activeModal === "call-summary" && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-6 max-w-md w-full space-y-4 shadow-xl animate-fade-in">
+            <div className="flex justify-between items-center border-b border-outline-variant pb-3">
+              <h3 className="text-lg font-bold text-on-surface flex items-center gap-2">
+                <MessageSquare className="w-5 h-5 text-emerald-600" /> Post-Call WhatsApp Summary
+              </h3>
+              <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                Action Required
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between gap-2 text-xs">
+              <span className="text-on-surface-variant font-medium">
+                Target: <strong>{lead?.phone || lead?.whatsappPhone}</strong>
+              </span>
+
+              {/* Language Selector (Arabic / English) */}
+              <div className="flex items-center gap-1 bg-surface border border-outline rounded-lg p-0.5">
+                <button
+                  onClick={() => setSummaryLanguage("ar")}
+                  className={`px-2 py-0.5 text-[10px] font-bold rounded ${
+                    summaryLanguage === "ar" ? "bg-emerald-600 text-white" : "text-on-surface-variant hover:text-on-surface"
+                  }`}
+                >
+                  العربية (AR)
+                </button>
+                <button
+                  onClick={() => setSummaryLanguage("en")}
+                  className={`px-2 py-0.5 text-[10px] font-bold rounded ${
+                    summaryLanguage === "en" ? "bg-emerald-600 text-white" : "text-on-surface-variant hover:text-on-surface"
+                  }`}
+                >
+                  English (EN)
+                </button>
+              </div>
+            </div>
+
+            {whatsAppTemplateError && (
+              <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl text-xs text-amber-900 space-y-1">
+                <div className="font-bold flex items-center gap-1.5 text-amber-950">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                  WhatsApp Business Template Guidance
+                </div>
+                <p className="text-[11px] leading-relaxed opacity-95">{whatsAppTemplateError}</p>
+              </div>
+            )}
+
+            {!isSkippingSummary ? (
+              <div className="space-y-3 text-xs">
+                <div>
+                  <label className="block font-bold text-on-surface-variant mb-1">WhatsApp Message Summary</label>
+                  <textarea
+                    rows={4}
+                    value={whatsAppText}
+                    onChange={(e) => setWhatsAppText(e.target.value)}
+                    className="w-full bg-surface border border-outline rounded-lg p-2.5 text-xs font-semibold focus:outline-none"
+                    placeholder="Review and edit call summary before sending..."
+                  />
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-2 pt-2">
+                  <button
+                    onClick={() => setIsSkippingSummary(true)}
+                    className="w-full sm:w-1/2 py-2 px-3 border border-outline rounded-lg font-bold text-xs text-on-surface-variant hover:bg-surface-container transition-colors"
+                  >
+                    Skip &amp; Log Reason
+                  </button>
+                  <button
+                    onClick={() => sendWhatsAppMutation.mutate()}
+                    disabled={sendWhatsAppMutation.isPending || !whatsAppText.trim()}
+                    className="w-full sm:w-1/2 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition-colors shadow-sm"
+                  >
+                    {sendWhatsAppMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                    <span>Send Summary</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3 text-xs">
+                <div>
+                  <label className="block font-bold text-red-700 mb-1">
+                    Mandatory Reason for Skipping WhatsApp Summary <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={skipReason}
+                    onChange={(e) => setSkipReason(e.target.value)}
+                    placeholder="e.g. Customer explicitly requested no WhatsApp / Phone number not registered..."
+                    className="w-full bg-surface border border-red-300 rounded-lg p-2.5 text-xs font-semibold focus:outline-none focus:border-red-500"
+                    autoFocus
+                  />
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-2 pt-2">
+                  <button
+                    onClick={() => setIsSkippingSummary(false)}
+                    className="w-full sm:w-1/2 py-2 px-3 border border-outline rounded-lg font-bold text-xs text-on-surface-variant hover:bg-surface-container"
+                  >
+                    ← Back to Send
+                  </button>
+                  <button
+                    onClick={() => skipReason.trim() && skipCallSummaryMutation.mutate(skipReason.trim())}
+                    disabled={!skipReason.trim() || skipCallSummaryMutation.isPending}
+                    className="w-full sm:w-1/2 py-2 px-3 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5"
+                  >
+                    {skipCallSummaryMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                    <span>Confirm &amp; Log Skip</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -110,6 +110,7 @@ export class Lead extends Model {
   public temperatureOverride!: boolean;
   public lastInboundAt!: Date | null;
   public responsivenessScore!: number;
+  public preferredLanguage!: string | null;
 
   // Stage + Next Action Engine & Qualification fields
   public nextAction!: string | null;
@@ -151,6 +152,7 @@ Lead.init(
     temperatureOverride: { type: DataTypes.BOOLEAN, defaultValue: false },
     lastInboundAt: { type: DataTypes.DATE, allowNull: true },
     responsivenessScore: { type: DataTypes.INTEGER, defaultValue: 0 },
+    preferredLanguage: { type: DataTypes.STRING, allowNull: true, defaultValue: "ar" },
     // Stage + Next Action Engine
     nextAction: { type: DataTypes.STRING, allowNull: true, defaultValue: "Reply to Lead" },
     nextActionDue: { type: DataTypes.DATE, allowNull: true },
@@ -618,10 +620,13 @@ Notification.init(
 export class MessageTemplate extends Model {
   public id!: string;
   public name!: string;
-  public channel!: string; // email, sms, in_app
+  public channel!: string; // email, sms, in_app, whatsapp
   public subject!: string;
   public body!: string;
-  public triggerEvent!: string; // e.g. "deal_won", "lead_created"
+  public triggerEvent!: string; // e.g. "deal_won", "lead_created", "call_summary"
+  public twilioContentSid!: string | null;
+  public contentVariables!: string | null;
+  public language!: string | null; // "ar" or "en"
   
   // A/B Testing Fields
   public isAbTest!: boolean;
@@ -643,6 +648,9 @@ MessageTemplate.init(
     subject: { type: DataTypes.STRING, allowNull: true },
     body: { type: DataTypes.TEXT, allowNull: false },
     triggerEvent: { type: DataTypes.STRING, allowNull: true },
+    twilioContentSid: { type: DataTypes.STRING, allowNull: true },
+    contentVariables: { type: DataTypes.TEXT, allowNull: true },
+    language: { type: DataTypes.STRING, allowNull: true, defaultValue: "ar" },
     isAbTest: { type: DataTypes.BOOLEAN, defaultValue: false },
     variantBSubject: { type: DataTypes.STRING, allowNull: true },
     variantBBody: { type: DataTypes.TEXT, allowNull: true },

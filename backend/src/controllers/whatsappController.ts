@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import twilio from "twilio";
 import { sequelize } from "@nexus-crm/database";
-import { sendWhatsAppMessage } from "../services/whatsappService";
+import { sendWhatsAppMessage, sendWhatsAppTemplateMessage } from "../services/whatsappService";
 import { assignLead } from "../services/assignmentEngine";
 import { extractLeadDetailsFromText } from "../services/aiLeadExtraction";
 import { handleInboundActivity } from "../services/leadTemperatureService";
@@ -89,31 +89,28 @@ async function createWhatsAppNotification(
 
 export const sendMessage = async (req: Request, res: Response) => {
   try {
-    const { leadId, customerId, phone, text, mediaUrl } = req.body;
-
-    if (!text) {
-      return res.status(400).json({ error: "Message text is required" });
-    }
+    const { leadId, customerId, phone, text, mediaUrl, contentSid, twilioContentSid, contentVariables, templateId } = req.body;
 
     let targetPhone = phone;
     let targetLeadId = leadId;
     let targetCustomerId = customerId;
+    let leadObj: any = null;
 
     if (leadId) {
-      const lead = await sequelize.models.Lead.findByPk(leadId) as any;
-      if (lead) {
-        if (!targetPhone) targetPhone = lead.whatsappPhone || lead.phone;
+      leadObj = await sequelize.models.Lead.findByPk(leadId) as any;
+      if (leadObj) {
+        if (!targetPhone) targetPhone = leadObj.whatsappPhone || leadObj.phone;
       }
     } else if (phone) {
       // Find lead by phone number if leadId was not explicitly passed
       const cleanTargetDigits = extractDigits(phone).slice(-10);
-      const matchingLead = await sequelize.models.Lead.findOne({
+      leadObj = await sequelize.models.Lead.findOne({
         where: {
           phone: { [Op.like]: `%${cleanTargetDigits}%` }
         }
       }) as any;
-      if (matchingLead) {
-        targetLeadId = matchingLead.id;
+      if (leadObj) {
+        targetLeadId = leadObj.id;
       }
     } else if (customerId) {
       const customer = await sequelize.models.Customer.findByPk(customerId) as any;
@@ -126,7 +123,74 @@ export const sendMessage = async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Phone number or valid leadId/customerId with a phone number is required" });
     }
 
-    const apiResult = await sendWhatsAppMessage(targetPhone, text, mediaUrl);
+    // Determine 24-hour customer service session status (WhatsApp 24h window rule)
+    let lastInbound = leadObj?.lastInboundAt ? new Date(leadObj.lastInboundAt).getTime() : 0;
+    if (!lastInbound && targetCustomerId) {
+      const recentInboundActivity: any = await sequelize.models.Activity.findOne({
+        where: { customerId: targetCustomerId, direction: "inbound" },
+        order: [["createdAt", "DESC"]]
+      });
+      if (recentInboundActivity?.createdAt) {
+        lastInbound = new Date(recentInboundActivity.createdAt).getTime();
+      }
+    }
+    const hasActiveSession = Boolean(lastInbound && (Date.now() - lastInbound) <= 24 * 60 * 60 * 1000);
+
+    let apiResult: any = null;
+    const activeContentSid = contentSid || twilioContentSid;
+
+    if (hasActiveSession && !activeContentSid && !templateId) {
+      // Inside active 24h session: free-text message dispatch is allowed
+      if (!text) {
+        return res.status(400).json({ error: "Message text is required" });
+      }
+      apiResult = await sendWhatsAppMessage(targetPhone, text, mediaUrl);
+    } else {
+      // Outside 24h session window: template compliance path via Twilio Content API
+      let targetSid = activeContentSid;
+      let targetVars = contentVariables;
+
+      if (!targetSid && templateId) {
+        const tmpl = await sequelize.models.MessageTemplate.findByPk(templateId) as any;
+        if (tmpl && tmpl.twilioContentSid) {
+          targetSid = tmpl.twilioContentSid;
+          if (!targetVars && tmpl.contentVariables) targetVars = tmpl.contentVariables;
+        }
+      }
+
+      if (!targetSid) {
+        // Look up default active WhatsApp template matching lead language or default to Arabic ("ar")
+        const leadLang = leadObj?.language || leadObj?.preferredLanguage || "ar";
+        const tmpl = await sequelize.models.MessageTemplate.findOne({
+          where: {
+            channel: "whatsapp",
+            isActive: true,
+            [Op.or]: [{ language: leadLang }, { language: "ar" }]
+          }
+        }) as any;
+
+        if (tmpl && tmpl.twilioContentSid) {
+          targetSid = tmpl.twilioContentSid;
+          if (!targetVars) {
+            targetVars = {
+              "1": leadObj ? `${leadObj.firstName || ""} ${leadObj.lastName || ""}`.trim() || "Valued Customer" : "Valued Customer",
+              "2": text || "Call summary recap",
+              "3": "Please contact your representative if you have any questions."
+            };
+          }
+        }
+      }
+
+      if (!targetSid) {
+        return res.status(400).json({
+          error: "No active 24-hour customer session. WhatsApp Business requires sending via an approved Message Template when outside a 24-hour session window.",
+          requiresTemplate: true,
+          hasActiveSession: false
+        });
+      }
+
+      apiResult = await sendWhatsAppTemplateMessage(targetPhone, targetSid, targetVars);
+    }
 
     let creatorId = (req as any).user?.id;
     if (!creatorId) {
@@ -140,7 +204,7 @@ export const sendMessage = async (req: Request, res: Response) => {
       customerId: targetCustomerId || null,
       createdById: creatorId || null,
       type: "whatsapp_sms",
-      notes: text,
+      notes: text || "WhatsApp Message (Template)",
       outcome: apiResult.simulated ? "sent (simulated)" : "sent",
       mediaUrl: mediaUrl || null,
       direction: "outbound"
@@ -151,6 +215,7 @@ export const sendMessage = async (req: Request, res: Response) => {
       message: "WhatsApp message dispatched successfully",
       apiResult,
       activity,
+      hasActiveSession
     });
   } catch (error: any) {
     console.error("Error sending WhatsApp message:", error);

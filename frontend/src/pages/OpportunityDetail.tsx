@@ -491,17 +491,77 @@ export default function OpportunityDetail() {
               </div>
             </div>
 
-            {/* Timeline Placeholder/List */}
-            <div className="space-y-3 pt-2">
-              <div className="p-3 bg-slate-50 rounded-lg border border-slate-100 text-xs space-y-1">
-                <div className="flex items-center justify-between text-[11px] text-slate-400 font-semibold">
-                  <span>SYSTEM EVENT</span>
-                  <span>{new Date(opp.createdAt).toLocaleDateString()}</span>
+            {/* Handoff History Banner */}
+            {opp.handoff && opp.handoff.length > 0 && (
+              <div className="p-3.5 bg-indigo-50/70 border border-indigo-200 rounded-xl space-y-2 text-xs text-indigo-950">
+                <div className="font-bold flex items-center justify-between">
+                  <span className="flex items-center gap-1.5 text-indigo-900">
+                    <UserCheck className="w-4 h-4 text-indigo-600" />
+                    Lead Handoff History
+                  </span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-200 text-indigo-900">
+                    {opp.handoff.length} Transfer(s)
+                  </span>
                 </div>
-                <div className="text-slate-700 font-medium">
-                  Opportunity created from converted lead enquiry.
-                </div>
+                {opp.handoff.map((h: any, idx: number) => (
+                  <div key={h.id || idx} className="p-2 bg-white/80 rounded-lg border border-indigo-100 text-[11px] space-y-0.5">
+                    <div className="flex items-center justify-between font-semibold text-slate-800">
+                      <span>
+                        Transferred: <strong>{h.oldAssignee?.name || "Junior Rep"}</strong> → <strong>{h.newAssignee?.name || "Senior AE"}</strong>
+                      </span>
+                      <span className="text-[10px] text-slate-400">
+                        {h.createdAt ? new Date(h.createdAt).toLocaleDateString() : ""}
+                      </span>
+                    </div>
+                    {h.reason && <p className="text-slate-600 italic">Reason: "{h.reason}"</p>}
+                  </div>
+                ))}
               </div>
+            )}
+
+            {/* Timeline Activities List */}
+            <div className="space-y-3 pt-2 max-h-[500px] overflow-y-auto pr-1">
+              {opp.timeline && opp.timeline.length > 0 ? (
+                opp.timeline.map((act: any) => {
+                  const type = (act.type || "").toLowerCase();
+                  const Icon = type.includes("call") ? Phone :
+                             type.includes("whatsapp") ? MessageSquare :
+                             type.includes("email") ? Mail :
+                             type.includes("stage") ? RefreshCw : FileText;
+
+                  return (
+                    <div key={act.id} className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1.5">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="font-bold text-slate-700 uppercase flex items-center gap-1.5">
+                          <Icon className="w-3.5 h-3.5 text-blue-600" />
+                          {act.type} {act.direction ? `(${act.direction})` : ""}
+                        </span>
+                        <span className="text-slate-400 font-medium">
+                          {act.createdAt ? new Date(act.createdAt).toLocaleDateString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : ""}
+                        </span>
+                      </div>
+                      <div className="text-slate-800 font-medium whitespace-pre-wrap">
+                        {act.notes || act.outcome || "Activity recorded"}
+                      </div>
+                      {act.createdBy && (
+                        <div className="text-[10px] text-slate-400 font-semibold">
+                          Logged by: {act.createdBy.name || act.createdBy.email}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="p-3 bg-slate-50 rounded-lg border border-slate-100 text-xs space-y-1">
+                  <div className="flex items-center justify-between text-[11px] text-slate-400 font-semibold">
+                    <span>SYSTEM EVENT</span>
+                    <span>{new Date(opp.createdAt).toLocaleDateString()}</span>
+                  </div>
+                  <div className="text-slate-700 font-medium">
+                    Opportunity created from converted lead enquiry.
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

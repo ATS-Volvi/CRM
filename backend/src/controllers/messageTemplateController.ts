@@ -25,15 +25,18 @@ export const getMessageTemplateById = async (req: Request, res: Response) => {
 
 export const createMessageTemplate = async (req: Request, res: Response) => {
   try {
-    const { name, channel, subject, body, triggerEvent } = req.body;
+    const { name, channel, subject, body, triggerEvent, twilioContentSid, contentVariables, language } = req.body;
     const template = await sequelize.models.MessageTemplate.create({
       id: require('crypto').randomUUID(),
       name,
-      channel,
+      channel: channel || "email",
       subject,
       body,
-      triggerEvent
-    });
+      triggerEvent,
+      twilioContentSid: twilioContentSid || null,
+      contentVariables: typeof contentVariables === "object" ? JSON.stringify(contentVariables) : (contentVariables || null),
+      language: language || "ar"
+    } as any);
     res.status(201).json(template);
   } catch (error: any) {
     res.status(500).json({ error: error.message });

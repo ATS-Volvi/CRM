@@ -18,7 +18,10 @@ module.exports = (sequelize, DataTypes) => {
     channel: DataTypes.STRING,
     subject: DataTypes.STRING,
     body: DataTypes.TEXT,
-    triggerEvent: DataTypes.STRING
+    triggerEvent: DataTypes.STRING,
+    twilioContentSid: DataTypes.STRING,
+    contentVariables: DataTypes.TEXT,
+    language: DataTypes.STRING
   }, {
     sequelize,
     modelName: 'MessageTemplate',
