@@ -85,6 +85,12 @@ async function createWhatsAppNotification(
   }
 }
 
+// ─── Rollout Guard ────────────────────────────────────────────────────────────
+// Stub Content SIDs are seeded as placeholders and must NEVER be passed to Twilio.
+// If a rep hits the template-required path while a stub is still in the DB, we
+// return the admin-facing 400 instead of letting Twilio 400 with a cryptic error.
+const STUB_SID_PATTERN = /^HX_.*_stub$/;
+
 // ─── Send Message ─────────────────────────────────────────────────────────────
 
 export const sendMessage = async (req: Request, res: Response) => {
@@ -196,6 +202,16 @@ export const sendMessage = async (req: Request, res: Response) => {
           error: "No active 24-hour customer session. WhatsApp Business requires sending via an approved Message Template when outside a 24-hour session window.",
           requiresTemplate: true,
           hasActiveSession: false
+        });
+      }
+
+      // ── Rollout guard: block stub SIDs from reaching Twilio ───────────────────
+      if (STUB_SID_PATTERN.test(targetSid)) {
+        return res.status(400).json({
+          error: "Template not yet approved — contact your admin to configure the Twilio Content SID via Master Data → Message Templates before this WhatsApp template can be used.",
+          requiresTemplate: true,
+          hasActiveSession: false,
+          stubSid: true
         });
       }
 

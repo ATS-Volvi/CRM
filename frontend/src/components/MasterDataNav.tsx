@@ -1,7 +1,7 @@
 import { Link, useLocation } from "react-router-dom";
 import {
   Package, Tag, Ruler, BookOpen, FileText, CreditCard, Truck, ShieldCheck,
-  LayoutTemplate, UserPlus, GitBranch, Globe, Target, Settings, ChevronRight
+  LayoutTemplate, UserPlus, GitBranch, Globe, Target, Settings, ChevronRight, MessageSquare
 } from "lucide-react";
 
 interface NavGroup {
@@ -41,6 +41,12 @@ const navGroups: NavGroup[] = [
     label: "Performance",
     items: [
       { name: "KPI Master", path: "/master-data/kpis", icon: Target },
+    ],
+  },
+  {
+    label: "Communications",
+    items: [
+      { name: "Message Templates", path: "/master-data/message-templates", icon: MessageSquare, badge: "WhatsApp" },
     ],
   },
   {
@@ -109,6 +115,7 @@ export function MasterDataNav() {
     { name: "Templates", path: "/master-data/quote-templates" },
     { name: "Requirements", path: "/master-data/requirements" },
     { name: "Line Items", path: "/master-data/line-items" },
+    { name: "Msg Templates", path: "/master-data/message-templates" },
   ];
   return (
     <div className="flex items-center gap-1 overflow-x-auto pb-2 border-b border-border mb-6 no-scrollbar">

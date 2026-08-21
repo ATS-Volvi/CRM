@@ -29,6 +29,7 @@ import ConstructionItems from "./pages/master-data/ConstructionItems";
 import Pricing from "./pages/master-data/Pricing";
 import LeadSources from "./pages/master-data/LeadSources";
 import Kpis from "./pages/master-data/Kpis";
+import MessageTemplates from "./pages/master-data/MessageTemplates";
 import LineItemCatalog from "./pages/master-data/LineItemCatalog";
 import Accounts from "./pages/Accounts";
 import Contacts from "./pages/Contacts";
@@ -155,6 +156,7 @@ function App() {
               <Route path="/master-data/quote-templates" element={<QuotationTemplateManager />} />
               <Route path="/master-data/lead-sources" element={<LeadSources />} />
               <Route path="/master-data/kpis" element={<Kpis />} />
+              <Route path="/master-data/message-templates" element={<MessageTemplates />} />
             </Route>
           </Route>
         </Routes>
