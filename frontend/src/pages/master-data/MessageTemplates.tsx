@@ -34,8 +34,8 @@ export default function MessageTemplates() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState<any>(EMPTY_FORM);
 
-  // Access control — matches Settings.tsx pattern
-  const canWrite = ["admin", "director", "manager"].includes((user as any)?.role ?? "");
+  // Access control — matches backend requireAdminOrManager (auth.ts)
+  const canWrite = ["admin", "director", "manager", "sales_manager"].includes((user as any)?.role ?? "");
 
   const { data: templates, isLoading } = useQuery<any[]>({
     queryKey: ["messageTemplates"],
