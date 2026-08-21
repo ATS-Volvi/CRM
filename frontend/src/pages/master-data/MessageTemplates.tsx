@@ -1,7 +1,7 @@
 import { useAuth } from "../../context/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Plus, Edit2, Trash2, Check, X, MessageSquare, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Plus, Edit2, Trash2, Check, X, MessageSquare, AlertTriangle, CheckCircle2, ShieldOff } from "lucide-react";
 import { MasterDataNav } from "../../components/MasterDataNav";
 
 const CHANNEL_OPTIONS = ["email", "sms", "in_app", "whatsapp"];
@@ -28,11 +28,14 @@ const EMPTY_FORM = {
 };
 
 export default function MessageTemplates() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const queryClient = useQueryClient();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState<any>(EMPTY_FORM);
+
+  // Access control — matches Settings.tsx pattern
+  const canWrite = ["admin", "director", "manager"].includes((user as any)?.role ?? "");
 
   const { data: templates, isLoading } = useQuery<any[]>({
     queryKey: ["messageTemplates"],
@@ -84,12 +87,14 @@ export default function MessageTemplates() {
   });
 
   function openNew() {
+    if (!canWrite) return;
     setEditingId(null);
     setFormData(EMPTY_FORM);
     setIsFormOpen(true);
   }
 
   function openEdit(tmpl: any) {
+    if (!canWrite) return;
     setEditingId(tmpl.id);
     setFormData({
       name: tmpl.name ?? "",
@@ -123,13 +128,23 @@ export default function MessageTemplates() {
               Manage email, SMS, WhatsApp Business, and in-app notification templates.
             </p>
           </div>
-          <button
-            onClick={openNew}
-            className="flex items-center gap-2 px-3.5 py-2 bg-primary text-white rounded-xl text-xs font-bold shadow-sm hover:opacity-90 transition-opacity"
-          >
-            <Plus className="w-3.5 h-3.5" /> New Template
-          </button>
+          {canWrite && (
+            <button
+              onClick={openNew}
+              className="flex items-center gap-2 px-3.5 py-2 bg-primary text-white rounded-xl text-xs font-bold shadow-sm hover:opacity-90 transition-opacity"
+            >
+              <Plus className="w-3.5 h-3.5" /> New Template
+            </button>
+          )}
         </div>
+
+        {/* Read-only notice for reps */}
+        {!canWrite && (
+          <div className="flex items-center gap-2.5 p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700">
+            <ShieldOff className="w-4 h-4 text-slate-400 shrink-0" />
+            <span>You have read-only access to this page. Contact an admin to update template settings.</span>
+          </div>
+        )}
 
         {/* WhatsApp Business Templates — Approval Status Banner */}
         {whatsappTemplates.length > 0 && (
@@ -247,24 +262,28 @@ export default function MessageTemplates() {
                         )}
                       </td>
                       <td className="px-4 py-3 flex items-center gap-2 justify-end">
-                        <button
-                          onClick={() => openEdit(tmpl)}
-                          className="p-1.5 rounded-lg hover:bg-surface-container text-on-surface-variant hover:text-on-surface transition-colors"
-                          title="Edit template"
-                        >
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => {
-                            if (confirm(`Delete template "${tmpl.name}"?`)) {
-                              deleteMutation.mutate(tmpl.id);
-                            }
-                          }}
-                          className="p-1.5 rounded-lg hover:bg-red-50 text-on-surface-variant hover:text-red-600 transition-colors"
-                          title="Delete template"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        {canWrite && (
+                          <>
+                            <button
+                              onClick={() => openEdit(tmpl)}
+                              className="p-1.5 rounded-lg hover:bg-surface-container text-on-surface-variant hover:text-on-surface transition-colors"
+                              title="Edit template"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (confirm(`Delete template "${tmpl.name}"?`)) {
+                                  deleteMutation.mutate(tmpl.id);
+                                }
+                              }}
+                              className="p-1.5 rounded-lg hover:bg-red-50 text-on-surface-variant hover:text-red-600 transition-colors"
+                              title="Delete template"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </>
+                        )}
                       </td>
                     </tr>
                   );

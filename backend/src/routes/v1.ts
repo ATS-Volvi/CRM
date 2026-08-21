@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { register, login } from "../controllers/auth";
 import { createPublicLead } from "../controllers/publicLeads";
-import { authMiddleware } from "../middleware/auth";
+import { authMiddleware, requireAdminOrManager } from "../middleware/auth";
 import {
   getPipeline, moveDealStage, createDeal, getDeals, validateTransition,
   getOpportunities, getOpportunityById, createOpportunity, updateOpportunity, moveOpportunityStage
@@ -536,10 +536,11 @@ router.post("/notifications/read-all", authMiddleware, markAllAsRead);
 router.get("/message-templates", authMiddleware, getMessageTemplates);
 router.get("/message-templates/:id", authMiddleware, getMessageTemplateById);
 router.get("/message-templates/:id/ab-test-stats", authMiddleware, getAbTestStats);
-router.post("/message-templates/:id/declare-winner", authMiddleware, declareWinner);
-router.post("/message-templates", authMiddleware, createMessageTemplate);
-router.put("/message-templates/:id", authMiddleware, updateMessageTemplate);
-router.delete("/message-templates/:id", authMiddleware, deleteMessageTemplate);
+// Write operations are restricted to admin / director / manager — reps must not edit Content SIDs
+router.post("/message-templates/:id/declare-winner", authMiddleware, requireAdminOrManager, declareWinner);
+router.post("/message-templates", authMiddleware, requireAdminOrManager, createMessageTemplate);
+router.put("/message-templates/:id", authMiddleware, requireAdminOrManager, updateMessageTemplate);
+router.delete("/message-templates/:id", authMiddleware, requireAdminOrManager, deleteMessageTemplate);
 
 // ==========================================
 // BUNDLE TEMPLATES

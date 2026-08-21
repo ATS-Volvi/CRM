@@ -26,4 +26,17 @@ export const authMiddleware = (req: Request, res: Response, next: NextFunction) 
   }
 };
 
-
+/**
+ * requireAdminOrManager — must be used AFTER authMiddleware.
+ * Permits access only to users with role: admin | director | manager.
+ * Sales reps receive 403 Forbidden.
+ */
+export const requireAdminOrManager = (req: Request, res: Response, next: NextFunction) => {
+  const role: string = (req as any).user?.role ?? "";
+  const ALLOWED_ROLES = ["admin", "director", "manager"];
+  if (!ALLOWED_ROLES.includes(role)) {
+    res.status(403).json({ error: "Forbidden: admin or manager role required" });
+    return;
+  }
+  next();
+};
