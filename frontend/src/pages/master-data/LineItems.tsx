@@ -12,7 +12,7 @@ export default function LineItems() {
   const filterReqId = searchParams.get("requirementId") || "All";
 
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [formData, setFormData] = useState<any>({ name: "", requirementId: "", unit: "nos", description: "", defaultQuantity: 1 });
+  const [formData, setFormData] = useState<any>({ name: "", requirementId: "", unit: "nos", description: "", defaultQuantity: 1, price: "" });
 
   // Fetch all requirements for tabs and selection dropdown
   const { data: requirements } = useQuery<any[]>({
@@ -57,7 +57,7 @@ export default function LineItems() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["lineItemsAll"] });
       setIsFormOpen(false);
-      setFormData({ name: "", requirementId: filterReqId !== "All" ? filterReqId : "", unit: "nos", description: "", defaultQuantity: 1 });
+      setFormData({ name: "", requirementId: filterReqId !== "All" ? filterReqId : "", unit: "nos", description: "", defaultQuantity: 1, price: "" });
     }
   });
 
@@ -76,7 +76,10 @@ export default function LineItems() {
   });
 
   const handleEdit = (item: any) => {
-    setFormData(item);
+    setFormData({
+      ...item,
+      price: item.price !== null && item.price !== undefined ? item.price : ""
+    });
     setIsFormOpen(true);
   };
 
@@ -117,7 +120,8 @@ export default function LineItems() {
                 requirementId: filterReqId !== "All" ? filterReqId : (requirements?.[0]?.id || ""), 
                 unit: "nos", 
                 description: "", 
-                defaultQuantity: 1 
+                defaultQuantity: 1,
+                price: ""
               });
               setIsFormOpen(true);
             }} 
@@ -163,8 +167,8 @@ export default function LineItems() {
         <div className="bg-surface-container-lowest border border-outline rounded-2xl p-6 shadow-sm space-y-4 animate-slide-down">
           <h3 className="text-sm font-bold text-on-surface">{formData.id ? "Edit Line Item" : "Add New Line Item"}</h3>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="md:col-span-2">
               <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Line Item Name</label>
               <input 
                 type="text" 
@@ -211,7 +215,19 @@ export default function LineItems() {
               />
             </div>
 
-            <div className="md:col-span-2">
+            <div>
+              <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Price (Optional)</label>
+              <input 
+                type="number"
+                step="0.01" 
+                value={formData.price ?? ""}
+                onChange={e => setFormData({ ...formData, price: e.target.value })}
+                placeholder="e.g. 150.00"
+                className="w-full bg-surface border border-outline rounded-lg p-2.5 text-xs font-semibold focus:outline-none"
+              />
+            </div>
+
+            <div className="md:col-span-3">
               <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Description</label>
               <textarea 
                 rows={2}
@@ -249,17 +265,18 @@ export default function LineItems() {
               <th className="px-6 py-3.5">Category</th>
               <th className="px-6 py-3.5">Unit</th>
               <th className="px-6 py-3.5 text-center">Default Qty</th>
+              <th className="px-6 py-3.5 text-right">Price</th>
               <th className="px-6 py-3.5 text-right"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-outline-variant/40 text-sm">
             {isLoading ? (
               <tr>
-                <td colSpan={5} className="px-6 py-8 text-center text-xs font-bold text-on-surface-variant italic">Loading line items...</td>
+                <td colSpan={6} className="px-6 py-8 text-center text-xs font-bold text-on-surface-variant italic">Loading line items...</td>
               </tr>
             ) : filteredLineItems?.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-6 py-8 text-center text-xs font-bold text-on-surface-variant italic">No line items defined in this category.</td>
+                <td colSpan={6} className="px-6 py-8 text-center text-xs font-bold text-on-surface-variant italic">No line items defined in this category.</td>
               </tr>
             ) : (
               filteredLineItems?.map((li: any) => (
@@ -278,6 +295,9 @@ export default function LineItems() {
                   <td className="px-6 py-3 font-semibold text-on-surface-variant text-xs">{li.requirement?.name || "—"}</td>
                   <td className="px-6 py-3 text-on-surface-variant text-xs font-medium">{li.unit}</td>
                   <td className="px-6 py-3 text-center text-on-surface font-semibold">{li.defaultQuantity}</td>
+                  <td className="px-6 py-3 text-right text-on-surface font-semibold text-xs">
+                    {li.price !== null && li.price !== undefined && li.price !== "" ? `₹${Number(li.price).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
+                  </td>
                   <td className="px-6 py-3 text-right">
                     <div className="flex gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
                       <button 

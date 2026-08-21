@@ -138,14 +138,15 @@ export const getLineItems = async (req: Request, res: Response) => {
 
 export const createLineItem = async (req: Request, res: Response) => {
   try {
-    const { requirementId, name, unit, description, defaultQuantity } = req.body;
+    const { requirementId, name, unit, description, defaultQuantity, price } = req.body;
     const item = await LineItem.create({
       id: crypto.randomUUID(),
       requirementId,
       name,
       unit,
       description,
-      defaultQuantity: defaultQuantity || 1
+      defaultQuantity: defaultQuantity || 1,
+      price: price !== undefined && price !== null && price !== "" ? Number(price) : null
     });
     res.status(201).json(item);
   } catch (error: any) {
@@ -158,7 +159,12 @@ export const updateLineItem = async (req: Request, res: Response) => {
     const { id } = req.params;
     const item = await LineItem.findByPk(String(id));
     if (!item) return res.status(404).json({ error: "Line Item not found" });
-    await item.update(req.body);
+    const { price } = req.body;
+    const updateData = { ...req.body };
+    if (price !== undefined) {
+      updateData.price = price !== null && price !== "" ? Number(price) : null;
+    }
+    await item.update(updateData);
     res.json(item);
   } catch (error: any) {
     res.status(500).json({ error: error.message });

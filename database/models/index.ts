@@ -887,6 +887,8 @@ export class LineItem extends Model {
   public unit!: string;
   public description!: string | null;
   public defaultQuantity!: number;
+  // Independent flat price field for rough scoping, separate from ConstructionItem rollup calculation
+  public price!: number | null;
 }
 
 LineItem.init(
@@ -896,7 +898,9 @@ LineItem.init(
     name: { type: DataTypes.STRING, allowNull: false },
     unit: { type: DataTypes.STRING, allowNull: false },
     description: { type: DataTypes.TEXT, allowNull: true },
-    defaultQuantity: { type: DataTypes.DECIMAL(10, 2), defaultValue: 1.00 }
+    defaultQuantity: { type: DataTypes.DECIMAL(10, 2), defaultValue: 1.00 },
+    // Independent flat price field for rough scoping, separate from ConstructionItem rollup calculation
+    price: { type: DataTypes.DECIMAL(12, 2), allowNull: true, defaultValue: null }
   },
   { sequelize, modelName: "LineItem" }
 );
