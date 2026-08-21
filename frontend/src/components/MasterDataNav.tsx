@@ -106,14 +106,9 @@ export function MasterDataNav() {
   const location = useLocation();
   const compactTabs = [
     { name: "Catalog", path: "/master-data/catalog" },
+    { name: "Templates", path: "/master-data/quote-templates" },
     { name: "Requirements", path: "/master-data/requirements" },
     { name: "Line Items", path: "/master-data/line-items" },
-    { name: "Construction", path: "/master-data/construction-items" },
-    { name: "Pricing Grid", path: "/master-data/pricing" },
-    { name: "Templates", path: "/master-data/quote-templates" },
-    { name: "Lead Sources", path: "/master-data/lead-sources" },
-    { name: "KPI Master", path: "/master-data/kpis" },
-    { name: "Price Lists", path: "/price-book" },
   ];
   return (
     <div className="flex items-center gap-1 overflow-x-auto pb-2 border-b border-border mb-6 no-scrollbar">
