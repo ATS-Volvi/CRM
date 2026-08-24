@@ -645,10 +645,10 @@ export function HotLeadsWidget({
   onRemove?: () => void;
 }) {
   const displayLeads = leads.length > 0 ? leads.slice(0, 4) : [
-    { id: "h1", name: "Manoj Singh", company: "Reliance Retail", amount: 2400000, status: "Qualified" },
-    { id: "h2", name: "Neha Kapoor", company: "Britannia Ind.", amount: 1800000, status: "Proposal" },
-    { id: "h3", name: "Arjun Patel", company: "Bajaj Auto", amount: 3200000, status: "Negotiation" },
-    { id: "h4", name: "Kavya Sharma", company: "ITC Limited", amount: 950000, status: "Qualified" },
+    { id: "h1", name: "Manoj Singh", company: "Reliance Retail", amount: 2400000, status: "QUALIFIED" },
+    { id: "h2", name: "Neha Kapoor", company: "Britannia Ind.", amount: 1800000, status: "QUALIFIED" },
+    { id: "h3", name: "Arjun Patel", company: "Bajaj Auto", amount: 3200000, status: "CONTACTED" },
+    { id: "h4", name: "Kavya Sharma", company: "ITC Limited", amount: 950000, status: "NEW" },
   ];
 
   return (

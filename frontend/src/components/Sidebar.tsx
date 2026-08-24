@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { 
   LayoutDashboard, Home, Inbox, Trello, FileText, Receipt, 
   Users, BarChart, Settings, Clock, ChevronLeft, 
-  ChevronRight, MessageSquare, CheckSquare, Search, Bell, Sparkles, LogOut, ChevronDown, Layers, Package, Building2, LifeBuoy
+  ChevronRight, MessageSquare, CheckSquare, Search, Bell, Sparkles, LogOut, ChevronDown, Layers, Package, Building2, LifeBuoy, Target
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
@@ -64,11 +64,13 @@ export function Sidebar({
       category: "Operations",
       icon: Users,
       items: [
+        { label: "Leads", path: "/leads", icon: Users },
+        { label: "Opportunities", path: "/opportunities", icon: Target },
+        { label: "Sales & Pipeline", path: "/pipeline", icon: Trello },
         { label: "Accounts", path: "/accounts", icon: Building2 },
         { label: "Contacts", path: "/contacts", icon: Users },
         { label: "Asset Tracking", path: "/assets", icon: Package },
         { label: "Support Tickets", path: "/tickets", icon: LifeBuoy },
-        { label: "Sales & Pipeline", path: "/pipeline", icon: Trello },
         { label: "Quotations", path: "/quotes", icon: FileText },
         ...(isAdminOrManager ? [{ label: "Invoices", path: "/invoices", icon: Receipt }] : []),
       ]

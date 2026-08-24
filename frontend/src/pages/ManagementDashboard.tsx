@@ -164,10 +164,10 @@ export default function ManagementDashboard() {
                 </div>
                 <div className="flex flex-col gap-1 pl-16 border-l-2 border-outline-variant">
                   <div className="flex justify-between items-center text-[12px] font-semibold mb-1">
-                    <span>310 Proposal</span>
+                    <span>310 Quote Preparation</span>
                     <span className="text-primary">25%</span>
                   </div>
-                  <div className="h-10 bg-primary-container/60 rounded-lg w-[65%] flex items-center px-4 text-on-primary-container font-bold text-sm">Negotiation</div>
+                  <div className="h-10 bg-primary-container/60 rounded-lg w-[65%] flex items-center px-4 text-on-primary-container font-bold text-sm">Quote Sent / Negotiation</div>
                 </div>
                 <div className="flex flex-col gap-1 pl-24 border-l-2 border-outline-variant">
                   <div className="flex justify-between items-center text-[12px] font-semibold mb-1">
@@ -296,8 +296,8 @@ export default function ManagementDashboard() {
                   <h5 className="font-bold text-sm text-slate-100 mb-1">Stalled Deal Audit</h5>
                   <p className="text-xs text-slate-400">Total pipeline value stands at {formatCurrencyCompact(kpi?.totalPipelineValue || 0)} with {kpi?.activeDealsCount || 0} active deals in negotiation.</p>
                 </div>
-                <Link to="/quotes" className="mt-4 text-xs font-bold text-primary-fixed-dim hover:underline flex items-center gap-1">
-                  Audit Open Proposals &rarr;
+                <Link to="/opportunities" className="mt-4 text-xs font-bold text-emerald-400 hover:underline flex items-center gap-1">
+                  Audit Commercial Pipeline &rarr;
                 </Link>
               </div>
             </div>

@@ -12,22 +12,22 @@ export default function AssignmentRules() {
   const { token } = useAuth();
   const queryClient = useQueryClient();
 
-  const [activeTab, setActiveTab] = useState<"distribution" | "profiles" | "policy" | "audits" | "automations">("distribution");
+  const [activeTab, setActiveTab] = useState<"lead-policy" | "opportunity-policy" | "distribution" | "profiles" | "audits" | "automations">("lead-policy");
   const [showAddRuleModal, setShowAddRuleModal] = useState(false);
   const [showAddAutomationModal, setShowAddAutomationModal] = useState(false);
   const [newRule, setNewRule] = useState({ name: "", description: "", ruleType: "round-robin", criteria: "All Leads", action: "" });
   const [newAutomation, setNewAutomation] = useState({
     name: "",
-    stageName: "Proposal",
+    stageName: "Quote Preparation",
     actionType: "create_task",
-    taskTitle: "Follow-up proposal parameters",
+    taskTitle: "Follow-up quote parameters",
     dueDays: 2
   });
   const [fallbackUser, setFallbackUser] = useState("Sales Ops Manager");
   const [selectedAudit, setSelectedAudit] = useState<any>(null);
 
-  // Policy Weights State
-  const [policyForm, setPolicyForm] = useState<any>({
+  // Lead Policy Weights State
+  const [leadPolicyForm, setLeadPolicyForm] = useState<any>({
     conversionRate: 0.20,
     industrySkill: 0.20,
     territoryMatch: 0.10,
@@ -43,6 +43,20 @@ export default function AssignmentRules() {
     bayesianWeight: 3,
     isPerformanceRoutingEnabled: true
   });
+
+  // Opportunity Closer Policy Weights & Fallback State
+  const [oppPolicyForm, setOppPolicyForm] = useState<any>({
+    opportunityWinRate: 0.25,
+    averageDealSize: 0.15,
+    revenueWon: 0.15,
+    industrySpecialization: 0.15,
+    experienceTier: 0.10,
+    territoryMatch: 0.10,
+    workloadCapacity: 0.05,
+    fairnessDistribution: 0.05,
+    fallbackCloserAction: "keep_lead_rep"
+  });
+
   const [policySuccessMsg, setPolicySuccessMsg] = useState("");
 
   // 1. Fetch Assignment Policy
@@ -54,15 +68,26 @@ export default function AssignmentRules() {
       });
       if (!res.ok) return null;
       const data = await res.json();
-      if (data && data.weights) {
-        const parsedWeights = typeof data.weights === "string" ? JSON.parse(data.weights) : data.weights;
-        setPolicyForm({
-          ...parsedWeights,
-          highValueThreshold: data.highValueThreshold ?? 10000000,
-          bayesianPrior: data.bayesianPrior ?? 0.25,
-          bayesianWeight: data.bayesianWeight ?? 3,
-          isPerformanceRoutingEnabled: data.isPerformanceRoutingEnabled ?? true
-        });
+      if (data) {
+        if (data.weights) {
+          const parsedWeights = typeof data.weights === "string" ? JSON.parse(data.weights) : data.weights;
+          setLeadPolicyForm((prev: any) => ({
+            ...prev,
+            ...parsedWeights,
+            highValueThreshold: data.highValueThreshold ?? 10000000,
+            bayesianPrior: data.bayesianPrior ?? 0.25,
+            bayesianWeight: data.bayesianWeight ?? 3,
+            isPerformanceRoutingEnabled: data.isPerformanceRoutingEnabled ?? true
+          }));
+        }
+        if (data.opportunityWeights) {
+          const parsedOpp = typeof data.opportunityWeights === "string" ? JSON.parse(data.opportunityWeights) : data.opportunityWeights;
+          setOppPolicyForm((prev: any) => ({
+            ...prev,
+            ...parsedOpp,
+            fallbackCloserAction: data.fallbackCloserAction || "keep_lead_rep"
+          }));
+        }
       }
       return data;
     }
@@ -80,10 +105,11 @@ export default function AssignmentRules() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["salesAssignmentPolicy"] });
-      setPolicySuccessMsg("Assignment Policy weights & thresholds saved successfully!");
+      setPolicySuccessMsg("Assignment Policy weights & rules saved successfully!");
       setTimeout(() => setPolicySuccessMsg(""), 4000);
     }
   });
+
 
   // 2. Fetch Rep Performance Profiles
   const { data: repProfiles = [], isLoading: isLoadingProfiles, refetch: refetchProfiles } = useQuery<any[]>({
@@ -134,7 +160,7 @@ export default function AssignmentRules() {
     onSuccess: () => {
       refetchAutomations();
       setShowAddAutomationModal(false);
-      setNewAutomation({ name: "", stageName: "Proposal", actionType: "create_task", taskTitle: "Follow-up proposal parameters", dueDays: 2 });
+      setNewAutomation({ name: "", stageName: "Quote Preparation", actionType: "create_task", taskTitle: "Follow-up quote parameters", dueDays: 2 });
     }
   });
 
@@ -223,24 +249,40 @@ export default function AssignmentRules() {
     }
   });
 
-  const handleSavePolicyWeights = () => {
+  const handleSaveLeadPolicy = () => {
     updatePolicyMutation.mutate({
-      weights: {
-        conversionRate: Number(policyForm.conversionRate),
-        industrySkill: Number(policyForm.industrySkill),
-        territoryMatch: Number(policyForm.territoryMatch),
-        revenuePerformance: Number(policyForm.revenuePerformance),
-        experienceTier: Number(policyForm.experienceTier),
-        responseTime: Number(policyForm.responseTime),
-        slaCompliance: Number(policyForm.slaCompliance),
-        workloadCapacity: Number(policyForm.workloadCapacity),
-        fairnessDistribution: Number(policyForm.fairnessDistribution),
-        managerRating: Number(policyForm.managerRating)
+      leadWeights: {
+        conversionRate: Number(leadPolicyForm.conversionRate),
+        industrySkill: Number(leadPolicyForm.industrySkill),
+        territoryMatch: Number(leadPolicyForm.territoryMatch),
+        revenuePerformance: Number(leadPolicyForm.revenuePerformance),
+        experienceTier: Number(leadPolicyForm.experienceTier),
+        responseTime: Number(leadPolicyForm.responseTime),
+        slaCompliance: Number(leadPolicyForm.slaCompliance),
+        workloadCapacity: Number(leadPolicyForm.workloadCapacity),
+        fairnessDistribution: Number(leadPolicyForm.fairnessDistribution),
+        managerRating: Number(leadPolicyForm.managerRating)
       },
-      highValueThreshold: Number(policyForm.highValueThreshold),
-      bayesianPrior: Number(policyForm.bayesianPrior),
-      bayesianWeight: Number(policyForm.bayesianWeight),
-      isPerformanceRoutingEnabled: Boolean(policyForm.isPerformanceRoutingEnabled)
+      highValueThreshold: Number(leadPolicyForm.highValueThreshold),
+      bayesianPrior: Number(leadPolicyForm.bayesianPrior),
+      bayesianWeight: Number(leadPolicyForm.bayesianWeight),
+      isPerformanceRoutingEnabled: Boolean(leadPolicyForm.isPerformanceRoutingEnabled)
+    });
+  };
+
+  const handleSaveOppPolicy = () => {
+    updatePolicyMutation.mutate({
+      opportunityWeights: {
+        opportunityWinRate: Number(oppPolicyForm.opportunityWinRate),
+        averageDealSize: Number(oppPolicyForm.averageDealSize),
+        revenueWon: Number(oppPolicyForm.revenueWon),
+        industrySpecialization: Number(oppPolicyForm.industrySpecialization),
+        experienceTier: Number(oppPolicyForm.experienceTier),
+        territoryMatch: Number(oppPolicyForm.territoryMatch),
+        workloadCapacity: Number(oppPolicyForm.workloadCapacity),
+        fairnessDistribution: Number(oppPolicyForm.fairnessDistribution)
+      },
+      fallbackCloserAction: oppPolicyForm.fallbackCloserAction
     });
   };
 
@@ -274,10 +316,26 @@ export default function AssignmentRules() {
       {/* Top Bar Shell */}
       <header className="h-16 flex justify-between items-center px-8 bg-white border-b border-slate-200/80 sticky top-0 z-40 shadow-2xs flex-wrap gap-3">
         <div className="flex items-center gap-4 flex-wrap">
-          <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200">
+          <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200 flex-wrap">
+            <button
+              onClick={() => setActiveTab("lead-policy")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                activeTab === "lead-policy" ? "bg-[#2563EB] text-white shadow-2xs" : "text-slate-500 hover:text-slate-900"
+              }`}
+            >
+              <Zap className="w-3.5 h-3.5" /> 1. Lead Assignment Policy
+            </button>
+            <button
+              onClick={() => setActiveTab("opportunity-policy")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                activeTab === "opportunity-policy" ? "bg-[#2563EB] text-white shadow-2xs" : "text-slate-500 hover:text-slate-900"
+              }`}
+            >
+              <Award className="w-3.5 h-3.5" /> 2. Opportunity Closer Policy
+            </button>
             <button
               onClick={() => setActiveTab("distribution")}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                 activeTab === "distribution" ? "bg-[#2563EB] text-white shadow-2xs" : "text-slate-500 hover:text-slate-900"
               }`}
             >
@@ -285,35 +343,27 @@ export default function AssignmentRules() {
             </button>
             <button
               onClick={() => setActiveTab("profiles")}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
                 activeTab === "profiles" ? "bg-[#2563EB] text-white shadow-2xs" : "text-slate-500 hover:text-slate-900"
               }`}
             >
-              <Sparkles className="w-3.5 h-3.5" /> Rep Performance & Fit Scores ({repProfiles.length})
-            </button>
-            <button
-              onClick={() => setActiveTab("policy")}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                activeTab === "policy" ? "bg-[#2563EB] text-white shadow-2xs" : "text-slate-500 hover:text-slate-900"
-              }`}
-            >
-              <Sliders className="w-3.5 h-3.5" /> Engine Weights & Policy
+              <Sparkles className="w-3.5 h-3.5" /> Rep Profiles ({repProfiles.length})
             </button>
             <button
               onClick={() => setActiveTab("audits")}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
                 activeTab === "audits" ? "bg-[#2563EB] text-white shadow-2xs" : "text-slate-500 hover:text-slate-900"
               }`}
             >
-              <History className="w-3.5 h-3.5" /> Assignment Audit Trail ({assignmentAudits.length})
+              <History className="w-3.5 h-3.5" /> Audit Trail ({assignmentAudits.length})
             </button>
             <button
               onClick={() => setActiveTab("automations")}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                 activeTab === "automations" ? "bg-[#2563EB] text-white shadow-2xs" : "text-slate-500 hover:text-slate-900"
               }`}
             >
-              Stage Automations ({automations.length})
+              Automations ({automations.length})
             </button>
           </div>
 
@@ -542,17 +592,17 @@ export default function AssignmentRules() {
           </div>
         )}
 
-        {/* TAB 3: ENGINE WEIGHTS & POLICY */}
-        {activeTab === "policy" && (
+        {/* TAB: LEAD ASSIGNMENT POLICY */}
+        {activeTab === "lead-policy" && (
           <div className="space-y-6 max-w-4xl">
             <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-2xs">
               <div className="flex justify-between items-center">
                 <div>
                   <h3 className="text-lg font-bold text-[#191B23] flex items-center gap-2">
-                    <Sliders className="w-5 h-5 text-[#2563EB]" /> Performance-Aware Routing Weights & Policy
+                    <Zap className="w-5 h-5 text-[#2563EB]" /> Lead Qualification & Response Policy
                   </h3>
                   <p className="text-xs text-slate-500 mt-1">
-                    Configure factor weights for the Rep Suitability Scoring Model (total should sum to 100%).
+                    Routes incoming raw leads to the best qualification / response sales representative based on speed, qualification rate, and capacity.
                   </p>
                 </div>
                 {policySuccessMsg && (
@@ -564,83 +614,31 @@ export default function AssignmentRules() {
             </div>
 
             <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-2xs space-y-6">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">Scoring Factor Weights (%)</h4>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">Lead Scoring Factor Weights (Total 100%)</h4>
 
               <div className="grid grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Conversion Performance (Default: 20%)</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Qualification / Conversion Performance (Default: 20%)</label>
                   <input
                     type="number"
                     step="0.01"
                     min="0"
                     max="1"
-                    value={policyForm.conversionRate}
-                    onChange={(e) => setPolicyForm({ ...policyForm, conversionRate: parseFloat(e.target.value) })}
+                    value={leadPolicyForm.conversionRate}
+                    onChange={(e) => setLeadPolicyForm({ ...leadPolicyForm, conversionRate: parseFloat(e.target.value) })}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-900"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Industry / Skill Match (Default: 20%)</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Industry / Inbound Skill Match (Default: 20%)</label>
                   <input
                     type="number"
                     step="0.01"
                     min="0"
                     max="1"
-                    value={policyForm.industrySkill}
-                    onChange={(e) => setPolicyForm({ ...policyForm, industrySkill: parseFloat(e.target.value) })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-900"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Territory Match (Default: 10%)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max="1"
-                    value={policyForm.territoryMatch}
-                    onChange={(e) => setPolicyForm({ ...policyForm, territoryMatch: parseFloat(e.target.value) })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-900"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Revenue Performance (Default: 10%)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max="1"
-                    value={policyForm.revenuePerformance}
-                    onChange={(e) => setPolicyForm({ ...policyForm, revenuePerformance: parseFloat(e.target.value) })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-900"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Experience Tier (Default: 10%)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max="1"
-                    value={policyForm.experienceTier}
-                    onChange={(e) => setPolicyForm({ ...policyForm, experienceTier: parseFloat(e.target.value) })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-900"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Workload / Capacity (Default: 10%)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max="1"
-                    value={policyForm.workloadCapacity}
-                    onChange={(e) => setPolicyForm({ ...policyForm, workloadCapacity: parseFloat(e.target.value) })}
+                    value={leadPolicyForm.industrySkill}
+                    onChange={(e) => setLeadPolicyForm({ ...leadPolicyForm, industrySkill: parseFloat(e.target.value) })}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-900"
                   />
                 </div>
@@ -652,21 +650,73 @@ export default function AssignmentRules() {
                     step="0.01"
                     min="0"
                     max="1"
-                    value={policyForm.responseTime}
-                    onChange={(e) => setPolicyForm({ ...policyForm, responseTime: parseFloat(e.target.value) })}
+                    value={leadPolicyForm.responseTime}
+                    onChange={(e) => setLeadPolicyForm({ ...leadPolicyForm, responseTime: parseFloat(e.target.value) })}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-900"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Fairness / Distribution (Default: 5%)</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">SLA Compliance Rate (Default: 5%)</label>
                   <input
                     type="number"
                     step="0.01"
                     min="0"
                     max="1"
-                    value={policyForm.fairnessDistribution}
-                    onChange={(e) => setPolicyForm({ ...policyForm, fairnessDistribution: parseFloat(e.target.value) })}
+                    value={leadPolicyForm.slaCompliance}
+                    onChange={(e) => setLeadPolicyForm({ ...leadPolicyForm, slaCompliance: parseFloat(e.target.value) })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Territory Match (Default: 10%)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="1"
+                    value={leadPolicyForm.territoryMatch}
+                    onChange={(e) => setLeadPolicyForm({ ...leadPolicyForm, territoryMatch: parseFloat(e.target.value) })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Workload / Capacity Available (Default: 10%)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="1"
+                    value={leadPolicyForm.workloadCapacity}
+                    onChange={(e) => setLeadPolicyForm({ ...leadPolicyForm, workloadCapacity: parseFloat(e.target.value) })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Fairness / Recent Lead Distribution (Default: 5%)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="1"
+                    value={leadPolicyForm.fairnessDistribution}
+                    onChange={(e) => setLeadPolicyForm({ ...leadPolicyForm, fairnessDistribution: parseFloat(e.target.value) })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Manager Rating (Default: 5%)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="1"
+                    value={leadPolicyForm.managerRating}
+                    onChange={(e) => setLeadPolicyForm({ ...leadPolicyForm, managerRating: parseFloat(e.target.value) })}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-900"
                   />
                 </div>
@@ -674,21 +724,191 @@ export default function AssignmentRules() {
 
               <div className="pt-4 border-t border-slate-100 flex justify-between items-center">
                 <div>
-                  <span className="text-xs font-bold text-slate-600 block">High-Value Lead Threshold (₹ / SAR)</span>
+                  <span className="text-xs font-bold text-slate-600 block">High-Value Lead Escalation Threshold (₹ / SAR)</span>
                   <input
                     type="number"
-                    value={policyForm.highValueThreshold}
-                    onChange={(e) => setPolicyForm({ ...policyForm, highValueThreshold: parseFloat(e.target.value) })}
+                    value={leadPolicyForm.highValueThreshold}
+                    onChange={(e) => setLeadPolicyForm({ ...leadPolicyForm, highValueThreshold: parseFloat(e.target.value) })}
                     className="mt-1 bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs font-bold text-slate-900 w-48"
                   />
                 </div>
 
                 <button
-                  onClick={handleSavePolicyWeights}
+                  onClick={handleSaveLeadPolicy}
                   disabled={updatePolicyMutation.isPending}
                   className="bg-[#2563EB] hover:bg-blue-700 text-white font-bold text-xs px-6 py-3 rounded-xl transition-all shadow-2xs flex items-center gap-2 cursor-pointer"
                 >
-                  <Save className="w-4 h-4" /> Save Engine Weights
+                  <Save className="w-4 h-4" /> Save Lead Policy
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB: OPPORTUNITY CLOSER POLICY */}
+        {activeTab === "opportunity-policy" && (
+          <div className="space-y-6 max-w-4xl">
+            <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-2xs">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h3 className="text-lg font-bold text-[#191B23] flex items-center gap-2">
+                    <Award className="w-5 h-5 text-indigo-600" /> Opportunity Closer Policy & Fallback Rules
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Routes converted commercial opportunities to the best closing account executive based on win rate, deal size experience, and closing record.
+                  </p>
+                </div>
+                {policySuccessMsg && (
+                  <span className="text-xs font-bold text-green-700 bg-green-50 border border-green-200 px-3 py-1.5 rounded-lg">
+                    {policySuccessMsg}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-2xs space-y-6">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">Opportunity Closer Factor Weights (Total 100%)</h4>
+
+              <div className="grid grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Opportunity Win Rate (Default: 25%)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="1"
+                    value={oppPolicyForm.opportunityWinRate}
+                    onChange={(e) => setOppPolicyForm({ ...oppPolicyForm, opportunityWinRate: parseFloat(e.target.value) })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Average Deal Size Match (Default: 15%)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="1"
+                    value={oppPolicyForm.averageDealSize}
+                    onChange={(e) => setOppPolicyForm({ ...oppPolicyForm, averageDealSize: parseFloat(e.target.value) })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Revenue Won History (Default: 15%)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="1"
+                    value={oppPolicyForm.revenueWon}
+                    onChange={(e) => setOppPolicyForm({ ...oppPolicyForm, revenueWon: parseFloat(e.target.value) })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Industry Specialization (Default: 15%)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="1"
+                    value={oppPolicyForm.industrySpecialization}
+                    onChange={(e) => setOppPolicyForm({ ...oppPolicyForm, industrySpecialization: parseFloat(e.target.value) })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Closing Experience Tier (Default: 10%)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="1"
+                    value={oppPolicyForm.experienceTier}
+                    onChange={(e) => setOppPolicyForm({ ...oppPolicyForm, experienceTier: parseFloat(e.target.value) })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Territory Match (Default: 10%)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="1"
+                    value={oppPolicyForm.territoryMatch}
+                    onChange={(e) => setOppPolicyForm({ ...oppPolicyForm, territoryMatch: parseFloat(e.target.value) })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Workload / Open Deals Capacity (Default: 5%)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="1"
+                    value={oppPolicyForm.workloadCapacity}
+                    onChange={(e) => setOppPolicyForm({ ...oppPolicyForm, workloadCapacity: parseFloat(e.target.value) })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Fairness / Pipeline Value Distribution (Default: 5%)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="1"
+                    value={oppPolicyForm.fairnessDistribution}
+                    onChange={(e) => setOppPolicyForm({ ...oppPolicyForm, fairnessDistribution: parseFloat(e.target.value) })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-900"
+                  />
+                </div>
+              </div>
+
+              {/* Fallback Closer Policy Configuration */}
+              <div className="pt-4 border-t border-slate-100 space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">Fallback Policy (When no closer is available or eligible)</h4>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {[
+                    { id: "keep_lead_rep", label: "Keep Qualifying Rep", desc: "Retain the original lead representative" },
+                    { id: "assign_team_lead", label: "Assign Team Lead", desc: "Route to the sales team lead" },
+                    { id: "assign_manager", label: "Assign Manager", desc: "Route to Sales Operations Manager" },
+                    { id: "unassigned_pool", label: "Unassigned Pool", desc: "Leave unassigned with urgent manager alert" }
+                  ].map(opt => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setOppPolicyForm({ ...oppPolicyForm, fallbackCloserAction: opt.id })}
+                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                        oppPolicyForm.fallbackCloserAction === opt.id
+                          ? "bg-indigo-50 border-indigo-500 text-indigo-950 ring-1 ring-indigo-500"
+                          : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
+                      }`}
+                    >
+                      <div className="font-bold text-xs">{opt.label}</div>
+                      <div className="text-[11px] text-slate-500 mt-0.5">{opt.desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-slate-100 flex justify-end">
+                <button
+                  onClick={handleSaveOppPolicy}
+                  disabled={updatePolicyMutation.isPending}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-6 py-3 rounded-xl transition-all shadow-2xs flex items-center gap-2 cursor-pointer"
+                >
+                  <Save className="w-4 h-4" /> Save Opportunity Policy
                 </button>
               </div>
             </div>
@@ -926,10 +1146,15 @@ export default function AssignmentRules() {
                   onChange={(e) => setNewAutomation({ ...newAutomation, stageName: e.target.value })}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-semibold outline-none"
                 >
-                  <option value="Proposal">Proposal</option>
-                  <option value="Qualified">Qualified</option>
+                  <option value="Discovery">Discovery</option>
+                  <option value="Requirements">Requirements</option>
+                  <option value="Solution/Scope">Solution/Scope</option>
+                  <option value="Quote Preparation">Quote Preparation</option>
+                  <option value="Quote Sent">Quote Sent</option>
                   <option value="Negotiation">Negotiation</option>
-                  <option value="Contract Sent">Contract Sent</option>
+                  <option value="Agreed">Agreed</option>
+                  <option value="Won">Won</option>
+                  <option value="Lost">Lost</option>
                 </select>
               </div>
             </div>

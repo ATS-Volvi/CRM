@@ -6,17 +6,49 @@ import { createNotification } from "../services/notificationService";
 
 export const getAssignmentPolicy = async (req: Request, res: Response) => {
   try {
-    let policy: any = await sequelize.models.SalesAssignmentPolicy.findOne({
+    const { SalesAssignmentPolicy, WorkspaceSetting } = sequelize.models;
+    let policy: any = await SalesAssignmentPolicy.findOne({
       order: [["createdAt", "DESC"]]
     });
 
     if (!policy) {
-      policy = await sequelize.models.SalesAssignmentPolicy.create({
+      policy = await SalesAssignmentPolicy.create({
         id: require("crypto").randomUUID()
       });
     }
 
-    res.json(policy);
+    const policyJson = policy.toJSON ? policy.toJSON() : { ...policy };
+
+    // Fetch opportunity closer fallback setting if present
+    let fallbackCloserAction = "keep_lead_rep";
+    let opportunityWeights = {
+      opportunityWinRate: 0.25,
+      averageDealSize: 0.15,
+      revenueWon: 0.15,
+      industrySpecialization: 0.15,
+      experienceTier: 0.10,
+      territoryMatch: 0.10,
+      workloadCapacity: 0.05,
+      fairnessDistribution: 0.05
+    };
+
+    if (WorkspaceSetting) {
+      const fallbackSetting: any = await WorkspaceSetting.findOne({ where: { key: "opportunity_closer_fallback" } });
+      if (fallbackSetting && fallbackSetting.value) {
+        fallbackCloserAction = fallbackSetting.value;
+      }
+      const oppWeightsSetting: any = await WorkspaceSetting.findOne({ where: { key: "opportunity_assignment_weights" } });
+      if (oppWeightsSetting && oppWeightsSetting.value) {
+        try {
+          opportunityWeights = JSON.parse(oppWeightsSetting.value);
+        } catch (e) {}
+      }
+    }
+
+    policyJson.fallbackCloserAction = fallbackCloserAction;
+    policyJson.opportunityWeights = opportunityWeights;
+
+    res.json(policyJson);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -26,6 +58,9 @@ export const updateAssignmentPolicy = async (req: Request, res: Response) => {
   try {
     const {
       weights,
+      leadWeights,
+      opportunityWeights,
+      fallbackCloserAction,
       highValueThreshold,
       strategicLeadScoreThreshold,
       minSampleSize,
@@ -35,12 +70,16 @@ export const updateAssignmentPolicy = async (req: Request, res: Response) => {
       isPerformanceRoutingEnabled
     } = req.body;
 
-    let policy: any = await sequelize.models.SalesAssignmentPolicy.findOne({
+    const { SalesAssignmentPolicy, WorkspaceSetting } = sequelize.models;
+
+    let policy: any = await SalesAssignmentPolicy.findOne({
       order: [["createdAt", "DESC"]]
     });
 
-    const payload = {
-      weights: typeof weights === "object" ? JSON.stringify(weights) : weights,
+    const activeLeadWeights = leadWeights || weights;
+
+    const payload: any = {
+      weights: typeof activeLeadWeights === "object" ? JSON.stringify(activeLeadWeights) : activeLeadWeights,
       highValueThreshold: highValueThreshold !== undefined ? Number(highValueThreshold) : undefined,
       strategicLeadScoreThreshold: strategicLeadScoreThreshold !== undefined ? Number(strategicLeadScoreThreshold) : undefined,
       minSampleSize: minSampleSize !== undefined ? Number(minSampleSize) : undefined,
@@ -56,7 +95,7 @@ export const updateAssignmentPolicy = async (req: Request, res: Response) => {
     Object.keys(payload).forEach(key => (payload as any)[key] === undefined && delete (payload as any)[key]);
 
     if (!policy) {
-      policy = await sequelize.models.SalesAssignmentPolicy.create({
+      policy = await SalesAssignmentPolicy.create({
         id: require("crypto").randomUUID(),
         ...payload
       });
@@ -64,11 +103,44 @@ export const updateAssignmentPolicy = async (req: Request, res: Response) => {
       await policy.update(payload);
     }
 
-    res.json(policy);
+    // Save Opportunity Policy Weights and Fallback Action in WorkspaceSettings
+    if (WorkspaceSetting) {
+      if (fallbackCloserAction) {
+        const [setting] = await WorkspaceSetting.findOrCreate({
+          where: { key: "opportunity_closer_fallback" },
+          defaults: { id: require("crypto").randomUUID(), key: "opportunity_closer_fallback", value: fallbackCloserAction }
+        });
+        if (setting) await setting.update({ value: fallbackCloserAction });
+      }
+      if (opportunityWeights) {
+        const serialized = typeof opportunityWeights === "object" ? JSON.stringify(opportunityWeights) : opportunityWeights;
+        const [setting] = await WorkspaceSetting.findOrCreate({
+          where: { key: "opportunity_assignment_weights" },
+          defaults: { id: require("crypto").randomUUID(), key: "opportunity_assignment_weights", value: serialized }
+        });
+        if (setting) await setting.update({ value: serialized });
+      }
+    }
+
+    const policyJson = policy.toJSON ? policy.toJSON() : { ...policy };
+    policyJson.fallbackCloserAction = fallbackCloserAction || "keep_lead_rep";
+    policyJson.opportunityWeights = opportunityWeights || {
+      opportunityWinRate: 0.25,
+      averageDealSize: 0.15,
+      revenueWon: 0.15,
+      industrySpecialization: 0.15,
+      experienceTier: 0.10,
+      territoryMatch: 0.10,
+      workloadCapacity: 0.05,
+      fairnessDistribution: 0.05
+    };
+
+    res.json(policyJson);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
 };
+
 
 export const getRepPerformanceProfiles = async (req: Request, res: Response) => {
   try {

@@ -53,7 +53,13 @@ const tableMap: Record<string, string> = {
   SalesAssignmentPolicy: 'SalesAssignmentPolicies',
   LeadAssignmentAudit: 'LeadAssignmentAudits',
   GmailConfig: 'GmailConfigs',
-  KpiMaster: 'KpiMasters'
+  KpiMaster: 'KpiMasters',
+  Campaign: 'Campaigns',
+  CampaignAd: 'CampaignAds',
+  LeadAttribution: 'LeadAttributions',
+  AttributionEvent: 'AttributionEvents',
+  Fulfillment: 'Fulfillments',
+  FulfillmentItem: 'FulfillmentItems'
 };
 
 const modelsPath = path.resolve(__dirname, '../../database/models/index.ts');

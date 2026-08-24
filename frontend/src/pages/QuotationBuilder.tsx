@@ -1,7 +1,7 @@
 import { useAuth } from "../context/AuthContext";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
-import { useSearchParams, Link } from "react-router-dom";
+import { useSearchParams, Link, useNavigate } from "react-router-dom";
 import { Search, PlusCircle, Trash2, Lightbulb, ZoomIn, Printer, Maximize, BarChart2, Clock, MessageSquare, History, CheckCircle2, AlertTriangle, Shield, Package, Plus } from "lucide-react";
 import { formatCurrency, formatCurrencyCompact } from "../utils/currency";
 import QuotationDocumentRenderer from "../components/QuotationDocumentRenderer";
@@ -9,6 +9,23 @@ import { CatalogSearchModal } from "../components/CatalogSearchModal";
 
 export default function QuotationBuilder() {
   const { token } = useAuth();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  const [searchParams] = useSearchParams();
+  const dealIdParam = searchParams.get("dealId");
+  const parentQuoteIdParam = searchParams.get("parentQuoteId");
+
+  const [selectedDealId, setSelectedDealId] = useState(dealIdParam || "");
+  const [selectedTemplateId, setSelectedTemplateId] = useState("tpl-ftc-standard");
+  const [focusedIndex, setFocusedIndex] = useState(0);
+  const [dealIdError, setDealIdError] = useState("");
+  const [isCatalogModalOpen, setIsCatalogModalOpen] = useState(false);
+  const logDebug = (msg: string) => {
+    console.log(msg);
+  };
+  const [activeHistoryTab, setActiveHistoryTab] = useState<"client" | "similar">("client");
+  const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
 
   const { data: quotes, isLoading } = useQuery({
     queryKey: ["quotes"],
@@ -18,10 +35,43 @@ export default function QuotationBuilder() {
       });
       if (!res.ok) throw new Error("Failed to fetch quotes");
       return res.json();
-    }
+    },
+    enabled: !!token
   });
 
-  const { data: deals } = useQuery({
+  // Direct fetch of the deal if dealIdParam is in the URL
+  const { data: paramDeal } = useQuery({
+    queryKey: ["opportunityParamDeal", dealIdParam],
+    queryFn: async () => {
+      if (!dealIdParam) return null;
+      const res = await fetch(`/api/v1/opportunities/${dealIdParam}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) return res.json();
+      const fallbackRes = await fetch(`/api/v1/deals/${dealIdParam}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (fallbackRes.ok) return fallbackRes.json();
+      return null;
+    },
+    enabled: !!dealIdParam && !!token
+  });
+
+  // Fetch all opportunities for the dropdown
+  const { data: allOpportunities = [] } = useQuery({
+    queryKey: ["allOpportunitiesForQuotation"],
+    queryFn: async () => {
+      const res = await fetch("/api/v1/opportunities", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return Array.isArray(data) ? data : data?.data || [];
+    },
+    enabled: !!token
+  });
+
+  const { data: deals = [] } = useQuery({
     queryKey: ["pipeline"],
     queryFn: async () => {
       const res = await fetch("/api/v1/pipeline", { headers: { "Authorization": `Bearer ${token}` } });
@@ -29,8 +79,15 @@ export default function QuotationBuilder() {
       const pipeline = await res.json();
       if (!Array.isArray(pipeline)) return [];
       return pipeline.flatMap((col: any) => col.deals || []);
-    }
+    },
+    enabled: !!token
   });
+
+  const combinedDeals = [
+    ...(paramDeal ? [paramDeal] : []),
+    ...(Array.isArray(allOpportunities) ? allOpportunities : []),
+    ...(Array.isArray(deals) ? deals : [])
+  ].filter((d, idx, arr) => d && d.id && arr.findIndex((x: any) => x?.id === d?.id) === idx);
 
   const { data: products } = useQuery({
     queryKey: ["priceBook"],
@@ -38,7 +95,8 @@ export default function QuotationBuilder() {
       const res = await fetch("/api/v1/price-book", { headers: { "Authorization": `Bearer ${token}` } });
       if (!res.ok) return [];
       return res.json();
-    }
+    },
+    enabled: !!token
   });
 
   const { data: bundles } = useQuery({
@@ -47,16 +105,21 @@ export default function QuotationBuilder() {
       const res = await fetch("/api/v1/bundle-templates", { headers: { "Authorization": `Bearer ${token}` } });
       if (!res.ok) return [];
       return res.json();
-    }
+    },
+    enabled: !!token
   });
 
   const { data: masterRequirements } = useQuery({
     queryKey: ["masterRequirements"],
     queryFn: async () => {
       const res = await fetch("/api/v1/master-data/requirements", { headers: { "Authorization": `Bearer ${token}` } });
-      if (!res.ok) return [];
+      if (!res.ok) throw new Error(`Failed to fetch requirements: ${res.status}`);
       return res.json();
-    }
+    },
+    enabled: !!token,
+    staleTime: 5 * 60 * 1000,
+    retry: 2,
+    refetchOnMount: true
   });
 
   const { data: quoteTemplates } = useQuery({
@@ -68,37 +131,75 @@ export default function QuotationBuilder() {
     }
   });
 
-  const [searchParams] = useSearchParams();
-  const dealIdParam = searchParams.get("dealId");
-
-  const [selectedDealId, setSelectedDealId] = useState("");
-  const [selectedTemplateId, setSelectedTemplateId] = useState("tpl-ftc-standard");
-  const [focusedIndex, setFocusedIndex] = useState(0);
-  const [dealIdError, setDealIdError] = useState("");
-  const [isCatalogModalOpen, setIsCatalogModalOpen] = useState(false);
-  const logDebug = (msg: string) => {
-    console.log(msg);
-  };
-  const [activeHistoryTab, setActiveHistoryTab] = useState<"client" | "similar">("client");
-  const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
-
   const toggleCardExpand = (id: string) => {
     setExpandedCards(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
   useEffect(() => {
-    if (dealIdParam && deals && deals.length > 0) {
-      const match = deals.find((d: any) => d.id === dealIdParam);
-      if (match) {
-        setSelectedDealId(dealIdParam);
-        setDealIdError("");
-      } else {
-        setDealIdError(`Deal ID "${dealIdParam}" provided in the URL does not exist or has been deleted.`);
-      }
+    if (dealIdParam) {
+      setSelectedDealId(dealIdParam);
+      setDealIdError("");
     }
-  }, [dealIdParam, deals]);
+  }, [dealIdParam]);
 
-  const selectedDeal = deals?.find((d: any) => d.id === selectedDealId);
+  // Auto-populate line items when revising a rejected quote
+  const { data: parentQuote } = useQuery({
+    queryKey: ["parentQuote", parentQuoteIdParam],
+    queryFn: async () => {
+      if (!parentQuoteIdParam) return null;
+      const res = await fetch(`/api/v1/quotes/${parentQuoteIdParam}`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!parentQuoteIdParam
+  });
+
+  const [parentQuoteLoaded, setParentQuoteLoaded] = useState(false);
+
+  useEffect(() => {
+    if (parentQuote && !parentQuoteLoaded) {
+      // 1. Auto-select the deal from the parent quote (bypasses pipeline filter)
+      const pqDealId = (parentQuote as any).dealId;
+      if (pqDealId) {
+        setSelectedDealId(pqDealId);
+        setDealIdError("");
+      }
+
+      // 2. Pre-populate line items (wait for products if needed)
+      const rawItems = (parentQuote as any).QuoteLineItems || (parentQuote as any).quoteLineItems || [];
+      if (rawItems.length > 0) {
+        const newItems = rawItems.map((li: any) => {
+          const prod = li.product || products?.find((p: any) => p.id === li.productId);
+          const name = li.name || prod?.name || "Quote Item";
+          const desc = li.description || prod?.description || name;
+          const qty = Number(li.quantity || 1);
+          const price = parseFloat(li.unitPrice || 0);
+          return {
+            productId: li.productId,
+            name,
+            description: desc,
+            unit: prod?.unit || "nos",
+            uom: prod?.unit || "nos",
+            quantity: qty,
+            unitPrice: price,
+            discount: Number(li.discount || 0),
+            total: qty * price,
+            isOptional: !!li.isOptional
+          };
+        });
+        setItems(newItems);
+        setFocusedIndex(0);
+      }
+      setParentQuoteLoaded(true);
+    }
+  }, [parentQuote, parentQuoteLoaded, products]);
+
+  // Resolve selected deal info with priority: paramDeal -> parentQuote.deal -> combinedDeals match
+  const selectedDeal = paramDeal
+    || (parentQuote && (parentQuote as any).deal ? (parentQuote as any).deal : null)
+    || combinedDeals.find((d: any) => d.id === selectedDealId);
   const leadId = selectedDeal?.leadId;
 
   const { data: clientHistory } = useQuery({
@@ -377,22 +478,36 @@ export default function QuotationBuilder() {
   const handleImportRequirement = (reqId: string) => {
     if (!reqId) return;
     const reqObj = masterRequirements?.find((r: any) => r.id === reqId);
-    if (!reqObj || !reqObj.lineItems || reqObj.lineItems.length === 0) return;
+    if (!reqObj) return;
+
+    if (!reqObj.lineItems || reqObj.lineItems.length === 0) {
+      alert(`Requirement "${reqObj.name}" has no line items configured yet. Please add line items to this requirement in the Master Data settings first.`);
+      return;
+    }
 
     const toAdd = reqObj.lineItems.map((li: any) => {
-      const matchedProd = products?.find((p: any) => 
-        p.name.toLowerCase().includes(li.name.toLowerCase()) || 
-        li.name.toLowerCase().includes(p.name.toLowerCase())
+      // Try to match to a product in the price book by name
+      const matchedProd = products?.find((p: any) =>
+        p.name?.toLowerCase().includes(li.name?.toLowerCase()) ||
+        li.name?.toLowerCase().includes(p.name?.toLowerCase())
       );
-      const unitPrice = matchedProd ? parseFloat(matchedProd.unitPrice || matchedProd.msrp || 1000) : 1000;
-      const qty = li.defaultQuantity || 1;
+      // Use the pre-computed totalPrice from the requirement line item (sum of construction items)
+      const unitPrice = li.totalPrice && li.totalPrice > 0
+        ? parseFloat(li.totalPrice)
+        : matchedProd
+          ? parseFloat(matchedProd.unitPrice || matchedProd.msrp || 0)
+          : 0;
+      const qty = parseFloat(li.defaultQuantity) || 1;
       return {
         productId: matchedProd?.id || "",
         name: li.name,
         description: li.description || matchedProd?.description || li.name,
-        unit: li.unit || "nos",
-        uom: li.unit || "nos",
+        unit: li.unit || matchedProd?.unit || "nos",
+        uom: li.unit || matchedProd?.unit || "nos",
         nameOverride: li.name,
+        quantity: qty,
+        unitPrice: unitPrice,
+        discount: 0,
         total: qty * unitPrice,
         isOptional: false
       };
@@ -408,6 +523,8 @@ export default function QuotationBuilder() {
     const newItem = {
       productId: catItem.id,
       catalogItemId: catItem.id,
+      name: catItem.name,
+      description: catItem.description || catItem.name,
       nameOverride: catItem.name,
       quantity: qty,
       unitPrice: unitPrice,
@@ -417,7 +534,8 @@ export default function QuotationBuilder() {
       total: qty * unitPrice,
       isOptional: false,
       isCustom: false,
-      uom: catItem.uom || "nos"
+      uom: catItem.uom || "nos",
+      unit: catItem.uom || "nos"
     };
     setItems(prev => [...prev, newItem]);
   };
@@ -464,15 +582,29 @@ export default function QuotationBuilder() {
         body: JSON.stringify({
           dealId: selectedDealId,
           items,
-          status
+          status,
+          ...(parentQuoteIdParam ? { parentQuoteId: parentQuoteIdParam } : {})
         })
       });
-      if (!res.ok) throw new Error("Failed to save quote");
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Failed to save quote" }));
+        throw new Error(err.error || "Failed to save quote");
+      }
       return res.json();
     },
-    onSuccess: () => {
-      alert("Quote saved!");
-      window.location.href = "/quotes";
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["quotes"] });
+      if (selectedDealId) {
+        queryClient.invalidateQueries({ queryKey: ["opportunity-quotes", selectedDealId] });
+        queryClient.invalidateQueries({ queryKey: ["opportunity-detail", selectedDealId] });
+        queryClient.invalidateQueries({ queryKey: ["opportunity-timeline", selectedDealId] });
+      }
+      alert("Quote saved successfully!");
+      if (selectedDealId) {
+        navigate(`/opportunities/${selectedDealId}`);
+      } else {
+        navigate("/quotes");
+      }
     }
   });
 
@@ -483,7 +615,7 @@ export default function QuotationBuilder() {
       <div className="flex items-center gap-1.5 text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-6">
         <Link to="/quotes" className="hover:text-primary">Quotes</Link>
         <span className="opacity-50">/</span>
-        <span>New Quotation</span>
+        <span>{parentQuoteIdParam ? 'Revise Quote' : 'New Quotation'}</span>
       </div>
       <div className="max-w-[1600px] mx-auto grid grid-cols-12 gap-8 h-full">
         {/* Left: Builder Core (Line Items & Totals) */}
@@ -497,8 +629,17 @@ export default function QuotationBuilder() {
               <>
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-outline-variant pb-3">
                   <div>
-                    <h2 className="text-2xl font-bold text-on-surface tracking-tight">New Quotation</h2>
-                    <p className="text-xs text-on-surface-variant mt-0.5">Build quotation with BOM line items & discount approval</p>
+                    <h2 className="text-2xl font-bold text-on-surface tracking-tight">
+                      {parentQuoteIdParam ? '+ Revise Quote' : 'New Quotation'}
+                    </h2>
+                    <p className="text-xs text-on-surface-variant mt-0.5">Build quotation with BOM line items &amp; discount approval</p>
+                    {parentQuoteIdParam && parentQuote && (
+                      <div className="flex items-center gap-2 mt-2 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-lg text-xs font-semibold text-amber-800">
+                        <svg className="w-3.5 h-3.5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                        Revising: <span className="font-bold">{(parentQuote as any).quoteNumber || parentQuoteIdParam}</span>
+                        &nbsp;&mdash; pre-filled with previous line items. Adjust as needed.
+                      </div>
+                    )}
                     {dealIdError && (
                       <div className="text-xs text-error font-semibold bg-error-container text-error border border-error/20 px-3 py-1.5 rounded-lg mt-2 max-w-md">
                         {dealIdError}
@@ -515,29 +656,39 @@ export default function QuotationBuilder() {
                       Save as Draft
                     </button>
                     <button
-                      onClick={() => saveMutation.mutate("Pending")}
+                      onClick={() => saveMutation.mutate("Sent")}
                       disabled={saveMutation.isPending || !selectedDealId}
                       className="px-4 py-2 bg-primary text-white text-xs font-bold rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 whitespace-nowrap shadow-xs"
                     >
-                      Send for Approval
+                      Save & Send Quote
                     </button>
                   </div>
-                </div>
 
+                </div>
                 <div className="flex flex-wrap items-center gap-4 pt-1">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Select Deal:</span>
-                    <select 
-                      className="bg-surface border border-outline-variant rounded-lg p-2 text-xs font-medium focus:ring-1 focus:ring-primary min-w-[220px]"
-                      value={selectedDealId}
-                      onChange={e => setSelectedDealId(e.target.value)}
-                    >
-                      <option value="">-- Choose Deal --</option>
-                      {deals?.map((d: any) => (
-                        <option key={d.id} value={d.id}>{d.name} ({d.client || 'Unknown Client'})</option>
-                      ))}
-                    </select>
+                    <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Deal:</span>
+                    {parentQuoteIdParam || (dealIdParam && selectedDeal) ? (
+                      // Locked deal badge when launched from Opportunity or Revision
+                      <span className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700">
+                        <svg className="w-3 h-3 text-slate-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd"/></svg>
+                        {selectedDeal?.name || (parentQuote as any)?.deal?.name || 'Loading deal…'}
+                        {selectedDeal?.account?.name ? ` • ${selectedDeal.account.name}` : selectedDeal?.client ? ` • ${selectedDeal.client}` : ''}
+                      </span>
+                    ) : (
+                      <select
+                        className="bg-surface border border-outline-variant rounded-lg p-2 text-xs font-medium focus:ring-1 focus:ring-primary min-w-[220px]"
+                        value={selectedDealId}
+                        onChange={e => setSelectedDealId(e.target.value)}
+                      >
+                        <option value="">-- Choose Deal --</option>
+                        {combinedDeals.map((d: any) => (
+                          <option key={d.id} value={d.id}>{d.name} ({d.account?.name || d.client || 'Direct Account'})</option>
+                        ))}
+                      </select>
+                    )}
                   </div>
+
 
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Start from Bundle:</span>
@@ -600,9 +751,15 @@ export default function QuotationBuilder() {
                 <thead>
                   <tr className="bg-surface-container-low border-b border-outline-variant">
                     <th className="px-4 py-3 text-[12px] font-bold text-on-surface-variant uppercase">Product / Service</th>
-                    <th className="px-4 py-3 text-[12px] font-bold text-on-surface-variant uppercase w-24 text-center">Qty</th>
-                    <th className="px-4 py-3 text-[12px] font-bold text-on-surface-variant uppercase w-32">Unit Price</th>
-                    <th className="px-4 py-3 text-[12px] font-bold text-on-surface-variant uppercase w-24">Disc %</th>
+                    <th className="px-4 py-3 text-[12px] font-bold text-blue-600 uppercase w-24 text-center">
+                      <span className="flex items-center justify-center gap-1">Qty ✏️</span>
+                    </th>
+                    <th className="px-4 py-3 text-[12px] font-bold text-blue-600 uppercase w-36">
+                      <span className="flex items-center gap-1">Unit Price ✏️</span>
+                    </th>
+                    <th className="px-4 py-3 text-[12px] font-bold text-orange-500 uppercase w-28">
+                      <span className="flex items-center gap-1">Disc % ✏️</span>
+                    </th>
                     <th className="px-4 py-3 text-[12px] font-bold text-on-surface-variant uppercase w-24">Tax</th>
                     <th className="px-4 py-3 text-[12px] font-bold text-on-surface-variant uppercase w-24 text-center">Optional</th>
                     <th className="px-4 py-3 text-[12px] font-bold text-on-surface-variant uppercase w-32 text-right">Total</th>
@@ -638,23 +795,61 @@ export default function QuotationBuilder() {
                               ))}
                             </select>
                             {(!item.productId || item.nameOverride || item.name) && (
-                              <input 
+                              <input
                                 type="text"
                                 placeholder="Item description / Custom name"
-                                className="w-full border border-outline-variant/60 rounded px-2 py-0.5 text-xs text-on-surface bg-surface-container-low/30"
+                                className="w-full border border-slate-200 bg-white rounded px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 placeholder:text-slate-300"
                                 value={item.name || item.description || item.nameOverride || ""}
                                 onChange={(e) => {
                                   updateItem(i, 'name', e.target.value);
                                   updateItem(i, 'description', e.target.value);
                                 }}
+                                onClick={(e) => e.stopPropagation()}
                               />
                             )}
                           </div>
                         </td>
-                        <td className="px-4 py-4"><input className="w-full text-center border-outline-variant rounded py-1 text-base focus:ring-primary focus:border-primary" type="number" min="1" value={item.quantity} onChange={(e) => updateItem(i, 'quantity', parseInt(e.target.value) || 0)} /></td>
-                        <td className="px-4 py-4 text-sm font-medium"><input className="w-full text-center border-outline-variant rounded py-1 text-base focus:ring-primary focus:border-primary" type="number" value={item.unitPrice} onChange={(e) => updateItem(i, 'unitPrice', parseFloat(e.target.value) || 0)} /></td>
-                        <td className="px-4 py-4"><input className="w-full border-outline-variant rounded py-1 text-base focus:ring-primary focus:border-primary" type="number" value={item.discount || 0} onChange={(e) => updateItem(i, 'discount', parseFloat(e.target.value) || 0)} /></td>
-                        <td className="px-4 py-4 text-sm">0%</td>
+                        <td className="px-3 py-3">
+                          <input
+                            className="w-full text-center border border-slate-300 bg-white rounded-md px-2 py-1.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 hover:border-slate-400 transition-colors"
+                            type="number"
+                            min="1"
+                            value={item.quantity}
+                            onChange={(e) => updateItem(i, 'quantity', parseInt(e.target.value) || 0)}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        </td>
+                        <td className="px-3 py-3">
+                          <div className="flex items-center border border-slate-300 bg-white rounded-md overflow-hidden hover:border-slate-400 focus-within:ring-2 focus-within:ring-blue-400 focus-within:border-blue-400 transition-colors">
+                            <span className="px-2 py-1.5 text-xs font-bold text-slate-400 bg-slate-50 border-r border-slate-200 select-none">SAR</span>
+                            <input
+                              className="flex-1 text-right pr-2 py-1.5 text-sm font-semibold bg-transparent focus:outline-none w-24"
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={item.unitPrice}
+                              onChange={(e) => updateItem(i, 'unitPrice', parseFloat(e.target.value) || 0)}
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          </div>
+                        </td>
+                        <td className="px-3 py-3">
+                          <div className="flex items-center border border-slate-300 bg-white rounded-md overflow-hidden hover:border-slate-400 focus-within:ring-2 focus-within:ring-orange-400 focus-within:border-orange-400 transition-colors">
+                            <input
+                              className="flex-1 text-center pl-2 py-1.5 text-sm font-semibold bg-transparent focus:outline-none w-14"
+                              type="number"
+                              min="0"
+                              max="100"
+                              step="0.5"
+                              value={item.discount || 0}
+                              onChange={(e) => updateItem(i, 'discount', parseFloat(e.target.value) || 0)}
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                            <span className="px-2 py-1.5 text-xs font-bold text-orange-500 bg-orange-50 border-l border-slate-200 select-none">%</span>
+                          </div>
+                        </td>
+                        <td className="px-3 py-3 text-xs text-slate-400 font-medium">15%</td>
+
                         <td className="px-4 py-4 text-center">
                           <input 
                             type="checkbox"

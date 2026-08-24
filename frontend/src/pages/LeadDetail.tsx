@@ -7,7 +7,7 @@ import {
   ChevronRight, Calendar, DollarSign, Activity, ShoppingBag, FileText, ChevronDown, Loader2,
   Users, TrendingUp, MessageSquare, CheckSquare, AlertCircle, Sparkles, Send, Upload, Plus,
   FilePlus, Award, ShieldAlert, CheckCircle2, Clock, MapPin, Video, ExternalLink, Pin,
-  FileEdit, Landmark, Inbox, User, Receipt, AlertTriangle, Target, Lock
+  FileEdit, Landmark, Inbox, User, Receipt, AlertTriangle, Target, Lock, XCircle
 } from "lucide-react";
 import { formatCurrency } from "../utils/currency";
 import { formatDistanceToNow } from "date-fns";
@@ -736,11 +736,16 @@ export default function LeadDetail() {
             { key: "QUALIFIED", label: "Qualified" },
             { key: "CONVERTED", label: "Converted" },
             { key: "NOT_CONVERTED", label: "Not Converted" }
-          ].map((stage, idx) => {
-            const leadStageKeys = ["NEW", "CONTACTED", "QUALIFIED", "CONVERTED", "NOT_CONVERTED"];
-            const currentIdx = leadStageKeys.indexOf((lead.status || "NEW").toUpperCase());
-            const isCurrent = (lead.status || "NEW").toUpperCase() === stage.key;
-            const isPast = currentIdx > idx && stage.key !== "NOT_CONVERTED";
+          ].map((stage) => {
+            const currentStatus = (lead.status || "NEW").toUpperCase();
+            const isNotConverted = currentStatus === "NOT_CONVERTED" || currentStatus === "LOST";
+            const sequentialStages = ["NEW", "CONTACTED", "QUALIFIED", "CONVERTED"];
+            const currentSeqIdx = sequentialStages.indexOf(currentStatus);
+            const stageSeqIdx = sequentialStages.indexOf(stage.key);
+
+            const isCurrent = currentStatus === stage.key;
+            // If lead is NOT_CONVERTED, previous stages should NOT be green
+            const isPast = !isNotConverted && currentSeqIdx !== -1 && stageSeqIdx !== -1 && stageSeqIdx < currentSeqIdx;
 
             return (
               <button 
@@ -748,14 +753,20 @@ export default function LeadDetail() {
                 onClick={() => updateStatusMutation.mutate(stage.key)}
                 className={`py-3 px-3 rounded-xl border text-center text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                   isCurrent
-                    ? "bg-primary text-white border-primary shadow-md scale-102"
+                    ? stage.key === "NOT_CONVERTED"
+                      ? "bg-rose-600 text-white border-rose-600 shadow-md scale-102"
+                      : "bg-primary text-white border-primary shadow-md scale-102"
                     : isPast
                     ? "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100"
                     : "bg-surface-container-lowest text-slate-600 border-outline-variant hover:bg-slate-100"
                 }`}
               >
                 {isCurrent ? (
-                  <CheckCircle2 className="w-4 h-4 text-white" />
+                  stage.key === "NOT_CONVERTED" ? (
+                    <XCircle className="w-4 h-4 text-white" />
+                  ) : (
+                    <CheckCircle2 className="w-4 h-4 text-white" />
+                  )
                 ) : isPast ? (
                   <Check className="w-3.5 h-3.5 text-emerald-600" />
                 ) : (

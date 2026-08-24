@@ -65,7 +65,7 @@ export async function calculateUserKpis(userId: string): Promise<any> {
       }
 
       // Qualification Rate (transitioned out of New / Unqualified status)
-      if (lead.status && !["New", "Unqualified"].includes(lead.status)) {
+      if (lead.status && !["NEW", "New", "Unqualified", "NOT_CONVERTED"].includes(lead.status)) {
         qualifiedLeadsCount++;
       }
     }

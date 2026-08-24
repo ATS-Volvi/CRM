@@ -786,15 +786,21 @@ export default function ManagerPortal() {
           <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs">
             <h3 className="text-sm font-bold text-slate-800 mb-4">Lead Status Distribution</h3>
             <div className="space-y-2">
-              {["New", "Contacted", "Qualified", "Meeting/Demo", "Proposal", "Negotiation", "Won", "Lost"].map(status => {
-                const count = leads.filter((l: any) => l.status === status).length;
-                const maxCount = Math.max(...["New", "Contacted", "Qualified", "Meeting/Demo", "Proposal", "Negotiation", "Won", "Lost"].map(s => leads.filter((l: any) => l.status === s).length), 1);
+              {[
+                { key: "NEW", label: "New" },
+                { key: "CONTACTED", label: "Contacted" },
+                { key: "QUALIFIED", label: "Qualified" },
+                { key: "CONVERTED", label: "Converted" },
+                { key: "NOT_CONVERTED", label: "Not Converted" }
+              ].map(({ key, label }) => {
+                const count = leads.filter((l: any) => (l.status || "").toUpperCase() === key).length;
+                const maxCount = Math.max(...["NEW", "CONTACTED", "QUALIFIED", "CONVERTED", "NOT_CONVERTED"].map(s => leads.filter((l: any) => (l.status || "").toUpperCase() === s).length), 1);
                 const barPct = Math.round((count / maxCount) * 100);
-                const barColor = status === "Won" ? "bg-emerald-500" : status === "Lost" ? "bg-rose-500" : "bg-indigo-500";
+                const barColor = key === "CONVERTED" ? "bg-purple-500" : key === "QUALIFIED" ? "bg-emerald-500" : key === "NOT_CONVERTED" ? "bg-slate-400" : "bg-blue-500";
 
                 return (
-                  <div key={status} className="flex items-center gap-3">
-                    <span className="w-28 text-xs font-bold text-slate-600">{status}</span>
+                  <div key={key} className="flex items-center gap-3">
+                    <span className="w-28 text-xs font-bold text-slate-600">{label}</span>
                     <div className="flex-1 bg-slate-100 h-2.5 rounded-full overflow-hidden">
                       <div className={`h-full ${barColor} rounded-full`} style={{ width: `${barPct}%` }} />
                     </div>

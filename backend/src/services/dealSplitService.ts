@@ -127,7 +127,7 @@ export async function getDealSplits(dealId: string) {
 export async function setDealSplits(
   dealId: string,
   splits: SplitInput[],
-  configuredByUserId: string
+  configuredByUserId?: string | null
 ) {
   if (!Array.isArray(splits) || splits.length === 0) {
     throw new Error("At least one split entry must be provided.");

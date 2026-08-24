@@ -23,22 +23,23 @@ export const getLeads = async (req: Request, res: Response) => {
     const rawSource = (source || channel)?.toString();
     if (rawSource && rawSource !== "ALL" && rawSource !== "All Channels" && rawSource !== "All Sources") {
       const lower = rawSource.toLowerCase();
+      const likeOp = (Op as any).iLike || Op.like;
       if (lower === "whatsapp") {
-        where.source = { [Op.iLike]: "%whatsapp%" };
+        where.source = { [likeOp]: "%whatsapp%" };
       } else if (lower === "email") {
-        where.source = { [Op.iLike]: "%email%" };
+        where.source = { [likeOp]: "%email%" };
       } else if (lower === "website") {
-        where.source = { [Op.iLike]: "%website%" };
+        where.source = { [likeOp]: "%website%" };
       } else if (lower === "instagram") {
-        where.source = { [Op.iLike]: "%instagram%" };
+        where.source = { [likeOp]: "%instagram%" };
       } else if (lower === "facebook" || lower === "meta") {
-        where.source = { [Op.or]: [{ [Op.iLike]: "%facebook%" }, { [Op.iLike]: "%meta%" }] };
+        where.source = { [Op.or]: [{ [likeOp]: "%facebook%" }, { [likeOp]: "%meta%" }] };
       } else if (lower === "linkedin") {
-        where.source = { [Op.iLike]: "%linkedin%" };
+        where.source = { [likeOp]: "%linkedin%" };
       } else if (lower === "referral") {
-        where.source = { [Op.iLike]: "%referral%" };
+        where.source = { [likeOp]: "%referral%" };
       } else {
-        where.source = { [Op.or]: [{ [Op.eq]: rawSource }, { [Op.iLike]: rawSource }] };
+        where.source = { [Op.or]: [{ [Op.eq]: rawSource }, { [likeOp]: rawSource }] };
       }
     }
 
@@ -279,7 +280,36 @@ export const updateLead = async (req: Request, res: Response) => {
       }
     }
 
+    // Map expectedValue/estimatedValue/notes/requirements to qualificationData & body for clean persistence
+    if (updateData.expectedValue !== undefined || updateData.estimatedValue !== undefined || updateData.requirements !== undefined || updateData.notes !== undefined) {
+      const existingQual = (lead as any).qualificationData || {};
+      const estVal = updateData.expectedValue !== undefined ? updateData.expectedValue : updateData.estimatedValue;
+      const reqTxt = updateData.requirements !== undefined ? updateData.requirements : updateData.notes;
+      
+      updateData.qualificationData = {
+        ...existingQual,
+        ...(estVal !== undefined ? { estimatedValue: estVal } : {}),
+        ...(reqTxt !== undefined ? { requirement: reqTxt, notes: reqTxt } : {})
+      };
+      if (reqTxt && !updateData.body) {
+        updateData.body = reqTxt;
+      }
+      if (estVal && !updateData.budgetRange) {
+        updateData.budgetRange = String(estVal);
+      }
+      delete updateData.expectedValue;
+      delete updateData.estimatedValue;
+      delete updateData.requirements;
+      delete updateData.notes;
+    }
+
     await lead.update(updateData);
+
+    const { checkAndAutoAdvanceLead } = require("../services/leadStageAutomationService");
+    await checkAndAutoAdvanceLead((lead as any).id || id, { userId: (req as any).user?.id });
+
+    // Reload fresh lead state after potential auto-transitions
+    await lead.reload();
     res.json(lead);
   } catch (error: any) {
     res.status(500).json({ error: error.message });

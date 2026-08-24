@@ -168,8 +168,8 @@ async function runFourPointsTest() {
   // After auto-assignment, the deal is owned by the eligible senior_ae (not the triggering manager).
   // The qualifying rep (salesRep) still gets their SDR origination split; the closing AE (senior_ae)
   // gets the remainder. Percentages must still honour the WorkspaceSetting (35%/65% here).
-  const sdrSplit = newDealSplits.find((s: any) => s.userId === salesRep.id);
-  const aeSplit  = newDealSplits.find((s: any) => s.userId === converted.deal.ownerId);
+  const sdrSplit = (newDealSplits as any[]).find((s: any) => s.userId === salesRep.id);
+  const aeSplit  = (newDealSplits as any[]).find((s: any) => s.userId === converted.deal.ownerId);
 
   if (!sdrSplit || Number(sdrSplit.splitPercentage) !== 35) {
     throw new Error(`WorkspaceSetting 35% SDR split not respected! SDR: ${sdrSplit?.splitPercentage}`);

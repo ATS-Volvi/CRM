@@ -372,6 +372,29 @@ export const getApprovals = async (req: Request, res: Response) => {
           if (data.target) {
             data.evaluation = await evaluateQuoteApproval(data.targetId);
           }
+        } else if (data.type === "PurchaseOrder" || data.type === "PO") {
+          data.target = await sequelize.models.PurchaseOrder.findByPk(data.targetId, {
+            include: [{
+              model: sequelize.models.Quote,
+              as: "quote",
+              include: [
+                { model: sequelize.models.Deal, as: "deal", include: [{ model: sequelize.models.Lead, as: "lead" }, { model: sequelize.models.User, as: "owner" }] }
+              ]
+            }]
+          });
+          if (data.target) {
+            const quoted = Number((data.target as any).quote?.totalAmount || 0);
+            const poAmt = Number((data.target as any).amount || 0);
+            data.evaluation = {
+              approvalLevel: "MANAGER",
+              quoteValue: quoted,
+              poAmount: poAmt,
+              mismatch: quoted !== poAmt,
+              discount: 0,
+              margin: 0.20,
+              reason: data.comments || (quoted !== poAmt ? `PO Amount Mismatch: Quoted SAR ${quoted.toLocaleString()} vs PO SAR ${poAmt.toLocaleString()}` : `PO Verification for #${(data.target as any).poNumber}`)
+            };
+          }
         }
         return data;
       })
@@ -394,9 +417,11 @@ export const updateApproval = async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Approval request not found" });
     }
 
-    const targetQuoteId = (approval as any).targetId;
-    if (targetQuoteId) {
-      const targetQuote: any = await sequelize.models.Quote.findByPk(targetQuoteId);
+    const targetId = (approval as any).targetId;
+    let evaluation: any = null;
+
+    if ((approval as any).type === "Quote" && targetId) {
+      const targetQuote: any = await sequelize.models.Quote.findByPk(targetId);
       if (targetQuote && targetQuote.dealId) {
         const access = await checkRecordAccess(authUser?.id, authUser?.role, { dealId: targetQuote.dealId });
         if (!access.canWrite) {
@@ -407,23 +432,26 @@ export const updateApproval = async (req: Request, res: Response) => {
         }
       }
     }
-    const evaluation = await evaluateQuoteApproval(targetQuoteId);
 
-    // SECURITY ENFORCEMENT
-    if (authUser && authUser.role !== "admin") {
-      if (evaluation.approvalLevel === "ADMIN") {
-        return res.status(403).json({
-          error: "Security Violation: Only Admin can approve or modify quotations requiring Admin approval."
-        });
-      }
-      if (evaluation.approvalLevel === "TEAM_LEAD") {
-        const isAssigned = (approval as any).assignedApproverId === authUser.id;
-        const isTeamLead = evaluation.teamLeadId === authUser.id;
-        const isManagerRole = authUser.role === "manager" || authUser.role === "director";
-        if (!isAssigned && !isTeamLead && !isManagerRole) {
+    if ((approval as any).type === "Quote") {
+      evaluation = await evaluateQuoteApproval(targetId);
+
+      // SECURITY ENFORCEMENT for Quote approvals
+      if (authUser && authUser.role !== "admin") {
+        if (evaluation.approvalLevel === "ADMIN") {
           return res.status(403).json({
-            error: "Security Violation: You do not have authority to approve this quotation. Team Lead approval is required."
+            error: "Security Violation: Only Admin can approve or modify quotations requiring Admin approval."
           });
+        }
+        if (evaluation.approvalLevel === "TEAM_LEAD") {
+          const isAssigned = (approval as any).assignedApproverId === authUser.id;
+          const isTeamLead = evaluation.teamLeadId === authUser.id;
+          const isManagerRole = authUser.role === "manager" || authUser.role === "director";
+          if (!isAssigned && !isTeamLead && !isManagerRole) {
+            return res.status(403).json({
+              error: "Security Violation: You do not have authority to approve this quotation. Team Lead approval is required."
+            });
+          }
         }
       }
     }
@@ -435,8 +463,49 @@ export const updateApproval = async (req: Request, res: Response) => {
       comments: comments || (approval as any).comments
     });
 
+    if ((approval as any).type === "PurchaseOrder" || (approval as any).type === "PO") {
+      const po: any = await sequelize.models.PurchaseOrder.findByPk(targetId, {
+        include: [{
+          model: sequelize.models.Quote,
+          as: "quote",
+          include: [{ model: sequelize.models.Deal, as: "deal" }]
+        }]
+      });
+
+      if (po) {
+        if (status === "Approved") {
+          await po.update({ status: "Accepted", approvedAt: new Date() });
+          if (po.quote?.deal) {
+            const wonStage = await sequelize.models.PipelineStage.findOne({ where: { name: "Won" } }) ||
+              await sequelize.models.PipelineStage.findOne({ order: [["order", "DESC"]] });
+            await po.quote.deal.update({ stageId: (wonStage as any)?.id, status: "WON" });
+          }
+          if (po.quote?.deal?.ownerId) {
+            await createNotification(
+              po.quote.deal.ownerId,
+              'info',
+              'Purchase Order Approved & Deal Won',
+              `PO #${po.poNumber} for "${po.quote.deal.name}" was approved by management. Deal has been marked Won!`,
+              `/opportunities/${po.quote.deal.id}`
+            );
+          }
+        } else if (status === "Rejected") {
+          await po.update({ status: "Rejected" });
+          if (po.quote?.deal?.ownerId) {
+            await createNotification(
+              po.quote.deal.ownerId,
+              'alert',
+              'Purchase Order Rejected',
+              `PO #${po.poNumber} was rejected by management: ${comments || 'Action required'}.`,
+              `/opportunities/${po.quote.deal.id}`
+            );
+          }
+        }
+      }
+    }
+
     if ((approval as any).type === "Quote") {
-      const quote = await sequelize.models.Quote.findByPk(targetQuoteId, {
+      const quote = await sequelize.models.Quote.findByPk(targetId, {
         include: [{ model: sequelize.models.QuoteLineItem, as: "QuoteLineItems" }]
       });
 
@@ -447,7 +516,7 @@ export const updateApproval = async (req: Request, res: Response) => {
 
         // Log Audit Trail
         await createApprovalAuditLog({
-          quoteId: targetQuoteId,
+          quoteId: targetId,
           salesRepId: evaluation.salesRepId,
           approvalLevel: evaluation.approvalLevel,
           requiredLimit: evaluation.repLimit,

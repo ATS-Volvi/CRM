@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { apiClient } from "../lib/apiClient";
 import { formatCurrency } from "../utils/currency";
+import { normalizeStageName } from "../utils/pipelineStages";
 
 export default function MyDashboard() {
   const { user } = useAuth();
@@ -59,31 +60,30 @@ export default function MyDashboard() {
   const opportunities: any[] = Array.isArray(oppsData) ? oppsData : [];
 
   // Metrics Calculation
-  const newLeads = leads.filter((l) => l.status === "NEW" || l.status === "New");
-  const contactedLeads = leads.filter((l) => l.status === "CONTACTED" || l.status === "Contacted");
-  const qualifiedLeads = leads.filter((l) => l.status === "QUALIFIED" || l.status === "Qualified");
+  const newLeads = leads.filter((l) => (l.status || "").toUpperCase() === "NEW");
+  const contactedLeads = leads.filter((l) => (l.status || "").toUpperCase() === "CONTACTED");
+  const qualifiedLeads = leads.filter((l) => (l.status || "").toUpperCase() === "QUALIFIED");
+  const getStageName = (o: any) => normalizeStageName(o.stage?.name || o.stageId);
 
-  const getStageName = (o: any) => (o.stage?.name || o.stageId || "").toLowerCase();
-
-  const discoveryOpps = opportunities.filter((o) => getStageName(o) === "discovery");
-  const reqOpps = opportunities.filter((o) => getStageName(o) === "requirements");
-  const solutionOpps = opportunities.filter((o) => getStageName(o) === "solution/scope");
-  const quotePrepOpps = opportunities.filter((o) => getStageName(o) === "quote preparation");
-  const quoteSentOpps = opportunities.filter((o) => getStageName(o) === "quote sent");
-  const negotiationOpps = opportunities.filter((o) => getStageName(o) === "negotiation");
-  const agreedOpps = opportunities.filter((o) => getStageName(o) === "agreed");
+  const discoveryOpps = opportunities.filter((o) => getStageName(o) === "Discovery");
+  const reqOpps = opportunities.filter((o) => getStageName(o) === "Requirements");
+  const solutionOpps = opportunities.filter((o) => getStageName(o) === "Solution / Scope");
+  const quotePrepOpps = opportunities.filter((o) => getStageName(o) === "Quote Preparation");
+  const quoteSentOpps = opportunities.filter((o) => getStageName(o) === "Quote Sent");
+  const negotiationOpps = opportunities.filter((o) => getStageName(o) === "Negotiation");
+  const agreedOpps = opportunities.filter((o) => getStageName(o) === "Agreed");
 
   const tasks = tasksData?.tasks || [];
   const overdueTasks = tasks.filter((t: any) => t.dueDate && new Date(t.dueDate) < new Date());
 
   const totalWonRevenue = opportunities
-    .filter((o) => getStageName(o) === "won" || getStageName(o) === "closed_won")
+    .filter((o) => getStageName(o) === "Won")
     .reduce((sum, o) => sum + Number(o.amount || 0), 0);
 
   const totalPipelineValue = opportunities
     .filter((o) => {
-      const st = getStageName(o);
-      return st !== "won" && st !== "lost" && st !== "closed_won" && st !== "closed_lost";
+      const s = getStageName(o);
+      return s !== "Won" && s !== "Lost";
     })
     .reduce((sum, o) => sum + Number(o.amount || 0), 0);
 
@@ -114,16 +114,17 @@ export default function MyDashboard() {
   // 2. Opportunities requiring quotes/follow-up
   opportunities
     .filter((o) => {
-      const st = getStageName(o);
-      return st === "quote preparation" || st === "quote sent" || st === "negotiation" || st === "proposal_quote";
+      const s = getStageName(o);
+      return s === "Quote Preparation" || s === "Negotiation" || s === "Quote Sent" || s === "Requirements";
     })
     .slice(0, 2)
     .forEach((o) => {
+      const stageName = getStageName(o);
       focusItems.push({
         id: `opp-${o.id}`,
         type: "opportunity",
         title: `Commercial Follow-up: ${o.name}`,
-        subtitle: `Stage: ${o.stage?.name || o.stageId} • Value: ₹${Number(o.amount || 0).toLocaleString()}`,
+        subtitle: `Stage: ${stageName} • Value: ${formatCurrency(o.amount || 0)}`,
         badge: "Commercial",
         badgeColor: "bg-emerald-50 text-emerald-700 border-emerald-200",
         url: `/opportunities/${o.id}`

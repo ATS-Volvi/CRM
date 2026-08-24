@@ -65,6 +65,11 @@ export const sendEmailMessage = async (req: Request, res: Response) => {
         createdById: (req as any).user?.id || null,
         direction: "outbound"
       });
+
+      if (sendStatus === "Sent") {
+        const { checkAndAutoAdvanceLead } = require("../services/leadStageAutomationService");
+        await checkAndAutoAdvanceLead(leadId, { userId: (req as any).user?.id });
+      }
     }
 
     if (sendStatus === "Failed") {

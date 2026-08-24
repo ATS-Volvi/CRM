@@ -95,9 +95,9 @@ async function checkOutstandingPOs() {
       include: [
         {
           model: sequelize.models.Quote,
-          as: "Quotes",
+          as: "quotes",
           where: { status: "Accepted" },
-          include: [{ model: sequelize.models.PurchaseOrder, as: "PurchaseOrder", required: false }]
+          include: [{ model: sequelize.models.PurchaseOrder, required: false }]
         },
         { model: sequelize.models.User, as: "owner", attributes: ["id", "name", "email", "role"] }
       ]

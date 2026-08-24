@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { Activity, User } from "@nexus-crm/database";
 import { checkRecordAccess } from "../services/handoffAccessService";
+import { checkAndAutoAdvanceLead } from "../services/leadStageAutomationService";
 
 export const getLeadActivities = async (req: Request, res: Response) => {
   try {
@@ -87,6 +88,10 @@ export const createActivity = async (req: Request, res: Response) => {
       isCompleted: isCompleted || false,
       direction: direction || "internal"
     });
+
+    if (leadId && type !== "stage_change") {
+      await checkAndAutoAdvanceLead(String(leadId), { userId });
+    }
 
     res.status(201).json(activity);
   } catch (error: any) {

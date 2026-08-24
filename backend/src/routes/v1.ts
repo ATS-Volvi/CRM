@@ -4,7 +4,9 @@ import { createPublicLead } from "../controllers/publicLeads";
 import { authMiddleware, requireAdminOrManager } from "../middleware/auth";
 import {
   getPipeline, moveDealStage, createDeal, getDeals, validateTransition,
-  getOpportunities, getOpportunityById, createOpportunity, updateOpportunity, moveOpportunityStage
+  getOpportunities, getOpportunityById, createOpportunity, updateOpportunity, moveOpportunityStage,
+  getPipelineStages, postOpportunityEvent, markOpportunityWon, markOpportunityLost,
+  getOpportunityTimeline, getOpportunityNextAction, getOpportunityHealth
 } from "../controllers/pipelineController";
 import { getLeadActivities, createActivity, togglePinActivity, completeTask, getOverdueTasks } from "../controllers/activityController";
 import {
@@ -29,13 +31,13 @@ import {
 } from "../controllers/leadController";
 import { getPriceBookEntries, createPriceBookEntry, updatePriceBookEntry, deletePriceBookEntry, importPriceBookEntries, getPriceSuggestion, importPriceBookEntriesPreview, getCatalogCategories, getCatalogUoms } from '../controllers/priceBookController';
 import {
-  getQuotes, getQuoteById, createQuote, updateQuote, getQuoteRecommendations, sendQuote, acceptQuote, createQuoteRevision,
+  getQuotes, getQuoteById, createQuote, updateQuote, getQuoteRecommendations, sendQuote, acceptQuote, rejectQuote, createQuoteRevision,
   getOpportunityQuotes, createOpportunityQuote, getPublicQuote, generateQuotePdf, signQuote, getQuoteHistoryByClient,
-  getSimilarQuotesStats, getSimilarClientQuotes
+  getSimilarQuotesStats, getSimilarClientQuotes, markQuoteFinalAgreed
 } from '../controllers/quoteController';
 import { getInvoices, createInvoiceFromQuote, updateInvoiceStatus, generateInvoicePdf } from '../controllers/invoiceController';
-import { getPurchaseOrders, getOrderById, createPurchaseOrder, updatePurchaseOrder, createOrderFromQuote } from '../controllers/purchaseOrderController';
-import { getApprovals, updateApproval, getApprovalTiers, createApprovalTier, deleteApprovalTier } from '../controllers/approvalController';
+import { getPurchaseOrders, getOrderById, createPurchaseOrder, updatePurchaseOrder, createOrderFromQuote, resolvePurchaseOrder } from '../controllers/purchaseOrderController';
+import { getApprovals, updateApproval, getApprovalTiers, createApprovalTier, deleteApprovalTier, submitQuoteForApproval } from '../controllers/approvalController';
 import { getKpiDashboard, getManagementDashboard, getMyTodayDashboard, getMyHomeDashboard, getKpiTarget, updateKpiTarget, getActivitiesReports, getHomeDashboard } from '../controllers/dashboardController';
 import { getAssignmentRules, createAssignmentRule, updateAssignmentRule, deleteAssignmentRule, getSalespersonsCapacities, balanceSalespersonsCapacities } from '../controllers/assignmentRuleController';
 import { getAssignmentPolicy, updateAssignmentPolicy, getRepPerformanceProfiles, getAssignmentAudits, reassignLeadManually } from '../controllers/assignmentController';
@@ -54,7 +56,7 @@ import {
 import { getQuoteTemplates, createQuoteTemplate, parseReferenceDocument } from '../controllers/quoteTemplateController';
 import { receiveInboundEmail } from "../controllers/emailController";
 import { verifyInstagramWebhook, receiveInstagramMessage } from "../controllers/instagramController";
-import { getAccounts, getAccountById, createAccount } from "../controllers/accountController";
+import { getAccounts, getAccountById, createAccount, updateAccount } from "../controllers/accountController";
 import { getContacts, getContactById, createContact, updateContact } from "../controllers/contactController";
 import { getAssets, getAssetById, createAsset, updateAsset, deleteAsset } from "../controllers/assetController";
 import {
@@ -399,7 +401,17 @@ router.post("/opportunities/:id/convert-from-lead", authMiddleware, convertLead)
 router.get("/opportunities/:id/quotes", authMiddleware, getOpportunityQuotes);
 router.post("/opportunities/:id/quotes", authMiddleware, createOpportunityQuote);
 
+// Automated Opportunity Lifecycle Routes
+router.post("/opportunities/:id/events", authMiddleware, postOpportunityEvent);
+router.post("/opportunities/:id/mark-won", authMiddleware, markOpportunityWon);
+router.post("/opportunities/:id/mark-lost", authMiddleware, markOpportunityLost);
+router.get("/opportunities/:id/timeline", authMiddleware, getOpportunityTimeline);
+router.get("/opportunities/:id/next-action", authMiddleware, getOpportunityNextAction);
+router.get("/opportunities/:id/health", authMiddleware, getOpportunityHealth);
+
 router.get("/pipeline", authMiddleware, getPipeline);
+router.get("/pipeline-stages", authMiddleware, getPipelineStages);
+router.get("/pipeline/stages", authMiddleware, getPipelineStages);
 router.post("/pipeline/deals", authMiddleware, createDeal);
 router.put("/pipeline/deals/:id/stage", authMiddleware, moveDealStage);
 router.post("/pipeline/validate-transition", authMiddleware, validateTransition);
@@ -418,8 +430,13 @@ router.get("/quotes/:id", authMiddleware, getQuoteById);
 router.put("/quotes/:id", authMiddleware, updateQuote);
 router.patch("/quotes/:id", authMiddleware, updateQuote);
 router.post("/quotes/:id/create-revision", authMiddleware, createQuoteRevision);
+router.post("/quotes/:id/mark-final", authMiddleware, markQuoteFinalAgreed);
+router.put("/quotes/:id/final", authMiddleware, markQuoteFinalAgreed);
 router.post("/quotes/:id/send", authMiddleware, sendQuote);
 router.post("/quotes/:id/accept", authMiddleware, acceptQuote);
+router.post("/quotes/:id/reject", authMiddleware, rejectQuote);
+router.post("/quotes/:id/submit-approval", authMiddleware, submitQuoteForApproval);
+router.post("/approvals/quotes/:id/submit", authMiddleware, submitQuoteForApproval);
 router.get("/quotes/:id/pdf", authMiddleware, generateQuotePdf);
 
 // ==========================================
@@ -456,6 +473,8 @@ router.post("/orders", authMiddleware, createPurchaseOrder);
 router.get("/purchase-orders", authMiddleware, getPurchaseOrders);
 router.post("/purchase-orders", authMiddleware, createPurchaseOrder);
 router.put("/purchase-orders/:id", authMiddleware, updatePurchaseOrder);
+router.post("/purchase-orders/:id/resolve", authMiddleware, resolvePurchaseOrder);
+router.put("/purchase-orders/:id/resolve", authMiddleware, resolvePurchaseOrder);
 router.get("/orders/:id/fulfillment", authMiddleware, getFulfillmentByOrderId);
 
 // ==========================================
@@ -596,6 +615,8 @@ router.delete("/master-data/kpis/:id", authMiddleware, deleteKpiMaster);
 router.get("/accounts", authMiddleware, getAccounts);
 router.post("/accounts", authMiddleware, createAccount);
 router.get("/accounts/:id", authMiddleware, getAccountById);
+router.post("/accounts", authMiddleware, createAccount);
+router.put("/accounts/:id", authMiddleware, updateAccount);
 
 router.get("/customers", authMiddleware, getAccounts);
 router.post("/customers", authMiddleware, createAccount);
