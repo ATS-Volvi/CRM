@@ -5,7 +5,7 @@ export const mockLeads = [
     contactName: "John Doe",
     email: "john@acme.co",
     source: "Website",
-    status: "New",
+    status: "NEW",
     score: 85,
     value: 50000,
     createdAt: new Date().toISOString()

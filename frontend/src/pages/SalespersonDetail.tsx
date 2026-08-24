@@ -49,19 +49,22 @@ interface Rep {
 }
 
 const PIPELINE_STAGES = [
-  "Qualification", "Discovery", "Meeting", "Proposal", "Approval", "Negotiation", "Closing", "Won", "Lost"
+  "Discovery", "Requirements", "Solution/Scope", "Quote Preparation", "Quote Sent", "Negotiation", "Agreed", "Won", "Lost"
 ];
 
 const STAGE_BADGES: Record<string, string> = {
-  Qualification: "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700",
-  Discovery: "bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/50 dark:text-indigo-300 dark:border-indigo-800",
-  Meeting: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800",
-  Proposal: "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/50 dark:text-purple-300 dark:border-purple-800",
-  Approval: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800",
-  Negotiation: "bg-cyan-50 text-cyan-700 border-cyan-200 dark:bg-cyan-950/50 dark:text-cyan-300 dark:border-cyan-800",
-  Closing: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800",
+  Discovery: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800",
+  Requirements: "bg-cyan-50 text-cyan-700 border-cyan-200 dark:bg-cyan-950/50 dark:text-cyan-300 dark:border-cyan-800",
+  "Solution/Scope": "bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/50 dark:text-indigo-300 dark:border-indigo-800",
+  "Quote Preparation": "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800",
+  "Quote Sent": "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/50 dark:text-orange-300 dark:border-orange-800",
+  Negotiation: "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/50 dark:text-purple-300 dark:border-purple-800",
+  Agreed: "bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950/50 dark:text-teal-300 dark:border-teal-800",
   Won: "bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-200 dark:border-emerald-700",
   Lost: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-800",
+  // Backward compatibility
+  Proposal: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800",
+  Meeting: "bg-cyan-50 text-cyan-700 border-cyan-200 dark:bg-cyan-950/50 dark:text-cyan-300 dark:border-cyan-800"
 };
 
 const QUOTE_STATUS_BADGES: Record<string, string> = {
@@ -137,11 +140,11 @@ export default function SalespersonDetail() {
   const activeDealsList = useMemo(() => {
     return [
       { id: "d1", customer: "ABC Industries", stage: "Negotiation", value: 1200000, lastActivity: "Meeting Tomorrow", followUp: "Today, 14:00", priority: "High", closeDate: "12 Aug 2026", isBlocked: true, blockReason: "Waiting on 12% Discount Approval" },
-      { id: "d2", customer: "Metro Chemicals", stage: "Pending Approval", value: 850000, lastActivity: "Quote Waiting", followUp: "Today, 16:30", priority: "High", closeDate: "20 Aug 2026", isBlocked: true, blockReason: "Quote #QT-9921 Pending Admin Approval" },
-      { id: "d3", customer: "Apex Global Logistics", stage: "Proposal", value: 1450000, lastActivity: "Revised Proposal Sent", followUp: "08 Aug, 10:00", priority: "High", closeDate: "18 Aug 2026", isBlocked: false },
-      { id: "d4", customer: "Saudi Heavy Transport", stage: "Meeting", value: 680000, lastActivity: "Technical Demo Completed", followUp: "Today, 11:30", priority: "Medium", closeDate: "25 Aug 2026", isBlocked: false },
+      { id: "d2", customer: "Metro Chemicals", stage: "Agreed", value: 850000, lastActivity: "Quote Waiting", followUp: "Today, 16:30", priority: "High", closeDate: "20 Aug 2026", isBlocked: true, blockReason: "Quote #QT-9921 Pending Admin Approval" },
+      { id: "d3", customer: "Apex Global Logistics", stage: "Quote Preparation", value: 1450000, lastActivity: "Revised Proposal Sent", followUp: "08 Aug, 10:00", priority: "High", closeDate: "18 Aug 2026", isBlocked: false },
+      { id: "d4", customer: "Saudi Heavy Transport", stage: "Requirements", value: 680000, lastActivity: "Technical Demo Completed", followUp: "Today, 11:30", priority: "Medium", closeDate: "25 Aug 2026", isBlocked: false },
       { id: "d5", customer: "Eastern Port Logistics", stage: "Discovery", value: 450000, lastActivity: "Discovery Call Scheduled", followUp: "09 Aug, 09:00", priority: "Low", closeDate: "30 Aug 2026", isBlocked: false },
-      { id: "d6", customer: "Al-Khobar Water Systems", stage: "Closing", value: 570000, lastActivity: "Contract Reviewing", followUp: "10 Aug, 15:00", priority: "High", closeDate: "14 Aug 2026", isBlocked: false }
+      { id: "d6", customer: "Al-Khobar Water Systems", stage: "Won", value: 570000, lastActivity: "Contract Reviewing", followUp: "10 Aug, 15:00", priority: "High", closeDate: "14 Aug 2026", isBlocked: false }
     ];
   }, []);
 
@@ -215,8 +218,8 @@ export default function SalespersonDetail() {
     leadSources: [{ source: "Inbound Web", count: 12 }],
     dealTypes: [
       { stage: "Negotiation", count: 2 },
-      { stage: "Proposal", count: 2 },
-      { stage: "Meeting", count: 1 },
+      { stage: "Quote Preparation", count: 2 },
+      { stage: "Requirements", count: 1 },
       { stage: "Discovery", count: 1 }
     ],
     quotes: [],
@@ -600,7 +603,7 @@ export default function SalespersonDetail() {
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                   {PIPELINE_STAGES.map(stage => {
-                    const count = stage === "Proposal" ? 3 : stage === "Negotiation" ? 2 : stage === "Approval" ? 3 : stage === "Discovery" ? 2 : 1;
+                    const count = stage === "Quote Preparation" ? 3 : stage === "Negotiation" ? 2 : stage === "Requirements" ? 3 : stage === "Discovery" ? 2 : 1;
                     const value = count * 580000;
                     return (
                       <div key={stage} className="bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800 rounded-xl p-3.5 flex flex-col justify-between h-32">

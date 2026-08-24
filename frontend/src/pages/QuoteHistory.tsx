@@ -6,6 +6,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ChevronRight, FileText, Download, CheckCircle, CheckCircle2, Clock, AlertTriangle, Plus, Search, Filter, Calendar, MoreVertical, TrendingUp, Timer, Bolt, X } from "lucide-react";
 import { formatCurrency, formatCurrencyCompact } from "../utils/currency";
 import { downloadAuthenticatedFile } from "../utils/download";
+import { QuoteBillModal } from "../components/QuoteBillModal";
+import { apiClient } from "../lib/apiClient";
 
 export default function QuoteHistory() {
   const { token } = useAuth();
@@ -21,6 +23,7 @@ export default function QuoteHistory() {
   const [showAuditModal, setShowAuditModal] = useState(false);
   const [poModalQuote, setPoModalQuote] = useState<any | null>(null);
   const [poNumberInput, setPoNumberInput] = useState("");
+  const [viewQuoteId, setViewQuoteId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const pageSize = 10;
   const [showDates, setShowDates] = useState(false);
@@ -332,7 +335,7 @@ export default function QuoteHistory() {
                     const formattedDate = new Date(quote.createdAt).toLocaleDateString();
 
                     return (
-                    <tr key={quote.id || idx} className="hover:bg-surface-container-low/50 transition-colors group cursor-pointer" onClick={() => downloadAuthenticatedFile(`/api/v1/quotes/${quote.id}/pdf`, `Quote_${quote.id.substring(0,8)}.pdf`, token)}>
+                    <tr key={quote.id || idx} className="hover:bg-surface-container-low/50 transition-colors group cursor-pointer" onClick={() => setViewQuoteId(quote.id)}>
                       <td className="px-6 py-4">
                         <span className="text-sm font-bold text-primary">{quote.id.substring(0,8)}</span>
                         <p className="text-[10px] text-outline mt-1">Created: {formattedDate}</p>
@@ -413,11 +416,17 @@ export default function QuoteHistory() {
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
                           <button
+                            onClick={() => setViewQuoteId(quote.id)}
+                            className="px-2.5 py-1 bg-surface-container border border-outline-variant text-on-surface text-[10px] font-bold uppercase rounded hover:bg-surface-container-high transition-all flex items-center gap-1 cursor-pointer"
+                          >
+                            <FileText className="w-3 h-3 text-slate-500" /> View
+                          </button>
+                          <button
                             onClick={(e) => {
                               e.stopPropagation();
                               downloadAuthenticatedFile(`/api/v1/quotes/${quote.id}/pdf`, `Quote_${quote.id.substring(0,8)}.pdf`, token);
                             }}
-                            className="px-3 py-1 bg-surface-container border border-outline-variant text-on-surface text-[10px] font-bold uppercase rounded hover:bg-surface-container-high transition-all flex items-center gap-1"
+                            className="px-2.5 py-1 bg-surface-container border border-outline-variant text-on-surface text-[10px] font-bold uppercase rounded hover:bg-surface-container-high transition-all flex items-center gap-1 cursor-pointer"
                           >
                             <Download className="w-3 h-3" /> PDF
                           </button>
@@ -444,6 +453,21 @@ export default function QuoteHistory() {
                               className="px-3 py-1 bg-primary text-on-primary text-[10px] font-bold uppercase rounded hover:opacity-90 transition-all"
                             >
                               DocuSign
+                            </button>
+                          )}
+                          {quote.status !== 'Rejected' && quote.status !== 'Declined' && (
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                if (confirm(`Mark quote ${quote.id.substring(0,8)} as declined/rejected by customer?`)) {
+                                  await apiClient.post(`/api/v1/quotes/${quote.id}/reject`, { reason: "Price / Commercial terms" });
+                                  queryClient.invalidateQueries({ queryKey: ["quotes"] });
+                                }
+                              }}
+                              className="px-2 py-1 bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-bold uppercase rounded hover:bg-rose-100 transition-all cursor-pointer"
+                              title="Mark Quote as Declined/Rejected"
+                            >
+                              Reject
                             </button>
                           )}
                            {quote.status === 'Approved' && (
@@ -694,6 +718,14 @@ export default function QuoteHistory() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Bill Preview Modal Popup */}
+      {viewQuoteId && (
+        <QuoteBillModal
+          quoteId={viewQuoteId}
+          onClose={() => setViewQuoteId(null)}
+        />
       )}
 
       </div>

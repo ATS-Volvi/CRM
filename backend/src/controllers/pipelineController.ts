@@ -334,11 +334,18 @@ export const createDeal = async (req: Request, res: Response) => {
   }
 };
 
+import { processOpportunityEvent, calculateOpportunityHealth } from "../services/opportunityAutomationEngine";
+
 export const getDeals = async (req: Request, res: Response) => {
   try {
-    const { stage, search } = req.query;
+    const { stage, status, search } = req.query;
     const dealWhere: any = {};
     const stageInclude: any = { model: PipelineStage, as: "stage" };
+    const likeOp = (Op as any).iLike || Op.like;
+
+    if (status && String(status).trim() && String(status).trim() !== "ALL") {
+      dealWhere.status = String(status).toUpperCase();
+    }
 
     if (stage && String(stage).trim() && String(stage).trim() !== "ALL") {
       const stageStr = String(stage).trim();
@@ -347,12 +354,12 @@ export const getDeals = async (req: Request, res: Response) => {
         stageInclude.where = {
           [Op.or]: [
             { id: stageStr },
-            { name: { [Op.iLike]: stageStr } }
+            { name: { [likeOp]: stageStr } }
           ]
         };
       } else {
         stageInclude.where = {
-          name: { [Op.iLike]: stageStr }
+          name: { [likeOp]: stageStr }
         };
       }
       stageInclude.required = true;
@@ -361,8 +368,8 @@ export const getDeals = async (req: Request, res: Response) => {
     if (search && String(search).trim()) {
       const searchStr = `%${String(search).trim()}%`;
       dealWhere[Op.or] = [
-        { name: { [Op.iLike]: searchStr } },
-        { competitors: { [Op.iLike]: searchStr } }
+        { name: { [likeOp]: searchStr } },
+        { competitors: { [likeOp]: searchStr } }
       ];
     }
 
@@ -371,7 +378,8 @@ export const getDeals = async (req: Request, res: Response) => {
       include: [
         stageInclude,
         { model: sequelize.models.Account, as: "account" },
-        { model: sequelize.models.User, as: "owner" }
+        { model: sequelize.models.User, as: "owner" },
+        { model: sequelize.models.Quote, as: "quotes" }
       ],
       order: [["createdAt", "DESC"]]
     });
@@ -389,7 +397,7 @@ export const getOpportunityById = async (req: Request, res: Response) => {
         { model: PipelineStage, as: "stage" },
         { model: sequelize.models.Account, as: "account" },
         { model: sequelize.models.User, as: "owner" },
-        { model: sequelize.models.Quote, as: "Quotes" }
+        { model: sequelize.models.Quote, as: "quotes" }
       ]
     });
     if (!deal) return res.status(404).json({ error: "Opportunity not found" });
@@ -448,7 +456,7 @@ export const getOpportunityById = async (req: Request, res: Response) => {
 export const updateOpportunity = async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id);
-    const { name, amount, stageId, ownerId, competitors, probability } = req.body;
+    const { name, amount, stageId, ownerId, competitors, probability, status, lossReason, lossNotes } = req.body;
     const deal = await Deal.findByPk(id);
     if (!deal) return res.status(404).json({ error: "Opportunity not found" });
 
@@ -458,7 +466,10 @@ export const updateOpportunity = async (req: Request, res: Response) => {
       stageId: stageId !== undefined ? stageId : (deal as any).stageId,
       ownerId: ownerId !== undefined ? ownerId : (deal as any).ownerId,
       competitors: competitors !== undefined ? competitors : (deal as any).competitors,
-      probability: probability !== undefined ? probability : (deal as any).probability
+      probability: probability !== undefined ? probability : (deal as any).probability,
+      status: status !== undefined ? status : (deal as any).status,
+      lossReason: lossReason !== undefined ? lossReason : (deal as any).lossReason,
+      lossNotes: lossNotes !== undefined ? lossNotes : (deal as any).lossNotes
     });
 
     res.json(deal);
@@ -467,7 +478,150 @@ export const updateOpportunity = async (req: Request, res: Response) => {
   }
 };
 
+export const postOpportunityEvent = async (req: Request, res: Response) => {
+  try {
+    const opportunityId = String(req.params.id);
+    const { type, eventId, payload } = req.body;
+    const userId = (req as any).user?.id || "mock-user";
+
+    const result = await processOpportunityEvent({
+      eventId,
+      opportunityId,
+      type,
+      actorId: userId,
+      payload
+    });
+
+    res.status(result.isIdempotentReplay ? 200 : 201).json(result);
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+};
+
+export const markOpportunityWon = async (req: Request, res: Response) => {
+  try {
+    const opportunityId = String(req.params.id);
+    const { quoteId, reason, transitionType } = req.body;
+    const userId = (req as any).user?.id || "mock-user";
+
+    const result = await processOpportunityEvent({
+      opportunityId,
+      type: "MarkWon",
+      actorId: userId,
+      payload: {
+        quoteId,
+        wonReason: reason || "MANUAL_CONFIRMATION",
+        transitionType: transitionType || "STANDARD"
+      }
+    });
+
+    res.json(result);
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+};
+
+export const markOpportunityLost = async (req: Request, res: Response) => {
+  try {
+    const opportunityId = String(req.params.id);
+    const { lossReason, lossNotes } = req.body;
+    const userId = (req as any).user?.id || "mock-user";
+
+    if (!lossReason) {
+      return res.status(400).json({ error: "Loss reason is mandatory when closing an opportunity as Lost." });
+    }
+
+    const result = await processOpportunityEvent({
+      opportunityId,
+      type: "MarkLost",
+      actorId: userId,
+      payload: {
+        lossReason,
+        lossNotes
+      }
+    });
+
+    res.json(result);
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+};
+
+export const getOpportunityTimeline = async (req: Request, res: Response) => {
+  try {
+    const opportunityId = String(req.params.id);
+    const deal = await Deal.findByPk(opportunityId);
+    if (!deal) return res.status(404).json({ error: "Opportunity not found" });
+
+    const d = deal as any;
+    const whereCondition: any = {
+      [Op.or]: [
+        { customerId: d.accountId || d.customerId || null },
+        { leadId: d.leadId || null }
+      ]
+    };
+
+    const activities = await Activity.findAll({
+      where: whereCondition,
+      order: [["createdAt", "DESC"]],
+      limit: 50
+    });
+
+    res.json(activities);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const getOpportunityNextAction = async (req: Request, res: Response) => {
+  try {
+    const opportunityId = String(req.params.id);
+    const deal = await Deal.findByPk(opportunityId);
+    if (!deal) return res.status(404).json({ error: "Opportunity not found" });
+
+    const d = deal as any;
+    res.json({
+      opportunityId,
+      status: d.status || "OPEN",
+      currentActivity: d.currentActivity || "Active Opportunity",
+      nextAction: d.nextAction || "Contact customer / confirm requirements",
+      nextActionDue: d.nextActionDue
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const getOpportunityHealth = async (req: Request, res: Response) => {
+  try {
+    const opportunityId = String(req.params.id);
+    const deal = await Deal.findByPk(opportunityId);
+    if (!deal) return res.status(404).json({ error: "Opportunity not found" });
+
+    const d = deal as any;
+    const health = calculateOpportunityHealth(d.lastCustomerActivityAt, d.nextActionDue);
+    res.json({
+      opportunityId,
+      status: d.status || "OPEN",
+      ...health
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 export const getOpportunities = getDeals;
 export const createOpportunity = createDeal;
 export const moveOpportunityStage = moveDealStage;
+
+export const getPipelineStages = async (req: Request, res: Response) => {
+  try {
+    const stages = await PipelineStage.findAll({ order: [["order", "ASC"]] });
+    res.json(stages);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+
 

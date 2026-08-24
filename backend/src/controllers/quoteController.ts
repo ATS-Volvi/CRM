@@ -3,6 +3,7 @@ import { sequelize } from "@nexus-crm/database";
 import { createNotification } from "../services/notificationService";
 import { evaluateQuoteApproval, createApprovalAuditLog } from "../services/approvalEngine";
 import { triggerQuoteApprovalNotifications } from "../services/notificationEngine";
+import { processOpportunityEvent } from "../services/opportunityAutomationEngine";
 
 export const getQuotes = async (req: Request, res: Response) => {
   try {
@@ -203,24 +204,9 @@ export const createQuote = async (req: Request, res: Response) => {
       ? calculatedItemsTotal
       : (Number(req.body.totalAmount) || 0);
 
-    // Evaluate quote approval requirements via Approval Hierarchy Engine
-    const salesRepId = (deal as any)?.ownerId || userId;
-    const evaluation = await evaluateQuoteApproval("", {
-      salesRepId,
-      totalAmount,
-      items: verifiedItems
-    });
-
-    const approvalRequired = !isStrategic && evaluation.approvalRequired;
-    const isSubmitted = status === "Pending" || status === "Pending Approval" || status === "Pending_Approval" || status === "Approved";
-
-    // If approval is NOT required and salesperson submits/saves, auto-approve under salesperson's self-approval limit
-    let finalStatus = status || "Draft";
-    if (approvalRequired) {
-      finalStatus = "Pending Approval";
-    } else if (isSubmitted) {
-      finalStatus = "Approved";
-    }
+    // Initial quote creation saves as Draft or Sent directly to client
+    // Internal management approval is triggered from Opportunity page after customer acceptance
+    const finalStatus = status || "Sent";
 
     // Create quote
     const quote = await sequelize.models.Quote.create({
@@ -242,61 +228,21 @@ export const createQuote = async (req: Request, res: Response) => {
       await sequelize.models.QuoteLineItem.bulkCreate(lineItemsData);
     }
 
-    // Auto-create approval request only if approval is required
-    if (approvalRequired) {
-      const assignedApproverId = evaluation.requiredApproverId;
 
-      await sequelize.models.ApprovalRequest.create({
-        id: require('crypto').randomUUID(),
-        targetId: (quote as any).id,
-        type: "Quote",
-        status: "Pending",
-        requestedById: userId,
-        assignedApproverId,
-        comments: `Quote value ${totalAmount} requires ${evaluation.approvalLevel} approval. Reason: ${evaluation.reason}`
-      });
-
-      // Audit Log
-      await createApprovalAuditLog({
-        quoteId: (quote as any).id,
-        salesRepId,
-        approvalLevel: evaluation.approvalLevel,
-        requiredLimit: evaluation.repLimit,
-        actualQuoteValue: totalAmount,
-        discount: evaluation.discount,
-        margin: evaluation.margin,
-        approverId: assignedApproverId,
-        decision: "Submitted",
-        reason: evaluation.reason
-      });
-
-      // Send real-time notification to Approver
-      if (assignedApproverId) {
-        await createNotification(
-          assignedApproverId,
-          "alert",
-          "New Quote Approval Request",
-          `A new quotation approval request (${quoteNum}) requires your approval.`,
-          "/approvals"
-        );
-      }
-    } else if (isSubmitted) {
-      await createApprovalAuditLog({
-        quoteId: (quote as any).id,
-        salesRepId,
-        approvalLevel: "SALES_REP",
-        requiredLimit: evaluation.repLimit,
-        actualQuoteValue: totalAmount,
-        discount: evaluation.discount,
-        margin: evaluation.margin,
-        approverId: salesRepId,
-        decision: "Approved",
-        reason: "Self-approved within limit."
-      });
+    if ((quote as any).dealId) {
+      processOpportunityEvent({
+        opportunityId: (quote as any).dealId,
+        type: "QuoteCreated",
+        actorId: (req as any).user?.id || userId || null,
+        payload: {
+          quoteId: (quote as any).id,
+          quoteNumber: (quote as any).quoteNumber,
+          version: (quote as any).version,
+          totalAmount: (quote as any).totalAmount
+        }
+      }).catch(err => console.warn("Opportunity event notice:", err.message));
     }
 
-    // Trigger Role-Based Notification Engine Dispatcher (Hierarchical Approval Notification)
-    triggerQuoteApprovalNotifications(quote, deal, (req as any).user).catch(e => console.error("Quote notification engine error:", e));
 
     res.status(201).json(quote);
   } catch (error: any) {
@@ -307,7 +253,7 @@ export const createQuote = async (req: Request, res: Response) => {
 export const updateQuote = async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id);
-    const { status, expirationDate, totalAmount, items } = req.body;
+    const { status, expirationDate, totalAmount, items, isFinalAgreed } = req.body;
     
     const quote = await sequelize.models.Quote.findByPk(String(id), {
       include: [{ model: sequelize.models.QuoteLineItem, as: "QuoteLineItems" }]
@@ -317,6 +263,17 @@ export const updateQuote = async (req: Request, res: Response) => {
     const q = quote as any;
     const prevStatus = q.status;
     let itemsUpdated = false;
+
+    if (isFinalAgreed !== undefined) {
+      const { Op } = require("sequelize");
+      q.isFinalAgreed = Boolean(isFinalAgreed);
+      if (q.isFinalAgreed && q.dealId) {
+        await sequelize.models.Quote.update(
+          { isFinalAgreed: false },
+          { where: { dealId: q.dealId, id: { [Op.ne]: id } } }
+        );
+      }
+    }
 
     // Update items if provided
     if (items && Array.isArray(items)) {
@@ -446,6 +403,20 @@ export const sendQuote = async (req: Request, res: Response) => {
         salespersonId: (req as any).user?.id || (deal as any).ownerId,
         quoteValue: (quote as any).totalAmount
       });
+    }
+
+    if ((quote as any).dealId) {
+      processOpportunityEvent({
+        opportunityId: (quote as any).dealId,
+        type: "QuoteSent",
+        actorId: (req as any).user?.id || (deal as any)?.ownerId,
+        payload: {
+          quoteId: (quote as any).id,
+          quoteNumber: (quote as any).quoteNumber,
+          version: (quote as any).version,
+          totalAmount: (quote as any).totalAmount
+        }
+      }).catch(err => console.warn("Opportunity event notice:", err.message));
     }
 
     res.json(quote);
@@ -1177,35 +1148,131 @@ export const acceptQuote = async (req: Request, res: Response) => {
       statusChangedAt: new Date()
     });
 
-    // Advance Opportunity Stage to Agreed or Won
+    // Process Opportunity Won Lifecycle Event through central engine
+    let eventResult: any = null;
     if (q.dealId) {
-      const deal = await sequelize.models.Deal.findByPk(q.dealId);
-      if (deal) {
-        const agreedStage = await sequelize.models.PipelineStage.findOne({ where: { name: "Agreed" } })
-          || await sequelize.models.PipelineStage.findOne({ where: { name: "Won" } });
-        if (agreedStage) {
-          await deal.update({ stageId: (agreedStage as any).id });
+      eventResult = await processOpportunityEvent({
+        eventId: `quote_accepted_${q.id}`,
+        opportunityId: q.dealId,
+        type: "QuoteAccepted",
+        actorId: (req as any).user?.id,
+        payload: {
+          quoteId: q.id,
+          quoteNumber: q.quoteNumber,
+          version: q.version,
+          totalAmount: q.totalAmount
         }
-      }
+      });
     }
 
-    // Log universal activity
-    await sequelize.models.Activity.create({
-      id: require("crypto").randomUUID(),
-      leadId: null,
-      customerId: (quote as any).accountId || null,
-      type: "note",
-      outcome: `Quote ${q.quoteNumber || q.id} (v${q.version}) Accepted as Final Agreed Quote`,
-      mentioned_user_ids: "[]",
-      pinned: true,
-      createdById: (req as any).user?.id || "mock-user",
-      direction: "internal"
+    res.json({
+      message: "Quote accepted as final agreed quote",
+      quote: q,
+      opportunityResult: eventResult
     });
-
-    res.json({ message: "Quote accepted as final agreed quote", quote: q });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
 };
+
+export const markQuoteFinalAgreed = async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const { Op } = require("sequelize");
+    const quote = await sequelize.models.Quote.findByPk(id, {
+      include: [{ model: sequelize.models.Deal, as: "deal" }]
+    });
+    if (!quote) return res.status(404).json({ error: "Quote not found" });
+    const q = quote as any;
+
+    if (q.status === "Superseded") {
+      return res.status(400).json({ error: "Cannot mark a superseded quote as final agreed." });
+    }
+    if (q.status === "Cancelled") {
+      return res.status(400).json({ error: "Cannot mark a cancelled quote as final agreed." });
+    }
+
+    if (q.dealId) {
+      await sequelize.models.Quote.update(
+        { isFinalAgreed: false },
+        { where: { dealId: q.dealId, id: { [Op.ne]: id } } }
+      );
+    }
+
+    await q.update({
+      isFinalAgreed: true,
+      statusChangedAt: new Date()
+    });
+
+    if (q.deal && q.deal.leadId) {
+      await sequelize.models.Activity.create({
+        id: require("crypto").randomUUID(),
+        leadId: q.deal.leadId,
+        type: "note",
+        outcome: `Quote ${q.quoteNumber || id} (v${q.version || 1}) marked as Final Agreed Commercial Terms.`,
+        createdById: (req as any).user?.id || q.deal.ownerId || null,
+        direction: "internal"
+      });
+    }
+
+    res.json({ message: "Quote marked as final agreed terms", quote: q });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const rejectQuote = async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const { reason, notes } = req.body || {};
+    const quote = await sequelize.models.Quote.findByPk(id, {
+      include: [{ model: sequelize.models.Deal, as: "deal" }]
+    });
+    if (!quote) return res.status(404).json({ error: "Quote not found" });
+    const q = quote as any;
+
+    // Mark quote status as Rejected and clear isFinalAgreed and acceptedAt
+    await q.update({
+      status: "Rejected",
+      isFinalAgreed: false,
+      acceptedAt: null,
+      statusChangedAt: new Date()
+    });
+
+    // Record activity note on the deal
+    const rejectionDetails = [reason, notes].filter(Boolean).join(" — ");
+    if (q.dealId) {
+      await sequelize.models.Activity.create({
+        id: require("crypto").randomUUID(),
+        opportunityId: q.dealId,
+        customerId: q.deal?.accountId || q.deal?.customerId || null,
+        leadId: q.deal?.leadId || null,
+        type: "note",
+        outcome: `Quote ${q.quoteNumber || id} (v${q.version || 1}) was Declined / Marked Rejected${rejectionDetails ? `: ${rejectionDetails}` : "."}`,
+        createdById: (req as any).user?.id || q.deal?.ownerId || null,
+        direction: "internal",
+        isCompleted: true
+      });
+
+      await processOpportunityEvent({
+        opportunityId: q.dealId,
+        type: "CustomerRejected",
+        actorId: (req as any).user?.id || q.deal?.ownerId,
+        payload: {
+          quoteId: q.id,
+          quoteNumber: q.quoteNumber,
+          version: q.version,
+          reason,
+          notes
+        }
+      }).catch(e => console.warn("Opportunity event error:", e.message));
+    }
+
+    res.json({ message: "Quote marked as rejected", quote: q });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 
 

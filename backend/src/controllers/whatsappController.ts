@@ -236,6 +236,11 @@ export const sendMessage = async (req: Request, res: Response) => {
       direction: "outbound"
     } as any);
 
+    if (targetLeadId) {
+      const { checkAndAutoAdvanceLead } = require("../services/leadStageAutomationService");
+      await checkAndAutoAdvanceLead(targetLeadId, { userId: creatorId });
+    }
+
     return res.status(200).json({
       success: true,
       message: "WhatsApp message dispatched successfully",

@@ -23,8 +23,8 @@ export const getAccounts = async (req: Request, res: Response) => {
         { model: Contact, as: "contacts" },
         {
           model: Deal,
-          as: "accountDeals",
-          include: [{ model: Quote }]
+          as: "deals",
+          include: [{ model: Quote, as: "quotes" }]
         }
       ],
       order: [["createdAt", "DESC"]]
@@ -32,7 +32,7 @@ export const getAccounts = async (req: Request, res: Response) => {
 
     const mappedAccounts = accounts.map((acc: any) => {
       const data = acc.toJSON();
-      data.deals = data.accountDeals || [];
+      data.deals = data.deals || [];
       return data;
     });
 
@@ -51,8 +51,8 @@ export const getAccountById = async (req: Request, res: Response) => {
         { model: Contact, as: "contacts" },
         { 
           model: Deal, 
-          as: "accountDeals",
-          include: [{ model: Quote }]
+          as: "deals",
+          include: [{ model: Quote, as: "quotes" }]
         }
       ]
     });
@@ -70,7 +70,7 @@ export const getAccountById = async (req: Request, res: Response) => {
     });
 
     // Fetch account-associated purchase orders through quotes/deals
-    const dealIds = (account as any).accountDeals?.map((d: any) => d.id) || [];
+    const dealIds = (account as any).deals?.map((d: any) => d.id) || [];
     let quotesForDeals: any[] = [];
     if (dealIds.length > 0) {
       quotesForDeals = await Quote.findAll({
@@ -86,7 +86,7 @@ export const getAccountById = async (req: Request, res: Response) => {
     }
 
     const accountData = account.toJSON();
-    accountData.deals = accountData.accountDeals || [];
+    accountData.deals = accountData.deals || [];
     (accountData as any).quotes = quotesForDeals;
     (accountData as any).purchaseOrders = orders;
     (accountData as any).orders = orders;
@@ -101,24 +101,40 @@ export const getAccountById = async (req: Request, res: Response) => {
 
 export const createAccount = async (req: Request, res: Response) => {
   try {
-    const { name, primaryContactName, email, phone, industry } = req.body;
+    const { name, email, phone, address, industry, primaryContactName } = req.body;
     if (!name) {
       return res.status(400).json({ error: "Customer name is required" });
     }
 
-    const account = await Account.create({
-      id: crypto.randomUUID(),
+    const newAccount = await Account.create({
+      id: require("crypto").randomUUID(),
       name,
-      primaryContactName: primaryContactName || null,
       email: email || null,
       phone: phone || null,
-      industry: industry || "General"
+      address: address || null,
+      industry: industry || "General",
+      primaryContactName: primaryContactName || null
     });
 
-    return res.status(201).json(account);
+    return res.status(201).json(newAccount);
   } catch (error: any) {
-    console.error("Error creating customer account:", error);
-    return res.status(500).json({ error: error.message || "Internal server error" });
+    console.error("Error creating account:", error);
+    return res.status(500).json({ error: error.message || "Failed to create account" });
+  }
+};
+
+export const updateAccount = async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const account = await Account.findByPk(id);
+    if (!account) {
+      return res.status(404).json({ message: "Account not found" });
+    }
+    await account.update(req.body);
+    return res.status(200).json(account);
+  } catch (error: any) {
+    console.error("Error updating account:", error);
+    return res.status(500).json({ message: "Failed to update account" });
   }
 };
 

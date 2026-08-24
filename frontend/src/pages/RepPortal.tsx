@@ -105,7 +105,7 @@ export default function RepPortal() {
   const myDeals = deals.filter((d: any) => !user?.id || d.ownerId === user.id);
 
   const PIPELINE_STAGES = [
-    "New", "Contacted", "Qualified", "Meeting/Demo", "Proposal", "Negotiation", "Won", "Lost"
+    "Discovery", "Requirements", "Solution/Scope", "Quote Preparation", "Quote Sent", "Negotiation", "Agreed", "Won", "Lost"
   ];
 
   const pipelineStageSummary = PIPELINE_STAGES.map(stageName => {

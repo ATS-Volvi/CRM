@@ -689,10 +689,21 @@ export const getSalespersonPerformanceDetails = async (req: Request, res: Respon
 export const getAllSalespersons = async (req: Request, res: Response) => {
   try {
     const users = await sequelize.models.User.findAll({
-      where: {
-        role: { [Op.in]: ["sales_rep", "manager", "admin"] }
-      },
-      attributes: ["id", "name", "role", "email"],
+      attributes: [
+        "id",
+        "name",
+        "role",
+        "email",
+        "experienceTier",
+        "experienceYears",
+        "isAvailable",
+        "maxOpenLeads",
+        "dealValueCutoff",
+        "maxOpenDeals",
+        "department",
+        "territory",
+        "status"
+      ],
       order: [["name", "ASC"]]
     });
     res.json(users);
@@ -840,8 +851,8 @@ export const getSalespersonKpis = async (req: Request, res: Response) => {
     const pos = quotes.length > 0 ? await sequelize.models.PurchaseOrder.findAll({ where: { quoteId: { [Op.in]: quotes.map((q: any) => q.id) } } }) : [];
 
     // Helper counts
-    const newLeadsCount = leads.filter((l: any) => l.status === "New").length;
-    const qualifiedLeadsCount = leads.filter((l: any) => l.status === "Qualified" || l.status === "Contacted").length;
+    const newLeadsCount = leads.filter((l: any) => l.status === "NEW" || l.status === "New").length;
+    const qualifiedLeadsCount = leads.filter((l: any) => ["QUALIFIED", "Qualified", "CONTACTED", "Contacted"].includes(l.status)).length;
     const assignedLeadsCount = leads.length;
 
     const callsCount = activities.filter((a: any) => (a.type || "").toLowerCase() === "call").length;

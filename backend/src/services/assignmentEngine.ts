@@ -5,10 +5,10 @@ import {
   calculateRepPerformanceProfile,
   calculateLeadPriorityScore,
   calculateRepSuitabilityScore,
+  calculateOpportunityCloserScore,
   CandidateEvaluationResult,
   LeadPriorityDetails
 } from "./repPerformanceService";
-import { autoAssignDeal } from "./dealAssignmentEngine";
 
 export interface AssignmentContext {
   leadId?: string;
@@ -135,37 +135,20 @@ export async function assignLead(leadContext: AssignmentContext): Promise<Assign
     }
 
     // ─────────────────────────────────────────────────────────────
-    // STEP 2: EXISTING CUSTOMER / ACCOUNT OWNER
+    // STEP 2: EXISTING CUSTOMER / ACCOUNT OWNER (AUTHORITATIVE)
     // ─────────────────────────────────────────────────────────────
     let accountOwnerId: string | null = null;
 
     if (company) {
-      // Check if an Account record exists for this company name, then find the rep who owns that account's leads
-      let accountOwnerId2: string | null = null;
       if (sequelize.models.Account) {
         const existingAccount: any = await sequelize.models.Account.findOne({
           where: { name: { [Op.like]: `%${company}%` } }
         });
-        if (existingAccount) {
-          const linkedLead: any = await sequelize.models.Lead.findOne({
-            where: { company: { [Op.like]: `%${company}%` }, assignedToId: { [Op.ne]: null } }
-          });
-          if (linkedLead && linkedLead.assignedToId) {
-            accountOwnerId2 = linkedLead.assignedToId;
-          }
+        if (existingAccount && existingAccount.ownerId) {
+          accountOwnerId = existingAccount.ownerId;
         }
       }
-
-      if (!accountOwnerId2) {
-        const existingLeadComp: any = await sequelize.models.Lead.findOne({
-          where: { company: { [Op.like]: `%${company}%` }, assignedToId: { [Op.ne]: null } }
-        });
-        if (existingLeadComp) accountOwnerId2 = existingLeadComp.assignedToId;
-      }
-
-      accountOwnerId = accountOwnerId2;
     }
-
 
     if (accountOwnerId) {
       const isEligible = await checkRepEligibility(accountOwnerId);
@@ -181,7 +164,7 @@ export async function assignLead(leadContext: AssignmentContext): Promise<Assign
           expectedRevenue: Number(leadContext.expectedValue || 0),
           candidateScores: [],
           winningScore: 100,
-          reason: `Preserved existing company account relationship (${company || 'Company Account'}).`,
+          reason: `Authoritative ownership: Preserved existing Account owner (${company || 'Company Account'}).`,
           triggerSource: leadContext.source || "account_match"
         });
         return { assignedToId: accountOwnerId, assignmentType: "EXISTING_ACCOUNT" };
@@ -189,20 +172,36 @@ export async function assignLead(leadContext: AssignmentContext): Promise<Assign
     }
 
     // ─────────────────────────────────────────────────────────────
-    // STEP 3: EXISTING CONTACT OWNER (PHONE / EMAIL MATCH)
+    // STEP 3: EXISTING CONTACT OWNER (DIRECT CONTACT / RELATIONSHIP MATCH)
     // ─────────────────────────────────────────────────────────────
     let contactOwnerId: string | null = null;
-    if (email) {
-      const contactLead: any = await sequelize.models.Lead.findOne({
-        where: { email: { [Op.like]: email }, assignedToId: { [Op.ne]: null } }
-      });
-      if (contactLead) contactOwnerId = contactLead.assignedToId;
+
+    if (sequelize.models.Contact) {
+      const contactWhere: any[] = [];
+      if (email) contactWhere.push({ email: { [Op.like]: email } });
+      if (phone) contactWhere.push({ phone });
+
+      if (contactWhere.length > 0) {
+        const existingContact: any = await sequelize.models.Contact.findOne({
+          where: { [Op.or]: contactWhere },
+          include: sequelize.models.Account ? [{ model: sequelize.models.Account, as: "account" }] : []
+        });
+
+        if (existingContact) {
+          contactOwnerId = existingContact.ownerId || existingContact.account?.ownerId || null;
+        }
+      }
     }
-    if (!contactOwnerId && phone) {
-      const phoneLead: any = await sequelize.models.Lead.findOne({
-        where: { phone, assignedToId: { [Op.ne]: null } }
+
+    if (!contactOwnerId && (email || phone)) {
+      const leadMatchWhere: any[] = [];
+      if (email) leadMatchWhere.push({ email: { [Op.like]: email } });
+      if (phone) leadMatchWhere.push({ phone });
+
+      const pastLead: any = await sequelize.models.Lead.findOne({
+        where: { [Op.or]: leadMatchWhere, assignedToId: { [Op.ne]: null } }
       });
-      if (phoneLead) contactOwnerId = phoneLead.assignedToId;
+      if (pastLead) contactOwnerId = pastLead.assignedToId;
     }
 
     if (contactOwnerId) {
@@ -227,7 +226,7 @@ export async function assignLead(leadContext: AssignmentContext): Promise<Assign
     }
 
     // ─────────────────────────────────────────────────────────────
-    // STEP 4: EXISTING OPPORTUNITY OWNER
+    // STEP 4: EXISTING OPEN OPPORTUNITY OWNER
     // ─────────────────────────────────────────────────────────────
     if (email || company) {
       const leadConditions: any[] = [];
@@ -255,44 +254,11 @@ export async function assignLead(leadContext: AssignmentContext): Promise<Assign
             expectedRevenue: Number(deal.amount || 0),
             candidateScores: [],
             winningScore: 100,
-            reason: `Preserved existing opportunity ownership (Deal #${deal.id.substring(0,8)}).`,
+            reason: `Preserved active opportunity ownership (Opportunity #${deal.id.substring(0,8)}).`,
             triggerSource: leadContext.source || "opportunity_match"
           });
           return { assignedToId: deal.ownerId, assignmentType: "EXISTING_ACCOUNT" };
         }
-      }
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // STEP 5: NAMED / STRATEGIC ACCOUNT AE ROUTING
-    // ─────────────────────────────────────────────────────────────
-    const isVipBudget = budgetRange && (budgetRange.includes("100") || budgetRange.includes("50") || budgetRange.includes("Enterprise"));
-    const hasExpectedValue = leadContext.expectedValue && leadContext.expectedValue > 0;
-    
-    if (isStrategic || isVipBudget || hasExpectedValue) {
-      // Use the per-rep deal value cutoff logic
-      const assignedRepId = await autoAssignDeal(leadId || "new_lead", Number(leadContext.expectedValue || 0));
-      
-      if (assignedRepId) {
-        console.log(`[ASSIGNMENT STEP 5] Auto-assigned via per-rep cutoff logic: ${assignedRepId}`);
-        await updateRepAssignedTimestamp(assignedRepId);
-        await logAssignmentAudit({
-          leadId,
-          previousOwnerId: null,
-          assignedToId: assignedRepId,
-          assignmentType: "AUTOMATIC",
-          leadPriorityScore: 90,
-          expectedRevenue: Number(leadContext.expectedValue || 0),
-          candidateScores: [],
-          winningScore: 95,
-          reason: `Routed via per-rep Deal Value Cutoff logic.`,
-          triggerSource: leadContext.source || "strategic_account"
-        });
-        return { assignedToId: assignedRepId, assignmentType: "AUTOMATIC" };
-      } else if (hasExpectedValue) {
-        // If we tried to auto-assign based on value but couldn't find a rep (all below cutoff or at capacity),
-        // we return unassigned and rely on the HIGH_VALUE_LEAD notification that was just triggered.
-        return { assignedToId: null, assignmentType: "MANUAL" };
       }
     }
 
@@ -371,15 +337,12 @@ export async function assignLead(leadContext: AssignmentContext): Promise<Assign
     }
 
     // 5. Calculate Performance Profile & Multi-Factor Suitability Score for Candidates concurrently
-    const candidateEvaluations: CandidateEvaluationResult[] = await Promise.all(
-      eligibleReps.map(async (rep) => {
-        const profile = await calculateRepPerformanceProfile(rep.id);
-        return calculateRepSuitabilityScore(profile, leadContext, policyWeights, priorityDetails);
-      })
+    const candidateEvaluations = await scoreAndRankCandidates(
+      eligibleReps,
+      leadContext,
+      priorityDetails,
+      policyWeights
     );
-
-    // Sort Candidates by Final Suitability Score descending
-    candidateEvaluations.sort((a, b) => b.finalScore - a.finalScore);
 
     const winningCandidate = candidateEvaluations[0];
 
@@ -513,7 +476,222 @@ async function logAssignmentAudit(data: any): Promise<any> {
   }
 }
 
-export async function assignDeal(dealContext: AssignmentContext): Promise<string | null> {
-  const res = await assignLead(dealContext);
-  return res.assignedToId;
+/**
+
+ * Reusable experience-weighted scoring and ranking for candidate sales reps.
+ */
+export async function scoreAndRankCandidates(
+  candidates: any[],
+  leadContext: AssignmentContext,
+  priorityDetails: LeadPriorityDetails,
+  policyWeights: any
+): Promise<CandidateEvaluationResult[]> {
+  const evaluations: CandidateEvaluationResult[] = await Promise.all(
+    candidates.map(async (rep) => {
+      const profile = await calculateRepPerformanceProfile(rep.id);
+      return calculateRepSuitabilityScore(profile, leadContext, policyWeights, priorityDetails);
+    })
+  );
+  evaluations.sort((a, b) => b.finalScore - a.finalScore);
+  return evaluations;
 }
+
+/**
+ * Legacy compatibility alias for Opportunity closer routing
+ */
+export async function assignDeal(dealContext: AssignmentContext): Promise<string | null> {
+  const res = await assignOpportunityCloser(dealContext);
+  return res.closerId;
+}
+
+/**
+ * Opportunity Assignment Engine (Closer / Deal Owner Routing)
+ */
+export async function assignOpportunityCloser(
+  context: AssignmentContext,
+  options?: { excludeRepId?: string; fallbackAction?: "keep_lead_rep" | "assign_team_lead" | "assign_manager" | "unassigned_pool" }
+): Promise<{ assigned: boolean; closerId: string | null; assignee?: CandidateEvaluationResult; reason?: string; fallbackApplied?: boolean }> {
+
+  try {
+    const { WorkspaceSetting, SalesAssignmentPolicy, User } = sequelize.models;
+
+    // 1. Resolve closer tiers
+    let closingTiers: string[] = ["senior_ae", "senior sales representative", "enterprise ae", "strategic ae", "closer", "senior ae", "manager"];
+    
+    try {
+      if (WorkspaceSetting) {
+        const setting: any = await WorkspaceSetting.findOne({ where: { key: "closing_tier_names" } });
+        if (setting && setting.value) {
+          const raw = String(setting.value).trim();
+          if (raw.startsWith("[") && raw.endsWith("]")) {
+            closingTiers = JSON.parse(raw).map((s: string) => String(s).toLowerCase().trim());
+          } else {
+            closingTiers = raw.split(",").map((s) => s.toLowerCase().trim()).filter(Boolean);
+          }
+        }
+      }
+    } catch (e) {
+      // fallback to default
+    }
+
+    // 2. Load Opportunity Assignment Policy Weights & Fallback Action
+    let policy: any = null;
+    try {
+      if (SalesAssignmentPolicy) {
+        policy = await SalesAssignmentPolicy.findOne({ order: [["createdAt", "DESC"]] });
+      }
+    } catch (err) {
+      policy = null;
+    }
+
+    // Parse Opportunity-specific weights
+    let oppPolicyWeights = {
+      opportunityWinRate: 0.25,
+      averageDealSize: 0.15,
+      revenueWon: 0.15,
+      industrySpecialization: 0.15,
+      experienceTier: 0.10,
+      territoryMatch: 0.10,
+      workloadCapacity: 0.05,
+      fairnessDistribution: 0.05
+    };
+
+    if (policy?.opportunityWeights) {
+      try {
+        oppPolicyWeights = typeof policy.opportunityWeights === "string" 
+          ? JSON.parse(policy.opportunityWeights) 
+          : policy.opportunityWeights;
+      } catch (err) {}
+    } else if (policy?.weights) {
+      try {
+        const parsed = typeof policy.weights === "string" ? JSON.parse(policy.weights) : policy.weights;
+        if (parsed.opportunityWinRate !== undefined) {
+          oppPolicyWeights = { ...oppPolicyWeights, ...parsed };
+        }
+      } catch (err) {}
+    }
+
+    const fallbackAction = options?.fallbackAction 
+      || policy?.fallbackCloserAction 
+      || "keep_lead_rep";
+
+    const priorityDetails: LeadPriorityDetails = calculateLeadPriorityScore(context);
+    const expectedVal = Number(context.expectedValue || priorityDetails.expectedRevenue || 0);
+
+    // 3. Fetch candidate users
+    const allUsers: any[] = await User.findAll({
+      where: {
+        role: { [Op.ne]: "admin" }
+      }
+    });
+
+    // 4. Filter to designated closer-tier candidates
+    const closerCandidates = allUsers.filter((u: any) => {
+      const roleStr = String(u.role || "").toLowerCase().trim();
+      const tierStr = String(u.experienceTier || "").toLowerCase().trim();
+      return closingTiers.includes(roleStr) || closingTiers.includes(tierStr);
+    });
+
+    // 5. Exclude qualifying rep if a distinct closer is requested
+    let candidatePool = closerCandidates;
+    if (options?.excludeRepId) {
+      const distinct = closerCandidates.filter((u: any) => u.id !== options.excludeRepId);
+      if (distinct.length > 0) {
+        candidatePool = distinct;
+      }
+    }
+
+    // 6. Check eligibility and capacity for closers
+    const { getOpenDealsCount } = require("./dealAssignmentEngine");
+    const eligibleCloserCandidates: any[] = [];
+    for (const rep of candidatePool) {
+      if (rep.isAvailable === false) continue;
+      if (rep.onLeave) continue;
+      if (rep.status === "On Leave" || rep.status === "Offline" || rep.status === "Suspended") continue;
+
+      // Deal value cutoff check
+      const withinCutoff =
+        rep.dealValueCutoff === null ||
+        rep.dealValueCutoff === undefined ||
+        Number(rep.dealValueCutoff) >= expectedVal;
+      if (!withinCutoff) continue;
+
+      // Open deals capacity check
+      if (rep.maxOpenDeals !== null && rep.maxOpenDeals !== undefined) {
+        const openDeals = await getOpenDealsCount(rep.id);
+        if (openDeals >= Number(rep.maxOpenDeals)) continue;
+      }
+
+      eligibleCloserCandidates.push(rep);
+    }
+
+    // 7. Handle Fallback if no distinct closer candidate matches
+    if (eligibleCloserCandidates.length === 0) {
+      console.log(`[assignOpportunityCloser] No eligible distinct closer-tier rep found. Executing fallback policy: ${fallbackAction}`);
+
+      if (fallbackAction === "keep_lead_rep" && options?.excludeRepId) {
+        const leadRep: any = await User.findByPk(options.excludeRepId);
+        if (leadRep) {
+          return {
+            assigned: true,
+            closerId: leadRep.id,
+            fallbackApplied: true,
+            reason: `Fallback Policy: Retained qualifying representative (${leadRep.name}) as Opportunity Owner.`
+          };
+        }
+      } else if (fallbackAction === "assign_team_lead" || fallbackAction === "assign_manager") {
+        const manager: any = await User.findOne({
+          where: { role: { [Op.in]: ["manager", "team_lead"] }, isAvailable: true }
+        });
+        if (manager) {
+          return {
+            assigned: true,
+            closerId: manager.id,
+            fallbackApplied: true,
+            reason: `Fallback Policy: Routed to ${manager.name} (${manager.role}) for assignment review.`
+          };
+        }
+      }
+
+      return {
+        assigned: false,
+        closerId: null,
+        fallbackApplied: true,
+        reason: "No eligible closer-tier rep available under capacity/cutoff constraints."
+      };
+    }
+
+    // 8. Score and rank candidates using dedicated Opportunity closer evaluation
+    const profiles = await Promise.all(
+      eligibleCloserCandidates.map(r => calculateRepPerformanceProfile(r.id))
+    );
+
+    const candidateEvaluations = profiles.map(profile =>
+      calculateOpportunityCloserScore(profile, context, oppPolicyWeights, priorityDetails)
+    );
+
+    candidateEvaluations.sort((a, b) => b.finalScore - a.finalScore);
+    const winner = candidateEvaluations[0];
+
+    await updateRepAssignedTimestamp(winner.repId);
+
+    console.log(
+      `[assignOpportunityCloser] Winner: ${winner.repName} (${winner.repRole} / ${winner.experienceTier}) with Score ${winner.finalScore}/100.`
+    );
+
+    return {
+      assigned: true,
+      closerId: winner.repId,
+      assignee: winner,
+      reason: `Assigned via Opportunity Policy to closer ${winner.repName} (${winner.experienceTier || winner.repRole}) with score ${winner.finalScore}/100.`
+    };
+  } catch (error: any) {
+    console.error("[assignOpportunityCloser] Error:", error);
+    return {
+      assigned: false,
+      closerId: null,
+      reason: error?.message || "Error during closer assignment pass"
+    };
+  }
+}
+

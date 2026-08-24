@@ -388,3 +388,133 @@ export function calculateRepSuitabilityScore(
     explanationText
   };
 }
+
+/**
+ * Dedicated Multi-Factor Scoring for Opportunity Closer Assignment
+ * Factors: Opportunity Win Rate, Deal Size Experience, Revenue Won, Industry Specialization,
+ * Enterprise Experience, Territory, Workload / Open Deals Capacity, Account Relationship.
+ */
+export function calculateOpportunityCloserScore(
+  profile: RepPerformanceProfile,
+  oppContext: any,
+  policyWeights?: any,
+  priorityDetails?: LeadPriorityDetails
+): CandidateEvaluationResult {
+  const { industry, territory, expectedValue = 0 } = oppContext;
+  const oppValue = Number(expectedValue || 0);
+
+  // 1. Opportunity Win Rate Score (0-100)
+  // Baseline benchmark: 35% win rate = 100 points
+  const winRateScore = Math.min(100, Math.round(profile.opportunityWinRate * 100 * 2.85));
+
+  // 2. Average Deal Size Match Score (0-100)
+  let dealSizeScore = 60;
+  if (oppValue > 0 && profile.averageDealSize > 0) {
+    const ratio = profile.averageDealSize / oppValue;
+    if (ratio >= 0.8 && ratio <= 2.0) dealSizeScore = 100;
+    else if (ratio >= 0.5) dealSizeScore = 80;
+    else dealSizeScore = 40;
+  } else if (profile.totalDeals > 0) {
+    dealSizeScore = 70;
+  }
+
+  // 3. Revenue Won Score (0-100)
+  const revScore = Math.min(100, Math.round((profile.totalRevenueWon / 10000000) * 60 + (profile.opportunityWinRate * 40)));
+
+  // 4. Industry Specialization Score (0-100)
+  let industrySkillScore = 30;
+  if (industry) {
+    const ind = String(industry).toLowerCase();
+    const matchesSkill = profile.skills.some(s => {
+      const sk = String(s).toLowerCase();
+      return sk.includes(ind) || ind.includes(sk);
+    });
+    if (matchesSkill) industrySkillScore = 100;
+    else if (profile.skills.length > 0) industrySkillScore = 55;
+  } else {
+    industrySkillScore = 70;
+  }
+
+  // 5. Enterprise / Experience Tier Score (0-100)
+  const tierMap: Record<string, number> = {
+    "Strategic AE": 100,
+    "Enterprise AE": 95,
+    "senior_ae": 90,
+    "Senior Sales Representative": 85,
+    "manager": 90,
+    "Sales Representative": 60,
+    "sales_rep": 60,
+    "Associate": 40,
+    "Trainee": 20
+  };
+  const experienceTierScore = tierMap[profile.experienceTier] || tierMap[profile.role] || 60;
+
+  // 6. Territory Match Score (0-100)
+  let territoryScore = 30;
+  if (territory && profile.territory) {
+    const oppTerr = String(territory).toLowerCase();
+    const repTerr = String(profile.territory).toLowerCase();
+    if (repTerr.includes(oppTerr) || oppTerr.includes(repTerr)) territoryScore = 100;
+    else territoryScore = 45;
+  } else {
+    territoryScore = 70;
+  }
+
+  // 7. Workload / Open Deals Capacity Score (0-100)
+  const openDeals = profile.openOpportunityCount || 0;
+  const maxDeals = 15; // default benchmark capacity
+  const workloadScore = Math.max(0, Math.round((1 - (openDeals / maxDeals)) * 100));
+
+  // 8. Fairness / Recent High-Value Distribution Score (0-100)
+  const fairnessPenalty = (profile.recentHighValueLeadCount * 15) + ((profile.recentLeadValueAssigned / 10000000) * 10);
+  const fairnessScore = Math.max(10, Math.min(100, Math.round(100 - fairnessPenalty)));
+
+  // Weights for Opportunity Closer
+  const weights = policyWeights || {
+    opportunityWinRate: 0.25,
+    averageDealSize: 0.15,
+    revenueWon: 0.15,
+    industrySpecialization: 0.15,
+    experienceTier: 0.10,
+    territoryMatch: 0.10,
+    workloadCapacity: 0.05,
+    fairnessDistribution: 0.05
+  };
+
+  const finalScore = Math.round(
+    (winRateScore * Number(weights.opportunityWinRate ?? 0.25)) +
+    (dealSizeScore * Number(weights.averageDealSize ?? 0.15)) +
+    (revScore * Number(weights.revenueWon ?? 0.15)) +
+    (industrySkillScore * Number(weights.industrySpecialization ?? 0.15)) +
+    (experienceTierScore * Number(weights.experienceTier ?? 0.10)) +
+    (territoryScore * Number(weights.territoryMatch ?? 0.10)) +
+    (workloadScore * Number(weights.workloadCapacity ?? 0.05)) +
+    (fairnessScore * Number(weights.fairnessDistribution ?? 0.05))
+  );
+
+  const breakdown: FactorBreakdown = {
+    conversionScore: winRateScore,
+    industrySkillScore,
+    territoryScore,
+    revenuePerformanceScore: revScore,
+    experienceTierScore,
+    responseScore: 80,
+    slaComplianceScore: Math.round(profile.slaComplianceRate * 100),
+    workloadScore,
+    fairnessScore,
+    managerRatingScore: Math.round((profile.managerPerformanceRating / 5.0) * 100)
+  };
+
+  const explanationText = `Closer Match Score: ${finalScore}/100 (${(profile.opportunityWinRate * 100).toFixed(0)}% Win Rate, ₹${(profile.totalRevenueWon / 100000).toFixed(1)}L Revenue, ${industrySkillScore}% Industry, ${profile.experienceTier || profile.role})`;
+
+  return {
+    repId: profile.userId,
+    repName: profile.name,
+    repRole: profile.role,
+    experienceTier: profile.experienceTier,
+    finalScore,
+    breakdown,
+    explanationText
+  };
+}
+

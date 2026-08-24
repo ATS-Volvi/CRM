@@ -4,6 +4,7 @@ import { assignLead } from "./assignmentEngine";
 import { evaluateQuoteApproval } from "./approvalEngine";
 import { createNotification } from "./notificationEngine";
 import { autoAssignDeal } from "./dealAssignmentEngine";
+import { processOpportunityEvent } from "./opportunityAutomationEngine";
 
 // ─── STEP 1: LEAD LIFECYCLE & STRICT STATE MACHINE CONTRACT ──────────────────
 
@@ -75,15 +76,23 @@ export const LIFECYCLE_STAGE_RULES: Record<LeadStage, StageRules> = {
   }
 };
 
-export function validateStageTransition(currentStage: string, nextStage: LeadStage): void {
-  const normCurrent = (currentStage || "New").trim() as LeadStage;
-  const rules = LIFECYCLE_STAGE_RULES[normCurrent];
-  if (!rules) return; // fallback for unlisted stages
+export function validateStageTransition(currentStage: string, nextStage: string): void {
+  const normCurrent = (currentStage || "NEW").trim().toUpperCase();
+  const normNext = (nextStage || "").trim().toUpperCase();
 
-  if (normCurrent === nextStage) return; // Same stage update is allowed
+  if (normCurrent === normNext) return; // Same stage update is allowed
+  if (["CONVERTED", "QUALIFIED"].includes(normNext) && ["NEW", "CONTACTED", "QUALIFIED", "NEW LEAD"].includes(normCurrent)) {
+    return;
+  }
 
-  if (!rules.allowedTransitions.includes(nextStage)) {
-    throw new Error(`Invalid stage transition: Cannot move lead from '${normCurrent}' to '${nextStage}'. Allowed next stages: ${rules.allowedTransitions.join(", ")}`);
+  const stageKey = Object.keys(LIFECYCLE_STAGE_RULES).find(k => k.toUpperCase() === normCurrent) as LeadStage | undefined;
+  if (!stageKey) return;
+  const rules = LIFECYCLE_STAGE_RULES[stageKey];
+  if (!rules) return;
+
+  const targetKey = Object.keys(LIFECYCLE_STAGE_RULES).find(k => k.toUpperCase() === normNext);
+  if (targetKey && !rules.allowedTransitions.map(t => t.toUpperCase()).includes(normNext)) {
+    throw new Error(`Invalid stage transition: Cannot move lead from '${currentStage}' to '${nextStage}'. Allowed next stages: ${rules.allowedTransitions.join(", ")}`);
   }
 }
 
@@ -131,219 +140,368 @@ export interface QualificationModel {
   productService?: string;
   probability?: number;
   notes?: string;
+  accountName?: string;
+  dealName?: string;
 }
 
-export function validateQualificationData(data: Partial<QualificationModel> = {}): QualificationModel {
-  const reqText = (data?.requirement || "").trim();
-  const estVal = Number(data?.estimatedValue);
+export function validateQualificationData(data: Partial<QualificationModel>): QualificationModel {
+  const estVal = Number(data.estimatedValue || (data as any)?.amount || (data as any)?.budget || 100000);
+  const requirement = data.requirement && typeof data.requirement === "string" && data.requirement.trim()
+    ? data.requirement.trim()
+    : "Commercial Opportunity";
 
   return {
-    requirement: reqText || "Commercial sales requirement",
-    estimatedValue: (!isNaN(estVal) && estVal > 0) ? estVal : 500000,
-    budget: data?.budget || "Standard",
-    timeline: data?.timeline || "Within 30 Days",
-    decisionMaker: data?.decisionMaker || "Key Stakeholder",
-    productService: data?.productService || "General Solutions",
-    probability: data?.probability ?? 50,
-    notes: data?.notes || ""
+    requirement,
+    estimatedValue: isNaN(estVal) || estVal <= 0 ? 100000 : estVal,
+    budget: data.budget || estVal,
+    timeline: data.timeline || "Within 30 Days",
+    decisionMaker: data.decisionMaker || "Primary Contact",
+    productService: data.productService || "General Solutions",
+    probability: data.probability ?? 50,
+    notes: data.notes || "",
+    accountName: data.accountName,
+    dealName: data.dealName
   };
 }
 
 // ─── STEP 4: OPPORTUNITY CONVERSION & CONTEXT INHERITANCE ─────────────────────
 
-export async function convertLeadToOpportunity(leadId: string, qualificationData: QualificationModel, userId?: string) {
-  return await sequelize.transaction(async (t) => {
-    const lead = await sequelize.models.Lead.findByPk(leadId, { transaction: t });
-    if (!lead) throw new Error("Lead not found");
-    const l = lead as any;
+export async function convertLeadToOpportunity(leadId: string, qualificationData: Partial<QualificationModel> = {}, userId?: string) {
+  const lead = await sequelize.models.Lead.findByPk(leadId);
+  if (!lead) throw new Error("Lead not found");
+  const l = lead as any;
 
-    // 1. Validate Stage Transition & Qualification Model
-    validateStageTransition(l.status, "Qualified");
-    const validQual = validateQualificationData(qualificationData);
+  // 1. Validate Stage Transition & Qualification Model
+  validateStageTransition(l.status, "QUALIFIED");
+  const validQual = validateQualificationData(qualificationData);
 
-    // 2. Compute Next Action Engine
-    const nextState = computeNextActionEngine("Qualified", validQual.estimatedValue, l.assignedToId || userId);
+  // 2. Compute Next Action Engine
+  const nextState = computeNextActionEngine("Qualified", validQual.estimatedValue, l.assignedToId || userId);
 
-    // 3. Inherit Customer Account
-    const accountName = l.company || `${l.firstName} ${l.lastName}`.trim();
-    let account: any = await sequelize.models.Account.findOne({ where: { name: accountName }, transaction: t });
-    if (!account) {
-      account = await sequelize.models.Account.create({
-        id: crypto.randomUUID(),
-        name: accountName,
-        primaryContactName: `${l.firstName} ${l.lastName}`.trim(),
-        email: l.email,
-        phone: l.phone,
-        industry: l.industry || "General"
-      }, { transaction: t });
-    }
+  // 3. Inherit Customer Account (find-or-create)
+  const accountName = validQual.accountName || l.company || `${l.firstName} ${l.lastName}`.trim();
+  let account: any = await sequelize.models.Account.findOne({ where: { name: accountName } });
+  if (!account) {
+    account = await sequelize.models.Account.create({
+      id: crypto.randomUUID(),
+      name: accountName,
+      primaryContactName: `${l.firstName} ${l.lastName}`.trim(),
+      email: l.email,
+      phone: l.phone,
+      industry: l.industry || "General"
+    });
+  }
 
-    // 4. Inherit Primary Contact
-    let contact: any = null;
-    if (sequelize.models.Contact) {
-      contact = await sequelize.models.Contact.findOne({ where: { email: l.email }, transaction: t });
-      if (!contact) {
-        contact = await sequelize.models.Contact.create({
-          id: crypto.randomUUID(),
+  // 4. Inherit Primary Contact (find-or-create matching by email or by accountId+firstName+lastName if email is absent)
+  let contact: any = null;
+  if (sequelize.models.Contact) {
+    if (l.email) {
+      contact = await sequelize.models.Contact.findOne({ where: { email: l.email } });
+    } else if (account?.id) {
+      contact = await sequelize.models.Contact.findOne({
+        where: {
           accountId: account.id,
+          firstName: l.firstName,
+          lastName: l.lastName
+        }
+      });
+    }
+    if (!contact) {
+      contact = await sequelize.models.Contact.create({
+        id: crypto.randomUUID(),
+        accountId: account.id,
+        firstName: l.firstName,
+        lastName: l.lastName,
+        email: l.email || null,
+        phone: l.phone || null,
+        role: "Decision Maker"
+      });
+    }
+  }
+
+  // 5. Create Opportunity (Deal) inheriting full context with Second-Tier Closer Assignment Pass
+  let deal: any = await sequelize.models.Deal.findOne({ where: { leadId: l.id } });
+  const triggerUserId = userId || l.assignedToId;
+  const qualifyingRepId = l.assignedToId || triggerUserId || userId;
+  let autoAssigned = false;
+  let autoAssignReason: string | undefined;
+  let chosenOwnerId = qualifyingRepId;
+
+  if (!deal) {
+    // Perform scoped experience-weighted Second-Tier Closer assignment pass before creating the deal
+    try {
+      const { assignOpportunityCloser } = require("./assignmentEngine");
+      const closerResult = await assignOpportunityCloser(
+        {
+          leadId: l.id,
           firstName: l.firstName,
           lastName: l.lastName,
           email: l.email,
           phone: l.phone,
-          role: "Decision Maker"
-        }, { transaction: t });
+          company: l.company,
+          source: l.source,
+          industry: l.industry,
+          territory: l.territory,
+          budgetRange: l.budgetRange,
+          expectedValue: Number(validQual.estimatedValue || l.estimatedValue || l.expectedValue || 0),
+          leadScore: l.leadScore
+        },
+        {
+          excludeRepId: l.assignedToId || undefined
+        }
+      );
+
+      if (closerResult && closerResult.assigned && closerResult.closerId) {
+        chosenOwnerId = closerResult.closerId;
+        autoAssigned = true;
+        autoAssignReason = closerResult.reason;
+        console.log(`[convertLeadToOpportunity] Second-tier closer assigned: ${chosenOwnerId} (qualifying rep: ${l.assignedToId})`);
+      } else {
+        autoAssignReason = closerResult?.reason || "No distinct closer-tier rep available; maintained qualifying rep ownership";
+        console.log(`[convertLeadToOpportunity] No distinct closer available — keeping qualifying rep ${chosenOwnerId}`);
       }
+    } catch (assignErr: any) {
+      console.warn("[convertLeadToOpportunity] Closer assignment pass failed (falling back to qualifying rep):", assignErr?.message || assignErr);
     }
 
-    // 5. Create Opportunity (Deal) inheriting full context
-    let deal: any = await sequelize.models.Deal.findOne({ where: { leadId: l.id }, transaction: t });
-    const triggerUserId = userId || l.assignedToId;
-    let autoAssigned = false;
-    let autoAssignReason: string | undefined;
+    const stage = await sequelize.models.PipelineStage.findOne({ where: { name: "Requirements" } })
+      || await sequelize.models.PipelineStage.findOne({ where: { name: "Qualified" } })
+      || await sequelize.models.PipelineStage.findOne({ order: [["order", "ASC"]] });
 
-    if (!deal) {
-      const stage = await sequelize.models.PipelineStage.findOne({ where: { name: "Qualified" }, transaction: t })
-        || await sequelize.models.PipelineStage.findOne({ order: [["order", "ASC"]], transaction: t });
-
-      deal = await sequelize.models.Deal.create({
-        id: crypto.randomUUID(),
-        name: l.company ? `${l.company} Opportunity` : `${l.firstName} ${l.lastName} Opportunity`,
-        amount: validQual.estimatedValue,
-        stageId: stage ? (stage as any).id : null,
-        leadId: l.id,
-        accountId: account.id,
-        customerId: account.id,
-        ownerId: triggerUserId
-      }, { transaction: t });
-
-      // Attempt auto-assignment to a senior_ae using the SAME transaction t
-      try {
-        const assignResult = await autoAssignDeal(deal.id, triggerUserId, t);
-        if (assignResult && assignResult.assigned) {
-          autoAssigned = true;
-          deal.ownerId = assignResult.newOwnerId; // sync local reference for DealSplit step below
-          console.log(`[convertLeadToOpportunity] Deal ${deal.id} auto-assigned to senior_ae ${assignResult.newOwnerId}.`);
-        } else if (assignResult && !assignResult.assigned) {
-          autoAssignReason = assignResult.reason;
-          console.log(`[convertLeadToOpportunity] No eligible senior_ae for deal ${deal.id} — leaving with triggering user. Reason: ${assignResult.reason}`);
-        }
-      } catch (assignErr: any) {
-        autoAssignReason = assignErr?.message || String(assignErr);
-        console.warn("[convertLeadToOpportunity] Auto-assignment attempt failed (non-fatal):", assignErr?.message || assignErr);
-      }
-    } else {
-      await deal.update({
-        amount: validQual.estimatedValue,
-        accountId: account.id,
-        customerId: account.id
-      }, { transaction: t });
-    }
-
-    // 5b. Auto-create DealSplit & DealOwner rows (commission split)
-    try {
-      const { DealSplit, DealOwner, WorkspaceSetting } = sequelize.models;
-      if (DealSplit || DealOwner) {
-        const splitSetting = WorkspaceSetting ? (await WorkspaceSetting.findOne({ where: { key: "default_qualifying_split_pct" }, transaction: t }) as any) : null;
-        const defaultSplit = splitSetting ? Math.min(100, Math.max(0, parseFloat(splitSetting.value))) : 20;
-
-        let qualifyingRepId = l.assignedToId;
-        const closingAeId = deal.ownerId as string | null;
-
-        const { LeadReassignmentHistory } = sequelize.models;
-        const reassignments = LeadReassignmentHistory
-          ? (await LeadReassignmentHistory.findAll({
-              where: { leadId: l.id },
-              order: [["createdAt", "DESC"]],
-              transaction: t
-            }) as any[])
-          : [];
-
-        let didForfeit = false;
-        if (reassignments.length > 0) {
-          const lastReassignment = reassignments[0];
-          if (lastReassignment.newAssignedToId === closingAeId) {
-            if (lastReassignment.reason && lastReassignment.reason.includes("SLA Breach")) {
-              didForfeit = true;
-            } else {
-              qualifyingRepId = lastReassignment.oldAssignedToId;
-            }
-          }
-        }
-
-        if (DealSplit) {
-          const existingSplits = await DealSplit.count({ where: { dealId: deal.id }, transaction: t });
-          if (existingSplits === 0) {
-            if (qualifyingRepId && closingAeId && qualifyingRepId !== closingAeId) {
-              await DealSplit.bulkCreate([
-                {
-                  id: crypto.randomUUID(),
-                  dealId: deal.id,
-                  userId: qualifyingRepId,
-                  splitPercentage: didForfeit ? 0 : defaultSplit,
-                  configuredByUserId: null,
-                  isCrossTeam: false
-                },
-                {
-                  id: crypto.randomUUID(),
-                  dealId: deal.id,
-                  userId: closingAeId,
-                  splitPercentage: didForfeit ? 100 : 100 - defaultSplit,
-                  configuredByUserId: null,
-                  isCrossTeam: false
-                }
-              ], { transaction: t });
-            } else if (closingAeId || qualifyingRepId) {
-              await DealSplit.create({
-                id: crypto.randomUUID(),
-                dealId: deal.id,
-                userId: closingAeId || qualifyingRepId,
-                splitPercentage: 100,
-                configuredByUserId: null,
-                isCrossTeam: false
-              }, { transaction: t });
-            }
-          }
-        }
-      }
-    } catch (splitErr) {
-      console.warn("[convertLeadToOpportunity] DealSplit creation failed (non-fatal):", splitErr);
-    }
-
-    // 6. Update Lead record with Qualification details & Next Action
-    await l.update({
-      status: "Qualified",
-      nextAction: nextState.nextAction,
-      nextActionDue: nextState.dueDate,
+    deal = await sequelize.models.Deal.create({
+      id: crypto.randomUUID(),
+      name: validQual.dealName || (l.company ? `${l.company} Opportunity` : `${l.firstName} ${l.lastName} Opportunity`),
+      amount: validQual.estimatedValue,
+      status: "OPEN",
+      healthStatus: "HEALTHY",
+      currentActivity: "Opportunity created from Lead",
+      nextAction: "Contact customer / confirm requirements",
+      nextActionDue: new Date(Date.now() + 24 * 3600 * 1000),
+      stageId: stage ? (stage as any).id : null,
+      leadId: l.id,
+      accountId: account.id,
       customerId: account.id,
-      qualificationData: {
-        ...validQual,
-        qualifiedAt: new Date().toISOString(),
-        qualifiedBy: userId || l.assignedToId,
-        opportunityId: deal.id,
-        accountId: account.id
-      },
-      leadScore: Math.min(100, (l.leadScore || 50) + 25)
-    }, { transaction: t });
+      ownerId: chosenOwnerId,
+      campaignId: l.campaignId || null,
+      adId: l.adId || null,
+      sourceType: l.sourceType || null,
+      sourceChannel: l.sourceChannel || l.communicationChannel || l.source || null,
+      sourceName: l.sourceName || l.sourceDetail || null,
+      sourceEntityId: l.sourceEntityId || null,
+      firstTouchAttribution: l.firstTouchAttribution || null
+    });
 
-    // 7. Notify Sales Rep
-    if (l.assignedToId) {
-      await createNotification({
-        userId: l.assignedToId,
-        type: "LEAD_QUALIFIED",
-        title: "Lead Qualified & Opportunity Created",
-        message: `Lead '${l.firstName} ${l.lastName}' has been qualified. Opportunity created with value ₹${validQual.estimatedValue.toLocaleString()}.`
+    // Record reassignment history if auto-assigned to distinct closer
+    if (autoAssigned && chosenOwnerId !== qualifyingRepId && sequelize.models.DealReassignmentHistory) {
+      try {
+        await sequelize.models.DealReassignmentHistory.create({
+          id: crypto.randomUUID(),
+          dealId: deal.id,
+          oldOwnerId: qualifyingRepId,
+          newOwnerId: chosenOwnerId,
+          changedByUserId: triggerUserId || chosenOwnerId,
+          assignmentType: "AUTOMATIC",
+          dealAmountAtReassignment: validQual.estimatedValue ? Number(validQual.estimatedValue) : null,
+          exceededCutoff: false,
+          exceededCapacity: false,
+          reason: autoAssignReason || `Auto-assigned to closer ${chosenOwnerId} upon Lead qualification`
+        });
+      } catch (histErr) {
+        console.warn("[convertLeadToOpportunity] DealReassignmentHistory log error:", histErr);
+      }
+    }
+  } else {
+    await deal.update({
+      amount: validQual.estimatedValue,
+      status: "OPEN",
+      healthStatus: "HEALTHY",
+      accountId: account.id,
+      customerId: account.id
+    });
+  }
+
+  // 5b. Link Contact to Deal via DealContact (matching leadIngestion.ts pattern)
+  if (contact && sequelize.models.DealContact) {
+    const existingDealContact = await sequelize.models.DealContact.findOne({
+      where: { dealId: deal.id, contactId: contact.id }
+    });
+    if (!existingDealContact) {
+      await sequelize.models.DealContact.create({
+        id: crypto.randomUUID(),
+        dealId: deal.id,
+        contactId: contact.id,
+        role: 'Initiator',
+        isPrimary: true
       });
     }
+  }
 
-    return {
-      lead: l,
-      deal,
-      account,
-      contact,
-      autoAssigned,
-      autoAssignReason
-    };
+  // 5c. Auto-create DealSplit & DealOwner rows (commission split)
+  // Qualifying rep = lead.assignedToId, Closing AE = deal.ownerId (may be same person)
+  try {
+    const { DealSplit, DealOwner, WorkspaceSetting } = sequelize.models;
+    if (DealSplit || DealOwner) {
+      const splitSetting = WorkspaceSetting ? (await WorkspaceSetting.findOne({ where: { key: "default_qualifying_split_pct" } }) as any) : null;
+      const defaultSplit = splitSetting ? Math.min(100, Math.max(0, parseFloat(splitSetting.value))) : 20;
+
+      let qualifyingRepId = l.assignedToId;
+      const closingAeId = deal.ownerId as string | null;
+
+      // Check if there was a manual escalation or SLA breach
+      const { LeadReassignmentHistory } = sequelize.models;
+      const reassignments = LeadReassignmentHistory
+        ? (await LeadReassignmentHistory.findAll({
+            where: { leadId: l.id },
+            order: [["createdAt", "DESC"]]
+          }) as any[])
+        : [];
+
+      let didForfeit = false;
+      if (reassignments.length > 0) {
+        const lastReassignment = reassignments[0];
+        if (lastReassignment.newAssignedToId === closingAeId) {
+          if (lastReassignment.reason && lastReassignment.reason.includes("SLA Breach")) {
+            didForfeit = true;
+          } else {
+            qualifyingRepId = lastReassignment.oldAssignedToId;
+          }
+        }
+      }
+
+      if (DealSplit) {
+        const existingSplits = await DealSplit.count({ where: { dealId: deal.id } });
+        if (existingSplits === 0) {
+          if (qualifyingRepId && closingAeId && qualifyingRepId !== closingAeId) {
+            await DealSplit.bulkCreate([
+              {
+                id: crypto.randomUUID(),
+                dealId: deal.id,
+                userId: qualifyingRepId,
+                splitPercentage: didForfeit ? 0 : defaultSplit,
+                configuredByUserId: null,
+                isCrossTeam: false
+              },
+              {
+                id: crypto.randomUUID(),
+                dealId: deal.id,
+                userId: closingAeId,
+                splitPercentage: didForfeit ? 100 : 100 - defaultSplit,
+                configuredByUserId: null,
+                isCrossTeam: false
+              }
+            ]);
+          } else if (closingAeId || qualifyingRepId) {
+            await DealSplit.create({
+              id: crypto.randomUUID(),
+              dealId: deal.id,
+              userId: closingAeId || qualifyingRepId,
+              splitPercentage: 100,
+              configuredByUserId: null,
+              isCrossTeam: false
+            });
+          }
+        }
+      }
+      if (DealOwner) {
+        const existingCount = await DealOwner.count({ where: { dealId: deal.id } });
+        if (existingCount === 0) {
+          if (qualifyingRepId && closingAeId && qualifyingRepId !== closingAeId) {
+            await DealOwner.bulkCreate([
+              {
+                id: crypto.randomUUID(),
+                dealId: deal.id,
+                userId: qualifyingRepId,
+                splitPct: didForfeit ? 0 : defaultSplit,
+                role: "qualifying_rep"
+              },
+              {
+                id: crypto.randomUUID(),
+                dealId: deal.id,
+                userId: closingAeId,
+                splitPct: didForfeit ? 100 : 100 - defaultSplit,
+                role: "closing_ae"
+              }
+            ]);
+          } else if (closingAeId || qualifyingRepId) {
+            await DealOwner.create({
+              id: crypto.randomUUID(),
+              dealId: deal.id,
+              userId: closingAeId || qualifyingRepId,
+              splitPct: 100,
+              role: closingAeId ? "closing_ae" : "qualifying_rep"
+            });
+          }
+        }
+      }
+    }
+  } catch (splitErr) {
+    console.warn("[convertLeadToOpportunity] DealOwner creation failed (non-fatal):", splitErr);
+  }
+
+  // 6. Carry over Marketing Attribution
+  try {
+    const { carryOverAttributionToOpportunity } = require("./attributionService");
+    if (carryOverAttributionToOpportunity) {
+      await carryOverAttributionToOpportunity(l.id, deal.id);
+    }
+  } catch (attrErr) {
+    // Non-fatal
+  }
+
+  // 7. Update Lead record with Conversion & Qualification details
+  await l.update({
+    status: "CONVERTED",
+    nextAction: nextState.nextAction,
+    nextActionDue: nextState.dueDate,
+    customerId: account.id,
+    accountId: account.id,
+    convertedAccountId: account.id,
+    convertedContactId: contact ? contact.id : null,
+    convertedDealId: deal.id,
+    qualificationData: {
+      ...validQual,
+      qualifiedAt: new Date().toISOString(),
+      qualifiedBy: userId || l.assignedToId,
+      opportunityId: deal.id,
+      accountId: account.id,
+      contactId: contact ? contact.id : null
+    },
+    leadScore: Math.min(100, (l.leadScore || 50) + 25)
   });
+
+  // 8. Notify Sales Rep & Process Opportunity Creation Lifecycle Event
+  if (l.assignedToId) {
+    await createNotification({
+      userId: l.assignedToId,
+      type: "LEAD_QUALIFIED",
+      title: "Lead Qualified & Opportunity Created",
+      message: `Lead '${l.firstName} ${l.lastName}' has been converted. Opportunity created with value ₹${validQual.estimatedValue.toLocaleString()}.`
+    });
+  }
+
+  try {
+    await processOpportunityEvent({
+      eventId: `lead_converted_${l.id}`,
+      opportunityId: deal.id,
+      type: "OpportunityCreated",
+      actorId: userId || l.assignedToId,
+      payload: {
+        leadId: l.id,
+        estimatedValue: validQual.estimatedValue
+      }
+    });
+  } catch (evErr: any) {
+    console.warn("Opportunity creation lifecycle event warning:", evErr.message);
+  }
+
+  return {
+    lead: l,
+    deal,
+    account,
+    contact,
+    autoAssigned,
+    autoAssignReason
+  };
 }
 
 
@@ -358,20 +516,10 @@ export async function submitQuoteForApprovalWorkflow(quoteId: string, userId: st
 
   const totalAmount = Number(q.totalAmount || 0);
 
-  // Evaluate Approval Limits
-  let requiredRole = "rep";
-  let requiresApproval = false;
-
-  if (totalAmount > 5000000) { // > ₹50L -> Admin Approval
-    requiredRole = "admin";
-    requiresApproval = true;
-  } else if (totalAmount > 1000000) { // ₹10L - ₹50L -> Team Lead Approval
-    requiredRole = "manager";
-    requiresApproval = true;
-  } else {
-    // <= ₹10L -> Rep Self-Approval
-    requiresApproval = false;
-  }
+  // Evaluate Approval Limits using centralized AdminApprovalPolicy & Rep limits
+  const evalResult = await evaluateQuoteApproval(quoteId);
+  const requiresApproval = evalResult.approvalRequired;
+  const requiredRole = evalResult.approvalLevel === "ADMIN" ? "admin" : evalResult.approvalLevel === "TEAM_LEAD" ? "manager" : "rep";
 
   if (!requiresApproval) {
     // Auto-approve
@@ -386,7 +534,7 @@ export async function submitQuoteForApprovalWorkflow(quoteId: string, userId: st
         status: "Approved",
         requestedById: userId,
         amount: totalAmount,
-        notes: "Auto-approved within Rep limit (<= ₹10L)"
+        notes: `Auto-approved within Rep limit (${evalResult.reason})`
       });
     } else {
       await appReq.update({ status: "Approved" });
@@ -420,11 +568,12 @@ export async function submitQuoteForApprovalWorkflow(quoteId: string, userId: st
         status: "Pending",
         requestedById: userId,
         amount: totalAmount,
-        notes: `Approval required by ${requiredRole === "admin" ? "Admin" : "Team Lead"} (Amount: ₹${totalAmount.toLocaleString()})`
+        notes: `${evalResult.reason} (Amount: ₹${totalAmount.toLocaleString()})`
       });
     } else {
       await appReq.update({ status: "Pending" });
     }
+
 
     // Notify managers/admins
     const approvers = await sequelize.models.User.findAll({
@@ -498,7 +647,7 @@ export async function runEndToEndLeadJourneySim(testEmail?: string) {
         email,
         phone: "+971501234567",
         source: "Website Request",
-        status: "New",
+        status: "NEW",
         subject: "Need quotation for 5 control panels",
         budgetRange: "₹50L",
         nextAction: "Reply to Lead",

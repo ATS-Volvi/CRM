@@ -57,6 +57,8 @@ import SupportTickets from "./pages/SupportTickets";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { Navigate, Outlet } from "react-router-dom";
 
+import QuoteDetail from "./pages/QuoteDetail";
+
 const ProtectedRoute = () => {
   const { isAuthenticated } = useAuth();
   return isAuthenticated ? <Outlet /> : <Navigate to="/login" replace />;
@@ -95,14 +97,15 @@ function App() {
               <Route path="/leads/:id" element={<LeadDetail />} />
               
               {/* Commercial Opportunities Workspace */}
-              <Route path="/opportunities" element={<Navigate to="/pipeline" replace />} />
+              <Route path="/opportunities" element={<Opportunities />} />
               <Route path="/opportunities/:id" element={<OpportunityDetail />} />
-              <Route path="/deals" element={<Navigate to="/pipeline" replace />} />
+              <Route path="/deals" element={<Opportunities />} />
               <Route path="/deals/:id" element={<OpportunityDetail />} />
               <Route path="/pipeline" element={<PipelineKanban />} />
               
               {/* Quotations Workspace */}
               <Route path="/quotes/new" element={<QuotationBuilder />} />
+              <Route path="/quotes/:id" element={<QuoteDetail />} />
               <Route path="/quotes" element={<QuoteHistory />} />
               <Route path="/invoices" element={<Invoices />} />
               <Route path="/invoices/:id" element={<InvoiceDetail />} />

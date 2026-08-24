@@ -43,12 +43,15 @@ export const createMeeting = async (req: Request, res: Response) => {
       await sequelize.models.Activity.create({
         id: require("crypto").randomUUID(),
         leadId,
-        type: "Meeting",
-        title: `Meeting Scheduled: ${title}`,
+        type: "meeting",
+        outcome: `Meeting Scheduled: ${title}`,
         notes: `Date: ${date} at ${time}. ${agenda || ""}`,
         createdById: (req as any).user?.id || null,
-      direction: "internal"
+        direction: "outbound"
       });
+
+      const { checkAndAutoAdvanceLead } = require("../services/leadStageAutomationService");
+      await checkAndAutoAdvanceLead(leadId, { userId: (req as any).user?.id });
     }
 
     res.status(201).json(meeting);

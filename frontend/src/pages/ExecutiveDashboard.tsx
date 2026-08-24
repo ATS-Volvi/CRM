@@ -157,7 +157,7 @@ export default function ExecutiveDashboard() {
               <p className="text-xs text-emerald-600 font-bold mt-1">↓ 3.2 days faster</p>
             </div>
             <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl">
-              <p className="text-xs font-bold text-slate-400 uppercase">Proposal Win Rate</p>
+              <p className="text-xs font-bold text-slate-400 uppercase">Opportunity Win Rate</p>
               <p className="text-2xl font-black text-slate-900 mt-1">68.2%</p>
               <p className="text-xs text-emerald-600 font-bold mt-1">↑ 5.4% vs team avg</p>
             </div>

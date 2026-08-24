@@ -7,8 +7,11 @@ import { getDealSplits, setDealSplits } from "../services/dealSplitService";
 function getCallerRole(req: Request): string {
   return (req as any).user?.role || "";
 }
-function getCallerId(req: Request): string {
-  return (req as any).user?.id || "";
+
+function getCallerId(req: Request): string | null {
+  const id = (req as any).user?.id || "";
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+  return isUuid ? id : null;
 }
 
 /**
@@ -65,9 +68,9 @@ export const updateDealOwners = async (req: Request, res: Response) => {
       splitPercentage: Number(o.splitPct)
     }));
 
-    const result = await setDealSplits(String(dealId), splits, callerId);
+    const result = await setDealSplits(String(dealId), splits, callerId || undefined);
 
-    const updatedOwners = (result.splits || []).map((s) => ({
+    const updatedOwners = (result.splits || []).map((s: any) => ({
       id: s.id,
       dealId: s.dealId,
       userId: s.userId,
@@ -91,6 +94,16 @@ export const getWorkspaceSetting = async (req: Request, res: Response) => {
 
     const setting = await WorkspaceSetting.findOne({ where: { key } });
     if (!setting) {
+      if (key === "default_qualifying_split_pct") {
+        return res.json({ key: "default_qualifying_split_pct", value: "20.0", description: "Default qualifying rep commission split %" });
+      }
+      if (key === "closing_tier_names") {
+        return res.json({
+          key: "closing_tier_names",
+          value: "senior_ae, Senior Sales Representative, Enterprise AE, Strategic AE, Closer",
+          description: "Comma-separated list of experience tiers and roles eligible as Opportunity Closers"
+        });
+      }
       res.status(404).json({ error: `Workspace setting '${key}' not found` });
       return;
     }
@@ -103,12 +116,12 @@ export const getWorkspaceSetting = async (req: Request, res: Response) => {
 };
 
 // ─── PUT /api/v1/workspace/settings/:key ─────────────────────────────────────
-// Admin only
+// Admin / Manager / Director
 export const updateWorkspaceSetting = async (req: Request, res: Response) => {
   try {
     const callerRole = getCallerRole(req);
-    if (callerRole !== "admin") {
-      res.status(403).json({ error: "Only admin can update workspace settings." });
+    if (!["admin", "manager", "director"].includes(callerRole)) {
+      res.status(403).json({ error: "Only admins or managers can update workspace settings." });
       return;
     }
 

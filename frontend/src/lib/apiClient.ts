@@ -83,3 +83,15 @@ apiClient.post = async function <T = any>(path: string, body?: any, options: Api
   }
   return res.json();
 };
+
+apiClient.put = async function <T = any>(path: string, body?: any, options: ApiOptions = {}): Promise<T> {
+  const res = await apiClient(path, { ...options, method: "PUT", body: body ? JSON.stringify(body) : undefined });
+  if (!res.ok) return null as any;
+  return res.json();
+};
+
+apiClient.delete = async function <T = any>(path: string, options: ApiOptions = {}): Promise<T> {
+  const res = await apiClient(path, { ...options, method: "DELETE" });
+  if (!res.ok) return null as any;
+  return res.json();
+};

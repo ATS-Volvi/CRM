@@ -40,7 +40,7 @@ export async function validateStageTransition(
 
   // Find record (Deal or Lead)
   let deal: any = await Deal.findByPk(recordId, {
-    include: [{ model: Quote, as: "Quotes" }]
+    include: [{ model: Quote, as: "quotes" }]
   });
   let lead: any = null;
 
@@ -52,12 +52,11 @@ export async function validateStageTransition(
 
   const targetId = lead ? lead.id : deal ? deal.id : recordId;
 
-  const targetCustomerId = deal?.customerId || lead?.customerId;
+  const targetCustomerId = deal?.customerId || lead?.customerId || null;
   const activityWhere: any = targetCustomerId
     ? { [Op.or]: [{ leadId: targetId }, { customerId: targetCustomerId }] }
     : { leadId: targetId };
 
-  // Fetch all activities associated with this lead/deal
   const activities = await Activity.findAll({
     where: activityWhere,
     order: [["createdAt", "DESC"]]
@@ -116,8 +115,8 @@ export async function validateStageTransition(
 
   // 3. QUALIFIED / DISCOVERY / REQUIREMENTS STAGE
   if (normalizedTo === "qualified" || normalizedTo === "qualification" || normalizedTo === "discovery" || normalizedTo === "requirements") {
-    const leadVal = lead ? (lead.leadScore || lead.expectedValue) : deal?.amount;
-    const reqNotes = lead?.body || lead?.notes || deal?.name;
+    const leadVal = lead ? (lead.expectedValue || (lead as any).estimatedValue || (lead as any).qualificationData?.estimatedValue || (lead as any).qualificationData?.budget || (lead as any).budgetRange) : deal?.amount;
+    const reqNotes = lead?.body || lead?.notes || (lead as any).requirements || (lead as any).qualificationData?.requirement || (lead as any).qualificationData?.notes || deal?.name;
     
     if (!leadVal || Number(leadVal) <= 0) {
       missingRequirements.push("Estimated Deal/Lead Value must be specified for qualification.");
