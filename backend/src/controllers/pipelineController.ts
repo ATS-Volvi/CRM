@@ -458,10 +458,14 @@ export const getOpportunityById = async (req: Request, res: Response) => {
       });
     }
 
+    const { getHandoffParticipants } = require("./handoffMessageController");
+    const handoffParticipants = await getHandoffParticipants({ dealId: deal.id, leadId: deal.leadId });
+
     return res.json({
       ...dealJson,
       timeline,
       handoff,
+      handoffParticipants,
       isViewOnly: access.isViewOnly,
       userPermission: access.accessLevel
     });

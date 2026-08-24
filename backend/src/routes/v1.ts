@@ -116,6 +116,12 @@ import {
   getFlaggedDeals
 } from "../controllers/dealAssignmentController";
 import {
+  getHandoffMessages,
+  sendHandoffMessage,
+  updateHandoffMessage,
+  deleteHandoffMessage
+} from "../controllers/handoffMessageController";
+import {
   getManagerTeamHandler,
   getDealSplitsHandler,
   setDealSplitsHandler,
@@ -751,6 +757,14 @@ router.get("/coaching-notes", authMiddleware, getCoachingNotes);
 router.get("/coaching-notes/authored", authMiddleware, getAuthoredCoachingNotes);
 router.post("/coaching-notes", authMiddleware, createCoachingNote);
 router.patch("/coaching-notes/:id/read", authMiddleware, markCoachingNoteRead);
+
+// ==========================================
+// DEDICATED HANDOFF MESSAGES (INTERNAL CHAT)
+// ==========================================
+router.get("/handoff-messages", authMiddleware, getHandoffMessages);
+router.post("/handoff-messages", authMiddleware, sendHandoffMessage);
+router.put("/handoff-messages/:id", authMiddleware, updateHandoffMessage);
+router.delete("/handoff-messages/:id", authMiddleware, deleteHandoffMessage);
 
 // ==========================================
 // DASHBOARD EXTRAS

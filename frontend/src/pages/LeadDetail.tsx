@@ -14,6 +14,7 @@ import { formatDistanceToNow } from "date-fns";
 import { CommentThreadSection } from "../components/CommentThreadSection";
 import { QualificationDrawer } from "../components/QualificationDrawer";
 import { LeadConversionModal } from "../components/LeadConversionModal";
+import { HandoffChatWidget } from "../components/HandoffChatWidget";
 
 export default function LeadDetail() {
   const { id } = useParams();
@@ -1603,6 +1604,9 @@ export default function LeadDetail() {
               </div>
             )}
           </div>
+
+          {/* Internal Handoff Chat Channel Widget */}
+          <HandoffChatWidget leadId={id} recordTitle={lead ? `${lead.firstName || ""} ${lead.lastName || ""}`.trim() : "Lead"} />
 
           {/* Team Comments & @Mentions Section */}
           <CommentThreadSection leadId={id} />

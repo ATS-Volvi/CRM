@@ -1114,6 +1114,36 @@ CoachingNote.belongsTo(Lead, { foreignKey: "leadId", as: "lead" });
 User.hasMany(CoachingNote, { foreignKey: "targetUserId", as: "coachingNotes" });
 User.hasMany(CoachingNote, { foreignKey: "authorUserId", as: "coachingNotesAuthored" });
 
+export class HandoffMessage extends Model {
+  public id!: string;
+  public dealId!: string | null;
+  public leadId!: string | null;
+  public senderId!: string;
+  public recipientId!: string | null;
+  public message!: string;
+  public isRead!: boolean;
+  public createdAt!: Date;
+  public updatedAt!: Date;
+}
+
+HandoffMessage.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    dealId: { type: DataTypes.UUID, allowNull: true },
+    leadId: { type: DataTypes.UUID, allowNull: true },
+    senderId: { type: DataTypes.UUID, allowNull: false },
+    recipientId: { type: DataTypes.UUID, allowNull: true },
+    message: { type: DataTypes.TEXT, allowNull: false },
+    isRead: { type: DataTypes.BOOLEAN, defaultValue: false }
+  },
+  { sequelize, modelName: "HandoffMessage" }
+);
+
+HandoffMessage.belongsTo(User, { foreignKey: "senderId", as: "sender" });
+HandoffMessage.belongsTo(User, { foreignKey: "recipientId", as: "recipient" });
+HandoffMessage.belongsTo(Deal, { foreignKey: "dealId", as: "deal" });
+HandoffMessage.belongsTo(Lead, { foreignKey: "leadId", as: "lead" });
+
 export class LeadSource extends Model {
   public id!: string;
   public name!: string;

@@ -37,6 +37,7 @@ import { useAuth } from "../context/AuthContext";
 import { DealReassignModal } from "../components/DealReassignModal";
 import { DealReassignmentHistorySection } from "../components/DealReassignmentHistorySection";
 import { DealSplitsSection } from "../components/DealSplitsSection";
+import { HandoffChatWidget } from "../components/HandoffChatWidget";
 import { deriveOpportunityPhase } from "../utils/opportunityPhases";
 import { QuoteBillModal } from "../components/QuoteBillModal";
 
@@ -46,7 +47,7 @@ export default function OpportunityDetail() {
   const queryClient = useQueryClient();
   const { token } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<"timeline" | "quotes" | "splits" | "history">("timeline");
+  const [activeTab, setActiveTab] = useState<"timeline" | "quotes" | "splits" | "history" | "handoff_chat">("timeline");
   const [noteText, setNoteText] = useState("");
   const [viewQuoteId, setViewQuoteId] = useState<string | null>(null);
   const [rejectModalQuoteId, setRejectModalQuoteId] = useState<string | null>(null);
@@ -551,6 +552,16 @@ export default function OpportunityDetail() {
             >
               Audit History
             </button>
+            <button
+              onClick={() => setActiveTab("handoff_chat")}
+              className={`px-3 py-2 border-b-2 transition-colors cursor-pointer ${
+                activeTab === "handoff_chat"
+                  ? "border-blue-600 text-blue-600 font-bold"
+                  : "border-transparent text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              Handoff Chat (Internal)
+            </button>
           </div>
 
           {/* TAB 1: TIMELINE & NOTES */}
@@ -779,6 +790,17 @@ export default function OpportunityDetail() {
             <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
               <DealReassignmentHistorySection dealId={opp.id} />
             </div>
+          )}
+
+          {/* TAB 5: HANDOFF CHAT (INTERNAL) */}
+          {activeTab === "handoff_chat" && (
+            <HandoffChatWidget
+              dealId={opp.id}
+              leadId={opp.leadId}
+              recordTitle={opp.name}
+              dealAmount={Number(opp.amount || 0)}
+              participantsData={opp.handoffParticipants}
+            />
           )}
         </div>
 
