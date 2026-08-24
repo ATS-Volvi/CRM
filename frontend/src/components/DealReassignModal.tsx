@@ -244,9 +244,9 @@ export function DealReassignModal({
             {/* Representative Selector */}
             <div className="space-y-1.5">
               <label className="font-bold text-on-surface flex items-center justify-between">
-                <span>Select New Senior AE</span>
+                <span>Select New Representative / AE</span>
                 <span className="text-[11px] text-on-surface-variant font-normal">
-                  {reps.length} Senior AEs available
+                  {reps.length} Representatives available
                 </span>
               </label>
               <select
@@ -255,7 +255,7 @@ export function DealReassignModal({
                 disabled={isLoadingReps || reassignMutation.isPending}
                 className="w-full bg-surface border border-outline rounded-lg p-2.5 text-xs text-on-surface focus:ring-1 focus:ring-primary focus:outline-none"
               >
-                <option value="">-- Choose Senior Account Executive --</option>
+                <option value="">-- Choose Sales Representative / AE --</option>
                 {reps.map((r) => {
                   const isCurrent = r.id === currentOwnerId;
                   const cutoffText =

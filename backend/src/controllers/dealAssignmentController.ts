@@ -159,8 +159,9 @@ export async function getDealAssignmentCutoffs(req: Request, res: Response) {
   try {
     const { User } = sequelize.models;
 
-    const seniorAes: any[] = await User.findAll({
-      where: { role: "senior_ae" },
+    const { Op } = require("sequelize");
+    let seniorAes: any[] = await User.findAll({
+      where: { role: { [Op.in]: ["senior_ae", "sales_rep"] } },
       attributes: [
         "id",
         "name",
@@ -175,6 +176,25 @@ export async function getDealAssignmentCutoffs(req: Request, res: Response) {
       ],
       order: [["name", "ASC"]]
     });
+
+    if (!seniorAes || seniorAes.length === 0) {
+      seniorAes = await User.findAll({
+        where: { role: { [Op.in]: ["sales_manager", "admin", "director"] } },
+        attributes: [
+          "id",
+          "name",
+          "email",
+          "role",
+          "dealValueCutoff",
+          "maxOpenDeals",
+          "isAvailable",
+          "department",
+          "territory",
+          "status"
+        ],
+        order: [["name", "ASC"]]
+      });
+    }
 
     const repsWithLoad = await Promise.all(
       seniorAes.map(async (rep) => {
