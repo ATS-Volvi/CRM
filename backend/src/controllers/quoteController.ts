@@ -1,6 +1,8 @@
 import { Request, Response } from "express";
+import { Op } from "sequelize";
 import { sequelize } from "@nexus-crm/database";
 import { createNotification } from "../services/notificationService";
+import { checkRecordAccess } from "../services/handoffAccessService";
 import { evaluateQuoteApproval, createApprovalAuditLog } from "../services/approvalEngine";
 import { triggerQuoteApprovalNotifications } from "../services/notificationEngine";
 
@@ -118,6 +120,18 @@ export const getQuotes = async (req: Request, res: Response) => {
 export const createQuote = async (req: Request, res: Response) => {
   try {
     const { dealId, items, status, expirationDate, parentQuoteId } = req.body;
+    const user = (req as any).user;
+
+    if (dealId) {
+      const access = await checkRecordAccess(user?.id, user?.role, { dealId });
+      if (!access.canWrite) {
+        return res.status(403).json({
+          error: access.reason || "Handed off — view only. This deal has been reassigned to another representative.",
+          isViewOnly: true
+        });
+      }
+    }
+
     const year = new Date().getFullYear();
     let quoteNum = "";
     let ver = 1;
@@ -313,6 +327,17 @@ export const updateQuote = async (req: Request, res: Response) => {
       include: [{ model: sequelize.models.QuoteLineItem, as: "QuoteLineItems" }]
     });
     if (!quote) return res.status(404).json({ error: "Quote not found" });
+
+    const user = (req as any).user;
+    if ((quote as any).dealId) {
+      const access = await checkRecordAccess(user?.id, user?.role, { dealId: (quote as any).dealId });
+      if (!access.canWrite) {
+        return res.status(403).json({
+          error: access.reason || "Handed off — view only. This quote's deal has been reassigned to another representative.",
+          isViewOnly: true
+        });
+      }
+    }
 
     const q = quote as any;
     const prevStatus = q.status;

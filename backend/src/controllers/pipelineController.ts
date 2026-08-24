@@ -5,6 +5,7 @@ import { createNotification } from "../services/notificationService";
 import { triggerStageChangeAutomations } from "../services/automationService";
 import { validateStageTransition } from "../services/stageValidationService";
 import { isWonStage, isLostStage } from "../utils/pipelineStageHelpers";
+import { getDealAccessLevel } from "../services/handoffAccessService";
 
 export const validateTransition = async (req: Request, res: Response) => {
   try {
@@ -103,6 +104,14 @@ export const moveDealStage = async (req: Request, res: Response) => {
 
     const deal: any = await Deal.findByPk(id);
     if (!deal) return res.status(404).json({ error: "Deal not found" });
+
+    const access = await getDealAccessLevel(userId, userRole, deal);
+    if (!access.canWrite) {
+      return res.status(403).json({
+        error: access.reason || "Handed off — view only. This deal has been reassigned to another representative.",
+        isViewOnly: true
+      });
+    }
 
     const fromStageId = deal.stageId;
     const fromStageObj: any = await PipelineStage.findByPk(fromStageId);
@@ -384,6 +393,7 @@ export const getDeals = async (req: Request, res: Response) => {
 export const getOpportunityById = async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id);
+    const user = (req as any).user;
     const deal: any = await Deal.findByPk(id, {
       include: [
         { model: PipelineStage, as: "stage" },
@@ -393,6 +403,11 @@ export const getOpportunityById = async (req: Request, res: Response) => {
       ]
     });
     if (!deal) return res.status(404).json({ error: "Opportunity not found" });
+
+    const access = await getDealAccessLevel(user?.id, user?.role, deal);
+    if (!access.canRead) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
 
     const dealJson = deal.toJSON();
 
@@ -438,7 +453,9 @@ export const getOpportunityById = async (req: Request, res: Response) => {
     return res.json({
       ...dealJson,
       timeline,
-      handoff
+      handoff,
+      isViewOnly: access.isViewOnly,
+      userPermission: access.accessLevel
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -448,9 +465,18 @@ export const getOpportunityById = async (req: Request, res: Response) => {
 export const updateOpportunity = async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id);
+    const user = (req as any).user;
     const { name, amount, stageId, ownerId, competitors, probability } = req.body;
     const deal = await Deal.findByPk(id);
     if (!deal) return res.status(404).json({ error: "Opportunity not found" });
+
+    const access = await getDealAccessLevel(user?.id, user?.role, deal);
+    if (!access.canWrite) {
+      return res.status(403).json({
+        error: access.reason || "Handed off — view only. This deal has been reassigned to another representative.",
+        isViewOnly: true
+      });
+    }
 
     await deal.update({
       name: name !== undefined ? name : (deal as any).name,

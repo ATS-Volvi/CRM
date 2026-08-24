@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { Activity, User } from "@nexus-crm/database";
+import { checkRecordAccess } from "../services/handoffAccessService";
 
 export const getLeadActivities = async (req: Request, res: Response) => {
   try {
@@ -51,6 +52,17 @@ export const createActivity = async (req: Request, res: Response) => {
       direction
     } = req.body;
     const userId = (req as any).user?.id || "mock-user";
+    const userRole = (req as any).user?.role;
+
+    if (leadId || dealId) {
+      const access = await checkRecordAccess(userId, userRole, { leadId, dealId });
+      if (!access.canWrite) {
+        return res.status(403).json({
+          error: access.reason || "Handed off — view only. This record has been reassigned to another representative.",
+          isViewOnly: true
+        });
+      }
+    }
 
     // Validate tasks have a due date
     if (type === "task" && !dueDate) {

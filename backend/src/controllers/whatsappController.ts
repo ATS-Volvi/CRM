@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import twilio from "twilio";
 import { sequelize } from "@nexus-crm/database";
 import { sendWhatsAppMessage, sendWhatsAppTemplateMessage } from "../services/whatsappService";
+import { checkRecordAccess } from "../services/handoffAccessService";
 import { assignLead } from "../services/assignmentEngine";
 import { extractLeadDetailsFromText } from "../services/aiLeadExtraction";
 import { handleInboundActivity } from "../services/leadTemperatureService";
@@ -127,6 +128,17 @@ export const sendMessage = async (req: Request, res: Response) => {
 
     if (!targetPhone) {
       return res.status(400).json({ error: "Phone number or valid leadId/customerId with a phone number is required" });
+    }
+
+    const caller = (req as any).user;
+    if (targetLeadId) {
+      const access = await checkRecordAccess(caller?.id, caller?.role, { leadId: targetLeadId });
+      if (!access.canWrite) {
+        return res.status(403).json({
+          error: access.reason || "Handed off — view only. This lead has been reassigned to another representative.",
+          isViewOnly: true
+        });
+      }
     }
 
     // Determine 24-hour customer service session status (WhatsApp 24h window rule)

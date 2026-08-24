@@ -23,6 +23,7 @@ import {
   AlertCircle,
   AlertTriangle,
   UserCheck,
+  Lock,
   RefreshCw,
   X,
   Sliders
@@ -213,37 +214,59 @@ export default function OpportunityDetail() {
           <span>Back to Opportunities</span>
         </button>
 
-        <div className="flex items-center gap-2">
-          {/* Phase 2: Manual Reassign Button */}
-          <button
-            onClick={() => setIsReassignModalOpen(true)}
-            className="enterprise-btn-secondary flex items-center gap-1.5 text-xs"
-            title="Reassign Opportunity to a Senior AE"
-          >
-            <UserCheck className="w-3.5 h-3.5 text-indigo-600" />
-            <span>Reassign Owner</span>
-          </button>
+        {!opp?.isViewOnly && (
+          <div className="flex items-center gap-2">
+            {/* Phase 2: Manual Reassign Button */}
+            <button
+              onClick={() => setIsReassignModalOpen(true)}
+              className="enterprise-btn-secondary flex items-center gap-1.5 text-xs"
+              title="Reassign Opportunity to a Senior AE"
+            >
+              <UserCheck className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Reassign Owner</span>
+            </button>
 
-          {/* Phase 2: Auto-Assign Trigger Button */}
-          <button
-            onClick={() => autoAssignMutation.mutate()}
-            disabled={autoAssignMutation.isPending}
-            className="enterprise-btn-outline flex items-center gap-1.5 text-xs hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300"
-            title="Trigger Automated Deal Routing Engine"
-          >
-            <Sparkles className={`w-3.5 h-3.5 text-amber-500 ${autoAssignMutation.isPending ? "animate-spin" : ""}`} />
-            <span>Auto-Assign Rep</span>
-          </button>
+            {/* Phase 2: Auto-Assign Trigger Button */}
+            <button
+              onClick={() => autoAssignMutation.mutate()}
+              disabled={autoAssignMutation.isPending}
+              className="enterprise-btn-outline flex items-center gap-1.5 text-xs hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300"
+              title="Trigger Automated Deal Routing Engine"
+            >
+              <Sparkles className={`w-3.5 h-3.5 text-amber-500 ${autoAssignMutation.isPending ? "animate-spin" : ""}`} />
+              <span>Auto-Assign Rep</span>
+            </button>
 
-          <button
-            onClick={() => navigate(`/quotes/new?dealId=${opp.id}`)}
-            className="enterprise-btn-primary"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Create New Quote</span>
-          </button>
-        </div>
+            <button
+              onClick={() => navigate(`/quotes/new?dealId=${opp.id}`)}
+              className="enterprise-btn-primary"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Create New Quote</span>
+            </button>
+          </div>
+        )}
       </div>
+
+      {/* Handed Off View-Only Banner */}
+      {opp?.isViewOnly && (
+        <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 flex items-center justify-between gap-4 text-amber-900 shadow-sm animate-fade-in">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-amber-200/70 rounded-xl">
+              <Lock className="w-5 h-5 text-amber-800" />
+            </div>
+            <div>
+              <h4 className="font-extrabold text-sm uppercase tracking-wider text-amber-950">Handed Off — View Only Access</h4>
+              <p className="text-xs text-amber-800 font-medium mt-0.5">
+                This opportunity has been reassigned to another representative. You retain permanent read-only access to historical timeline, activities, and quotes. Write operations are restricted.
+              </p>
+            </div>
+          </div>
+          <span className="px-3 py-1 bg-amber-200 text-amber-900 font-extrabold text-xs rounded-lg uppercase tracking-wider shrink-0 border border-amber-300">
+            Read Only
+          </span>
+        </div>
+      )}
 
       {/* Auto-Assignment Notification / Guidance Banner */}
       {autoAssignBanner && (

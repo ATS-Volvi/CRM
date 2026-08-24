@@ -6,6 +6,7 @@ import { assignLeadToSalesperson } from "../services/leadAssignmentService";
 import { ingestLead } from "../services/leadIngestion";
 import { updateLeadTemperature } from "../services/leadTemperatureService";
 import { autoAssignDeal } from "../services/dealAssignmentEngine";
+import { getLeadAccessLevel } from "../services/handoffAccessService";
 import crypto from "crypto";
 
 export const getLeads = async (req: Request, res: Response) => {
@@ -197,12 +198,18 @@ export const getLeadById = async (req: Request, res: Response) => {
 
     if (!lead) return res.status(404).json({ error: "Lead not found" });
 
-    // Data isolation: sales reps can only view their own leads
-    if (user && user.role === "sales_rep" && (lead as any).assignedToId !== user.id) {
+    // Handoff access evaluation (current owner, admin/manager, or prior owner)
+    const access = await getLeadAccessLevel(user?.id, user?.role, lead);
+    if (!access.canRead) {
       return res.status(403).json({ error: "Forbidden" });
     }
 
-    res.json(lead);
+    const leadJson = typeof lead.toJSON === "function" ? lead.toJSON() : lead;
+    res.json({
+      ...leadJson,
+      isViewOnly: access.isViewOnly,
+      userPermission: access.accessLevel
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -243,9 +250,18 @@ import { computeStageNextAction, qualifyLeadWorkflow } from "../services/stageNe
 export const updateLead = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const user = (req as any).user;
     const updateData = req.body;
     const lead = await sequelize.models.Lead.findByPk(id as string);
     if (!lead) return res.status(404).json({ error: "Lead not found" });
+
+    const access = await getLeadAccessLevel(user?.id, user?.role, lead);
+    if (!access.canWrite) {
+      return res.status(403).json({
+        error: access.reason || "Handed off — view only. This lead has been reassigned to another representative.",
+        isViewOnly: true
+      });
+    }
 
     if (updateData.assignedToId && updateData.assignedToId !== (lead as any).assignedToId) {
       await assignLeadToSalesperson(lead, updateData.assignedToId);
@@ -281,6 +297,18 @@ export const qualifyLeadEndpoint = async (req: Request, res: Response) => {
     const { id } = req.params;
     const user = (req as any).user;
     const qualificationData = req.body;
+
+    const lead = await sequelize.models.Lead.findByPk(id as string);
+    if (!lead) return res.status(404).json({ error: "Lead not found" });
+
+    const access = await getLeadAccessLevel(user?.id, user?.role, lead);
+    if (!access.canWrite) {
+      return res.status(403).json({
+        error: access.reason || "Handed off — view only. This lead has been reassigned to another representative.",
+        isViewOnly: true
+      });
+    }
+
     const { convertLeadToOpportunity } = require("../services/leadJourneyWorkflowEngine");
 
     const result = await convertLeadToOpportunity(String(id), qualificationData?.qualificationData || qualificationData, user?.id);
@@ -294,6 +322,19 @@ export const qualifyLeadEndpoint = async (req: Request, res: Response) => {
 export const convertLead = async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id);
+    const user = (req as any).user;
+
+    const lead = await sequelize.models.Lead.findByPk(id);
+    if (!lead) return res.status(404).json({ error: "Lead not found" });
+
+    const access = await getLeadAccessLevel(user?.id, user?.role, lead);
+    if (!access.canWrite) {
+      return res.status(403).json({
+        error: access.reason || "Handed off — view only. This lead has been reassigned to another representative.",
+        isViewOnly: true
+      });
+    }
+
     const { convertLeadToOpportunity } = require("../services/leadJourneyWorkflowEngine");
     const result = await convertLeadToOpportunity(
       id,

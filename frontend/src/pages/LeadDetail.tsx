@@ -7,7 +7,7 @@ import {
   ChevronRight, Calendar, DollarSign, Activity, ShoppingBag, FileText, ChevronDown, Loader2,
   Users, TrendingUp, MessageSquare, CheckSquare, AlertCircle, Sparkles, Send, Upload, Plus,
   FilePlus, Award, ShieldAlert, CheckCircle2, Clock, MapPin, Video, ExternalLink, Pin,
-  FileEdit, Landmark, Inbox, User, Receipt, AlertTriangle, Target
+  FileEdit, Landmark, Inbox, User, Receipt, AlertTriangle, Target, Lock
 } from "lucide-react";
 import { formatCurrency } from "../utils/currency";
 import { formatDistanceToNow } from "date-fns";
@@ -570,6 +570,26 @@ export default function LeadDetail() {
           )}
         </div>
       </div>
+
+      {/* Handed Off View-Only Banner */}
+      {lead?.isViewOnly && (
+        <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 flex items-center justify-between gap-4 text-amber-900 shadow-sm animate-fade-in">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-amber-200/70 rounded-xl">
+              <Lock className="w-5 h-5 text-amber-800" />
+            </div>
+            <div>
+              <h4 className="font-extrabold text-sm uppercase tracking-wider text-amber-950">Handed Off — View Only Access</h4>
+              <p className="text-xs text-amber-800 font-medium mt-0.5">
+                This lead has been reassigned to another representative. You retain permanent read-only access to all historical activities, calls, notes, and messages. Write operations are restricted.
+              </p>
+            </div>
+          </div>
+          <span className="px-3 py-1 bg-amber-200 text-amber-900 font-extrabold text-xs rounded-lg uppercase tracking-wider shrink-0 border border-amber-300">
+            Read Only
+          </span>
+        </div>
+      )}
 
       {/* ─── STAGE + NEXT ACTION ENGINE HERO BANNER ─────────────────────────────── */}
       <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-3xl p-6 text-white shadow-xl border border-indigo-900/50 flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative overflow-hidden">
