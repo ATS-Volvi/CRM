@@ -161,4 +161,34 @@ describe("handoffAccessService Unit Tests", () => {
     expect(noTargetCheck.canWrite).toBe(false);
     expect(noTargetCheck.accessLevel).toBe("none");
   });
+
+  test("Salesman 1 lead converted to Opportunity & reassigned to Salesman 2: Salesman 1 view-only, Salesman 2 full write", async () => {
+    const s1Id = "salesman-1";
+    const s2Id = "salesman-2";
+
+    const convertedLead = { id: "converted-lead-101", assignedToId: s2Id };
+    const convertedDeal = { id: "converted-deal-101", leadId: "converted-lead-101", ownerId: s2Id };
+
+    // Mock history: Salesman 1 was old assignee of the lead
+    (sequelize.models.LeadReassignmentHistory.findOne as jest.Mock).mockResolvedValueOnce({
+      id: "hist-101",
+      leadId: "converted-lead-101",
+      oldAssignedToId: s1Id,
+      newAssignedToId: s2Id
+    });
+
+    // Salesman 1 access on converted deal
+    const s1Access = await getDealAccessLevel(s1Id, "sales_rep", convertedDeal);
+    expect(s1Access.canRead).toBe(true);
+    expect(s1Access.canWrite).toBe(false);
+    expect(s1Access.isViewOnly).toBe(true);
+    expect(s1Access.accessLevel).toBe("view_only");
+
+    // Salesman 2 access on converted deal
+    const s2Access = await getDealAccessLevel(s2Id, "sales_rep", convertedDeal);
+    expect(s2Access.canRead).toBe(true);
+    expect(s2Access.canWrite).toBe(true);
+    expect(s2Access.isViewOnly).toBe(false);
+    expect(s2Access.accessLevel).toBe("full");
+  });
 });
