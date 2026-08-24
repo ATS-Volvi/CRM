@@ -5,6 +5,7 @@ import {
   setDealSplits,
   deleteDealSplits
 } from "../services/dealSplitService";
+import { getDealAccessLevel } from "../services/handoffAccessService";
 import { getStuckDeals } from "../services/dealHealthService";
 
 const MANAGER_ROLES = ["manager", "admin", "director"];
@@ -116,6 +117,18 @@ export async function deleteDealSplitsHandler(req: Request, res: Response) {
 
     if (!dealId) {
       return res.status(400).json({ error: "dealId parameter is required" });
+    }
+
+    const sequelize = (require("../index").sequelize);
+    const deal = await sequelize.models.Deal.findByPk(dealId);
+    if (deal) {
+      const access = await getDealAccessLevel(caller.id, caller.role, deal);
+      if (!access.canWrite) {
+        return res.status(403).json({
+          error: access.reason || "Handed off — view only. This deal has been reassigned to another representative.",
+          isViewOnly: true
+        });
+      }
     }
 
     const result = await deleteDealSplits(dealId);

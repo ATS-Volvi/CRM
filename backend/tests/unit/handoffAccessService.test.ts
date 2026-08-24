@@ -107,15 +107,41 @@ describe("handoffAccessService Unit Tests", () => {
     expect(dealAccess.accessLevel).toBe("view_only");
   });
 
-  test("Unrelated rep (Rep 3) gets no access", async () => {
+  test("Unrelated rep gets no access", async () => {
     // Override history mock for unknown rep
     (sequelize.models.LeadReassignmentHistory.findOne as jest.Mock).mockResolvedValueOnce(null);
     (sequelize.models.DealReassignmentHistory.findOne as jest.Mock).mockResolvedValueOnce(null);
 
-    const leadAccess = await getLeadAccessLevel("rep-3333", "sales_rep", sampleLead);
+    const leadAccess = await getLeadAccessLevel("rep-9999-unrelated", "sales_rep", sampleLead);
     expect(leadAccess.canRead).toBe(false);
     expect(leadAccess.canWrite).toBe(false);
     expect(leadAccess.isViewOnly).toBe(false);
     expect(leadAccess.accessLevel).toBe("none");
+  });
+
+  test("Multi-hop chain (Rep 1 -> Rep 2 -> Rep 3): Rep 3 full, Rep 2 view-only, Rep 1 view-only", async () => {
+    const multiHopLead = { id: "lead-multihop", assignedToId: "rep-3" };
+
+    // Mock history records for multi-hop chain
+    (sequelize.models.LeadReassignmentHistory.findOne as jest.Mock).mockImplementation(async ({ where }: any) => {
+      const targetUser = (where["Symbol(or)"] || where[Object.getOwnPropertySymbols(where)[0]] || []);
+      const userChecked = targetUser[0]?.oldAssignedToId || targetUser[1]?.newAssignedToId;
+      if (userChecked === "rep-1" || userChecked === "rep-2") {
+        return { id: "hist-multihop", leadId: "lead-multihop", oldAssignedToId: "rep-1", newAssignedToId: "rep-2" };
+      }
+      return null;
+    });
+
+    const rep3Access = await getLeadAccessLevel("rep-3", "sales_rep", multiHopLead);
+    expect(rep3Access.canWrite).toBe(true);
+    expect(rep3Access.isViewOnly).toBe(false);
+
+    const rep2Access = await getLeadAccessLevel("rep-2", "sales_rep", multiHopLead);
+    expect(rep2Access.canWrite).toBe(false);
+    expect(rep2Access.isViewOnly).toBe(true);
+
+    const rep1Access = await getLeadAccessLevel("rep-1", "sales_rep", multiHopLead);
+    expect(rep1Access.canWrite).toBe(false);
+    expect(rep1Access.isViewOnly).toBe(true);
   });
 });

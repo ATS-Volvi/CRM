@@ -15,8 +15,12 @@ describe("Lead -> Deal Handoff Permissions & Data Visibility E2E Test", () => {
     // Create test users using sequelize.models
     const { User, Lead, Deal, Activity } = sequelize.models;
 
+    const uid1 = require("crypto").randomUUID();
+    const uid2 = require("crypto").randomUUID();
+    const uid3 = require("crypto").randomUUID();
+
     rep1 = await User.create({
-      id: crypto.randomUUID(),
+      id: uid1,
       name: "Sales Rep 1 (Prior Owner)",
       email: `rep1_${Date.now()}@example.com`,
       password: "hashedpassword",
@@ -24,7 +28,7 @@ describe("Lead -> Deal Handoff Permissions & Data Visibility E2E Test", () => {
     });
 
     rep2 = await User.create({
-      id: crypto.randomUUID(),
+      id: uid2,
       name: "Sales Rep 2 (Current Owner)",
       email: `rep2_${Date.now()}@example.com`,
       password: "hashedpassword",
@@ -32,7 +36,7 @@ describe("Lead -> Deal Handoff Permissions & Data Visibility E2E Test", () => {
     });
 
     admin = await User.create({
-      id: crypto.randomUUID(),
+      id: uid3,
       name: "Sales Manager Admin",
       email: `admin_${Date.now()}@example.com`,
       password: "hashedpassword",

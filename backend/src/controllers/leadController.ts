@@ -403,7 +403,27 @@ export const getDuplicateLeads = async (req: Request, res: Response) => {
 export const mergeLeads = async (req: Request, res: Response) => {
   try {
     const { masterId, duplicateIds } = req.body;
+    const userId = (req as any).user?.id;
+    const userRole = (req as any).user?.role;
     const models = sequelize.models;
+
+    if (!masterId || !duplicateIds || !Array.isArray(duplicateIds)) {
+      return res.status(400).json({ error: "masterId and duplicateIds array are required" });
+    }
+
+    const masterLead = await models.Lead.findByPk(String(masterId));
+    if (!masterLead) {
+      return res.status(404).json({ error: "Master lead not found" });
+    }
+
+    // Evaluate write access ONLY on the master lead being merged into
+    const access = await getLeadAccessLevel(userId, userRole, masterLead);
+    if (!access.canWrite) {
+      return res.status(403).json({
+        error: access.reason || "Handed off — view only. You cannot merge leads into a master lead you do not own.",
+        isViewOnly: true
+      });
+    }
     
     await models.Deal.update({ leadId: masterId }, { where: { leadId: duplicateIds } });
     await models.Activity.update({ leadId: masterId }, { where: { leadId: duplicateIds } });
@@ -421,10 +441,19 @@ export const mergeLeads = async (req: Request, res: Response) => {
 export const deleteLead = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const deletedCount = await sequelize.models.Lead.destroy({ where: { id: String(id) } });
-    if (deletedCount === 0) {
-       return res.status(404).json({ error: "Lead not found" });
+    const user = (req as any).user;
+    const lead = await sequelize.models.Lead.findByPk(String(id));
+    if (!lead) return res.status(404).json({ error: "Lead not found" });
+
+    const access = await getLeadAccessLevel(user?.id, user?.role, lead);
+    if (!access.canWrite) {
+      return res.status(403).json({
+        error: access.reason || "Handed off — view only. This lead has been reassigned to another representative.",
+        isViewOnly: true
+      });
     }
+
+    await lead.destroy();
     res.status(204).send();
   } catch (error: any) {
     res.status(500).json({ error: error.message });

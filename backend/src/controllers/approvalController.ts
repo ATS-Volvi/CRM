@@ -3,6 +3,7 @@ import { sequelize } from "@nexus-crm/database";
 import { Op } from "sequelize";
 import { createNotification } from "../services/notificationService";
 import { evaluateQuoteApproval, createApprovalAuditLog } from "../services/approvalEngine";
+import { checkRecordAccess } from "../services/handoffAccessService";
 
 // ── ADMIN GLOBAL APPROVAL POLICY ─────────────────────────────
 
@@ -266,6 +267,17 @@ export const submitQuoteForApproval = async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Quote not found" });
     }
 
+    const authUser = (req as any).user;
+    if (quote.dealId) {
+      const access = await checkRecordAccess(authUser?.id, authUser?.role, { dealId: quote.dealId });
+      if (!access.canWrite) {
+        return res.status(403).json({
+          error: access.reason || "Handed off — view only. This quote's deal has been reassigned to another representative.",
+          isViewOnly: true
+        });
+      }
+    }
+
     const evaluation = await evaluateQuoteApproval(id);
     const userId = (req as any).user?.id || evaluation.salesRepId;
 
@@ -383,6 +395,18 @@ export const updateApproval = async (req: Request, res: Response) => {
     }
 
     const targetQuoteId = (approval as any).targetId;
+    if (targetQuoteId) {
+      const targetQuote: any = await sequelize.models.Quote.findByPk(targetQuoteId);
+      if (targetQuote && targetQuote.dealId) {
+        const access = await checkRecordAccess(authUser?.id, authUser?.role, { dealId: targetQuote.dealId });
+        if (!access.canWrite) {
+          return res.status(403).json({
+            error: access.reason || "Handed off — view only. This quote's deal has been reassigned to another representative.",
+            isViewOnly: true
+          });
+        }
+      }
+    }
     const evaluation = await evaluateQuoteApproval(targetQuoteId);
 
     // SECURITY ENFORCEMENT
@@ -501,6 +525,16 @@ export const approveQuoteDirectly = async (req: Request, res: Response) => {
       include: [{ model: sequelize.models.Deal, as: "deal" }]
     });
     if (!quote) return res.status(404).json({ error: "Quote not found" });
+
+    if (quote.dealId) {
+      const access = await checkRecordAccess(authUser?.id, authUser?.role, { dealId: quote.dealId });
+      if (!access.canWrite) {
+        return res.status(403).json({
+          error: access.reason || "Handed off — view only. This quote's deal has been reassigned to another representative.",
+          isViewOnly: true
+        });
+      }
+    }
 
     const evaluation = await evaluateQuoteApproval(id);
 

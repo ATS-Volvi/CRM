@@ -100,6 +100,16 @@ export const togglePinActivity = async (req: Request, res: Response) => {
     const activity: any = await Activity.findByPk(id);
     if (!activity) return res.status(404).json({ error: "Activity not found" });
 
+    if (activity.leadId || activity.dealId) {
+      const access = await checkRecordAccess((req as any).user?.id, (req as any).user?.role, { leadId: activity.leadId, dealId: activity.dealId });
+      if (!access.canWrite) {
+        return res.status(403).json({
+          error: access.reason || "Handed off — view only.",
+          isViewOnly: true
+        });
+      }
+    }
+
     activity.pinned = !activity.pinned;
     await activity.save();
     
@@ -112,10 +122,20 @@ export const togglePinActivity = async (req: Request, res: Response) => {
 export const completeTask = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const task = await Activity.findByPk(id as string);
+    const task: any = await Activity.findByPk(id as string);
     if (!task) return res.status(404).json({ error: "Task not found" });
-    if ((task as any).type !== "task") {
+    if (task.type !== "task") {
       return res.status(400).json({ error: "This activity is not a task" });
+    }
+
+    if (task.leadId || task.dealId) {
+      const access = await checkRecordAccess((req as any).user?.id, (req as any).user?.role, { leadId: task.leadId, dealId: task.dealId });
+      if (!access.canWrite) {
+        return res.status(403).json({
+          error: access.reason || "Handed off — view only.",
+          isViewOnly: true
+        });
+      }
     }
 
     await task.update({ isCompleted: true });
