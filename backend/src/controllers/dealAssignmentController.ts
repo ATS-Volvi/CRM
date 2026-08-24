@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { sequelize } from "@nexus-crm/database";
 import { autoAssignDeal, manualReassignDeal, getOpenDealsCount } from "../services/dealAssignmentEngine";
+import { getDealAccessLevel } from "../services/handoffAccessService";
 
 /**
  * Helper to get caller ID from JWT token payload attached by authMiddleware.
@@ -69,6 +70,21 @@ export async function reassignDeal(req: Request, res: Response) {
     }
 
     const callerId = getCallerId(req);
+    const callerRole = (req as any).user?.role;
+    const { Deal } = sequelize.models;
+    const deal = await Deal.findByPk(dealId);
+    if (!deal) {
+      return res.status(404).json({ error: "Deal not found" });
+    }
+
+    const access = await getDealAccessLevel(callerId, callerRole, deal);
+    if (!access.canWrite) {
+      return res.status(403).json({
+        error: access.reason || "Handed off — view only. This deal has been reassigned to another representative.",
+        isViewOnly: true
+      });
+    }
+
     const result = await manualReassignDeal(dealId, targetUserId, reason.trim(), callerId);
 
     return res.status(200).json({

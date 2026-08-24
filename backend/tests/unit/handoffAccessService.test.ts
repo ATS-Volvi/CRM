@@ -144,4 +144,21 @@ describe("handoffAccessService Unit Tests", () => {
     expect(rep1Access.canWrite).toBe(false);
     expect(rep1Access.isViewOnly).toBe(true);
   });
+
+  test("Fail closed: missing userId or target record denies access", async () => {
+    const noUserLead = await getLeadAccessLevel(null, "sales_rep", sampleLead);
+    expect(noUserLead.canRead).toBe(false);
+    expect(noUserLead.canWrite).toBe(false);
+    expect(noUserLead.accessLevel).toBe("none");
+
+    const noUserDeal = await getDealAccessLevel("", "sales_rep", sampleDeal);
+    expect(noUserDeal.canRead).toBe(false);
+    expect(noUserDeal.canWrite).toBe(false);
+    expect(noUserDeal.accessLevel).toBe("none");
+
+    const noTargetCheck = await checkRecordAccess("rep-1111", "sales_rep", {});
+    expect(noTargetCheck.canRead).toBe(false);
+    expect(noTargetCheck.canWrite).toBe(false);
+    expect(noTargetCheck.accessLevel).toBe("none");
+  });
 });

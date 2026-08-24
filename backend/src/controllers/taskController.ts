@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { sequelize } from "@nexus-crm/database";
+import { checkRecordAccess } from "../services/handoffAccessService";
 
 export const getTasks = async (req: Request, res: Response) => {
   try {
@@ -26,7 +27,20 @@ export const getTasks = async (req: Request, res: Response) => {
 
 export const createTask = async (req: Request, res: Response) => {
   try {
-    const { title, description, priority, dueDate, reminderDate, ownerId, leadId, customerId } = req.body;
+    const { title, description, priority, dueDate, reminderDate, ownerId, leadId, dealId, customerId } = req.body;
+    const userId = (req as any).user?.id;
+    const userRole = (req as any).user?.role;
+
+    if (leadId || dealId) {
+      const access = await checkRecordAccess(userId, userRole, { leadId, dealId });
+      if (!access.canWrite) {
+        return res.status(403).json({
+          error: access.reason || "Handed off — view only. This record has been reassigned to another representative.",
+          isViewOnly: true
+        });
+      }
+    }
+
     const task = await sequelize.models.Task.create({
       id: require("crypto").randomUUID(),
       title,
@@ -35,7 +49,7 @@ export const createTask = async (req: Request, res: Response) => {
       dueDate: dueDate ? new Date(dueDate) : null,
       reminderDate: reminderDate ? new Date(reminderDate) : null,
       status: "Pending",
-      ownerId: ownerId || (req as any).user?.id || null,
+      ownerId: ownerId || userId || null,
       leadId: leadId || null,
       customerId: customerId || null
     });
@@ -47,8 +61,8 @@ export const createTask = async (req: Request, res: Response) => {
         type: "Task",
         title: `Task Created: ${title}`,
         notes: description || `Priority: ${priority || "Medium"}`,
-        createdById: (req as any).user?.id || null,
-      direction: "internal"
+        createdById: userId || null,
+        direction: "internal"
       });
     }
 
@@ -62,8 +76,21 @@ export const updateTaskStatus = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
-    const task = await sequelize.models.Task.findByPk(id as string);
+    const userId = (req as any).user?.id;
+    const userRole = (req as any).user?.role;
+
+    const task: any = await sequelize.models.Task.findByPk(id as string);
     if (!task) return res.status(404).json({ error: "Task not found" });
+
+    if (task.leadId || task.dealId) {
+      const access = await checkRecordAccess(userId, userRole, { leadId: task.leadId, dealId: task.dealId });
+      if (!access.canWrite) {
+        return res.status(403).json({
+          error: access.reason || "Handed off — view only. This task belongs to a reassigned record.",
+          isViewOnly: true
+        });
+      }
+    }
 
     await task.update({ status });
     res.json(task);

@@ -19,8 +19,16 @@ export async function getLeadAccessLevel(
   userRole: string | null | undefined,
   lead: any
 ): Promise<RecordAccessResult> {
-  // If no user context provided or user is admin/manager, full access
-  if (!userId || (userRole && ADMIN_ROLES.includes(userRole.toLowerCase()))) {
+  // Fail closed if userId or lead object is missing
+  if (!userId) {
+    return { canRead: false, canWrite: false, isViewOnly: false, accessLevel: "none", reason: "Unauthorized: User context missing" };
+  }
+  if (!lead) {
+    return { canRead: false, canWrite: false, isViewOnly: false, accessLevel: "none", reason: "Invalid request: No lead specified" };
+  }
+
+  // Admin/Manager roles get full access
+  if (userRole && ADMIN_ROLES.includes(userRole.toLowerCase())) {
     return { canRead: true, canWrite: true, isViewOnly: false, accessLevel: "full" };
   }
 
@@ -34,21 +42,23 @@ export async function getLeadAccessLevel(
   if (leadId) {
     const { LeadReassignmentHistory, LeadAssignmentAudit } = sequelize.models;
 
-    const priorHandoff = await LeadReassignmentHistory.findOne({
-      where: {
-        leadId,
-        [Op.or]: [{ oldAssignedToId: userId }, { newAssignedToId: userId }]
-      }
-    });
+    if (LeadReassignmentHistory) {
+      const priorHandoff = await LeadReassignmentHistory.findOne({
+        where: {
+          leadId,
+          [Op.or]: [{ oldAssignedToId: userId }, { newAssignedToId: userId }]
+        }
+      });
 
-    if (priorHandoff) {
-      return {
-        canRead: true,
-        canWrite: false,
-        isViewOnly: true,
-        accessLevel: "view_only",
-        reason: "Handed off — view only. This lead has been reassigned to another representative. You have permanent read-only access to historical records."
-      };
+      if (priorHandoff) {
+        return {
+          canRead: true,
+          canWrite: false,
+          isViewOnly: true,
+          accessLevel: "view_only",
+          reason: "Handed off — view only. This lead has been reassigned to another representative. You have permanent read-only access to historical records."
+        };
+      }
     }
 
     if (LeadAssignmentAudit) {
@@ -82,7 +92,16 @@ export async function getDealAccessLevel(
   userRole: string | null | undefined,
   deal: any
 ): Promise<RecordAccessResult> {
-  if (!userId || (userRole && ADMIN_ROLES.includes(userRole.toLowerCase()))) {
+  // Fail closed if userId or deal object is missing
+  if (!userId) {
+    return { canRead: false, canWrite: false, isViewOnly: false, accessLevel: "none", reason: "Unauthorized: User context missing" };
+  }
+  if (!deal) {
+    return { canRead: false, canWrite: false, isViewOnly: false, accessLevel: "none", reason: "Invalid request: No deal specified" };
+  }
+
+  // Admin/Manager roles get full access
+  if (userRole && ADMIN_ROLES.includes(userRole.toLowerCase())) {
     return { canRead: true, canWrite: true, isViewOnly: false, accessLevel: "full" };
   }
 
@@ -155,7 +174,12 @@ export async function checkRecordAccess(
   userRole: string | null | undefined,
   options: { leadId?: string | null; dealId?: string | null; accountId?: string | null }
 ): Promise<RecordAccessResult> {
-  if (!userId || (userRole && ADMIN_ROLES.includes(userRole.toLowerCase()))) {
+  // Fail closed if userId missing
+  if (!userId) {
+    return { canRead: false, canWrite: false, isViewOnly: false, accessLevel: "none", reason: "Unauthorized: User context missing" };
+  }
+
+  if (userRole && ADMIN_ROLES.includes(userRole.toLowerCase())) {
     return { canRead: true, canWrite: true, isViewOnly: false, accessLevel: "full" };
   }
 
@@ -175,6 +199,6 @@ export async function checkRecordAccess(
     }
   }
 
-  // Default fallback if no specific lead/deal id is target
-  return { canRead: true, canWrite: true, isViewOnly: false, accessLevel: "full" };
+  // Fail closed if no valid lead or deal specified/found
+  return { canRead: false, canWrite: false, isViewOnly: false, accessLevel: "none", reason: "Invalid request: Target record not specified or not found" };
 }
