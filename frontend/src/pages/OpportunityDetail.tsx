@@ -40,6 +40,8 @@ import { DealSplitsSection } from "../components/DealSplitsSection";
 import { HandoffChatWidget } from "../components/HandoffChatWidget";
 import { deriveOpportunityPhase } from "../utils/opportunityPhases";
 import { QuoteBillModal } from "../components/QuoteBillModal";
+import { SendQuoteChannelModal } from "../components/SendQuoteChannelModal";
+import { AiRequirementSummaryCard } from "../components/AiRequirementSummaryCard";
 
 export default function OpportunityDetail() {
   const { id } = useParams<{ id: string }>();
@@ -53,6 +55,7 @@ export default function OpportunityDetail() {
   const [rejectModalQuoteId, setRejectModalQuoteId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("Price too high / Commercial terms");
   const [rejectNotes, setRejectNotes] = useState("");
+  const [sendQuoteId, setSendQuoteId] = useState<string | null>(null);
 
   // Modals for actions
   const [showLossModal, setShowLossModal] = useState(false);
@@ -377,6 +380,94 @@ export default function OpportunityDetail() {
         </div>
       )}
 
+      {/* ─── STAGE + NEXT ACTION HERO BANNER (REUSING LEADDETAIL STYLING) ─────────── */}
+      {(() => {
+        const sortedQuotes = [...quotes].sort(
+          (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+        );
+        const latestQuote = sortedQuotes[0];
+        const latestDeliveries = latestQuote?.deliveries
+          ? [...latestQuote.deliveries].sort(
+              (a: any, b: any) => new Date(b.occurredAt || 0).getTime() - new Date(a.occurredAt || 0).getTime()
+            )
+          : [];
+        const latestDelivery = latestDeliveries[0];
+
+        const isViewed = latestQuote?.status === "Viewed" || latestDelivery?.status === "VIEWED";
+        const isRevisionReq =
+          latestQuote?.status === "Revision Requested" ||
+          (latestDelivery?.notes || "").toLowerCase().includes("revision") ||
+          (latestDelivery?.notes || "").toLowerCase().includes("changes");
+
+        let bannerHeading = "";
+        let bannerSubtext = "";
+        let bannerIcon = <Sparkles className="w-4 h-4 text-indigo-400" />;
+        let bannerBadge = "Action Recommended";
+        let bannerActionBtn = null;
+
+        if (isRevisionReq && latestQuote) {
+          bannerHeading = `Customer Requested Changes on Quote #${latestQuote.quoteNumber || latestQuote.id.slice(0, 8)}`;
+          bannerSubtext = `Customer reviewed the quotation and requested revisions (${latestDelivery?.notes || "Customer requested adjustments via portal"}). Prepare a revised quotation.`;
+          bannerBadge = "Revision Requested";
+          bannerIcon = <AlertCircle className="w-4 h-4 text-amber-400" />;
+          bannerActionBtn = (
+            <button
+              onClick={() => {
+                setViewQuoteId(latestQuote.id);
+              }}
+              className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs shadow-lg transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
+            >
+              <FileText className="w-4 h-4" />
+              <span>Review & Create Revision</span>
+            </button>
+          );
+        } else if (isViewed && latestQuote && latestQuote.status !== "Accepted") {
+          const viewedTimeStr = latestQuote.viewedAt || latestDelivery?.occurredAt;
+          const timeAgo = viewedTimeStr
+            ? new Date(viewedTimeStr).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+            : "recently";
+          bannerHeading = `Customer Viewed Quote #${latestQuote.quoteNumber || latestQuote.id.slice(0, 8)} (${timeAgo})`;
+          bannerSubtext = "The client opened and reviewed your proposal online. This is an optimal window for follow-up to answer questions and close the deal.";
+          bannerBadge = "Customer Engaged";
+          bannerIcon = <Sparkles className="w-4 h-4 text-emerald-400" />;
+          bannerActionBtn = (
+            <button
+              onClick={() => {
+                setActiveTab("timeline");
+              }}
+              className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs shadow-lg transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
+            >
+              <Clock className="w-4 h-4" />
+              <span>Log Follow-Up Activity</span>
+            </button>
+          );
+        }
+
+        if (!bannerHeading) return null;
+
+        return (
+          <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-3xl p-6 text-white shadow-xl border border-indigo-900/50 flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative overflow-hidden">
+            <div className="absolute right-0 top-0 bottom-0 w-96 bg-indigo-500/10 blur-3xl pointer-events-none" />
+            <div className="space-y-2 max-w-2xl">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="px-3 py-1 bg-indigo-500/20 border border-indigo-400/30 rounded-full text-[11px] font-black uppercase tracking-wider text-indigo-300 flex items-center gap-1.5">
+                  {bannerIcon}
+                  {bannerBadge}
+                </span>
+                <span className="px-3 py-1 bg-white/10 rounded-full text-[11px] font-medium text-slate-300">
+                  Opportunity: {opp?.name}
+                </span>
+              </div>
+              <h3 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white">
+                {bannerHeading}
+              </h3>
+              <p className="text-xs text-slate-300 leading-relaxed">{bannerSubtext}</p>
+            </div>
+            {bannerActionBtn && <div className="shrink-0 flex items-center gap-2">{bannerActionBtn}</div>}
+          </div>
+        );
+      })()}
+
       {/* Quote Accepted -> Send for Approval Banner */}
       {(() => {
         const acceptedQuote = quotes.find((q: any) => q.status === "Accepted");
@@ -505,6 +596,15 @@ export default function OpportunityDetail() {
           </div>
         </div>
       </div>
+
+      {/* AI REQUIREMENT SYNTHESIS CARD */}
+      <AiRequirementSummaryCard
+        type="opportunity"
+        id={id!}
+        onActionClick={() => {
+          navigate(`/quotes/new?dealId=${opp.id}`);
+        }}
+      />
 
       {/* ── 2-COLUMN MINIMALIST WORKSPACE ── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -762,6 +862,17 @@ export default function OpportunityDetail() {
                             >
                               View Quote
                             </button>
+
+                            {/* Send Quote to Client */}
+                            {!isSuperseded && !isRejected && (
+                              <button
+                                onClick={() => setSendQuoteId(q.id)}
+                                className="px-2.5 py-1 bg-sky-600 hover:bg-sky-700 text-white rounded text-xs font-bold transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
+                              >
+                                <Send className="w-3 h-3" />
+                                <span>{q.status === "Sent" ? "Re-send" : "Send Quote"}</span>
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -1081,6 +1192,23 @@ export default function OpportunityDetail() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Bill Preview Modal Popup */}
+      {viewQuoteId && (
+        <QuoteBillModal
+          quoteId={viewQuoteId}
+          onClose={() => setViewQuoteId(null)}
+        />
+      )}
+
+      {/* Send Quote Channel Modal */}
+      {sendQuoteId && (
+        <SendQuoteChannelModal
+          quoteId={sendQuoteId}
+          isOpen={!!sendQuoteId}
+          onClose={() => setSendQuoteId(null)}
+        />
       )}
     </div>
   );

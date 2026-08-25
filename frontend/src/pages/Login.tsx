@@ -136,11 +136,33 @@ export default function Login() {
           </button>
         </form>
         
-        <div className="mt-8 text-center border-t border-outline-variant pt-6">
-          <p className="text-sm text-on-surface-variant">
-            Default credentials:<br/>
-            <span className="font-mono text-on-surface">admin@nexus.com / password123</span>
+        <div className="mt-8 text-center border-t border-outline-variant pt-5 space-y-2.5">
+          <p className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">
+            Quick-Fill Demo Accounts (Password: <span className="font-mono text-primary font-bold">password123</span>)
           </p>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <button
+              type="button"
+              onClick={() => { setEmail("admin@nexus.com"); setPassword("password123"); }}
+              className="px-2.5 py-1 text-xs font-semibold bg-surface hover:bg-primary/10 text-primary border border-primary/20 rounded-lg transition-colors cursor-pointer"
+            >
+              Admin (admin@nexus.com)
+            </button>
+            <button
+              type="button"
+              onClick={() => { setEmail("salesperson1@nexus.com"); setPassword("password123"); }}
+              className="px-2.5 py-1 text-xs font-semibold bg-surface hover:bg-emerald-50 text-emerald-700 border border-emerald-300 rounded-lg transition-colors cursor-pointer"
+            >
+              Rep 1 (salesperson1@nexus.com)
+            </button>
+            <button
+              type="button"
+              onClick={() => { setEmail("salesperson2@nexus.com"); setPassword("password123"); }}
+              className="px-2.5 py-1 text-xs font-semibold bg-surface hover:bg-purple-50 text-purple-700 border border-purple-300 rounded-lg transition-colors cursor-pointer"
+            >
+              Rep 2 (salesperson2@nexus.com)
+            </button>
+          </div>
         </div>
       </div>
     </div>

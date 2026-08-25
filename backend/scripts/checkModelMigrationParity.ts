@@ -41,6 +41,7 @@ const tableMap: Record<string, string> = {
   EmailMessage: 'EmailMessages',
   AutomationRule: 'AutomationRules',
   DealMilestone: 'DealMilestones',
+  DealReassignmentHistory: 'DealReassignmentHistories',
   Account: 'Accounts',
   Contact: 'Contacts',
   DealContact: 'DealContacts',
@@ -59,7 +60,8 @@ const tableMap: Record<string, string> = {
   LeadAttribution: 'LeadAttributions',
   AttributionEvent: 'AttributionEvents',
   Fulfillment: 'Fulfillments',
-  FulfillmentItem: 'FulfillmentItems'
+  FulfillmentItem: 'FulfillmentItems',
+  QuoteDelivery: 'QuoteDeliveries'
 };
 
 const modelsPath = path.resolve(__dirname, '../../database/models/index.ts');

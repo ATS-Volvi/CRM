@@ -15,6 +15,7 @@ import { CommentThreadSection } from "../components/CommentThreadSection";
 import { QualificationDrawer } from "../components/QualificationDrawer";
 import { LeadConversionModal } from "../components/LeadConversionModal";
 import { HandoffChatWidget } from "../components/HandoffChatWidget";
+import { AiRequirementSummaryCard } from "../components/AiRequirementSummaryCard";
 
 export default function LeadDetail() {
   const { id } = useParams();
@@ -149,6 +150,16 @@ export default function LeadDetail() {
     enabled: !!id && !!token
   });
 
+  const { data: accountHistory } = useQuery<any>({
+    queryKey: ["leadAccountHistory", id],
+    queryFn: async () => {
+      const res = await fetch(`/api/v1/leads/${id}/account-history`, { headers: { "Authorization": `Bearer ${token}` } });
+      if (!res.ok) return { relatedLeads: [], deals: [], quotes: [] };
+      return res.json();
+    },
+    enabled: !!id && !!token
+  });
+
   // Prefill state
   useEffect(() => {
     if (lead) {
@@ -232,6 +243,38 @@ export default function LeadDetail() {
       queryClient.invalidateQueries({ queryKey: ["lead", id] });
       setIsReassigning(false);
       setReassignReason("");
+    }
+  });
+
+  const { data: missingInfo } = useQuery({
+    queryKey: ["leadMissingInfo", id],
+    queryFn: async () => {
+      const res = await fetch(`/api/v1/leads/${id}/missing-info`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!id && !!token
+  });
+
+  const [requestDetailsSuccess, setRequestDetailsSuccess] = useState<string | null>(null);
+  const requestDetailsMutation = useMutation({
+    mutationFn: async (channel?: string) => {
+      const res = await fetch(`/api/v1/leads/${id}/request-details`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({ channel })
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["lead", id] });
+      queryClient.invalidateQueries({ queryKey: ["leadActivities", id] });
+      queryClient.invalidateQueries({ queryKey: ["leadMissingInfo", id] });
+      setRequestDetailsSuccess(data.message || "Automated information request dispatched to customer.");
+      setTimeout(() => setRequestDetailsSuccess(null), 6000);
     }
   });
 
@@ -707,6 +750,68 @@ export default function LeadDetail() {
         </div>
       </div>
 
+      {/* ─── INCOMPLETE PROFILE ALERT & QUICK INTAKE ACTIONS ──────────────── */}
+      {missingInfo && !missingInfo.isComplete && (
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 animate-fade-in">
+          <div className="flex items-start gap-3.5">
+            <div className="p-2.5 bg-amber-500/20 text-amber-500 rounded-xl shrink-0 mt-0.5">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h4 className="text-sm font-black uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                  INCOMPLETE CUSTOMER PROFILE
+                </h4>
+                <span className="text-[11px] font-bold px-2 py-0.5 bg-amber-500/20 text-amber-600 dark:text-amber-300 rounded-full">
+                  Intake: {lead?.intakeStatus || "INCOMPLETE"}
+                </span>
+              </div>
+              <p className="text-xs text-on-surface-variant mt-1">
+                The automated intake engine identified missing information needed before sales qualification:
+              </p>
+              <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                {missingInfo.missing.map((field: string) => (
+                  <span key={field} className="px-2.5 py-1 bg-amber-500/20 text-amber-700 dark:text-amber-200 border border-amber-500/30 rounded-lg text-xs font-bold uppercase tracking-wider">
+                    Missing: {field}
+                  </span>
+                ))}
+              </div>
+              {requestDetailsSuccess && (
+                <p className="text-xs text-emerald-600 font-bold mt-2 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4" /> {requestDetailsSuccess}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5 shrink-0">
+            <button
+              onClick={() => requestDetailsMutation.mutate(undefined)}
+              disabled={requestDetailsMutation.isPending}
+              className="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow transition-all flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+            >
+              <Send className="w-4 h-4" />
+              <span>{requestDetailsMutation.isPending ? "Sending Request..." : "Request Missing Details"}</span>
+            </button>
+            <button
+              onClick={() => {
+                if (isWhatsAppRelevant) {
+                  setActivityFilter("whatsapp");
+                  const el = document.getElementById("activity-timeline");
+                  if (el) el.scrollIntoView({ behavior: "smooth" });
+                } else {
+                  setActiveModal("email");
+                }
+              }}
+              className="px-4 py-2.5 bg-surface-container border border-outline-variant text-on-surface hover:bg-surface-container-high font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              <MessageSquare className="w-4 h-4 text-primary" />
+              <span>Open Conversation</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Standard Lead Stage Progression Ribbon */}
       <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-5 shadow-sm space-y-3">
         <div className="flex items-center justify-between">
@@ -779,6 +884,19 @@ export default function LeadDetail() {
           })}
         </div>
       </div>
+
+      {/* AI REQUIREMENT SYNTHESIS CARD */}
+      <AiRequirementSummaryCard
+        type="lead"
+        id={id!}
+        onActionClick={() => {
+          if (lead.status === "QUALIFIED" || lead.status === "Qualified") {
+            handleOpenConversionModal();
+          } else {
+            setIsQualifyDrawerOpen(true);
+          }
+        }}
+      />
 
       {/* THREE-COLUMN / DYNAMIC CUSTOMER 360 LAYOUT */}
       <div className="grid grid-cols-12 gap-6 items-start">
@@ -903,12 +1021,18 @@ export default function LeadDetail() {
                   <span className="font-semibold text-on-surface">{lead.firstName} {lead.lastName}</span>
                 </div>
                 <div>
-                  <span className="block text-[10px] font-bold text-on-surface-variant uppercase">Email</span>
-                  <span className="font-medium text-primary break-all">{lead.email || "N/A"}</span>
+                  <span className="block text-[10px] font-bold text-on-surface-variant uppercase">Email (Official Quote Channel)</span>
+                  <span className="font-medium text-primary break-all flex items-center gap-1">
+                    {lead.email || "N/A"}
+                    {lead.email && <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.2 rounded">Verified</span>}
+                  </span>
                 </div>
                 <div>
-                  <span className="block text-[10px] font-bold text-on-surface-variant uppercase">Phone</span>
-                  <span className="font-medium text-on-surface">{lead.phone || "N/A"}</span>
+                  <span className="block text-[10px] font-bold text-on-surface-variant uppercase">Phone (Intake Channel)</span>
+                  <span className="font-medium text-on-surface flex items-center gap-1">
+                    {lead.phone || lead.whatsappPhone || "N/A"}
+                    {(lead.phone || lead.whatsappPhone) && <span className="text-[10px] bg-indigo-100 text-indigo-800 font-bold px-1.5 py-0.2 rounded">WhatsApp/SMS</span>}
+                  </span>
                 </div>
                 <div className="grid grid-cols-2 gap-2 border-t border-outline-variant/60 pt-3">
                   <div>
@@ -916,8 +1040,8 @@ export default function LeadDetail() {
                     <span className="font-semibold text-on-surface">{lead.industry || "General"}</span>
                   </div>
                   <div>
-                    <span className="block text-[10px] font-bold text-on-surface-variant uppercase">Lead Score</span>
-                    <span className="font-bold text-primary">{lead.leadScore || 50} / 100</span>
+                    <span className="block text-[10px] font-bold text-on-surface-variant uppercase">Quote Medium</span>
+                    <span className="font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded text-[11px] border border-indigo-200">Email Only</span>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
@@ -1027,6 +1151,68 @@ export default function LeadDetail() {
               )}
             </div>
           </div>
+
+          {/* ACCOUNT 360 / PREVIOUS LEADS & CLIENT HISTORY */}
+          {accountHistory && ((accountHistory.relatedLeads && accountHistory.relatedLeads.length > 0) || (accountHistory.quotes && accountHistory.quotes.length > 0)) && (
+            <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-4 shadow-sm space-y-3">
+              <div className="flex items-center justify-between border-b border-outline-variant pb-2">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-primary flex items-center gap-1.5">
+                  <History className="w-4 h-4 text-primary" /> Past Inquiries & Quotes
+                </h3>
+                <span className="text-[10px] font-bold bg-primary/10 text-primary px-2 py-0.5 rounded">
+                  {(accountHistory.relatedLeads?.length || 0) + (accountHistory.quotes?.length || 0)} records
+                </span>
+              </div>
+
+              {/* Past Leads List */}
+              {accountHistory.relatedLeads && accountHistory.relatedLeads.length > 0 && (
+                <div className="space-y-2">
+                  <span className="text-[10px] font-bold uppercase text-on-surface-variant block">Other Inquiries from Account</span>
+                  {accountHistory.relatedLeads.map((rl: any) => (
+                    <Link
+                      key={rl.id}
+                      to={`/leads/${rl.id}`}
+                      className="p-2 bg-surface hover:bg-surface-container-high border border-outline-variant/60 rounded-lg flex items-center justify-between text-xs transition-colors block"
+                    >
+                      <div className="min-w-0 pr-2">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-on-surface">{rl.leadNumber || "LEAD"}</span>
+                          <span className="text-[10px] px-1.5 py-0.2 bg-slate-100 rounded text-slate-700">{rl.source || "WhatsApp"}</span>
+                        </div>
+                        <p className="text-[11px] text-on-surface-variant truncate mt-0.5">{rl.message || rl.notes || "Inquiry recorded"}</p>
+                      </div>
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded shrink-0">
+                        {rl.status}
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+
+              {/* Past Quotes */}
+              {accountHistory.quotes && accountHistory.quotes.length > 0 && (
+                <div className="space-y-2 pt-2 border-t border-outline-variant/60">
+                  <span className="text-[10px] font-bold uppercase text-on-surface-variant block">Historical Quotations</span>
+                  {accountHistory.quotes.map((q: any) => (
+                    <div
+                      key={q.id}
+                      className="p-2 bg-surface border border-outline-variant/60 rounded-lg flex items-center justify-between text-xs"
+                    >
+                      <div>
+                        <span className="font-bold text-on-surface">Quote #{q.quoteNumber || "Q"}</span>
+                        <p className="text-[10px] text-on-surface-variant font-medium">
+                          {formatCurrency(q.totalAmount || 0)} • Sent via {q.sentVia || "EMAIL"}
+                        </p>
+                      </div>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${q.status === 'Accepted' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'}`}>
+                        {q.status}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* COMPACT AUTOMATION CARD (Requirement 7 & 13) */}
           <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-4 shadow-sm space-y-3">

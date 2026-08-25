@@ -77,6 +77,42 @@ export const createPublicLead = async (req: Request, res: Response) => {
       rawPayload: rawPayload || req.body
     });
 
+    // Run Automated Lead Intake & Missing Information Collection Engine
+    try {
+      const { processInboundIntakeEvent } = require("../services/leadIntakeAutomationEngine");
+      await processInboundIntakeEvent({
+        channel: "website",
+        leadId,
+        senderEmail: email,
+        senderName: `${firstName} ${lastName}`.trim(),
+        senderPhone: phone,
+        message: message,
+        formData: {
+          firstName,
+          lastName,
+          company,
+          email,
+          phone,
+          requirement: message
+        },
+        attribution: {
+          source: source || "Website",
+          sourceType,
+          sourceChannel: sourceChannel || "website",
+          sourceName,
+          sourceDetail: sourceDetail || "Public Form Capture",
+          campaign: campaign || utm_campaign || utmCampaign,
+          utmSource: utmSource || utm_source,
+          utmMedium: utmMedium || utm_medium,
+          utmCampaign: utmCampaign || utm_campaign,
+          referrer,
+          landingPage: landingPage || landing_page
+        }
+      });
+    } catch (intakeErr: any) {
+      console.warn("Non-blocking lead intake automation error in publicLeads:", intakeErr.message);
+    }
+
     // 1. LEAD ACKNOWLEDGEMENT AUTOMATION
     if (email) {
       const slaHours = process.env.LEAD_RESPONSE_SLA_HOURS || "24";

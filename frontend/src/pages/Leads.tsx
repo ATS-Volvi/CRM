@@ -394,13 +394,45 @@ export default function Leads() {
                     </td>
                     <td>{getStatusBadge(l.status)}</td>
                     <td>
-                      <div className="text-xs font-medium text-slate-700 capitalize">
-                        {l.sourceChannel || l.communicationChannel || l.source || "Website"}
+                      <div className="flex items-center gap-1.5">
+                        {(() => {
+                          const src = (l.source || l.sourceChannel || l.sourceType || "Website").toLowerCase();
+                          if (src.includes("whatsapp")) {
+                            return (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                <MessageCircle className="w-3 h-3 text-emerald-600 fill-emerald-500" />
+                                <span>{l.source || "WhatsApp Inbound"}</span>
+                              </span>
+                            );
+                          }
+                          if (src.includes("email")) {
+                            return (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                                <Mail className="w-3 h-3 text-blue-600" />
+                                <span>{l.source || "Email"}</span>
+                              </span>
+                            );
+                          }
+                          if (src.includes("instagram")) {
+                            return (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-pink-50 text-pink-700 border border-pink-200">
+                                <Instagram className="w-3 h-3 text-pink-600" />
+                                <span>{l.source || "Instagram"}</span>
+                              </span>
+                            );
+                          }
+                          return (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-50 text-slate-700 border border-slate-200">
+                              <Globe className="w-3 h-3 text-slate-500" />
+                              <span>{l.source || "Website"}</span>
+                            </span>
+                          );
+                        })()}
                       </div>
                       {l.sourceDetail ? (
-                        <div className="text-[10px] text-slate-400 truncate max-w-[120px]">{l.sourceDetail}</div>
+                        <div className="text-[10px] text-slate-400 truncate max-w-[140px] mt-0.5">{l.sourceDetail}</div>
                       ) : l.sourceType ? (
-                        <div className="text-[10px] text-slate-400">{l.sourceType}</div>
+                        <div className="text-[10px] text-slate-400 mt-0.5">{l.sourceType}</div>
                       ) : null}
                     </td>
                     <td>

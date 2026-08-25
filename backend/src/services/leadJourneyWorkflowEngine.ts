@@ -214,6 +214,8 @@ export async function convertLeadToOpportunity(leadId: string, qualificationData
         lastName: l.lastName,
         email: l.email || null,
         phone: l.phone || null,
+        whatsappNumber: l.whatsappPhone || l.phone || null,
+        preferredCommunicationChannel: l.preferredCommunicationChannel || "UNSPECIFIED",
         role: "Decision Maker"
       });
     }

@@ -16,7 +16,7 @@ export const getLeads = async (req: Request, res: Response) => {
     const where: any = {};
 
     // Data isolation for Sales Representatives: Only return leads assigned to them
-    if (user && user.role === "sales_rep") {
+    if (user && (user.role === "sales_rep" || user.role === "salesperson")) {
       where.assignedToId = user.id;
     }
 
@@ -67,7 +67,7 @@ export const getLeads = async (req: Request, res: Response) => {
 
     // Compute live channel counts for quick-filter tabs
     const countsWhere: any = {};
-    if (user && user.role === "sales_rep") {
+    if (user && (user.role === "sales_rep" || user.role === "salesperson")) {
       countsWhere.assignedToId = user.id;
     }
     if (status && status !== "All Statuses" && status !== "ALL") {
@@ -638,10 +638,61 @@ export const getLead = async (req: Request, res: Response) => {
   }
 };
 
-/**
- * Clears the unread WhatsApp message count for a lead.
- * Called when a sales rep opens the Customer 360 page for a WhatsApp lead.
- */
+export const getLeadAccountHistory = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const currentLead: any = await sequelize.models.Lead.findByPk(String(id));
+    if (!currentLead) return res.status(404).json({ error: "Lead not found" });
+
+    const orConditions: any[] = [];
+    if (currentLead.accountId) orConditions.push({ accountId: currentLead.accountId });
+    if (currentLead.customerId) orConditions.push({ customerId: currentLead.customerId });
+    if (currentLead.company) orConditions.push({ company: currentLead.company });
+    if (currentLead.email) orConditions.push({ email: currentLead.email });
+    if (currentLead.phone) orConditions.push({ phone: currentLead.phone });
+
+    const relatedLeads = orConditions.length > 0 ? await sequelize.models.Lead.findAll({
+      where: {
+        [Op.or]: orConditions,
+        id: { [Op.ne]: currentLead.id }
+      },
+      include: [
+        { model: sequelize.models.User, as: "assignedTo", attributes: ["id", "name", "email"] }
+      ],
+      order: [["createdAt", "DESC"]],
+      limit: 20
+    }) : [];
+
+    const allLeadIds = [currentLead.id, ...relatedLeads.map((l: any) => l.id)];
+
+    const deals = await sequelize.models.Deal.findAll({
+      where: {
+        [Op.or]: [
+          { leadId: { [Op.in]: allLeadIds } },
+          ...(currentLead.accountId ? [{ accountId: currentLead.accountId }] : [])
+        ]
+      },
+      order: [["createdAt", "DESC"]],
+      limit: 10
+    });
+
+    const dealIds = deals.map((d: any) => d.id);
+    const quotes = dealIds.length > 0 ? await sequelize.models.Quote.findAll({
+      where: { dealId: { [Op.in]: dealIds } },
+      order: [["createdAt", "DESC"]],
+      limit: 15
+    }) : [];
+
+    res.json({
+      relatedLeads,
+      deals,
+      quotes
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 export const clearUnreadCount = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -655,167 +706,15 @@ export const clearUnreadCount = async (req: Request, res: Response) => {
 };
 
 /**
- * Generates an AI summary of what a specific lead wants based on their profile, notes, payload, WhatsApp messages, and client history.
+ * Generates an AI summary of what a specific lead wants, filtering out conversational noise
+ * and extracting structured, actionable deliverables, specifications, and commercial parameters.
  */
 export const getLeadAiSummary = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const lead = await sequelize.models.Lead.findByPk(String(id));
-    if (!lead) return res.status(404).json({ error: "Lead not found" });
-
-    // Fetch conversation context
-    const messages = await sequelize.models.WhatsAppMessage.findAll({
-      where: { leadId: String(id) },
-      order: [["createdAt", "ASC"]],
-      limit: 20
-    });
-
-    const l = lead as any;
-    const conversationText = messages.length > 0
-      ? messages.map((m: any) => `${m.senderType === 'customer' ? 'Customer' : 'Rep'}: ${m.body}`).join("\n")
-      : "No chat history recorded yet.";
-
-    const promptContext = `Lead Name: ${l.firstName} ${l.lastName}
-Company: ${l.company || 'Enterprise Account'}
-Source: ${l.source || 'Direct Inquiry'}
-Industry: ${l.industry || 'General'}
-Budget Range: ${l.budgetRange || 'Not specified'}
-Initial Request/Notes: ${l.notes || l.sourceDetail || 'Customer inquired about pricing and product catalogues.'}
-Categories/Requirements: ${l.categoriesData || 'Standard Enterprise License'}
-Recent Conversations:
-${conversationText}`;
-
-    // Fetch Client History (past purchases, quotes, deals, reps worked with)
-    let clientHistory = {
-      totalPastRevenue: 0,
-      previousPurchases: [] as any[],
-      previousReps: [] as any[]
-    };
-
-    if (l.customerId || l.company || l.email) {
-      const whereCond: any[] = [];
-      if (l.customerId) whereCond.push({ customerId: l.customerId });
-      if (l.email) whereCond.push({ email: l.email });
-      if (l.company) whereCond.push({ company: l.company });
-
-      const pastLeads = await sequelize.models.Lead.findAll({
-        where: { [Op.or]: whereCond },
-        attributes: ["id", "assignedToId"]
-      });
-
-      const leadIds = pastLeads.map((pl: any) => pl.id);
-      const repIds = Array.from(new Set(pastLeads.map((pl: any) => pl.assignedToId).filter(Boolean)));
-
-      if (repIds.length > 0) {
-        const reps = await sequelize.models.User.findAll({
-          where: { id: { [Op.in]: repIds } },
-          attributes: ["id", "name", "email", "role"]
-        });
-        clientHistory.previousReps = reps.map((r: any) => ({ id: r.id, name: r.name, email: r.email, role: r.role }));
-      }
-
-      const deals = await sequelize.models.Deal.findAll({
-        where: { leadId: { [Op.in]: leadIds } },
-        include: [{ model: sequelize.models.PipelineStage, as: "stage" }]
-      });
-
-      const dealIds = deals.map((d: any) => d.id);
-      if (dealIds.length > 0) {
-        const quotes = await sequelize.models.Quote.findAll({
-          where: { dealId: { [Op.in]: dealIds } },
-          order: [["createdAt", "DESC"]]
-        });
-
-        clientHistory.previousPurchases = quotes.map((q: any) => ({
-          id: q.id,
-          quoteNumber: q.quoteNumber || "Q-2026",
-          dealName: (deals.find((d: any) => d.id === q.dealId) as any)?.name || "Enterprise Supply",
-          amount: parseFloat(q.totalAmount || "0"),
-          status: q.status,
-          date: q.createdAt
-        }));
-
-        clientHistory.totalPastRevenue = clientHistory.previousPurchases
-          .filter(p => p.status === "Accepted" || p.status === "Approved")
-          .reduce((sum, p) => sum + p.amount, 0);
-      }
-    }
-
-    const groqKey = process.env.GROQ_API_KEY;
-    const geminiKey = process.env.GEMINI_API_KEY;
-
-    if (groqKey && !groqKey.startsWith("your_")) {
-      try {
-        const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${groqKey}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            model: "llama-3.3-70b-versatile",
-            messages: [
-              {
-                role: "system",
-                content: "You are an AI sales assistant in a high-velocity CRM. Synthesize what the lead wants into a clear, structured summary with 3 sections: 1. Core Request & Requirements, 2. Key Pain Points / Questions, 3. Recommended Next Sales Action. Keep it concise (3-4 bullet points total)."
-              },
-              { role: "user", content: promptContext }
-            ],
-            max_tokens: 350
-          })
-        });
-
-        if (aiRes.ok) {
-          const json = await aiRes.json();
-          return res.json({
-            summary: json.choices[0].message.content,
-            intentScore: Math.min(98, Math.max(70, (l.leadScore || 75) + 10)),
-            suggestedAction: "Send customized quote with volume tier discount",
-            clientHistory
-          });
-        }
-      } catch (err) {
-        console.error("Groq AI summary failed, trying fallback:", err);
-      }
-    }
-
-    if (geminiKey && !geminiKey.startsWith("your_")) {
-      try {
-        const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{
-              parts: [{
-                text: `Synthesize what this lead wants into 3 quick bullet points (Requirements, Concerns/Budget, Recommended Action):\n${promptContext}`
-              }]
-            }]
-          })
-        });
-
-        if (aiRes.ok) {
-          const json = await aiRes.json();
-          const text = json.candidates[0].content.parts[0].text;
-          return res.json({
-            summary: text,
-            intentScore: Math.min(98, Math.max(70, (l.leadScore || 75) + 10)),
-            suggestedAction: "Schedule 1-on-1 demo call & send quotation",
-            clientHistory
-          });
-        }
-      } catch (err) {
-        console.error("Gemini AI summary failed, using smart fallback:", err);
-      }
-    }
-
-    const fallbackSummary = `• **Core Need**: Customer requested pricing breakdown and product specifications for ${l.company || 'Enterprise software'}.\n• **Key Context**: Inquired via ${l.source || 'Website'}. Budget estimated around ${l.budgetRange || '$10,000 - $50,000'}.\n• **Recommended Action**: Send quotation with 24/7 SLA option & schedule follow-up call.`;
-
-    return res.json({
-      summary: fallbackSummary,
-      intentScore: Math.min(95, Math.max(72, (l.leadScore || 75) + 5)),
-      suggestedAction: "Prepare line-item quote with 1-year maintenance support",
-      clientHistory
-    });
+    const { synthesizeLeadRequirements } = require("../services/aiRequirementSynthesis");
+    const result = await synthesizeLeadRequirements(String(id));
+    res.json(result);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -901,5 +800,73 @@ export const runE2eLeadJourneyEndpoint = async (req: Request, res: Response) => 
     return res.status(result.success ? 200 : 500).json(result);
   } catch (error: any) {
     return res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+export const getLeadMissingInfo = async (req: Request, res: Response) => {
+  try {
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const { getMissingLeadInformation } = require("../services/leadIntakeAutomationEngine");
+    const result = await getMissingLeadInformation(id);
+    const lead = await sequelize.models.Lead.findByPk(id);
+    return res.status(200).json({
+      ...result,
+      intakeStatus: lead ? (lead as any).intakeStatus : "INCOMPLETE",
+      intakeMessageCount: lead ? (lead as any).intakeMessageCount : 0
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+export const requestMissingDetails = async (req: Request, res: Response) => {
+  try {
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const { channel } = req.body || {};
+    const { getMissingLeadInformation, generateCollectionMessage } = require("../services/leadIntakeAutomationEngine");
+    const { sendWhatsAppMessage } = require("../services/whatsappService");
+    const { sendCustomEmail } = require("../services/emailService");
+    
+    const lead = await sequelize.models.Lead.findByPk(id) as any;
+    if (!lead) {
+      return res.status(404).json({ error: "Lead not found" });
+    }
+
+    const missingInfo = await getMissingLeadInformation(lead);
+    if (missingInfo.isComplete) {
+      return res.status(200).json({ message: "Lead profile is already complete", isComplete: true });
+    }
+
+    const targetChannel = channel || (lead.communicationChannel === "whatsapp" ? "whatsapp" : "email");
+    const message = generateCollectionMessage(missingInfo.missing, targetChannel, missingInfo.known.name);
+
+    if (targetChannel === "whatsapp" && lead.phone) {
+      await sendWhatsAppMessage(lead.phone, message);
+    } else if (lead.email && !lead.email.includes("@nexus-temp.com")) {
+      await sendCustomEmail(lead.email, "Regarding your enquiry - Additional Details", message, lead.id);
+    }
+
+    await lead.update({
+      intakeStatus: "COLLECTING_DETAILS",
+      intakeMessageCount: (lead.intakeMessageCount || 0) + 1,
+      lastAutomatedIntakeMessageAt: new Date()
+    });
+
+    if (sequelize.models.Activity) {
+      await sequelize.models.Activity.create({
+        id: crypto.randomUUID(),
+        leadId: lead.id,
+        type: targetChannel === "whatsapp" ? "whatsapp_sms" : "email",
+        outcome: `Missing Details Requested (${missingInfo.missing.join(", ")})`,
+        notes: message,
+        direction: "outbound",
+        isCompleted: true,
+        createdById: (req as any).user?.id || null
+      });
+    }
+
+    return res.status(200).json({ success: true, message, intakeStatus: "COLLECTING_DETAILS" });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
   }
 };

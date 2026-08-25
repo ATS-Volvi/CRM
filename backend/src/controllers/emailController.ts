@@ -134,6 +134,26 @@ export const receiveInboundEmail = async (req: Request, res: Response) => {
       rawPayload: { subject: emailSubject, body: emailBody, recipientEmail }
     });
 
+    // Run Automated Lead Intake & Missing Info Collection Engine for Email
+    try {
+      const { processInboundIntakeEvent } = require("../services/leadIntakeAutomationEngine");
+      await processInboundIntakeEvent({
+        channel: "email",
+        leadId,
+        senderEmail: email,
+        senderName: `${firstName} ${lastName}`.trim(),
+        subject: emailSubject,
+        message: emailBody,
+        attribution: {
+          source: "email",
+          sourceChannel: "email",
+          sourceDetail: emailSubject
+        }
+      });
+    } catch (intakeErr: any) {
+      console.warn("Non-blocking lead intake automation error in emailController:", intakeErr.message);
+    }
+
     // If assigned via fuzzy name-match, log an activity entry for audit transparency
     if (isFuzzyNameMatch && leadId) {
       try {
@@ -150,6 +170,19 @@ export const receiveInboundEmail = async (req: Request, res: Response) => {
       } catch (actErr) {
         console.warn("Failed to create fuzzy match activity log:", actErr);
       }
+    }
+
+    // Check for positive quote acceptance intent in inbound email
+    try {
+      const { detectAndFlagQuoteAcceptance } = require("../services/quoteDeliveryService");
+      await detectAndFlagQuoteAcceptance({
+        leadId,
+        messageText: `${emailSubject || ""} ${emailBody || ""}`,
+        sourceChannel: "EMAIL",
+        senderInfo: email
+      });
+    } catch (flagErr: any) {
+      console.warn("Failed to check quote acceptance keywords:", flagErr.message);
     }
 
     res.status(201).json({

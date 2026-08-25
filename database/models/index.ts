@@ -112,6 +112,7 @@ export class Lead extends Model {
   public lastInboundAt!: Date | null;
   public responsivenessScore!: number;
   public preferredLanguage!: string | null;
+  public preferredCommunicationChannel!: string | null;
 
   // Stage + Next Action Engine & Qualification fields
   public nextAction!: string | null;
@@ -133,6 +134,14 @@ export class Lead extends Model {
   public referringAccountId!: string | null;
   public firstTouchAttribution!: string | null;
   public lastTouchAttribution!: string | null;
+
+  // Automated Lead Intake & Information Collection
+  public intakeStatus!: string | null;
+  public lastAutomatedIntakeMessageAt!: Date | null;
+  public intakeMessageCount!: number;
+  public missingFields!: any | null;
+  public lastProcessedEventId!: string | null;
+  public extractedRequirement!: any | null;
 }
 
 Lead.init(
@@ -171,6 +180,7 @@ Lead.init(
     lastInboundAt: { type: DataTypes.DATE, allowNull: true },
     responsivenessScore: { type: DataTypes.INTEGER, defaultValue: 0 },
     preferredLanguage: { type: DataTypes.STRING, allowNull: true, defaultValue: "ar" },
+    preferredCommunicationChannel: { type: DataTypes.STRING, allowNull: true, defaultValue: "UNSPECIFIED" },
     // Stage + Next Action Engine
     nextAction: { type: DataTypes.STRING, allowNull: true, defaultValue: "Reply to Lead" },
     nextActionDue: { type: DataTypes.DATE, allowNull: true },
@@ -189,6 +199,13 @@ Lead.init(
     referringAccountId: { type: DataTypes.UUID, allowNull: true },
     firstTouchAttribution: { type: DataTypes.TEXT, allowNull: true },
     lastTouchAttribution: { type: DataTypes.TEXT, allowNull: true },
+    // Automated Lead Intake & Information Collection
+    intakeStatus: { type: DataTypes.STRING, defaultValue: "INCOMPLETE" },
+    lastAutomatedIntakeMessageAt: { type: DataTypes.DATE, allowNull: true },
+    intakeMessageCount: { type: DataTypes.INTEGER, defaultValue: 0 },
+    missingFields: { type: DataTypes.JSON, allowNull: true },
+    lastProcessedEventId: { type: DataTypes.STRING, allowNull: true },
+    extractedRequirement: { type: DataTypes.JSON, allowNull: true },
   },
   { 
     sequelize, 
@@ -333,9 +350,12 @@ export class Quote extends Model {
   public quoteNumber!: string | null;
   public version!: number;
   public sentAt!: Date | null;
+  public sentVia!: string | null;
   public viewedAt!: Date | null;
   public acceptedAt!: Date | null;
   public isFinalAgreed!: boolean;
+  public publicAccessToken!: string | null;
+  public publicAccessExpiresAt!: Date | null;
 }
 
 Quote.init(
@@ -350,9 +370,12 @@ Quote.init(
     quoteNumber: { type: DataTypes.STRING, allowNull: true },
     version: { type: DataTypes.INTEGER, defaultValue: 1 },
     sentAt: { type: DataTypes.DATE, allowNull: true },
+    sentVia: { type: DataTypes.STRING, allowNull: true },
     viewedAt: { type: DataTypes.DATE, allowNull: true },
     acceptedAt: { type: DataTypes.DATE, allowNull: true },
-    isFinalAgreed: { type: DataTypes.BOOLEAN, defaultValue: false }
+    isFinalAgreed: { type: DataTypes.BOOLEAN, defaultValue: false },
+    publicAccessToken: { type: DataTypes.STRING, allowNull: true, unique: true },
+    publicAccessExpiresAt: { type: DataTypes.DATE, allowNull: true }
   },
   { sequelize, modelName: "Quote" }
 );
@@ -407,6 +430,33 @@ QuoteLineItem.init(
     isOptional: { type: DataTypes.BOOLEAN, defaultValue: false }
   },
   { sequelize, modelName: "QuoteLineItem" }
+);
+
+export class QuoteDelivery extends Model {
+  public id!: string;
+  public quoteId!: string;
+  public channel!: string;
+  public recipient!: string;
+  public status!: string;
+  public providerMessageId!: string | null;
+  public occurredAt!: Date;
+  public notes!: string | null;
+  public createdAt!: Date;
+}
+
+QuoteDelivery.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    quoteId: { type: DataTypes.UUID, allowNull: false },
+    channel: { type: DataTypes.STRING, allowNull: false },
+    recipient: { type: DataTypes.STRING, allowNull: false },
+    status: { type: DataTypes.STRING, allowNull: false, defaultValue: "SENT" },
+    providerMessageId: { type: DataTypes.STRING, allowNull: true },
+    occurredAt: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
+    notes: { type: DataTypes.TEXT, allowNull: true },
+    createdAt: { type: DataTypes.DATE, defaultValue: DataTypes.NOW }
+  },
+  { sequelize, modelName: "QuoteDelivery", tableName: "QuoteDeliveries", updatedAt: false }
 );
 
 export type PurchaseOrderType = "customer_po" | "supply_order";
@@ -1581,6 +1631,10 @@ export class Contact extends Model {
   public lastName!: string | null;
   public email!: string | null;
   public phone!: string | null;
+  public whatsappNumber!: string | null;
+  public preferredCommunicationChannel!: string | null;
+  public emailVerified!: boolean;
+  public whatsappVerified!: boolean;
   public role!: string | null;
   public sourceChannel!: string | null;
   public createdAt!: Date;
@@ -1592,6 +1646,10 @@ Contact.init({
   lastName: { type: DataTypes.STRING, allowNull: true },
   email: { type: DataTypes.STRING, allowNull: true },
   phone: { type: DataTypes.STRING, allowNull: true },
+  whatsappNumber: { type: DataTypes.STRING, allowNull: true },
+  preferredCommunicationChannel: { type: DataTypes.STRING, allowNull: true, defaultValue: "UNSPECIFIED" },
+  emailVerified: { type: DataTypes.BOOLEAN, defaultValue: false },
+  whatsappVerified: { type: DataTypes.BOOLEAN, defaultValue: false },
   role: { type: DataTypes.STRING, allowNull: true },
   sourceChannel: { type: DataTypes.STRING, allowNull: true },
   createdAt: { type: DataTypes.DATE, defaultValue: DataTypes.NOW }
@@ -1623,6 +1681,9 @@ Deal.belongsTo(Account, { foreignKey: "accountId", as: "account" });
 
 Deal.belongsToMany(Contact, { through: DealContact, foreignKey: "dealId", as: "dealContacts" });
 Contact.belongsToMany(Deal, { through: DealContact, foreignKey: "contactId", as: "contactDeals" });
+
+Quote.hasMany(QuoteDelivery, { foreignKey: "quoteId", as: "deliveries" });
+QuoteDelivery.belongsTo(Quote, { foreignKey: "quoteId", as: "quote" });
 
 // Associations
 Task.belongsTo(User, { foreignKey: "ownerId", as: "owner" });

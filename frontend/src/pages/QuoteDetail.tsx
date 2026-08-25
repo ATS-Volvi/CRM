@@ -24,6 +24,8 @@ import { formatCurrency } from "../utils/currency";
 import { downloadAuthenticatedFile } from "../utils/download";
 import { useAuth } from "../context/AuthContext";
 import QuotationDocumentRenderer from "../components/QuotationDocumentRenderer";
+import { SendQuoteChannelModal } from "../components/SendQuoteChannelModal";
+import { QuoteDeliveryTimeline } from "../components/QuoteDeliveryTimeline";
 
 export default function QuoteDetail() {
   const { id } = useParams<{ id: string }>();
@@ -32,6 +34,7 @@ export default function QuoteDetail() {
   const { token } = useAuth();
 
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [isSendModalOpen, setIsSendModalOpen] = useState(false);
 
   // Fetch Quote Detail
   const { data: quote, isLoading, error } = useQuery({
@@ -241,6 +244,31 @@ export default function QuoteDetail() {
             <Printer className="w-3.5 h-3.5" />
           </button>
 
+          {/* Customer Portal Link */}
+          {quote.publicAccessToken && (
+            <a
+              href={`/q/${quote.publicAccessToken}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 cursor-pointer"
+              title="Open Customer Review Portal"
+            >
+              <ExternalLink className="w-3.5 h-3.5 text-slate-500" />
+              <span>Customer View</span>
+            </a>
+          )}
+
+          {/* Send Quote to Client */}
+          {!isSuperseded && !isRejected && (
+            <button
+              onClick={() => setIsSendModalOpen(true)}
+              className="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer"
+            >
+              <Send className="w-3.5 h-3.5" />
+              <span>{quote.status === "Sent" ? "Re-send Quote" : "Send to Client"}</span>
+            </button>
+          )}
+
           {/* 1. Waiting for Approval state */}
           {quote.status === "Pending Approval" || quote.status === "Pending" || approvalData?.status === "Pending" ? (
             <span className="px-3.5 py-1.5 bg-amber-50 text-amber-800 border border-amber-300 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-2xs">
@@ -320,7 +348,7 @@ export default function QuoteDetail() {
           quotationNumber={quote.quoteNumber || `QT-${quote.id.slice(0, 6)}`}
           quotationDate={new Date(quote.createdAt).toLocaleDateString("en-GB")}
           salesExecutive={quote.salesRep?.name || quote.deal?.owner?.name || "Sales Executive"}
-          leadData={leadData}
+          leadData={quote.deal?.lead || null}
           items={items}
           template={{
             companyName: "NEXUS SALES ENTERPRISE",
@@ -333,6 +361,23 @@ export default function QuoteDetail() {
           }}
         />
       </div>
+
+      {/* ── REAL DELIVERY HISTORY TIMELINE ── */}
+      {id && (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200/90 p-6">
+          <QuoteDeliveryTimeline quoteId={id} initialDeliveries={quote.deliveries} />
+        </div>
+      )}
+
+      {/* Send Quote Modal */}
+      {id && (
+        <SendQuoteChannelModal
+          quoteId={id}
+          isOpen={isSendModalOpen}
+          onClose={() => setIsSendModalOpen(false)}
+        />
+      )}
     </div>
   );
 }
+

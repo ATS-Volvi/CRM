@@ -19,15 +19,28 @@ export const sequelize = process.env.USE_SQLITE === "true"
       pool: {
         max: 10,
         min: 0,
-        acquire: 30000,
+        acquire: 60000,
         idle: 10000,
-        evict: 1000,
+        evict: 5000,
         validate: (client: any) => {
-          return client && !client._ending && !client._connecting;
+          return client && !client._ending && !client._connecting && client._connected !== false;
         }
       },
       retry: {
         max: 5,
+        timeout: 60000,
+        match: [
+          /ETIMEDOUT/,
+          /ECONNRESET/,
+          /ECONNREFUSED/,
+          /SequelizeConnectionError/,
+          /SequelizeConnectionRefusedError/,
+          /SequelizeHostNotFoundError/,
+          /SequelizeConnectionTimedOutError/,
+          /Connection terminated unexpectedly/,
+          /Connection error/,
+          /deadlock detected/
+        ]
       },
       dialectOptions: {
         ssl: {
@@ -35,6 +48,8 @@ export const sequelize = process.env.USE_SQLITE === "true"
           rejectUnauthorized: false
         },
         keepAlive: true,
+        keepAliveInitialDelayMillis: 10000,
+        connectTimeout: 60000
       }
     })
   : new Sequelize(

@@ -6,6 +6,7 @@ import { checkRecordAccess } from "../services/handoffAccessService";
 import { evaluateQuoteApproval, createApprovalAuditLog } from "../services/approvalEngine";
 import { triggerQuoteApprovalNotifications } from "../services/notificationEngine";
 import { processOpportunityEvent } from "../services/opportunityAutomationEngine";
+import { deliverQuote, resolveDeliveryChannel, getQuoteContact, buildQuotePdfBuffer, recordQuoteDeliveryEvent, markQuoteAsViewed, sendFinalAgreedQuoteEmail } from "../services/quoteDeliveryService";
 
 export const getQuotes = async (req: Request, res: Response) => {
   try {
@@ -89,6 +90,11 @@ export const getQuotes = async (req: Request, res: Response) => {
               as: "owner"
             }
           ]
+        },
+        {
+          model: sequelize.models.QuoteDelivery,
+          as: "deliveries",
+          required: false
         },
         lineItemInclude
       ],
@@ -401,50 +407,96 @@ export const updateQuote = async (req: Request, res: Response) => {
 export const sendQuote = async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id);
+    const { channel, messageCustomization } = req.body || {};
+    const userId = (req as any).user?.id;
+
+    const result = await deliverQuote(id, {
+      channel,
+      userId,
+      messageCustomization
+    });
+
+    res.json(result);
+  } catch (error: any) {
+    const statusCode = error.message?.includes("Cannot send quote") || error.message?.includes("not found") ? 400 : 500;
+    res.status(statusCode).json({ error: error.message });
+  }
+};
+
+export const getQuoteDeliveryPreview = async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
     const quote = await sequelize.models.Quote.findByPk(id);
     if (!quote) return res.status(404).json({ error: "Quote not found" });
 
-    await quote.update({
-      status: "Sent",
-      sentAt: new Date()
+    const { contact, leadContext } = await getQuoteContact(quote);
+    const requestedChannel = typeof req.query.channel === "string" ? req.query.channel : undefined;
+    const resolution = resolveDeliveryChannel(contact, requestedChannel, leadContext);
+
+    res.json({
+      quoteId: id,
+      quoteNumber: (quote as any).quoteNumber,
+      totalAmount: (quote as any).totalAmount,
+      contact: contact ? {
+        id: contact.id,
+        name: contact.name,
+        email: contact.email,
+        phone: contact.phone,
+        whatsappNumber: contact.whatsappNumber,
+        preferredCommunicationChannel: contact.preferredCommunicationChannel,
+        emailVerified: contact.emailVerified,
+        whatsappVerified: contact.whatsappVerified
+      } : null,
+      leadContext,
+      availableChannels: {
+        email: Boolean(contact?.email),
+        whatsapp: Boolean(contact?.whatsappNumber || contact?.phone)
+      },
+      recommendedChannel: resolution.channel,
+      resolvedRecipient: resolution.recipient,
+      resolutionReason: resolution.reason
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const getQuoteDeliveries = async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const quote = await sequelize.models.Quote.findByPk(id);
+    if (!quote) return res.status(404).json({ error: "Quote not found" });
+
+    const deliveries = await sequelize.models.QuoteDelivery.findAll({
+      where: { quoteId: id },
+      order: [["occurredAt", "ASC"]]
     });
 
-    const deal = await sequelize.models.Deal.findByPk((quote as any).dealId);
-    if (deal && (deal as any).leadId) {
-      await sequelize.models.Activity.create({
-        id: require('crypto').randomUUID(),
-        leadId: (deal as any).leadId,
-        type: "note",
-        outcome: `Quote ${(quote as any).quoteNumber || (quote as any).id} Sent`,
-        mentioned_user_ids: "[]",
-        pinned: false,
-        createdById: (req as any).user?.id || "mock-user",
-      direction: "internal"
-      });
-      // Feature 13 trigger: Send Quote Sent email notification
-      const { triggerCommunication } = require("../services/communicationService");
-      await triggerCommunication("quote_sent", {
-        leadId: (deal as any).leadId,
-        salespersonId: (req as any).user?.id || (deal as any).ownerId,
-        quoteValue: (quote as any).totalAmount
-      });
-    }
+    res.json(deliveries);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
 
-    if ((quote as any).dealId) {
-      processOpportunityEvent({
-        opportunityId: (quote as any).dealId,
-        type: "QuoteSent",
-        actorId: (req as any).user?.id || (deal as any)?.ownerId,
-        payload: {
-          quoteId: (quote as any).id,
-          quoteNumber: (quote as any).quoteNumber,
-          version: (quote as any).version,
-          totalAmount: (quote as any).totalAmount
-        }
-      }).catch(err => console.warn("Opportunity event notice:", err.message));
-    }
+export const recordDeliveryStatus = async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const { status, channel, recipient, providerMessageId, notes } = req.body || {};
 
-    res.json(quote);
+    const quote = await sequelize.models.Quote.findByPk(id);
+    if (!quote) return res.status(404).json({ error: "Quote not found" });
+
+    const { contact } = await getQuoteContact(quote);
+
+    const delivery = await recordQuoteDeliveryEvent(id, {
+      channel: channel || (quote as any).sentVia || "EMAIL",
+      recipient: recipient || contact?.email || contact?.phone || "Recipient",
+      status: status || "DELIVERED",
+      providerMessageId,
+      notes
+    });
+
+    res.status(201).json(delivery);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -461,26 +513,8 @@ export const getPublicQuote = async (req: Request, res: Response) => {
     });
     if (!quote) return res.status(404).json({ error: "Quote not found" });
 
-    // Mark as Viewed if status is Sent
-    if ((quote as any).status === "Sent") {
-      await quote.update({
-        status: "Viewed",
-        viewedAt: new Date()
-      });
-
-      if ((quote as any).deal?.leadId) {
-        await sequelize.models.Activity.create({
-          id: require('crypto').randomUUID(),
-          leadId: (quote as any).deal.leadId,
-          type: "note",
-          outcome: `Quote ${(quote as any).quoteNumber || (quote as any).id} Viewed by Client`,
-          mentioned_user_ids: "[]",
-          pinned: false,
-          createdById: "system",
-      direction: "internal"
-        });
-      }
-    }
+    // Shared Viewed marking and QuoteDelivery history row
+    await markQuoteAsViewed(quote, (quote as any).sentVia || "SECURE_LINK");
 
     res.json(quote);
   } catch (error: any) {
@@ -555,222 +589,254 @@ export const getQuoteRecommendations = async (req: Request, res: Response) => {
 export const generateQuotePdf = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const PDFDocument = require("pdfkit");
-
-    const quote = await sequelize.models.Quote.findByPk(id as string, {
-      include: [
-        { 
-          model: sequelize.models.QuoteLineItem, 
-          as: "QuoteLineItems", 
-          include: [{ model: sequelize.models.PriceBookEntry, as: "product" }] 
-        },
-        { 
-          model: sequelize.models.Deal, 
-          as: "deal", 
-          include: [{ model: sequelize.models.Lead, as: "lead" }] 
-        }
-      ]
-    });
-
+    const quote = await sequelize.models.Quote.findByPk(id as string);
     if (!quote) return res.status(404).json({ error: "Quote not found" });
 
-    const doc = new PDFDocument({ margin: 40, size: "A4" });
+    const pdfBuffer = await buildQuotePdfBuffer(id as string);
 
-    // Set Response Headers
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader(
       "Content-Disposition",
       `inline; filename=Quote_${(quote as any).quoteNumber || id}.pdf`
     );
+    res.send(pdfBuffer);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
 
-    doc.pipe(res);
+export const getPublicQuoteByToken = async (req: Request, res: Response) => {
+  try {
+    const { token } = req.params;
+    if (!token) return res.status(400).json({ error: "Token is required" });
 
-    const formatCurr = (val: number) => {
-      const formatted = Number(val || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      return `SAR ${formatted}`;
-    };
+    const quote = await sequelize.models.Quote.findOne({
+      where: { publicAccessToken: token },
+      include: [
+        {
+          model: sequelize.models.QuoteLineItem,
+          as: "QuoteLineItems",
+          include: [{ model: sequelize.models.PriceBookEntry, as: "product" }]
+        },
+        {
+          model: sequelize.models.Deal,
+          as: "deal",
+          include: [
+            { model: sequelize.models.Lead, as: "lead" },
+            { model: sequelize.models.Account, as: "account" },
+            { model: sequelize.models.User, as: "owner", attributes: ["id", "name", "email"] }
+          ]
+        }
+      ]
+    });
 
-    // ── 1. HEADER BAND ──────────────────────────────────────────
-    doc.rect(40, 40, 515, 60).fill("#1e293b");
+    if (!quote) {
+      return res.status(404).json({ error: "Invalid quotation link. Quotation not found." });
+    }
 
-    doc
-      .fillColor("#ffffff")
-      .fontSize(20)
-      .font("Helvetica-Bold")
-      .text("NEXUS CRM", 55, 55);
-
-    doc
-      .fontSize(9)
-      .font("Helvetica")
-      .fillColor("#94a3b8")
-      .text("ENTERPRISE SALES & QUOTATION SYSTEM", 55, 78);
-
-    doc
-      .fontSize(18)
-      .font("Helvetica-Bold")
-      .fillColor("#ffffff")
-      .text("QUOTATION", 380, 58, { align: "right", width: 160 });
-
-    // ── 2. METADATA CARDS ───────────────────────────────────────
-    let currentY = 115;
-
-    // Prepared For Card (Left)
-    doc.rect(40, currentY, 250, 95).fillAndStroke("#f8fafc", "#e2e8f0");
-    doc
-      .fillColor("#4f46e5")
-      .fontSize(10)
-      .font("Helvetica-Bold")
-      .text("PREPARED FOR", 52, currentY + 10);
-
-    const lead = (quote as any).deal?.lead;
-    doc
-      .fillColor("#0f172a")
-      .fontSize(10)
-      .font("Helvetica-Bold")
-      .text(lead ? `${lead.firstName || ""} ${lead.lastName || ""}` : "Client Contact", 52, currentY + 26)
-      .font("Helvetica")
-      .fontSize(9)
-      .fillColor("#475569")
-      .text(`Company: ${lead?.company || "N/A"}`, 52, currentY + 42)
-      .text(`Email: ${lead?.email || "N/A"}`, 52, currentY + 56)
-      .text(`Phone: ${lead?.phone || "N/A"}`, 52, currentY + 70);
-
-    // Quote Info Card (Right)
-    doc.rect(305, currentY, 250, 95).fillAndStroke("#f8fafc", "#e2e8f0");
-    doc
-      .fillColor("#4f46e5")
-      .fontSize(10)
-      .font("Helvetica-Bold")
-      .text("QUOTATION DETAILS", 317, currentY + 10);
-
-    const createdDate = (quote as any).createdAt ? new Date((quote as any).createdAt).toLocaleDateString() : new Date().toLocaleDateString();
-    const expDate = (quote as any).expirationDate ? new Date((quote as any).expirationDate).toLocaleDateString() : "30 Days from Issue";
-
-    doc
-      .fillColor("#475569")
-      .fontSize(9)
-      .font("Helvetica")
-      .text(`Quote Ref: `, 317, currentY + 26, { continued: true })
-      .font("Helvetica-Bold").fillColor("#0f172a").text((quote as any).quoteNumber || "N/A")
-      .font("Helvetica").fillColor("#475569").text(`Date: `, 317, currentY + 42, { continued: true })
-      .font("Helvetica-Bold").fillColor("#0f172a").text(createdDate)
-      .font("Helvetica").fillColor("#475569").text(`Valid Until: `, 317, currentY + 56, { continued: true })
-      .font("Helvetica-Bold").fillColor("#0f172a").text(expDate)
-      .font("Helvetica").fillColor("#475569").text(`Status: `, 317, currentY + 70, { continued: true })
-      .font("Helvetica-Bold").fillColor("#16a34a").text((quote as any).status || "Draft");
-
-    // ── 3. LINE ITEMS TABLE ─────────────────────────────────────
-    currentY = 225;
-
-    // Table Header Bar
-    doc.rect(40, currentY, 515, 24).fill("#334155");
-
-    doc
-      .fillColor("#ffffff")
-      .fontSize(9)
-      .font("Helvetica-Bold");
-
-    doc.text("PRODUCT / SERVICE DESCRIPTION", 50, currentY + 7, { width: 230, align: "left" });
-    doc.text("QTY", 285, currentY + 7, { width: 45, align: "center" });
-    doc.text("UNIT PRICE", 335, currentY + 7, { width: 100, align: "right" });
-    doc.text("TOTAL", 445, currentY + 7, { width: 100, align: "right" });
-
-    currentY += 24;
-
-    const items = (quote as any).QuoteLineItems || [];
-    let isEven = false;
-
-    if (items.length === 0) {
-      doc.rect(40, currentY, 515, 25).fill("#ffffff");
-      doc.fillColor("#64748b").fontSize(9).font("Helvetica-Oblique").text("No line items specified.", 50, currentY + 8);
-      currentY += 25;
-    } else {
-      items.forEach((item: any) => {
-        const itemY = currentY;
-        const productName = item.product?.name || item.nameOverride || "Product / Service";
-        const qty = Number(item.quantity || 1);
-        const unitPrice = Number(item.unitPrice || 0);
-        const totalPrice = Number(item.totalPrice || qty * unitPrice);
-
-        // Row background
-        const rowBg = isEven ? "#f8fafc" : "#ffffff";
-        doc.rect(40, itemY, 515, 25).fill(rowBg);
-        isEven = !isEven;
-
-        doc
-          .fontSize(9)
-          .font("Helvetica")
-          .fillColor("#0f172a");
-
-        doc.text(productName, 50, itemY + 7, { width: 230, ellipsis: true });
-        doc.text(qty.toString(), 285, itemY + 7, { width: 45, align: "center" });
-        doc.text(formatCurr(unitPrice), 335, itemY + 7, { width: 100, align: "right" });
-        doc.font("Helvetica-Bold").text(formatCurr(totalPrice), 445, itemY + 7, { width: 100, align: "right" });
-
-        // Bottom border for row
-        doc.moveTo(40, itemY + 25).lineTo(555, itemY + 25).strokeColor("#e2e8f0").stroke();
-
-        currentY += 25;
+    const expiresAt = (quote as any).publicAccessExpiresAt;
+    if (expiresAt && new Date() > new Date(expiresAt)) {
+      return res.status(410).json({
+        error: "This quotation link has expired. Please contact your sales representative for a revised proposal.",
+        expired: true,
+        expirationDate: expiresAt
       });
     }
 
-    // ── 4. SUMMARY & TOTALS BOX ──────────────────────────────────
-    currentY += 15;
+    // Shared Viewed marking and QuoteDelivery history row
+    await markQuoteAsViewed(quote, "CUSTOMER_SELF_SERVICE");
 
-    const totalAmount = Number((quote as any).totalAmount || 0);
+    res.json(quote);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
 
-    // Summary Card on Right
-    doc.rect(320, currentY, 235, 45).fillAndStroke("#4f46e5", "#4338ca");
+export const acceptPublicQuoteByToken = async (req: Request, res: Response) => {
+  try {
+    const { token } = req.params;
+    const { acceptedByName, acceptedByEmail } = req.body || {};
 
-    doc
-      .fillColor("#ffffff")
-      .fontSize(10)
-      .font("Helvetica-Bold")
-      .text("TOTAL AMOUNT", 332, currentY + 16);
+    if (!token) return res.status(400).json({ error: "Token is required" });
+    if (!acceptedByName || !acceptedByEmail) {
+      return res.status(400).json({ error: "acceptedByName and acceptedByEmail are required for self-service confirmation" });
+    }
 
-    doc
-      .fontSize(13)
-      .font("Helvetica-Bold")
-      .text(formatCurr(totalAmount), 430, currentY + 14, { width: 115, align: "right" });
+    const quote: any = await sequelize.models.Quote.findOne({
+      where: { publicAccessToken: token },
+      include: [
+        {
+          model: sequelize.models.Deal,
+          as: "deal",
+          include: [{ model: sequelize.models.Lead, as: "lead" }]
+        }
+      ]
+    });
 
-    currentY += 65;
+    if (!quote) {
+      return res.status(404).json({ error: "Invalid quotation link." });
+    }
 
-    // ── 5. TERMS & SIGNATURE BOXES ──────────────────────────────
-    doc
-      .fillColor("#1e293b")
-      .fontSize(10)
-      .font("Helvetica-Bold")
-      .text("TERMS & CONDITIONS", 40, currentY);
+    if (quote.publicAccessExpiresAt && new Date() > new Date(quote.publicAccessExpiresAt)) {
+      return res.status(410).json({
+        error: "This quotation link has expired. Please contact your sales representative.",
+        expired: true
+      });
+    }
 
-    currentY += 14;
+    if (quote.status === "Accepted") {
+      return res.json({ success: true, message: "Quote is already accepted.", quote });
+    }
 
-    doc
-      .fillColor("#64748b")
-      .fontSize(8)
-      .font("Helvetica")
-      .text("1. Prices are valid for 30 days from date of issuance.", 40, currentY)
-      .text("2. Payment terms: 100% upon invoice unless otherwise specified.", 40, currentY + 12)
-      .text("3. Subject to standard Nexus CRM terms of service.", 40, currentY + 24);
+    // Set quote status to Accepted
+    await quote.update({
+      status: "Accepted",
+      acceptedAt: new Date(),
+      statusChangedAt: new Date()
+    });
 
-    currentY += 55;
+    // Record QuoteDelivery row with CUSTOMER_SELF_SERVICE method
+    const clientIp = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "Unknown IP";
+    await recordQuoteDeliveryEvent(quote.id, {
+      channel: "CUSTOMER_SELF_SERVICE",
+      recipient: acceptedByEmail,
+      status: "DELIVERED",
+      notes: `Accepted online by customer: ${acceptedByName} (${acceptedByEmail}) from IP ${clientIp}`
+    });
 
-    // Signature Line 1 (Left)
-    doc.moveTo(40, currentY).lineTo(230, currentY).strokeColor("#cbd5e1").stroke();
-    doc
-      .fillColor("#475569")
-      .fontSize(8)
-      .font("Helvetica-Bold")
-      .text("AUTHORIZED REPRESENTATIVE", 40, currentY + 5);
+    // Activity log on lead
+    if (quote.deal?.leadId) {
+      await sequelize.models.Activity.create({
+        id: require('crypto').randomUUID(),
+        leadId: quote.deal.leadId,
+        type: "note",
+        outcome: `Quote #${quote.quoteNumber || quote.id} accepted online by ${acceptedByName} (${acceptedByEmail}).`,
+        createdById: quote.deal?.ownerId || "00000000-0000-0000-0000-000000000000",
+        direction: "internal",
+        pinned: true
+      }).catch((err: any) => console.warn("Activity log notice:", err.message));
+    }
 
-    // Signature Line 2 (Right)
-    doc.moveTo(320, currentY).lineTo(555, currentY).strokeColor("#cbd5e1").stroke();
-    doc
-      .fillColor("#475569")
-      .fontSize(8)
-      .font("Helvetica-Bold")
-      .text("CLIENT ACCEPTANCE", 320, currentY + 5);
+    // Trigger Opportunity Won Automation
+    if (quote.dealId) {
+      try {
+        const { Op } = require("sequelize");
+        const wonStage = await sequelize.models.PipelineStage.findOne({
+          where: { name: { [Op.like]: "%Won%" } }
+        });
+        if (wonStage && quote.deal) {
+          await quote.deal.update({
+            stageId: (wonStage as any).id,
+            status: "Won",
+            closedAt: new Date()
+          });
+        } else if (quote.deal) {
+          await quote.deal.update({
+            status: "Won",
+            closedAt: new Date()
+          });
+        }
+        await processOpportunityEvent({
+          opportunityId: quote.dealId,
+          type: "QuoteAccepted",
+          payload: {
+            quoteId: quote.id,
+            acceptedByName,
+            acceptedByEmail,
+            totalAmount: quote.totalAmount
+          }
+        });
+      } catch (oppErr: any) {
+        console.warn("Opportunity won event processing note:", oppErr.message);
+      }
+    }
 
-    doc.end();
+    res.json({
+      success: true,
+      message: "Quotation successfully accepted.",
+      quote
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const requestPublicQuoteChanges = async (req: Request, res: Response) => {
+  try {
+    const { token } = req.params;
+    const { message, customerName, customerEmail } = req.body || {};
+
+    if (!token) return res.status(400).json({ error: "Token is required" });
+
+    const quote: any = await sequelize.models.Quote.findOne({
+      where: { publicAccessToken: token },
+      include: [
+        {
+          model: sequelize.models.Deal,
+          as: "deal",
+          include: [{ model: sequelize.models.Lead, as: "lead" }]
+        }
+      ]
+    });
+
+    if (!quote) {
+      return res.status(404).json({ error: "Invalid quotation link." });
+    }
+
+    if (quote.publicAccessExpiresAt && new Date() > new Date(quote.publicAccessExpiresAt)) {
+      return res.status(410).json({
+        error: "This quotation link has expired. Please contact your sales representative.",
+        expired: true
+      });
+    }
+
+    // Set quote status to Revision Requested
+    await quote.update({
+      status: "Revision Requested",
+      statusChangedAt: new Date()
+    });
+
+    const clientIp = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "Unknown IP";
+    const notesStr = message
+      ? `Customer requested changes: "${message}" (${customerName || 'Customer'} - IP ${clientIp})`
+      : `Customer requested quotation revision (${customerName || 'Customer'} - IP ${clientIp})`;
+
+    await recordQuoteDeliveryEvent(quote.id, {
+      channel: "CUSTOMER_SELF_SERVICE",
+      recipient: customerEmail || "Customer",
+      status: "DELIVERED",
+      notes: notesStr
+    });
+
+    // Notify assigned sales rep
+    const repId = quote.deal?.ownerId;
+    if (repId) {
+      await createNotification(
+        repId,
+        `Revision Requested: Quote #${quote.quoteNumber || quote.id}`,
+        notesStr,
+        `/deals/${quote.dealId}`
+      ).catch((err: any) => console.warn("Notification notice:", err.message));
+    }
+
+    // Activity note on lead
+    if (quote.deal?.leadId) {
+      await sequelize.models.Activity.create({
+        id: require('crypto').randomUUID(),
+        leadId: quote.deal.leadId,
+        type: "note",
+        outcome: `Customer requested revision on Quote #${quote.quoteNumber || quote.id}: "${message || 'Changes requested via portal'}"`,
+        createdById: repId || "00000000-0000-0000-0000-000000000000",
+        direction: "internal",
+        pinned: true
+      }).catch((err: any) => console.warn("Activity notice:", err.message));
+    }
+
+    res.json({
+      success: true,
+      message: "Revision request submitted successfully.",
+      quote
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -788,22 +854,31 @@ export const signQuote = async (req: Request, res: Response) => {
 
     await quote.update({
       status: "Accepted",
-      acceptedAt: new Date()
+      acceptedAt: new Date(),
+      statusChangedAt: new Date()
     });
 
     const createdById = (req as any).user?.id || quote.deal?.ownerId || null;
+
+    // Record QuoteDelivery row tagging method as INTERNAL_CONFIRMED
+    await recordQuoteDeliveryEvent(quote.id, {
+      channel: "INTERNAL_CONFIRMED",
+      recipient: signedBy || "Client",
+      status: "DELIVERED",
+      notes: `Quote agreement confirmed internally by staff member (${signedBy || 'Staff User'})`
+    });
 
     // Create Activity Log
     await sequelize.models.Activity.create({
       id: require('crypto').randomUUID(),
       leadId: quote.deal?.leadId || null,
       type: "note",
-      outcome: `Quote ${quote.quoteNumber || id} signed via simulated DocuSign by ${signedBy || "Client"}.`,
+      outcome: `Quote ${quote.quoteNumber || id} signed / confirmed internally by ${signedBy || "Client"}.`,
       createdById: createdById,
       direction: "internal"
-    });
+    }).catch((err: any) => console.warn("Activity notice:", err.message));
 
-    res.json({ message: "Quote successfully signed via DocuSign simulation.", quote });
+    res.json({ message: "Quote successfully signed via internal confirmation.", quote });
   } catch (error: any) {
     console.error("Error in signQuote:", error);
     res.status(500).json({ error: error.message });
@@ -1083,7 +1158,8 @@ export const getOpportunityQuotes = async (req: Request, res: Response) => {
     const quotes = await sequelize.models.Quote.findAll({
       where: { dealId: id },
       include: [
-        { model: sequelize.models.QuoteLineItem, as: "QuoteLineItems", include: [{ model: sequelize.models.PriceBookEntry, as: "product" }] }
+        { model: sequelize.models.QuoteLineItem, as: "QuoteLineItems", include: [{ model: sequelize.models.PriceBookEntry, as: "product" }] },
+        { model: sequelize.models.QuoteDelivery, as: "deliveries" }
       ],
       order: [["version", "ASC"], ["createdAt", "ASC"]]
     });
@@ -1190,6 +1266,11 @@ export const acceptQuote = async (req: Request, res: Response) => {
       });
     }
 
+    // Send final agreed confirmation email to client
+    sendFinalAgreedQuoteEmail(q.id, { userId: (req as any).user?.id }).catch((e) =>
+      console.warn("Notice: final agreed quote email dispatch note:", e.message)
+    );
+
     res.json({
       message: "Quote accepted as final agreed quote",
       quote: q,
@@ -1239,6 +1320,11 @@ export const markQuoteFinalAgreed = async (req: Request, res: Response) => {
         direction: "internal"
       });
     }
+
+    // Send final agreed confirmation email to client
+    sendFinalAgreedQuoteEmail(q.id, { userId: (req as any).user?.id }).catch((e) =>
+      console.warn("Notice: final agreed quote email dispatch note:", e.message)
+    );
 
     res.json({ message: "Quote marked as final agreed terms", quote: q });
   } catch (error: any) {
