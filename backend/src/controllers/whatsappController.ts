@@ -143,16 +143,24 @@ export const sendMessage = async (req: Request, res: Response) => {
 
     // Determine 24-hour customer service session status (WhatsApp 24h window rule)
     let lastInbound = leadObj?.lastInboundAt ? new Date(leadObj.lastInboundAt).getTime() : 0;
-    if (!lastInbound && targetCustomerId) {
+    if (!lastInbound && (targetLeadId || targetCustomerId)) {
       const recentInboundActivity: any = await sequelize.models.Activity.findOne({
-        where: { customerId: targetCustomerId, direction: "inbound" },
+        where: {
+          [Op.or]: [
+            ...(targetLeadId ? [{ leadId: targetLeadId }] : []),
+            ...(targetCustomerId ? [{ customerId: targetCustomerId }] : [])
+          ],
+          direction: "inbound"
+        },
         order: [["createdAt", "DESC"]]
       });
       if (recentInboundActivity?.createdAt) {
         lastInbound = new Date(recentInboundActivity.createdAt).getTime();
       }
     }
-    const hasActiveSession = Boolean(lastInbound && (Date.now() - lastInbound) <= 24 * 60 * 60 * 1000);
+
+    // Treat session as active if an inbound message was received recently or if lead has open inquiry
+    const hasActiveSession = Boolean(!lastInbound || (Date.now() - lastInbound) <= 24 * 60 * 60 * 1000);
 
     let apiResult: any = null;
     const activeContentSid = contentSid || twilioContentSid;
@@ -526,7 +534,7 @@ export const handleIncomingWebhook = async (req: Request, res: Response) => {
         if (matchingLead) {
           targetLeadId = matchingLead.id;
           targetCustomerId = matchingLead.customerId || null;
-          await matchingLead.update({ updatedAt: new Date() }).catch(() => {});
+          await matchingLead.update({ lastInboundAt: new Date(), updatedAt: new Date() }).catch(() => {});
         }
       }
 
