@@ -27,23 +27,28 @@ export function createServer(): Express {
 
   app.use("/api/v1", v1Router);
 
-  // Serve static assets from frontend build if they exist
-  // __dirname is backend/build/ (or backend/build/backend/), go up to repo root
-  const repoRoot = path.resolve(__dirname, "../../..");
-  const frontendBuildPath = path.join(repoRoot, "frontend/dist");
+  // Robust SPA build path resolution across Render/Docker environments
+  const fs = require("fs");
+  const possiblePaths = [
+    path.join(process.cwd(), "../frontend/dist"),
+    path.join(process.cwd(), "frontend/dist"),
+    path.resolve(__dirname, "../../../frontend/dist"),
+    path.resolve(__dirname, "../../frontend/dist"),
+    path.resolve(__dirname, "../frontend/dist")
+  ];
+  const frontendBuildPath = possiblePaths.find(p => fs.existsSync(p)) || possiblePaths[0];
   app.use(express.static(frontendBuildPath));
 
-  // SPA routing fallback for Client-side react Router paths
+  // SPA routing fallback for Client-side React Router paths
   app.get("*", (req, res, next) => {
     if (req.path.startsWith("/api") || req.path.startsWith("/static") || req.path.startsWith("/api-docs")) {
       return next();
     }
-    res.sendFile(path.join(frontendBuildPath, "index.html"), (err) => {
-      if (err) {
-        // If index.html is missing (e.g. during local backend-only testing), pass to default 404 handler
-        next();
-      }
-    });
+    const indexPath = path.join(frontendBuildPath, "index.html");
+    if (fs.existsSync(indexPath)) {
+      return res.sendFile(indexPath);
+    }
+    next();
   });
 
   return app;
