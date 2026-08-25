@@ -347,10 +347,43 @@ import { processOpportunityEvent, calculateOpportunityHealth } from "../services
 
 export const getDeals = async (req: Request, res: Response) => {
   try {
+    const user = (req as any).user;
     const { stage, status, search } = req.query;
     const dealWhere: any = {};
     const stageInclude: any = { model: PipelineStage, as: "stage" };
     const likeOp = (Op as any).iLike || Op.like;
+
+    const userRole = (user?.role || "sales_rep").toLowerCase();
+    const isAdminOrManager = userRole === "admin" || userRole === "director" || userRole === "manager";
+
+    // For non-admin sales reps, include deals they currently own OR previously owned / handed off
+    if (!isAdminOrManager && user?.id) {
+      const priorDealHandoffs = await sequelize.models.DealReassignmentHistory.findAll({
+        where: {
+          [Op.or]: [{ oldOwnerId: user.id }, { newOwnerId: user.id }]
+        },
+        attributes: ["dealId"]
+      });
+      const priorDealIds = priorDealHandoffs.map((h: any) => h.dealId).filter(Boolean);
+
+      const priorLeadHandoffs = await sequelize.models.LeadReassignmentHistory.findAll({
+        where: {
+          [Op.or]: [{ oldAssignedToId: user.id }, { newAssignedToId: user.id }]
+        },
+        attributes: ["leadId"]
+      });
+      const priorLeadIds = priorLeadHandoffs.map((h: any) => h.leadId).filter(Boolean);
+
+      const userDealCondition: any = {
+        [Op.or]: [
+          { ownerId: user.id },
+          ...(priorDealIds.length > 0 ? [{ id: { [Op.in]: priorDealIds } }] : []),
+          ...(priorLeadIds.length > 0 ? [{ leadId: { [Op.in]: priorLeadIds } }] : [])
+        ]
+      };
+
+      Object.assign(dealWhere, userDealCondition);
+    }
 
     if (status && String(status).trim() && String(status).trim() !== "ALL") {
       dealWhere.status = String(status).toUpperCase();
@@ -376,10 +409,22 @@ export const getDeals = async (req: Request, res: Response) => {
 
     if (search && String(search).trim()) {
       const searchStr = `%${String(search).trim()}%`;
-      dealWhere[Op.or] = [
-        { name: { [likeOp]: searchStr } },
-        { competitors: { [likeOp]: searchStr } }
-      ];
+      const searchCondition = {
+        [Op.or]: [
+          { name: { [likeOp]: searchStr } },
+          { competitors: { [likeOp]: searchStr } }
+        ]
+      };
+      
+      if (dealWhere[Op.or]) {
+        dealWhere[Op.and] = [
+          { [Op.or]: dealWhere[Op.or] },
+          searchCondition
+        ];
+        delete dealWhere[Op.or];
+      } else {
+        Object.assign(dealWhere, searchCondition);
+      }
     }
 
     const deals = await Deal.findAll({
@@ -392,7 +437,21 @@ export const getDeals = async (req: Request, res: Response) => {
       ],
       order: [["createdAt", "DESC"]]
     });
-    res.json(deals);
+
+    // Annotate deals with isViewOnly flag for the requesting user
+    const annotatedDeals = await Promise.all(
+      deals.map(async (d: any) => {
+        const dJson = d.toJSON();
+        const access = await getDealAccessLevel(user?.id, user?.role, d);
+        return {
+          ...dJson,
+          isViewOnly: access.isViewOnly,
+          userPermission: access.accessLevel
+        };
+      })
+    );
+
+    res.json(annotatedDeals);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
