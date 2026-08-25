@@ -99,6 +99,8 @@ export async function qualifyLeadWorkflow(leadId: string, qualificationData: Qua
         lastName: l.lastName,
         email: l.email,
         phone: l.phone,
+        whatsappNumber: l.whatsappPhone || l.phone || null,
+        preferredCommunicationChannel: l.preferredCommunicationChannel || "UNSPECIFIED",
         role: "Decision Maker",
         sourceChannel: l.source || "Direct"
       });

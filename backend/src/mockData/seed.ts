@@ -1,6 +1,7 @@
 import { Database, sequelize } from "@nexus-crm/database";
 import bcrypt from "bcrypt";
 import crypto from "crypto";
+import { customMasterData } from "./customMasterData";
 
 // Helper function to pick random element from array
 const pick = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
@@ -21,34 +22,29 @@ async function seedEnterpriseDatabase() {
 
   try {
     await Database.createConnection();
-    console.log("Syncing database schema cleanly (force: true)...");
-    if (sequelize.getDialect() === "sqlite") {
-      await sequelize.query("PRAGMA foreign_keys = OFF;");
-      await sequelize.sync({ force: true });
-      await sequelize.query("PRAGMA foreign_keys = ON;");
-    } else {
-      await sequelize.sync({ force: true });
-    }
-    console.log("Truncating data...");
+    console.log("Truncating existing tables for fresh seed...");
 
     // Clear all existing data in safe order
     const tables = [
       'LeadReassignmentHistories', 'WebhookEvents', 'ScheduledEmails', 'Notifications',
       'MessageTemplates', 'InvoiceLineItems', 'Invoices', 'Activities', 'AssignmentRules',
-      'ApprovalRequests', 'PurchaseOrders', 'QuoteLineItems', 'PriceBookEntries',
-      'Quotes', 'Deals', 'LeadStageHistories', 'PipelineStages', 'Leads', 'Users',
+      'ApprovalRequests', 'PurchaseOrders', 'QuoteDeliveries', 'QuoteLineItems', 'PriceBookEntries',
+      'Quotes', 'DealContacts', 'DealSplits', 'DealOwners', 'Deals', 'LeadStageHistories', 'PipelineStages',
+      'Contacts', 'Leads', 'Accounts', 'Users',
       'ConstructionItems', 'LineItems', 'Requirements', 'Customers', 'LeadSources',
       'Tasks', 'CallLogs', 'Documents', 'Meetings', 'EmailMessages', 'KpiTargets',
       'KpiTargetHistories', 'KpiMasters', 'ApprovalTiers'
     ];
 
-    for (const table of tables) {
-      try {
-        await sequelize.query(`DELETE FROM "${table}";`);
-      } catch (e) {
-        try {
-          await sequelize.query(`DELETE FROM ${table};`);
-        } catch (e2) { }
+    if (process.env.USE_SQLITE === "true") {
+      for (const table of tables) {
+        try { await sequelize.query(`DELETE FROM "${table}";`); } catch (e) {}
+      }
+    } else {
+      for (const table of tables) {
+        try { await sequelize.query(`TRUNCATE TABLE "${table}" CASCADE;`); } catch (e) {
+          try { await sequelize.query(`DELETE FROM "${table}";`); } catch (e2) {}
+        }
       }
     }
 
@@ -67,11 +63,15 @@ async function seedEnterpriseDatabase() {
     ];
     const seededSources: any[] = [];
     for (const name of sourceNames) {
-      seededSources.push(await models.LeadSource.create({
-        id: crypto.randomUUID(),
-        name,
-        isActive: true
-      }));
+      if (models.LeadSource) {
+        seededSources.push(await models.LeadSource.create({
+          id: crypto.randomUUID(),
+          name,
+          isActive: true
+        }));
+      } else {
+        seededSources.push({ id: crypto.randomUUID(), name });
+      }
     }
 
     // Pipeline Stages for Opportunities
@@ -87,7 +87,7 @@ async function seedEnterpriseDatabase() {
       }));
     }
 
-    // Products / PriceBook Entries
+    // Products / PriceBook Entries & Master Data BOM from customMasterData
     const productsData = [
       { sku: "NEX-ENT-001", name: "Enterprise CRM Platform Core (Annual)", category: "Software Licensing", unitPrice: 48000, description: "Unlimited user license with multi-org governance & dedicated infrastructure." },
       { sku: "NEX-CLD-002", name: "Cloud Infrastructure & Data Lake Node", category: "Cloud Services", unitPrice: 24000, description: "Managed AWS data warehouse sync with 99.99% uptime SLA." },
@@ -100,35 +100,83 @@ async function seedEnterpriseDatabase() {
       { sku: "NEX-ANA-009", name: "Executive Business Intelligence Suite", category: "Analytics", unitPrice: 14000, description: "PowerBI and Tableau direct connectors with custom executive dashboards." },
       { sku: "NEX-MKT-010", name: "Omnichannel Marketing Automation Hub", category: "Marketing", unitPrice: 22000, description: "Email nurture workflows, WhatsApp broadcast API, and SMS tracking." }
     ];
+
     const seededProducts: any[] = [];
-    for (const p of productsData) {
-      seededProducts.push(await models.PriceBookEntry.create({
-        id: crypto.randomUUID(),
-        ...p,
-        minPrice: p.unitPrice * 0.85,
-        maxPrice: p.unitPrice * 1.15
-      }));
+    if (models.PriceBookEntry) {
+      for (const item of customMasterData) {
+        seededProducts.push(await models.PriceBookEntry.create({
+          id: crypto.randomUUID(),
+          sku: item.sku,
+          name: item.lineItem,
+          category: item.category,
+          unitPrice: item.rate,
+          minPrice: Math.round(item.rate * 0.85),
+          maxPrice: Math.round(item.rate * 1.15),
+          description: `Unit: ${item.unit} | Estimated Rate: ₹${item.rate.toLocaleString('en-IN')}`
+        }));
+      }
+      for (const p of productsData) {
+        seededProducts.push(await models.PriceBookEntry.create({
+          id: crypto.randomUUID(),
+          ...p,
+          minPrice: p.unitPrice * 0.85,
+          maxPrice: p.unitPrice * 1.15
+        }));
+      }
     }
 
-    // Requirements & BOM Line Items
-    const req1 = await models.Requirement.create({ id: crypto.randomUUID(), name: "Standard Enterprise Deployment", category: "Deployment", description: "Standard turnkey setup for mid-market enterprise clients." }) as any;
-    const req2 = await models.Requirement.create({ id: crypto.randomUUID(), name: "High-Security Defense & Healthcare Spec", category: "Security", description: "Dedicated isolated cluster with encryption compliance." }) as any;
+    // Requirements, Line Items, & Construction Items (Pricing Grid)
+    if (models.Requirement && models.LineItem && models.ConstructionItem) {
+      const categoryMap = new Map<string, any>();
+      const uniqueCategories = Array.from(new Set(customMasterData.map(d => d.category)));
+      for (const cat of uniqueCategories) {
+        const req = await models.Requirement.create({
+          id: crypto.randomUUID(),
+          name: cat,
+          category: cat,
+          description: `${cat} Specification & BOM Catalog`,
+          isActive: true
+        }) as any;
+        categoryMap.set(cat, req);
+      }
 
-    const lineItem1 = await models.LineItem.create({ id: crypto.randomUUID(), requirementId: req1.id, name: "Core Server Provisioning", unit: "Instance", defaultQuantity: 1 }) as any;
-    const lineItem2 = await models.LineItem.create({ id: crypto.randomUUID(), requirementId: req1.id, name: "User Onboarding & License Pack", unit: "User", defaultQuantity: 50 }) as any;
+      for (const item of customMasterData) {
+        const req = categoryMap.get(item.category);
+        if (!req) continue;
 
-    await models.ConstructionItem.create({ id: crypto.randomUUID(), lineItemId: lineItem1.id, name: "AWS EC2 r6i.4xlarge Node", category: "equipment", unit: "Hours", quantityPerLineItem: 720, unitCost: 1.20, unitPrice: 2.50 });
-    await models.ConstructionItem.create({ id: crypto.randomUUID(), lineItemId: lineItem1.id, name: "DevOps Integration Lead", category: "labor", unit: "Hours", quantityPerLineItem: 40, unitCost: 80.00, unitPrice: 150.00 });
+        const lineItem = await models.LineItem.create({
+          id: crypto.randomUUID(),
+          requirementId: req.id,
+          name: item.lineItem,
+          unit: item.unit,
+          defaultQuantity: 1
+        }) as any;
+
+        await models.ConstructionItem.create({
+          id: crypto.randomUUID(),
+          lineItemId: lineItem.id,
+          name: item.lineItem,
+          category: "material",
+          unit: item.unit,
+          quantityPerLineItem: 1,
+          unitCost: item.rate,
+          unitPrice: item.rate,
+          isActive: true
+        });
+      }
+    }
 
     // KPI Masters
-    const kpiMasters = [
-      { name: "Monthly Revenue Target", category: "Sales", targetValue: 150000, frequency: "monthly", weightage: 30 },
-      { name: "Quarterly Closed Deals Count", category: "Sales", targetValue: 12, frequency: "quarterly", weightage: 25 },
-      { name: "Lead Response Time (< 2 Hours)", category: "Activity", targetValue: 95, frequency: "monthly", weightage: 20 },
-      { name: "Customer Retention & Renewal Rate", category: "Account Mgmt", targetValue: 92, frequency: "quarterly", weightage: 25 }
-    ];
-    for (const km of kpiMasters) {
-      await models.KpiMaster.create({ id: crypto.randomUUID(), ...km });
+    if (models.KpiMaster) {
+      const kpiMasters = [
+        { name: "Monthly Revenue Target", category: "Sales", targetValue: 150000, frequency: "monthly", weightage: 30 },
+        { name: "Quarterly Closed Deals Count", category: "Sales", targetValue: 12, frequency: "quarterly", weightage: 25 },
+        { name: "Lead Response Time (< 2 Hours)", category: "Activity", targetValue: 95, frequency: "monthly", weightage: 20 },
+        { name: "Customer Retention & Renewal Rate", category: "Account Mgmt", targetValue: 92, frequency: "quarterly", weightage: 25 }
+      ];
+      for (const km of kpiMasters) {
+        await models.KpiMaster.create({ id: crypto.randomUUID(), ...km });
+      }
     }
 
     // ==========================================
@@ -200,7 +248,10 @@ async function seedEnterpriseDatabase() {
 
     const seededUsers: any[] = [admin, manager1, manager2];
     for (const r of repNames) {
-      const email = r.name.toLowerCase().replace(/[^a-z]/g, "") + "@nexus.com";
+      let email = r.name.toLowerCase().replace(/[^a-z]/g, "") + "@nexus.com";
+      if (r.name === "Amelia Rodriguez") email = "salesperson1@nexus.com";
+      if (r.name === "Liam Carter") email = "salesperson2@nexus.com";
+
       const repUser = await models.User.create({
         id: crypto.randomUUID(),
         name: r.name,
@@ -264,7 +315,8 @@ async function seedEnterpriseDatabase() {
       const loc = cityList[i % cityList.length];
       const owner = pick(repsOnly);
 
-      const customerRecord = await models.Customer.create({
+      const accountModel = models.Account || models.Customer;
+      const customerRecord = await accountModel.create({
         id: crypto.randomUUID(),
         name: compName,
         industry: ind,
@@ -300,6 +352,20 @@ async function seedEnterpriseDatabase() {
       const title = jobTitles[i % jobTitles.length];
       const contactEmail = `${fn.toLowerCase()}.${ln.toLowerCase()}@${company.name.toLowerCase().replace(/[^a-z]/g, "")}.com`;
 
+      if (models.Contact) {
+        await models.Contact.create({
+          id: crypto.randomUUID(),
+          accountId: company.id,
+          firstName: fn,
+          lastName: ln,
+          email: contactEmail,
+          phone: `+1 (${randomInt(200, 999)}) ${randomInt(100, 999)}-${randomInt(1000, 9999)}`,
+          preferredCommunicationChannel: i % 2 === 0 ? "EMAIL" : "WHATSAPP",
+          emailVerified: true,
+          whatsappVerified: true
+        });
+      }
+
       seededContacts.push({
         id: crypto.randomUUID(),
         fullName: `${fn} ${ln}`,
@@ -313,10 +379,11 @@ async function seedEnterpriseDatabase() {
       });
     }
 
-    // Update customer primaryContactName with actual full names
+    // Update account primaryContactName with actual full names
     for (let i = 0; i < seededCompanies.length; i++) {
       const contact = seededContacts[i];
-      await models.Customer.update(
+      const accountModel = models.Account || models.Customer;
+      await accountModel.update(
         { primaryContactName: contact.fullName, email: contact.email, phone: contact.phone },
         { where: { id: seededCompanies[i].id } }
       );
@@ -539,47 +606,53 @@ async function seedEnterpriseDatabase() {
       const created = daysAgo(randomInt(1, 180));
 
       // Task
-      await models.Task.create({
-        id: crypto.randomUUID(),
-        title: `${pick(taskTitles)} - ${comp.name}`,
-        description: `Follow up with ${lead.firstName} ${lead.lastName} regarding enterprise deployment timelines.`,
-        priority: pick(["High", "Medium", "Low"]),
-        status: pick(["Completed", "Pending", "Overdue"]),
-        dueDate: i % 3 === 0 ? daysAgo(randomInt(1, 10)) : daysFromNow(randomInt(1, 14)),
-        ownerId: rep.id,
-        leadId: lead.id,
-        customerId: comp.id,
-        createdAt: created
-      });
+      if (models.Task) {
+        await models.Task.create({
+          id: crypto.randomUUID(),
+          title: `${pick(taskTitles)} - ${comp.name}`,
+          description: `Follow up with ${lead.firstName} ${lead.lastName} regarding enterprise deployment timelines.`,
+          priority: pick(["High", "Medium", "Low"]),
+          status: pick(["Completed", "Pending", "Overdue"]),
+          dueDate: i % 3 === 0 ? daysAgo(randomInt(1, 10)) : daysFromNow(randomInt(1, 14)),
+          ownerId: rep.id,
+          leadId: lead.id,
+          customerId: comp.id,
+          createdAt: created
+        });
+      }
 
       // Call Log
-      await models.CallLog.create({
-        id: crypto.randomUUID(),
-        leadId: lead.id,
-        customerId: comp.id,
-        userId: rep.id,
-        direction: i % 4 === 0 ? "Inbound" : "Outbound",
-        durationSeconds: randomInt(120, 1800),
-        outcome: pick(callOutcomes),
-        notes: pick(callNotes),
-        followUpDate: daysFromNow(randomInt(2, 10)),
-        createdAt: created
-      });
+      if (models.CallLog) {
+        await models.CallLog.create({
+          id: crypto.randomUUID(),
+          leadId: lead.id,
+          customerId: comp.id,
+          userId: rep.id,
+          direction: i % 4 === 0 ? "Inbound" : "Outbound",
+          durationSeconds: randomInt(120, 1800),
+          outcome: pick(callOutcomes),
+          notes: pick(callNotes),
+          followUpDate: daysFromNow(randomInt(2, 10)),
+          createdAt: created
+        });
+      }
 
       // Email Message
-      await models.EmailMessage.create({
-        id: crypto.randomUUID(),
-        leadId: lead.id,
-        customerId: comp.id,
-        senderId: rep.id,
-        toEmail: lead.email,
-        subject: `${pick(emailSubjects)} - ${comp.name}`,
-        body: `Dear ${lead.firstName},\n\nThank you for taking the time to speak with our team. As discussed, please find attached the details regarding ${lead.company}'s requirements.\n\nBest regards,\n${rep.name}\nNexus Enterprise Suite`,
-        status: "Sent",
-        openedAt: i % 2 === 0 ? daysAgo(randomInt(0, 10)) : null,
-        clickedAt: i % 3 === 0 ? daysAgo(randomInt(0, 5)) : null,
-        createdAt: created
-      });
+      if (models.EmailMessage) {
+        await models.EmailMessage.create({
+          id: crypto.randomUUID(),
+          leadId: lead.id,
+          customerId: comp.id,
+          senderId: rep.id,
+          toEmail: lead.email,
+          subject: `${pick(emailSubjects)} - ${comp.name}`,
+          body: `Dear ${lead.firstName},\n\nThank you for taking the time to speak with our team. As discussed, please find attached the details regarding ${lead.company}'s requirements.\n\nBest regards,\n${rep.name}\nNexus Enterprise Suite`,
+          status: "Sent",
+          openedAt: i % 2 === 0 ? daysAgo(randomInt(0, 10)) : null,
+          clickedAt: i % 3 === 0 ? daysAgo(randomInt(0, 5)) : null,
+          createdAt: created
+        });
+      }
 
       // Activity Timeline Entry
       if (i === 0) {
@@ -593,17 +666,19 @@ async function seedEnterpriseDatabase() {
         ];
 
         for (const chat of rahulChatHistory) {
-          await models.Activity.create({
-            id: crypto.randomUUID(),
-            leadId: lead.id,
-            createdById: rep.id,
-            type: "whatsapp_sms",
-            outcome: chat.outcome,
-            notes: chat.notes,
-            isCompleted: true,
-            createdAt: chat.time,
-      direction: "internal"
-          });
+          if (models.Activity) {
+            await models.Activity.create({
+              id: crypto.randomUUID(),
+              leadId: lead.id,
+              createdById: rep.id,
+              type: "whatsapp_sms",
+              outcome: chat.outcome,
+              notes: chat.notes,
+              isCompleted: true,
+              createdAt: chat.time,
+              direction: "internal"
+            });
+          }
         }
       } else {
         const actType = i % 5 === 0 ? "whatsapp_sms" : pick(["call", "email", "meeting", "task", "note"]);
@@ -616,21 +691,23 @@ async function seedEnterpriseDatabase() {
           outcomeStr = "Meeting Completed";
         }
 
-        await models.Activity.create({
-          id: crypto.randomUUID(),
-          leadId: lead.id,
-          createdById: rep.id,
-          type: actType,
-          outcome: outcomeStr,
-          notes: actType === "whatsapp_sms" ? (i % 2 === 0 ? `Hi ${rep.name}, can you send the updated quotation via WhatsApp?` : `Hi ${lead.firstName}, I have dispatched the quotation PDF to your WhatsApp number.`) : pick(callNotes),
-          isCompleted: true,
-          createdAt: created,
-      direction: "internal"
-        });
+        if (models.Activity) {
+          await models.Activity.create({
+            id: crypto.randomUUID(),
+            leadId: lead.id,
+            createdById: rep.id,
+            type: actType,
+            outcome: outcomeStr,
+            notes: actType === "whatsapp_sms" ? (i % 2 === 0 ? `Hi ${rep.name}, can you send the updated quotation via WhatsApp?` : `Hi ${lead.firstName}, I have dispatched the quotation PDF to your WhatsApp number.`) : pick(callNotes),
+            isCompleted: true,
+            createdAt: created,
+            direction: "internal"
+          });
+        }
       }
 
       // Meetings (250 items, every 2nd iteration)
-      if (i % 2 === 0) {
+      if (i % 2 === 0 && models.Meeting) {
         await models.Meeting.create({
           id: crypto.randomUUID(),
           title: `${pick(meetingTitles)} w/ ${comp.name}`,
@@ -663,57 +740,67 @@ async function seedEnterpriseDatabase() {
 
     for (let i = 0; i < 40; i++) {
       const rep = pick(repsOnly);
-      await models.Notification.create({
-        id: crypto.randomUUID(),
-        userId: rep.id,
-        type: pick(["lead_assigned", "meeting_reminder", "quote_approved", "target_achieved"]),
-        title: pick(notifTitles),
-        message: `System notification regarding active enterprise pipeline account ${seededCompanies[i % seededCompanies.length].name}.`,
-        isRead: i % 3 === 0,
-        createdAt: daysAgo(randomInt(0, 10))
-      });
+      if (models.Notification) {
+        await models.Notification.create({
+          id: crypto.randomUUID(),
+          userId: rep.id,
+          type: pick(["lead_assigned", "meeting_reminder", "quote_approved", "target_achieved"]),
+          title: pick(notifTitles),
+          message: `System notification regarding active enterprise pipeline account ${seededCompanies[i % seededCompanies.length].name}.`,
+          isRead: i % 3 === 0,
+          createdAt: daysAgo(randomInt(0, 10))
+        });
+      }
     }
 
     // Approval Tiers & Requests
-    await models.ApprovalTier.create({ id: crypto.randomUUID(), name: "Standard Discount (< 15%)", thresholdValue: 25000, requiredRole: "sales_manager" });
-    await models.ApprovalTier.create({ id: crypto.randomUUID(), name: "Executive VP Discount (> 15%)", thresholdValue: 100000, requiredRole: "admin" });
+    if (models.ApprovalTier) {
+      await models.ApprovalTier.create({ id: crypto.randomUUID(), name: "Standard Discount (< 15%)", thresholdValue: 25000, requiredRole: "sales_manager" });
+      await models.ApprovalTier.create({ id: crypto.randomUUID(), name: "Executive VP Discount (> 15%)", thresholdValue: 100000, requiredRole: "admin" });
+    }
 
     for (let i = 0; i < 15; i++) {
       const deal = seededDeals[i];
       const rep = pick(repsOnly);
-      await models.ApprovalRequest.create({
-        id: crypto.randomUUID(),
-        targetId: deal.id,
-        type: "Quote Discount Approval",
-        status: i % 2 === 0 ? "Approved" : "Pending",
-        requestedById: rep.id,
-        assignedApproverId: manager1.id,
-        approvedById: i % 2 === 0 ? manager1.id : null,
-        comments: "Requesting 12% enterprise multi-year bundle discount for key account."
-      });
+      if (models.ApprovalRequest) {
+        await models.ApprovalRequest.create({
+          id: crypto.randomUUID(),
+          targetId: deal.id,
+          type: "Quote Discount Approval",
+          status: i % 2 === 0 ? "Approved" : "Pending",
+          requestedById: rep.id,
+          assignedApproverId: manager1.id,
+          approvedById: i % 2 === 0 ? manager1.id : null,
+          comments: "Requesting 12% enterprise multi-year bundle discount for key account."
+        });
+      }
     }
 
     // Seed Admin Approval Policy
-    await models.AdminApprovalPolicy.create({
-      id: crypto.randomUUID(),
-      maximumSalesRepApproval: 2500000,
-      maximumTeamLeadApproval: 10000000,
-      maximumRepDiscount: 0.10,
-      maximumTeamLeadDiscount: 0.20,
-      minimumAllowedMargin: 0.15
-    });
+    if (models.AdminApprovalPolicy) {
+      await models.AdminApprovalPolicy.create({
+        id: crypto.randomUUID(),
+        maximumSalesRepApproval: 2500000,
+        maximumTeamLeadApproval: 10000000,
+        maximumRepDiscount: 0.10,
+        maximumTeamLeadDiscount: 0.20,
+        minimumAllowedMargin: 0.15
+      });
+    }
 
     // Seed Sales Approval Profiles for all sales representatives
-    for (const r of repsOnly) {
-      await models.SalesApprovalProfile.create({
-        id: crypto.randomUUID(),
-        salesRepId: r.id,
-        selfApprovalLimit: 1000000,
-        discountApprovalLimit: 0.10,
-        minimumMargin: 0.20,
-        teamLeadId: r.managerId || manager1.id,
-        approvalEnabled: true
-      });
+    if (models.SalesApprovalProfile) {
+      for (const r of repsOnly) {
+        await models.SalesApprovalProfile.create({
+          id: crypto.randomUUID(),
+          salesRepId: r.id,
+          selfApprovalLimit: 1000000,
+          discountApprovalLimit: 0.10,
+          minimumMargin: 0.20,
+          teamLeadId: r.managerId || manager1.id,
+          approvalEnabled: true
+        });
+      }
     }
 
     console.log("==========================================");

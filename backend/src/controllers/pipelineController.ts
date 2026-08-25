@@ -640,6 +640,17 @@ export const getOpportunityHealth = async (req: Request, res: Response) => {
   }
 };
 
+export const getOpportunityAiSummary = async (req: Request, res: Response) => {
+  try {
+    const opportunityId = String(req.params.id);
+    const { synthesizeOpportunityRequirements } = require("../services/aiRequirementSynthesis");
+    const result = await synthesizeOpportunityRequirements(opportunityId);
+    res.json(result);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 export const getOpportunities = getDeals;
 export const createOpportunity = createDeal;
 export const moveOpportunityStage = moveDealStage;

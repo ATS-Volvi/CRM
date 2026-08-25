@@ -28,8 +28,10 @@ export function PriorityBadge({ leadScore }: { leadScore?: number }) {
 
 function WhatsAppBadge({ lead }: { lead: any }) {
   const isWhatsApp =
-    (lead.communicationChannel || "").toLowerCase() === "whatsapp" ||
-    (lead.source || "").toLowerCase() === "whatsapp";
+    (lead.source || "").toLowerCase().includes("whatsapp") ||
+    (lead.sourceChannel || "").toLowerCase().includes("whatsapp") ||
+    !!lead.whatsappPhone ||
+    (lead.communicationChannel || "").toLowerCase().includes("whatsapp");
   if (!isWhatsApp) return null;
 
   const unread = lead.unreadWhatsappCount || 0;

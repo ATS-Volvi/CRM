@@ -551,23 +551,44 @@ export const handleIncomingWebhook = async (req: Request, res: Response) => {
       }
     }
 
-    // If no existing lead found, delegate to Deal Ingestion Engine to capture a new lead/deal
-    if (!targetLeadId && !targetDealId) {
-      const { ingestLead } = require("../services/leadIngestion");
-      targetDealId = await ingestLead({
-        firstName,
-        lastName,
-        email: uniqueEmail,
-        phone: from,
-        whatsappPhone: from,
-        company: extractedAI.company || "Unknown WhatsApp Company",
-        source: "WhatsApp",
-        sourceDetail: `WhatsApp Message ID: ${metaMessageId}`,
-        industry: extractedAI.industry || "General",
-        budgetRange: extractedAI.budgetRange || "N/A",
+    // Process inbound WhatsApp intake event (Missing Info Engine & Conversational Collection)
+    try {
+      const { processInboundIntakeEvent } = require("../services/leadIntakeAutomationEngine");
+      const intakeRes = await processInboundIntakeEvent({
+        channel: "whatsapp",
+        eventId: metaMessageId || webhookEventId || undefined,
+        leadId: targetLeadId || undefined,
+        senderPhone: from,
+        senderName: senderName || undefined,
         message: msgBody,
-        rawPayload: { from, senderName, firstMessage: msgBody, metaMessageId, extractedAI }
+        attribution: {
+          source: "WhatsApp",
+          sourceChannel: "whatsapp",
+          sourceDetail: `WhatsApp Message ID: ${metaMessageId}`
+        }
       });
+      if (intakeRes.leadId) {
+        targetLeadId = intakeRes.leadId;
+      }
+    } catch (intakeErr: any) {
+      console.warn("Intake automation non-blocking fallback in WhatsApp controller:", intakeErr.message);
+      if (!targetLeadId && !targetDealId) {
+        const { ingestLead } = require("../services/leadIngestion");
+        targetDealId = await ingestLead({
+          firstName,
+          lastName,
+          email: uniqueEmail,
+          phone: from,
+          whatsappPhone: from,
+          company: extractedAI.company || "Unknown WhatsApp Company",
+          source: "WhatsApp",
+          sourceDetail: `WhatsApp Message ID: ${metaMessageId}`,
+          industry: extractedAI.industry || "General",
+          budgetRange: extractedAI.budgetRange || "N/A",
+          message: msgBody,
+          rawPayload: { from, senderName, firstMessage: msgBody, metaMessageId, extractedAI }
+        });
+      }
     }
 
     // ── CREATE SPECIFIC WHATSAPP MEDIA ACTIVITY ───────────────────────────────
@@ -588,6 +609,20 @@ export const handleIncomingWebhook = async (req: Request, res: Response) => {
       createdById: adminId,
       direction: "inbound"
     } as any);
+
+    // Check for positive quote acceptance intent in inbound WhatsApp message
+    try {
+      const { detectAndFlagQuoteAcceptance } = require("../services/quoteDeliveryService");
+      await detectAndFlagQuoteAcceptance({
+        leadId: targetLeadId,
+        dealId: targetDealId,
+        messageText: msgBody,
+        sourceChannel: "WHATSAPP",
+        senderInfo: from
+      });
+    } catch (flagErr: any) {
+      console.warn("Failed to check quote acceptance keywords in WhatsApp:", flagErr.message);
+    }
 
 
     // ── MARK WEBHOOK EVENT PROCESSED ─────────────────────────────────────────

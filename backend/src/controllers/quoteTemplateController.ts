@@ -1,6 +1,5 @@
 import { Request, Response } from "express";
 import { sequelize } from "@nexus-crm/database";
-const pdfParse = require("pdf-parse");
 
 const DEFAULT_TEMPLATES = [
   {
@@ -95,8 +94,9 @@ export const parseReferenceDocument = async (req: Request, res: Response) => {
     let fileText = "";
     if (file && file.buffer) {
       console.log(`[Document Pipeline] Processing file buffer for: ${filename} (MIME: ${file.mimetype}, size: ${file.size} bytes)`);
-      if (file.mimetype === "application/pdf" || filename.toLowerCase().endsWith(".pdf")) {
+      if (filename.toLowerCase().endsWith(".pdf") || file.mimetype === "application/pdf") {
         try {
+          const pdfParse = require("pdf-parse");
           const pdfData = await pdfParse(file.buffer);
           fileText = pdfData.text || "";
           console.log(`[Document Pipeline] pdf-parse extracted ${fileText.length} characters from PDF.`);

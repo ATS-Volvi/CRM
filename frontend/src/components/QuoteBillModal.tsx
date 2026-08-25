@@ -22,6 +22,8 @@ import { formatCurrency } from "../utils/currency";
 import { downloadAuthenticatedFile } from "../utils/download";
 import { useAuth } from "../context/AuthContext";
 import QuotationDocumentRenderer from "./QuotationDocumentRenderer";
+import { SendQuoteChannelModal } from "./SendQuoteChannelModal";
+import { QuoteDeliveryTimeline } from "./QuoteDeliveryTimeline";
 
 interface QuoteBillModalProps {
   quoteId: string | null;
@@ -34,6 +36,7 @@ export function QuoteBillModal({ quoteId, onClose }: QuoteBillModalProps) {
   const queryClient = useQueryClient();
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
+  const [isSendModalOpen, setIsSendModalOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("Price too high / Commercial terms");
   const [rejectNotes, setRejectNotes] = useState("");
 
@@ -223,6 +226,17 @@ export function QuoteBillModal({ quoteId, onClose }: QuoteBillModalProps) {
               <Printer className="w-4 h-4" />
             </button>
 
+            {/* Send to Client via Resolved Channel */}
+            {!isSuperseded && !isRejected && quote && (
+              <button
+                onClick={() => setIsSendModalOpen(true)}
+                className="px-3 py-1.5 text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white rounded-lg transition-colors flex items-center gap-1 shadow-2xs cursor-pointer"
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span>{quote.status === "Sent" ? "Re-send" : "Send Quote"}</span>
+              </button>
+            )}
+
             {/* Accept Final Quote */}
             {!isAccepted && !isSuperseded && !isRejected && quote && (
               <button
@@ -324,6 +338,11 @@ export function QuoteBillModal({ quoteId, onClose }: QuoteBillModalProps) {
                   validUntil: quote.expirationDate ? new Date(quote.expirationDate).toLocaleDateString("en-GB") : "30 Days from Issue"
                 }}
               />
+
+              {/* Delivery History Section */}
+              <div className="mt-8 pt-6 border-t border-slate-200">
+                <QuoteDeliveryTimeline quoteId={quote.id} initialDeliveries={quote.deliveries} />
+              </div>
             </div>
           )}
         </div>
@@ -396,6 +415,15 @@ export function QuoteBillModal({ quoteId, onClose }: QuoteBillModalProps) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Send Quote Channel Modal */}
+      {quoteId && (
+        <SendQuoteChannelModal
+          quoteId={quoteId}
+          isOpen={isSendModalOpen}
+          onClose={() => setIsSendModalOpen(false)}
+        />
       )}
     </div>
   );

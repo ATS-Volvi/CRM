@@ -6,7 +6,7 @@ import {
   getPipeline, moveDealStage, createDeal, getDeals, validateTransition,
   getOpportunities, getOpportunityById, createOpportunity, updateOpportunity, moveOpportunityStage,
   getPipelineStages, postOpportunityEvent, markOpportunityWon, markOpportunityLost,
-  getOpportunityTimeline, getOpportunityNextAction, getOpportunityHealth
+  getOpportunityTimeline, getOpportunityNextAction, getOpportunityHealth, getOpportunityAiSummary
 } from "../controllers/pipelineController";
 import { getLeadActivities, createActivity, togglePinActivity, completeTask, getOverdueTasks } from "../controllers/activityController";
 import {
@@ -25,15 +25,19 @@ import {
   mergeLeads,
   clearUnreadCount,
   getLeadAiSummary,
+  getLeadAccountHistory,
   getLeadContacts,
   updateTemperature,
-  unlockTemperature
+  unlockTemperature,
+  getLeadMissingInfo,
+  requestMissingDetails
 } from "../controllers/leadController";
 import { getPriceBookEntries, createPriceBookEntry, updatePriceBookEntry, deletePriceBookEntry, importPriceBookEntries, getPriceSuggestion, importPriceBookEntriesPreview, getCatalogCategories, getCatalogUoms } from '../controllers/priceBookController';
 import {
   getQuotes, getQuoteById, createQuote, updateQuote, getQuoteRecommendations, sendQuote, acceptQuote, rejectQuote, createQuoteRevision,
   getOpportunityQuotes, createOpportunityQuote, getPublicQuote, generateQuotePdf, signQuote, getQuoteHistoryByClient,
-  getSimilarQuotesStats, getSimilarClientQuotes, markQuoteFinalAgreed
+  getSimilarQuotesStats, getSimilarClientQuotes, markQuoteFinalAgreed, getQuoteDeliveryPreview, getQuoteDeliveries, recordDeliveryStatus,
+  getPublicQuoteByToken, acceptPublicQuoteByToken, requestPublicQuoteChanges
 } from '../controllers/quoteController';
 import { getInvoices, createInvoiceFromQuote, updateInvoiceStatus, generateInvoicePdf } from '../controllers/invoiceController';
 import { getPurchaseOrders, getOrderById, createPurchaseOrder, updatePurchaseOrder, createOrderFromQuote, resolvePurchaseOrder } from '../controllers/purchaseOrderController';
@@ -243,7 +247,13 @@ router.get("/kpis/management", async (req, res) => {
 });
 
 router.get("/public/quotes/:id", getPublicQuote);
+router.get("/quotes/:id/public", getPublicQuote);
 router.post("/public/quotes/:id/sign", signQuote);
+
+// Customer-Facing Token-Based Quote Review & Acceptance Portal
+router.get("/public/quotes/by-token/:token", getPublicQuoteByToken);
+router.post("/public/quotes/by-token/:token/accept", acceptPublicQuoteByToken);
+router.post("/public/quotes/by-token/:token/request-changes", requestPublicQuoteChanges);
 
 // ==========================================
 // QUOTE TEMPLATES & AI VISION PARSER
@@ -371,10 +381,13 @@ router.post("/leads/:id/temperature/unlock", authMiddleware, unlockTemperature);
 router.delete("/leads/:id", authMiddleware, deleteLead);
 router.put("/leads/:id/reassign", authMiddleware, reassignLead);
 router.get("/leads/:id/ai-summary", authMiddleware, getLeadAiSummary);
+router.get("/leads/:id/account-history", authMiddleware, getLeadAccountHistory);
 router.get("/leads/:id/reassignment-history", authMiddleware, getLeadReassignmentHistory);
 router.get("/leads/:id/deal-for-quote", authMiddleware, getLeadDealForQuote);
 router.get("/leads/:id/contacts", authMiddleware, getLeadContacts);
 router.put("/leads/:id/clear-unread", authMiddleware, clearUnreadCount);
+router.get("/leads/:id/missing-info", authMiddleware, getLeadMissingInfo);
+router.post("/leads/:id/request-details", authMiddleware, requestMissingDetails);
 
 // ==========================================
 // OPPORTUNITIES / DEALS
@@ -414,6 +427,7 @@ router.post("/opportunities/:id/mark-lost", authMiddleware, markOpportunityLost)
 router.get("/opportunities/:id/timeline", authMiddleware, getOpportunityTimeline);
 router.get("/opportunities/:id/next-action", authMiddleware, getOpportunityNextAction);
 router.get("/opportunities/:id/health", authMiddleware, getOpportunityHealth);
+router.get("/opportunities/:id/ai-summary", authMiddleware, getOpportunityAiSummary);
 
 router.get("/pipeline", authMiddleware, getPipeline);
 router.get("/pipeline-stages", authMiddleware, getPipelineStages);
@@ -430,6 +444,11 @@ router.get("/quotes/recommendations", authMiddleware, getQuoteRecommendations);
 router.get("/quotes/history/similar-clients", getSimilarClientQuotes);
 router.get("/quotes/history/client/:leadId", getQuoteHistoryByClient);
 router.get("/quotes/history/similar/:productId", authMiddleware, getSimilarQuotesStats);
+router.get("/quotes/:id/public", getPublicQuote);
+router.get("/quotes/:id/delivery-channel", authMiddleware, getQuoteDeliveryPreview);
+router.get("/quotes/:id/deliveries", authMiddleware, getQuoteDeliveries);
+router.post("/quotes/:id/delivery-status", authMiddleware, recordDeliveryStatus);
+router.get("/quotes/:id/pdf", authMiddleware, generateQuotePdf);
 router.get("/quotes", authMiddleware, getQuotes);
 router.post("/quotes", authMiddleware, createQuote);
 router.get("/quotes/:id", authMiddleware, getQuoteById);
@@ -443,7 +462,6 @@ router.post("/quotes/:id/accept", authMiddleware, acceptQuote);
 router.post("/quotes/:id/reject", authMiddleware, rejectQuote);
 router.post("/quotes/:id/submit-approval", authMiddleware, submitQuoteForApproval);
 router.post("/approvals/quotes/:id/submit", authMiddleware, submitQuoteForApproval);
-router.get("/quotes/:id/pdf", authMiddleware, generateQuotePdf);
 
 // ==========================================
 // INVOICES & PAYMENTS
