@@ -447,9 +447,15 @@ async function checkRepEligibility(userId: string): Promise<boolean> {
 }
 
 async function updateRepAssignedTimestamp(userId: string): Promise<void> {
-  const user = await sequelize.models.User.findByPk(userId);
-  if (user) {
-    await user.update({ lastAssignedAt: new Date() });
+  try {
+    if (sequelize.models.User) {
+      await sequelize.models.User.update(
+        { lastAssignedAt: new Date() },
+        { where: { id: userId } }
+      );
+    }
+  } catch (e) {
+    // non-fatal timestamp update error
   }
 }
 
@@ -516,7 +522,7 @@ export async function assignOpportunityCloser(
     const { WorkspaceSetting, SalesAssignmentPolicy, User } = sequelize.models;
 
     // 1. Resolve closer tiers
-    let closingTiers: string[] = ["senior_ae", "senior sales representative", "enterprise ae", "strategic ae", "closer", "senior ae", "manager"];
+    let closingTiers: string[] = ["senior_ae", "senior sales representative", "enterprise ae", "strategic ae", "closer", "senior ae", "manager", "sales_rep", "sales representative"];
     
     try {
       if (WorkspaceSetting) {
@@ -578,19 +584,23 @@ export async function assignOpportunityCloser(
     const priorityDetails: LeadPriorityDetails = calculateLeadPriorityScore(context);
     const expectedVal = Number(context.expectedValue || priorityDetails.expectedRevenue || 0);
 
-    // 3. Fetch candidate users
+    // 3. Fetch candidate users (all non-admin reps)
     const allUsers: any[] = await User.findAll({
       where: {
         role: { [Op.ne]: "admin" }
       }
     });
 
-    // 4. Filter to designated closer-tier candidates
-    const closerCandidates = allUsers.filter((u: any) => {
+    // 4. Filter to designated closer-tier candidates (or all sales reps if tier list is general)
+    let closerCandidates = allUsers.filter((u: any) => {
       const roleStr = String(u.role || "").toLowerCase().trim();
       const tierStr = String(u.experienceTier || "").toLowerCase().trim();
       return closingTiers.includes(roleStr) || closingTiers.includes(tierStr);
     });
+
+    if (closerCandidates.length === 0) {
+      closerCandidates = allUsers;
+    }
 
     // 5. Exclude qualifying rep if a distinct closer is requested
     let candidatePool = closerCandidates;
@@ -608,13 +618,6 @@ export async function assignOpportunityCloser(
       if (rep.isAvailable === false) continue;
       if (rep.onLeave) continue;
       if (rep.status === "On Leave" || rep.status === "Offline" || rep.status === "Suspended") continue;
-
-      // Deal value cutoff check
-      const withinCutoff =
-        rep.dealValueCutoff === null ||
-        rep.dealValueCutoff === undefined ||
-        Number(rep.dealValueCutoff) >= expectedVal;
-      if (!withinCutoff) continue;
 
       // Open deals capacity check
       if (rep.maxOpenDeals !== null && rep.maxOpenDeals !== undefined) {
