@@ -574,7 +574,7 @@ export const handleIncomingWebhook = async (req: Request, res: Response) => {
       console.warn("Intake automation non-blocking fallback in WhatsApp controller:", intakeErr.message);
       if (!targetLeadId && !targetDealId) {
         const { ingestLead } = require("../services/leadIngestion");
-        targetDealId = await ingestLead({
+        targetLeadId = await ingestLead({
           firstName,
           lastName,
           email: uniqueEmail,

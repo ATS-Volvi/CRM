@@ -78,8 +78,8 @@ async function processInstagramMessage(msg: NormalizedIgMessage) {
 
   const { ingestLead } = require("../services/leadIngestion");
   
-  // By passing the payload to ingestLead, we let the Deal Splitter create an Account, Contact, and Deal automatically.
-  const dealId = await ingestLead({
+  // ingestLead creates a new Lead record and returns leadId
+  const leadId = await ingestLead({
     firstName,
     lastName,
     email: `inbound-${msg.username || Date.now()}@instagram.local`,
@@ -93,12 +93,13 @@ async function processInstagramMessage(msg: NormalizedIgMessage) {
 
   // Create the actual Instagram DM activity record for the Communication Center
   try {
-    await Activity.create({
+    const { sequelize } = require("@nexus-crm/database");
+    await sequelize.models.Activity.create({
       id: require("crypto").randomUUID(),
       type: "instagram_dm",
       notes: msg.text,
-      outcome: "received",
-      dealId: dealId,
+      outcome: "message received",
+      leadId: leadId,
       pinned: false,
       priority: "Low",
       direction: "inbound"
@@ -108,9 +109,8 @@ async function processInstagramMessage(msg: NormalizedIgMessage) {
   }
 
   return {
-    leadId: dealId,
-    dealId: dealId,
-    assignmentMethod: "DealSplitter"
+    leadId: leadId,
+    assignmentMethod: "LeadIngestion"
   };
 }
 
