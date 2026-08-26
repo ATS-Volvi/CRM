@@ -364,9 +364,95 @@ export default function Opportunities() {
                         </div>
                       </td>
 
-                      {/* Owner */}
-                      <td className="py-3 px-4 text-slate-600 font-medium whitespace-nowrap">
-                        {opp.owner?.name || "Sales Rep"}
+                      {/* Owner with Hover Handoff Expansion */}
+                      <td className="py-3 px-4 text-slate-600 font-medium whitespace-nowrap relative group/owner">
+                        <div className="flex items-center gap-1.5 cursor-pointer">
+                          <span className="font-semibold text-slate-800 hover:text-blue-600 transition-colors">
+                            {opp.currentOwner?.name || opp.owner?.name || "Sales Rep"}
+                          </span>
+                          {opp.handoffChain && opp.handoffChain.length > 1 && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 font-bold border border-blue-200">
+                              Handoff ({opp.handoffChain.length})
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Hover Expansion Card */}
+                        <div className="absolute left-0 bottom-full mb-2 w-80 p-3.5 bg-slate-900/95 backdrop-blur-md text-white text-xs rounded-xl shadow-2xl z-50 border border-slate-700 space-y-2.5 opacity-0 pointer-events-none group-hover/owner:opacity-100 group-hover/owner:pointer-events-auto transition-all duration-200">
+                          <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
+                            <span className="font-bold text-slate-200 flex items-center gap-1">
+                              🔄 Commercial Handoff Context
+                            </span>
+                            {opp.actualClosedAt ? (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-semibold border border-emerald-500/30">
+                                Closed
+                              </span>
+                            ) : (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-semibold border border-amber-500/30">
+                                Active Deal
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Salesman 1 (Original Rep) */}
+                          <div className="bg-slate-800/60 p-2 rounded-lg border border-slate-700/50 space-y-0.5">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">
+                                🌱 Salesman 1 (Original Rep)
+                              </span>
+                            </div>
+                            <div className="font-bold text-white text-sm">
+                              {opp.originalRep?.name || opp.handoffChain?.[0]?.name || opp.owner?.name || "Qualifying Rep"}
+                            </div>
+                            {opp.originalRep?.email && (
+                              <div className="text-[11px] text-slate-400 font-mono">
+                                {opp.originalRep.email}
+                              </div>
+                            )}
+                            <div className="text-[10px] text-slate-400 pt-0.5">
+                              Converted: {opp.convertedAt ? new Date(opp.convertedAt).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : "N/A"}
+                            </div>
+                          </div>
+
+                          {/* Intermediate Hops (Multi-hop handoff) */}
+                          {opp.handoffChain && opp.handoffChain.length > 2 && (
+                            <div className="space-y-1 pl-2 border-l-2 border-blue-500/40 my-1">
+                              <div className="text-[10px] font-bold text-slate-400 uppercase">Intermediate Chain ({opp.handoffChain.length - 2} hops)</div>
+                              {opp.handoffChain.slice(1, -1).map((hop: any, idx: number) => (
+                                <div key={idx} className="text-[11px] text-slate-300 flex items-center justify-between">
+                                  <span>↳ {hop.name} ({hop.role || "Rep"})</span>
+                                  <span className="text-[10px] text-slate-500">{new Date(hop.assignedAt).toLocaleDateString()}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Salesman 2 (Current Owner) */}
+                          <div className="bg-slate-800/60 p-2 rounded-lg border border-slate-700/50 space-y-0.5">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-bold text-purple-400 uppercase tracking-wider">
+                                👤 Salesman 2 (Current Owner)
+                              </span>
+                            </div>
+                            <div className="font-bold text-white text-sm">
+                              {opp.currentOwner?.name || opp.handoffChain?.[opp.handoffChain.length - 1]?.name || opp.owner?.name || "Closer"}
+                            </div>
+                            {opp.currentOwner?.email && (
+                              <div className="text-[11px] text-slate-400 font-mono">
+                                {opp.currentOwner.email}
+                              </div>
+                            )}
+                            <div className="text-[10px] pt-0.5">
+                              {opp.actualClosedAt ? (
+                                <span className="text-emerald-400 font-semibold">
+                                  Closed: {new Date(opp.actualClosedAt).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400">Close Date: Not yet closed</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
                       </td>
 
                       {/* Value */}

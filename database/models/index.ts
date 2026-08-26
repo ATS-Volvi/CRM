@@ -294,6 +294,7 @@ export class Deal extends Model {
   public sourceName!: string | null;
   public sourceEntityId!: string | null;
   public firstTouchAttribution!: string | null;
+  public actualClosedAt!: Date | null;
 }
 
 Deal.init(
@@ -317,6 +318,7 @@ Deal.init(
     nextActionDue: { type: DataTypes.DATE, allowNull: true },
     idempotencyKeys: { type: DataTypes.TEXT, defaultValue: '[]' },
     expectedCloseDate: { type: DataTypes.DATE, allowNull: true },
+    actualClosedAt: { type: DataTypes.DATE, allowNull: true },
     recontactDate: { type: DataTypes.DATE, allowNull: true },
     lossReason: { type: DataTypes.TEXT, allowNull: true },
     competitors: { type: DataTypes.TEXT, allowNull: true },
@@ -337,6 +339,17 @@ Deal.init(
   },
   { sequelize, modelName: "Deal" }
 );
+
+Deal.addHook("beforeSave", (deal: any) => {
+  if (deal.changed("status")) {
+    const s = String(deal.status || "").toUpperCase();
+    if ((s === "WON" || s === "LOST") && !deal.actualClosedAt) {
+      deal.actualClosedAt = deal.wonAt || deal.lostAt || new Date();
+    } else if (s === "OPEN") {
+      deal.actualClosedAt = null;
+    }
+  }
+});
 
 export class Quote extends Model {
   public id!: string;

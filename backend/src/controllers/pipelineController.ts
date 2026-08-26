@@ -438,15 +438,138 @@ export const getDeals = async (req: Request, res: Response) => {
       order: [["createdAt", "DESC"]]
     });
 
-    // Annotate deals with isViewOnly flag for the requesting user
+    // ── High-Performance Batch Eager Loading of Handoff Chain (Zero N+1 Queries) ──
+    const dealIds = deals.map((d: any) => d.id).filter(Boolean);
+    const leadIds = deals.map((d: any) => d.leadId).filter(Boolean);
+
+    const dealHandoffs = dealIds.length > 0 ? await sequelize.models.DealReassignmentHistory.findAll({
+      where: { dealId: { [Op.in]: dealIds } },
+      include: [
+        { model: sequelize.models.User, as: "oldOwner", attributes: ["id", "name", "email", "role"] },
+        { model: sequelize.models.User, as: "newOwner", attributes: ["id", "name", "email", "role"] }
+      ],
+      order: [["createdAt", "ASC"]]
+    }) : [];
+
+    const leadHandoffs = leadIds.length > 0 ? await sequelize.models.LeadReassignmentHistory.findAll({
+      where: { leadId: { [Op.in]: leadIds } },
+      include: [
+        { model: sequelize.models.User, as: "oldAssignee", attributes: ["id", "name", "email", "role"] },
+        { model: sequelize.models.User, as: "newAssignee", attributes: ["id", "name", "email", "role"] }
+      ],
+      order: [["createdAt", "ASC"]]
+    }) : [];
+
+    const parentLeads = leadIds.length > 0 ? await sequelize.models.Lead.findAll({
+      where: { id: { [Op.in]: leadIds } },
+      include: [
+        { model: sequelize.models.User, as: "assignedTo", attributes: ["id", "name", "email", "role"] }
+      ],
+      paranoid: false
+    }) : [];
+
+    const dealHandoffMap = new Map<string, any[]>();
+    dealHandoffs.forEach((dh: any) => {
+      const arr = dealHandoffMap.get(dh.dealId) || [];
+      arr.push(dh);
+      dealHandoffMap.set(dh.dealId, arr);
+    });
+
+    const leadHandoffMap = new Map<string, any[]>();
+    leadHandoffs.forEach((lh: any) => {
+      const arr = leadHandoffMap.get(lh.leadId) || [];
+      arr.push(lh);
+      leadHandoffMap.set(lh.leadId, arr);
+    });
+
+    const parentLeadMap = new Map<string, any>();
+    parentLeads.forEach((pl: any) => {
+      parentLeadMap.set(pl.id, pl);
+    });
+
+    // Annotate deals with isViewOnly flag and handoffChain
     const annotatedDeals = await Promise.all(
       deals.map(async (d: any) => {
         const dJson = d.toJSON();
         const access = await getDealAccessLevel(user?.id, user?.role, d);
+
+        const chain: any[] = [];
+        const leadObj = d.leadId ? parentLeadMap.get(d.leadId) : null;
+        const dHandoffs = dealHandoffMap.get(d.id) || [];
+        const lHandoffs = d.leadId ? leadHandoffMap.get(d.leadId) || [] : [];
+
+        let origRep = null;
+        let convertedAt = leadObj?.convertedAt || leadObj?.createdAt || d.createdAt;
+        if (lHandoffs.length > 0 && lHandoffs[0].oldAssignee) {
+          origRep = lHandoffs[0].oldAssignee;
+        } else if (leadObj?.assignedTo) {
+          origRep = leadObj.assignedTo;
+        } else if (dHandoffs.length > 0 && dHandoffs[0].oldOwner) {
+          origRep = dHandoffs[0].oldOwner;
+        } else if (d.owner) {
+          origRep = d.owner;
+        }
+
+        if (origRep) {
+          chain.push({
+            ownerId: origRep.id,
+            name: origRep.name,
+            email: origRep.email,
+            role: origRep.role,
+            assignedAt: convertedAt,
+            isOriginal: true
+          });
+        }
+
+        lHandoffs.forEach((lh: any) => {
+          if (lh.newAssignee && !chain.some((c: any) => c.ownerId === lh.newAssignee.id)) {
+            chain.push({
+              ownerId: lh.newAssignee.id,
+              name: lh.newAssignee.name,
+              email: lh.newAssignee.email,
+              role: lh.newAssignee.role,
+              assignedAt: lh.createdAt,
+              isOriginal: false
+            });
+          }
+        });
+
+        dHandoffs.forEach((dh: any) => {
+          if (dh.newOwner && !chain.some((c: any) => c.ownerId === dh.newOwner.id)) {
+            chain.push({
+              ownerId: dh.newOwner.id,
+              name: dh.newOwner.name,
+              email: dh.newOwner.email,
+              role: dh.newOwner.role,
+              assignedAt: dh.createdAt,
+              isOriginal: false
+            });
+          }
+        });
+
+        if (d.owner && !chain.some((c: any) => c.ownerId === d.owner.id)) {
+          chain.push({
+            ownerId: d.owner.id,
+            name: d.owner.name,
+            email: d.owner.email,
+            role: d.owner.role,
+            assignedAt: d.updatedAt || d.createdAt,
+            isOriginal: false
+          });
+        }
+
+        const originalRep = chain.length > 0 ? chain[0] : (d.owner ? { id: d.owner.id, name: d.owner.name, email: d.owner.email } : null);
+        const currentOwner = chain.length > 0 ? chain[chain.length - 1] : (d.owner ? { id: d.owner.id, name: d.owner.name, email: d.owner.email } : null);
+
         return {
           ...dJson,
           isViewOnly: access.isViewOnly,
-          userPermission: access.accessLevel
+          userPermission: access.accessLevel,
+          originalRep,
+          currentOwner,
+          convertedAt,
+          actualClosedAt: d.actualClosedAt || (d.status === "WON" ? d.wonAt : d.status === "LOST" ? d.lostAt : null),
+          handoffChain: chain
         };
       })
     );
