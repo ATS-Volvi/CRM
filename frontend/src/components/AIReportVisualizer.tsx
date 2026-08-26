@@ -88,15 +88,18 @@ export function AIReportVisualizer({
   const [selectedChartTypes, setSelectedChartTypes] = useState<Record<string, string>>({});
   const [expandedChart, setExpandedChart] = useState<AIChartConfig | null>(null);
 
-  // Format currency/numbers in tooltips
+  // Format currency/numbers in tooltips and axis labels
   const formatValue = (val: any, unit?: string) => {
     if (typeof val !== "number") return val;
-    if (unit === "$") {
-      if (val >= 1000000) return `$${(val / 1000000).toFixed(1)}M`;
-      if (val >= 1000) return `$${(val / 1000).toFixed(0)}k`;
-      return `$${val.toLocaleString()}`;
+    const cleanUnit = unit || "";
+    if (cleanUnit === "$" || cleanUnit === "₹" || cleanUnit === "SAR") {
+      const prefix = cleanUnit;
+      if (Math.abs(val) >= 10000000) return `${prefix}${(val / 10000000).toFixed(2)} Cr`;
+      if (Math.abs(val) >= 100000) return `${prefix}${(val / 100000).toFixed(1)} L`;
+      if (Math.abs(val) >= 1000) return `${prefix}${(val / 1000).toFixed(0)}k`;
+      return `${prefix}${val.toLocaleString()}`;
     }
-    if (unit === "%") return `${val}%`;
+    if (cleanUnit === "%") return `${val}%`;
     return val.toLocaleString();
   };
 
@@ -110,10 +113,66 @@ export function AIReportVisualizer({
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `${table.title.toLowerCase().replace(/\s+/g, "_")}.csv`);
+    link.setAttribute("download", `${(table.title || "crm_report").toLowerCase().replace(/\s+/g, "_")}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  // Helper to render formatted markdown snippets
+  const renderFormattedText = (text: string) => {
+    const lines = text.split("\n");
+    return lines.map((line, lIdx) => {
+      const trimmed = line.trim();
+      if (!trimmed) return <div key={lIdx} className="h-1.5" />;
+      
+      if (trimmed.startsWith("###") || trimmed.startsWith("##") || trimmed.startsWith("#")) {
+        const titleText = trimmed.replace(/^#+\s*/, "");
+        return (
+          <h4 key={lIdx} className="text-sm font-bold text-white mt-2 mb-1 flex items-center gap-1.5">
+            {titleText}
+          </h4>
+        );
+      }
+
+      if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
+        const itemContent = trimmed.substring(2);
+        const parts = itemContent.split(/(\*\*.*?\*\*)/g);
+        return (
+          <div key={lIdx} className="flex items-start gap-2 text-xs sm:text-[13px] text-slate-200 pl-1 leading-relaxed">
+            <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 mt-1.5 shrink-0" />
+            <span>
+              {parts.map((p, pIdx) => {
+                if (p.startsWith("**") && p.endsWith("**")) {
+                  return (
+                    <strong key={pIdx} className="font-bold text-white">
+                      {p.slice(2, -2)}
+                    </strong>
+                  );
+                }
+                return p;
+              })}
+            </span>
+          </div>
+        );
+      }
+
+      const parts = trimmed.split(/(\*\*.*?\*\*)/g);
+      return (
+        <p key={lIdx} className="text-xs sm:text-[13px] text-slate-200 leading-relaxed">
+          {parts.map((p, pIdx) => {
+            if (p.startsWith("**") && p.endsWith("**")) {
+              return (
+                <strong key={pIdx} className="font-bold text-white">
+                  {p.slice(2, -2)}
+                </strong>
+              );
+            }
+            return p;
+          })}
+        </p>
+      );
+    });
   };
 
   return (
@@ -131,36 +190,38 @@ export function AIReportVisualizer({
             return (
               <div
                 key={idx}
-                className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-4 shadow-xs hover:shadow-md transition-all relative overflow-hidden group"
+                className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-4 shadow-xs hover:shadow-md transition-all relative overflow-hidden flex flex-col justify-between group"
               >
                 <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-primary/5 to-transparent rounded-bl-full pointer-events-none" />
                 
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    {kpi.label}
-                  </span>
-                  {kpi.delta && (
-                    <span
-                      className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-black ${
-                        isPos
-                          ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/40"
-                          : isNeg
-                          ? "bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400 border border-rose-200/60 dark:border-rose-800/40"
-                          : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
-                      }`}
-                    >
-                      {isPos ? <TrendingUp className="w-3 h-3" /> : isNeg ? <TrendingDown className="w-3 h-3" /> : null}
-                      {kpi.delta}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate mr-1">
+                      {kpi.label}
                     </span>
-                  )}
-                </div>
+                    {kpi.delta && (
+                      <span
+                        className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-black shrink-0 ${
+                          isPos
+                            ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/40"
+                            : isNeg
+                            ? "bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400 border border-rose-200/60 dark:border-rose-800/40"
+                            : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                        }`}
+                      >
+                        {isPos ? <TrendingUp className="w-3 h-3" /> : isNeg ? <TrendingDown className="w-3 h-3" /> : null}
+                        {kpi.delta}
+                      </span>
+                    )}
+                  </div>
 
-                <div className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">
-                  {kpi.value}
+                  <div className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">
+                    {kpi.value}
+                  </div>
                 </div>
 
                 {kpi.subtext && (
-                  <p className="text-[11px] font-medium text-slate-400 dark:text-slate-500 mt-1 truncate">
+                  <p className="text-[11px] font-medium text-slate-400 dark:text-slate-500 mt-2 truncate">
                     {kpi.subtext}
                   </p>
                 )}
@@ -182,16 +243,12 @@ export function AIReportVisualizer({
               <Sparkles className="w-4 h-4" />
             </div>
             <h4 className="text-xs font-black uppercase tracking-wider text-indigo-300">
-              AI Strategic Takeaways & Synthesis
+              AI Strategic Insights & Synthesis
             </h4>
           </div>
 
-          <div className="prose prose-invert prose-sm max-w-none text-slate-200 text-xs sm:text-sm leading-relaxed space-y-2">
-            {report.summary.split("\n\n").map((para, i) => (
-              <p key={i} className="leading-relaxed">
-                {para.replace(/###\s*/g, "")}
-              </p>
-            ))}
+          <div className="space-y-1.5">
+            {renderFormattedText(report.summary)}
           </div>
         </div>
       )}
@@ -527,21 +584,38 @@ export function AIReportVisualizer({
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 font-bold border-b border-slate-100 dark:border-slate-800">
                 <tr>
-                  {report.table.headers.map((h, i) => (
-                    <th key={i} className="px-4 py-3 font-extrabold uppercase tracking-wider text-[10px]">
-                      {h}
-                    </th>
-                  ))}
+                  {report.table.headers.map((h, i) => {
+                    const isRight = i > 0 && (h.includes("%") || h.includes("₹") || h.includes("$") || h.includes("Value") || h.includes("Revenue") || h.includes("Count") || h.includes("Deals"));
+                    return (
+                      <th
+                        key={i}
+                        className={`px-4 py-3 font-extrabold uppercase tracking-wider text-[10px] ${
+                          isRight ? "text-right" : "text-left"
+                        }`}
+                      >
+                        {h}
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300 font-medium">
                 {report.table.rows.map((row, rIdx) => (
                   <tr key={rIdx} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
-                    {row.map((cell, cIdx) => (
-                      <td key={cIdx} className={`px-4 py-3 ${cIdx === 0 ? "font-bold text-slate-900 dark:text-white" : ""}`}>
-                        {cell}
-                      </td>
-                    ))}
+                    {row.map((cell, cIdx) => {
+                      const header = report.table!.headers[cIdx] || "";
+                      const isRight = cIdx > 0 && (header.includes("%") || header.includes("₹") || header.includes("$") || header.includes("Value") || header.includes("Revenue") || header.includes("Count") || header.includes("Deals"));
+                      return (
+                        <td
+                          key={cIdx}
+                          className={`px-4 py-3 ${
+                            cIdx === 0 ? "font-bold text-slate-900 dark:text-white" : ""
+                          } ${isRight ? "text-right font-mono text-[11px]" : "text-left"}`}
+                        >
+                          {cell}
+                        </td>
+                      );
+                    })}
                   </tr>
                 ))}
               </tbody>
