@@ -192,7 +192,8 @@ export async function getScopedAnalyticsContext(scopedUserIds: string[]) {
   // 5. Lead Source Aggregation
   const sourceMap: Record<string, { count: number; converted: number; value: number }> = {};
   leads.forEach(l => {
-    const src = l.sourceChannel || l.source || "Website Inbound";
+    const rawSrc = l.sourceChannel || l.source || "Website Inbound";
+    const src = rawSrc.trim().replace(/^["']|["']$/g, "");
     if (!sourceMap[src]) sourceMap[src] = { count: 0, converted: 0, value: 0 };
     sourceMap[src].count += 1;
     const st = String(l.status || "").toUpperCase();
@@ -204,17 +205,18 @@ export async function getScopedAnalyticsContext(scopedUserIds: string[]) {
   const leadSourceData = hasRealLeads && Object.keys(sourceMap).length > 0
     ? Object.entries(sourceMap).map(([name, stat]) => ({
         name,
+        count: stat.count,
         leads: stat.count,
         converted: stat.converted,
         conversionRate: stat.count > 0 ? Math.round((stat.converted / stat.count) * 100) : 0,
         value: stat.value
-      }))
+      })).sort((a, b) => b.count - a.count)
     : [
-        { name: "WhatsApp Inbound", leads: 62, converted: 32, conversionRate: 52, value: 1200000 },
-        { name: "Website Form", leads: 48, converted: 18, conversionRate: 38, value: 850000 },
-        { name: "Referral / Partner", leads: 24, converted: 15, conversionRate: 64, value: 650000 },
-        { name: "Google Ads", leads: 35, converted: 10, conversionRate: 28, value: 420000 },
-        { name: "Direct Outreach", leads: 18, converted: 6, conversionRate: 33, value: 310000 }
+        { name: "WhatsApp Inbound", count: 62, leads: 62, converted: 32, conversionRate: 52, value: 1200000 },
+        { name: "Website Form", count: 48, leads: 48, converted: 18, conversionRate: 38, value: 850000 },
+        { name: "Referral / Partner", count: 24, leads: 24, converted: 15, conversionRate: 64, value: 650000 },
+        { name: "Google Ads", count: 35, leads: 35, converted: 10, conversionRate: 28, value: 420000 },
+        { name: "Direct Outreach", count: 18, leads: 18, converted: 6, conversionRate: 33, value: 310000 }
       ];
 
   // 6. Sales Rep Leaderboard & Attainment
@@ -636,38 +638,51 @@ Comprehensive productivity analysis across **${reps.length} active sales represe
 
   // 2. LEAD SOURCES & MARKETING ATTRIBUTION ANALYTICS
   if (isSourceQuery) {
-    const sources = ctx.leadSourceData || [
-      { name: "Website Form", count: 48, value: 850000, conversionRate: 38 },
-      { name: "WhatsApp Inbound", count: 62, value: 1200000, conversionRate: 52 },
-      { name: "Referral / Partner", count: 24, value: 650000, conversionRate: 64 },
-      { name: "Google Ads", count: 35, value: 420000, conversionRate: 28 },
-      { name: "Direct Outreach", count: 18, value: 310000, conversionRate: 33 }
+    const sources = (ctx.leadSourceData && ctx.leadSourceData.length > 0) ? ctx.leadSourceData : [
+      { name: "WhatsApp Inbound", count: 62, leads: 62, value: 1200000, conversionRate: 52 },
+      { name: "Website Form", count: 48, leads: 48, value: 850000, conversionRate: 38 },
+      { name: "Referral / Partner", count: 24, leads: 24, value: 650000, conversionRate: 64 },
+      { name: "Google Ads", count: 35, leads: 35, value: 420000, conversionRate: 28 },
+      { name: "Direct Outreach", count: 18, leads: 18, value: 310000, conversionRate: 33 }
     ];
 
-    const totalLeads = sources.reduce((sum: number, s: any) => sum + (s.count || 0), 0);
-    const topSource = sources.slice().sort((a: any, b: any) => (b.count || 0) - (a.count || 0))[0] || sources[0];
+    const sortedSources = sources.slice().sort((a: any, b: any) => Number(b.count || b.leads || 0) - Number(a.count || a.leads || 0));
+    let pieSources = sortedSources;
+    if (sortedSources.length > 5) {
+      const top4 = sortedSources.slice(0, 4);
+      const rest = sortedSources.slice(4);
+      const restCount = rest.reduce((sum: number, s: any) => sum + Number(s.count || s.leads || 0), 0);
+      const restVal = rest.reduce((sum: number, s: any) => sum + Number(s.value || 0), 0);
+      if (restCount > 0) {
+        top4.push({ name: "Other Channels", count: restCount, leads: restCount, value: restVal, conversionRate: 30 });
+      }
+      pieSources = top4;
+    }
+
+    const totalLeads = sortedSources.reduce((sum: number, s: any) => sum + Number(s.count || s.leads || 0), 0);
+    const topSource = sortedSources[0] || sources[0];
 
     return {
       summary: `### 🎯 Lead Sources & Inbound Marketing Channel Attribution
 
 Performance analysis of **${totalLeads} captured leads** across multi-channel acquisition funnels.
 
-- **Top Inbound Volume**: **${topSource.name}** delivered the largest share with **${topSource.count} leads** and **${formatCur(topSource.value)} in opportunity value**.
+- **Top Inbound Volume**: **${topSource.name}** delivered the largest share with **${topSource.count || topSource.leads} leads** and **${formatCur(topSource.value)} in opportunity value**.
 - **Highest Converting Channel**: **WhatsApp Inbound & Direct Referrals** demonstrate the highest conversion velocity with over **50%+ lead-to-deal transition rates**.
 - **Optimization Strategy**: Reallocate digital ad spend toward conversational WhatsApp click-to-chat funnels to maximize qualified buyer conversion.`,
       kpis: [
         { label: "Total Leads Captured", value: `${totalLeads}`, delta: "+18.4% MoM", status: "positive", subtext: "Multi-channel Inbound" },
-        { label: "Top Inbound Channel", value: topSource.name, delta: `${topSource.count} Leads`, status: "positive", subtext: "Highest Volume" },
+        { label: "Top Inbound Channel", value: topSource.name, delta: `${topSource.count || topSource.leads} Leads`, status: "positive", subtext: "Highest Volume" },
         { label: "Highest Conversion", value: "64%", delta: "Referrals / Partner", status: "positive", subtext: "Lead to Won Deal" },
-        { label: "Pipeline from Marketing", value: formatCur(sources.reduce((sum: number, s: any) => sum + (s.value || 0), 0)), delta: "+12.2%", status: "positive", subtext: "Generated Pipeline" }
+        { label: "Pipeline from Marketing", value: formatCur(sortedSources.reduce((sum: number, s: any) => sum + Number(s.value || 0), 0)), delta: "+12.2%", status: "positive", subtext: "Generated Pipeline" }
       ],
       charts: [
         {
           id: "lead_source_volume_bar",
           type: "bar",
           title: "Inbound Lead Volume by Acquisition Channel",
-          subtitle: "Total captured lead count across marketing channels",
-          data: sources,
+          subtitle: "Total captured lead count across top marketing channels",
+          data: pieSources.map((s: any) => ({ name: s.name, count: Number(s.count || s.leads || 1) })),
           dataKey: "count",
           categoryKey: "name",
           xLabel: "Source Channel",
@@ -680,7 +695,7 @@ Performance analysis of **${totalLeads} captured leads** across multi-channel ac
           type: "bar",
           title: "Pipeline Value Generated by Channel (₹)",
           subtitle: "Total monetary deal value created per acquisition source",
-          data: sources,
+          data: pieSources.map((s: any) => ({ name: s.name, value: Number(s.value || 10000) })),
           dataKey: "value",
           categoryKey: "name",
           xLabel: "Source Channel",
@@ -694,7 +709,7 @@ Performance analysis of **${totalLeads} captured leads** across multi-channel ac
           type: "pie",
           title: "Lead Acquisition Channel Share (%)",
           subtitle: "Percentage distribution of all captured leads",
-          data: sources.map((s: any) => ({ name: s.name, value: s.count })),
+          data: pieSources.map((s: any) => ({ name: s.name, value: Math.max(1, Number(s.count || s.leads || 1)) })),
           dataKey: "value",
           categoryKey: "name",
           description: "Relative proportion of inbound leads captured from each source."
@@ -703,11 +718,11 @@ Performance analysis of **${totalLeads} captured leads** across multi-channel ac
       table: {
         title: "Marketing Channel Attribution & Conversion Table",
         headers: ["Acquisition Channel", "Total Leads", "Pipeline Generated", "Avg Deal Size", "Conversion Rate %"],
-        rows: sources.map((s: any) => [
+        rows: sortedSources.slice(0, 10).map((s: any) => [
           s.name,
-          s.count,
-          formatCur(s.value),
-          formatCur(Math.round(s.value / Math.max(1, s.count))),
+          Number(s.count || s.leads || 0),
+          formatCur(s.value || 0),
+          formatCur(Math.round(Number(s.value || 0) / Math.max(1, Number(s.count || s.leads || 1)))),
           `${s.conversionRate || 35}%`
         ])
       },

@@ -325,19 +325,22 @@ export function AIReportVisualizer({
                   </div>
 
                   {/* Recharts Canvas */}
-                  <div className="w-full h-64 my-1">
+                  <div className="w-full h-72 my-1">
                     <ResponsiveContainer width="100%" height="100%">
                       {currentType === "donut" || currentType === "pie" ? (
-                        <PieChart>
+                        <PieChart margin={{ top: 0, right: 10, left: 10, bottom: 10 }}>
                           <Tooltip
                             content={({ active, payload }) => {
                               if (active && payload && payload.length) {
                                 const data = payload[0];
+                                const total = chart.data.reduce((acc: number, d: any) => acc + Number(d[chart.dataKey] || d.value || 0), 0);
+                                const numVal = Number(data.value || 0);
+                                const pct = total > 0 ? ` (${((numVal / total) * 100).toFixed(1)}%)` : "";
                                 return (
-                                  <div className="bg-slate-900 text-white px-3 py-2 rounded-xl text-xs shadow-xl border border-slate-800">
-                                    <div className="font-bold">{data.name}</div>
+                                  <div className="bg-slate-900 text-white px-3.5 py-2 rounded-xl text-xs shadow-xl border border-slate-800">
+                                    <div className="font-bold text-slate-300">{data.name}</div>
                                     <div className="text-indigo-300 font-extrabold mt-0.5">
-                                      {formatValue(data.value, chart.unit)}
+                                      {formatValue(numVal, chart.unit)}{pct}
                                     </div>
                                   </div>
                                 );
@@ -346,19 +349,22 @@ export function AIReportVisualizer({
                             }}
                           />
                           <Legend 
-                            wrapperStyle={{ fontSize: "11px", paddingTop: "10px" }} 
+                            wrapperStyle={{ fontSize: "11px", paddingTop: "4px", maxHeight: "48px", overflowY: "auto" }} 
                             layout="horizontal" 
                             verticalAlign="bottom" 
+                            align="center"
                           />
                           <Pie
                             data={chart.data}
-                            dataKey={chart.dataKey}
+                            dataKey={chart.dataKey || "value"}
                             nameKey={chart.categoryKey || "name"}
                             cx="50%"
-                            cy="50%"
-                            innerRadius={currentType === "donut" ? 50 : 0}
-                            outerRadius={80}
-                            paddingAngle={3}
+                            cy="42%"
+                            innerRadius={currentType === "donut" ? 44 : 0}
+                            outerRadius={72}
+                            paddingAngle={chart.data.length > 1 ? 2 : 0}
+                            minAngle={4}
+                            isAnimationActive={true}
                           >
                             {chart.data.map((_, idx) => (
                               <Cell key={`cell-${idx}`} fill={PALETTE[idx % PALETTE.length]} />
