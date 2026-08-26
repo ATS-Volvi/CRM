@@ -33,6 +33,7 @@ import {
   UserCheck
 } from "lucide-react";
 import { formatCurrency } from "../utils/currency";
+import { AccountClientHistory } from "../components/AccountClientHistory";
 
 export default function Accounts() {
   const navigate = useNavigate();
@@ -77,6 +78,16 @@ export default function Accounts() {
       about: "Acme Corp is a multinational technology conglomerate specializing in enterprise software, cloud infrastructure, and data analytics. Founded in 2010, they have rapidly expanded their footprint in the North American and European markets. They are currently looking to upgrade their legacy systems and migrate core operations to a more robust cloud architecture."
     };
   }, [accounts, paramId, selectedAccountId]);
+
+  // Fetch detailed account 360 for activeAccount
+  const { data: account360 } = useQuery({
+    queryKey: ["account-detail-360", activeAccount?.id],
+    queryFn: async () => {
+      if (!activeAccount?.id || activeAccount.id === "acme-default") return null;
+      return apiClient.get<any>(`/api/v1/accounts/${activeAccount.id}`);
+    },
+    enabled: !!activeAccount?.id && activeAccount.id !== "acme-default"
+  });
 
   // Deals tab filter: Active, Closed, Lost
   const [dealTab, setDealTab] = useState<"Active" | "Closed" | "Lost">("Active");
@@ -581,6 +592,17 @@ export default function Accounts() {
               </table>
             </div>
           </div>
+
+          {/* Client History & Commercial Track Record */}
+          <AccountClientHistory
+            accountId={activeAccount.id || ""}
+            accountName={activeAccount.name}
+            leads={account360?.leads || account360?.relatedLeads || []}
+            quotes={account360?.quotes || []}
+            deals={account360?.deals || accountDeals || []}
+            orders={account360?.purchaseOrders || account360?.orders || []}
+            activities={account360?.activities || []}
+          />
         </div>
 
         {/* ── RIGHT COLUMN (Information & Contacts) ── */}

@@ -33,6 +33,7 @@ import { apiClient } from "../lib/apiClient";
 import { formatCurrency } from "../utils/currency";
 import { CreateSupportTicketModal } from "../components/CreateSupportTicketModal";
 import { SupportTicketDetailDrawer } from "../components/SupportTicketDetailDrawer";
+import { AccountClientHistory } from "../components/AccountClientHistory";
 
 export default function AccountDetail() {
   const { id } = useParams<{ id: string }>();
@@ -581,6 +582,17 @@ export default function AccountDetail() {
               </table>
             </div>
           </div>
+
+          {/* Client History & Commercial Track Record */}
+          <AccountClientHistory
+            accountId={id || ""}
+            accountName={account.name}
+            leads={account.leads || account.relatedLeads || []}
+            quotes={account.quotes || []}
+            deals={account.deals || oppsData || []}
+            orders={account.purchaseOrders || account.orders || []}
+            activities={account.activities || []}
+          />
         </div>
 
         {/* ── RIGHT COLUMN (Information & Contacts) ── */}

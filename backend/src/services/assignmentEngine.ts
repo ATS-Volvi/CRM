@@ -85,13 +85,18 @@ export async function assignLead(leadContext: AssignmentContext): Promise<Assign
     if (leadId) {
       const existingLead: any = await sequelize.models.Lead.findByPk(leadId);
       if (existingLead && existingLead.assignedToId) {
-        const type = String(existingLead.assignmentType || existingLead.assignmentMethod || "").toUpperCase();
-        if (type === "MANUAL" || type === "DIRECT" || type === "EXISTING_ACCOUNT") {
-          console.log(`[ASSIGNMENT STEP 0] Lead ${leadId} is protected from reassignment (Type: ${type}). Preserving owner: ${existingLead.assignedToId}`);
-          return {
-            assignedToId: existingLead.assignedToId,
-            assignmentType: type as any
-          };
+        const isOwnerEligible = await checkRepEligibility(existingLead.assignedToId);
+        if (!isOwnerEligible) {
+          console.log(`[ASSIGNMENT STEP 0] Existing owner ${existingLead.assignedToId} of Lead ${leadId} is ABSENT / ON LEAVE / OVER CAPACITY. Reassigning lead to best available fit.`);
+        } else {
+          const type = String(existingLead.assignmentType || existingLead.assignmentMethod || "").toUpperCase();
+          if (type === "MANUAL" || type === "DIRECT" || type === "EXISTING_ACCOUNT") {
+            console.log(`[ASSIGNMENT STEP 0] Lead ${leadId} is protected from reassignment (Type: ${type}). Preserving owner: ${existingLead.assignedToId}`);
+            return {
+              assignedToId: existingLead.assignedToId,
+              assignmentType: type as any
+            };
+          }
         }
       }
     }
@@ -431,14 +436,17 @@ async function checkRepEligibility(userId: string): Promise<boolean> {
   const user: any = await sequelize.models.User.findByPk(userId);
   if (!user) return false;
 
-  if (!user.isAvailable) return false;
-  if (user.onLeave) return false;
-  if (user.status === "On Leave" || user.status === "Offline" || user.status === "Suspended") return false;
+  if (user.isAvailable === false) return false;
+  if (user.onLeave === true) return false;
+  const statusStr = String(user.status || "").toLowerCase();
+  if (statusStr.includes("leave") || statusStr.includes("ooo") || statusStr.includes("absent") || statusStr.includes("offline") || statusStr.includes("suspended")) {
+    return false;
+  }
 
   const openCount = await sequelize.models.Lead.count({
     where: {
       assignedToId: userId,
-      status: { [Op.notIn]: ["Converted", "Lost", "Disqualified"] }
+      status: { [Op.notIn]: ["Converted", "Lost", "Disqualified", "CONVERTED", "NOT_CONVERTED", "Won"] }
     }
   });
 
@@ -634,7 +642,8 @@ export async function assignOpportunityCloser(
 
       if (fallbackAction === "keep_lead_rep" && options?.excludeRepId) {
         const leadRep: any = await User.findByPk(options.excludeRepId);
-        if (leadRep) {
+        const isEligible = leadRep ? await checkRepEligibility(leadRep.id) : false;
+        if (leadRep && isEligible) {
           return {
             assigned: true,
             closerId: leadRep.id,

@@ -85,12 +85,29 @@ export const getAccountById = async (req: Request, res: Response) => {
       });
     }
 
+    // Fetch account-associated historical leads
+    const { Op } = require("sequelize");
+    const orConditions: any[] = [{ convertedAccountId: id }];
+    if (account.name) orConditions.push({ company: { [Op.like]: `%${account.name}%` } });
+    if (account.email) orConditions.push({ email: account.email });
+    if (account.phone) orConditions.push({ phone: account.phone });
+
+    let relatedLeads: any[] = [];
+    if (sequelize.models.Lead) {
+      relatedLeads = await (sequelize.models.Lead as any).findAll({
+        where: { [Op.or]: orConditions },
+        order: [["createdAt", "DESC"]]
+      });
+    }
+
     const accountData = account.toJSON();
     accountData.deals = accountData.deals || [];
     (accountData as any).quotes = quotesForDeals;
     (accountData as any).purchaseOrders = orders;
     (accountData as any).orders = orders;
     (accountData as any).activities = activities;
+    (accountData as any).leads = relatedLeads;
+    (accountData as any).relatedLeads = relatedLeads;
 
     return res.status(200).json(accountData);
   } catch (error: any) {

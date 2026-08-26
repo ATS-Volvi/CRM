@@ -38,6 +38,9 @@ export default function LeadDetail() {
   const [isConverting, setIsConverting] = useState(false);
   const [isConversionModalOpen, setIsConversionModalOpen] = useState(false);
 
+  // Clean Horizontal Tab State
+  const [activeTab, setActiveTab] = useState<"timeline" | "tasks" | "history" | "handoff_chat">("timeline");
+
   // Quick Action Modal States
   const [activeModal, setActiveModal] = useState<string | null>(null);
   const [isQualifyDrawerOpen, setIsQualifyDrawerOpen] = useState(false);
@@ -224,8 +227,20 @@ export default function LeadDetail() {
       if (!res.ok) throw new Error(await res.text());
       return res.json();
     },
-    onSuccess: () => {
+    onMutate: async (newStatus: string) => {
+      await queryClient.cancelQueries({ queryKey: ["lead", id] });
+      const prev = queryClient.getQueryData(["lead", id]);
+      queryClient.setQueryData(["lead", id], (old: any) => old ? { ...old, status: newStatus } : old);
+      return { prev };
+    },
+    onError: (_err, _newStatus, context: any) => {
+      if (context?.prev) {
+        queryClient.setQueryData(["lead", id], context.prev);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["lead", id] });
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
     }
   });
 
@@ -552,60 +567,42 @@ export default function LeadDetail() {
   const currentStageIndex = stages.indexOf(lead.status);
 
   return (
-    <div className="max-w-[1440px] mx-auto p-6 space-y-6 animate-fade-in">
+    <div className="w-full px-6 md:px-8 py-6 space-y-6">
       
-      {/* Workspace Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-outline-variant pb-4">
-        <div>
-          <div className="flex items-center gap-2 text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1">
-            <Link to="/leads-table" className="hover:text-primary flex items-center gap-1 font-bold">
-              <ArrowLeft className="w-3.5 h-3.5" /> Live Queue (Inbox)
+      {/* 1. Sleek Compact Header */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-xs">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2 text-xs font-semibold text-slate-400">
+            <Link to="/leads" className="hover:text-blue-600 flex items-center gap-1 font-bold">
+              <ArrowLeft className="w-3.5 h-3.5" /> Leads
             </Link>
             <ChevronRight className="w-3.5 h-3.5" />
-            <span className="text-primary font-bold">Customer 360 Workspace</span>
-          </div>
-          <h2 className="text-3xl font-black text-on-surface flex items-center gap-3">
-            {lead.leadNumber || "LEAD-360"}
-            <span className="text-xl font-medium text-on-surface-variant">
-              | {lead.firstName} {lead.lastName} ({lead.company || "Independent Prospect"})
+            <span className="font-mono text-slate-500">{lead.leadNumber || "LEAD-360"}</span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+              {lead.status || "NEW"}
             </span>
-          </h2>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+              {lead.firstName || lead.lastName ? `${lead.firstName || ""} ${lead.lastName || ""}`.trim() : "Unnamed Lead"}
+            </h1>
+            {lead.company && (
+              <span className="text-sm font-semibold text-slate-500 dark:text-slate-400">
+                • {lead.company}
+              </span>
+            )}
+          </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          {isWhatsAppRelevant && (
-            <button 
-              onClick={() => {
-                setActivityFilter("whatsapp");
-                const el = document.getElementById("activity-timeline");
-                if (el) el.scrollIntoView({ behavior: "smooth" });
-              }}
-              className="px-4 py-2 bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold text-xs rounded-lg hover:bg-emerald-100 transition-all flex items-center gap-1.5 shadow-2xs"
-            >
-              <MessageSquare className="w-4 h-4 text-emerald-600" /> WhatsApp Thread
-            </button>
-          )}
-          {isEmailRelevant && (
-            <button 
-              onClick={() => setActiveModal("email")}
-              className="px-4 py-2 bg-surface-container text-on-surface border border-outline-variant font-bold text-xs rounded-lg hover:bg-surface-container-high transition-all flex items-center gap-1.5"
-            >
-              <Mail className="w-4 h-4 text-primary" /> Send Email
-            </button>
-          )}
-          <button 
-            onClick={() => setActiveModal("call")}
-            className="px-4 py-2 bg-surface-container text-on-surface border border-outline-variant font-bold text-xs rounded-lg hover:bg-surface-container-high transition-all flex items-center gap-1.5"
-          >
-            <Phone className="w-4 h-4 text-emerald-600" /> Log Call
-          </button>
+        <div className="flex flex-wrap items-center gap-2.5">
           {lead.status !== "CONVERTED" && lead.status !== "NOT_CONVERTED" && lead.status !== "Won" && lead.status !== "Lost" ? (
             <button 
               onClick={handleOpenConversionModal}
-              className="px-5 py-2.5 bg-primary text-white font-bold text-xs rounded-lg shadow hover:opacity-90 active:scale-95 transition-all flex items-center gap-2"
+              className="enterprise-btn-primary text-xs shadow-xs flex items-center gap-1.5"
             >
               <Target className="w-4 h-4" />
-              Convert Lead
+              <span>Convert to Deal</span>
             </button>
           ) : (
             <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5">
@@ -615,277 +612,130 @@ export default function LeadDetail() {
         </div>
       </div>
 
-      {/* Handed Off View-Only Banner */}
-      {lead?.isViewOnly && (
-        <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 flex items-center justify-between gap-4 text-amber-900 shadow-sm animate-fade-in">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-amber-200/70 rounded-xl">
-              <Lock className="w-5 h-5 text-amber-800" />
-            </div>
-            <div>
-              <h4 className="font-extrabold text-sm uppercase tracking-wider text-amber-950">Handed Off — View Only Access</h4>
-              <p className="text-xs text-amber-800 font-medium mt-0.5">
-                This lead has been reassigned to another representative. You retain permanent read-only access to all historical activities, calls, notes, and messages. Write operations are restricted.
-              </p>
-            </div>
-          </div>
-          <span className="px-3 py-1 bg-amber-200 text-amber-900 font-extrabold text-xs rounded-lg uppercase tracking-wider shrink-0 border border-amber-300">
-            Read Only
-          </span>
-        </div>
-      )}
-
-      {/* ─── STAGE + NEXT ACTION ENGINE HERO BANNER ─────────────────────────────── */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-3xl p-6 text-white shadow-xl border border-indigo-900/50 flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative overflow-hidden">
-        <div className="absolute right-0 top-0 bottom-0 w-96 bg-indigo-500/10 blur-3xl pointer-events-none" />
-
-        <div className="space-y-3 max-w-2xl">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="px-3 py-1 bg-indigo-500/20 border border-indigo-400/30 rounded-full text-[11px] font-black uppercase tracking-wider text-indigo-300 flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-              Stage: {lead.status || "NEW"}
-            </span>
-
-            <span className="px-3 py-1 bg-emerald-500/20 border border-emerald-400/30 rounded-full text-[11px] font-bold text-emerald-300 flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5 text-emerald-400" />
-              Next Action Due: {lead.nextActionDue ? new Date(lead.nextActionDue).toLocaleDateString([], { month: "short", day: "numeric" }) : "Today 5:00 PM"}
-            </span>
-
-            {lead.assignedTo && (
-              <span className="px-3 py-1 bg-white/10 rounded-full text-[11px] font-medium text-slate-300 flex items-center gap-1">
-                <UserCheck className="w-3.5 h-3.5 text-slate-400" /> Owner: {lead.assignedTo.name}
-              </span>
-            )}
-          </div>
-
-          <div>
-            <h3 className="text-2xl font-extrabold tracking-tight text-white flex items-center gap-2">
-              Next Action: {lead.nextAction || ((lead.status === "NEW" || lead.status === "New") ? "Reply to Lead" : (lead.status === "CONTACTED" || lead.status === "Contacted") ? "Qualify Lead" : "Prepare Quote")}
-            </h3>
-            <p className="text-xs text-slate-300 mt-1 leading-relaxed">
-              {(lead.status === "NEW" || lead.status === "New") && "Lead has been ingested and assigned. Send initial reply via WhatsApp or Email to move to Contacted."}
-              {(lead.status === "CONTACTED" || lead.status === "Contacted") && "Lead responded. Open the Qualification Drawer to record requirement, budget, and timeline."}
-              {(lead.status === "QUALIFIED" || lead.status === "Qualified") && "Lead is qualified! Opportunity auto-created. Generate formal quotation for client approval."}
-              {(lead.status === "CONVERTED" || lead.status === "Won") && "Lead successfully converted to Account & Opportunity! Track deal progression in Pipeline."}
-              {(lead.status === "NOT_CONVERTED" || lead.status === "Lost") && "Lead not converted. Review reasons and re-engage if appropriate."}
-            </p>
-          </div>
-
-          {/* Qualified Summary Pills (if qualificationData exists) */}
-          {lead.qualificationData && (
-            <div className="pt-2 flex flex-wrap gap-2 text-[11px]">
-              <span className="px-2.5 py-1 bg-white/10 rounded-lg text-slate-200">
-                <strong>Req:</strong> {lead.qualificationData.requirement?.slice(0, 30)}…
-              </span>
-              <span className="px-2.5 py-1 bg-emerald-500/20 text-emerald-300 font-bold rounded-lg border border-emerald-400/30">
-                <strong>Est. Value:</strong> {formatCurrency(lead.qualificationData.estimatedValue || 500000)}
-              </span>
-              <span className="px-2.5 py-1 bg-indigo-500/20 text-indigo-300 rounded-lg">
-                <strong>Timeline:</strong> {lead.qualificationData.timeline}
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* DOMINANT SINGLE PRIMARY CTA ACTION BUTTON */}
-        <div className="shrink-0 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-          {(lead.status === "NEW" || lead.status === "New" || lead.status === "New Lead") && (
-            <button
-              onClick={() => {
-                if (isWhatsAppRelevant) {
-                  setActivityFilter("whatsapp");
-                  const el = document.getElementById("activity-timeline");
-                  if (el) el.scrollIntoView({ behavior: "smooth" });
-                } else {
-                  setActiveModal("email");
-                }
-              }}
-              className="px-8 py-4 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-extrabold text-sm rounded-2xl shadow-lg shadow-emerald-500/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <MessageSquare className="w-5 h-5 fill-white" />
-              <span>💬 Reply to Lead</span>
-            </button>
-          )}
-
-          {(lead.status === "CONTACTED" || lead.status === "Contacted") && (
-            <button
-              onClick={() => setIsQualifyDrawerOpen(true)}
-              className="px-8 py-4 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-extrabold text-sm rounded-2xl shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <Target className="w-5 h-5" />
-              <span>🎯 Qualify Lead (5 Questions)</span>
-            </button>
-          )}
-
-          {(lead.status === "QUALIFIED" || lead.status === "Qualified") && (
-            <button
-              onClick={handleOpenConversionModal}
-              className="px-8 py-4 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-extrabold text-sm rounded-2xl shadow-lg shadow-emerald-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <Target className="w-5 h-5" />
-              <span>🎯 Convert to Opportunity</span>
-            </button>
-          )}
-
-          {(lead.status === "CONVERTED" || lead.status === "Won") && (
-            <button
-              onClick={() => navigate("/pipeline")}
-              className="px-8 py-4 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-extrabold text-sm rounded-2xl shadow-lg shadow-emerald-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <TrendingUp className="w-5 h-5" />
-              <span>📊 View Opportunity Pipeline</span>
-            </button>
-          )}
-
-          {/* Secondary Quick Qualify trigger if not qualified yet */}
-          {lead.status !== "CONTACTED" && lead.status !== "Contacted" && lead.status !== "QUALIFIED" && lead.status !== "Qualified" && lead.status !== "CONVERTED" && lead.status !== "Won" && (
-            <button
-              onClick={() => setIsQualifyDrawerOpen(true)}
-              className="px-4 py-3 bg-white/10 hover:bg-white/20 text-slate-200 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5"
-            >
-              <Target className="w-4 h-4 text-indigo-400" />
-              <span>{lead.qualificationData ? "Edit Qualification" : "Qualify Drawer"}</span>
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* ─── INCOMPLETE PROFILE ALERT & QUICK INTAKE ACTIONS ──────────────── */}
+      {/* Missing Contact Details Alert Strip (if incomplete) */}
       {missingInfo && !missingInfo.isComplete && (
-        <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 animate-fade-in">
-          <div className="flex items-start gap-3.5">
-            <div className="p-2.5 bg-amber-500/20 text-amber-500 rounded-xl shrink-0 mt-0.5">
-              <AlertTriangle className="w-5 h-5" />
+        <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-xs animate-fade-in">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400 rounded-xl shrink-0">
+              <Sparkles className="w-4 h-4" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h4 className="text-sm font-black uppercase tracking-wider text-amber-600 dark:text-amber-400">
-                  INCOMPLETE CUSTOMER PROFILE
-                </h4>
-                <span className="text-[11px] font-bold px-2 py-0.5 bg-amber-500/20 text-amber-600 dark:text-amber-300 rounded-full">
-                  Intake: {lead?.intakeStatus || "INCOMPLETE"}
-                </span>
-              </div>
-              <p className="text-xs text-on-surface-variant mt-1">
-                The automated intake engine identified missing information needed before sales qualification:
+              <h4 className="text-xs font-black uppercase tracking-wider text-amber-800 dark:text-amber-300">
+                Incomplete Profile: Missing {missingInfo.missing?.join(", ") || "Email & Phone Number"}
+              </h4>
+              <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+                Dispatch an automated request to prompt the customer to share their email address and phone number for quotation.
               </p>
-              <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                {missingInfo.missing.map((field: string) => (
-                  <span key={field} className="px-2.5 py-1 bg-amber-500/20 text-amber-700 dark:text-amber-200 border border-amber-500/30 rounded-lg text-xs font-bold uppercase tracking-wider">
-                    Missing: {field}
-                  </span>
-                ))}
-              </div>
-              {requestDetailsSuccess && (
-                <p className="text-xs text-emerald-600 font-bold mt-2 flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4" /> {requestDetailsSuccess}
-                </p>
-              )}
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5 shrink-0">
-            <button
-              onClick={() => requestDetailsMutation.mutate(undefined)}
-              disabled={requestDetailsMutation.isPending}
-              className="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow transition-all flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
-            >
-              <Send className="w-4 h-4" />
-              <span>{requestDetailsMutation.isPending ? "Sending Request..." : "Request Missing Details"}</span>
-            </button>
-            <button
-              onClick={() => {
-                if (isWhatsAppRelevant) {
-                  setActivityFilter("whatsapp");
-                  const el = document.getElementById("activity-timeline");
-                  if (el) el.scrollIntoView({ behavior: "smooth" });
-                } else {
-                  setActiveModal("email");
-                }
-              }}
-              className="px-4 py-2.5 bg-surface-container border border-outline-variant text-on-surface hover:bg-surface-container-high font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
-            >
-              <MessageSquare className="w-4 h-4 text-primary" />
-              <span>Open Conversation</span>
-            </button>
-          </div>
+          <button
+            onClick={() => requestDetailsMutation.mutate(undefined)}
+            disabled={requestDetailsMutation.isPending}
+            className="px-4 py-2 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer shrink-0"
+          >
+            <Send className="w-3.5 h-3.5" />
+            <span>{requestDetailsMutation.isPending ? "Sending Request..." : "Request Missing Details"}</span>
+          </button>
         </div>
       )}
 
-      {/* Standard Lead Stage Progression Ribbon */}
-      <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-5 shadow-sm space-y-3">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-bold uppercase tracking-wider text-on-surface-variant flex items-center gap-1.5">
-            <TrendingUp className="w-4 h-4 text-primary" /> Lead Lifecycle Stage
-          </span>
-          <select 
-            value={lead.status || "NEW"}
-            onChange={(e) => updateStatusMutation.mutate(e.target.value)}
-            className="bg-surface border border-outline rounded-lg px-3 py-1.5 text-xs font-bold focus:ring-primary cursor-pointer"
-          >
+      {/* 3. Modern Chevron Arrow & Checkpoint Milestone Stepper */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-2 shadow-xs">
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-2">
+          
+          {/* Linked Chevron Arrow Path */}
+          <div className="flex-1 grid grid-cols-2 sm:grid-cols-4 gap-1 sm:gap-0 bg-slate-100/80 dark:bg-slate-800/80 rounded-xl overflow-hidden p-1 border border-slate-200/60 dark:border-slate-700/60">
             {[
-              { key: "NEW", label: "New" },
-              { key: "CONTACTED", label: "Contacted" },
-              { key: "QUALIFIED", label: "Qualified" },
-              { key: "CONVERTED", label: "Converted" },
-              { key: "NOT_CONVERTED", label: "Not Converted" }
-            ].map(st => (
-              <option key={st.key} value={st.key}>{st.label}</option>
-            ))}
-          </select>
-        </div>
+              { key: "NEW", num: "1", label: "New Enquiry", desc: "Ingested & Assigned" },
+              { key: "CONTACTED", num: "2", label: "Contacted", desc: "Outreach in Progress" },
+              { key: "QUALIFIED", num: "3", label: "Qualified", desc: "Needs & Budget Set" },
+              { key: "CONVERTED", num: "4", label: "Converted", desc: "Deal Auto-Created" }
+            ].map((stage, idx) => {
+              const currentStatus = (lead.status || "NEW").toUpperCase();
+              const isNotConverted = currentStatus === "NOT_CONVERTED" || currentStatus === "LOST";
+              const sequentialStages = ["NEW", "CONTACTED", "QUALIFIED", "CONVERTED"];
+              const currentSeqIdx = sequentialStages.indexOf(currentStatus);
+              const isCurrent = currentStatus === stage.key;
+              const isPast = !isNotConverted && currentSeqIdx !== -1 && idx < currentSeqIdx;
 
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-1">
-          {[
-            { key: "NEW", label: "New" },
-            { key: "CONTACTED", label: "Contacted" },
-            { key: "QUALIFIED", label: "Qualified" },
-            { key: "CONVERTED", label: "Converted" },
-            { key: "NOT_CONVERTED", label: "Not Converted" }
-          ].map((stage) => {
+              return (
+                <div key={stage.key} className="relative flex items-center flex-1">
+                  <button
+                    onClick={() => updateStatusMutation.mutate(stage.key)}
+                    className={`w-full group relative flex items-center gap-2.5 py-2.5 px-3 rounded-lg sm:rounded-none transition-all duration-150 cursor-pointer select-none ${
+                      isCurrent
+                        ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold shadow-md shadow-blue-600/30 z-20 rounded-lg sm:rounded-lg"
+                        : isPast
+                        ? "bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-900 dark:text-emerald-300 z-10"
+                        : "bg-transparent hover:bg-white/60 dark:hover:bg-slate-700/60 text-slate-500 dark:text-slate-400"
+                    }`}
+                    title={`Click to set stage to ${stage.label}`}
+                  >
+                    {/* Checkpoint Node Circle */}
+                    <div
+                      className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black shrink-0 transition-transform group-hover:scale-110 shadow-2xs ${
+                        isCurrent
+                          ? "bg-white text-blue-600 ring-4 ring-white/30"
+                          : isPast
+                          ? "bg-emerald-600 text-white"
+                          : "bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-600"
+                      }`}
+                    >
+                      {isPast ? (
+                        <Check className="w-3.5 h-3.5 stroke-[3]" />
+                      ) : (
+                        <span>{stage.num}</span>
+                      )}
+                    </div>
+
+                    {/* Step Label & Sub-status */}
+                    <div className="min-w-0 flex-1 text-left">
+                      <p className={`text-xs font-black truncate leading-tight ${isCurrent ? "text-white" : isPast ? "text-slate-900 dark:text-white" : "text-slate-600 dark:text-slate-400"}`}>
+                        {stage.label}
+                      </p>
+                      <span className={`text-[10px] block truncate mt-0.5 ${isCurrent ? "text-blue-100" : isPast ? "text-emerald-700 dark:text-emerald-400 font-medium" : "text-slate-400 dark:text-slate-500"}`}>
+                        {isCurrent ? "Current Step" : isPast ? "Completed" : stage.desc}
+                      </span>
+                    </div>
+                  </button>
+
+                  {/* Arrowhead Divider between steps on desktop */}
+                  {idx < 3 && (
+                    <div className="hidden sm:flex items-center absolute -right-2 z-30 pointer-events-none">
+                      <ChevronRight className={`w-4 h-4 stroke-[3] ${isPast ? "text-emerald-500" : isCurrent ? "text-indigo-400" : "text-slate-300 dark:text-slate-600"}`} />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Separate Disqualified / Lost Step Action */}
+          {(() => {
             const currentStatus = (lead.status || "NEW").toUpperCase();
             const isNotConverted = currentStatus === "NOT_CONVERTED" || currentStatus === "LOST";
-            const sequentialStages = ["NEW", "CONTACTED", "QUALIFIED", "CONVERTED"];
-            const currentSeqIdx = sequentialStages.indexOf(currentStatus);
-            const stageSeqIdx = sequentialStages.indexOf(stage.key);
-
-            const isCurrent = currentStatus === stage.key;
-            // If lead is NOT_CONVERTED, previous stages should NOT be green
-            const isPast = !isNotConverted && currentSeqIdx !== -1 && stageSeqIdx !== -1 && stageSeqIdx < currentSeqIdx;
 
             return (
-              <button 
-                key={stage.key}
-                onClick={() => updateStatusMutation.mutate(stage.key)}
-                className={`py-3 px-3 rounded-xl border text-center text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                  isCurrent
-                    ? stage.key === "NOT_CONVERTED"
-                      ? "bg-rose-600 text-white border-rose-600 shadow-md scale-102"
-                      : "bg-primary text-white border-primary shadow-md scale-102"
-                    : isPast
-                    ? "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100"
-                    : "bg-surface-container-lowest text-slate-600 border-outline-variant hover:bg-slate-100"
+              <button
+                onClick={() => updateStatusMutation.mutate("NOT_CONVERTED")}
+                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all duration-150 flex items-center justify-center gap-1.5 shrink-0 cursor-pointer ${
+                  isNotConverted
+                    ? "bg-rose-600 text-white shadow-md shadow-rose-600/25 ring-2 ring-rose-500/50"
+                    : "bg-slate-100 hover:bg-rose-50 hover:text-rose-600 dark:bg-slate-800 text-slate-500 dark:text-slate-400 dark:hover:bg-rose-950/40 dark:hover:text-rose-300 border border-slate-200 dark:border-slate-700"
                 }`}
+                title="Mark lead as Not Converted / Lost"
               >
-                {isCurrent ? (
-                  stage.key === "NOT_CONVERTED" ? (
-                    <XCircle className="w-4 h-4 text-white" />
-                  ) : (
-                    <CheckCircle2 className="w-4 h-4 text-white" />
-                  )
-                ) : isPast ? (
-                  <Check className="w-3.5 h-3.5 text-emerald-600" />
-                ) : (
-                  <Clock className="w-3.5 h-3.5 opacity-40 text-slate-400" />
-                )}
-                <span>{stage.label}</span>
+                <XCircle className={`w-4 h-4 ${isNotConverted ? "text-white" : "text-rose-500"}`} />
+                <span>{isNotConverted ? "Not Converted (Lost)" : "Close as Lost"}</span>
               </button>
             );
-          })}
+          })()}
+
         </div>
       </div>
 
-      {/* AI REQUIREMENT SYNTHESIS CARD */}
+      {/* 4. AI Requirement Synthesis Card */}
       <AiRequirementSummaryCard
         type="lead"
         id={id!}
@@ -898,49 +748,52 @@ export default function LeadDetail() {
         }}
       />
 
-      {/* THREE-COLUMN / DYNAMIC CUSTOMER 360 LAYOUT */}
+      {/* 5. Clean 2-Column Workspace */}
       <div className="grid grid-cols-12 gap-6 items-start">
 
-        {/* LEFT PANEL: Customer 360 Details */}
-        <div className="col-span-12 lg:col-span-3 flex flex-col gap-6">
+        {/* SIDEBAR (Right/Left): AI Copilot + Customer Metadata + Tasks */}
+        <div className="col-span-12 lg:col-span-4 flex flex-col gap-5">
 
           {/* AI Sales Copilot Card */}
-          <div className="bg-gradient-to-br from-primary/10 via-surface-container-lowest to-secondary/10 border border-primary/20 rounded-2xl p-5 shadow-sm space-y-3 relative overflow-hidden">
-            <div className="flex justify-between items-center border-b border-primary/20 pb-2">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-primary flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-primary animate-spin" /> AI Sales Copilot
+          <div className="bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-900/60 rounded-2xl p-5 shadow-xs space-y-3 relative overflow-hidden">
+            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-2.5">
+              <h3 className="text-xs font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400" /> AI Sales Copilot & Insights
               </h3>
-              <span className="text-[10px] font-bold bg-primary/20 text-primary px-2 py-0.5 rounded">Real-time</span>
+              <span className="text-[10px] font-bold bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 px-2 py-0.5 rounded-full">
+                Real-time
+              </span>
             </div>
-            <div className="space-y-2 text-xs">
+            <div className="space-y-2.5 text-xs">
               <div className="flex justify-between items-center">
-                <span className="text-on-surface-variant font-medium">Win Probability:</span>
-                <span className="font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                <span className="text-slate-500 font-medium">Win Probability:</span>
+                <span className="font-extrabold text-emerald-600 bg-emerald-50 dark:bg-emerald-950 px-2.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
                   {Math.min(95, Math.max(30, Math.round((lead.leadScore || 50) * 1.3)))}%
                 </span>
               </div>
               <div>
-                <span className="text-on-surface-variant font-medium block mb-1">Recommended Action:</span>
-                <p className="font-bold text-on-surface bg-surface/80 p-2 rounded border border-outline-variant/60">
-                  Schedule product demo & confirm quote parameters with {lead.firstName}.
+                <span className="text-slate-500 font-semibold block mb-1">Recommended Action:</span>
+                <p className="font-medium text-slate-800 dark:text-slate-200 bg-slate-50 dark:bg-slate-800 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-700">
+                  Schedule product demo & confirm quote parameters with {lead.firstName || "customer"}.
                 </p>
               </div>
               <div>
-                <span className="text-on-surface-variant font-medium block mb-1">Risk Indicator:</span>
-                <p className="text-[11px] text-amber-700 font-semibold bg-amber-50 p-2 rounded border border-amber-200">
-                  No direct phone contact in 7 days. High upsell potential on services.
+                <span className="text-slate-500 font-semibold block mb-1">Risk Indicator:</span>
+                <p className="text-[11px] text-amber-700 dark:text-amber-300 font-medium bg-amber-50 dark:bg-amber-950/40 p-2.5 rounded-xl border border-amber-200 dark:border-amber-900/60">
+                  No direct phone contact in 7 days. High upsell potential on standard service items.
                 </p>
               </div>
             </div>
           </div>
 
           {/* Customer Metadata Card */}
-          <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-5 shadow-sm space-y-4">
-            <div className="flex justify-between items-center border-b border-outline-variant pb-3">
-              <h3 className="text-sm font-bold text-on-surface">Customer Details</h3>
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
+            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white">Customer Details</h3>
               <button 
                 onClick={() => setIsEditingDetails(!isEditingDetails)}
-                className="p-1 text-on-surface-variant hover:text-primary rounded"
+                className="p-1 text-slate-400 hover:text-blue-600 rounded-lg transition-colors"
+                title="Edit Details"
               >
                 {isEditingDetails ? <X className="w-4 h-4" /> : <Pencil className="w-4 h-4" />}
               </button>
@@ -949,62 +802,62 @@ export default function LeadDetail() {
             {isEditingDetails ? (
               <div className="space-y-3 text-xs">
                 <div>
-                  <label className="block font-bold text-on-surface-variant mb-1">Project Name</label>
+                  <label className="block font-bold text-slate-600 dark:text-slate-400 mb-1">Project Name</label>
                   <input 
                     type="text" 
                     value={editProjectName}
                     onChange={e => setEditProjectName(e.target.value)}
-                    className="w-full bg-surface border border-outline rounded p-2 text-xs"
+                    className="enterprise-input w-full"
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-on-surface-variant mb-1">Expected Value ($)</label>
+                  <label className="block font-bold text-slate-600 dark:text-slate-400 mb-1">Expected Value ($)</label>
                   <input 
                     type="number" 
                     value={editExpectedValue}
                     onChange={e => setEditExpectedValue(e.target.value)}
-                    className="w-full bg-surface border border-outline rounded p-2 text-xs"
+                    className="enterprise-input w-full"
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-on-surface-variant mb-1">Email Address</label>
+                  <label className="block font-bold text-slate-600 dark:text-slate-400 mb-1">Email Address</label>
                   <input 
                     type="email" 
                     placeholder="e.g. client@company.com"
                     value={editEmail}
                     onChange={e => setEditEmail(e.target.value)}
-                    className="w-full bg-surface border border-outline rounded p-2 text-xs"
+                    className="enterprise-input w-full"
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-on-surface-variant mb-1">Phone Number</label>
+                  <label className="block font-bold text-slate-600 dark:text-slate-400 mb-1">Phone Number</label>
                   <input 
                     type="text" 
                     placeholder="e.g. +919876543210"
                     value={editPhone}
                     onChange={e => setEditPhone(e.target.value)}
-                    className="w-full bg-surface border border-outline rounded p-2 text-xs"
+                    className="enterprise-input w-full"
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-on-surface-variant mb-1">Notes</label>
+                  <label className="block font-bold text-slate-600 dark:text-slate-400 mb-1">Notes</label>
                   <textarea 
                     rows={3}
                     value={editNotes}
                     onChange={e => setEditNotes(e.target.value)}
-                    className="w-full bg-surface border border-outline rounded p-2 text-xs"
+                    className="enterprise-input w-full"
                   />
                 </div>
                 <div className="flex gap-2 justify-end pt-1">
                   <button 
                     onClick={() => setIsEditingDetails(false)}
-                    className="px-3 py-1.5 border border-outline rounded text-xs font-bold"
+                    className="enterprise-btn-secondary text-xs"
                   >
                     Cancel
                   </button>
                   <button 
                     onClick={() => updateDetailsMutation.mutate()}
-                    className="px-3 py-1.5 bg-primary text-white rounded text-xs font-bold"
+                    className="enterprise-btn-primary text-xs"
                   >
                     Save
                   </button>
@@ -1013,327 +866,99 @@ export default function LeadDetail() {
             ) : (
               <div className="space-y-3 text-xs">
                 <div>
-                  <span className="block text-[10px] font-bold text-on-surface-variant uppercase">Company</span>
-                  <span className="font-bold text-on-surface text-sm">{lead.company || "N/A"}</span>
+                  <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Company</span>
+                  <span className="font-bold text-slate-900 dark:text-white text-sm">{lead.company || "N/A"}</span>
                 </div>
                 <div>
-                  <span className="block text-[10px] font-bold text-on-surface-variant uppercase">Contact Person</span>
-                  <span className="font-semibold text-on-surface">{lead.firstName} {lead.lastName}</span>
+                  <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Contact Person</span>
+                  <span className="font-semibold text-slate-800 dark:text-slate-200">{lead.firstName} {lead.lastName}</span>
                 </div>
                 <div>
-                  <span className="block text-[10px] font-bold text-on-surface-variant uppercase">Email (Official Quote Channel)</span>
-                  <span className="font-medium text-primary break-all flex items-center gap-1">
+                  <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Email</span>
+                  <span className="font-medium text-blue-600 break-all flex items-center gap-1">
                     {lead.email || "N/A"}
-                    {lead.email && <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.2 rounded">Verified</span>}
                   </span>
                 </div>
                 <div>
-                  <span className="block text-[10px] font-bold text-on-surface-variant uppercase">Phone (Intake Channel)</span>
-                  <span className="font-medium text-on-surface flex items-center gap-1">
+                  <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Phone</span>
+                  <span className="font-medium text-slate-800 dark:text-slate-200">
                     {lead.phone || lead.whatsappPhone || "N/A"}
-                    {(lead.phone || lead.whatsappPhone) && <span className="text-[10px] bg-indigo-100 text-indigo-800 font-bold px-1.5 py-0.2 rounded">WhatsApp/SMS</span>}
                   </span>
                 </div>
-                <div className="grid grid-cols-2 gap-2 border-t border-outline-variant/60 pt-3">
+                <div className="grid grid-cols-2 gap-2 border-t border-slate-100 dark:border-slate-800 pt-3">
                   <div>
-                    <span className="block text-[10px] font-bold text-on-surface-variant uppercase">Industry</span>
-                    <span className="font-semibold text-on-surface">{lead.industry || "General"}</span>
-                  </div>
-                  <div>
-                    <span className="block text-[10px] font-bold text-on-surface-variant uppercase">Quote Medium</span>
-                    <span className="font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded text-[11px] border border-indigo-200">Email Only</span>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <span className="block text-[10px] font-bold text-on-surface-variant uppercase">Source</span>
-                    <span className="font-semibold text-on-surface">{lead.source || "Inbound"}</span>
+                    <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Source</span>
+                    <span className="font-semibold text-slate-700 dark:text-slate-300">{lead.source || "Inbound"}</span>
                   </div>
                   <div>
-                    <span className="block text-[10px] font-bold text-on-surface-variant uppercase">Expected Value</span>
-                    <span className="font-bold text-emerald-600">{formatCurrency((lead.leadScore || 50) * 100)}</span>
-                  </div>
-                </div>
-
-                {/* Form Inquiry & Submitted Requirements Summary */}
-                <div className="border-t border-outline-variant/60 pt-3 bg-primary-container/20 p-3.5 rounded-xl space-y-2 border border-primary/20">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 text-xs font-bold text-primary">
-                      <Sparkles className="w-4 h-4 text-primary" />
-                      <span>Form Inquiry & Requirements</span>
-                    </div>
-                    {lead.sourceDetail && (
-                      <span className="text-[10px] font-bold bg-primary/10 text-primary px-2 py-0.5 rounded border border-primary/20">
-                        {lead.sourceDetail}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Submitted Message / Form Body */}
-                  {(lead.body || lead.subject) ? (
-                    <div>
-                      <span className="block text-[10px] font-bold text-on-surface-variant uppercase mb-1">Customer Request</span>
-                      <div className="bg-surface/95 border border-outline-variant/70 rounded-lg p-2.5 text-xs text-on-surface whitespace-pre-line leading-relaxed font-medium">
-                        {lead.body || lead.subject}
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-xs text-on-surface-variant italic">No specific text provided in form submission.</p>
-                  )}
-
-                  {/* Campaign & Budget Grid */}
-                  <div className="grid grid-cols-2 gap-2 pt-1 border-t border-primary/10">
-                    <div>
-                      <span className="block text-[10px] font-bold text-on-surface-variant uppercase">Channel / Source</span>
-                      <span className="font-semibold text-on-surface text-xs block">{lead.source || "Inbound Form"}</span>
-                    </div>
-                    {lead.campaign ? (
-                      <div>
-                        <span className="block text-[10px] font-bold text-on-surface-variant uppercase">Campaign</span>
-                        <span className="font-semibold text-on-surface text-xs block truncate">{lead.campaign}</span>
-                      </div>
-                    ) : lead.budgetRange && lead.budgetRange !== "N/A" ? (
-                      <div>
-                        <span className="block text-[10px] font-bold text-on-surface-variant uppercase">Budget / Scope</span>
-                        <span className="font-bold text-emerald-700 text-xs">{lead.budgetRange}</span>
-                      </div>
-                    ) : null}
+                    <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Estimated Value</span>
+                    <span className="font-bold text-emerald-600">{formatCurrency((lead.leadScore || 50) * 1000)}</span>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Rep Assignment Section */}
-            <div className="border-t border-outline-variant pt-3 space-y-2 text-xs">
+            {/* Owner Assignee */}
+            <div className="border-t border-slate-100 dark:border-slate-800 pt-3 space-y-2">
               <div className="flex justify-between items-center">
-                <span className="text-[10px] font-bold uppercase text-on-surface-variant">Assigned Rep</span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Assigned Representative</span>
                 <button 
-                  onClick={() => setIsReassigning(!isReassigning)}
-                  className="text-primary font-bold hover:underline"
+                  onClick={() => setIsReassigning(!isReassigning)} 
+                  className="text-xs text-blue-600 font-bold hover:underline"
                 >
                   {isReassigning ? "Cancel" : "Reassign"}
                 </button>
               </div>
 
               {isReassigning ? (
-                <div className="space-y-2">
+                <div className="space-y-2 text-xs">
                   <select 
-                    value={newAssigneeId} 
-                    onChange={e => setNewAssigneeId(e.target.value)}
-                    className="w-full bg-surface border border-outline rounded p-2 text-xs"
+                    value={newAssigneeId}
+                    onChange={(e) => setNewAssigneeId(e.target.value)}
+                    className="enterprise-input w-full"
                   >
-                    <option value="">Select Representative</option>
-                    {salespersons?.map(s => (
-                      <option key={s.id} value={s.id}>{s.name} ({s.role})</option>
+                    <option value="">Select Salesperson</option>
+                    {salespersons?.map((sp: any) => (
+                      <option key={sp.id} value={sp.id}>{sp.name}</option>
                     ))}
                   </select>
-                  <input 
-                    type="text"
-                    value={reassignReason}
-                    onChange={e => setReassignReason(e.target.value)}
-                    placeholder="Reason..."
-                    className="w-full bg-surface border border-outline rounded p-2 text-xs"
-                  />
                   <button 
                     onClick={() => reassignMutation.mutate()}
-                    className="w-full py-1.5 bg-primary text-white font-bold rounded text-xs"
+                    className="w-full py-1.5 enterprise-btn-primary text-xs font-bold"
                   >
                     Confirm Reassign
                   </button>
                 </div>
               ) : (
-                <div className="flex items-center gap-2 bg-surface p-2 rounded border border-outline-variant/60">
-                  <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs">
+                <div className="flex items-center gap-2.5 bg-slate-50 dark:bg-slate-800 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-700">
+                  <div className="w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-xs">
                     {lead.assignedTo?.name ? lead.assignedTo.name.substring(0, 2).toUpperCase() : "UN"}
                   </div>
-                  <span className="font-semibold text-on-surface">{lead.assignedTo?.name || "Unassigned"}</span>
+                  <span className="font-semibold text-slate-800 dark:text-slate-200">{lead.assignedTo?.name || "Unassigned"}</span>
                 </div>
               )}
-            </div>
-          </div>
-
-          {/* ACCOUNT 360 / PREVIOUS LEADS & CLIENT HISTORY */}
-          {accountHistory && ((accountHistory.relatedLeads && accountHistory.relatedLeads.length > 0) || (accountHistory.quotes && accountHistory.quotes.length > 0)) && (
-            <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-4 shadow-sm space-y-3">
-              <div className="flex items-center justify-between border-b border-outline-variant pb-2">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-primary flex items-center gap-1.5">
-                  <History className="w-4 h-4 text-primary" /> Past Inquiries & Quotes
-                </h3>
-                <span className="text-[10px] font-bold bg-primary/10 text-primary px-2 py-0.5 rounded">
-                  {(accountHistory.relatedLeads?.length || 0) + (accountHistory.quotes?.length || 0)} records
-                </span>
-              </div>
-
-              {/* Past Leads List */}
-              {accountHistory.relatedLeads && accountHistory.relatedLeads.length > 0 && (
-                <div className="space-y-2">
-                  <span className="text-[10px] font-bold uppercase text-on-surface-variant block">Other Inquiries from Account</span>
-                  {accountHistory.relatedLeads.map((rl: any) => (
-                    <Link
-                      key={rl.id}
-                      to={`/leads/${rl.id}`}
-                      className="p-2 bg-surface hover:bg-surface-container-high border border-outline-variant/60 rounded-lg flex items-center justify-between text-xs transition-colors block"
-                    >
-                      <div className="min-w-0 pr-2">
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-bold text-on-surface">{rl.leadNumber || "LEAD"}</span>
-                          <span className="text-[10px] px-1.5 py-0.2 bg-slate-100 rounded text-slate-700">{rl.source || "WhatsApp"}</span>
-                        </div>
-                        <p className="text-[11px] text-on-surface-variant truncate mt-0.5">{rl.message || rl.notes || "Inquiry recorded"}</p>
-                      </div>
-                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded shrink-0">
-                        {rl.status}
-                      </span>
-                    </Link>
-                  ))}
-                </div>
-              )}
-
-              {/* Past Quotes */}
-              {accountHistory.quotes && accountHistory.quotes.length > 0 && (
-                <div className="space-y-2 pt-2 border-t border-outline-variant/60">
-                  <span className="text-[10px] font-bold uppercase text-on-surface-variant block">Historical Quotations</span>
-                  {accountHistory.quotes.map((q: any) => (
-                    <div
-                      key={q.id}
-                      className="p-2 bg-surface border border-outline-variant/60 rounded-lg flex items-center justify-between text-xs"
-                    >
-                      <div>
-                        <span className="font-bold text-on-surface">Quote #{q.quoteNumber || "Q"}</span>
-                        <p className="text-[10px] text-on-surface-variant font-medium">
-                          {formatCurrency(q.totalAmount || 0)} • Sent via {q.sentVia || "EMAIL"}
-                        </p>
-                      </div>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${q.status === 'Accepted' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'}`}>
-                        {q.status}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* COMPACT AUTOMATION CARD (Requirement 7 & 13) */}
-          <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-4 shadow-sm space-y-3">
-            <div className="flex items-center justify-between border-b border-outline-variant pb-2">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400 flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-indigo-600" /> Intake Automation
-              </h3>
-              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-300 uppercase">
-                ● Active
-              </span>
-            </div>
-
-            {/* Checklist */}
-            <div className="space-y-2 text-xs">
-              <div className="flex items-center justify-between text-slate-700 dark:text-slate-300">
-                <span className="flex items-center gap-1.5 text-emerald-600 font-bold">
-                  <CheckCircle2 className="w-3.5 h-3.5" /> Lead Received
-                </span>
-                <span className="text-[10px] text-slate-500 font-medium">Verified</span>
-              </div>
-
-              <div className="flex items-center justify-between text-slate-700 dark:text-slate-300">
-                <span className="flex items-center gap-1.5 text-emerald-600 font-bold">
-                  <CheckCircle2 className="w-3.5 h-3.5" /> Source Identified
-                </span>
-                <span className="font-extrabold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded text-[11px] border border-indigo-100">
-                  {lead.source || "Website"}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between text-slate-700 dark:text-slate-300">
-                <span className="flex items-center gap-1.5 text-emerald-600 font-bold">
-                  <CheckCircle2 className="w-3.5 h-3.5" /> Owner Assigned
-                </span>
-                <span className="font-bold text-slate-900 dark:text-white">
-                  {lead.assignedTo?.name || "Unassigned"}
-                </span>
-              </div>
-
-              {/* First Response status */}
-              {activities.some((a: any) => a.outcome && a.outcome.includes("Automation Failed")) ? (
-                <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg text-xs space-y-1">
-                  <div className="flex items-center gap-1.5 text-amber-800 font-bold">
-                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600" /> Automated Response Failed
-                  </div>
-                  <p className="text-[10px] text-amber-700 font-medium">Delivery error encountered</p>
-                  <div className="flex gap-1.5 pt-1">
-                    <button onClick={() => setActiveModal("email")} className="px-2 py-1 bg-amber-600 text-white font-bold text-[10px] rounded hover:bg-amber-700">
-                      Retry Response
-                    </button>
-                    <button onClick={() => setActiveModal("call")} className="px-2 py-1 bg-white border border-amber-300 text-amber-900 font-bold text-[10px] rounded hover:bg-amber-100">
-                      Contact Manually
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex items-center justify-between text-slate-700 dark:text-slate-300">
-                  <span className="flex items-center gap-1.5 text-emerald-600 font-bold">
-                    <CheckCircle2 className="w-3.5 h-3.5" /> First Response
-                  </span>
-                  <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                    {lead.source === "Cold Call" || lead.source === "Manual Entry" ? "Task Generated" : "Response Sent"}
-                  </span>
-                </div>
-              )}
-
-              <div className="flex items-center justify-between text-slate-700 dark:text-slate-300">
-                <span className="flex items-center gap-1.5 text-emerald-600 font-bold">
-                  <CheckCircle2 className="w-3.5 h-3.5" /> Follow-up Task Created
-                </span>
-                <span className="text-[10px] text-slate-500 font-semibold">Active</span>
-              </div>
-            </div>
-
-            {/* NEXT ACTION */}
-            <div className="bg-indigo-50/70 border border-indigo-100 p-2.5 rounded-xl space-y-1">
-              <span className="text-[10px] font-extrabold uppercase tracking-wider text-indigo-600 block">Next Action</span>
-              <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                {tasks.find((t: any) => t.status !== "Completed")?.title || `Follow up with ${lead.firstName} ${lead.lastName}`}
-              </p>
-              <p className="text-[10px] text-indigo-700 font-medium flex items-center gap-1">
-                <Clock className="w-3 h-3 text-indigo-500" /> SLA SLA Target: Active Follow-Up
-              </p>
-            </div>
-
-            {/* Quick Action Buttons (Req 13) */}
-            <div className="pt-1 border-t border-outline-variant/60 flex flex-wrap gap-1.5">
-              <button onClick={() => setActiveModal("email")} className="flex-1 py-1.5 bg-surface border border-outline-variant text-on-surface hover:bg-surface-container-high rounded-lg text-[10px] font-bold flex items-center justify-center gap-1">
-                <Mail className="w-3 h-3 text-primary" /> Email
-              </button>
-              <button onClick={() => { setActivityFilter("whatsapp"); const el = document.getElementById("activity-timeline"); if (el) el.scrollIntoView({ behavior: "smooth" }); }} className="flex-1 py-1.5 bg-emerald-50 border border-emerald-200 text-emerald-800 hover:bg-emerald-100 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1">
-                <MessageSquare className="w-3 h-3 text-emerald-600" /> WhatsApp
-              </button>
-              <button onClick={() => setActiveModal("call")} className="flex-1 py-1.5 bg-surface border border-outline-variant text-on-surface hover:bg-surface-container-high rounded-lg text-[10px] font-bold flex items-center justify-center gap-1">
-                <Phone className="w-3 h-3 text-blue-600" /> Call
-              </button>
-              <button onClick={() => setActiveModal("task")} className="flex-1 py-1.5 bg-surface border border-outline-variant text-on-surface hover:bg-surface-container-high rounded-lg text-[10px] font-bold flex items-center justify-center gap-1">
-                <CheckSquare className="w-3 h-3 text-purple-600" /> Task
-              </button>
             </div>
           </div>
 
           {/* Quick Tasks Widget */}
-          <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-5 shadow-sm space-y-3">
-            <div className="flex justify-between items-center border-b border-outline-variant pb-2">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-on-surface flex items-center gap-1.5">
-                <CheckSquare className="w-4 h-4 text-primary" /> Open Tasks ({tasks.filter((t: any) => t.status !== "Completed").length})
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3">
+            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-2">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
+                <CheckSquare className="w-4 h-4 text-blue-600" /> Open Tasks ({tasks.filter((t: any) => t.status !== "Completed").length})
               </h3>
-              <button onClick={() => setActiveModal("task")} className="text-primary font-bold text-xs hover:underline flex items-center gap-1">
+              <button onClick={() => setActiveModal("task")} className="text-blue-600 font-bold text-xs hover:underline flex items-center gap-1">
                 <Plus className="w-3.5 h-3.5" /> Add
               </button>
             </div>
             {tasks.length === 0 ? (
-              <p className="text-xs text-on-surface-variant italic">No pending tasks for this lead.</p>
+              <p className="text-xs text-slate-400 italic">No pending tasks for this lead.</p>
             ) : (
               <div className="space-y-2 max-h-48 overflow-y-auto">
                 {tasks.map((task: any) => (
-                  <div key={task.id} className="p-2 bg-surface border border-outline-variant/60 rounded flex justify-between items-start text-xs">
+                  <div key={task.id} className="p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 rounded-xl flex justify-between items-start text-xs">
                     <div>
-                      <p className="font-bold text-on-surface">{task.title}</p>
-                      <p className="text-[10px] text-on-surface-variant">Priority: {task.priority} | Status: {task.status}</p>
+                      <p className="font-bold text-slate-900 dark:text-white">{task.title}</p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">Priority: {task.priority} | Status: {task.status}</p>
                     </div>
                   </div>
                 ))}
@@ -1343,483 +968,555 @@ export default function LeadDetail() {
 
         </div>
 
-        {/* CENTER PANEL: Activity Timeline & Interaction Feed */}
-        <div id="activity-timeline" className="col-span-12 lg:col-span-6 flex flex-col gap-6">
+        {/* CENTER / MAIN PANEL: Organized into Clean Horizontal Tabs */}
+        <div id="activity-timeline" className="col-span-12 lg:col-span-8 flex flex-col gap-4">
 
           {/* Prominent Inbound Inquiry / Form Summary Banner */}
           {(lead.body || lead.subject) && (
-            <div className="bg-gradient-to-r from-blue-50/90 to-indigo-50/90 border border-blue-200/80 rounded-2xl p-4 shadow-sm space-y-2">
+            <div className="bg-white dark:bg-slate-900 border border-blue-200/80 dark:border-blue-900/60 rounded-2xl p-5 shadow-xs space-y-2.5">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-xs font-black text-blue-900">
-                  <FileText className="w-4 h-4 text-blue-600" />
-                  <span>Submitted Inbound Form & Inquiry Details</span>
+                <div className="flex items-center gap-2 text-xs font-bold text-blue-900 dark:text-blue-200">
+                  <FileText className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                  <span>Submitted Inbound Inquiry & Requirements</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200 uppercase">
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 uppercase">
                     {lead.source || "Inbound"}
                   </span>
                   {lead.sourceDetail && (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white text-slate-700 border border-slate-200">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                       {lead.sourceDetail}
                     </span>
                   )}
                 </div>
               </div>
-              <p className="text-xs text-slate-800 leading-relaxed font-medium bg-white/95 p-3 rounded-xl border border-blue-100 whitespace-pre-line shadow-2xs">
+              <p className="text-xs text-slate-800 dark:text-slate-200 leading-relaxed font-medium bg-slate-50 dark:bg-slate-800/70 p-3.5 rounded-xl border border-slate-100 dark:border-slate-700/80 whitespace-pre-line">
                 {lead.body || lead.subject}
               </p>
             </div>
           )}
 
-          {/* Minimal Interactive Timeline Feed */}
-          <div className="bg-card border border-border rounded-2xl p-5 space-y-4 flex flex-col">
-            
-            {/* Minimal Timeline Header */}
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-extrabold text-foreground tracking-tight flex items-center gap-1.5">
-                  <Activity className="w-4 h-4 text-primary" /> Activity Timeline
-                </h3>
-                <span className="text-[11px] font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded-full border border-border">
-                  {activities.length}
-                </span>
-              </div>
-              
-              {/* Quiet Text Filter Links */}
-              <div className="flex items-center gap-3 text-xs font-semibold text-muted-foreground">
-                {[
-                  { key: "all", label: "All", show: true },
-                  { key: "note", label: "Notes", show: true },
-                  { key: "call", label: "Calls", show: true },
-                  { key: "email", label: "Emails", show: isEmailRelevant },
-                  { key: "task", label: "Tasks", show: true },
-                  { key: "whatsapp", label: "WhatsApp", show: isWhatsAppRelevant },
-                ].filter(f => f.show).map(f => (
-                  <button
-                    key={f.key}
-                    onClick={() => setActivityFilter(f.key)}
-                    className={`transition-colors ${
-                      activityFilter === f.key
-                        ? f.key === "whatsapp"
-                          ? "text-emerald-600 font-black underline underline-offset-4"
-                          : "text-primary font-bold underline underline-offset-4"
-                        : "hover:text-foreground"
-                    }`}
-                  >
-                    {f.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+          {/* Clean Horizontal Tabs Header (matching user design) */}
+          <div className="flex items-center gap-1 border-b border-slate-200 dark:border-slate-800 text-xs font-semibold overflow-x-auto no-scrollbar bg-white dark:bg-slate-900 px-4 pt-1 rounded-t-2xl border-t border-x border-slate-200/90 dark:border-slate-800">
+            <button
+              onClick={() => setActiveTab("timeline")}
+              className={`px-3.5 py-3 border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+                activeTab === "timeline"
+                  ? "border-blue-600 text-blue-600 font-bold"
+                  : "border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+              }`}
+            >
+              Activity & Notes ({activities.length})
+            </button>
+            <button
+              onClick={() => setActiveTab("tasks")}
+              className={`px-3.5 py-3 border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+                activeTab === "tasks"
+                  ? "border-blue-600 text-blue-600 font-bold"
+                  : "border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+              }`}
+            >
+              Tasks & Meetings ({tasks.length + meetings.length})
+            </button>
+            <button
+              onClick={() => setActiveTab("history")}
+              className={`px-3.5 py-3 border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+                activeTab === "history"
+                  ? "border-blue-600 text-blue-600 font-bold"
+                  : "border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+              }`}
+            >
+              Audit History
+            </button>
+            <button
+              onClick={() => setActiveTab("handoff_chat")}
+              className={`px-3.5 py-3 border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+                activeTab === "handoff_chat"
+                  ? "border-blue-600 text-blue-600 font-bold"
+                  : "border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+              }`}
+            >
+              Handoff Chat (Internal)
+            </button>
+          </div>
 
-            {/* Note Composer Bar */}
-            {activityFilter !== "whatsapp" && (
-              <div className="flex gap-2 items-center bg-muted/40 p-1.5 rounded-xl border border-border/60">
-                <input
-                  type="text"
-                  placeholder="Add a quick note or comment..."
-                  value={noteText}
-                  onChange={(e) => setNoteText(e.target.value)}
-                  className="flex-1 bg-transparent px-2.5 py-1 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none"
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      if (noteText.trim()) addNoteMutation.mutate();
-                    }
-                  }}
-                />
-                <button
-                  disabled={!noteText.trim() || addNoteMutation.isPending}
-                  onClick={() => addNoteMutation.mutate()}
-                  className="text-xs font-bold text-primary hover:text-primary/80 disabled:opacity-30 transition-all flex items-center gap-1 shrink-0 px-2 py-1"
-                >
-                  <Send className="w-3 h-3" /> Post
-                </button>
-              </div>
-            )}
-
-            {/* WhatsApp conversation banner — shown when WhatsApp filter active */}
-            {activityFilter === "whatsapp" && (
-              <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 font-semibold">
-                <MessageSquare className="w-4 h-4 text-emerald-600 shrink-0" />
-                WhatsApp conversation with{" "}
-                <span className="font-black">{lead.firstName} {lead.lastName}</span>
-                {lead.whatsappPhone || lead.phone ? (
-                  <span className="text-emerald-600 font-mono ml-auto">{lead.whatsappPhone || lead.phone}</span>
-                ) : null}
-              </div>
-            )}
-
-            {/* Scrollable Feed Container with explicit max-height */}
-            <div className={`overflow-y-auto pr-2 max-h-[420px] scrollbar-thin scrollbar-thumb-slate-200 ${activityFilter === "whatsapp" ? "space-y-4 pt-2 pb-2" : "space-y-3 pt-1"}`}>
-              {activities.length === 0 ? (
-                <div className="text-center py-10 text-muted-foreground text-xs space-y-1">
-                  <p className="font-semibold text-foreground/80">No activity yet</p>
-                  <p className="text-[11px] text-muted-foreground">Log calls, emails, or notes to populate this timeline.</p>
+          {/* TAB 1: ACTIVITY & NOTES */}
+          {activeTab === "timeline" && (
+            <div className="space-y-4">
+              <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-b-2xl p-5 space-y-4 flex flex-col shadow-xs border-t-0">
+                
+                {/* Timeline Header & Filters */}
+                <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-extrabold text-foreground tracking-tight flex items-center gap-1.5">
+                      <Activity className="w-4 h-4 text-primary" /> Activity Timeline
+                    </h3>
+                    <span className="text-[11px] font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded-full border border-border">
+                      {activities.length}
+                    </span>
+                  </div>
+                  
+                  {/* Filter Links */}
+                  <div className="flex items-center gap-3 text-xs font-semibold text-muted-foreground">
+                    {[
+                      { key: "all", label: "All", show: true },
+                      { key: "note", label: "Notes", show: true },
+                      { key: "call", label: "Calls", show: true },
+                      { key: "email", label: "Emails", show: isEmailRelevant },
+                      { key: "task", label: "Tasks", show: true },
+                      { key: "whatsapp", label: "WhatsApp", show: isWhatsAppRelevant },
+                    ].filter(f => f.show).map(f => (
+                      <button
+                        key={f.key}
+                        onClick={() => setActivityFilter(f.key)}
+                        className={`transition-colors ${
+                          activityFilter === f.key
+                            ? f.key === "whatsapp"
+                              ? "text-emerald-600 font-black underline underline-offset-4"
+                              : "text-primary font-bold underline underline-offset-4"
+                            : "hover:text-foreground"
+                        }`}
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              ) : (
-                activities
-                  .filter((act: any) => {
-                    if (activityFilter === "all") return true;
-                    if (activityFilter === "whatsapp") return act.type === "whatsapp_sms";
-                    return (act.type || "").toLowerCase().includes(activityFilter);
-                  })
-                  .slice()
-                  .sort((a: any, b: any) => {
-                    if (activityFilter === "whatsapp") {
-                      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-                    }
-                    return 0; // maintain default pin/newest order for standard feed
-                  })
-                  .map((act: any) => {
-                    const isPinned = act.pinned;
-                    const authorName = act.createdBy?.name || act.createdByUser?.name || "System Rep";
-                    const titleText = act.title || (act.type ? act.type.replace('_', ' ') : "activity");
-                    const timeAgo = formatDistanceToNow(new Date(act.createdAt), { addSuffix: true });
-                    const isDupOutcome = act.outcome && act.outcome.includes("Duplicate lead capture");
-                    const bodyContent = act.notes || (isDupOutcome ? "Lead captured from marketing channel." : act.outcome);
 
-                    // ── WhatsApp Chat Bubble ─────────────────────────────────
-                    if (act.type === "whatsapp_sms") {
-                      const isIncoming = act.outcome === "message received";
-                      return (
-                        <div
-                          key={act.id}
-                          className={`flex ${isIncoming ? "justify-start" : "justify-end"} gap-2.5 items-start`}
-                        >
-                          {/* Avatar — only for incoming */}
-                          {isIncoming && (
-                            <div className="w-7 h-7 rounded-full bg-emerald-100 border border-emerald-300 flex items-center justify-center shrink-0 mt-3 shadow-2xs">
-                              <MessageSquare className="w-3.5 h-3.5 text-emerald-700" />
-                            </div>
-                          )}
-
-                          <div className={`max-w-[75%] flex flex-col gap-1 ${isIncoming ? "items-start" : "items-end"}`}>
-                            {/* Sender Label */}
-                            <span className="text-[10px] font-bold text-slate-500 px-1 select-none">
-                              {isIncoming ? `${lead.firstName} ${lead.lastName}` : authorName}
-                            </span>
-                            {/* Bubble */}
-                            <div
-                              className={`px-3.5 py-2.5 rounded-2xl text-xs leading-relaxed shadow-xs ${
-                                isIncoming
-                                  ? "bg-slate-100 border border-slate-200 text-slate-900 rounded-tl-xs"
-                                  : "bg-emerald-600 text-white rounded-tr-xs"
-                              }`}
-                            >
-                              {act.mediaUrl && (
-                                <p className={`text-[10px] font-bold mb-1 flex items-center gap-1 ${isIncoming ? "text-primary" : "text-white/90"}`}>
-                                  <Upload className="w-3 h-3" /> Media attachment —{" "}
-                                  <a href={act.mediaUrl} target="_blank" rel="noopener noreferrer" className="underline">View</a>
-                                </p>
-                              )}
-                              <p className="whitespace-pre-line">{act.notes}</p>
-                            </div>
-
-                            {/* Timestamp + label */}
-                            <span className="text-[10px] text-slate-400 font-medium px-1">{timeAgo}</span>
-                          </div>
-
-                          {/* Avatar — only for outgoing */}
-                          {!isIncoming && (
-                            <div className="w-7 h-7 rounded-full bg-emerald-600 flex items-center justify-center shrink-0 mt-3 shadow-2xs">
-                              <span className="text-[9px] font-black text-white">
-                                {authorName.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase()}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    }
-
-                    // ── Standard Timeline Entry ──────────────────────────────
-                    return (
-                      <div key={act.id} className="relative pl-4 border-l border-border/70 pb-2.5 last:border-0 last:pb-0 space-y-0.5 text-xs">
-                        {/* Small quiet node */}
-                        <div className={`absolute -left-[4.5px] top-1.5 w-2 h-2 rounded-full border border-card ${
-                          isPinned ? "bg-primary" : "bg-muted-foreground/30"
-                        }`} />
-
-                        {/* Streamlined Single-Row Header */}
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
-                            <span className="font-bold text-foreground">{authorName}</span>
-                            <span className="text-muted-foreground font-normal text-[11px] capitalize">· {titleText}</span>
-                            {(act.outcome?.includes("[AUTOMATED]") || act.outcome?.toLowerCase().includes("automated") || act.type === "stage_change") ? (
-                              <span className="text-[9px] font-extrabold text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-950/60 px-1.5 py-0.5 rounded border border-purple-200 dark:border-purple-800 uppercase tracking-wider flex items-center gap-1">
-                                <Sparkles className="w-2.5 h-2.5 text-purple-600" /> Automated
-                              </span>
-                            ) : (
-                              <span className="text-[9px] font-bold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">
-                                Manual
-                              </span>
-                            )}
-                            {isPinned && (
-                              <span className="text-[9px] font-bold text-primary bg-primary/10 px-1 py-0.2 rounded border border-primary/20">Pinned</span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-1.5 shrink-0 text-[10px] text-muted-foreground/80">
-                            <span>{timeAgo}</span>
-                            <button
-                              onClick={() => togglePinMutation.mutate(act.id)}
-                              className="text-muted-foreground hover:text-primary transition-colors p-0.5"
-                              title={isPinned ? "Unpin" : "Pin"}
-                            >
-                              <Pin className={`w-3 h-3 ${isPinned ? "fill-primary text-primary" : ""}`} />
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Note / Action Body */}
-                        {bodyContent && (
-                          <p className="text-xs text-foreground/90 font-normal leading-snug whitespace-pre-line">
-                            {bodyContent}
-                          </p>
-                        )}
-                      </div>
-                    );
-                  })
-              )}
-            </div>
-
-            {/* Inline WhatsApp Chat Composer — anchored directly under WhatsApp conversation */}
-            {activityFilter === "whatsapp" && (
-              <div className="space-y-2 pt-1">
-                {/* 1-Click Quick Template Pills */}
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-[11px]">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0">Quick Reply:</span>
-                  {[
-                    "Hi! Thanks for reaching out. How can we assist you with our Porta Cabin solutions today?",
-                    "We've sent the requested catalog & specs. When would be a good time for a 5-min review call?",
-                    "Would you be available for a quick site visit or video demo of our modular units?"
-                  ].map((tpl, idx) => (
+                {/* Note Composer Bar */}
+                {activityFilter !== "whatsapp" && (
+                  <div className="flex gap-2 items-center bg-muted/40 p-1.5 rounded-xl border border-border/60">
+                    <input
+                      type="text"
+                      placeholder="Add a quick note or comment..."
+                      value={noteText}
+                      onChange={(e) => setNoteText(e.target.value)}
+                      className="flex-1 bg-transparent px-2.5 py-1 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          if (noteText.trim()) addNoteMutation.mutate();
+                        }
+                      }}
+                    />
                     <button
-                      key={idx}
-                      onClick={() => setWhatsAppText(tpl)}
-                      className="px-2.5 py-1 rounded-full border border-emerald-300 text-emerald-800 bg-emerald-50 hover:bg-emerald-100 transition-colors shrink-0 max-w-[220px] truncate font-medium text-[11px]"
-                      title={tpl}
+                      disabled={!noteText.trim() || addNoteMutation.isPending}
+                      onClick={() => addNoteMutation.mutate()}
+                      className="text-xs font-bold text-primary hover:text-primary/80 disabled:opacity-30 transition-all flex items-center gap-1 shrink-0 px-2.5 py-1.5 bg-primary/10 rounded-lg"
                     >
-                      {tpl}
+                      <Send className="w-3 h-3" /> Post
                     </button>
-                  ))}
+                  </div>
+                )}
+
+                {/* WhatsApp conversation banner */}
+                {activityFilter === "whatsapp" && (
+                  <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 font-semibold">
+                    <MessageSquare className="w-4 h-4 text-emerald-600 shrink-0" />
+                    WhatsApp conversation with{" "}
+                    <span className="font-black">{lead.firstName} {lead.lastName}</span>
+                    {lead.whatsappPhone || lead.phone ? (
+                      <span className="text-emerald-600 font-mono ml-auto">{lead.whatsappPhone || lead.phone}</span>
+                    ) : null}
+                  </div>
+                )}
+
+                {/* Scrollable Feed Container */}
+                <div className={`overflow-y-auto pr-2 max-h-[420px] scrollbar-thin scrollbar-thumb-slate-200 ${activityFilter === "whatsapp" ? "space-y-4 pt-2 pb-2" : "space-y-3 pt-1"}`}>
+                  {activities.length === 0 ? (
+                    <div className="text-center py-10 text-muted-foreground text-xs space-y-1">
+                      <p className="font-semibold text-foreground/80">No activity yet</p>
+                      <p className="text-[11px] text-muted-foreground">Log calls, emails, or notes to populate this timeline.</p>
+                    </div>
+                  ) : (
+                    activities
+                      .filter((act: any) => {
+                        if (activityFilter === "all") return true;
+                        if (activityFilter === "whatsapp") return act.type === "whatsapp_sms";
+                        return (act.type || "").toLowerCase().includes(activityFilter);
+                      })
+                      .slice()
+                      .sort((a: any, b: any) => {
+                        if (activityFilter === "whatsapp") {
+                          return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+                        }
+                        return 0;
+                      })
+                      .map((act: any) => {
+                        if (act.type === "whatsapp_sms") {
+                          const isIncoming = act.outcome === "message received";
+                          const authorName = act.createdBy?.name || act.createdByUser?.name || "System Rep";
+                          const timeAgo = formatDistanceToNow(new Date(act.createdAt), { addSuffix: true });
+                          return (
+                            <div key={act.id} className={`flex ${isIncoming ? "justify-start" : "justify-end"} gap-2.5 items-start`}>
+                              {isIncoming && (
+                                <div className="w-7 h-7 rounded-full bg-emerald-100 border border-emerald-300 flex items-center justify-center shrink-0 mt-3 shadow-2xs">
+                                  <MessageSquare className="w-3.5 h-3.5 text-emerald-700" />
+                                </div>
+                              )}
+                              <div className={`max-w-[75%] flex flex-col gap-1 ${isIncoming ? "items-start" : "items-end"}`}>
+                                <span className="text-[10px] font-bold text-slate-500 px-1 select-none">
+                                  {isIncoming ? `${lead.firstName} ${lead.lastName}` : authorName}
+                                </span>
+                                <div className={`px-3.5 py-2.5 rounded-2xl text-xs leading-relaxed shadow-xs ${
+                                  isIncoming ? "bg-slate-100 border border-slate-200 text-slate-900 rounded-tl-xs" : "bg-emerald-600 text-white rounded-tr-xs"
+                                }`}>
+                                  {act.mediaUrl && (
+                                    <p className={`text-[10px] font-bold mb-1 flex items-center gap-1 ${isIncoming ? "text-primary" : "text-white/90"}`}>
+                                      <Upload className="w-3 h-3" /> Media attachment — <a href={act.mediaUrl} target="_blank" rel="noopener noreferrer" className="underline">View</a>
+                                    </p>
+                                  )}
+                                  <p className="whitespace-pre-line">{act.notes}</p>
+                                </div>
+                                <span className="text-[10px] text-slate-400 font-medium px-1">{timeAgo}</span>
+                              </div>
+                              {!isIncoming && (
+                                <div className="w-7 h-7 rounded-full bg-emerald-600 flex items-center justify-center shrink-0 mt-3 shadow-2xs">
+                                  <span className="text-[9px] font-black text-white">
+                                    {authorName.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase()}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        }
+
+                        const isPinned = act.pinned;
+                        const authorName = act.createdBy?.name || act.createdByUser?.name || "System Rep";
+                        const titleText = act.title || (act.type ? act.type.replace(/_/g, ' ') : "Activity");
+                        const timeAgo = formatDistanceToNow(new Date(act.createdAt), { addSuffix: true });
+                        const isDupOutcome = act.outcome && act.outcome.includes("Duplicate lead capture");
+                        const rawContent = act.notes || (isDupOutcome ? "Lead captured from marketing channel." : act.outcome);
+
+                        // Parse potential JSON arrays / objects cleanly
+                        let parsedText = "";
+                        let parsedItems: string[] = [];
+
+                        if (rawContent) {
+                          const trimmed = String(rawContent).trim();
+                          if ((trimmed.startsWith("[") && trimmed.endsWith("]")) || (trimmed.startsWith("{") && trimmed.endsWith("}"))) {
+                            try {
+                              const parsed = JSON.parse(trimmed);
+                              if (Array.isArray(parsed)) {
+                                parsedItems = parsed
+                                  .map((item: any) => {
+                                    if (typeof item === "string") return item;
+                                    if (item && typeof item === "object") {
+                                      return item.description || item.text || item.label || (item.type ? item.type.replace(/_/g, " ") : "");
+                                    }
+                                    return "";
+                                  })
+                                  .filter(Boolean);
+                              } else if (parsed && typeof parsed === "object") {
+                                if (parsed.description) parsedText = parsed.description;
+                                else if (parsed.notes) parsedText = parsed.notes;
+                                else if (parsed.message) parsedText = parsed.message;
+                                else parsedItems = Object.entries(parsed).map(([k, v]) => `${k.replace(/_/g, " ")}: ${v}`);
+                              }
+                            } catch {
+                              parsedText = trimmed;
+                            }
+                          } else {
+                            parsedText = trimmed;
+                          }
+                        }
+
+                        const isAutomated = act.outcome?.includes("[AUTOMATED]") || act.outcome?.toLowerCase().includes("automated") || act.type === "stage_change";
+
+                        // Activity Icons & Badges based on type
+                        let typeIcon = <Activity className="w-3.5 h-3.5 text-blue-600" />;
+                        let typeBg = "bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800";
+                        if (act.type === "note") {
+                          typeIcon = <FileText className="w-3.5 h-3.5 text-indigo-600" />;
+                          typeBg = "bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800";
+                        } else if (act.type === "call") {
+                          typeIcon = <Phone className="w-3.5 h-3.5 text-emerald-600" />;
+                          typeBg = "bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800";
+                        } else if (act.type === "email") {
+                          typeIcon = <Mail className="w-3.5 h-3.5 text-sky-600" />;
+                          typeBg = "bg-sky-50 dark:bg-sky-950 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800";
+                        } else if (act.type === "stage_change") {
+                          typeIcon = <TrendingUp className="w-3.5 h-3.5 text-purple-600" />;
+                          typeBg = "bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800";
+                        } else if (act.type === "meeting" || act.type === "task") {
+                          typeIcon = <Calendar className="w-3.5 h-3.5 text-amber-600" />;
+                          typeBg = "bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800";
+                        }
+
+                        return (
+                          <div 
+                            key={act.id} 
+                            className={`p-3.5 rounded-xl border transition-all text-xs space-y-2 ${
+                              isPinned 
+                                ? "bg-blue-50/50 dark:bg-blue-950/30 border-blue-300 dark:border-blue-800 shadow-2xs" 
+                                : "bg-white dark:bg-slate-800/80 border-slate-200/90 dark:border-slate-700/80 shadow-2xs hover:border-slate-300 dark:hover:border-slate-600"
+                            }`}
+                          >
+                            {/* Card Header */}
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                                <div className="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-700 flex items-center justify-center shrink-0">
+                                  {typeIcon}
+                                </div>
+                                <span className="font-bold text-slate-900 dark:text-white">{authorName}</span>
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border uppercase tracking-wider ${typeBg}`}>
+                                  {titleText}
+                                </span>
+                                {isAutomated ? (
+                                  <span className="text-[9px] font-extrabold text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-950/60 px-1.5 py-0.5 rounded border border-purple-200 dark:border-purple-800 uppercase tracking-wider flex items-center gap-1">
+                                    <Sparkles className="w-2.5 h-2.5 text-purple-600" /> Automated
+                                  </span>
+                                ) : (
+                                  <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">
+                                    Manual
+                                  </span>
+                                )}
+                                {isPinned && (
+                                  <span className="text-[9px] font-bold text-blue-700 bg-blue-100 dark:bg-blue-950 dark:text-blue-300 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-800">
+                                    Pinned
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="flex items-center gap-2 shrink-0 text-[11px] text-slate-400 font-medium">
+                                <span>{timeAgo}</span>
+                                <button
+                                  onClick={() => togglePinMutation.mutate(act.id)}
+                                  className="text-slate-400 hover:text-blue-600 transition-colors p-1 cursor-pointer"
+                                  title={isPinned ? "Unpin note" : "Pin note to top"}
+                                >
+                                  <Pin className={`w-3.5 h-3.5 ${isPinned ? "fill-blue-600 text-blue-600" : ""}`} />
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Text Content */}
+                            {parsedText && (
+                              <p className="text-xs text-slate-800 dark:text-slate-200 font-medium leading-relaxed whitespace-pre-line pl-8">
+                                {parsedText}
+                              </p>
+                            )}
+
+                            {/* Formatted Checklist Items */}
+                            {parsedItems.length > 0 && (
+                              <div className="pl-8 space-y-1 pt-1">
+                                {parsedItems.map((item, i) => (
+                                  <div key={i} className="flex items-start gap-1.5 text-xs text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/60 p-2 rounded-lg border border-slate-200/80 dark:border-slate-800">
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                                    <span className="font-semibold">{item}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })
+                  )}
                 </div>
 
-                <div className="flex gap-2 items-center">
-                  <input
-                    type="text"
-                    placeholder={`Send WhatsApp message to ${lead.firstName}...`}
-                    value={whatsAppText}
-                    onChange={(e) => setWhatsAppText(e.target.value)}
-                    className="flex-1 bg-white border border-emerald-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        if (whatsAppText.trim()) sendWhatsAppMutation.mutate();
-                      }
-                    }}
-                  />
-                  <button
-                    disabled={!whatsAppText.trim() || sendWhatsAppMutation.isPending}
-                    onClick={() => sendWhatsAppMutation.mutate()}
-                    className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 disabled:opacity-30 transition-all flex items-center gap-1.5 shrink-0 shadow-2xs"
-                  >
-                    <Send className="w-3.5 h-3.5" /> Send
+                {/* Inline WhatsApp Chat Composer */}
+                {activityFilter === "whatsapp" && (
+                  <div className="space-y-2 pt-1">
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-[11px]">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0">Quick Reply:</span>
+                      {[
+                        "Hi! Thanks for reaching out. How can we assist you with our Porta Cabin solutions today?",
+                        "We've sent the requested catalog & specs. When would be a good time for a 5-min review call?",
+                        "Would you be available for a quick site visit or video demo of our modular units?"
+                      ].map((tpl, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => setWhatsAppText(tpl)}
+                          className="px-2.5 py-1 rounded-full border border-emerald-300 text-emerald-800 bg-emerald-50 hover:bg-emerald-100 transition-colors shrink-0 max-w-[220px] truncate font-medium text-[11px]"
+                          title={tpl}
+                        >
+                          {tpl}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="flex gap-2 items-center">
+                      <input
+                        type="text"
+                        placeholder={`Send WhatsApp message to ${lead.firstName}...`}
+                        value={whatsAppText}
+                        onChange={(e) => setWhatsAppText(e.target.value)}
+                        className="flex-1 bg-white border border-emerald-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !e.shiftKey) {
+                            e.preventDefault();
+                            if (whatsAppText.trim()) sendWhatsAppMutation.mutate();
+                          }
+                        }}
+                      />
+                      <button
+                        disabled={!whatsAppText.trim() || sendWhatsAppMutation.isPending}
+                        onClick={() => sendWhatsAppMutation.mutate()}
+                        className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 disabled:opacity-30 transition-all flex items-center gap-1.5 shrink-0 shadow-2xs"
+                      >
+                        <Send className="w-3.5 h-3.5" /> Send
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Next Best Step & Sales Playbook Card */}
+              <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-indigo-600" /> Next Best Step & Sales Playbook
+                  </h3>
+                  <span className="text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 px-2 py-0.5 rounded">
+                    Active Guide
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                  <div className="p-3 bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-xl space-y-1">
+                    <span className="font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Primary Recommended Action
+                    </span>
+                    <p className="text-emerald-950 dark:text-emerald-200 font-medium leading-relaxed">
+                      Send technical specification sheet for <strong>{lead?.body?.slice(0, 45) || lead?.subject || "Requested Items"}</strong> and schedule discovery call.
+                    </p>
+                  </div>
+
+                  <div className="p-3 bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 rounded-xl space-y-1">
+                    <span className="font-bold text-indigo-800 dark:text-indigo-300 flex items-center gap-1">
+                      <FileText className="w-3.5 h-3.5 text-indigo-600" /> Quote Readiness
+                    </span>
+                    <p className="text-indigo-950 dark:text-indigo-200 font-medium leading-relaxed">
+                      Inbound request captured via {lead.source || "form"}. Review specs and prepare initial pricing.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 2: TASKS & MEETINGS */}
+          {activeTab === "tasks" && (
+            <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-b-2xl p-5 space-y-6 shadow-xs border-t-0 text-xs">
+              {/* Tasks section */}
+              <div className="space-y-3">
+                <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-2">
+                  <h4 className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <CheckSquare className="w-4 h-4 text-blue-600" /> Action Items & Tasks ({tasks.length})
+                  </h4>
+                  <button onClick={() => setActiveModal("task")} className="text-blue-600 font-bold hover:underline flex items-center gap-1">
+                    <Plus className="w-3.5 h-3.5" /> Add Task
                   </button>
                 </div>
-              </div>
-            )}
-          </div>
-
-          {/* Next Best Step & Deals Summary Card */}
-          <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-5 shadow-sm space-y-4">
-            <div className="flex items-center justify-between border-b border-outline-variant pb-2">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-on-surface flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-indigo-600" /> Next Best Step & Sales Playbook
-              </h3>
-              <span className="text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded">
-                Active Guide
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-              <div className="p-3 bg-emerald-50/60 border border-emerald-200 rounded-xl space-y-1">
-                <span className="font-bold text-emerald-800 flex items-center gap-1">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Primary Recommended Action
-                </span>
-                <p className="text-emerald-950 font-medium leading-relaxed">
-                  Send technical specification sheet for <strong>{lead?.body?.slice(0, 45) || lead?.subject || "Requested Items"}</strong> and schedule discovery call.
-                </p>
+                {tasks.length === 0 ? (
+                  <p className="text-slate-400 italic py-2">No pending tasks.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {tasks.map((task: any) => (
+                      <div key={task.id} className="p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl flex justify-between items-start">
+                        <div>
+                          <p className="font-bold text-slate-900 dark:text-white">{task.title}</p>
+                          <p className="text-[11px] text-slate-400 mt-0.5">Priority: {task.priority} · Status: {task.status}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
-              <div className="p-3 bg-indigo-50/60 border border-indigo-200 rounded-xl space-y-1">
-                <span className="font-bold text-indigo-800 flex items-center gap-1">
-                  <FileText className="w-3.5 h-3.5 text-indigo-600" /> Quote Readiness
-                </span>
-                <p className="text-indigo-950 font-medium leading-relaxed">
-                  Inbound request captured via {lead.source || "form"}. Review specs and prepare initial pricing.
-                </p>
+              {/* Meetings section */}
+              <div className="space-y-3">
+                <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-2">
+                  <h4 className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <Calendar className="w-4 h-4 text-indigo-600" /> Scheduled Meetings ({meetings.length})
+                  </h4>
+                  <button onClick={() => setActiveModal("meeting")} className="text-blue-600 font-bold hover:underline flex items-center gap-1">
+                    <Plus className="w-3.5 h-3.5" /> Schedule
+                  </button>
+                </div>
+                {meetings.length === 0 ? (
+                  <p className="text-slate-400 italic py-2">No meetings scheduled.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {meetings.map((m: any) => (
+                      <div key={m.id} className="p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl flex justify-between items-start">
+                        <div>
+                          <p className="font-bold text-slate-900 dark:text-white">{m.title}</p>
+                          <p className="text-[11px] text-slate-400 mt-0.5">{m.meetingDate} at {m.meetingTime}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Documents section */}
+              <div className="space-y-3">
+                <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-2">
+                  <h4 className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <FileText className="w-4 h-4 text-emerald-600" /> Attached Documents ({documents.length})
+                  </h4>
+                  <button onClick={() => setActiveModal("document")} className="text-blue-600 font-bold hover:underline flex items-center gap-1">
+                    <Plus className="w-3.5 h-3.5" /> Upload
+                  </button>
+                </div>
+                {documents.length === 0 ? (
+                  <p className="text-slate-400 italic py-2">No documents attached.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {documents.map((d: any) => (
+                      <div key={d.id} className="p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl flex justify-between items-center">
+                        <span className="font-medium text-slate-800 dark:text-slate-200">{d.name}</span>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">{d.type}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
+          )}
 
-            <div className="flex items-center justify-between pt-1">
-              <span className="text-[11px] text-on-surface-variant font-medium">
-                Last activity logged: {activities.length > 0 ? "Recently" : "None yet"}
-              </span>
-              <button
-                onClick={handleOpenConversionModal}
-                className="px-3.5 py-1.5 bg-primary text-white text-xs font-bold rounded-xl shadow-2xs hover:opacity-90 transition-all flex items-center gap-1.5"
-              >
-                <Target className="w-3.5 h-3.5" />
-                <span>Convert to Opportunity</span>
-              </button>
-            </div>
-          </div>
-        </div>
+          {/* TAB 4: AUDIT HISTORY */}
+          {activeTab === "history" && (
+            <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-b-2xl p-5 space-y-4 shadow-xs border-t-0 text-xs">
+              <div className="border-b border-slate-100 dark:border-slate-800 pb-3">
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">Lead Audit & Transition History</h3>
+                <p className="text-xs text-slate-500">Chronological audit trail of ownership, stage updates, and system events</p>
+              </div>
 
-        {/* RIGHT PANEL: Quick Actions, Documents & Meetings */}
-        <div className="col-span-12 lg:col-span-3 flex flex-col gap-6">
-
-          {/* Quick Actions Panel */}
-          <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-5 shadow-sm space-y-4">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-on-surface border-b border-outline-variant pb-2">
-              Quick Actions
-            </h3>
-
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <button 
-                onClick={async () => {
-                  try {
-                    const statusRes = await fetch("/api/v1/telephony/status", { headers: { "Authorization": `Bearer ${token}` } });
-                    const statusData = await statusRes.json();
-                    if (!statusData.configured) {
-                      alert("Telephony not configured: " + statusData.message);
-                      return;
-                    }
-                    const callRes = await fetch("/api/v1/telephony/call", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-                      body: JSON.stringify({ leadId: id, phoneNumber: lead.phone || "+12025550123" })
-                    });
-                    const callData = await callRes.json();
-                    alert(callData.message || "Twilio call initiated!");
-                  } catch (e: any) {
-                    alert("Telephony action: " + e.message);
-                  }
-                }}
-                className="p-3 bg-emerald-50 hover:bg-emerald-100/80 border border-emerald-200 rounded-xl font-bold text-emerald-800 flex flex-col items-center gap-1.5 transition-all group"
-                title="Twilio Click-to-Call with Recording"
-              >
-                <Phone className="w-5 h-5 text-emerald-600 group-hover:scale-110 transition-transform" />
-                <span>Twilio Call</span>
-              </button>
-
-              <button 
-                onClick={() => setActiveModal("call")}
-                className="p-3 bg-surface hover:bg-surface-container border border-outline-variant rounded-xl font-bold text-on-surface flex flex-col items-center gap-1.5 transition-all group"
-              >
-                <Phone className="w-5 h-5 text-emerald-600 group-hover:scale-110 transition-transform" />
-                <span>Log Call</span>
-              </button>
-
-              <button 
-                onClick={() => setActiveModal("email")}
-                className="p-3 bg-surface hover:bg-surface-container border border-outline-variant rounded-xl font-bold text-on-surface flex flex-col items-center gap-1.5 transition-all group"
-              >
-                <Mail className="w-5 h-5 text-blue-600 group-hover:scale-110 transition-transform" />
-                <span>Send Email</span>
-              </button>
-
-              <button 
-                onClick={() => setActiveModal("task")}
-                className="p-3 bg-surface hover:bg-surface-container border border-outline-variant rounded-xl font-bold text-on-surface flex flex-col items-center gap-1.5 transition-all group"
-              >
-                <CheckSquare className="w-5 h-5 text-purple-600 group-hover:scale-110 transition-transform" />
-                <span>Create Task</span>
-              </button>
-
-              <button 
-                onClick={() => setActiveModal("meeting")}
-                className="p-3 bg-surface hover:bg-surface-container border border-outline-variant rounded-xl font-bold text-on-surface flex flex-col items-center gap-1.5 transition-all group"
-              >
-                <Calendar className="w-5 h-5 text-amber-600 group-hover:scale-110 transition-transform" />
-                <span>Schedule</span>
-              </button>
-
-              <button 
-                onClick={() => setActiveModal("doc")}
-                className="p-3 bg-surface hover:bg-surface-container border border-outline-variant rounded-xl font-bold text-on-surface flex flex-col items-center gap-1.5 transition-all group"
-              >
-                <Upload className="w-5 h-5 text-primary group-hover:scale-110 transition-transform" />
-                <span>Upload File</span>
-              </button>
-
-              <button 
-                onClick={handleOpenConversionModal}
-                className="p-3 bg-surface hover:bg-surface-container border border-outline-variant rounded-xl font-bold text-on-surface flex flex-col items-center gap-1.5 transition-all group"
-              >
-                <Target className="w-5 h-5 text-indigo-600 group-hover:scale-110 transition-transform" />
-                <span>Convert</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Document Vault */}
-          <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-5 shadow-sm space-y-3">
-            <div className="flex justify-between items-center border-b border-outline-variant pb-2">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-on-surface flex items-center gap-1.5">
-                <FileText className="w-4 h-4 text-primary" /> Document Vault ({documents.length})
-              </h3>
-              <button onClick={() => setActiveModal("doc")} className="text-primary font-bold text-xs hover:underline flex items-center gap-1">
-                <Upload className="w-3.5 h-3.5" /> Upload
-              </button>
-            </div>
-
-            {documents.length === 0 ? (
-              <p className="text-xs text-on-surface-variant italic">No documents attached.</p>
-            ) : (
-              <div className="space-y-2 max-h-48 overflow-y-auto text-xs">
-                {documents.map((doc: any) => (
-                  <div key={doc.id} className="p-2 bg-surface border border-outline-variant/60 rounded flex justify-between items-center">
-                    <div>
-                      <p className="font-bold text-on-surface truncate max-w-[140px]">{doc.name}</p>
-                      <p className="text-[10px] text-on-surface-variant">v{doc.version} | {doc.fileType}</p>
+              <div className="space-y-3">
+                <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl flex items-start gap-3">
+                  <div className="w-2 h-2 rounded-full bg-blue-600 mt-1.5 shrink-0" />
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-800 dark:text-slate-200">Current Lead Status: {lead.status || "NEW"}</span>
+                      <span className="text-[11px] text-slate-400">{lead.updatedAt ? new Date(lead.updatedAt).toLocaleString() : "Recent"}</span>
                     </div>
-                    <a href={doc.fileUrl} download className="text-primary font-bold hover:underline">Download</a>
+                    <p className="text-slate-600 dark:text-slate-400 mt-0.5">Assigned Owner: {lead.assignedTo?.name || "System Round Robin"}</p>
                   </div>
-                ))}
+                </div>
+
+                <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl flex items-start gap-3">
+                  <div className="w-2 h-2 rounded-full bg-emerald-600 mt-1.5 shrink-0" />
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-800 dark:text-slate-200">Lead Ingested & Captured</span>
+                      <span className="text-[11px] text-slate-400">{lead.createdAt ? new Date(lead.createdAt).toLocaleString() : "Initial"}</span>
+                    </div>
+                    <p className="text-slate-600 dark:text-slate-400 mt-0.5">Channel: {lead.source || "Inbound Form"} {lead.sourceDetail ? `(${lead.sourceDetail})` : ""}</p>
+                  </div>
+                </div>
               </div>
-            )}
-          </div>
-
-          {/* Internal Handoff Chat Channel Widget */}
-          <HandoffChatWidget leadId={id} recordTitle={lead ? `${lead.firstName || ""} ${lead.lastName || ""}`.trim() : "Lead"} />
-
-          {/* Team Comments & @Mentions Section */}
-          <CommentThreadSection leadId={id} />
-
-          {/* Scheduled Meetings Widget */}
-          <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-5 shadow-sm space-y-3">
-            <div className="flex justify-between items-center border-b border-outline-variant pb-2">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-on-surface flex items-center gap-1.5">
-                <Calendar className="w-4 h-4 text-primary" /> Meetings ({meetings.length})
-              </h3>
-              <button onClick={() => setActiveModal("meeting")} className="text-primary font-bold text-xs hover:underline flex items-center gap-1">
-                <Plus className="w-3.5 h-3.5" /> Add
-              </button>
             </div>
-            {meetings.length === 0 ? (
-              <p className="text-xs text-on-surface-variant italic">No upcoming meetings.</p>
-            ) : (
-              <div className="space-y-2 max-h-48 overflow-y-auto text-xs">
-                {meetings.map((m: any) => (
-                  <div key={m.id} className="p-2 bg-surface border border-outline-variant/60 rounded space-y-1">
-                    <p className="font-bold text-on-surface">{m.title}</p>
-                    <p className="text-[10px] text-on-surface-variant">{m.date} at {m.time}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          )}
+
+          {/* TAB 5: HANDOFF CHAT & TEAM DISCUSSIONS */}
+          {activeTab === "handoff_chat" && (
+            <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-b-2xl p-5 space-y-6 shadow-xs border-t-0">
+              <CommentThreadSection leadId={id} />
+              <HandoffChatWidget dealId={lead.convertedDealId || id} />
+            </div>
+          )}
 
         </div>
 

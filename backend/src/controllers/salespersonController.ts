@@ -715,7 +715,7 @@ export const getAllSalespersons = async (req: Request, res: Response) => {
 export const updateSalespersonCapacity = async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
-    const { maxOpenLeads, isAvailable, dealValueCutoff, maxOpenDeals } = req.body;
+    const { maxOpenLeads, isAvailable, onLeave, status, dealValueCutoff, maxOpenDeals } = req.body;
 
     const user = await sequelize.models.User.findByPk(id);
     if (!user) {
@@ -726,11 +726,25 @@ export const updateSalespersonCapacity = async (req: Request, res: Response) => 
     const updates: any = {};
     if (typeof maxOpenLeads === "number" && maxOpenLeads >= 0) updates.maxOpenLeads = maxOpenLeads;
     if (isAvailable !== undefined) updates.isAvailable = !!isAvailable;
+    if (onLeave !== undefined) updates.onLeave = !!onLeave;
+    if (status !== undefined) updates.status = status;
     if (dealValueCutoff !== undefined) updates.dealValueCutoff = dealValueCutoff;
     if (maxOpenDeals !== undefined) updates.maxOpenDeals = maxOpenDeals;
 
     await user.update(updates);
-    res.json({ message: "Capacity and availability updated successfully", user: user.toJSON() });
+
+    // If marked unavailable / absent / on leave, auto-reassign open workload
+    let reassignmentSummary = null;
+    if (updates.isAvailable === false || updates.onLeave === true || updates.status === "On Leave" || updates.status === "OOO") {
+      const { reassignAbsentRepWorkload } = require("../services/absenceReassignmentService");
+      reassignmentSummary = await reassignAbsentRepWorkload(id);
+    }
+
+    res.json({
+      message: "Capacity and availability updated successfully",
+      user: user.toJSON(),
+      reassignmentSummary
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

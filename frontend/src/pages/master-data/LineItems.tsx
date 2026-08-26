@@ -98,7 +98,7 @@ export default function LineItems() {
   };
 
   return (
-    <div className="max-w-[1000px] mx-auto p-8 space-y-6 animate-fade-in">
+    <div className="w-full px-6 md:px-8 py-6 space-y-6 animate-fade-in">
       <MasterDataNav />
       
       {/* Page Header */}
@@ -108,8 +108,8 @@ export default function LineItems() {
             <Sliders className="w-5 h-5 text-primary" />
           </div>
           <div>
-            <h2 className="text-lg font-bold text-on-surface">Line Items</h2>
-            <p className="text-xs text-on-surface-variant">Manage sub-components that form a Requirement (e.g. Doors, Windows, Exhaust fans).</p>
+            <h2 className="text-lg font-bold text-on-surface">Service Items</h2>
+            <p className="text-xs text-on-surface-variant">Manage service deliverables and items linked to each Service Type (e.g. Doors, Windows, Exhaust fans).</p>
           </div>
         </div>
         {!isFormOpen && (
@@ -127,12 +127,12 @@ export default function LineItems() {
             }} 
             className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white text-xs font-bold rounded-lg hover:opacity-90 transition-all shadow-sm"
           >
-            <span>+ Add Line Item</span>
+            <span>+ Add Service Item</span>
           </button>
         )}
       </div>
 
-      {/* Requirement tabs navigation */}
+      {/* Service Type tabs navigation */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1 border-b border-outline-variant">
         <button
           onClick={() => handleTabChange("All")}
@@ -165,11 +165,11 @@ export default function LineItems() {
       {/* Inline Form Card above table */}
       {isFormOpen && (
         <div className="bg-surface-container-lowest border border-outline rounded-2xl p-6 shadow-sm space-y-4 animate-slide-down">
-          <h3 className="text-sm font-bold text-on-surface">{formData.id ? "Edit Line Item" : "Add New Line Item"}</h3>
+          <h3 className="text-sm font-bold text-on-surface">{formData.id ? "Edit Service Item" : "Add New Service Item"}</h3>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="md:col-span-2">
-              <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Line Item Name</label>
+              <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Service Item Name</label>
               <input 
                 type="text" 
                 value={formData.name}
@@ -181,13 +181,13 @@ export default function LineItems() {
             </div>
 
             <div>
-              <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Deliverable (Requirement Category)</label>
+              <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Service Type</label>
               <select 
                 value={formData.requirementId}
                 onChange={e => setFormData({ ...formData, requirementId: e.target.value })}
                 className="w-full bg-surface border border-outline rounded-lg p-2.5 text-xs font-semibold focus:outline-none cursor-pointer"
               >
-                <option value="">Select Requirement</option>
+                <option value="">Select Service Type</option>
                 {requirements?.map(r => (
                   <option key={r.id} value={r.id}>{r.name}</option>
                 ))}
@@ -250,7 +250,7 @@ export default function LineItems() {
               onClick={() => saveMutation.mutate(formData)}
               className="px-4 py-2 bg-primary text-white rounded-lg text-xs font-bold"
             >
-              {formData.id ? "Save Changes" : "Create Line Item"}
+              {formData.id ? "Save Changes" : "Create Service Item"}
             </button>
           </div>
         </div>
@@ -261,8 +261,8 @@ export default function LineItems() {
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="border-b border-outline-variant bg-surface-container-low text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">
-              <th className="px-6 py-3.5">Name</th>
-              <th className="px-6 py-3.5">Category</th>
+              <th className="px-6 py-3.5">Service Item</th>
+              <th className="px-6 py-3.5">Service Type</th>
               <th className="px-6 py-3.5">Unit</th>
               <th className="px-6 py-3.5 text-center">Default Qty</th>
               <th className="px-6 py-3.5 text-right">Price</th>
@@ -272,11 +272,11 @@ export default function LineItems() {
           <tbody className="divide-y divide-outline-variant/40 text-sm">
             {isLoading ? (
               <tr>
-                <td colSpan={6} className="px-6 py-8 text-center text-xs font-bold text-on-surface-variant italic">Loading line items...</td>
+                <td colSpan={6} className="px-6 py-8 text-center text-xs font-bold text-on-surface-variant italic">Loading service items...</td>
               </tr>
             ) : filteredLineItems?.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-6 py-8 text-center text-xs font-bold text-on-surface-variant italic">No line items defined in this category.</td>
+                <td colSpan={6} className="px-6 py-8 text-center text-xs font-bold text-on-surface-variant italic">No service items defined in this category.</td>
               </tr>
             ) : (
               filteredLineItems?.map((li: any) => (

@@ -164,15 +164,20 @@ export default function SalespersonTracker() {
 
   const handleToggleAvailability = async (rep: Salesperson) => {
     try {
+      const willBeAvailable = !rep.isAvailable;
       // Optimistic update
       queryClient.setQueryData<Salesperson[]>(["salespersonsPerformance"], prev =>
-        (prev || []).map(s => s.id === rep.id ? { ...s, isAvailable: !s.isAvailable } : s)
+        (prev || []).map(s => s.id === rep.id ? { ...s, isAvailable: willBeAvailable } : s)
       );
       await apiClient(`/api/v1/settings/availability`, {
         method: "PUT",
-        body: JSON.stringify({ isAvailable: !rep.isAvailable, userId: rep.id })
+        body: JSON.stringify({ isAvailable: willBeAvailable, userId: rep.id })
       });
       queryClient.invalidateQueries({ queryKey: ["salespersonsPerformance"] });
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+      queryClient.invalidateQueries({ queryKey: ["opportunities"] });
+      queryClient.invalidateQueries({ queryKey: ["pipeline"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
     } catch (err) {
       console.error(err);
       queryClient.invalidateQueries({ queryKey: ["salespersonsPerformance"] });

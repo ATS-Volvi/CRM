@@ -121,23 +121,35 @@ export async function calculateTeamKpis(scopedUserIds?: string[]): Promise<any> 
     const totalClosed = deals.filter((d: any) => isClosedStage(d.stage?.name)).length;
     const teamCloseRate = totalClosed > 0 ? (wonDeals.length / totalClosed) * 100 : 0;
 
-    // Lead averages for team
+    // Lead averages for team (batched in a single query)
     const leads = await sequelize.models.Lead.findAll({
-      where: leadsWhere
+      where: leadsWhere,
+      limit: 200
     });
+    const leadIds = leads.map((l: any) => l.id);
+    const allActivities = leadIds.length > 0 ? await sequelize.models.Activity.findAll({
+      where: {
+        leadId: { [Op.in]: leadIds },
+        type: { [Op.in]: ["call", "email", "whatsapp_sms", "meeting"] }
+      },
+      order: [["createdAt", "ASC"]]
+    }) : [];
+
+    // Group activities by leadId in memory
+    const actsByLead = new Map<string, any[]>();
+    for (const act of allActivities) {
+      const lid = (act as any).leadId;
+      if (!actsByLead.has(lid)) actsByLead.set(lid, []);
+      actsByLead.get(lid)!.push(act);
+    }
+
     let contactedCount = 0;
     let totalRespTimeMs = 0;
     let leadsWithResp = 0;
 
     for (const leadObj of leads) {
       const lead = leadObj as any;
-      const acts = await sequelize.models.Activity.findAll({
-        where: {
-          leadId: lead.id,
-          type: { [Op.in]: ["call", "email", "whatsapp_sms", "meeting"] }
-        },
-        order: [["createdAt", "ASC"]]
-      });
+      const acts = actsByLead.get(lead.id) || [];
 
       if (acts.length > 0) {
         contactedCount++;

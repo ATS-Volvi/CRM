@@ -93,7 +93,7 @@ import {
 import { getLeadSources, createLeadSource, updateLeadSource, deleteLeadSource } from "../controllers/leadSourceController";
 import { queryAiReport } from "../controllers/aiReportController";
 import { parseVoiceLead } from "../controllers/voiceLeadController";
-import { getMySettings, updateMySettings, getMyTeam, reassignTeamManager, updateDealValueCutoff } from "../controllers/userSettingsController";
+import { getMySettings, updateMySettings, getMyTeam, reassignTeamManager, updateDealValueCutoff, updateAvailability } from "../controllers/userSettingsController";
 import { getKpiMasters, createKpiMaster, updateKpiMaster, deleteKpiMaster } from "../controllers/kpiMasterController";
 import { getGmailAuthUrl, connectGmail, getGmailStatus, disconnectGmail, syncGmail } from "../controllers/gmailController";
 import { getTasks, createTask, updateTaskStatus } from "../controllers/taskController";
@@ -659,6 +659,17 @@ router.get("/my-settings", authMiddleware, getMySettings);
 router.put("/my-settings", authMiddleware, updateMySettings);
 router.get("/users/settings", authMiddleware, getMySettings);
 router.put("/users/settings", authMiddleware, updateMySettings);
+router.put("/settings/availability", authMiddleware, updateAvailability);
+router.put("/salespersons/:id/availability", authMiddleware, updateAvailability);
+router.post("/salespersons/reassign-absent", authMiddleware, async (req, res) => {
+  try {
+    const { checkAndReassignAllAbsentReps } = require("../services/absenceReassignmentService");
+    const count = await checkAndReassignAllAbsentReps();
+    res.json({ message: "Absence re-assignment completed", totalTransferred: count });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // ==========================================
 // ASSETS / EQUIPMENT TRACKING

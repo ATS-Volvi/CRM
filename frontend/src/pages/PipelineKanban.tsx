@@ -263,13 +263,13 @@ export default function PipelineKanban() {
       <section className="bg-white border-b border-slate-200 px-8 py-3 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3 flex-1 max-w-xl">
           <div className="relative flex-1">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input 
               type="text" 
               placeholder="Search deals, accounts, competitors..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-1.5 text-xs font-semibold focus:outline-none focus:border-emerald-500 transition-all"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl !pl-10 pr-3 py-1.5 text-xs font-semibold focus:outline-none focus:border-emerald-500 transition-all placeholder:text-slate-400"
             />
           </div>
 

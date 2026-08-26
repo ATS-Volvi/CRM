@@ -16,12 +16,14 @@ export const getMySettings = async (req: Request, res: Response) => {
   }
 };
 
+import { reassignAbsentRepWorkload } from "../services/absenceReassignmentService";
+
 export const updateMySettings = async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
     if (!user) return res.status(401).json({ error: "Unauthorized" });
 
-    const { password, isAvailable } = req.body;
+    const { password, isAvailable, onLeave, status } = req.body;
     const dbUser = await sequelize.models.User.findByPk(user.id);
     if (!dbUser) return res.status(404).json({ error: "User not found" });
 
@@ -32,9 +34,58 @@ export const updateMySettings = async (req: Request, res: Response) => {
     if (isAvailable !== undefined) {
       updates.isAvailable = !!isAvailable;
     }
+    if (onLeave !== undefined) {
+      updates.onLeave = !!onLeave;
+    }
+    if (status !== undefined) {
+      updates.status = status;
+    }
 
     await dbUser.update(updates);
-    res.json({ message: "Settings updated successfully", isAvailable: dbUser.toJSON().isAvailable });
+
+    // If marked unavailable / absent / on leave, auto-reassign open workload
+    let reassignmentSummary = null;
+    if (updates.isAvailable === false || updates.onLeave === true || updates.status === "On Leave" || updates.status === "OOO") {
+      reassignmentSummary = await reassignAbsentRepWorkload(user.id);
+    }
+
+    res.json({
+      message: "Settings updated successfully",
+      isAvailable: dbUser.toJSON().isAvailable,
+      reassignmentSummary
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const updateAvailability = async (req: Request, res: Response) => {
+  try {
+    const targetUserId = req.body.userId || (req as any).user?.id;
+    if (!targetUserId) return res.status(400).json({ error: "User ID is required" });
+
+    const { isAvailable, onLeave, status } = req.body;
+    const user: any = await sequelize.models.User.findByPk(targetUserId);
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    const updates: any = {};
+    if (isAvailable !== undefined) updates.isAvailable = !!isAvailable;
+    if (onLeave !== undefined) updates.onLeave = !!onLeave;
+    if (status !== undefined) updates.status = status;
+
+    await user.update(updates);
+
+    // If rep marked unavailable / on leave, automatically reassign active workload to best-fit reps
+    let reassignmentSummary = null;
+    if (updates.isAvailable === false || updates.onLeave === true || updates.status === "On Leave" || updates.status === "OOO") {
+      reassignmentSummary = await reassignAbsentRepWorkload(targetUserId);
+    }
+
+    res.json({
+      message: `Availability updated for ${user.name || 'representative'}`,
+      isAvailable: user.isAvailable,
+      reassignmentSummary
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

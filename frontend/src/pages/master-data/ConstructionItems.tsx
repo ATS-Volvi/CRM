@@ -112,7 +112,7 @@ export default function ConstructionItems() {
   };
 
   return (
-    <div className="max-w-[1000px] mx-auto p-8 space-y-6 animate-fade-in">
+    <div className="w-full px-6 md:px-8 py-6 space-y-6 animate-fade-in">
       <MasterDataNav />
       
       {/* Page Header */}
@@ -123,7 +123,7 @@ export default function ConstructionItems() {
           </div>
           <div>
             <h2 className="text-lg font-bold text-on-surface">Construction Items</h2>
-            <p className="text-xs text-on-surface-variant">Manage materials, labor, and equipment needed to build sub-components (Line Items).</p>
+            <p className="text-xs text-on-surface-variant">Manage materials, labor, and equipment needed to build sub-components (Service Items).</p>
           </div>
         </div>
         {!isFormOpen && (

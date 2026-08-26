@@ -122,10 +122,10 @@ export default function QuoteHistory() {
 
   return (
     <div className="flex-1 overflow-y-auto bg-background h-[calc(100vh-64px)] relative">
-      <div className="max-w-[1440px] mx-auto p-8">
+      <div className="w-full px-6 md:px-8 py-6 space-y-6">
         
         {/* Dashboard Stats Bento Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-5 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
           <div className="bg-surface-container-lowest p-6 rounded-xl border border-outline-variant shadow-sm flex flex-col gap-2">
             <div className="flex justify-between items-center">
               <span className="text-[12px] font-semibold tracking-wider text-outline uppercase">Total Quotations</span>

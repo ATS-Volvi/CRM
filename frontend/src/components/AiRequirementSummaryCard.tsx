@@ -56,23 +56,15 @@ export const AiRequirementSummaryCard: React.FC<AiRequirementSummaryCardProps> =
 
   if (isLoading) {
     return (
-      <div className={`bg-slate-900/80 border border-indigo-500/20 rounded-2xl p-6 backdrop-blur-md shadow-xl text-white ${className}`}>
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-indigo-500/20 flex items-center justify-center text-indigo-400 border border-indigo-500/30 animate-pulse">
-              <Sparkles className="w-5 h-5 animate-spin" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-slate-100 flex items-center gap-2">
-                Synthesizing Core Requirements...
-              </h3>
-              <p className="text-xs text-slate-400">Filtering conversation noise and extracting actionable specifications</p>
-            </div>
+      <div className={`bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs ${className}`}>
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 flex items-center justify-center animate-pulse">
+            <Sparkles className="w-4 h-4 animate-spin" />
           </div>
-        </div>
-        <div className="space-y-2.5 animate-pulse">
-          <div className="h-4 bg-slate-800 rounded-md w-3/4"></div>
-          <div className="h-4 bg-slate-800 rounded-md w-1/2"></div>
+          <div>
+            <h3 className="font-bold text-xs text-slate-800 dark:text-slate-200">Analyzing Customer Requirements...</h3>
+            <p className="text-[11px] text-slate-400">Extracting deliverables and technical specifications</p>
+          </div>
         </div>
       </div>
     );
@@ -80,23 +72,23 @@ export const AiRequirementSummaryCard: React.FC<AiRequirementSummaryCardProps> =
 
   if (error || !data) {
     return (
-      <div className={`bg-slate-900/60 border border-slate-800 rounded-2xl p-5 text-white ${className}`}>
+      <div className={`bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs ${className}`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-slate-800 flex items-center justify-center text-slate-400">
-              <Sparkles className="w-5 h-5" />
+            <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400">
+              <Sparkles className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-sm font-medium text-slate-200">AI Requirement Summary</h3>
-              <p className="text-xs text-slate-400">Enquiry summary not generated yet</p>
+              <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200">Customer Requirements</h3>
+              <p className="text-[11px] text-slate-400">Requirements summary has not been generated yet</p>
             </div>
           </div>
           <button
             onClick={() => refetch()}
-            className="px-3 py-1.5 text-xs bg-indigo-600/80 hover:bg-indigo-600 text-white rounded-lg transition-colors flex items-center gap-1.5 shadow-sm"
+            className="enterprise-btn-primary text-xs"
           >
             <RefreshCw className="w-3.5 h-3.5" />
-            Generate Summary
+            <span>Generate Breakdown</span>
           </button>
         </div>
       </div>
@@ -109,108 +101,98 @@ export const AiRequirementSummaryCard: React.FC<AiRequirementSummaryCardProps> =
   const intentScore: number = data.intentScore || 85;
 
   return (
-    <div className={`bg-gradient-to-br from-slate-900/95 via-slate-900/90 to-indigo-950/40 border border-indigo-500/25 rounded-2xl p-6 backdrop-blur-md shadow-2xl text-white transition-all ${className}`}>
+    <div className={`relative overflow-hidden bg-gradient-to-br from-blue-50 via-indigo-50/70 to-blue-100/60 dark:from-slate-900 dark:via-blue-950/30 dark:to-slate-900 border-2 border-blue-400/90 dark:border-blue-600/80 rounded-2xl p-5 shadow-lg shadow-blue-500/10 text-slate-900 dark:text-slate-100 space-y-4 transition-all ${className}`}>
+      
+      {/* Subtle AI Ambient Electric Cobalt Glow */}
+      <div className="absolute top-0 right-0 w-80 h-36 bg-gradient-to-bl from-blue-600/20 via-indigo-500/15 to-transparent blur-3xl pointer-events-none" />
+
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-800/80">
-        <div className="flex items-center gap-3.5">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center text-white shadow-lg shadow-indigo-500/25 ring-2 ring-indigo-400/20">
-            <Zap className="w-5 h-5 text-amber-300" />
+      <div className="relative flex flex-wrap items-center justify-between gap-3 pb-3.5 border-b border-blue-200/70 dark:border-blue-900/60">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 via-indigo-600 to-sky-500 text-white flex items-center justify-center font-bold shadow-md shadow-blue-600/30 shrink-0">
+            <Sparkles className="w-4 h-4" />
           </div>
           <div>
-            <div className="flex items-center gap-2.5">
-              <h3 className="font-bold text-slate-100 text-base tracking-wide flex items-center gap-2">
-                Executive Requirement Breakdown
+            <div className="flex items-center gap-2">
+              <h3 className="font-extrabold text-blue-950 dark:text-white text-sm tracking-tight flex items-center gap-1.5">
+                AI Customer Scope & Requirements Insight
               </h3>
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-400/30">
-                <Sparkles className="w-3 h-3 mr-1 text-indigo-400" />
-                Filtered & Verified
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xs">
+                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
+                AI Verified
               </span>
             </div>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Conversational pleasantries filtered out — showing only concrete deliverables & specifications
+            <p className="text-xs text-blue-900/70 dark:text-blue-300/70 mt-0.5 font-medium">
+              Structured deliverables, requested equipment, and scope details extracted from customer communication
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5">
-          {/* Intent Score Badge */}
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800/80 border border-slate-700/60 text-xs font-medium">
-            <span className="text-slate-400">Buying Intent:</span>
-            <span className={`font-bold ${intentScore >= 80 ? 'text-emerald-400' : intentScore >= 60 ? 'text-amber-400' : 'text-slate-300'}`}>
+        <div className="flex items-center gap-2">
+          {/* Buying Intent */}
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/95 dark:bg-slate-800 text-xs font-semibold text-slate-800 dark:text-slate-200 border border-blue-200 dark:border-blue-800 shadow-2xs">
+            <span className="text-[11px] text-blue-700 dark:text-blue-300 font-semibold">Intent Score:</span>
+            <span className={`font-black ${intentScore >= 80 ? 'text-emerald-600 dark:text-emerald-400' : intentScore >= 60 ? 'text-blue-600 dark:text-blue-400' : 'text-slate-700'}`}>
               {intentScore}%
             </span>
           </div>
 
           <button
-            onClick={handleCopy}
-            className="px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 text-xs text-slate-300 hover:text-white transition-all flex items-center gap-1.5"
-            title="Copy requirements markdown"
-          >
-            {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-            <span>{copied ? "Copied" : "Copy"}</span>
-          </button>
-
-          <button
-            onClick={() => refetch()}
-            disabled={isFetching}
-            className="p-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 text-slate-300 hover:text-white transition-all disabled:opacity-50"
-            title="Re-analyze and refresh requirements"
-          >
-            <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin text-indigo-400' : ''}`} />
-          </button>
-
-          <button
             onClick={() => setIsExpanded(!isExpanded)}
-            className="p-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 text-slate-300 hover:text-white transition-all"
+            className="p-1.5 rounded-xl bg-white/95 dark:bg-slate-800 hover:bg-blue-100 text-blue-700 dark:text-blue-300 transition-all border border-blue-200 dark:border-blue-800 shadow-2xs cursor-pointer"
             title={isExpanded ? "Collapse" : "Expand"}
           >
-            {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
           </button>
         </div>
       </div>
 
-      {/* Core Need Banner */}
-      <div className="mt-4 p-3.5 rounded-xl bg-indigo-950/40 border border-indigo-500/20 flex items-start gap-3">
-        <Layers className="w-5 h-5 text-indigo-400 shrink-0 mt-0.5" />
+      {/* Core Demand Card */}
+      <div className="relative p-4 rounded-xl bg-white/95 dark:bg-slate-800/90 border-l-4 border-l-blue-600 border border-blue-200/90 dark:border-blue-800/70 flex items-start gap-3 shadow-xs">
+        <div className="w-7 h-7 rounded-lg bg-blue-100 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 flex items-center justify-center shrink-0 border border-blue-200 dark:border-blue-800">
+          <Sparkles className="w-3.5 h-3.5" />
+        </div>
         <div className="flex-1 min-w-0">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-300">Core Demand</span>
-          <p className="text-sm font-medium text-slate-100 mt-0.5 leading-relaxed">
+          <span className="text-[10px] font-black uppercase tracking-wider text-blue-700 dark:text-blue-300 flex items-center gap-1">
+            Core Customer Demand
+          </span>
+          <p className="text-xs font-bold text-slate-900 dark:text-white mt-0.5 leading-relaxed">
             {data.coreRequest || "Official commercial quotation requested."}
           </p>
         </div>
       </div>
 
       {isExpanded && (
-        <div className="mt-5 space-y-5">
+        <div className="space-y-4 pt-1">
           {/* Main 2-Column Grid: Deliverables & Specifications */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Primary Deliverables */}
-            <div className="p-4 rounded-xl bg-slate-800/50 border border-slate-700/50">
-              <div className="flex items-center gap-2 mb-3">
-                <Package className="w-4 h-4 text-sky-400" />
-                <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider">
+            <div className="p-3.5 rounded-xl bg-white/80 dark:bg-slate-800/70 border border-blue-200/80 dark:border-blue-800/60 shadow-2xs">
+              <div className="flex items-center gap-2 mb-2.5">
+                <Package className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                <h4 className="text-xs font-bold text-blue-950 dark:text-blue-200 uppercase tracking-wider">
                   Deliverables & Items ({deliverables.length})
                 </h4>
               </div>
               {deliverables.length > 0 ? (
-                <ul className="space-y-2">
+                <ul className="space-y-1.5">
                   {deliverables.map((item, idx) => (
-                    <li key={idx} className="flex items-start gap-2.5 text-xs text-slate-200 bg-slate-900/60 p-2 rounded-lg border border-slate-700/40">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
-                      <span className="font-medium">{item}</span>
+                    <li key={idx} className="flex items-start gap-2 text-xs text-slate-900 dark:text-slate-200 bg-blue-50/50 dark:bg-slate-900 p-2.5 rounded-lg border border-blue-100 dark:border-blue-900/60 shadow-2xs">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                      <span className="font-bold">{item}</span>
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="text-xs text-slate-400 italic">No specific line item list extracted.</p>
+                <p className="text-xs text-slate-400 italic">Standard catalog service item.</p>
               )}
             </div>
 
             {/* Technical Specifications */}
-            <div className="p-4 rounded-xl bg-slate-800/50 border border-slate-700/50">
-              <div className="flex items-center gap-2 mb-3">
-                <Cpu className="w-4 h-4 text-violet-400" />
-                <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider">
+            <div className="p-3.5 rounded-xl bg-white/80 dark:bg-slate-800/70 border border-blue-200/80 dark:border-blue-800/60 shadow-2xs">
+              <div className="flex items-center gap-2 mb-2.5">
+                <Cpu className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                <h4 className="text-xs font-bold text-blue-950 dark:text-blue-200 uppercase tracking-wider">
                   Technical Specifications & Standards
                 </h4>
               </div>
@@ -219,50 +201,50 @@ export const AiRequirementSummaryCard: React.FC<AiRequirementSummaryCardProps> =
                   {specs.map((spec, idx) => (
                     <span
                       key={idx}
-                      className="px-2.5 py-1 rounded-lg bg-violet-500/15 border border-violet-400/30 text-violet-200 text-xs font-medium tracking-wide flex items-center gap-1.5"
+                      className="px-2.5 py-1 rounded-lg bg-blue-100/80 dark:bg-slate-900 text-blue-900 dark:text-blue-200 border border-blue-200/90 dark:border-blue-800 text-xs font-bold tracking-wide flex items-center gap-1.5 shadow-2xs"
                     >
-                      <span className="w-1.5 h-1.5 rounded-full bg-violet-400"></span>
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-600"></span>
                       {spec}
                     </span>
                   ))}
                 </div>
               ) : (
-                <p className="text-xs text-slate-400 italic">Standard industry specifications apply.</p>
+                <p className="text-xs text-slate-400 italic">Standard commercial tier specifications.</p>
               )}
             </div>
           </div>
 
           {/* Secondary Info Row: Context, Timeline, Commercials */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {/* Project Context */}
-            <div className="p-3.5 rounded-xl bg-slate-800/40 border border-slate-700/40 flex items-start gap-2.5">
-              <Building className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+            {/* Deployment Scope */}
+            <div className="p-3 rounded-xl bg-white/80 dark:bg-slate-800/60 border border-blue-200/70 dark:border-blue-800/50 flex items-start gap-2.5 shadow-2xs">
+              <Building className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
               <div>
-                <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Deployment Scope</span>
-                <p className="text-xs font-medium text-slate-200 mt-0.5 line-clamp-2">
-                  {data.projectContext || "Commercial Procurement Project"}
+                <span className="text-[10px] font-bold uppercase text-blue-700/80 dark:text-blue-300/80 tracking-wider">Deployment Scope</span>
+                <p className="text-xs font-bold text-slate-900 dark:text-slate-200 mt-0.5 line-clamp-2">
+                  {data.projectContext || "Commercial Procurement Scope"}
                 </p>
               </div>
             </div>
 
             {/* Timeline */}
-            <div className="p-3.5 rounded-xl bg-slate-800/40 border border-slate-700/40 flex items-start gap-2.5">
-              <Clock className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+            <div className="p-3 rounded-xl bg-white/80 dark:bg-slate-800/60 border border-blue-200/70 dark:border-blue-800/50 flex items-start gap-2.5 shadow-2xs">
+              <Clock className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
               <div>
-                <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Timeline / Lead Time</span>
-                <p className="text-xs font-medium text-slate-200 mt-0.5 line-clamp-2">
-                  {data.timelineAndConstraints || "Standard 30-day quote validity"}
+                <span className="text-[10px] font-bold uppercase text-blue-700/80 dark:text-blue-300/80 tracking-wider">Timeline / Lead Time</span>
+                <p className="text-xs font-bold text-slate-900 dark:text-slate-200 mt-0.5 line-clamp-2">
+                  {data.timelineAndConstraints || "Standard 30-day quote validity and delivery lead-time"}
                 </p>
               </div>
             </div>
 
             {/* Budget / Commercials */}
-            <div className="p-3.5 rounded-xl bg-slate-800/40 border border-slate-700/40 flex items-start gap-2.5">
-              <DollarSign className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+            <div className="p-3 rounded-xl bg-white/80 dark:bg-slate-800/60 border border-blue-200/70 dark:border-blue-800/50 flex items-start gap-2.5 shadow-2xs">
+              <DollarSign className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
               <div>
-                <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Commercial Target</span>
-                <p className="text-xs font-semibold text-emerald-300 mt-0.5 line-clamp-2">
-                  {data.budgetAndCommercials || "Catalogue Price Book Standard"}
+                <span className="text-[10px] font-bold uppercase text-blue-700/80 dark:text-blue-300/80 tracking-wider">Commercial Target</span>
+                <p className="text-xs font-black text-emerald-600 dark:text-emerald-400 mt-0.5 line-clamp-2">
+                  {data.budgetAndCommercials || "Price Book Target"}
                 </p>
               </div>
             </div>
@@ -270,16 +252,16 @@ export const AiRequirementSummaryCard: React.FC<AiRequirementSummaryCardProps> =
 
           {/* Action Recommendation Banner */}
           {data.recommendedAction && (
-            <div className="p-4 rounded-xl bg-gradient-to-r from-indigo-900/40 via-violet-900/30 to-slate-900/40 border border-indigo-500/30 flex flex-wrap items-center justify-between gap-3">
+            <div className="p-4 rounded-xl bg-gradient-to-r from-blue-600/10 via-indigo-600/15 to-sky-600/10 border-2 border-blue-300/80 dark:border-blue-700 flex flex-wrap items-center justify-between gap-3 shadow-xs">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-indigo-300">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600 text-white flex items-center justify-center font-bold shadow-xs">
                   <ArrowRight className="w-4 h-4" />
                 </div>
                 <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-300">
-                    Recommended Next Step
+                  <span className="text-[10px] font-black uppercase tracking-wider text-blue-700 dark:text-blue-300 flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-blue-600" /> Recommended AI Action
                   </span>
-                  <p className="text-xs font-medium text-slate-100 mt-0.5">
+                  <p className="text-xs font-bold text-slate-900 dark:text-white mt-0.5">
                     {data.recommendedAction}
                   </p>
                 </div>
@@ -288,27 +270,12 @@ export const AiRequirementSummaryCard: React.FC<AiRequirementSummaryCardProps> =
               {onActionClick && (
                 <button
                   onClick={() => onActionClick(data.recommendedAction)}
-                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs shadow-lg shadow-indigo-600/30 transition-all flex items-center gap-1.5"
+                  className="px-4 py-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-sky-600 hover:from-blue-500 hover:to-indigo-500 text-white font-extrabold rounded-xl text-xs shadow-md shadow-blue-600/25 flex items-center gap-1.5 transition-all cursor-pointer hover:scale-[1.02] active:scale-95"
                 >
                   <span>Execute Action</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               )}
-            </div>
-          )}
-
-          {/* Tags Footer */}
-          {tags.length > 0 && (
-            <div className="flex flex-wrap items-center gap-1.5 pt-2">
-              <span className="text-[11px] text-slate-400 mr-1 font-medium">Requirement Tags:</span>
-              {tags.map((tag, idx) => (
-                <span
-                  key={idx}
-                  className="px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 text-[11px] border border-slate-700/60 font-medium"
-                >
-                  #{tag}
-                </span>
-              ))}
             </div>
           )}
         </div>

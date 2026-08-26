@@ -50,10 +50,10 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    label: "Advanced (BOM)",
+    label: "Service Architecture & BOM",
     items: [
-      { name: "Requirements", path: "/master-data/requirements", icon: Settings },
-      { name: "Line Items (BOM)", path: "/master-data/line-items", icon: Settings },
+      { name: "Service Types", path: "/master-data/requirements", icon: Settings },
+      { name: "Service Items", path: "/master-data/line-items", icon: Settings },
       { name: "Construction Items", path: "/master-data/construction-items", icon: Settings },
       { name: "Pricing Grid", path: "/master-data/pricing", icon: Settings },
     ],
@@ -111,10 +111,14 @@ export function MasterDataSidebar() {
 export function MasterDataNav() {
   const location = useLocation();
   const compactTabs = [
-    { name: "Catalog", path: "/master-data/catalog" },
+    { name: "Service Types", path: "/master-data/requirements" },
+    { name: "Service Items", path: "/master-data/line-items" },
+    { name: "Construction", path: "/master-data/construction-items" },
+    { name: "Pricing Grid", path: "/master-data/pricing" },
     { name: "Templates", path: "/master-data/quote-templates" },
-    { name: "Requirements", path: "/master-data/requirements" },
-    { name: "Line Items", path: "/master-data/line-items" },
+    { name: "Lead Sources", path: "/master-data/lead-sources" },
+    { name: "KPI Master", path: "/master-data/kpis" },
+    { name: "Price Lists", path: "/price-book" },
     { name: "Msg Templates", path: "/master-data/message-templates" },
   ];
   return (

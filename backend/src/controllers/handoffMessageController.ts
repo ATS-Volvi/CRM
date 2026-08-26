@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { sequelize } from "@nexus-crm/database";
+import { sequelize, HandoffMessage as HandoffMessageModel } from "@nexus-crm/database";
 import { getLeadAccessLevel, getDealAccessLevel } from "../services/handoffAccessService";
 import { createNotification } from "../services/notificationEngine";
 
@@ -107,7 +107,8 @@ export async function getHandoffMessages(req: Request, res: Response) {
       return res.status(400).json({ error: "Missing required parameter: dealId or leadId" });
     }
 
-    const { Lead, Deal, HandoffMessage, User } = sequelize.models;
+    const { Lead, Deal, User } = sequelize.models;
+    const HandoffMessage = sequelize.models.HandoffMessage || HandoffMessageModel;
     let access = { canRead: false, accessLevel: "none" };
 
     if (dealId) {
@@ -189,7 +190,8 @@ export async function sendHandoffMessage(req: Request, res: Response) {
       return res.status(400).json({ error: "Missing required parameter: dealId or leadId" });
     }
 
-    const { Lead, Deal, HandoffMessage, User } = sequelize.models;
+    const { Lead, Deal, User } = sequelize.models;
+    const HandoffMessage = sequelize.models.HandoffMessage || HandoffMessageModel;
     let access = { canRead: false, accessLevel: "none" };
     let recordTitle = "";
 
@@ -260,7 +262,8 @@ export async function updateHandoffMessage(req: Request, res: Response) {
     const { message } = req.body;
     const user = (req as any).user;
 
-    const { HandoffMessage, User } = sequelize.models;
+    const { User } = sequelize.models;
+    const HandoffMessage = sequelize.models.HandoffMessage || HandoffMessageModel;
     const msg: any = await HandoffMessage.findByPk(String(id));
     if (!msg) return res.status(404).json({ error: "Message not found" });
 
@@ -292,7 +295,7 @@ export async function deleteHandoffMessage(req: Request, res: Response) {
     const { id } = req.params;
     const user = (req as any).user;
 
-    const { HandoffMessage } = sequelize.models;
+    const HandoffMessage = sequelize.models.HandoffMessage || HandoffMessageModel;
     const msg: any = await HandoffMessage.findByPk(String(id));
     if (!msg) return res.status(404).json({ error: "Message not found" });
 

@@ -124,9 +124,6 @@ export function Layout() {
   return (
     <OrbitProvider>
       <div className="flex flex-col h-screen w-full bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans overflow-hidden transition-colors duration-300">
-        {/* ENTERPRISE DEMO STORY GUIDE BAR */}
-        <DemoStoryGuide />
-
         {/* MAIN CONTENT AREA CONTAINER WITH PERSISTENT SIDEBAR */}
         <div className="flex-1 flex overflow-hidden relative">
           <Sidebar
@@ -145,7 +142,6 @@ export function Layout() {
         <GlobalSearchModal isOpen={isCommandPaletteOpen} onClose={() => setIsCommandPaletteOpen(false)} />
         <NotificationDrawer isOpen={isNotificationsOpen} onClose={() => setIsNotificationsOpen(false)} />
         <AiCopilotDrawer isOpen={isAiCopilotOpen} onClose={() => setIsAiCopilotOpen(false)} />
-        <QuickActionFab />
       </div>
     </OrbitProvider>
   );

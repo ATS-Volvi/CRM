@@ -126,206 +126,174 @@ export default function Leads() {
   };
 
   return (
-    <div className="p-6 space-y-5 max-w-7xl mx-auto">
-      {/* Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200/80 pb-4">
+    <div className="w-full px-6 md:px-8 py-6 space-y-5">
+      {/* 1. Top Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="w-8 h-8 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center font-bold">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold border border-blue-100 dark:border-blue-900 shadow-xs">
               <Users className="w-5 h-5" />
-            </span>
+            </div>
             <div>
-              <h1 className="text-xl font-bold text-slate-900 tracking-tight">Pre-Sales Leads</h1>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Manage and qualify early customer enquiries before commercial conversion.
+              <h1 className="text-xl font-extrabold text-slate-900 dark:text-white tracking-tight">Pre-Sales Leads</h1>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Capture, score, and qualify customer enquiries before commercial quotation.
               </p>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          {/* Quick navigation to Commercial Opportunities */}
+        <div className="flex items-center gap-2.5">
           <button
             onClick={() => navigate("/opportunities")}
-            className="enterprise-btn-secondary text-xs flex items-center gap-1.5"
+            className="enterprise-btn-secondary text-xs flex items-center gap-1.5 shadow-2xs"
           >
-            <Target className="w-4 h-4 text-emerald-600" />
+            <Target className="w-3.5 h-3.5 text-emerald-600" />
             <span>Opportunities Pipeline</span>
           </button>
 
-          {/* View Toggle */}
-          <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+          {/* View Mode Switcher */}
+          <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl border border-slate-200 dark:border-slate-700">
             <button
               onClick={() => setViewMode("list")}
-              className={`p-1.5 rounded-md text-xs font-semibold flex items-center gap-1 transition-colors ${
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
                 viewMode === "list"
-                  ? "bg-white text-slate-800 shadow-xs font-bold"
-                  : "text-slate-500 hover:text-slate-700"
+                  ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
+                  : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
               }`}
               title="List View"
             >
-              <LayoutList className="w-4 h-4" />
-              <span className="hidden sm:inline">List</span>
+              <LayoutList className="w-3.5 h-3.5" />
+              <span>List</span>
             </button>
             <button
               onClick={() => setViewMode("kanban")}
-              className={`p-1.5 rounded-md text-xs font-semibold flex items-center gap-1 transition-colors ${
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
                 viewMode === "kanban"
-                  ? "bg-white text-slate-800 shadow-xs font-bold"
-                  : "text-slate-500 hover:text-slate-700"
+                  ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
+                  : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
               }`}
               title="Kanban View"
             >
-              <Columns3 className="w-4 h-4" />
-              <span className="hidden sm:inline">Board</span>
+              <Columns3 className="w-3.5 h-3.5" />
+              <span>Board</span>
             </button>
           </div>
 
           <button
             onClick={() => navigate("/leads/new")}
-            className="enterprise-btn-primary text-xs"
+            className="enterprise-btn-primary text-xs shadow-xs"
           >
-            <Plus className="w-3.5 h-3.5" />
+            <Plus className="w-4 h-4" />
             <span>New Lead</span>
           </button>
         </div>
       </div>
 
-      {/* Status Filter Tabs */}
-      <div className="flex items-center gap-2 border-b border-slate-200 pb-2 overflow-x-auto no-scrollbar text-xs">
-        <button
-          onClick={() => { setStatusFilterTab("all"); setSelectedStatus("ALL"); }}
-          className={`px-3 py-1.5 rounded-lg font-bold transition-colors cursor-pointer ${
-            statusFilterTab === "all"
-              ? "bg-slate-900 text-white shadow-2xs"
-              : "text-slate-600 hover:bg-slate-100"
-          }`}
-        >
-          All Leads ({totalCount})
-        </button>
-        <button
-          onClick={() => { setStatusFilterTab("active"); setSelectedStatus("ALL"); }}
-          className={`px-3 py-1.5 rounded-lg font-bold transition-colors cursor-pointer ${
-            statusFilterTab === "active"
-              ? "bg-blue-600 text-white shadow-2xs"
-              : "text-slate-600 hover:bg-slate-100"
-          }`}
-        >
-          Active Enquiries (New / Contacted / Qualified)
-        </button>
-        <button
-          onClick={() => { setStatusFilterTab("converted"); setSelectedStatus("CONVERTED"); }}
-          className={`px-3 py-1.5 rounded-lg font-bold transition-colors cursor-pointer ${
-            statusFilterTab === "converted"
-              ? "bg-purple-600 text-white shadow-2xs"
-              : "text-slate-600 hover:bg-slate-100"
-          }`}
-        >
-          Converted Leads
-        </button>
-        <button
-          onClick={() => { setStatusFilterTab("not_converted"); setSelectedStatus("NOT_CONVERTED"); }}
-          className={`px-3 py-1.5 rounded-lg font-bold transition-colors cursor-pointer ${
-            statusFilterTab === "not_converted"
-              ? "bg-slate-600 text-white shadow-2xs"
-              : "text-slate-600 hover:bg-slate-100"
-          }`}
-        >
-          Not Converted
-        </button>
-      </div>
-
-      {/* Channel Quick-Filter Pills */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
-        {CHANNEL_TABS.map((tab) => {
-          const isSelected = selectedChannel === tab.key;
-          const count = tab.key === "ALL" ? (channelCounts.ALL ?? totalCount) : channelCounts[tab.key];
-          const Icon = tab.icon;
-
-          return (
+      {/* 2. Unified Control Card: Status Tabs + Search + Channels */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-3.5 space-y-3 shadow-xs">
+        {/* Top Filter Row: Segmented Status Pills + Search Box */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          {/* Status Tabs */}
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar bg-slate-100/80 dark:bg-slate-800/80 p-1 rounded-xl">
             <button
-              key={tab.key}
-              onClick={() => {
-                setSelectedChannel(tab.key);
-                setPage(1);
-              }}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 shrink-0 cursor-pointer ${
-                isSelected
-                  ? "bg-blue-600 text-white shadow-xs"
-                  : "bg-white text-slate-600 border border-slate-200/90 hover:bg-slate-50 hover:text-slate-900 hover:border-slate-300"
+              onClick={() => { setStatusFilterTab("all"); setSelectedStatus("ALL"); }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                statusFilterTab === "all"
+                  ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
               }`}
             >
-              <Icon className={`w-3.5 h-3.5 ${isSelected ? "text-white" : tab.color || "text-slate-400"}`} />
-              <span>{tab.label}</span>
-              {count !== undefined && count !== null && (
-                <span
-                  className={`ml-1 text-[11px] px-1.5 py-0.2 rounded-full font-medium ${
-                    isSelected ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"
-                  }`}
-                >
-                  {count}
-                </span>
-              )}
+              All Leads <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700">{totalCount}</span>
             </button>
-          );
-        })}
-      </div>
+            <button
+              onClick={() => { setStatusFilterTab("active"); setSelectedStatus("ALL"); }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                statusFilterTab === "active"
+                  ? "bg-blue-600 text-white shadow-xs"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+              }`}
+            >
+              Active Enquiries
+            </button>
+            <button
+              onClick={() => { setStatusFilterTab("converted"); setSelectedStatus("CONVERTED"); }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                statusFilterTab === "converted"
+                  ? "bg-purple-600 text-white shadow-xs"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+              }`}
+            >
+              Converted Deals
+            </button>
+            <button
+              onClick={() => { setStatusFilterTab("not_converted"); setSelectedStatus("NOT_CONVERTED"); }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                statusFilterTab === "not_converted"
+                  ? "bg-slate-700 text-white shadow-xs"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+              }`}
+            >
+              Not Converted
+            </button>
+          </div>
 
-      {/* Filter & Search Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
-        <div className="flex items-center gap-2 flex-1 min-w-[240px]">
-          <div className="relative w-full max-w-sm">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+          {/* Search Box */}
+          <div className="relative flex-1 max-w-md">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               placeholder="Search company, name, email, phone..."
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-              className="enterprise-input pl-9 w-full"
+              className="w-full !pl-10 pr-4 py-2 text-xs font-medium text-slate-800 dark:text-slate-200 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400"
             />
           </div>
-
-          <select
-            value={selectedStatus}
-            onChange={(e) => {
-              setSelectedStatus(e.target.value);
-              setPage(1);
-            }}
-            className="enterprise-input shrink-0 font-medium text-slate-800"
-          >
-            <option value="ALL">All Statuses</option>
-            {LEAD_STAGES.map((s) => (
-              <option key={s.key} value={s.key}>
-                {s.label}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={selectedChannel}
-            onChange={(e) => {
-              setSelectedChannel(e.target.value);
-              setPage(1);
-            }}
-            className="enterprise-input shrink-0 hidden md:block font-medium text-slate-800"
-          >
-            <option value="ALL">All Channels</option>
-            <option value="Website">Website</option>
-            <option value="WhatsApp">WhatsApp</option>
-            <option value="Instagram">Instagram</option>
-            <option value="Email">Email</option>
-            <option value="LinkedIn">LinkedIn</option>
-            <option value="Facebook">Facebook / Meta</option>
-            <option value="Referral">Referral</option>
-          </select>
         </div>
 
-        <div className="text-xs text-slate-400 font-medium">
-          Showing <strong>{leads.length}</strong> of {totalCount} leads
+        {/* Bottom Filter Row: Channel Quick Filters */}
+        <div className="flex items-center justify-between gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1 shrink-0">Channel:</span>
+            {CHANNEL_TABS.map((tab) => {
+              const isSelected = selectedChannel === tab.key;
+              const count = tab.key === "ALL" ? (channelCounts.ALL ?? totalCount) : channelCounts[tab.key];
+              const Icon = tab.icon;
+
+              return (
+                <button
+                  key={tab.key}
+                  onClick={() => {
+                    setSelectedChannel(tab.key);
+                    setPage(1);
+                  }}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all shrink-0 cursor-pointer ${
+                    isSelected
+                      ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold shadow-2xs"
+                      : "bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-900"
+                  }`}
+                >
+                  <Icon className="w-3 h-3" />
+                  <span>{tab.label}</span>
+                  {count !== undefined && count !== null && (
+                    <span className={`text-[10px] px-1 py-0.2 rounded-full font-bold ${
+                      isSelected ? "bg-white/20 dark:bg-slate-900/20 text-white dark:text-slate-900" : "text-slate-400"
+                    }`}>
+                      {count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="text-[11px] text-slate-400 font-medium shrink-0 hidden sm:block">
+            Showing <strong className="text-slate-700 dark:text-slate-300">{leads.length}</strong> of {totalCount}
+          </div>
         </div>
       </div>
 
-      {/* Content Area */}
+      {/* 3. Content Area */}
       {isLoading ? (
         <div className="p-16 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
           <span className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
@@ -345,103 +313,98 @@ export default function Leads() {
         </div>
       ) : viewMode === "list" ? (
         /* TABLE VIEW */
-        <div className="enterprise-card overflow-hidden">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-xs overflow-hidden">
           <table className="enterprise-table">
             <thead>
-              <tr>
-                <th>Lead / Company</th>
-                <th>Contact</th>
-                <th>Status</th>
-                <th>Source / Channel</th>
-                <th>Assigned To</th>
-                <th>Temperature</th>
-                <th>Budget / Est.</th>
-                <th>Next Action</th>
-                <th className="text-right">Actions</th>
+              <tr className="bg-slate-50/70 dark:bg-slate-800/50 border-b border-slate-200/80 dark:border-slate-800">
+                <th className="py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Lead / Company</th>
+                <th className="py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Contact Person</th>
+                <th className="py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
+                <th className="py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Channel</th>
+                <th className="py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Assigned To</th>
+                <th className="py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Temperature</th>
+                <th className="py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Est. Budget</th>
+                <th className="py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Next Action</th>
+                <th className="py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Action</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
               {leads.map((l: any) => {
                 const isConverted = (l.status || "").toUpperCase() === "CONVERTED";
                 return (
                   <tr
                     key={l.id}
                     onClick={() => navigate(`/leads/${l.id}`)}
-                    className="cursor-pointer transition-colors"
+                    className="cursor-pointer transition-all hover:bg-slate-50/80 dark:hover:bg-slate-800/40 group"
                   >
-                    <td className="font-semibold text-slate-800">
-                      <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-md bg-blue-50 text-blue-700 flex items-center justify-center font-bold text-xs shrink-0">
+                    <td className="py-3.5 px-4 font-semibold text-slate-800">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
                           {(l.company || l.firstName || "L")[0].toUpperCase()}
                         </div>
                         <div>
-                          <div className="text-xs font-semibold text-slate-900 hover:text-blue-600">
+                          <div className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                             {l.company || `${l.firstName || ""} ${l.lastName || ""}`.trim() || "Unnamed Enquiry"}
                           </div>
-                          <div className="text-[11px] text-slate-400 font-normal">
+                          <div className="text-[11px] text-slate-400 font-mono mt-0.5">
                             #{l.leadNumber || l.id.slice(0, 8)}
                           </div>
                         </div>
                       </div>
                     </td>
-                    <td>
-                      <div className="text-xs text-slate-700">
+                    <td className="py-3.5 px-4">
+                      <div className="text-xs font-semibold text-slate-800 dark:text-slate-200">
                         {l.firstName || l.lastName ? `${l.firstName || ""} ${l.lastName || ""}`.trim() : "—"}
                       </div>
                       <div className="text-[11px] text-slate-400">
                         {l.email || l.phone || "No contact info"}
                       </div>
                     </td>
-                    <td>{getStatusBadge(l.status)}</td>
-                    <td>
+                    <td className="py-3.5 px-4">{getStatusBadge(l.status)}</td>
+                    <td className="py-3.5 px-4">
                       <div className="flex items-center gap-1.5">
                         {(() => {
                           const src = (l.source || l.sourceChannel || l.sourceType || "Website").toLowerCase();
                           if (src.includes("whatsapp")) {
                             return (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                <MessageCircle className="w-3 h-3 text-emerald-600 fill-emerald-500" />
-                                <span>{l.source || "WhatsApp Inbound"}</span>
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                                <MessageCircle className="w-3 h-3 text-emerald-600" />
+                                <span>WhatsApp</span>
                               </span>
                             );
                           }
                           if (src.includes("email")) {
                             return (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
                                 <Mail className="w-3 h-3 text-blue-600" />
-                                <span>{l.source || "Email"}</span>
+                                <span>Email</span>
                               </span>
                             );
                           }
                           if (src.includes("instagram")) {
                             return (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-pink-50 text-pink-700 border border-pink-200">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-pink-50 dark:bg-pink-950 text-pink-700 dark:text-pink-300 border border-pink-200 dark:border-pink-800">
                                 <Instagram className="w-3 h-3 text-pink-600" />
-                                <span>{l.source || "Instagram"}</span>
+                                <span>Instagram</span>
                               </span>
                             );
                           }
                           return (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-50 text-slate-700 border border-slate-200">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                               <Globe className="w-3 h-3 text-slate-500" />
                               <span>{l.source || "Website"}</span>
                             </span>
                           );
                         })()}
                       </div>
-                      {l.sourceDetail ? (
-                        <div className="text-[10px] text-slate-400 truncate max-w-[140px] mt-0.5">{l.sourceDetail}</div>
-                      ) : l.sourceType ? (
-                        <div className="text-[10px] text-slate-400 mt-0.5">{l.sourceType}</div>
-                      ) : null}
                     </td>
-                    <td>
-                      <div className="text-xs text-slate-700">
+                    <td className="py-3.5 px-4">
+                      <div className="text-xs font-medium text-slate-700 dark:text-slate-300">
                         {l.assignedTo?.name || "Unassigned"}
                       </div>
                     </td>
-                    <td>{getTemperatureBadge(l.temperature)}</td>
-                    <td>
+                    <td className="py-3.5 px-4">{getTemperatureBadge(l.temperature)}</td>
+                    <td className="py-3.5 px-4">
                       {isConverted ? (
                         <div
                           onClick={(e) => {
@@ -453,33 +416,33 @@ export default function Leads() {
                               navigate(`/accounts/${l.convertedAccountId}`);
                             }
                           }}
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition-colors"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition-colors"
                         >
                           <Target className="w-3 h-3 text-purple-600" />
-                          <span>View Deal →</span>
+                          <span>Deal →</span>
                         </div>
                       ) : (
-                        <span className="text-xs font-medium text-slate-600">
+                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
                           {l.budgetRange || (l.leadScore ? `₹${(l.leadScore * 10000).toLocaleString()}` : "—")}
                         </span>
                       )}
                     </td>
-                    <td>
-                      <div className="text-xs font-medium text-slate-700 flex items-center gap-1">
+                    <td className="py-3.5 px-4">
+                      <div className="text-xs font-medium text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
                         <Clock className="w-3 h-3 text-slate-400" />
-                        <span>{l.nextAction || (isConverted ? "Converted" : "Qualify Requirement")}</span>
+                        <span>{l.nextAction || (isConverted ? "Converted" : "Qualify Lead")}</span>
                       </div>
                     </td>
-                    <td className="text-right">
+                    <td className="py-3.5 px-4 text-right">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           navigate(`/leads/${l.id}`);
                         }}
-                        className="p-1.5 rounded-md hover:bg-slate-200 text-slate-400 hover:text-slate-700 transition-colors"
+                        className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 hover:text-blue-600 text-slate-400 dark:text-slate-400 transition-colors"
                         title="Open Lead"
                       >
-                        <ArrowRight className="w-4 h-4" />
+                        <ChevronRight className="w-4 h-4" />
                       </button>
                     </td>
                   </tr>
@@ -489,7 +452,7 @@ export default function Leads() {
           </table>
 
           {/* Pagination Controls */}
-          <div className="p-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-600">
+          <div className="p-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs text-slate-600 dark:text-slate-400">
             <div>
               Page <strong>{page}</strong> of <strong>{totalPages}</strong> ({totalCount} total leads)
             </div>

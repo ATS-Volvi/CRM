@@ -80,7 +80,7 @@ export default function Pricing() {
   };
 
   return (
-    <div className="max-w-[1000px] mx-auto p-8 space-y-6 animate-fade-in">
+    <div className="w-full px-6 md:px-8 py-6 space-y-6 animate-fade-in">
       <MasterDataNav />
       
       {/* Page Header */}
