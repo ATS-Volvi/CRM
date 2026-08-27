@@ -86,13 +86,16 @@ export default function QuoteDetail() {
 
   // Reject Quote Mutation
   const rejectMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (rejectionReason: string) => {
       return await apiClient.post(`/api/v1/quotes/${id}/reject`, {
-        reason: "Price too high / Commercial terms"
+        rejectionReason
       });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["quote-detail", id] });
+    },
+    onError: (err: any) => {
+      alert(err?.response?.data?.error || err.message || "Failed to reject quote");
     }
   });
 
@@ -315,8 +318,13 @@ export default function QuoteDetail() {
           {!isRejected && (
             <button
               onClick={() => {
-                if (confirm("Mark this quotation as declined/rejected by customer?")) {
-                  rejectMutation.mutate();
+                const reason = window.prompt("Why did the customer reject this quote? (Required)");
+                if (reason !== null) {
+                  if (!reason.trim()) {
+                    alert("Rejection reason is required.");
+                    return;
+                  }
+                  rejectMutation.mutate(reason.trim());
                 }
               }}
               disabled={rejectMutation.isPending}
@@ -334,13 +342,28 @@ export default function QuoteDetail() {
                 `/quotes/new?parentQuoteId=${quote.id}${quote.dealId ? `&dealId=${quote.dealId}` : ""}`
               )
             }
-            className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer"
+            className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>New Revision</span>
+            <span>Create Revision</span>
           </button>
         </div>
       </div>
+
+      {/* Rejection Details Banner */}
+      {isRejected && (
+        <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-900 flex items-start gap-3 shadow-2xs">
+          <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <div className="font-bold text-rose-950 text-sm">
+              Marked Rejected by {quote.rejectedByUser?.name || "Sales Rep"}{quote.rejectedAt ? ` on ${new Date(quote.rejectedAt).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}` : (quote.statusChangedAt ? ` on ${new Date(quote.statusChangedAt).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}` : "")}
+            </div>
+            <div className="font-medium text-rose-800 text-xs italic">
+              "{quote.rejectionReason || "No reason specified"}"
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── BILL DOCUMENT VIEW (MATCHING CREATE QUOTE) ── */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200/90 p-6 sm:p-10">

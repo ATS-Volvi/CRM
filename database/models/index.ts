@@ -369,6 +369,9 @@ export class Quote extends Model {
   public isFinalAgreed!: boolean;
   public publicAccessToken!: string | null;
   public publicAccessExpiresAt!: Date | null;
+  public rejectionReason!: string | null;
+  public rejectedByUserId!: string | null;
+  public rejectedAt!: Date | null;
 }
 
 Quote.init(
@@ -388,7 +391,10 @@ Quote.init(
     acceptedAt: { type: DataTypes.DATE, allowNull: true },
     isFinalAgreed: { type: DataTypes.BOOLEAN, defaultValue: false },
     publicAccessToken: { type: DataTypes.STRING, allowNull: true, unique: true },
-    publicAccessExpiresAt: { type: DataTypes.DATE, allowNull: true }
+    publicAccessExpiresAt: { type: DataTypes.DATE, allowNull: true },
+    rejectionReason: { type: DataTypes.TEXT, allowNull: true },
+    rejectedByUserId: { type: DataTypes.UUID, allowNull: true },
+    rejectedAt: { type: DataTypes.DATE, allowNull: true }
   },
   { sequelize, modelName: "Quote" }
 );
@@ -924,6 +930,7 @@ Deal.belongsTo(Lead, { foreignKey: "leadId", as: "lead" });
 
 Deal.hasMany(Quote, { foreignKey: "dealId", as: "quotes" });
 Quote.belongsTo(Deal, { foreignKey: "dealId", as: "deal" });
+Quote.belongsTo(User, { foreignKey: "rejectedByUserId", as: "rejectedByUser" });
 
 Quote.hasMany(QuoteLineItem, { foreignKey: "quoteId" });
 QuoteLineItem.belongsTo(Quote, { foreignKey: "quoteId", as: "quote" });

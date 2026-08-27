@@ -1374,12 +1374,30 @@ export const markQuoteFinalAgreed = async (req: Request, res: Response) => {
       });
     }
 
-    // Send final agreed confirmation email to client
-    sendFinalAgreedQuoteEmail(q.id, { userId: (req as any).user?.id }).catch((e) =>
-      console.warn("Notice: final agreed quote email dispatch note:", e.message)
+    await q.update({
+      isFinalAgreed: true,
+      status: "Accepted",
+      acceptedAt: new Date(),
+      statusChangedAt: new Date()
+    });
+
+    if (q.dealId) {
+      const deal = await sequelize.models.Deal.findByPk(q.dealId);
+      if (deal) {
+        const wonStage = await sequelize.models.PipelineStage.findOne({
+          where: { name: "Won" }
+        });
+        if (wonStage) {
+          await deal.update({ stageId: (wonStage as any).id, actualClosedAt: new Date() });
+        }
+      }
+    }
+
+    sendFinalAgreedQuoteEmail(id).catch(err =>
+      console.warn("Final agreed quote email notice:", err.message)
     );
 
-    res.json({ message: "Quote marked as final agreed terms", quote: q });
+    res.json({ message: "Quote marked as final agreed terms", quote: formatQuoteWithTotals(q) });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -1388,23 +1406,55 @@ export const markQuoteFinalAgreed = async (req: Request, res: Response) => {
 export const rejectQuote = async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id);
-    const { reason, notes } = req.body || {};
+    const { rejectionReason, reason, notes } = req.body || {};
+    const finalReason = (rejectionReason || reason || "").trim();
+
+    if (!finalReason) {
+      return res.status(400).json({ error: "Rejection reason is required" });
+    }
+
     const quote = await sequelize.models.Quote.findByPk(id, {
       include: [{ model: sequelize.models.Deal, as: "deal" }]
     });
     if (!quote) return res.status(404).json({ error: "Quote not found" });
     const q = quote as any;
 
-    // Mark quote status as Rejected and clear isFinalAgreed and acceptedAt
+    // Check handoff view-only permissions
+    const user = (req as any).user;
+    if (q.dealId) {
+      const access = await checkRecordAccess(user?.id, user?.role, { dealId: q.dealId });
+      if (!access.canWrite) {
+        return res.status(403).json({
+          error: access.reason || "Handed off — view only. This quote's deal has been reassigned to another representative.",
+          isViewOnly: true
+        });
+      }
+    }
+
+    const userId = user?.id || null;
+    const now = new Date();
+
+    // Mark quote status as Rejected and record rejection fields
     await q.update({
       status: "Rejected",
+      rejectionReason: finalReason,
+      rejectedByUserId: userId,
+      rejectedAt: now,
       isFinalAgreed: false,
       acceptedAt: null,
-      statusChangedAt: new Date()
+      statusChangedAt: now
+    });
+
+    // Fetch updated quote with rejectedByUser included
+    const updatedQuote = await sequelize.models.Quote.findByPk(id, {
+      include: [
+        { model: sequelize.models.QuoteLineItem, as: "QuoteLineItems", include: [{ model: sequelize.models.PriceBookEntry, as: "product" }] },
+        { model: sequelize.models.User, as: "rejectedByUser", attributes: ["id", "name", "email"] },
+        { model: sequelize.models.Deal, as: "deal" }
+      ]
     });
 
     // Record activity note on the deal
-    const rejectionDetails = [reason, notes].filter(Boolean).join(" — ");
     if (q.dealId) {
       await sequelize.models.Activity.create({
         id: require("crypto").randomUUID(),
@@ -1412,8 +1462,8 @@ export const rejectQuote = async (req: Request, res: Response) => {
         customerId: q.deal?.accountId || q.deal?.customerId || null,
         leadId: q.deal?.leadId || null,
         type: "note",
-        outcome: `Quote ${q.quoteNumber || id} (v${q.version || 1}) was Declined / Marked Rejected${rejectionDetails ? `: ${rejectionDetails}` : "."}`,
-        createdById: (req as any).user?.id || q.deal?.ownerId || null,
+        outcome: `Quote ${q.quoteNumber || id} (v${q.version || 1}) was Marked Rejected: ${finalReason}`,
+        createdById: userId || q.deal?.ownerId || null,
         direction: "internal",
         isCompleted: true
       });
@@ -1421,22 +1471,22 @@ export const rejectQuote = async (req: Request, res: Response) => {
       await processOpportunityEvent({
         opportunityId: q.dealId,
         type: "CustomerRejected",
-        actorId: (req as any).user?.id || q.deal?.ownerId,
+        actorId: userId || q.deal?.ownerId,
         payload: {
           quoteId: q.id,
           quoteNumber: q.quoteNumber,
           version: q.version,
-          reason,
+          reason: finalReason,
           notes
         }
       }).catch(e => console.warn("Opportunity event error:", e.message));
     }
 
-    res.json({ message: "Quote marked as rejected", quote: q });
+    res.json({
+      message: "Quote marked as rejected",
+      quote: formatQuoteWithTotals(updatedQuote || q)
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
 };
-
-
-
