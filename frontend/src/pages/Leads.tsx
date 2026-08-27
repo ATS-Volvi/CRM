@@ -15,7 +15,6 @@ import {
   MessageCircle,
   Instagram,
   Share2,
-  UserCheck,
   Layers,
   Facebook,
   Target,
@@ -67,8 +66,7 @@ export default function Leads() {
     { key: "Email", label: "Email", icon: Mail, color: "text-indigo-600" },
     { key: "Instagram", label: "Instagram", icon: Instagram, color: "text-pink-600" },
     { key: "LinkedIn", label: "LinkedIn", icon: Share2, color: "text-sky-600" },
-    { key: "Facebook", label: "Facebook / Meta", icon: Facebook, color: "text-blue-500" },
-    { key: "Referral", label: "Referral", icon: UserCheck, color: "text-amber-600" }
+    { key: "Facebook", label: "Facebook / Meta", icon: Facebook, color: "text-blue-500" }
   ];
 
   // Filter based on status filter tab
