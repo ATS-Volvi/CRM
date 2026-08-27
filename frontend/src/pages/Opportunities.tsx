@@ -39,16 +39,22 @@ export default function Opportunities() {
 
   // Owner popover hover state
   const [hoveredOwnerId, setHoveredOwnerId] = useState<string | null>(null);
-  const [popoverFlipped, setPopoverFlipped] = useState<Record<string, boolean>>({});
+  const [popoverPos, setPopoverPos] = useState<{ x: number; y: number; flipped: boolean }>({ x: 0, y: 0, flipped: false });
   const ownerCellRefs = useRef<Record<string, HTMLTableCellElement | null>>({});
+  const POPOVER_HEIGHT = 240;
+  const POPOVER_WIDTH = 340;
 
   const handleOwnerMouseEnter = useCallback((oppId: string) => {
     const cell = ownerCellRefs.current[oppId];
     if (cell) {
       const rect = cell.getBoundingClientRect();
-      // Popover is ~220px tall — flip below if not enough room above
-      const shouldFlip = rect.top < 240;
-      setPopoverFlipped(prev => ({ ...prev, [oppId]: shouldFlip }));
+      const flipped = rect.top < POPOVER_HEIGHT + 16;
+      // Position: align left edge of popover with left edge of cell, clamp so it doesn't go off right edge
+      const x = Math.min(rect.left, window.innerWidth - POPOVER_WIDTH - 8);
+      const y = flipped
+        ? rect.bottom + 6   // below the row
+        : rect.top - 6;     // above the row (popover bottom aligned here)
+      setPopoverPos({ x, y, flipped });
     }
     setHoveredOwnerId(oppId);
   }, []);
@@ -404,25 +410,25 @@ export default function Opportunities() {
                           )}
                         </div>
 
-                        {/* Owner Handoff Popover — React-controlled, inline styles only */}
+                        {/* Owner Handoff Popover — position:fixed to escape table overflow clipping */}
                         <div
                           style={{
-                            position: 'absolute',
-                            left: 0,
-                            ...(popoverFlipped[opp.id]
-                              ? { top: 'calc(100% + 6px)', bottom: 'auto' }
-                              : { bottom: 'calc(100% + 6px)', top: 'auto' }
+                            position: 'fixed',
+                            left: popoverPos.x,
+                            ...(popoverPos.flipped
+                              ? { top: popoverPos.y }
+                              : { top: popoverPos.y - POPOVER_HEIGHT }
                             ),
-                            width: 340,
+                            width: POPOVER_WIDTH,
                             padding: '16px',
                             background: '#EFF6FF',
                             border: '1px solid #BFDBFE',
                             borderRadius: 12,
-                            boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                            boxShadow: '0 4px 16px rgba(0,0,0,0.10)',
                             zIndex: 9999,
                             opacity: hoveredOwnerId === opp.id ? 1 : 0,
                             pointerEvents: hoveredOwnerId === opp.id ? 'auto' : 'none',
-                            transform: hoveredOwnerId === opp.id ? 'translateY(0)' : (popoverFlipped[opp.id] ? 'translateY(-4px)' : 'translateY(4px)'),
+                            transform: hoveredOwnerId === opp.id ? 'translateY(0)' : (popoverPos.flipped ? 'translateY(-4px)' : 'translateY(4px)'),
                             transition: 'opacity 180ms ease-out, transform 180ms ease-out',
                             display: 'flex',
                             flexDirection: 'column',
