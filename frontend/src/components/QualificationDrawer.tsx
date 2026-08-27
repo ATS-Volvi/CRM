@@ -146,17 +146,17 @@ export function QualificationDrawer({ isOpen, onClose, lead, token, onSuccess }:
             </select>
           </div>
 
-          {/* 4. Decision Maker */}
+          {/* 4. Contact Name */}
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
               <UserCheck className="w-3.5 h-3.5 text-indigo-600" />
-              4. Key Decision Maker / Contact
+              4. Contact Name
             </label>
             <input
               type="text"
               value={decisionMaker}
               onChange={(e) => setDecisionMaker(e.target.value)}
-              placeholder="e.g. Michael Hill (VP Procurement)"
+              placeholder="e.g. Michael Hill"
               className="w-full text-xs p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none bg-slate-50/50"
             />
           </div>
