@@ -60,4 +60,25 @@ describe("Opportunity Handoff Chain & Model Close Hook", () => {
     // Clean up
     await testDeal.destroy({ force: true });
   });
+
+  test("Model Hook: editing an already closed deal preserves original actualClosedAt timestamp without overwriting it", async () => {
+    const originalTime = new Date("2026-08-01T12:00:00Z");
+    const testDeal: any = await Deal.create({
+      name: "Already Closed Deal Edit Test",
+      amount: 200000,
+      status: "WON",
+      actualClosedAt: originalTime
+    });
+
+    expect(new Date(testDeal.actualClosedAt).toISOString()).toBe(originalTime.toISOString());
+
+    // Update notes or amount while status remains WON
+    await testDeal.update({ lossNotes: "Updating notes on closed deal", amount: 250000 });
+
+    // Verify actualClosedAt was NOT overwritten with now()
+    expect(new Date(testDeal.actualClosedAt).toISOString()).toBe(originalTime.toISOString());
+
+    // Clean up
+    await testDeal.destroy({ force: true });
+  });
 });
