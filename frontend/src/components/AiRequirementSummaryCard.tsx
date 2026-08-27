@@ -270,10 +270,11 @@ export const AiRequirementSummaryCard: React.FC<AiRequirementSummaryCardProps> =
               {onActionClick && (
                 <button
                   onClick={() => onActionClick(data.recommendedAction)}
-                  className="px-4 py-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-sky-600 hover:from-blue-500 hover:to-indigo-500 text-white font-extrabold rounded-xl text-xs shadow-md shadow-blue-600/25 flex items-center gap-1.5 transition-all cursor-pointer hover:scale-[1.02] active:scale-95"
+                  className="group px-5 py-2.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-500 hover:via-indigo-500 hover:to-blue-600 text-white font-black rounded-xl text-xs sm:text-sm shadow-lg shadow-indigo-600/35 hover:shadow-indigo-600/50 border border-white/20 ring-2 ring-indigo-500/25 hover:ring-indigo-500/50 flex items-center gap-2 transition-all duration-200 cursor-pointer hover:scale-[1.03] active:scale-95 shrink-0"
                 >
+                  <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
                   <span>Execute Action</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
+                  <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-1" />
                 </button>
               )}
             </div>
