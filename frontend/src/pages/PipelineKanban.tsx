@@ -115,6 +115,32 @@ export default function PipelineKanban() {
   const [searchQuery, setSearchQuery] = useState("");
   const [stageFilter, setStageFilter] = useState("all");
   const [verificationFilter, setVerificationFilter] = useState("all");
+  const [activeTab, setActiveTab] = useState<"leads" | "opportunities" | "deals">("opportunities");
+
+  const { data: leads = [] } = useQuery<any[]>({
+    queryKey: ["leads"],
+    queryFn: async () => {
+      const res = await fetch("/api/v1/leads", {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!res.ok) return [];
+      const json = await res.json();
+      return Array.isArray(json) ? json : json?.data || [];
+    },
+    enabled: !!token
+  });
+
+  // Compute total pipeline stats
+  const allDeals = pipelineColumns.flatMap((col: any) => col.deals || []);
+  const openDeals = allDeals.filter((d: any) => {
+    const s = normalizeStageName(d.stage?.name || d.stage || d.stageName || "");
+    return s !== "Won" && s !== "Lost" && s !== "Closed Won" && s !== "Closed Lost";
+  });
+  const closedDeals = allDeals.filter((d: any) => {
+    const s = normalizeStageName(d.stage?.name || d.stage || d.stageName || "");
+    return s === "Won" || s === "Lost" || s === "Closed Won" || s === "Closed Lost";
+  });
+  const totalValue = allDeals.reduce((sum: number, d: any) => sum + Number(d.value || d.amount || 0), 0);
 
   const createDealMutation = useMutation({
     mutationFn: async (deal: any) => {
@@ -195,13 +221,8 @@ export default function PipelineKanban() {
     }
   };
 
-  // Compute total pipeline stats
-  const allDeals = pipelineColumns.flatMap((col: any) => col.deals || []);
-  const totalValue = allDeals.reduce((sum: number, d: any) => sum + Number(d.value || d.amount || 0), 0);
-
   return (
     <div className="flex-1 flex flex-col h-full bg-slate-50 min-h-screen overflow-hidden">
-      {/* ── STAGE EVIDENCE / VERIFICATION MODAL ── */}
       <StageEvidenceModal
         isOpen={evidenceModal.isOpen}
         onClose={() => setEvidenceModal((prev) => ({ ...prev, isOpen: false }))}
@@ -221,17 +242,16 @@ export default function PipelineKanban() {
         }}
       />
 
-      {/* HEADER SECTION */}
-      <header className="bg-white border-b border-slate-200 px-8 py-5 flex items-center justify-between shrink-0 shadow-2xs">
+      <header className="bg-white border-b border-slate-200 px-8 py-4 flex items-center justify-between shrink-0 shadow-2xs">
         <div>
           <div className="flex items-center gap-2">
             <span className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
               <Target className="w-5 h-5" />
             </span>
             <div>
-              <h1 className="text-xl font-black text-slate-900 tracking-tight">Commercial Pipeline</h1>
+              <h1 className="text-xl font-black text-slate-900 tracking-tight">Sales Pipeline</h1>
               <p className="text-xs text-slate-500 font-medium mt-0.5">
-                9-Stage Opportunity Lifecycle: Discovery to Won/Lost
+                Track your commercial sales process from enquiry to close
               </p>
             </div>
           </div>
@@ -243,59 +263,66 @@ export default function PipelineKanban() {
             <div className="text-sm font-black text-slate-900">{formatCurrency(totalValue)}</div>
           </div>
 
-          <button
-            onClick={() => navigate("/leads")}
-            className="enterprise-btn-secondary text-xs cursor-pointer"
-          >
-            <span>Pre-Sales Leads</span>
-          </button>
-
           <button 
             onClick={() => setShowAddDealModal(true)}
             className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
           >
-            <Plus className="w-4 h-4" /> Add Opportunity
+            <Plus className="w-4 h-4" /> <span>+ Add Opportunity</span>
           </button>
         </div>
       </header>
 
-      {/* TOOLBAR */}
-      <section className="bg-white border-b border-slate-200 px-8 py-3 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-3 flex-1 max-w-xl">
-          <div className="relative flex-1">
+      <section className="bg-white border-b border-slate-200/80 px-8 py-3 flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0">
+        <div className="bg-slate-100 p-1 rounded-xl flex items-center gap-1 border border-slate-200 shrink-0">
+          <button
+            onClick={() => setActiveTab("leads")}
+            className={`px-5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              activeTab === "leads"
+                ? "bg-amber-500 text-white shadow-xs"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            Leads ({leads.length})
+          </button>
+          <button
+            onClick={() => setActiveTab("opportunities")}
+            className={`px-5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              activeTab === "opportunities"
+                ? "bg-blue-600 text-white shadow-xs"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            Opportunities ({openDeals.length})
+          </button>
+          <button
+            onClick={() => setActiveTab("deals")}
+            className={`px-5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              activeTab === "deals"
+                ? "bg-emerald-600 text-white shadow-xs"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            Won / Deals ({closedDeals.length})
+          </button>
+        </div>
+
+        <div className="flex items-center gap-3 flex-1 justify-end">
+          <div className="relative max-w-xs w-full">
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input 
               type="text" 
-              placeholder="Search deals, accounts, competitors..."
+              placeholder="Search deals, accounts..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl !pl-10 pr-3 py-1.5 text-xs font-semibold focus:outline-none focus:border-emerald-500 transition-all placeholder:text-slate-400"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl !pl-10 pr-3 py-1.5 text-xs font-semibold focus:outline-none focus:border-blue-500 transition-all placeholder:text-slate-400"
             />
           </div>
 
-          <div className="flex items-center gap-2">
-            <select
-              value={stageFilter}
-              onChange={(e) => setStageFilter(e.target.value)}
-              className="bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-800 focus:outline-none cursor-pointer"
-            >
-              <option value="all">All Pipeline Stages</option>
-              {pipelineStages.map((s) => (
-                <option key={s.id || s.name} value={s.id || s.name}>
-                  {s.order}. {s.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* View Mode Toggle */}
-        <div className="flex items-center gap-2">
-          <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+          <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 shrink-0">
             <button 
               onClick={() => setViewMode("kanban")}
               className={`p-1.5 rounded-md text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer ${
-                viewMode === "kanban" ? "bg-white text-emerald-700 shadow-xs font-bold" : "text-slate-500 hover:text-slate-800"
+                viewMode === "kanban" ? "bg-white text-blue-700 shadow-xs font-bold" : "text-slate-500 hover:text-slate-800"
               }`}
             >
               <View className="w-3.5 h-3.5" /> Board
@@ -303,7 +330,7 @@ export default function PipelineKanban() {
             <button 
               onClick={() => setViewMode("list")}
               className={`p-1.5 rounded-md text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer ${
-                viewMode === "list" ? "bg-white text-emerald-700 shadow-xs font-bold" : "text-slate-500 hover:text-slate-800"
+                viewMode === "list" ? "bg-white text-blue-700 shadow-xs font-bold" : "text-slate-500 hover:text-slate-800"
               }`}
             >
               <List className="w-3.5 h-3.5" /> List
@@ -312,109 +339,81 @@ export default function PipelineKanban() {
         </div>
       </section>
 
-      {/* MAIN CONTENT AREA */}
       <section className="flex-1 overflow-auto px-8 py-4">
         {isLoading ? (
           <div className="p-16 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
-            <span className="w-4 h-4 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+            <span className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
             Loading commercial pipeline...
           </div>
-        ) : viewMode === "kanban" ? (
-          /* KANBAN BOARD */
+        ) : activeTab === "leads" ? (
           <div className="flex gap-4 overflow-x-auto pb-4 items-start min-h-[600px] no-scrollbar">
-            {pipelineStages.map((stage) => {
-              const matchedCol = pipelineColumns.find((col: any) => 
-                col.id === stage.id ||
-                normalizeStageName(col.stage || col.name).toLowerCase() === stage.name.toLowerCase()
-              );
-
-              const colorScheme = getStageHeaderColor(stage.name, stage.name === "Lost" || stage.name === "Won");
-              const columnDeals = matchedCol?.deals || [];
-
-              const filteredDeals = columnDeals.filter((d: any) => {
+            {["NEW", "CONTACTED", "QUALIFIED"].map((st) => {
+              const stageLabel = st === "NEW" ? "1. New Leads" : st === "CONTACTED" ? "2. Contacted" : "3. Qualified";
+              const stageLeads = leads.filter((l: any) => {
+                const s = (l.status || "NEW").toUpperCase();
+                const match = s === st;
+                if (!match) return false;
                 if (!searchQuery) return true;
-                const searchLower = searchQuery.toLowerCase();
-                const nameStr = (d.name || "").toLowerCase();
-                const compStr = (d.company || "").toLowerCase();
-                return nameStr.includes(searchLower) || compStr.includes(searchLower);
+                const q = searchQuery.toLowerCase();
+                return (
+                  (l.firstName || "").toLowerCase().includes(q) ||
+                  (l.lastName || "").toLowerCase().includes(q) ||
+                  (l.company || "").toLowerCase().includes(q)
+                );
               });
 
-              const totalStageValue = filteredDeals.reduce(
-                (sum: number, d: any) => sum + Number(d.value || d.amount || 0),
-                0
-              );
-
               return (
-                <div 
-                  key={stage.id || stage.name}
-                  onDragOver={handleDragOver}
-                  onDrop={(e) => handleDrop(e, stage.id || stage.name, stage.name)}
-                  className="w-72 shrink-0 bg-white/70 rounded-2xl p-3 border border-slate-200/90 flex flex-col min-h-[550px] shadow-2xs"
-                >
-                  {/* Column Header */}
-                  <div className={`p-2.5 rounded-xl border ${colorScheme.bg} ${colorScheme.border} mb-3`}>
-                    <div className="flex items-center justify-between">
-                      <span className={`text-xs font-bold ${colorScheme.text} truncate`}>
-                        {stage.order}. {stage.name}
-                      </span>
-                      <span className="text-[10px] font-bold bg-white/90 text-slate-700 px-2 py-0.5 rounded-full border border-slate-200 shadow-2xs">
-                        {filteredDeals.length}
-                      </span>
-                    </div>
-                    <div className="text-[11px] font-black text-slate-800 mt-1">
-                      {formatCurrencyCompact(totalStageValue)}
-                    </div>
+                <div key={st} className="w-80 shrink-0 bg-white/70 rounded-2xl p-3 border border-slate-200/90 flex flex-col min-h-[550px] shadow-2xs">
+                  <div className="p-2.5 rounded-xl border bg-amber-50/70 border-amber-200 mb-3 flex items-center justify-between">
+                    <span className="text-xs font-bold text-amber-900">{stageLabel}</span>
+                    <span className="text-[10px] font-bold bg-white text-amber-800 px-2 py-0.5 rounded-full border border-amber-200 shadow-2xs">
+                      {stageLeads.length}
+                    </span>
                   </div>
 
-                  {/* Deals List */}
                   <div className="space-y-2.5 flex-1 overflow-y-auto pr-0.5">
-                    {filteredDeals.length === 0 ? (
-                      <div className="h-32 border-2 border-dashed border-slate-200/80 rounded-xl flex items-center justify-center text-[11px] text-slate-400 font-medium">
-                        Drag deals here
+                    {stageLeads.length === 0 ? (
+                      <div className="h-32 border-2 border-dashed border-slate-200 rounded-xl flex items-center justify-center text-[11px] text-slate-400 font-medium">
+                        No leads in this stage
                       </div>
                     ) : (
-                      filteredDeals.map((deal: any) => (
+                      stageLeads.map((lead: any) => (
                         <div
-                          key={deal.id}
-                          draggable
-                          onDragStart={(e) => handleDragStart(e, deal.id)}
-                          onClick={() => navigate(`/opportunities/${deal.id}`)}
-                          className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs hover:border-emerald-500 hover:shadow-sm cursor-grab active:cursor-grabbing transition-all space-y-2.5 group"
+                          key={lead.id}
+                          onClick={() => navigate(`/leads/${lead.id}`)}
+                          className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs hover:border-amber-400 hover:shadow-sm cursor-pointer transition-all space-y-2 group"
                         >
                           <div className="flex items-start justify-between gap-2">
-                            <h4 className="text-xs font-bold text-slate-900 group-hover:text-emerald-700 leading-snug">
-                              {deal.name}
+                            <h4 className="text-xs font-bold text-slate-900 group-hover:text-amber-700 leading-snug">
+                              {lead.company || `${lead.firstName || ""} ${lead.lastName || ""}`.trim() || "Unnamed Lead"}
                             </h4>
-                            <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded shrink-0">
-                              {deal.probability || stage.probability || 50}%
+                            <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded shrink-0">
+                              Score: {lead.leadScore || 50}
                             </span>
                           </div>
 
                           <div className="space-y-1 text-[11px]">
-                            <div className="flex items-center gap-1.5 text-slate-600">
-                              <Building2 className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-                              <span className="truncate">{deal.company || deal.name}</span>
-                            </div>
-
-                            {deal.owner && (
-                              <div className="flex items-center gap-1.5 text-slate-400">
+                            {(lead.firstName || lead.lastName) && (
+                              <div className="flex items-center gap-1.5 text-slate-500">
                                 <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                <span className="truncate">{deal.owner.name}</span>
+                                <span className="truncate">{lead.firstName} {lead.lastName}</span>
+                              </div>
+                            )}
+                            {lead.assignedTo && (
+                              <div className="text-[10px] text-slate-400">
+                                Rep: <span className="font-semibold text-slate-600">{lead.assignedTo.name}</span>
                               </div>
                             )}
                           </div>
 
-                          {/* Footer */}
-                          <div className="flex items-center justify-between text-xs pt-2 border-t border-slate-100">
-                            <span className="font-black text-slate-900">
-                              {formatCurrency(deal.value || deal.amount || 0)}
-                            </span>
+                          <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
                             <span className="text-[10px] font-medium text-slate-400">
-                              {deal.lastActivity || "Active"}
+                              {lead.source || "Inbound"}
+                            </span>
+                            <span className="font-bold text-emerald-600">
+                              {formatCurrency(lead.expectedRevenue || 0)}
                             </span>
                           </div>
-
-                          {token && <DealMilestonesWidget dealId={deal.id} token={token} />}
                         </div>
                       ))
                     )}
@@ -423,8 +422,110 @@ export default function PipelineKanban() {
               );
             })}
           </div>
+        ) : viewMode === "kanban" ? (
+          <div className="flex gap-4 overflow-x-auto pb-4 items-start min-h-[600px] no-scrollbar">
+            {pipelineStages
+              .filter((stage) => {
+                const isWonLost = stage.name === "Won" || stage.name === "Lost" || stage.name === "Closed Won" || stage.name === "Closed Lost";
+                return activeTab === "deals" ? isWonLost : !isWonLost;
+              })
+              .map((stage) => {
+                const matchedCol = pipelineColumns.find((col: any) => 
+                  col.id === stage.id ||
+                  normalizeStageName(col.stage || col.name).toLowerCase() === stage.name.toLowerCase()
+                );
+
+                const colorScheme = getStageHeaderColor(stage.name, stage.name === "Lost" || stage.name === "Won");
+                const columnDeals = matchedCol?.deals || [];
+
+                const filteredDeals = columnDeals.filter((d: any) => {
+                  if (!searchQuery) return true;
+                  const searchLower = searchQuery.toLowerCase();
+                  const nameStr = (d.name || "").toLowerCase();
+                  const compStr = (d.company || "").toLowerCase();
+                  return nameStr.includes(searchLower) || compStr.includes(searchLower);
+                });
+
+                const totalStageValue = filteredDeals.reduce(
+                  (sum: number, d: any) => sum + Number(d.value || d.amount || 0),
+                  0
+                );
+
+                return (
+                  <div 
+                    key={stage.id || stage.name}
+                    onDragOver={handleDragOver}
+                    onDrop={(e) => handleDrop(e, stage.id || stage.name, stage.name)}
+                    className="w-72 shrink-0 bg-white/70 rounded-2xl p-3 border border-slate-200/90 flex flex-col min-h-[550px] shadow-2xs"
+                  >
+                    <div className={`p-2.5 rounded-xl border ${colorScheme.bg} ${colorScheme.border} mb-3`}>
+                      <div className="flex items-center justify-between">
+                        <span className={`text-xs font-bold ${colorScheme.text} truncate`}>
+                          {stage.order}. {stage.name}
+                        </span>
+                        <span className="text-[10px] font-bold bg-white/90 text-slate-700 px-2 py-0.5 rounded-full border border-slate-200 shadow-2xs">
+                          {filteredDeals.length}
+                        </span>
+                      </div>
+                      <div className="text-[11px] font-black text-slate-800 mt-1 font-mono">
+                        {formatCurrencyCompact(totalStageValue)}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2.5 flex-1 overflow-y-auto pr-0.5">
+                      {filteredDeals.length === 0 ? (
+                        <div className="h-32 border-2 border-dashed border-slate-200/80 rounded-xl flex items-center justify-center text-[11px] text-slate-400 font-medium">
+                          Drag deals here
+                        </div>
+                      ) : (
+                        filteredDeals.map((deal: any) => (
+                          <div
+                            key={deal.id}
+                            draggable
+                            onDragStart={(e) => handleDragStart(e, deal.id)}
+                            onClick={() => navigate(`/opportunities/${deal.id}`)}
+                            className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs hover:border-blue-500 hover:shadow-sm cursor-grab active:cursor-grabbing transition-all space-y-2 group"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <h4 className="text-xs font-bold text-slate-900 group-hover:text-blue-700 leading-snug">
+                                {deal.name}
+                              </h4>
+                              <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded shrink-0">
+                                {deal.probability || stage.probability || 50}%
+                              </span>
+                            </div>
+
+                            <div className="space-y-1 text-[11px]">
+                              <div className="flex items-center gap-1.5 text-slate-600">
+                                <Building2 className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                                <span className="truncate">{deal.company || deal.name}</span>
+                              </div>
+
+                              {deal.owner && (
+                                <div className="flex items-center gap-1.5 text-slate-400">
+                                  <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                  <span className="truncate">{deal.owner.name}</span>
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex items-center justify-between text-xs pt-2 border-t border-slate-100">
+                              <span className="font-black text-slate-900">
+                                {formatCurrency(deal.value || deal.amount || 0)}
+                              </span>
+                              <span className="text-[10px] font-medium text-slate-400">
+                                {deal.lastActivity || "Active"}
+                              </span>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
         ) : (
-          /* LIST VIEW */
           <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
             <table className="w-full text-left border-collapse text-xs">
               <thead className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
@@ -438,8 +539,8 @@ export default function PipelineKanban() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
-                {allDeals.map((d: any) => {
-                  const sName = normalizeStageName(d.stage);
+                {(activeTab === "deals" ? closedDeals : openDeals).map((d: any) => {
+                  const sName = normalizeStageName(d.stage?.name || d.stage || d.stageName || "");
                   return (
                     <tr 
                       key={d.id}
@@ -478,7 +579,6 @@ export default function PipelineKanban() {
         )}
       </section>
 
-      {/* ── ADD OPPORTUNITY MODAL ── */}
       {showAddDealModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-200 space-y-4">
