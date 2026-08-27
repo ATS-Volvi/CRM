@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, Link } from "react-router-dom";
 import {
@@ -11,6 +11,7 @@ import {
   CheckCircle2,
   XCircle,
   Briefcase,
+  ArrowDown,
   X
 } from "lucide-react";
 import { apiClient } from "../lib/apiClient";
@@ -35,6 +36,26 @@ export default function Opportunities() {
   const [phaseFilter, setPhaseFilter] = useState<CommercialPhaseFilter>("ALL");
 
   const [search, setSearch] = useState("");
+
+  // Owner popover hover state
+  const [hoveredOwnerId, setHoveredOwnerId] = useState<string | null>(null);
+  const [popoverFlipped, setPopoverFlipped] = useState<Record<string, boolean>>({});
+  const ownerCellRefs = useRef<Record<string, HTMLTableCellElement | null>>({});
+
+  const handleOwnerMouseEnter = useCallback((oppId: string) => {
+    const cell = ownerCellRefs.current[oppId];
+    if (cell) {
+      const rect = cell.getBoundingClientRect();
+      // Popover is ~220px tall — flip below if not enough room above
+      const shouldFlip = rect.top < 240;
+      setPopoverFlipped(prev => ({ ...prev, [oppId]: shouldFlip }));
+    }
+    setHoveredOwnerId(oppId);
+  }, []);
+
+  const handleOwnerMouseLeave = useCallback(() => {
+    setHoveredOwnerId(null);
+  }, []);
 
   // Modals
   const [lossModalOpp, setLossModalOpp] = useState<any | null>(null);
@@ -365,95 +386,183 @@ export default function Opportunities() {
                       </td>
 
                       {/* Owner with Hover Handoff Expansion */}
-                      <td className="py-3 px-4 text-slate-600 font-medium whitespace-nowrap relative group/owner">
+                      <td
+                        ref={el => { ownerCellRefs.current[opp.id] = el; }}
+                        className="py-3 px-4 text-slate-600 font-medium whitespace-nowrap"
+                        style={{ position: 'relative' }}
+                        onMouseEnter={() => handleOwnerMouseEnter(opp.id)}
+                        onMouseLeave={handleOwnerMouseLeave}
+                      >
                         <div className="flex items-center gap-1.5 cursor-pointer">
-                          <span className="font-semibold text-slate-800 hover:text-blue-600 transition-colors">
+                          <span className="font-semibold text-slate-800" style={{ transition: 'color 150ms' }}>
                             {opp.currentOwner?.name || opp.owner?.name || "Sales Rep"}
                           </span>
                           {opp.handoffChain && opp.handoffChain.length > 1 && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 font-bold border border-blue-200">
+                            <span style={{ fontSize: '10px', padding: '2px 6px', borderRadius: '9999px', background: '#EFF6FF', color: '#1D4ED8', fontWeight: 700, border: '1px solid #BFDBFE' }}>
                               Handoff ({opp.handoffChain.length})
                             </span>
                           )}
                         </div>
 
-                        {/* Hover Expansion Card */}
-                        <div className="absolute left-0 bottom-full mb-2 w-80 p-3.5 bg-slate-900/95 backdrop-blur-md text-white text-xs rounded-xl shadow-2xl z-50 border border-slate-700 space-y-2.5 opacity-0 pointer-events-none group-hover/owner:opacity-100 group-hover/owner:pointer-events-auto transition-all duration-200">
-                          <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
-                            <span className="font-bold text-slate-200 flex items-center gap-1">
-                              🔄 Commercial Handoff Context
-                            </span>
-                            {opp.actualClosedAt ? (
-                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-semibold border border-emerald-500/30">
-                                Closed
-                              </span>
-                            ) : (
-                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-semibold border border-amber-500/30">
-                                Active Deal
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Salesman 1 (Original Rep) */}
-                          <div className="bg-slate-800/60 p-2 rounded-lg border border-slate-700/50 space-y-0.5">
-                            <div className="flex items-center justify-between">
-                              <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">
-                                🌱 Salesman 1 (Original Rep)
-                              </span>
+                        {/* Owner Handoff Popover — React-controlled, inline styles only */}
+                        <div
+                          style={{
+                            position: 'absolute',
+                            left: 0,
+                            ...(popoverFlipped[opp.id]
+                              ? { top: 'calc(100% + 6px)', bottom: 'auto' }
+                              : { bottom: 'calc(100% + 6px)', top: 'auto' }
+                            ),
+                            width: 340,
+                            padding: '16px',
+                            background: '#EFF6FF',
+                            border: '1px solid #BFDBFE',
+                            borderRadius: 12,
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                            zIndex: 9999,
+                            opacity: hoveredOwnerId === opp.id ? 1 : 0,
+                            pointerEvents: hoveredOwnerId === opp.id ? 'auto' : 'none',
+                            transform: hoveredOwnerId === opp.id ? 'translateY(0)' : (popoverFlipped[opp.id] ? 'translateY(-4px)' : 'translateY(4px)'),
+                            transition: 'opacity 180ms ease-out, transform 180ms ease-out',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 12,
+                          }}
+                        >
+                          {/* Original Rep Block */}
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                            {/* Avatar */}
+                            <div style={{
+                              width: 30, height: 30, borderRadius: '50%',
+                              background: '#E2E8F0', color: '#475569',
+                              fontWeight: 700, fontSize: 11,
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              flexShrink: 0, marginTop: 2,
+                              border: '1px solid #CBD5E1'
+                            }}>
+                              {(opp.originalRep?.name || opp.handoffChain?.[0]?.name || 'SR').split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
                             </div>
-                            <div className="font-bold text-white text-sm">
-                              {opp.originalRep?.name || opp.handoffChain?.[0]?.name || opp.owner?.name || "Qualifying Rep"}
-                            </div>
-                            {opp.originalRep?.email && (
-                              <div className="text-[11px] text-slate-400 font-mono">
-                                {opp.originalRep.email}
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: 12, color: '#64748B', fontWeight: 400, marginBottom: 2 }}>Original rep</div>
+                              <div style={{ fontSize: 13, fontWeight: 500, color: '#1D4ED8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {opp.originalRep?.name || opp.handoffChain?.[0]?.name || opp.owner?.name || 'Qualifying Rep'}
                               </div>
-                            )}
-                            <div className="text-[10px] text-slate-400 pt-0.5">
-                              Converted: {opp.convertedAt ? new Date(opp.convertedAt).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : "N/A"}
+                              {opp.originalRep?.email && (
+                                <div style={{ fontSize: 11, color: '#94A3B8', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {opp.originalRep.email}
+                                </div>
+                              )}
+                              <div style={{ marginTop: 4 }}>
+                                <span style={{
+                                  display: 'inline-block', fontSize: 11, fontWeight: 600,
+                                  color: '#B45309', background: '#FEF3C7',
+                                  borderRadius: 6, padding: '3px 8px',
+                                  border: '1px solid #FDE68A'
+                                }}>
+                                  Converted {opp.convertedAt ? new Date(opp.convertedAt).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'N/A'}
+                                </span>
+                              </div>
                             </div>
                           </div>
 
-                          {/* Intermediate Hops (Multi-hop handoff) */}
-                          {opp.handoffChain && opp.handoffChain.length > 2 && (
-                            <div className="space-y-1 pl-2 border-l-2 border-blue-500/40 my-1">
-                              <div className="text-[10px] font-bold text-slate-400 uppercase">Intermediate Chain ({opp.handoffChain.length - 2} hops)</div>
-                              {opp.handoffChain.slice(1, -1).map((hop: any, idx: number) => (
-                                <div key={idx} className="text-[11px] text-slate-300 flex items-center justify-between">
-                                  <span>↳ {hop.name} ({hop.role || "Rep"})</span>
-                                  <span className="text-[10px] text-slate-500">{new Date(hop.assignedAt).toLocaleDateString()}</span>
+                          {/* Connecting line(s) */}
+                          {opp.handoffChain && opp.handoffChain.length > 2 ? (
+                            opp.handoffChain.slice(1, -1).map((hop: any, idx: number) => (
+                              <div key={idx}>
+                                {/* Connector */}
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingLeft: 14, marginBottom: 8 }}>
+                                  <div style={{ width: 1, height: 12, background: '#BFDBFE' }} />
+                                  <svg width="14" height="10" viewBox="0 0 14 10" fill="none" style={{ marginTop: -2 }}>
+                                    <path d="M7 10L0.937822 0.25H13.0622L7 10Z" fill="#93C5FD" />
+                                  </svg>
                                 </div>
-                              ))}
+                                {/* Intermediate rep */}
+                                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                                  <div style={{
+                                    width: 30, height: 30, borderRadius: '50%',
+                                    background: '#DBEAFE', color: '#1D4ED8',
+                                    fontWeight: 700, fontSize: 11,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    flexShrink: 0, marginTop: 2, border: '1px solid #BFDBFE'
+                                  }}>
+                                    {(hop.name || 'SR').split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
+                                  </div>
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontSize: 12, color: '#64748B', fontWeight: 400, marginBottom: 2 }}>Intermediate handoff</div>
+                                    <div style={{ fontSize: 12, fontWeight: 500, color: '#1D4ED8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{hop.name}</div>
+                                    <div style={{ marginTop: 4 }}>
+                                      <span style={{
+                                        display: 'inline-block', fontSize: 11, fontWeight: 600,
+                                        color: '#B45309', background: '#FEF3C7',
+                                        borderRadius: 6, padding: '3px 8px',
+                                        border: '1px solid #FDE68A'
+                                      }}>
+                                        Handoff {new Date(hop.assignedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            /* Single connector */
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingLeft: 14 }}>
+                              <div style={{ width: 1, height: 14, background: '#BFDBFE' }} />
+                              <svg width="14" height="10" viewBox="0 0 14 10" fill="none" style={{ marginTop: -2 }}>
+                                <path d="M7 10L0.937822 0.25H13.0622L7 10Z" fill="#93C5FD" />
+                              </svg>
                             </div>
                           )}
 
-                          {/* Salesman 2 (Current Owner) */}
-                          <div className="bg-slate-800/60 p-2 rounded-lg border border-slate-700/50 space-y-0.5">
-                            <div className="flex items-center justify-between">
-                              <span className="text-[10px] font-bold text-purple-400 uppercase tracking-wider">
-                                👤 Salesman 2 (Current Owner)
-                              </span>
+                          {/* Current Owner Block */}
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                            {/* Green avatar */}
+                            <div style={{
+                              width: 30, height: 30, borderRadius: '50%',
+                              background: '#DCFCE7', color: '#16A34A',
+                              fontWeight: 700, fontSize: 11,
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              flexShrink: 0, marginTop: 2,
+                              border: '1px solid #BBF7D0'
+                            }}>
+                              {(opp.currentOwner?.name || opp.handoffChain?.[opp.handoffChain?.length - 1]?.name || opp.owner?.name || 'SR').split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
                             </div>
-                            <div className="font-bold text-white text-sm">
-                              {opp.currentOwner?.name || opp.handoffChain?.[opp.handoffChain.length - 1]?.name || opp.owner?.name || "Closer"}
-                            </div>
-                            {opp.currentOwner?.email && (
-                              <div className="text-[11px] text-slate-400 font-mono">
-                                {opp.currentOwner.email}
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: 12, color: '#64748B', fontWeight: 400, marginBottom: 2 }}>Current owner</div>
+                              <div style={{ fontSize: 13, fontWeight: 500, color: '#1D4ED8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {opp.currentOwner?.name || opp.handoffChain?.[opp.handoffChain?.length - 1]?.name || opp.owner?.name || 'Closer'}
                               </div>
-                            )}
-                            <div className="text-[10px] pt-0.5">
-                              {opp.actualClosedAt ? (
-                                <span className="text-emerald-400 font-semibold">
-                                  Closed: {new Date(opp.actualClosedAt).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                                </span>
-                              ) : (
-                                <span className="text-slate-400">Close Date: Not yet closed</span>
+                              {opp.currentOwner?.email && (
+                                <div style={{ fontSize: 11, color: '#94A3B8', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {opp.currentOwner.email}
+                                </div>
                               )}
+                              <div style={{ marginTop: 4 }}>
+                                {opp.actualClosedAt ? (
+                                  <span style={{
+                                    display: 'inline-block', fontSize: 11, fontWeight: 600,
+                                    color: '#B45309', background: '#FEF3C7',
+                                    borderRadius: 6, padding: '3px 8px',
+                                    border: '1px solid #FDE68A'
+                                  }}>
+                                    Closed on {new Date(opp.actualClosedAt).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                  </span>
+                                ) : (
+                                  <span style={{
+                                    display: 'inline-block', fontSize: 11, fontWeight: 600,
+                                    color: '#B45309', background: '#FEF3C7',
+                                    borderRadius: 6, padding: '3px 8px',
+                                    border: '1px solid #FDE68A'
+                                  }}>
+                                    Not yet closed
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </div>
                       </td>
+
 
                       {/* Value */}
                       <td className="py-3 px-4 font-bold text-slate-900 whitespace-nowrap">
