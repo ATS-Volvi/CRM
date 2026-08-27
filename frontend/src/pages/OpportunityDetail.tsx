@@ -153,16 +153,19 @@ export default function OpportunityDetail() {
 
   // Reject Quote Mutation
   const rejectQuoteMutation = useMutation({
-    mutationFn: async ({ quoteId, reason, notes }: { quoteId: string; reason: string; notes: string }) => {
-      return await apiClient.post(`/api/v1/quotes/${quoteId}/reject`, { reason, notes });
+    mutationFn: async ({ quoteId, rejectionReason }: { quoteId: string; rejectionReason: string }) => {
+      return await apiClient.post(`/api/v1/quotes/${quoteId}/reject`, { rejectionReason });
     },
     onSuccess: () => {
       setRejectModalQuoteId(null);
-      setRejectNotes("");
+      setRejectReason("");
       queryClient.invalidateQueries({ queryKey: ["opportunity-detail", id] });
       queryClient.invalidateQueries({ queryKey: ["opportunity-quotes", id] });
       queryClient.invalidateQueries({ queryKey: ["opportunity-timeline", id] });
       queryClient.invalidateQueries({ queryKey: ["opportunities-master-list"] });
+    },
+    onError: (err: any) => {
+      alert(err?.response?.data?.error || err.message || "Failed to mark quote as rejected.");
     }
   });
 
@@ -875,6 +878,21 @@ export default function OpportunityDetail() {
                             )}
                           </div>
                         </div>
+
+                        {/* Rejection Reason Display Box */}
+                        {isRejected && (
+                          <div className="mt-2.5 p-2.5 bg-rose-50/80 border border-rose-200 rounded-lg text-xs text-rose-900 flex items-start gap-2">
+                            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                            <div className="space-y-0.5">
+                              <div className="font-bold text-rose-950">
+                                Rejected by {q.rejectedByUser?.name || "Sales Rep"}{q.rejectedAt ? ` on ${new Date(q.rejectedAt).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}` : (q.statusChangedAt ? ` on ${new Date(q.statusChangedAt).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}` : "")}
+                              </div>
+                              <div className="font-medium text-rose-800 italic">
+                                "{q.rejectionReason || "No reason specified"}"
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                     );
@@ -1124,55 +1142,36 @@ export default function OpportunityDetail() {
       {/* Manual Quote Rejection Prompt Modal */}
       {rejectModalQuoteId && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-2xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl p-5 max-w-sm w-full shadow-xl border border-slate-200 space-y-3.5">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+          <div className="bg-white rounded-xl p-5 max-w-md w-full shadow-xl border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
               <h3 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
                 <XCircle className="w-4 h-4 text-rose-600" /> Mark Quote as Rejected
               </h3>
-              <button onClick={() => setRejectModalQuoteId(null)} className="text-slate-400 hover:text-slate-600">
+              <button onClick={() => { setRejectModalQuoteId(null); setRejectReason(""); }} className="text-slate-400 hover:text-slate-600">
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <p className="text-xs text-slate-600">
-              Mark this quotation as declined by the customer.
-            </p>
-
             <div className="space-y-2">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Customer Rejection Reason *
-                </label>
-                <select
-                  value={rejectReason}
-                  onChange={(e) => setRejectReason(e.target.value)}
-                  className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-rose-500"
-                >
-                  <option value="Price too high / Commercial terms">Price too high / Commercial terms</option>
-                  <option value="Competitor proposal selected">Competitor proposal selected</option>
-                  <option value="Scope mismatch / Spec change required">Scope mismatch / Spec change required</option>
-                  <option value="Project postponed / Cancelled">Project postponed / Cancelled</option>
-                  <option value="Payment terms rejected">Payment terms rejected</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Feedback / Notes</label>
-                <textarea
-                  rows={2}
-                  value={rejectNotes}
-                  onChange={(e) => setRejectNotes(e.target.value)}
-                  placeholder="Optional customer feedback..."
-                  className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-rose-500"
-                />
-              </div>
+              <label className="block text-xs font-bold text-slate-800">
+                Why did the customer reject this quote? <span className="text-rose-500">*</span>
+              </label>
+              <textarea
+                rows={3}
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="e.g. price too high, needed faster delivery, went with a competitor."
+                className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-500 placeholder:text-slate-400"
+              />
+              {!rejectReason.trim() && (
+                <p className="text-[11px] text-rose-500 font-medium">Rejection reason is required before submitting.</p>
+              )}
             </div>
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
               <button
-                onClick={() => setRejectModalQuoteId(null)}
-                className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
+                onClick={() => { setRejectModalQuoteId(null); setRejectReason(""); }}
+                className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
               >
                 Cancel
               </button>
@@ -1180,14 +1179,13 @@ export default function OpportunityDetail() {
                 onClick={() =>
                   rejectQuoteMutation.mutate({
                     quoteId: rejectModalQuoteId,
-                    reason: rejectReason,
-                    notes: rejectNotes
+                    rejectionReason: rejectReason
                   })
                 }
-                disabled={rejectQuoteMutation.isPending}
-                className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                disabled={!rejectReason.trim() || rejectQuoteMutation.isPending}
+                className="px-4 py-1.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer disabled:cursor-not-allowed shadow-2xs"
               >
-                {rejectQuoteMutation.isPending ? "Updating..." : "Confirm Rejection"}
+                {rejectQuoteMutation.isPending ? "Submitting..." : "Confirm Rejection"}
               </button>
             </div>
           </div>
