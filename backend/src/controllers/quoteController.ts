@@ -8,6 +8,47 @@ import { triggerQuoteApprovalNotifications } from "../services/notificationEngin
 import { processOpportunityEvent } from "../services/opportunityAutomationEngine";
 import { deliverQuote, resolveDeliveryChannel, getQuoteContact, buildQuotePdfBuffer, recordQuoteDeliveryEvent, markQuoteAsViewed, sendFinalAgreedQuoteEmail } from "../services/quoteDeliveryService";
 
+export function formatQuoteWithTotals(quoteInput: any) {
+  if (!quoteInput) return quoteInput;
+  const quote = typeof quoteInput.toJSON === "function" ? quoteInput.toJSON() : { ...quoteInput };
+  const items = quote.QuoteLineItems || quote.items || quote.lineItems || [];
+
+  let subtotal = 0;
+  let totalDiscount = 0;
+  let totalTax = 0;
+
+  for (const item of items) {
+    if (item.isOptional) continue;
+    const qty = Number(item.quantity || item.qty || 1);
+    const unitPrice = Number(item.unitPrice || 0);
+    const discountPct = Number(item.discount || 0);
+    const taxPct = Number(item.tax !== undefined && item.tax !== null ? item.tax : 0);
+
+    const lineGross = qty * unitPrice;
+    const lineSubtotal = item.totalPrice !== undefined && item.totalPrice !== null && !item.unitPrice
+      ? Number(item.totalPrice)
+      : lineGross * (1 - discountPct / 100);
+    const lineDiscount = lineGross - lineSubtotal;
+    const lineTaxAmount = lineSubtotal * (taxPct / 100);
+
+    subtotal += lineGross;
+    totalDiscount += lineDiscount;
+    totalTax += lineTaxAmount;
+  }
+
+  const roundedSubtotal = parseFloat(subtotal.toFixed(2));
+  const roundedTotalDiscount = parseFloat(totalDiscount.toFixed(2));
+  const roundedTotalTax = parseFloat(totalTax.toFixed(2));
+  const calculatedTotalAmount = parseFloat((roundedSubtotal - roundedTotalDiscount + roundedTotalTax).toFixed(2));
+
+  quote.subtotal = roundedSubtotal;
+  quote.totalDiscount = roundedTotalDiscount;
+  quote.totalTax = roundedTotalTax;
+  quote.totalAmount = calculatedTotalAmount > 0 ? calculatedTotalAmount : Number(quote.totalAmount || 0);
+
+  return quote;
+}
+
 export const getQuotes = async (req: Request, res: Response) => {
   try {
     const { search, status, startDate, endDate, salespersonId, category, valueBand } = req.query;
@@ -28,29 +69,18 @@ export const getQuotes = async (req: Request, res: Response) => {
       }
     }
 
+    if (salespersonId) {
+      where["$deal.ownerId$"] = salespersonId;
+    }
+
     if (valueBand) {
-      if (valueBand === "low") {
+      if (valueBand === "Under 10k" || valueBand === "low") {
         where.totalAmount = { [Op.lte]: 10000 };
-      } else if (valueBand === "medium") {
+      } else if (valueBand === "10k-50k" || valueBand === "medium") {
         where.totalAmount = { [Op.gt]: 10000, [Op.lte]: 50000 };
-      } else if (valueBand === "high") {
+      } else if (valueBand === "50k+" || valueBand === "high") {
         where.totalAmount = { [Op.gt]: 50000 };
       }
-    }
-
-    const dealWhere: any = {};
-    if (salespersonId) {
-      dealWhere.ownerId = salespersonId;
-    }
-
-    const leadWhere: any = {};
-    if (search) {
-      const searchStr = `%${search}%`;
-      leadWhere[Op.or] = [
-        { firstName: { [Op.like]: searchStr } },
-        { lastName: { [Op.like]: searchStr } },
-        { company: { [Op.like]: searchStr } }
-      ];
     }
 
     const lineItemInclude: any = {
@@ -78,12 +108,10 @@ export const getQuotes = async (req: Request, res: Response) => {
         {
           model: sequelize.models.Deal,
           as: "deal",
-          where: Object.keys(dealWhere).length > 0 ? dealWhere : undefined,
           include: [
             {
               model: sequelize.models.Lead,
-              as: "lead",
-              where: Object.keys(leadWhere).length > 0 ? leadWhere : undefined
+              as: "lead"
             },
             {
               model: sequelize.models.User,
@@ -101,13 +129,16 @@ export const getQuotes = async (req: Request, res: Response) => {
       order: [['createdAt', 'DESC']]
     });
 
-    // If search term was provided but matched the quoteNumber itself, or if we need to filter:
     let filteredQuotes = quotes;
     if (search) {
       const searchLower = String(search).toLowerCase();
       filteredQuotes = quotes.filter((q: any) => {
         const matchesNum = q.quoteNumber && q.quoteNumber.toLowerCase().includes(searchLower);
-        const matchesLead = q.deal && q.deal.lead;
+        const matchesLead = q.deal && q.deal.lead && (
+          (q.deal.lead.firstName && q.deal.lead.firstName.toLowerCase().includes(searchLower)) ||
+          (q.deal.lead.lastName && q.deal.lead.lastName.toLowerCase().includes(searchLower)) ||
+          (q.deal.lead.company && q.deal.lead.company.toLowerCase().includes(searchLower))
+        );
         return matchesNum || matchesLead;
       });
     }
@@ -118,7 +149,7 @@ export const getQuotes = async (req: Request, res: Response) => {
       });
     }
 
-    res.json(filteredQuotes);
+    res.json(filteredQuotes.map((q: any) => formatQuoteWithTotals(q)));
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -172,6 +203,10 @@ export const createQuote = async (req: Request, res: Response) => {
     const verifiedItems: any[] = [];
     const userId = (req as any).user?.id || "mock-user";
 
+    let accSubtotal = 0;
+    let accTotalDiscount = 0;
+    let accTotalTax = 0;
+
     if (rawItems && rawItems.length > 0) {
       for (const item of rawItems) {
         const isCustom = !!item.isCustom;
@@ -186,14 +221,22 @@ export const createQuote = async (req: Request, res: Response) => {
         const minSellingPrice = product?.minSellingPrice ? Number(product.minSellingPrice) : (product?.minPrice ? Number(product.minPrice) : null);
         const qty = Number(item.quantity || 1);
         const discountPct = Number(item.discount || 0);
-        const taxPct = Number(item.tax || 0);
+        const taxPct = Number(item.tax !== undefined && item.tax !== null ? item.tax : 0);
 
+        const lineGross = qty * requestedPrice;
         // Pre-tax line price after discount
         const lineSubtotal = item.totalPrice && !item.unitPrice
           ? Number(item.totalPrice)
           : qty * requestedPrice * (1 - discountPct / 100);
+        const lineDiscount = lineGross - lineSubtotal;
         const lineTaxAmount = lineSubtotal * (taxPct / 100);
         const lineTotal = lineSubtotal + lineTaxAmount;
+
+        if (!item.isOptional) {
+          accSubtotal += lineGross;
+          accTotalDiscount += lineDiscount;
+          accTotalTax += lineTaxAmount;
+        }
 
         verifiedItems.push({
           id: require('crypto').randomUUID(),
@@ -215,13 +258,13 @@ export const createQuote = async (req: Request, res: Response) => {
       }
     }
 
-    // Exclude optional items from the main total amount, or fallback to body totalAmount
-    const calculatedItemsTotal = verifiedItems
-      .filter(item => !item.isOptional)
-      .reduce((acc, item) => acc + item.totalPrice, 0);
+    const roundedSubtotal = parseFloat(accSubtotal.toFixed(2));
+    const roundedTotalDiscount = parseFloat(accTotalDiscount.toFixed(2));
+    const roundedTotalTax = parseFloat(accTotalTax.toFixed(2));
+    const calculatedGrandTotal = parseFloat((roundedSubtotal - roundedTotalDiscount + roundedTotalTax).toFixed(2));
 
-    const totalAmount = calculatedItemsTotal > 0
-      ? calculatedItemsTotal
+    const totalAmount = calculatedGrandTotal > 0
+      ? calculatedGrandTotal
       : (Number(req.body.totalAmount) || 0);
 
     // Initial quote creation saves as Draft or Sent directly to client
@@ -264,7 +307,17 @@ export const createQuote = async (req: Request, res: Response) => {
     }
 
 
-    res.status(201).json(quote);
+    const responseQuote = {
+      ...(quote as any).toJSON(),
+      QuoteLineItems: verifiedItems,
+      lineItems: verifiedItems,
+      subtotal: roundedSubtotal,
+      totalDiscount: roundedTotalDiscount,
+      totalTax: roundedTotalTax,
+      totalAmount
+    };
+
+    res.status(201).json(responseQuote);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -398,7 +451,7 @@ export const updateQuote = async (req: Request, res: Response) => {
       }
     }
 
-    res.json(q);
+    res.json(formatQuoteWithTotals(q));
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -516,7 +569,7 @@ export const getPublicQuote = async (req: Request, res: Response) => {
     // Shared Viewed marking and QuoteDelivery history row
     await markQuoteAsViewed(quote, (quote as any).sentVia || "SECURE_LINK");
 
-    res.json(quote);
+    res.json(formatQuoteWithTotals(quote));
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -646,7 +699,7 @@ export const getPublicQuoteByToken = async (req: Request, res: Response) => {
     // Shared Viewed marking and QuoteDelivery history row
     await markQuoteAsViewed(quote, "CUSTOMER_SELF_SERVICE");
 
-    res.json(quote);
+    res.json(formatQuoteWithTotals(quote));
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -1146,7 +1199,7 @@ export const getQuoteById = async (req: Request, res: Response) => {
       ]
     });
     if (!quote) return res.status(404).json({ error: "Quote not found" });
-    res.json(quote);
+    res.json(formatQuoteWithTotals(quote));
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -1163,7 +1216,7 @@ export const getOpportunityQuotes = async (req: Request, res: Response) => {
       ],
       order: [["version", "ASC"], ["createdAt", "ASC"]]
     });
-    res.json(quotes);
+    res.json(quotes.map((q: any) => formatQuoteWithTotals(q)));
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

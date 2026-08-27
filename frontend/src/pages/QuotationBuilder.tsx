@@ -231,16 +231,40 @@ export default function QuotationBuilder() {
   const [items, setItems] = useState<any[]>([]);
   const activeProductId = items[focusedIndex]?.productId;
 
-  const currentTotalAmount = items
-    .filter((item: any) => !item.isOptional)
-    .reduce((acc: number, item: any) => {
-      const qty = Number(item.quantity || 1);
-      const uPrice = Number(item.unitPrice || 0);
-      const discPct = Number(item.discount || 0);
-      const discRatio = 1 - (discPct / 100);
-      const itemTotal = item.total !== undefined && !isNaN(item.total) ? Number(item.total) : (qty * uPrice * discRatio);
-      return acc + itemTotal;
-    }, 0);
+  const nonOptionalItems = items.filter((item: any) => !item.isOptional);
+
+  const calculatedSubtotal = nonOptionalItems.reduce((acc: number, item: any) => {
+    const qty = Number(item.quantity || 1);
+    const uPrice = Number(item.unitPrice || 0);
+    return acc + (qty * uPrice);
+  }, 0);
+
+  const calculatedTotalDiscount = nonOptionalItems.reduce((acc: number, item: any) => {
+    const qty = Number(item.quantity || 1);
+    const uPrice = Number(item.unitPrice || 0);
+    const discPct = Number(item.discount || 0);
+    const lineGross = qty * uPrice;
+    const lineSubtotal = item.total !== undefined && !isNaN(item.total)
+      ? Number(item.total)
+      : lineGross * (1 - discPct / 100);
+    return acc + Math.max(0, lineGross - lineSubtotal);
+  }, 0);
+
+  const calculatedTotalTax = nonOptionalItems.reduce((acc: number, item: any) => {
+    const qty = Number(item.quantity || 1);
+    const uPrice = Number(item.unitPrice || 0);
+    const discPct = Number(item.discount || 0);
+    const taxPct = Number(item.tax !== undefined && item.tax !== null ? item.tax : 15);
+    const lineGross = qty * uPrice;
+    const lineSubtotal = item.total !== undefined && !isNaN(item.total)
+      ? Number(item.total)
+      : lineGross * (1 - discPct / 100);
+    return acc + (lineSubtotal * (taxPct / 100));
+  }, 0);
+
+  const calculatedGrandTotal = calculatedSubtotal - calculatedTotalDiscount + calculatedTotalTax;
+
+  const currentTotalAmount = calculatedGrandTotal;
 
   const { data: evaluation } = useQuery({
     queryKey: ["quoteEvaluation", selectedDealId, currentTotalAmount, items.length],
@@ -733,7 +757,7 @@ export default function QuotationBuilder() {
           {/* Line Items Table */}
           <div className="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden shadow-sm">
             <div className="p-4 border-b border-outline-variant flex justify-between items-center bg-slate-50/50">
-              <span className="text-[12px] font-bold text-on-surface-variant uppercase tracking-wider">Line Items</span>
+              <span className="text-[12px] font-bold text-on-surface-variant uppercase tracking-wider">Service Items</span>
               <div className="flex items-center gap-3">
                 <button 
                   onClick={() => setIsCatalogModalOpen(true)} 
@@ -922,25 +946,45 @@ export default function QuotationBuilder() {
                       </td>
                     </tr>
                   )}
-                  {items.length > 0 && (
-                    <>
-                      <tr className="bg-surface-container-low/50">
-                        <td colSpan={6} className="px-4 py-3 text-right font-semibold text-on-surface-variant">Required Subtotal:</td>
-                        <td className="px-4 py-3 text-right font-bold text-on-surface">{formatCurrency(items.filter((item: any) => !item.isOptional).reduce((acc: number, item: any) => acc + (item.total || 0), 0))}</td>
-                        <td></td>
-                      </tr>
-                      {items.some((item: any) => item.isOptional) && (
-                        <tr className="bg-surface-container-low/20">
-                          <td colSpan={6} className="px-4 py-3 text-right font-semibold text-outline">Optional Items Subtotal:</td>
-                          <td className="px-4 py-3 text-right font-bold text-slate-500">{formatCurrency(items.filter((item: any) => item.isOptional).reduce((acc: number, item: any) => acc + (item.total || 0), 0))}</td>
-                          <td></td>
-                        </tr>
-                      )}
-                    </>
+                  {items.length > 0 && items.some((item: any) => item.isOptional) && (
+                    <tr className="bg-surface-container-low/20">
+                      <td colSpan={6} className="px-4 py-3 text-right font-semibold text-outline">Optional Items Subtotal:</td>
+                      <td className="px-4 py-3 text-right font-bold text-slate-500">{formatCurrency(items.filter((item: any) => item.isOptional).reduce((acc: number, item: any) => acc + (item.total || 0), 0))}</td>
+                      <td></td>
+                    </tr>
                   )}
                 </tbody>
               </table>
             </div>
+
+            {/* Totals Summary Block */}
+            {items.length > 0 && (
+              <div className="p-5 bg-slate-50/80 border-t border-outline-variant flex justify-end">
+                <div className="w-80 space-y-2.5 text-sm">
+                  <div className="flex justify-between items-center text-slate-600 font-medium">
+                    <span>Subtotal:</span>
+                    <span className="font-semibold text-slate-900">{formatCurrency(calculatedSubtotal)}</span>
+                  </div>
+
+                  {calculatedTotalDiscount > 0 && (
+                    <div className="flex justify-between items-center text-amber-700 font-medium">
+                      <span>Discount:</span>
+                      <span className="font-semibold text-amber-800">−{formatCurrency(calculatedTotalDiscount)}</span>
+                    </div>
+                  )}
+
+                  <div className="flex justify-between items-center text-slate-600 font-medium">
+                    <span>Tax:</span>
+                    <span className="font-semibold text-slate-900">+{formatCurrency(calculatedTotalTax)}</span>
+                  </div>
+
+                  <div className="border-t border-slate-300 my-2 pt-2.5 flex justify-between items-center">
+                    <span className="text-base font-extrabold text-slate-900 uppercase tracking-tight">Grand Total:</span>
+                    <span className="text-lg font-black text-blue-600">{formatCurrency(calculatedGrandTotal)}</span>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Salesperson Approval Hierarchy Status Banner */}
             {items.length > 0 && evaluation && (
