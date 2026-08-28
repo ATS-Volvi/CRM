@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { Database, sequelize } from "@nexus-crm/database";
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 
 async function main() {
   await Database.createConnection();

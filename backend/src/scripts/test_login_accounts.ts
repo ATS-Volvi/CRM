@@ -1,5 +1,5 @@
 import { Database, sequelize } from "@nexus-crm/database";
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
 async function testLoginAccounts() {

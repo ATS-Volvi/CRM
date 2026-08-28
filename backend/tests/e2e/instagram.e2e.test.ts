@@ -21,7 +21,7 @@ describe("E2E: Instagram Webhook Ingestion & Routing", () => {
     process.env.INSTAGRAM_VERIFY_TOKEN = VERIFY_TOKEN;
 
     try {
-      const hashedPassword = await require("bcrypt").hash("password123", 10);
+      const hashedPassword = await require("bcryptjs").hash("password123", 10);
       await sequelize.models.User.create({
         id: require("crypto").randomUUID(),
         name: "Default Admin",
@@ -138,7 +138,7 @@ describe("E2E: Instagram Webhook Ingestion & Routing", () => {
   // Message Ingestion & Routing Checks
   // -------------------------------------------------------------
   it("should route Instagram DM by explicit Attn: mention to target salesperson", async () => {
-    const hashedPassword = await require("bcrypt").hash("password123", 10);
+    const hashedPassword = await require("bcryptjs").hash("password123", 10);
     const attnRep = await sequelize.models.User.create({
       id: require("crypto").randomUUID(),
       name: "Marcus Aurelius",
@@ -184,7 +184,7 @@ describe("E2E: Instagram Webhook Ingestion & Routing", () => {
   });
 
   it("should fall through to least-workload when multiple names are mentioned (ambiguous match)", async () => {
-    const hashedPassword = await require("bcrypt").hash("password123", 10);
+    const hashedPassword = await require("bcryptjs").hash("password123", 10);
     const repA = await sequelize.models.User.create({
       id: "10000000-0000-0000-0000-00000000000a",
       name: "Alice Rep",

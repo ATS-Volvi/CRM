@@ -1,4 +1,4 @@
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 import { sequelize, User } from "@nexus-crm/database";
 
 async function main() {
