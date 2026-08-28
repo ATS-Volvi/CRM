@@ -17,10 +17,11 @@ export const getFulfillments = async (req: Request, res: Response) => {
     if (assignedUserId) where.assignedUserId = assignedUserId;
 
     const orderWhere: any = {};
+    const likeOp = sequelize.getDialect() === "sqlite" ? Op.like : Op.iLike;
     if (search) {
       orderWhere[Op.or] = [
-        { poNumber: { [Op.iLike]: `%${search}%` } },
-        { notes: { [Op.iLike]: `%${search}%` } }
+        { poNumber: { [likeOp]: `%${search}%` } },
+        { notes: { [likeOp]: `%${search}%` } }
       ];
     }
 

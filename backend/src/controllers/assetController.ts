@@ -93,13 +93,14 @@ export const getAssets = async (req: Request, res: Response) => {
 
     if (search) {
       const q = String(search).trim();
+      const likeOp = sequelize.getDialect() === "sqlite" ? Op.like : Op.iLike;
       where[Op.or] = [
-        { name: { [Op.iLike]: `%${q}%` } },
-        { serialNumber: { [Op.iLike]: `%${q}%` } },
-        { assetNumber: { [Op.iLike]: `%${q}%` } },
-        { type: { [Op.iLike]: `%${q}%` } },
-        { location: { [Op.iLike]: `%${q}%` } },
-        { notes: { [Op.iLike]: `%${q}%` } }
+        { name: { [likeOp]: `%${q}%` } },
+        { serialNumber: { [likeOp]: `%${q}%` } },
+        { assetNumber: { [likeOp]: `%${q}%` } },
+        { type: { [likeOp]: `%${q}%` } },
+        { location: { [likeOp]: `%${q}%` } },
+        { notes: { [likeOp]: `%${q}%` } }
       ];
     }
 
