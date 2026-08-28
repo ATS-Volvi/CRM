@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import axios from "axios";
 import {
   FileText,
   CheckCircle2,
@@ -104,25 +103,32 @@ export default function PublicQuoteReview() {
       setLoading(true);
       setErrorStatus(null);
       setErrorMessage(null);
-      const res = await axios.get(`/api/v1/public/quotes/by-token/${token}`);
-      setQuote(res.data);
+      const res = await fetch(`/api/v1/public/quotes/by-token/${token}`);
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        const status = res.status;
+        setErrorStatus(status);
+        setErrorMessage(
+          errData.error ||
+          (status === 410
+            ? "This quotation link has expired. Please contact your sales representative for a revised proposal."
+            : "Unable to find the requested quotation. Please verify the URL.")
+        );
+        return;
+      }
+      const data = await res.json();
+      setQuote(data);
 
       // Pre-fill acceptance fields if contact details exist
-      const clientName = res.data.deal?.lead
-        ? `${res.data.deal.lead.firstName || ""} ${res.data.deal.lead.lastName || ""}`.trim()
+      const clientName = data.deal?.lead
+        ? `${data.deal.lead.firstName || ""} ${data.deal.lead.lastName || ""}`.trim()
         : "";
-      const clientEmail = res.data.deal?.lead?.email || "";
+      const clientEmail = data.deal?.lead?.email || "";
       if (clientName) setAcceptedByName(clientName);
       if (clientEmail) setAcceptedByEmail(clientEmail);
     } catch (err: any) {
-      const status = err.response?.status || 500;
-      setErrorStatus(status);
-      setErrorMessage(
-        err.response?.data?.error ||
-        (status === 410
-          ? "This quotation link has expired. Please contact your sales representative for a revised proposal."
-          : "Unable to find the requested quotation. Please verify the URL.")
-      );
+      setErrorStatus(500);
+      setErrorMessage("Unable to find the requested quotation. Please verify the URL.");
     } finally {
       setLoading(false);
     }
@@ -134,10 +140,19 @@ export default function PublicQuoteReview() {
 
     try {
       setSubmittingAccept(true);
-      const res = await axios.post(`/api/v1/public/quotes/by-token/${token}/accept`, {
-        acceptedByName: acceptedByName.trim(),
-        acceptedByEmail: acceptedByEmail.trim()
+      const res = await fetch(`/api/v1/public/quotes/by-token/${token}/accept`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          acceptedByName: acceptedByName.trim(),
+          acceptedByEmail: acceptedByEmail.trim()
+        })
       });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to submit quote acceptance. Please try again.");
+      }
 
       setQuote((prev) => (prev ? { ...prev, status: "Accepted" } : null));
       setShowAcceptModal(false);
@@ -145,7 +160,7 @@ export default function PublicQuoteReview() {
         `Thank you, ${acceptedByName}! This quotation has been officially accepted. Our team is preparing the next steps.`
       );
     } catch (err: any) {
-      alert(err.response?.data?.error || "Failed to submit quote acceptance. Please try again.");
+      alert(err.message || "Failed to submit quote acceptance. Please try again.");
     } finally {
       setSubmittingAccept(false);
     }
@@ -157,11 +172,20 @@ export default function PublicQuoteReview() {
 
     try {
       setSubmittingChanges(true);
-      await axios.post(`/api/v1/public/quotes/by-token/${token}/request-changes`, {
-        message: changeMessage.trim(),
-        customerName: acceptedByName,
-        customerEmail: acceptedByEmail
+      const res = await fetch(`/api/v1/public/quotes/by-token/${token}/request-changes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: changeMessage.trim(),
+          customerName: acceptedByName,
+          customerEmail: acceptedByEmail
+        })
       });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to submit revision request. Please try again.");
+      }
 
       setQuote((prev) => (prev ? { ...prev, status: "Revision Requested" } : null));
       setShowChangesModal(false);
@@ -169,7 +193,7 @@ export default function PublicQuoteReview() {
         "Your revision request has been forwarded to your sales representative. We will follow up shortly."
       );
     } catch (err: any) {
-      alert(err.response?.data?.error || "Failed to submit revision request. Please try again.");
+      alert(err.message || "Failed to submit revision request. Please try again.");
     } finally {
       setSubmittingChanges(false);
     }
