@@ -5,17 +5,20 @@ import { apiClient } from "../lib/apiClient";
 import { useAuth } from "../context/AuthContext";
 import {
   Users, Search, Plus, X, MapPin, Building2, ChevronDown, Crown,
-  UserCheck, BarChart3, ChevronRight, Phone, Mail, Calendar, UserPlus,
-  ShieldCheck, Briefcase, Layers, ArrowLeft
+  UserCheck, BarChart3, ChevronRight, Mail, UserPlus,
+  ShieldCheck
 } from "lucide-react";
+import { formatCurrency } from "../utils/currency";
 
 interface Salesperson {
   id: string;
   name: string;
   email?: string;
   role: string;
+  tier?: string | null;
+  dealValueCutoff?: number | null;
   isAvailable: boolean;
-  maxOpenLeads: number;
+  maxOpenLeads?: number | null;
   totalLeads: number;
   totalDeals: number;
   department: string;
@@ -33,7 +36,6 @@ interface Salesperson {
   teamMembers?: any[];
 }
 
-// SVG circular progress ring component
 function ProgressRing({ pct, size = 56, stroke = 4, color = "var(--color-primary, #6366f1)" }: {
   pct: number; size?: number; stroke?: number; color?: string;
 }) {
@@ -65,9 +67,11 @@ function getInitials(name: string) {
   return name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
 }
 
-function roleLabel(role: string) {
-  return role === "sales_rep" ? "Sales Rep"
-    : role === "manager" ? "Sales Manager"
+function roleLabel(role: string, tier?: string | null) {
+  if (role === "sales_rep") {
+    return tier === "executive" ? "Sales Rep (Executive)" : "Sales Rep (Agent)";
+  }
+  return role === "manager" ? "Sales Manager"
     : role === "admin" ? "Admin"
     : role === "director" ? "Director"
     : role;
@@ -98,11 +102,9 @@ export default function SalespersonTracker() {
   const [filterTeam, setFilterTeam] = useState("All");
   const [filterStatus, setFilterStatus] = useState("All");
 
-  // Org Chart state
   const [orgSearch, setOrgSearch] = useState("");
   const [selectedEmployee, setSelectedEmployee] = useState<any | null>(null);
 
-  // Expanded team tracking
   const [expandedTeams, setExpandedTeams] = useState<Set<string>>(new Set());
 
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -110,12 +112,12 @@ export default function SalespersonTracker() {
   const [formError, setFormError] = useState("");
   const [form, setForm] = useState({
     name: "", email: "", password: "",
-    role: "sales_rep", maxOpenLeads: 20, isAvailable: true,
+    role: "sales_rep", tier: "agent", maxOpenLeads: 20, isAvailable: true,
     managerId: "", department: "Sales", territory: "EMEA", team: "Aces",
     hireDate: new Date().toISOString().split("T")[0], phone: ""
   });
 
-  const { data: salespersons = [], refetch: fetchSalespersons } = useQuery<Salesperson[]>({
+  const { data: salespersons = [] } = useQuery<Salesperson[]>({
     queryKey: ["salespersonsPerformance"],
     queryFn: async () => {
       try {
@@ -134,8 +136,10 @@ export default function SalespersonTracker() {
         name: u.name,
         email: u.email || "",
         role: u.role || "sales_rep",
+        tier: u.tier || null,
+        dealValueCutoff: u.dealValueCutoff !== undefined ? u.dealValueCutoff : null,
         isAvailable: u.isAvailable ?? true,
-        maxOpenLeads: u.maxOpenLeads ?? 35,
+        maxOpenLeads: u.maxOpenLeads,
         totalLeads: u.totalLeads ?? 0,
         totalDeals: u.totalDeals ?? 0,
         department: u.department || "Sales",
@@ -153,8 +157,7 @@ export default function SalespersonTracker() {
     staleTime: 5 * 60 * 1000
   });
 
-  // Org Chart employees list
-  const { data: orgChartEmployees = [], refetch: fetchOrgChart } = useQuery<any[]>({
+  const { data: orgChartEmployees = [] } = useQuery<any[]>({
     queryKey: ["orgChartEmployees"],
     queryFn: async () => {
       const res = await apiClient("/api/v1/salespersons/org-chart");
@@ -175,11 +178,9 @@ export default function SalespersonTracker() {
     staleTime: 5 * 60 * 1000
   });
 
-  // Allowed manager dropdown list based on current user role
   const availableManagers = useMemo(() => {
     if (!currentUser) return managers;
     if (currentUser.role === "manager") {
-      // Restrict manager to themselves or their reporting chain
       return managers.filter(m => m.id === currentUser.id || m.managerId === currentUser.id);
     }
     return managers;
@@ -212,19 +213,22 @@ export default function SalespersonTracker() {
     setSubmitting(true);
     setFormError("");
 
-    // Manager scoping fallback
     let managerIdToSubmit = form.managerId || null;
     if (currentUser?.role === "manager") {
       managerIdToSubmit = form.managerId || currentUser.id;
     }
 
     try {
+      const payload: any = {
+        ...form,
+        managerId: managerIdToSubmit,
+        tier: form.role === "sales_rep" ? form.tier : null,
+        maxOpenLeads: form.role === "sales_rep" ? form.maxOpenLeads : null
+      };
+
       const res = await apiClient("/api/v1/salespersons", {
         method: "POST",
-        body: JSON.stringify({
-          ...form,
-          managerId: managerIdToSubmit
-        })
+        body: JSON.stringify(payload)
       });
       const data = await res.json();
       if (!res.ok) {
@@ -232,7 +236,7 @@ export default function SalespersonTracker() {
       } else {
         setIsFormOpen(false);
         setForm({
-          name: "", email: "", password: "", role: "sales_rep",
+          name: "", email: "", password: "", role: "sales_rep", tier: "agent",
           maxOpenLeads: 20, isAvailable: true, managerId: "",
           department: "Sales", territory: "EMEA", team: "Aces",
           hireDate: new Date().toISOString().split("T")[0], phone: ""
@@ -248,7 +252,6 @@ export default function SalespersonTracker() {
     }
   };
 
-  // Apply filters for Sales Performance tab
   const filtered = salespersons.filter(s => {
     const q = search.toLowerCase();
     const matchSearch = !q || s.name.toLowerCase().includes(q) || s.role.toLowerCase().includes(q) || (s.department || "").toLowerCase().includes(q) || (s.territory || "").toLowerCase().includes(q);
@@ -259,7 +262,6 @@ export default function SalespersonTracker() {
     return matchSearch && matchDept && matchTerritory && matchTeam && matchStatus;
   });
 
-  // Group by team for Sales Performance tab
   const teamGroups = useMemo(() => {
     const groups: Record<string, { teamLead: Salesperson | null; members: Salesperson[] }> = {};
 
@@ -312,7 +314,6 @@ export default function SalespersonTracker() {
     return `₹${val}`;
   };
 
-  // Filtered employees for Org Chart tab
   const filteredOrgEmployees = useMemo(() => {
     const q = orgSearch.toLowerCase();
     if (!q) return orgChartEmployees;
@@ -324,7 +325,6 @@ export default function SalespersonTracker() {
     );
   }, [orgChartEmployees, orgSearch]);
 
-  // Hierarchical org tree mapping
   const orgTree = useMemo(() => {
     const empMap = new Map<string, any>();
     filteredOrgEmployees.forEach((e: any) => {
@@ -359,7 +359,6 @@ export default function SalespersonTracker() {
           </div>
         </div>
 
-        {/* Action Button for Admin / Director / Manager */}
         {["admin", "director", "manager"].includes(currentUser?.role || "") && (
           <button
             onClick={() => setIsFormOpen(v => !v)}
@@ -464,7 +463,10 @@ export default function SalespersonTracker() {
 
             <div>
               <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Role</label>
-              <select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })}
+              <select value={form.role} onChange={e => {
+                const newRole = e.target.value;
+                setForm({ ...form, role: newRole, tier: newRole === "sales_rep" ? "agent" : "" });
+              }}
                 className="w-full bg-surface border border-outline rounded-lg p-2.5 text-xs font-semibold focus:outline-none cursor-pointer">
                 <option value="sales_rep">Sales Representative</option>
                 <option value="manager">Sales Manager</option>
@@ -472,6 +474,28 @@ export default function SalespersonTracker() {
                 <option value="admin">Administrator</option>
               </select>
             </div>
+
+            {/* Rep Tier Dropdown - Only for Sales Representatives */}
+            {form.role === "sales_rep" && (
+              <div>
+                <label className="block text-[10px] font-bold text-primary uppercase tracking-wider mb-1.5">Rep Tier & Closing Authority</label>
+                <select value={form.tier} onChange={e => setForm({ ...form, tier: e.target.value })}
+                  className="w-full bg-surface border-2 border-primary/40 rounded-lg p-2.5 text-xs font-bold text-primary focus:outline-none cursor-pointer">
+                  <option value="agent">Agent (Junior Rep - Default 50k Cutoff)</option>
+                  <option value="executive">Executive (Senior Rep - Default 250k Cutoff)</option>
+                </select>
+              </div>
+            )}
+
+            {/* Max Lead Cap - Only for Sales Representatives */}
+            {form.role === "sales_rep" && (
+              <div>
+                <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Max Lead Cap</label>
+                <input type="number" value={form.maxOpenLeads}
+                  onChange={e => setForm({ ...form, maxOpenLeads: parseInt(e.target.value) || 20 })}
+                  className="w-full bg-surface border border-outline rounded-lg p-2.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-primary/40" />
+              </div>
+            )}
 
             <div>
               <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Department</label>
@@ -495,13 +519,6 @@ export default function SalespersonTracker() {
                 className="w-full bg-surface border border-outline rounded-lg p-2.5 text-xs font-semibold focus:outline-none cursor-pointer">
                 {TEAMS.filter(t => t !== "All").map(t => <option key={t} value={t}>{t}</option>)}
               </select>
-            </div>
-
-            <div>
-              <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Max Lead Cap</label>
-              <input type="number" value={form.maxOpenLeads}
-                onChange={e => setForm({ ...form, maxOpenLeads: parseInt(e.target.value) || 20 })}
-                className="w-full bg-surface border border-outline rounded-lg p-2.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-primary/40" />
             </div>
 
             <div>
@@ -530,7 +547,6 @@ export default function SalespersonTracker() {
       {/* TAB 1: SALES PERFORMANCE */}
       {activeTab === "performance" && (
         <div className="space-y-6">
-          {/* Top KPI Cards */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-card border border-border rounded-xl p-4 shadow-2xs space-y-1">
               <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Active Sales Reps</span>
@@ -560,7 +576,6 @@ export default function SalespersonTracker() {
             </div>
           </div>
 
-          {/* Filters Bar */}
           <div className="flex flex-wrap gap-2 items-center">
             <div className="relative flex-1 min-w-[180px] max-w-xs">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant w-3.5 h-3.5" />
@@ -599,7 +614,6 @@ export default function SalespersonTracker() {
             )}
           </div>
 
-          {/* Teams Accordion View */}
           {teamGroups.length === 0 ? (
             <div className="text-center py-12 bg-surface-container-lowest border border-outline rounded-2xl">
               <p className="text-xs text-on-surface-variant font-medium">No sales representatives match the current filter criteria.</p>
@@ -659,7 +673,6 @@ export default function SalespersonTracker() {
                       </div>
                     </button>
 
-                    {/* EXPANDED: Team Members Grid */}
                     {isExpanded && (
                       <div className="border-t border-outline-variant bg-surface-container-low/20 px-5 pt-4 pb-5 space-y-4">
                         {teamLead && (
@@ -680,7 +693,7 @@ export default function SalespersonTracker() {
 
                               <div className="flex-1 min-w-0">
                                 <p className="font-bold text-on-surface text-sm truncate group-hover:text-primary transition-colors">{teamLead.name}</p>
-                                <p className="text-[10px] text-on-surface-variant font-semibold">{roleLabel(teamLead.role)} · {teamLead.department || "Sales"} · {teamLead.territory || "EMEA"}</p>
+                                <p className="text-[10px] text-on-surface-variant font-semibold">{roleLabel(teamLead.role, teamLead.tier)} · {teamLead.department || "Sales"} · {teamLead.territory || "EMEA"}</p>
                                 {teamLead.email && <p className="text-[10px] font-mono text-primary truncate">{teamLead.email}</p>}
                               </div>
 
@@ -746,7 +759,7 @@ export default function SalespersonTracker() {
                                       </div>
                                       <div className="flex-1 min-w-0">
                                         <p className="font-bold text-on-surface text-sm truncate group-hover:text-primary transition-colors">{rep.name}</p>
-                                        <p className="text-[10px] text-on-surface-variant font-semibold">{roleLabel(rep.role)}</p>
+                                        <p className="text-[10px] text-on-surface-variant font-semibold">{roleLabel(rep.role, rep.tier)}</p>
                                         {rep.email && <p className="text-[10px] font-mono text-primary truncate">{rep.email}</p>}
                                       </div>
                                     </div>
@@ -829,8 +842,6 @@ export default function SalespersonTracker() {
       {/* TAB 2: ORG CHART & DIRECTORY */}
       {activeTab === "orgchart" && (
         <div className="space-y-6">
-
-          {/* Search bar for Org Chart */}
           <div className="flex flex-wrap gap-3 items-center justify-between bg-surface-container-lowest border border-outline rounded-xl p-4 shadow-2xs">
             <div className="relative flex-1 min-w-[240px]">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant w-4 h-4" />
@@ -847,7 +858,6 @@ export default function SalespersonTracker() {
             </div>
           </div>
 
-          {/* Org Tree Listing */}
           {orgTree.length === 0 ? (
             <div className="text-center py-12 bg-surface-container-lowest border border-outline rounded-2xl">
               <p className="text-xs text-on-surface-variant font-medium">No employees found matching the search criteria.</p>
@@ -888,7 +898,7 @@ export default function SalespersonTracker() {
                   <h3 className="text-lg font-bold text-on-surface truncate">{selectedEmployee.name}</h3>
                   <div className="flex items-center gap-2 mt-1">
                     <span className="px-2.5 py-0.5 text-[10px] font-extrabold rounded-full bg-purple-100 text-purple-700 border border-purple-200 uppercase tracking-wider">
-                      {roleLabel(selectedEmployee.role)}
+                      {roleLabel(selectedEmployee.role, selectedEmployee.tier)}
                     </span>
                     <span className={`px-2.5 py-0.5 text-[10px] font-bold rounded-full ${
                       selectedEmployee.isAvailable ? "bg-emerald-100 text-emerald-700 border border-emerald-200" : "bg-slate-100 text-slate-600 border border-slate-200"
@@ -902,6 +912,65 @@ export default function SalespersonTracker() {
 
             {/* Drawer Body */}
             <div className="p-6 space-y-6 flex-1">
+
+              {/* Rep Tier & Closing Authority Section (For Sales Reps) */}
+              {selectedEmployee.role === "sales_rep" && (
+                <div className="space-y-3 bg-gradient-to-br from-primary/5 to-purple-500/5 p-4 rounded-xl border border-primary/20">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-[10px] font-extrabold uppercase text-primary tracking-wider flex items-center gap-1.5">
+                      <ShieldCheck className="w-3.5 h-3.5" /> Closing Authority & Rep Tier
+                    </h4>
+                    <span className={`px-2 py-0.5 text-[9px] font-extrabold rounded uppercase ${
+                      (selectedEmployee.tier || "agent") === "executive"
+                        ? "bg-amber-100 text-amber-800 border border-amber-300"
+                        : "bg-blue-100 text-blue-800 border border-blue-300"
+                    }`}>
+                      {(selectedEmployee.tier || "agent") === "executive" ? "Executive (Senior)" : "Agent (Junior)"}
+                    </span>
+                  </div>
+
+                  <div className="space-y-3 pt-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-on-surface-variant font-medium">Closing Cutoff Threshold:</span>
+                      <span className="font-mono font-bold text-primary text-sm">
+                        {selectedEmployee.dealValueCutoff !== null && selectedEmployee.dealValueCutoff !== undefined
+                          ? formatCurrency(Number(selectedEmployee.dealValueCutoff))
+                          : formatCurrency(selectedEmployee.tier === "executive" ? 250000 : 50000)}
+                      </span>
+                    </div>
+
+                    {["admin", "director", "manager"].includes(currentUser?.role || "") && (
+                      <div className="pt-2 border-t border-primary/10 space-y-2">
+                        <label className="block text-[10px] font-bold text-on-surface-variant uppercase">Update Rep Tier & Default Authority</label>
+                        <div className="flex gap-2">
+                          <select
+                            value={selectedEmployee.tier || "agent"}
+                            onChange={async (e) => {
+                              const newTier = e.target.value;
+                              const newCutoff = newTier === "executive" ? 250000 : 50000;
+                              try {
+                                await apiClient(`/api/v1/salespersons/${selectedEmployee.id}/capacity`, {
+                                  method: "PUT",
+                                  body: JSON.stringify({ tier: newTier, dealValueCutoff: newCutoff })
+                                });
+                                setSelectedEmployee({ ...selectedEmployee, tier: newTier, dealValueCutoff: newCutoff });
+                                queryClient.invalidateQueries({ queryKey: ["salespersonsPerformance"] });
+                                queryClient.invalidateQueries({ queryKey: ["orgChartEmployees"] });
+                              } catch (err: any) {
+                                alert("Failed to update tier: " + err.message);
+                              }
+                            }}
+                            className="flex-1 bg-surface border border-outline rounded-lg p-2 text-xs font-bold cursor-pointer"
+                          >
+                            <option value="agent">Agent (Junior - 50k Cutoff)</option>
+                            <option value="executive">Executive (Senior - 250k Cutoff)</option>
+                          </select>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Contact Information */}
               <div className="space-y-3 bg-surface-container-low/40 p-4 rounded-xl border border-outline-variant/60">
@@ -1018,7 +1087,7 @@ export default function SalespersonTracker() {
                             </div>
                             <div>
                               <p className="text-xs font-bold text-on-surface group-hover:text-primary transition-colors">{rep.name}</p>
-                              <p className="text-[10px] text-on-surface-variant font-semibold">{roleLabel(rep.role)}</p>
+                              <p className="text-[10px] text-on-surface-variant font-semibold">{roleLabel(rep.role, rep.tier)}</p>
                             </div>
                           </div>
                           <ChevronRight className="w-3.5 h-3.5 text-on-surface-variant group-hover:text-primary transition-colors" />
@@ -1048,7 +1117,6 @@ export default function SalespersonTracker() {
   );
 }
 
-// Recursive Org Tree Node Component
 function OrgTreeNode({ node, level = 0, onSelect }: { node: any; level?: number; onSelect: (emp: any) => void }) {
   const hasChildren = node.children && node.children.length > 0;
   const [expanded, setExpanded] = useState(true);
@@ -1067,7 +1135,7 @@ function OrgTreeNode({ node, level = 0, onSelect }: { node: any; level?: number;
             <div className="flex items-center gap-2">
               <span className="font-bold text-sm text-on-surface">{node.name}</span>
               <span className="px-2.5 py-0.5 text-[10px] font-extrabold rounded-full bg-purple-100 text-purple-700 border border-purple-200 uppercase tracking-wider">
-                {roleLabel(node.role)}
+                {roleLabel(node.role, node.tier)}
               </span>
               {hasChildren && (
                 <span className="px-2 py-0.5 text-[9px] font-bold bg-primary/10 text-primary rounded-full">
@@ -1096,7 +1164,6 @@ function OrgTreeNode({ node, level = 0, onSelect }: { node: any; level?: number;
         </div>
       </div>
 
-      {/* Render Direct Reports recursively indented */}
       {hasChildren && expanded && (
         <div className="pl-6 border-l-2 border-primary/20 ml-6 my-2 space-y-2 pr-3 pb-2">
           {node.children.map((child: any) => (

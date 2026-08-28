@@ -348,7 +348,7 @@ export const getOrgChartEmployees = async (req: Request, res: Response) => {
   try {
     const employees = await sequelize.models.User.findAll({
       attributes: [
-        "id", "name", "email", "role", "phone", "hireDate",
+        "id", "name", "email", "role", "tier", "dealValueCutoff", "phone", "hireDate",
         "managerId", "createdByUserId", "department", "territory", "team",
         "isAvailable", "maxOpenLeads", "createdAt"
       ],
@@ -366,7 +366,7 @@ export const getOrgChartEmployees = async (req: Request, res: Response) => {
         {
           model: sequelize.models.User,
           as: "teamMembers",
-          attributes: ["id", "name", "email", "role", "department", "team", "phone", "hireDate"]
+          attributes: ["id", "name", "email", "role", "tier", "dealValueCutoff", "department", "team", "phone", "hireDate"]
         }
       ],
       order: [["name", "ASC"]]
@@ -386,7 +386,7 @@ export const createSalesperson = async (req: Request, res: Response) => {
       return;
     }
 
-    const { name, email, password, role, maxOpenLeads, isAvailable, managerId, department, territory, team, hireDate, phone } = req.body;
+    const { name, email, password, role, tier, dealValueCutoff, maxOpenLeads, isAvailable, managerId, department, territory, team, hireDate, phone } = req.body;
 
     // Validate required fields
     if (!name || !email || !password) {
@@ -395,6 +395,7 @@ export const createSalesperson = async (req: Request, res: Response) => {
     }
 
     const ALLOWED_ROLES = ["sales_rep", "manager", "director", "admin"];
+    const targetRole = role || "sales_rep";
     if (role && !ALLOWED_ROLES.includes(role)) {
       res.status(400).json({ error: `role must be one of: ${ALLOWED_ROLES.join(", ")}` });
       return;
@@ -415,6 +416,19 @@ export const createSalesperson = async (req: Request, res: Response) => {
       }
     }
 
+    // Tier and dealValueCutoff defaults for sales reps
+    let finalTier: string | null = null;
+    let finalCutoff: number | null = null;
+
+    if (targetRole === "sales_rep") {
+      finalTier = tier === "executive" ? "executive" : "agent";
+      if (dealValueCutoff !== undefined && dealValueCutoff !== null && dealValueCutoff !== "") {
+        finalCutoff = Number(dealValueCutoff);
+      } else {
+        finalCutoff = finalTier === "executive" ? 250000 : 50000;
+      }
+    }
+
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const user = await sequelize.models.User.create({
@@ -422,8 +436,10 @@ export const createSalesperson = async (req: Request, res: Response) => {
       name,
       email,
       password: hashedPassword,
-      role: role || "sales_rep",
-      maxOpenLeads: maxOpenLeads ?? 20,
+      role: targetRole,
+      tier: finalTier,
+      dealValueCutoff: finalCutoff,
+      maxOpenLeads: targetRole === "sales_rep" ? (maxOpenLeads ?? 20) : null,
       isAvailable: isAvailable ?? true,
       managerId: finalManagerId,
       department: department || "Sales",
@@ -435,7 +451,7 @@ export const createSalesperson = async (req: Request, res: Response) => {
     }) as any;
 
     const createdUserWithAssoc = await sequelize.models.User.findByPk(user.id, {
-      attributes: ["id", "name", "email", "role", "maxOpenLeads", "isAvailable", "hireDate", "phone", "createdByUserId", "createdAt"],
+      attributes: ["id", "name", "email", "role", "tier", "dealValueCutoff", "maxOpenLeads", "isAvailable", "hireDate", "phone", "createdByUserId", "createdAt"],
       include: [
         { model: sequelize.models.User, as: "createdByUser", attributes: ["id", "name", "email"] },
         { model: sequelize.models.User, as: "manager", attributes: ["id", "name", "email", "role"] }
@@ -759,15 +775,21 @@ export const getAllSalespersons = async (req: Request, res: Response) => {
 export const updateSalespersonCapacity = async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
-    const { maxOpenLeads, isAvailable, onLeave, status, dealValueCutoff, maxOpenDeals } = req.body;
+    const { maxOpenLeads, isAvailable, onLeave, status, dealValueCutoff, maxOpenDeals, tier } = req.body;
 
-    const user = await sequelize.models.User.findByPk(id);
+    const user = await sequelize.models.User.findByPk(id) as any;
     if (!user) {
       res.status(404).json({ error: "Representative not found" });
       return;
     }
 
     const updates: any = {};
+    if (tier !== undefined) {
+      updates.tier = user.role === "sales_rep" ? (tier === "executive" ? "executive" : "agent") : null;
+      if (dealValueCutoff === undefined && user.role === "sales_rep") {
+        updates.dealValueCutoff = updates.tier === "executive" ? 250000 : 50000;
+      }
+    }
     if (typeof maxOpenLeads === "number" && maxOpenLeads >= 0) updates.maxOpenLeads = maxOpenLeads;
     if (isAvailable !== undefined) updates.isAvailable = !!isAvailable;
     if (onLeave !== undefined) updates.onLeave = !!onLeave;

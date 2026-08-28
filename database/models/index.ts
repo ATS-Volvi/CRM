@@ -37,6 +37,7 @@ export class User extends Model {
   public maxOpenDeals!: number | null;
   public createdByUserId!: string | null;
   public phone!: string | null;
+  public tier!: string | null;
 }
 
 User.init(
@@ -46,6 +47,7 @@ User.init(
     email: { type: DataTypes.STRING, allowNull: false, unique: true },
     password: { type: DataTypes.STRING, allowNull: false },
     role: { type: DataTypes.STRING, defaultValue: "sales_rep" },
+    tier: { type: DataTypes.STRING, allowNull: true },
     maxOpenLeads: { type: DataTypes.INTEGER, defaultValue: 20 },
     maxActiveOpportunities: { type: DataTypes.INTEGER, defaultValue: 10 },
     maxOpenDeals: { type: DataTypes.INTEGER, allowNull: true },

@@ -12,6 +12,7 @@
     "seed": "node -e \"const fs = require('fs'); const p = fs.existsSync('./backend/build/backend/src/mockData/seed.js') ? './backend/build/backend/src/mockData/seed.js' : './backend/build/src/mockData/seed.js'; require(p);\" && node database/scripts/seedSalesReps.js && node database/scripts/seedTransactions.js",
     "build:backend": "npm run build --workspace=backend",
     "start:backend": "npm run start --workspace=backend",
+    "start": "npm run start:backend",
     "dev:frontend": "npm run dev --workspace=frontend",
     "dev:backend": "npm run dev --workspace=backend",
     "dev": "npm run dev:backend"

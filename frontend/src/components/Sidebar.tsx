@@ -70,7 +70,7 @@ export function Sidebar({
         { label: "Business Users", path: "/salespersons", icon: UserCheck },
       ]
     },
-    { label: "Master Catalog & Pricing", path: "/master-data/requirements", icon: Settings },
+    { label: "Settings", path: "/master-data/requirements", icon: Settings },
   ];
 
   // Track open dropdowns (default open for active route)
