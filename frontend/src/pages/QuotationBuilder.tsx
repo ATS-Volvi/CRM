@@ -2,7 +2,7 @@ import { useAuth } from "../context/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
 import { useSearchParams, Link, useNavigate } from "react-router-dom";
-import { Search, PlusCircle, Trash2, Lightbulb, ZoomIn, Printer, Maximize, BarChart2, Clock, MessageSquare, History, CheckCircle2, AlertTriangle, Shield, Package, Plus } from "lucide-react";
+import { Search, PlusCircle, Trash2, Lightbulb, ZoomIn, Printer, Maximize, BarChart2, Clock, CheckCircle2, AlertTriangle, Shield, Package, Plus } from "lucide-react";
 import { formatCurrency, formatCurrencyCompact } from "../utils/currency";
 import QuotationDocumentRenderer from "../components/QuotationDocumentRenderer";
 import { CatalogSearchModal } from "../components/CatalogSearchModal";
@@ -427,50 +427,9 @@ export default function QuotationBuilder() {
     enabled: !!activeProductId
   });
 
-  const { data: recommendations, isLoading: loadingRecs } = useQuery({
-    queryKey: ["recommendations", selectedDealId],
-    queryFn: async () => {
-      if (!selectedDealId) return [];
-      const res = await fetch(`/api/v1/quotes/recommendations?dealId=${selectedDealId}`, {
-        headers: { "Authorization": `Bearer ${token}` }
-      });
-      if (!res.ok) return [];
-      return res.json();
-    },
-    enabled: !!selectedDealId
-  });
-
   const addItem = () => {
     setItems([...items, { productId: "", name: "", description: "", unit: "nos", uom: "nos", quantity: 1, unitPrice: 0, discount: 0, total: 0, isOptional: false }]);
     setFocusedIndex(items.length);
-  };
-
-  const applyAllRecommendations = () => {
-    if (!recommendations || recommendations.length === 0) return;
-    const toAdd = recommendations
-      .filter((rec: any) => rec.productId)
-      .map((rec: any) => {
-        const prod = products?.find((p: any) => p.id === rec.productId);
-        const name = rec.name || rec.productName || prod?.name || "Recommended Item";
-        const desc = rec.description || prod?.description || name;
-        const qty = rec.quantity || 1;
-        const uPrice = rec.unitPrice || prod?.unitPrice || 0;
-        return {
-          productId: rec.productId,
-          name: name,
-          description: desc,
-          unit: prod?.unit || "nos",
-          uom: prod?.unit || "nos",
-          quantity: qty,
-          unitPrice: uPrice,
-          discount: 0,
-          total: qty * uPrice,
-          isOptional: false
-        };
-      });
-    if (toAdd.length > 0) {
-      setItems([...items, ...toAdd]);
-    }
   };
 
   const handleSelectBundle = (bundleId: string) => {
@@ -890,62 +849,6 @@ export default function QuotationBuilder() {
                       </tr>
                     ))
                   )}
-                  {recommendations && recommendations.length > 0 && (
-                    <tr>
-                      <td className="px-4 py-4" colSpan={7}>
-                        <div className="flex flex-col gap-3 p-4 bg-primary-container/10 border border-primary-container rounded-lg">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <Lightbulb className="w-5 h-5 text-primary" />
-                              <span className="font-bold text-primary">Requirements-based Recommendations</span> 
-                            </div>
-                            <button 
-                              onClick={applyAllRecommendations}
-                              className="px-3 py-1 bg-primary text-white text-xs font-bold rounded hover:opacity-90 transition-colors"
-                            >
-                              Apply All to Quote
-                            </button>
-                          </div>
-                          <div className="space-y-3">
-                            {recommendations.map((rec: any, idx: number) => (
-                               <div key={idx} className="flex justify-between items-center bg-white p-3 rounded shadow-sm border border-outline-variant/30">
-                                 <div>
-                                    <p className="font-bold text-sm">{rec.name} <span className="text-[12px] font-normal text-on-surface-variant">({rec.sku})</span></p>
-                                    <p className="text-[12px] text-on-surface-variant italic">{rec.reason}</p>
-                                 </div>
-                                 <div className="flex items-center gap-4">
-                                    <span className="font-bold text-primary text-sm">{formatCurrency(rec.unitPrice)}</span>
-                                    <button 
-                                      onClick={() => {
-                                        const prod = products?.find((p: any) => p.id === rec.productId);
-                                        const name = rec.name || rec.productName || prod?.name || "Recommended Item";
-                                        const qty = rec.quantity || 1;
-                                        const uPrice = rec.unitPrice || prod?.unitPrice || 0;
-                                        setItems([...items, {
-                                          productId: rec.productId,
-                                          name: name,
-                                          description: rec.description || prod?.description || name,
-                                          unit: prod?.unit || "nos",
-                                          uom: prod?.unit || "nos",
-                                          quantity: qty,
-                                          unitPrice: uPrice,
-                                          discount: 10,
-                                          total: qty * uPrice * 0.9,
-                                          isOptional: false
-                                        }]);
-                                      }}
-                                      className="px-3 py-1 bg-primary text-on-primary text-[12px] font-bold rounded hover:opacity-90 transition-colors"
-                                    >
-                                      Apply
-                                    </button>
-                                 </div>
-                               </div>
-                            ))}
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
                   {items.length > 0 && items.some((item: any) => item.isOptional) && (
                     <tr className="bg-surface-container-low/20">
                       <td colSpan={6} className="px-4 py-3 text-right font-semibold text-outline">Optional Items Subtotal:</td>
@@ -1333,17 +1236,7 @@ export default function QuotationBuilder() {
             )}
           </div>
 
-          {/* Quick Tools */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-white border border-outline-variant rounded-xl p-4 flex flex-col items-center gap-2 text-on-surface-variant hover:border-primary hover:text-primary cursor-pointer transition-all">
-              <History className="w-6 h-6" />
-              <span className="text-[12px] font-bold tracking-wider uppercase">Version Log</span>
-            </div>
-            <div className="bg-white border border-outline-variant rounded-xl p-4 flex flex-col items-center gap-2 text-on-surface-variant hover:border-primary hover:text-primary cursor-pointer transition-all">
-              <MessageSquare className="w-6 h-6" />
-              <span className="text-[12px] font-bold tracking-wider uppercase">Internal Chat</span>
-            </div>
-          </div>
+
 
         </div>
       </div>
