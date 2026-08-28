@@ -24,7 +24,7 @@ export default function QuotationBuilder() {
   const logDebug = (msg: string) => {
     console.log(msg);
   };
-  const [activeHistoryTab, setActiveHistoryTab] = useState<"client" | "similar">("client");
+  const [activeTab, setActiveTab] = useState<"builder" | "preview" | "client" | "similar">("builder");
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
 
   const { data: quotes, isLoading } = useQuery({
@@ -600,298 +600,321 @@ export default function QuotationBuilder() {
         <span className="opacity-50">/</span>
         <span>{parentQuoteIdParam ? 'Revise Quote' : 'New Quotation'}</span>
       </div>
-      <div className="max-w-[1600px] mx-auto grid grid-cols-12 gap-8 h-full">
-        {/* Left: Builder Core (Line Items & Totals) */}
-        <div className="col-span-8 space-y-8">
-          
-          {/* Client Header Card */}
-          <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-5 shadow-sm space-y-4">
-            {isLoading ? (
-              <div className="animate-pulse flex items-center gap-4 w-full h-12 bg-surface-container-low rounded"></div>
-            ) : (
-              <>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-outline-variant pb-3">
-                  <div>
-                    <h2 className="text-2xl font-bold text-on-surface tracking-tight">
-                      {parentQuoteIdParam ? '+ Revise Quote' : 'New Quotation'}
-                    </h2>
-                    <p className="text-xs text-on-surface-variant mt-0.5">Build quotation with BOM line items &amp; discount approval</p>
-                    {parentQuoteIdParam && parentQuote && (
-                      <div className="flex items-center gap-2 mt-2 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-lg text-xs font-semibold text-amber-800">
-                        <svg className="w-3.5 h-3.5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                        Revising: <span className="font-bold">{(parentQuote as any).quoteNumber || parentQuoteIdParam}</span>
-                        &nbsp;&mdash; pre-filled with previous line items. Adjust as needed.
-                      </div>
-                    )}
-                    {dealIdError && (
-                      <div className="text-xs text-error font-semibold bg-error-container text-error border border-error/20 px-3 py-1.5 rounded-lg mt-2 max-w-md">
-                        {dealIdError}
-                      </div>
-                    )}
-                  </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
-                    <button
-                      onClick={() => saveMutation.mutate("Draft")}
-                      disabled={saveMutation.isPending || !selectedDealId}
-                      className="px-4 py-2 border border-outline text-xs font-bold rounded-lg hover:bg-surface-container transition-colors disabled:opacity-50 whitespace-nowrap shadow-2xs"
-                    >
-                      Save as Draft
-                    </button>
-                    <button
-                      onClick={() => saveMutation.mutate("Sent")}
-                      disabled={saveMutation.isPending || !selectedDealId}
-                      className="px-4 py-2 bg-primary text-white text-xs font-bold rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 whitespace-nowrap shadow-xs"
-                    >
-                      Save & Send Quote
-                    </button>
-                  </div>
+      <div className="max-w-[1600px] mx-auto space-y-6">
+        {/* Top-Level Page Tabs */}
+        <div className="flex items-center gap-2 border-b border-outline-variant bg-surface-container-lowest px-4 rounded-xl shadow-2xs">
+          <button
+            onClick={() => setActiveTab("builder")}
+            className={`flex items-center gap-2 px-5 py-3.5 text-xs sm:text-sm font-bold border-b-2 transition-all cursor-pointer ${
+              activeTab === "builder"
+                ? "border-primary text-primary bg-primary/5"
+                : "border-transparent text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
+            }`}
+          >
+            <Package className="w-4 h-4" />
+            Line Items &amp; Builder
+          </button>
+          <button
+            onClick={() => setActiveTab("preview")}
+            className={`flex items-center gap-2 px-5 py-3.5 text-xs sm:text-sm font-bold border-b-2 transition-all cursor-pointer ${
+              activeTab === "preview"
+                ? "border-primary text-primary bg-primary/5"
+                : "border-transparent text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
+            }`}
+          >
+            <Printer className="w-4 h-4" />
+            Document Preview
+          </button>
+          <button
+            onClick={() => setActiveTab("client")}
+            className={`flex items-center gap-2 px-5 py-3.5 text-xs sm:text-sm font-bold border-b-2 transition-all cursor-pointer ${
+              activeTab === "client"
+                ? "border-primary text-primary bg-primary/5"
+                : "border-transparent text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
+            }`}
+          >
+            <Clock className="w-4 h-4" />
+            Client History {clientHistory?.length ? `(${clientHistory.length})` : ""}
+          </button>
+          <button
+            onClick={() => setActiveTab("similar")}
+            className={`flex items-center gap-2 px-5 py-3.5 text-xs sm:text-sm font-bold border-b-2 transition-all cursor-pointer ${
+              activeTab === "similar"
+                ? "border-primary text-primary bg-primary/5"
+                : "border-transparent text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
+            }`}
+          >
+            <BarChart2 className="w-4 h-4" />
+            Similar Clients {similarClientQuotes?.length ? `(${similarClientQuotes.length})` : ""}
+          </button>
+        </div>
 
-                </div>
-                <div className="flex flex-wrap items-center gap-4 pt-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Deal:</span>
-                    {parentQuoteIdParam || (dealIdParam && selectedDeal) ? (
-                      // Locked deal badge when launched from Opportunity or Revision
-                      <span className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700">
-                        <svg className="w-3 h-3 text-slate-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd"/></svg>
-                        {selectedDeal?.name || (parentQuote as any)?.deal?.name || 'Loading deal…'}
-                        {selectedDeal?.account?.name ? ` • ${selectedDeal.account.name}` : selectedDeal?.client ? ` • ${selectedDeal.client}` : ''}
-                      </span>
-                    ) : (
-                      <select
-                        className="bg-surface border border-outline-variant rounded-lg p-2 text-xs font-medium focus:ring-1 focus:ring-primary min-w-[220px]"
-                        value={selectedDealId}
-                        onChange={e => setSelectedDealId(e.target.value)}
+        {/* TAB 1: BUILDER & LINE ITEMS */}
+        {activeTab === "builder" && (
+          <div className="space-y-6">
+            {/* Client Header Card */}
+            <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-5 shadow-sm space-y-4">
+              {isLoading ? (
+                <div className="animate-pulse flex items-center gap-4 w-full h-12 bg-surface-container-low rounded"></div>
+              ) : (
+                <>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-outline-variant pb-3">
+                    <div>
+                      <h2 className="text-2xl font-bold text-on-surface tracking-tight">
+                        {parentQuoteIdParam ? '+ Revise Quote' : 'New Quotation'}
+                      </h2>
+                      <p className="text-xs text-on-surface-variant mt-0.5">Build quotation with BOM line items &amp; discount approval</p>
+                      {parentQuoteIdParam && parentQuote && (
+                        <div className="flex items-center gap-2 mt-2 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-lg text-xs font-semibold text-amber-800">
+                          <svg className="w-3.5 h-3.5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                          Revising: <span className="font-bold">{(parentQuote as any).quoteNumber || parentQuoteIdParam}</span>
+                          &nbsp;&mdash; pre-filled with previous line items. Adjust as needed.
+                        </div>
+                      )}
+                      {dealIdError && (
+                        <div className="text-xs text-error font-semibold bg-error-container text-error border border-error/20 px-3 py-1.5 rounded-lg mt-2 max-w-md">
+                          {dealIdError}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => saveMutation.mutate("Draft")}
+                        disabled={saveMutation.isPending || !selectedDealId}
+                        className="px-4 py-2 border border-outline text-xs font-bold rounded-lg hover:bg-surface-container transition-colors disabled:opacity-50 whitespace-nowrap shadow-2xs cursor-pointer"
                       >
-                        <option value="">-- Choose Deal --</option>
-                        {combinedDeals.map((d: any) => (
-                          <option key={d.id} value={d.id}>{d.name} ({d.account?.name || d.client || 'Direct Account'})</option>
+                        Save as Draft
+                      </button>
+                      <button
+                        onClick={() => saveMutation.mutate("Sent")}
+                        disabled={saveMutation.isPending || !selectedDealId}
+                        className="px-4 py-2 bg-primary text-white text-xs font-bold rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 whitespace-nowrap shadow-xs cursor-pointer"
+                      >
+                        Save &amp; Send Quote
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-4 pt-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Deal:</span>
+                      {parentQuoteIdParam || (dealIdParam && selectedDeal) ? (
+                        <span className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700">
+                          <svg className="w-3 h-3 text-slate-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd"/></svg>
+                          {selectedDeal?.name || (parentQuote as any)?.deal?.name || 'Loading deal…'}
+                          {selectedDeal?.account?.name ? ` • ${selectedDeal.account.name}` : selectedDeal?.client ? ` • ${selectedDeal.client}` : ''}
+                        </span>
+                      ) : (
+                        <select
+                          className="bg-surface border border-outline-variant rounded-lg p-2 text-xs font-medium focus:ring-1 focus:ring-primary min-w-[240px]"
+                          value={selectedDealId}
+                          onChange={e => setSelectedDealId(e.target.value)}
+                        >
+                          <option value="">-- Choose Deal --</option>
+                          {combinedDeals.map((d: any) => (
+                            <option key={d.id} value={d.id}>{d.name} ({d.account?.name || d.client || 'Direct Account'})</option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-primary uppercase tracking-wider flex items-center gap-1">
+                        <Lightbulb className="w-3.5 h-3.5" /> Master Requirement:
+                      </span>
+                      <select 
+                        className="bg-primary/5 border border-primary/30 text-primary font-bold rounded-lg p-2 text-xs focus:ring-1 focus:ring-primary min-w-[210px]"
+                        defaultValue=""
+                        onChange={e => {
+                          handleImportRequirement(e.target.value);
+                          e.target.value = "";
+                        }}
+                      >
+                        <option value="">-- Import Requirement --</option>
+                        {masterRequirements?.map((r: any) => (
+                          <option key={r.id} value={r.id}>{r.name} ({r.category})</option>
                         ))}
                       </select>
-                    )}
-                  </div>
+                    </div>
 
-
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Start from Bundle:</span>
-                    <select 
-                      className="bg-surface border border-outline-variant rounded-lg p-2 text-xs font-medium focus:ring-1 focus:ring-primary min-w-[180px]"
-                      defaultValue=""
-                      onChange={e => {
-                        handleSelectBundle(e.target.value);
-                        e.target.value = "";
-                      }}
-                    >
-                      <option value="">-- Choose Bundle --</option>
-                      {bundles?.map((b: any) => (
-                        <option key={b.id} value={b.id}>{b.name}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-primary uppercase tracking-wider flex items-center gap-1">
-                      <Lightbulb className="w-3.5 h-3.5" /> Master Requirement:
-                    </span>
-                    <select 
-                      className="bg-primary/5 border border-primary/30 text-primary font-bold rounded-lg p-2 text-xs focus:ring-1 focus:ring-primary min-w-[210px]"
-                      defaultValue=""
-                      onChange={e => {
-                        handleImportRequirement(e.target.value);
-                        e.target.value = "";
-                      }}
-                    >
-                      <option value="">-- Import Requirement --</option>
-                      {masterRequirements?.map((r: any) => (
-                        <option key={r.id} value={r.id}>{r.name} ({r.category})</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* Line Items Table */}
-          <div className="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden shadow-sm">
-            <div className="p-4 border-b border-outline-variant flex justify-between items-center bg-slate-50/50">
-              <span className="text-[12px] font-bold text-on-surface-variant uppercase tracking-wider">Service Items</span>
-              <div className="flex items-center gap-3">
-                <button 
-                  onClick={() => setIsCatalogModalOpen(true)} 
-                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-2xs transition-colors"
-                >
-                  <Package className="w-3.5 h-3.5" /> Add from Catalog
-                </button>
-                <button onClick={addItem} className="text-slate-600 hover:text-slate-900 font-bold text-xs flex items-center gap-1">
-                  <PlusCircle className="w-3.5 h-3.5" /> Add Blank Row
-                </button>
-              </div>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-surface-container-low border-b border-outline-variant">
-                    <th className="px-4 py-3 text-[12px] font-bold text-on-surface-variant uppercase">Product / Service</th>
-                    <th className="px-4 py-3 text-[12px] font-bold text-blue-600 uppercase w-24 text-center">
-                      <span className="flex items-center justify-center gap-1">Qty ✏️</span>
-                    </th>
-                    <th className="px-4 py-3 text-[12px] font-bold text-blue-600 uppercase w-36">
-                      <span className="flex items-center gap-1">Unit Price ✏️</span>
-                    </th>
-                    <th className="px-4 py-3 text-[12px] font-bold text-orange-500 uppercase w-28">
-                      <span className="flex items-center gap-1">Disc % ✏️</span>
-                    </th>
-                    <th className="px-4 py-3 text-[12px] font-bold text-on-surface-variant uppercase w-24">Tax</th>
-                    <th className="px-4 py-3 text-[12px] font-bold text-on-surface-variant uppercase w-24 text-center">Optional</th>
-                    <th className="px-4 py-3 text-[12px] font-bold text-on-surface-variant uppercase w-32 text-right">Total</th>
-                    <th className="px-4 py-3 w-10"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-outline-variant">
-                  {items.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="px-4 py-8 text-center text-on-surface-variant">No items added. Click "Add Product" to begin.</td>
-                    </tr>
-                  ) : (
-                    items.map((item: any, i: number) => (
-                      <tr 
-                        key={i} 
-                        className={`hover:bg-surface-container-low transition-colors cursor-pointer ${
-                          item.isOptional 
-                            ? "bg-surface-container-lowest/50 border-l-4 border-dashed border-outline-variant" 
-                            : (i === focusedIndex ? "bg-primary-container/20 border-l-4 border-primary" : (i % 2 === 1 ? "bg-surface-container-low/30" : ""))
-                        }`} 
-                        onClick={() => setFocusedIndex(i)}
+                    <div className="flex items-center gap-2 ml-auto">
+                      <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Company Format:</span>
+                      <select
+                        value={selectedTemplateId}
+                        onChange={(e) => setSelectedTemplateId(e.target.value)}
+                        className="bg-surface border border-outline-variant rounded-lg p-2 text-xs font-bold text-on-surface"
                       >
-                        <td className="px-4 py-4">
-                          <div className="space-y-1">
-                            <select 
-                              className="w-full border border-outline-variant rounded p-1 text-sm bg-transparent"
-                              value={item.productId || ""}
-                              onChange={(e) => updateItem(i, 'productId', e.target.value)}
-                            >
-                              <option value="">Select Product...</option>
-                              {products?.map((p: any) => (
-                                <option key={p.id} value={p.id}>{p.name} {p.sku ? `(${p.sku})` : ''}</option>
-                              ))}
-                            </select>
-                            {(!item.productId || item.nameOverride || item.name) && (
-                              <input
-                                type="text"
-                                placeholder="Item description / Custom name"
-                                className="w-full border border-slate-200 bg-white rounded px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 placeholder:text-slate-300"
-                                value={item.name || item.description || item.nameOverride || ""}
-                                onChange={(e) => {
-                                  updateItem(i, 'name', e.target.value);
-                                  updateItem(i, 'description', e.target.value);
-                                }}
-                                onClick={(e) => e.stopPropagation()}
+                        {(quoteTemplates || [
+                          { id: "tpl-ftc-standard", name: "FTC Saudi Arabia Standard" },
+                          { id: "tpl-apex-logistics", name: "Apex Global Logistics" }
+                        ]).map((t: any) => (
+                          <option key={t.id || t.name} value={t.id}>{t.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Line Items Table */}
+            <div className="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden shadow-sm">
+              <div className="p-4 border-b border-outline-variant flex justify-between items-center bg-slate-50/50">
+                <span className="text-[12px] font-bold text-on-surface-variant uppercase tracking-wider">Service Items</span>
+                <div className="flex items-center gap-3">
+                  <button 
+                    onClick={() => setIsCatalogModalOpen(true)} 
+                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
+                  >
+                    <Package className="w-3.5 h-3.5" /> Add from Catalog
+                  </button>
+                  <button onClick={addItem} className="text-slate-600 hover:text-slate-900 font-bold text-xs flex items-center gap-1 cursor-pointer">
+                    <PlusCircle className="w-3.5 h-3.5" /> Add Blank Row
+                  </button>
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-surface-container-low border-b border-outline-variant">
+                      <th className="px-4 py-3 text-[12px] font-bold text-on-surface-variant uppercase">Product / Service</th>
+                      <th className="px-4 py-3 text-[12px] font-bold text-blue-600 uppercase w-24 text-center">
+                        <span className="flex items-center justify-center gap-1">Qty ✏️</span>
+                      </th>
+                      <th className="px-4 py-3 text-[12px] font-bold text-blue-600 uppercase w-36">
+                        <span className="flex items-center gap-1">Unit Price ✏️</span>
+                      </th>
+                      <th className="px-4 py-3 text-[12px] font-bold text-orange-500 uppercase w-28">
+                        <span className="flex items-center gap-1">Disc % ✏️</span>
+                      </th>
+                      <th className="px-4 py-3 text-[12px] font-bold text-on-surface-variant uppercase w-24">Tax</th>
+                      <th className="px-4 py-3 text-[12px] font-bold text-on-surface-variant uppercase w-24 text-center">Optional</th>
+                      <th className="px-4 py-3 text-[12px] font-bold text-on-surface-variant uppercase w-32 text-right">Total</th>
+                      <th className="px-4 py-3 w-10"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-outline-variant text-sm">
+                    {items.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="text-center py-10 text-outline">
+                          No items added. Click &quot;Add Product&quot; to begin.
+                        </td>
+                      </tr>
+                    ) : (
+                      items.map((item, index) => (
+                        <tr key={index} className={`hover:bg-surface-container-low/50 transition-colors ${item.isOptional ? 'opacity-60 bg-surface-container-lowest' : ''}`}>
+                          <td className="px-4 py-3 font-medium">
+                            <div className="space-y-1">
+                              <select 
+                                className="w-full bg-surface border border-outline-variant rounded p-1.5 text-xs font-semibold focus:ring-1 focus:ring-primary"
+                                value={item.productId || ""}
+                                onChange={e => updateItem(index, 'productId', e.target.value)}
+                              >
+                                <option value="">-- Choose from Catalog --</option>
+                                {products?.map((p: any) => (
+                                  <option key={p.id} value={p.id}>{p.name} ({formatCurrency(parseFloat(p.unitPrice || p.msrp || 0))})</option>
+                                ))}
+                              </select>
+                              <input 
+                                className="w-full bg-transparent text-xs text-on-surface border-none p-0 focus:ring-0 font-bold placeholder:text-outline"
+                                placeholder="Item name..."
+                                value={item.name}
+                                onChange={e => updateItem(index, 'name', e.target.value)}
                               />
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-3 py-3">
-                          <input
-                            className="w-full text-center border border-slate-300 bg-white rounded-md px-2 py-1.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 hover:border-slate-400 transition-colors"
-                            type="number"
-                            min="1"
-                            value={item.quantity}
-                            onChange={(e) => updateItem(i, 'quantity', parseInt(e.target.value) || 0)}
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                        </td>
-                        <td className="px-3 py-3">
-                          <div className="flex items-center border border-slate-300 bg-white rounded-md overflow-hidden hover:border-slate-400 focus-within:ring-2 focus-within:ring-blue-400 focus-within:border-blue-400 transition-colors">
-                            <span className="px-2 py-1.5 text-xs font-bold text-slate-400 bg-slate-50 border-r border-slate-200 select-none">SAR</span>
-                            <input
-                              className="flex-1 text-right pr-2 py-1.5 text-sm font-semibold bg-transparent focus:outline-none w-24"
+                              <input 
+                                className="w-full bg-transparent text-[11px] text-on-surface-variant border-none p-0 focus:ring-0 placeholder:text-outline/60"
+                                placeholder="Add detailed specification or scope notes..."
+                                value={item.description || ""}
+                                onChange={e => updateItem(index, 'description', e.target.value)}
+                              />
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <input 
                               type="number"
-                              min="0"
-                              step="0.01"
-                              value={item.unitPrice}
-                              onChange={(e) => updateItem(i, 'unitPrice', parseFloat(e.target.value) || 0)}
-                              onClick={(e) => e.stopPropagation()}
+                              min="1"
+                              className="w-16 bg-blue-50 border border-blue-200 rounded p-1 text-center font-bold text-xs text-blue-900 focus:ring-1 focus:ring-blue-500"
+                              value={item.quantity}
+                              onChange={e => updateItem(index, 'quantity', parseInt(e.target.value) || 0)}
                             />
-                          </div>
-                        </td>
-                        <td className="px-3 py-3">
-                          <div className="flex items-center border border-slate-300 bg-white rounded-md overflow-hidden hover:border-slate-400 focus-within:ring-2 focus-within:ring-orange-400 focus-within:border-orange-400 transition-colors">
-                            <input
-                              className="flex-1 text-center pl-2 py-1.5 text-sm font-semibold bg-transparent focus:outline-none w-14"
+                          </td>
+                          <td className="px-4 py-3">
+                            <input 
+                              type="number"
+                              className="w-28 bg-blue-50 border border-blue-200 rounded p-1 font-bold text-xs text-blue-900 focus:ring-1 focus:ring-blue-500"
+                              value={item.unitPrice}
+                              onChange={e => updateItem(index, 'unitPrice', parseFloat(e.target.value) || 0)}
+                            />
+                          </td>
+                          <td className="px-4 py-3">
+                            <input 
                               type="number"
                               min="0"
                               max="100"
-                              step="0.5"
-                              value={item.discount || 0}
-                              onChange={(e) => updateItem(i, 'discount', parseFloat(e.target.value) || 0)}
-                              onClick={(e) => e.stopPropagation()}
+                              className="w-20 bg-orange-50 border border-orange-200 rounded p-1 font-bold text-xs text-orange-900 focus:ring-1 focus:ring-orange-500"
+                              value={item.discount}
+                              onChange={e => updateItem(index, 'discount', parseFloat(e.target.value) || 0)}
                             />
-                            <span className="px-2 py-1.5 text-xs font-bold text-orange-500 bg-orange-50 border-l border-slate-200 select-none">%</span>
-                          </div>
-                        </td>
-                        <td className="px-3 py-3 text-xs text-slate-400 font-medium">15%</td>
+                          </td>
+                          <td className="px-4 py-3 text-xs text-on-surface-variant">15% VAT</td>
+                          <td className="px-4 py-3 text-center">
+                            <input 
+                              type="checkbox"
+                              checked={item.isOptional || false}
+                              onChange={e => updateItem(index, 'isOptional', e.target.checked)}
+                              className="rounded border-outline-variant text-primary focus:ring-primary w-4 h-4 cursor-pointer"
+                            />
+                          </td>
+                          <td className="px-4 py-3 font-bold text-right text-on-surface">
+                            {formatCurrency(item.total)}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <button 
+                              onClick={() => removeItem(index)}
+                              className="text-error hover:text-error/80 cursor-pointer"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
 
-                        <td className="px-4 py-4 text-center">
-                          <input 
-                            type="checkbox"
-                            checked={!!item.isOptional}
-                            onChange={(e) => updateItem(i, 'isOptional', e.target.checked)}
-                            onClick={(e) => e.stopPropagation()}
-                            className="w-4 h-4 rounded text-primary focus:ring-primary"
-                          />
-                        </td>
-                        <td className="px-4 py-4 text-right font-semibold text-sm">{formatCurrency(item.total)}</td>
-                        <td className="px-4 py-4 text-on-surface-variant hover:text-error cursor-pointer" onClick={(e) => { e.stopPropagation(); removeItem(i); }}>
-                          <Trash2 className="w-5 h-5" />
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                  {items.length > 0 && items.some((item: any) => item.isOptional) && (
-                    <tr className="bg-surface-container-low/20">
-                      <td colSpan={6} className="px-4 py-3 text-right font-semibold text-outline">Optional Items Subtotal:</td>
-                      <td className="px-4 py-3 text-right font-bold text-slate-500">{formatCurrency(items.filter((item: any) => item.isOptional).reduce((acc: number, item: any) => acc + (item.total || 0), 0))}</td>
-                      <td></td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Totals Summary Block */}
-            {items.length > 0 && (
-              <div className="p-5 bg-slate-50/80 border-t border-outline-variant flex justify-end">
-                <div className="w-80 space-y-2.5 text-sm">
-                  <div className="flex justify-between items-center text-slate-600 font-medium">
-                    <span>Subtotal:</span>
-                    <span className="font-semibold text-slate-900">{formatCurrency(calculatedSubtotal)}</span>
-                  </div>
-
-                  {calculatedTotalDiscount > 0 && (
-                    <div className="flex justify-between items-center text-amber-700 font-medium">
-                      <span>Discount:</span>
-                      <span className="font-semibold text-amber-800">−{formatCurrency(calculatedTotalDiscount)}</span>
+              {/* Financial Totals & Summary */}
+              {items.length > 0 && (
+                <div className="bg-slate-50 p-4 border-t border-outline-variant flex justify-end">
+                  <div className="w-72 space-y-2">
+                    <div className="flex justify-between text-xs text-slate-600">
+                      <span>Subtotal:</span>
+                      <span className="font-semibold">{formatCurrency(calculatedSubtotal)}</span>
                     </div>
-                  )}
-
-                  <div className="flex justify-between items-center text-slate-600 font-medium">
-                    <span>Tax:</span>
-                    <span className="font-semibold text-slate-900">+{formatCurrency(calculatedTotalTax)}</span>
-                  </div>
-
-                  <div className="border-t border-slate-300 my-2 pt-2.5 flex justify-between items-center">
-                    <span className="text-base font-extrabold text-slate-900 uppercase tracking-tight">Grand Total:</span>
-                    <span className="text-lg font-black text-blue-600">{formatCurrency(calculatedGrandTotal)}</span>
+                    {calculatedTotalDiscount > 0 && (
+                      <div className="flex justify-between text-xs text-amber-600">
+                        <span>Total Discount:</span>
+                        <span className="font-semibold">-{formatCurrency(calculatedTotalDiscount)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-xs text-slate-600">
+                      <span>Tax (15% VAT):</span>
+                      <span className="font-semibold">{formatCurrency(calculatedTotalTax)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm font-bold text-slate-900 border-t border-slate-200 pt-2">
+                      <span>Grand Total:</span>
+                      <span className="text-primary text-base">{formatCurrency(calculatedGrandTotal)}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
 
-            {/* Salesperson Approval Hierarchy Status Banner */}
+            {/* Approval Status Banner */}
             {items.length > 0 && evaluation && (
-              <div className="mt-4 p-4 rounded-xl border shadow-2xs transition-all">
+              <div className="rounded-xl border shadow-2xs">
                 {evaluation.approvalLevel === "SALES_REP" && (
                   <div className="bg-green-50 border border-green-200 p-4 rounded-xl flex justify-between items-center">
                     <div>
@@ -902,7 +925,7 @@ export default function QuotationBuilder() {
                         <CheckCircle2 className="w-4 h-4 text-green-600" /> ✓ You can approve this quotation
                       </div>
                       <div className="text-xs text-green-700 font-medium mt-0.5">
-                        Quote total {formatCurrency(currentTotalAmount)} is within your self-approval limit of ₹{(evaluation.repLimit || 1000000).toLocaleString()}.
+                        Quote total {formatCurrency(calculatedGrandTotal)} is within your self-approval limit of ₹{(evaluation.repLimit || 1000000).toLocaleString()}.
                       </div>
                     </div>
                     <button
@@ -914,7 +937,6 @@ export default function QuotationBuilder() {
                     </button>
                   </div>
                 )}
-
                 {evaluation.approvalLevel === "TEAM_LEAD" && (
                   <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl flex justify-between items-center">
                     <div>
@@ -937,7 +959,6 @@ export default function QuotationBuilder() {
                     </button>
                   </div>
                 )}
-
                 {evaluation.approvalLevel === "ADMIN" && (
                   <div className="bg-red-50 border border-red-200 p-4 rounded-xl flex justify-between items-center">
                     <div>
@@ -963,9 +984,11 @@ export default function QuotationBuilder() {
               </div>
             )}
           </div>
+        )}
 
-          {/* PDF Preview Pane */}
-          <div className="bg-slate-200/60 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl p-6 relative flex flex-col items-center overflow-x-auto w-full">
+        {/* TAB 2: DOCUMENT PREVIEW */}
+        {activeTab === "preview" && (
+          <div className="bg-slate-200/60 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl p-6 relative flex flex-col items-center overflow-x-auto w-full shadow-sm">
             <div className="w-full flex items-center justify-between mb-4 pb-3 border-b border-slate-300 dark:border-slate-800">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Company Format:</span>
@@ -981,15 +1004,12 @@ export default function QuotationBuilder() {
                     <option key={t.id || t.name} value={t.id}>{t.name}</option>
                   ))}
                 </select>
-                <Link to="/master-data/quote-templates" className="text-[11px] font-bold text-purple-600 dark:text-purple-400 hover:underline">
-                  + Add Custom PDF Template
-                </Link>
               </div>
 
               <div className="flex gap-2">
                 <button 
                   onClick={() => window.print()}
-                  className="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 p-2 rounded-lg shadow-xs hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200"
+                  className="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 p-2 rounded-lg shadow-xs hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 cursor-pointer"
                   title="Print Document"
                 >
                   <Printer className="w-4 h-4" />
@@ -1007,239 +1027,194 @@ export default function QuotationBuilder() {
               />
             </div>
           </div>
-        </div>
+        )}
 
-        {/* Right: Sidebars (Historic & Benchmarks) */}
-        <div className="col-span-4 space-y-8">
-          
-          {/* Requirements from Lead */}
-          {leadData?.categoriesData && Array.isArray(leadData.categoriesData) && leadData.categoriesData.length > 0 && (
-            <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 shadow-sm">
-              <h3 className="text-lg font-semibold mb-3 flex items-center gap-2 text-primary">
-                <Lightbulb className="w-5 h-5" /> Requirements from Lead
-              </h3>
-              <p className="text-xs text-on-surface-variant mb-4">
-                These requirements were configured during the lead stage. Use them to construct this quotation.
-              </p>
-              <div className="space-y-4">
-                {leadData.categoriesData.map((cat: any, idx: number) => (
-                  <div key={idx} className="bg-surface-container-low p-3 rounded-lg border border-outline-variant/30">
-                    <h4 className="text-sm font-bold text-on-surface mb-2">{cat.categoryName}</h4>
-                    <div className="space-y-1">
-                      {cat.items?.map((item: any, i: number) => (
-                        <div key={i} className="flex justify-between text-xs text-on-surface-variant">
-                          <span>• {item.name}</span>
-                          <span className="font-semibold text-on-surface">{item.quantity} {item.unit || 'units'}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
+        {/* TAB 3: CLIENT HISTORY */}
+        {activeTab === "client" && (
+          <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-6 shadow-sm space-y-4">
+            <div className="flex justify-between items-center border-b border-outline-variant pb-3">
+              <div>
+                <h3 className="text-base font-bold text-on-surface">Client Historical Quotations</h3>
+                <p className="text-xs text-on-surface-variant mt-0.5">
+                  {selectedDeal ? `Previous quotation records for ${selectedDeal.account?.name || selectedDeal.client || selectedDeal.name}` : "Select a deal in the builder to view specific client quotation history."}
+                </p>
               </div>
-            </div>
-          )}
-
-          {/* Integrated Quote Reference & History Tabs */}
-          <div className="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm flex flex-col">
-            {/* Tabs Header */}
-            <div className="flex border-b border-outline-variant">
-              <button
-                onClick={() => setActiveHistoryTab("client")}
-                className={`flex-1 py-3.5 text-center text-sm font-semibold border-b-2 transition-colors ${
-                  activeHistoryTab === "client"
-                    ? "border-primary text-primary bg-primary/5"
-                    : "border-transparent text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
-                }`}
-              >
-                Client History
-              </button>
-              <button
-                onClick={() => setActiveHistoryTab("similar")}
-                className={`flex-1 py-3.5 text-center text-sm font-semibold border-b-2 transition-colors ${
-                  activeHistoryTab === "similar"
-                    ? "border-primary text-primary bg-primary/5"
-                    : "border-transparent text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
-                }`}
-              >
-                Similar Clients
-              </button>
+              <Link to="/quotes" className="text-xs font-bold text-primary hover:underline">
+                View Full Quotations Archive &rarr;
+              </Link>
             </div>
 
-            {/* Tab Body */}
-            <div className="divide-y divide-outline-variant max-h-[500px] overflow-y-auto">
-              
-              {/* Tab 1: Client History */}
-              {activeHistoryTab === "client" && (
-                <>
-                  {!clientHistory || clientHistory.length === 0 ? (
-                    <div className="p-6 text-sm text-outline italic text-center">No previous quotations for this client/company.</div>
-                  ) : (
-                    clientHistory.map((hQuote: any, idx: number) => {
-                      const isExpanded = !!expandedCards[hQuote.id];
-                      return (
-                        <div
-                          key={hQuote.id || idx}
-                          onClick={() => toggleCardExpand(hQuote.id)}
-                          className="p-4 hover:bg-surface-container-low transition-colors cursor-pointer group flex flex-col gap-1.5"
-                        >
-                          <div className="flex justify-between mb-1">
-                            <span className="text-sm font-bold group-hover:text-primary">{hQuote.quoteNumber || hQuote.id.substring(0, 8)}</span>
-                            <span className={`px-2 py-0.5 text-[9px] font-bold rounded uppercase ${
-                              hQuote.status === 'Accepted' ? 'bg-green-100 text-green-700' :
-                              hQuote.status === 'Pending Approval' ? 'bg-amber-100 text-amber-700' :
-                              'bg-gray-100 text-gray-700'
-                            }`}>
-                              {hQuote.status}
-                            </span>
-                          </div>
-                          <p className="text-xs text-on-surface-variant font-medium">
+            {!clientHistory || clientHistory.length === 0 ? (
+              <div className="p-12 text-sm text-outline italic text-center">
+                No previous quotations recorded for this client.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {clientHistory.map((hQuote: any, idx: number) => {
+                  const isExpanded = !!expandedCards[hQuote.id];
+                  return (
+                    <div
+                      key={hQuote.id || idx}
+                      onClick={() => toggleCardExpand(hQuote.id)}
+                      className="p-4 rounded-xl bg-surface-container-low/40 border border-outline-variant hover:border-primary transition-all flex flex-col gap-2 cursor-pointer shadow-2xs"
+                    >
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <span className="text-sm font-bold text-primary">{hQuote.quoteNumber || hQuote.id.substring(0, 8)}</span>
+                          <p className="text-xs text-on-surface-variant font-medium mt-0.5">
                             {new Date(hQuote.createdAt).toLocaleDateString()} • {formatCurrency(hQuote.totalAmount)}
                           </p>
-
-                          {isExpanded ? (
-                            <div className="text-[11px] text-on-surface-variant font-medium leading-relaxed bg-surface-container-low p-2.5 rounded-lg border border-outline-variant mt-1.5 space-y-1">
-                              {hQuote.QuoteLineItems?.map((li: any, lIdx: number) => (
-                                <div key={lIdx} className="flex justify-between">
-                                  <span>{li.product?.name || "Product"} (x{li.quantity})</span>
-                                  <span className="font-semibold">{formatCurrency(li.unitPrice * li.quantity)}</span>
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <div className="text-[10px] text-outline truncate mt-0.5">
-                              Items: {hQuote.QuoteLineItems?.map((li: any) => li.product?.name || "Product").join(", ") || "None"}
-                            </div>
-                          )}
-
-                          <div className="flex gap-2 mt-2">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                console.log("[CLICK DEBUG] Edit & Use clicked for Client History quote:", hQuote);
-                                handleUseQuote(hQuote);
-                              }}
-                              disabled={!hQuote.QuoteLineItems || hQuote.QuoteLineItems.length === 0}
-                              className="text-[11px] font-bold text-primary hover:bg-primary/20 bg-primary/10 px-2.5 py-1.5 rounded transition-all disabled:opacity-40"
-                            >
-                              Edit & Use
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleSendAsIs(hQuote);
-                              }}
-                              disabled={!hQuote.QuoteLineItems || hQuote.QuoteLineItems.length === 0}
-                              className="text-[11px] font-bold text-white bg-primary hover:bg-primary/95 px-2.5 py-1.5 rounded transition-all disabled:opacity-40"
-                            >
-                              Send As-Is
-                            </button>
-                          </div>
                         </div>
-                      );
-                    })
-                  )}
-                </>
-              )}
+                        <span className={`px-2 py-0.5 text-[10px] font-bold rounded uppercase ${
+                          hQuote.status === 'Accepted' ? 'bg-green-100 text-green-700' :
+                          hQuote.status === 'Pending Approval' ? 'bg-amber-100 text-amber-700' :
+                          'bg-gray-100 text-gray-700'
+                        }`}>
+                          {hQuote.status}
+                        </span>
+                      </div>
 
-              {/* Tab 2: Similar Clients */}
-              {activeHistoryTab === "similar" && (
-                <div className="p-4 space-y-4">
-                  {/* Comparable Quote Cards */}
-                  <div className="space-y-3.5">
-                    {!similarClientQuotes || similarClientQuotes.length === 0 ? (
-                      <div className="text-xs text-outline italic text-center py-4">No matching historical quote records found.</div>
-                    ) : (
-                      similarClientQuotes.map((sQuote: any, idx: number) => {
-                        const isExpanded = !!expandedCards[sQuote.id];
-                        return (
-                          <div
-                            key={sQuote.id || idx}
-                            onClick={() => toggleCardExpand(sQuote.id)}
-                            className="p-3.5 rounded-xl bg-surface-container-lowest border border-outline-variant hover:border-primary transition-all flex flex-col gap-2 cursor-pointer"
-                          >
-                            <div className="flex justify-between items-start">
-                              <div>
-                                <h4 className="text-xs font-bold text-on-surface">{sQuote.deal?.lead?.company || sQuote.deal?.lead?.firstName + " " + sQuote.deal?.lead?.lastName || "N/A"}</h4>
-                                <p className="text-[10px] text-on-surface-variant font-semibold mt-0.5">{sQuote.quoteNumber}</p>
-                              </div>
-                              <span className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
-                                sQuote.status === "Accepted" || sQuote.status === "Approved" ? "bg-green-100 text-green-700 border border-green-200" :
-                                sQuote.status === "Sent" ? "bg-blue-100 text-blue-700 border border-blue-200" :
-                                sQuote.status === "Viewed" ? "bg-purple-100 text-purple-700 border border-purple-200" :
-                                "bg-slate-100 text-slate-700 border border-slate-200"
-                              }`}>
-                                {sQuote.status}
-                              </span>
+                      {isExpanded ? (
+                        <div className="text-[11px] text-on-surface-variant font-medium leading-relaxed bg-surface-container-lowest p-3 rounded-lg border border-outline-variant mt-1.5 space-y-1">
+                          {hQuote.QuoteLineItems?.map((li: any, lIdx: number) => (
+                            <div key={lIdx} className="flex justify-between">
+                              <span>{li.product?.name || "Product"} (x{li.quantity})</span>
+                              <span className="font-semibold">{formatCurrency(li.unitPrice * li.quantity)}</span>
                             </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-[11px] text-on-surface-variant font-medium truncate mt-0.5">
+                          Items: {hQuote.QuoteLineItems?.map((li: any) => li.product?.name || "Product").join(", ") || "None"}
+                        </div>
+                      )}
 
-                            {isExpanded ? (
-                              <div className="text-[11px] text-on-surface-variant font-medium leading-relaxed bg-surface-container-low p-2.5 rounded-lg border border-outline-variant mt-1.5 space-y-1">
-                                {sQuote.QuoteLineItems?.map((li: any, lIdx: number) => (
-                                  <div key={lIdx} className="flex justify-between">
-                                    <span>{li.product?.name || "Product"} (x{li.quantity})</span>
-                                    <span className="font-semibold">{formatCurrency(li.unitPrice * li.quantity)}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <div className="text-[10px] text-on-surface-variant font-medium leading-relaxed bg-surface-container-low p-2 rounded-lg border border-outline-variant/40 space-y-0.5">
-                                {sQuote.QuoteLineItems?.map((li: any, lIdx: number) => (
-                                  <div key={lIdx} className="truncate">
-                                    {li.product?.name || "Product"} ({li.quantity}x @ {formatCurrency(li.unitPrice)})
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-
-                            <div className="flex justify-between items-center text-[10px] text-on-surface-variant mt-0.5 border-t border-outline-variant/30 pt-1.5">
-                              <span>{new Date(sQuote.createdAt).toLocaleDateString()}</span>
-                              <span className="font-bold text-primary text-xs">{formatCurrency(sQuote.totalAmount)}</span>
-                            </div>
-
-                            <div className="flex gap-2 mt-1">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  console.log("[CLICK DEBUG] Edit & Use clicked for Similar Clients quote:", sQuote);
-                                  handleUseQuote(sQuote);
-                                }}
-                                disabled={!sQuote.QuoteLineItems || sQuote.QuoteLineItems.length === 0}
-                                className="text-[11px] font-bold text-primary hover:bg-primary/20 bg-primary/10 px-2.5 py-1.5 rounded transition-all disabled:opacity-40"
-                              >
-                                Edit & Use
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleSendAsIs(sQuote);
-                                }}
-                                disabled={!sQuote.QuoteLineItems || sQuote.QuoteLineItems.length === 0}
-                                className="text-[11px] font-bold text-white bg-primary hover:bg-primary/95 px-2.5 py-1.5 rounded transition-all disabled:opacity-40"
-                              >
-                                Send As-Is
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                </div>
-              )}
-
-            </div>
-            
-            {activeHistoryTab === "client" && (
-              <Link to="/quotes" className="w-full p-3.5 text-sm font-semibold text-secondary hover:bg-surface-container transition-colors rounded-b-xl border-t border-outline-variant text-center block">
-                View Full History
-              </Link>
+                      <div className="flex gap-2 mt-2 pt-2 border-t border-outline-variant/30">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleUseQuote(hQuote);
+                            setActiveTab("builder");
+                          }}
+                          disabled={!hQuote.QuoteLineItems || hQuote.QuoteLineItems.length === 0}
+                          className="text-xs font-bold text-primary hover:bg-primary/20 bg-primary/10 px-3 py-1.5 rounded-lg transition-all disabled:opacity-40 cursor-pointer"
+                        >
+                          Edit &amp; Use Line Items
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSendAsIs(hQuote);
+                          }}
+                          disabled={!hQuote.QuoteLineItems || hQuote.QuoteLineItems.length === 0}
+                          className="text-xs font-bold text-white bg-primary hover:bg-primary/95 px-3 py-1.5 rounded-lg transition-all disabled:opacity-40 cursor-pointer"
+                        >
+                          Send As-Is
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </div>
+        )}
 
+        {/* TAB 4: SIMILAR CLIENTS */}
+        {activeTab === "similar" && (
+          <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-6 shadow-sm space-y-4">
+            <div className="border-b border-outline-variant pb-3">
+              <h3 className="text-base font-bold text-on-surface">Similar Client Pricing Benchmarks</h3>
+              <p className="text-xs text-on-surface-variant mt-0.5">
+                Quotes generated for comparable clients and item requirements across your organization.
+              </p>
+            </div>
 
+            {!similarClientQuotes || similarClientQuotes.length === 0 ? (
+              <div className="p-12 text-sm text-outline italic text-center">
+                No matching historical quote records found for similar products/industry.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {similarClientQuotes.map((sQuote: any, idx: number) => {
+                  const isExpanded = !!expandedCards[sQuote.id];
+                  return (
+                    <div
+                      key={sQuote.id || idx}
+                      onClick={() => toggleCardExpand(sQuote.id)}
+                      className="p-4 rounded-xl bg-surface-container-low/40 border border-outline-variant hover:border-primary transition-all flex flex-col gap-2 cursor-pointer shadow-2xs"
+                    >
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h4 className="text-xs font-bold text-on-surface">{sQuote.deal?.lead?.company || sQuote.deal?.lead?.firstName + " " + sQuote.deal?.lead?.lastName || "Comparable Client"}</h4>
+                          <p className="text-[10px] text-on-surface-variant font-semibold mt-0.5">{sQuote.quoteNumber} • {new Date(sQuote.createdAt).toLocaleDateString()}</p>
+                        </div>
+                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
+                          sQuote.status === "Accepted" || sQuote.status === "Approved" ? "bg-green-100 text-green-700 border border-green-200" :
+                          sQuote.status === "Sent" ? "bg-blue-100 text-blue-700 border border-blue-200" :
+                          sQuote.status === "Viewed" ? "bg-purple-100 text-purple-700 border border-purple-200" :
+                          "bg-slate-100 text-slate-700 border border-slate-200"
+                        }`}>
+                          {sQuote.status}
+                        </span>
+                      </div>
 
-        </div>
+                      {isExpanded ? (
+                        <div className="text-[11px] text-on-surface-variant font-medium leading-relaxed bg-surface-container-lowest p-3 rounded-lg border border-outline-variant mt-1.5 space-y-1">
+                          {sQuote.QuoteLineItems?.map((li: any, lIdx: number) => (
+                            <div key={lIdx} className="flex justify-between">
+                              <span>{li.product?.name || "Product"} (x{li.quantity})</span>
+                              <span className="font-semibold">{formatCurrency(li.unitPrice * li.quantity)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-[10px] text-on-surface-variant font-medium leading-relaxed bg-surface-container-lowest p-2 rounded-lg border border-outline-variant/40 space-y-0.5">
+                          {sQuote.QuoteLineItems?.map((li: any, lIdx: number) => (
+                            <div key={lIdx} className="truncate">
+                              {li.product?.name || "Product"} ({li.quantity}x @ {formatCurrency(li.unitPrice)})
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="flex justify-between items-center text-xs text-on-surface-variant mt-0.5 border-t border-outline-variant/30 pt-1.5">
+                        <span className="text-[11px]">Total Value:</span>
+                        <span className="font-bold text-primary text-sm">{formatCurrency(sQuote.totalAmount)}</span>
+                      </div>
+
+                      <div className="flex gap-2 mt-1">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleUseQuote(sQuote);
+                            setActiveTab("builder");
+                          }}
+                          disabled={!sQuote.QuoteLineItems || sQuote.QuoteLineItems.length === 0}
+                          className="text-xs font-bold text-primary hover:bg-primary/20 bg-primary/10 px-3 py-1.5 rounded-lg transition-all disabled:opacity-40 cursor-pointer"
+                        >
+                          Edit &amp; Use Line Items
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSendAsIs(sQuote);
+                          }}
+                          disabled={!sQuote.QuoteLineItems || sQuote.QuoteLineItems.length === 0}
+                          className="text-xs font-bold text-white bg-primary hover:bg-primary/95 px-3 py-1.5 rounded-lg transition-all disabled:opacity-40 cursor-pointer"
+                        >
+                          Send As-Is
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
+
       {/* Catalog Search Modal */}
       <CatalogSearchModal
         isOpen={isCatalogModalOpen}
