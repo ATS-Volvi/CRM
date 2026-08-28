@@ -1,5 +1,5 @@
 import { User } from "@nexus-crm/database";
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 
 async function verifyAdmin() {
   const users = await User.findAll({ attributes: ['id', 'email', 'name', 'role'] });

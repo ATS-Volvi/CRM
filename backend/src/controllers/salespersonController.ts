@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { sequelize } from "@nexus-crm/database";
 import { Op } from "sequelize";
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { isWonStage, isLostStage } from "../utils/pipelineStageHelpers";
 
