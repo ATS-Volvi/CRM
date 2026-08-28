@@ -18,6 +18,7 @@ export default function QuotationBuilder() {
 
   const [selectedDealId, setSelectedDealId] = useState(dealIdParam || "");
   const [selectedTemplateId, setSelectedTemplateId] = useState("tpl-ftc-standard");
+  const [selectedRequirementId, setSelectedRequirementId] = useState("");
   const [focusedIndex, setFocusedIndex] = useState(0);
   const [dealIdError, setDealIdError] = useState("");
   const [isCatalogModalOpen, setIsCatalogModalOpen] = useState(false);
@@ -459,6 +460,7 @@ export default function QuotationBuilder() {
   };
 
   const handleImportRequirement = (reqId: string) => {
+    setSelectedRequirementId(reqId);
     if (!reqId) return;
     const reqObj = masterRequirements?.find((r: any) => r.id === reqId);
     if (!reqObj) return;
@@ -479,7 +481,7 @@ export default function QuotationBuilder() {
         ? parseFloat(li.totalPrice)
         : matchedProd
           ? parseFloat(matchedProd.unitPrice || matchedProd.msrp || 0)
-          : 0;
+          : (parseFloat(li.price) || 0);
       const qty = parseFloat(li.defaultQuantity) || 1;
       return {
         productId: matchedProd?.id || "",
@@ -496,7 +498,8 @@ export default function QuotationBuilder() {
       };
     });
 
-    setItems(prev => [...prev, ...toAdd]);
+    setItems(toAdd);
+    setFocusedIndex(0);
   };
 
   const handleCatalogItemSelect = (catItem: any) => {
@@ -726,11 +729,8 @@ export default function QuotationBuilder() {
                       </span>
                       <select 
                         className="bg-primary/5 border border-primary/30 text-primary font-bold rounded-lg p-2 text-xs focus:ring-1 focus:ring-primary min-w-[210px]"
-                        defaultValue=""
-                        onChange={e => {
-                          handleImportRequirement(e.target.value);
-                          e.target.value = "";
-                        }}
+                        value={selectedRequirementId}
+                        onChange={e => handleImportRequirement(e.target.value)}
                       >
                         <option value="">-- Import Requirement --</option>
                         {masterRequirements?.map((r: any) => (
