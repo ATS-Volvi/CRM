@@ -35,6 +35,8 @@ export class User extends Model {
   public recentLeadValueAssigned!: number;
   public dealValueCutoff!: number | null;
   public maxOpenDeals!: number | null;
+  public createdByUserId!: string | null;
+  public phone!: string | null;
 }
 
 User.init(
@@ -52,6 +54,8 @@ User.init(
     onLeave: { type: DataTypes.BOOLEAN, defaultValue: false },
     delegatedUserId: { type: DataTypes.UUID, allowNull: true },
     managerId: { type: DataTypes.UUID, allowNull: true },
+    createdByUserId: { type: DataTypes.UUID, allowNull: true },
+    phone: { type: DataTypes.STRING, allowNull: true },
     department: { type: DataTypes.STRING, allowNull: true },
     territory: { type: DataTypes.STRING, allowNull: true },
     team: { type: DataTypes.STRING, allowNull: true },
@@ -1117,6 +1121,7 @@ ConstructionItem.init(
 
 User.hasMany(User, { foreignKey: "managerId", as: "teamMembers" });
 User.belongsTo(User, { foreignKey: "managerId", as: "manager" });
+User.belongsTo(User, { foreignKey: "createdByUserId", as: "createdByUser" });
 
 Requirement.hasMany(LineItem, { foreignKey: "requirementId", as: "lineItems", onDelete: "CASCADE" });
 LineItem.belongsTo(Requirement, { foreignKey: "requirementId", as: "requirement" });

@@ -49,7 +49,8 @@ import { getBundleTemplates, createBundleTemplate, deleteBundleTemplate } from '
 import { exportLeads, exportQuotes, exportPurchaseOrders } from '../controllers/exportController';
 import {
   getSalespersonsPerformance, createSalesperson, getSalespersonPerformanceDetails, getAllSalespersons, updateSalespersonCapacity,
-  getSalespersonKpis, editKpiTarget, getKpiHistory, restoreKpiHistory, bulkAssignTargets, lockKpiTargets, approveKpiTargetChange
+  getSalespersonKpis, editKpiTarget, getKpiHistory, restoreKpiHistory, bulkAssignTargets, lockKpiTargets, approveKpiTargetChange,
+  getOrgChartEmployees
 } from '../controllers/salespersonController';
 import {
   getRequirements, createRequirement, updateRequirement, deleteRequirement,
@@ -536,6 +537,7 @@ router.get("/dashboard/home", authMiddleware, getMyHomeDashboard);
 router.get("/dashboard/activities-reports", authMiddleware, getActivitiesReports);
 router.get("/salespersons", authMiddleware, getAllSalespersons);
 router.get("/salespersons/performance", authMiddleware, getSalespersonsPerformance);
+router.get("/salespersons/org-chart", authMiddleware, getOrgChartEmployees);
 router.get("/salespersons/:id/performance", authMiddleware, getSalespersonPerformanceDetails);
 router.post("/salespersons", authMiddleware, createSalesperson);
 router.put("/salespersons/:id/capacity", authMiddleware, updateSalespersonCapacity);

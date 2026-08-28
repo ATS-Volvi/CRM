@@ -344,15 +344,49 @@ export const getSalespersonsPerformance = async (req: Request, res: Response) =>
   }
 };
 
+export const getOrgChartEmployees = async (req: Request, res: Response) => {
+  try {
+    const employees = await sequelize.models.User.findAll({
+      attributes: [
+        "id", "name", "email", "role", "phone", "hireDate",
+        "managerId", "createdByUserId", "department", "territory", "team",
+        "isAvailable", "maxOpenLeads", "createdAt"
+      ],
+      include: [
+        {
+          model: sequelize.models.User,
+          as: "manager",
+          attributes: ["id", "name", "email", "role"]
+        },
+        {
+          model: sequelize.models.User,
+          as: "createdByUser",
+          attributes: ["id", "name", "email"]
+        },
+        {
+          model: sequelize.models.User,
+          as: "teamMembers",
+          attributes: ["id", "name", "email", "role", "department", "team", "phone", "hireDate"]
+        }
+      ],
+      order: [["name", "ASC"]]
+    });
+
+    res.json(employees);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 export const createSalesperson = async (req: Request, res: Response) => {
   try {
     const caller = (req as any).user;
-    if (!caller || !["admin", "director"].includes(caller.role)) {
-      res.status(403).json({ error: "Forbidden: only admins and directors can create users" });
+    if (!caller || !["admin", "director", "manager"].includes(caller.role)) {
+      res.status(403).json({ error: "Forbidden: only admins, directors, and managers can create users" });
       return;
     }
 
-    const { name, email, password, role, maxOpenLeads, isAvailable, managerId, department, territory, team } = req.body;
+    const { name, email, password, role, maxOpenLeads, isAvailable, managerId, department, territory, team, hireDate, phone } = req.body;
 
     // Validate required fields
     if (!name || !email || !password) {
@@ -373,6 +407,14 @@ export const createSalesperson = async (req: Request, res: Response) => {
       return;
     }
 
+    // Manager scoping: if caller is manager, default/restrict managerId to caller or self chain
+    let finalManagerId = managerId || null;
+    if (caller.role === "manager") {
+      if (!finalManagerId || finalManagerId !== caller.id) {
+        finalManagerId = caller.id;
+      }
+    }
+
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const user = await sequelize.models.User.create({
@@ -383,22 +425,24 @@ export const createSalesperson = async (req: Request, res: Response) => {
       role: role || "sales_rep",
       maxOpenLeads: maxOpenLeads ?? 20,
       isAvailable: isAvailable ?? true,
-      managerId: managerId || null,
+      managerId: finalManagerId,
       department: department || "Sales",
       territory: territory || "EMEA",
-      team: team || "Aces"
+      team: team || "Aces",
+      hireDate: hireDate ? new Date(hireDate) : new Date(),
+      phone: phone || null,
+      createdByUserId: caller.id
     }) as any;
 
-    // Return created user without the password
-    res.status(201).json({
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      maxOpenLeads: user.maxOpenLeads,
-      isAvailable: user.isAvailable,
-      createdAt: user.createdAt
+    const createdUserWithAssoc = await sequelize.models.User.findByPk(user.id, {
+      attributes: ["id", "name", "email", "role", "maxOpenLeads", "isAvailable", "hireDate", "phone", "createdByUserId", "createdAt"],
+      include: [
+        { model: sequelize.models.User, as: "createdByUser", attributes: ["id", "name", "email"] },
+        { model: sequelize.models.User, as: "manager", attributes: ["id", "name", "email", "role"] }
+      ]
     });
+
+    res.status(201).json(createdUserWithAssoc || user);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

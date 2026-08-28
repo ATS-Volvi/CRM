@@ -67,7 +67,7 @@ export function Sidebar({
       subItems: [
         { label: "Accounts", path: "/accounts", icon: Building2 },
         { label: "Contacts", path: "/contacts", icon: Users },
-        { label: "Sales Representatives", path: "/salespersons", icon: UserCheck },
+        { label: "Business Users", path: "/salespersons", icon: UserCheck },
       ]
     },
     { label: "Master Catalog & Pricing", path: "/master-data/requirements", icon: Settings },
