@@ -1,46 +1,38 @@
 import React, { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { apiClient } from "../lib/apiClient";
 import {
   Building2,
   Users,
-  Target,
-  ArrowLeft,
-  Phone,
-  Mail,
-  MapPin,
-  Calendar,
   DollarSign,
   Plus,
-  Edit2,
-  FileText,
-  CheckSquare,
-  CheckCircle2,
-  Clock,
   Globe,
+  MapPin,
   TrendingUp,
-  MoreHorizontal,
   Search,
-  Bell,
-  HelpCircle,
-  X,
+  Filter,
+  ArrowUpDown,
+  LayoutGrid,
+  List,
+  ExternalLink,
+  ChevronRight,
+  Download,
   Briefcase,
-  Layers,
-  BarChart3,
-  ChevronDown,
-  LayoutList,
-  UserCheck
+  Phone,
+  Mail,
+  X,
+  Sparkles,
+  ShieldCheck,
+  Award
 } from "lucide-react";
 import { formatCurrency } from "../utils/currency";
-import { AccountClientHistory } from "../components/AccountClientHistory";
 
 export default function Accounts() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { id: paramId } = useParams<{ id: string }>();
 
-  // Fetch all accounts
+  // ── 1. DATA FETCHING ──
   const { data: accountsData, isLoading, error, refetch } = useQuery({
     queryKey: ["accounts"],
     queryFn: async () => {
@@ -53,230 +45,229 @@ export default function Accounts() {
     return Array.isArray(accountsData) ? accountsData : [];
   }, [accountsData]);
 
-  // Selected Account ID (defaults to paramId, or Acme Corp, or first account)
-  const [selectedAccountId, setSelectedAccountId] = useState<string>("");
+  // ── 2. STATE FOR FILTERS & CONTROLS ──
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedIndustry, setSelectedIndustry] = useState("all");
+  const [selectedTier, setSelectedTier] = useState("all");
+  const [sortBy, setSortBy] = useState<"name_asc" | "name_desc" | "pipeline_desc" | "contacts_desc">("pipeline_desc");
+  const [viewMode, setViewMode] = useState<"table" | "grid">("table");
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
-  const activeAccount = useMemo(() => {
-    if (paramId) {
-      const found = accounts.find((a) => a.id === paramId);
-      if (found) return found;
-    }
-    if (selectedAccountId) {
-      const found = accounts.find((a) => a.id === selectedAccountId);
-      if (found) return found;
-    }
-    // Default to Acme Corp if exists, or first account
-    const acme = accounts.find((a) => (a.name || "").toLowerCase().includes("acme"));
-    return acme || accounts[0] || {
-      id: "acme-default",
-      name: "Acme Corp",
-      industry: "Technology",
-      address: "San Francisco, CA",
-      website: "acmecorp.com",
-      status: "NEW LEAD",
-      description: "Leading provider of enterprise cloud solutions and managed IT services for the modern workforce.",
-      about: "Acme Corp is a multinational technology conglomerate specializing in enterprise software, cloud infrastructure, and data analytics. Founded in 2010, they have rapidly expanded their footprint in the North American and European markets. They are currently looking to upgrade their legacy systems and migrate core operations to a more robust cloud architecture."
-    };
-  }, [accounts, paramId, selectedAccountId]);
-
-  // Fetch detailed account 360 for activeAccount
-  const { data: account360 } = useQuery({
-    queryKey: ["account-detail-360", activeAccount?.id],
-    queryFn: async () => {
-      if (!activeAccount?.id || activeAccount.id === "acme-default") return null;
-      return apiClient.get<any>(`/api/v1/accounts/${activeAccount.id}`);
-    },
-    enabled: !!activeAccount?.id && activeAccount.id !== "acme-default"
-  });
-
-  // Deals tab filter: Active, Closed, Lost
-  const [dealTab, setDealTab] = useState<"Active" | "Closed" | "Lost">("Active");
-
-  // Search filter
-  const [searchFilter, setSearchFilter] = useState("");
-  const [viewMode, setViewMode] = useState<"profile" | "directory">("profile");
-
-  // Modals state
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
-  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
-  const [isContactModalOpen, setIsContactModalOpen] = useState(false);
-
-  // Form states
-  const [noteContent, setNoteContent] = useState("");
-  const [taskForm, setTaskForm] = useState({
-    title: "",
-    dueDate: "",
-    priority: "High"
-  });
-  const [contactForm, setContactForm] = useState({
-    firstName: "",
-    lastName: "",
-    role: "",
-    email: "",
-    phone: ""
-  });
-  const [editForm, setEditForm] = useState({
+  // New Account Form state
+  const [newAccountForm, setNewAccountForm] = useState({
     name: "",
-    industry: "",
+    industry: "Technology",
+    website: "",
     address: "",
     phone: "",
-    email: ""
+    email: "",
+    primaryContactName: "",
+    tier: "Enterprise"
   });
 
-  // Mutations
-  const updateAccountMutation = useMutation({
-    mutationFn: async (updatedData: any) => {
-      return apiClient.put(`/api/v1/accounts/${activeAccount.id}`, updatedData);
+  // ── 3. CREATE ACCOUNT MUTATION ──
+  const createAccountMutation = useMutation({
+    mutationFn: async (formData: typeof newAccountForm) => {
+      return apiClient.post("/api/v1/accounts", formData);
     },
-    onSuccess: () => {
+    onSuccess: (newAcc: any) => {
       queryClient.invalidateQueries({ queryKey: ["accounts"] });
-      setIsEditModalOpen(false);
-    }
-  });
-
-  const addNoteMutation = useMutation({
-    mutationFn: async (notes: string) => {
-      return apiClient.post(`/api/v1/activities`, {
-        customerId: activeAccount.id,
-        type: "note",
-        outcome: notes,
-        isCompleted: true
+      setIsCreateModalOpen(false);
+      setNewAccountForm({
+        name: "",
+        industry: "Technology",
+        website: "",
+        address: "",
+        phone: "",
+        email: "",
+        primaryContactName: "",
+        tier: "Enterprise"
       });
-    },
-    onSuccess: () => {
-      setNoteContent("");
-      setIsNoteModalOpen(false);
-      queryClient.invalidateQueries({ queryKey: ["accounts"] });
+      if (newAcc?.id) {
+        navigate(`/accounts/${newAcc.id}`);
+      }
     }
   });
 
-  const addTaskMutation = useMutation({
-    mutationFn: async (task: any) => {
-      return apiClient.post(`/api/v1/activities`, {
-        customerId: activeAccount.id,
-        type: "task",
-        outcome: task.title,
-        dueDate: task.dueDate || new Date().toISOString(),
-        priority: task.priority,
-        isCompleted: false
-      });
-    },
-    onSuccess: () => {
-      setTaskForm({ title: "", dueDate: "", priority: "High" });
-      setIsTaskModalOpen(false);
-      queryClient.invalidateQueries({ queryKey: ["accounts"] });
-    }
-  });
-
-  const addContactMutation = useMutation({
-    mutationFn: async (contact: any) => {
-      return apiClient.post(`/api/v1/contacts`, {
-        accountId: activeAccount.id,
-        ...contact
-      });
-    },
-    onSuccess: () => {
-      setContactForm({ firstName: "", lastName: "", role: "", email: "", phone: "" });
-      setIsContactModalOpen(false);
-      queryClient.invalidateQueries({ queryKey: ["accounts"] });
-    }
-  });
-
-  // Default Mockup Deals for Acme Corp or account deals
-  const accountDeals = useMemo(() => {
-    const raw = Array.isArray(activeAccount?.deals) && activeAccount.deals.length > 0 ? activeAccount.deals : [];
-    if (raw.length > 0) return raw;
-    return [
-      {
-        id: "deal-1",
-        name: "Enterprise Cloud Migration",
-        amount: 850000,
-        stage: { name: "Negotiation" },
-        status: "OPEN",
-        expectedCloseDate: "2024-10-15"
-      },
-      {
-        id: "deal-2",
-        name: "Q3 Software License Renewal",
-        amount: 120000,
-        stage: { name: "Proposal" },
-        status: "OPEN",
-        expectedCloseDate: "2024-11-01"
-      },
-      {
-        id: "deal-3",
-        name: "Global Infrastructure Optimization",
-        amount: 230000,
-        stage: { name: "Won" },
-        status: "WON",
-        expectedCloseDate: "2024-08-20"
+  // ── 4. EXTRACT UNIQUE INDUSTRIES ──
+  const availableIndustries = useMemo(() => {
+    const set = new Set<string>();
+    accounts.forEach((a) => {
+      if (a.industry && a.industry.trim()) {
+        set.add(a.industry.trim());
       }
-    ];
-  }, [activeAccount]);
-
-  // Filter deals based on tab: Active, Closed, Lost
-  const filteredDeals = useMemo(() => {
-    return accountDeals.filter((d: any) => {
-      const s = (d.status || "").toUpperCase();
-      const stageName = (d.stage?.name || d.stage || "").toLowerCase();
-      if (dealTab === "Active") {
-        return s !== "WON" && s !== "LOST" && !stageName.includes("lost") && !stageName.includes("won");
-      }
-      if (dealTab === "Closed") {
-        return s === "WON" || stageName.includes("won") || stageName.includes("closed won");
-      }
-      if (dealTab === "Lost") {
-        return s === "LOST" || stageName.includes("lost") || stageName.includes("closed lost");
-      }
-      return true;
     });
-  }, [accountDeals, dealTab]);
+    return Array.from(set).sort();
+  }, [accounts]);
 
-  // Contacts
-  const accountContacts = useMemo(() => {
-    if (Array.isArray(activeAccount?.contacts) && activeAccount.contacts.length > 0) {
-      return activeAccount.contacts;
+  // ── 5. CALCULATE AGGREGATE METRICS ──
+  const metrics = useMemo(() => {
+    let totalPipeline = 0;
+    let totalContacts = 0;
+    let totalDeals = 0;
+    let wonAccountsCount = 0;
+
+    accounts.forEach((acc) => {
+      const deals = Array.isArray(acc.deals) ? acc.deals : [];
+      const contacts = Array.isArray(acc.contacts) ? acc.contacts : [];
+
+      totalContacts += contacts.length;
+
+      let hasWon = false;
+      deals.forEach((d: any) => {
+        const val = Number(d.amount || d.value) || 0;
+        const s = (d.status || "").toUpperCase();
+        const stageName = (d.stage?.name || d.stage || "").toLowerCase();
+
+        if (s === "WON" || stageName.includes("won")) {
+          hasWon = true;
+        }
+
+        if (s !== "LOST" && !stageName.includes("lost")) {
+          totalPipeline += val;
+          totalDeals += 1;
+        }
+      });
+
+      if (hasWon) wonAccountsCount += 1;
+    });
+
+    const avgDealValue = totalDeals > 0 ? Math.round(totalPipeline / totalDeals) : 250000;
+
+    return {
+      totalAccounts: accounts.length,
+      totalPipeline,
+      totalContacts,
+      wonAccountsCount,
+      avgDealValue
+    };
+  }, [accounts]);
+
+  // ── 6. FILTER & SORT ACCOUNTS ──
+  const filteredAccounts = useMemo(() => {
+    return accounts
+      .filter((acc) => {
+        // Search filter
+        if (searchTerm.trim()) {
+          const q = searchTerm.toLowerCase();
+          const matchName = (acc.name || "").toLowerCase().includes(q);
+          const matchIndustry = (acc.industry || "").toLowerCase().includes(q);
+          const matchAddress = (acc.address || "").toLowerCase().includes(q);
+          const matchEmail = (acc.email || "").toLowerCase().includes(q);
+          const matchWebsite = (acc.website || "").toLowerCase().includes(q);
+          const matchContact = (acc.primaryContactName || "").toLowerCase().includes(q);
+
+          if (!matchName && !matchIndustry && !matchAddress && !matchEmail && !matchWebsite && !matchContact) {
+            return false;
+          }
+        }
+
+        // Industry filter
+        if (selectedIndustry !== "all") {
+          if ((acc.industry || "").toLowerCase() !== selectedIndustry.toLowerCase()) {
+            return false;
+          }
+        }
+
+        // Tier / Status filter
+        if (selectedTier !== "all") {
+          const accTier = (acc.tier || "enterprise").toLowerCase();
+          if (accTier !== selectedTier.toLowerCase()) {
+            return false;
+          }
+        }
+
+        return true;
+      })
+      .sort((a, b) => {
+        if (sortBy === "name_asc") {
+          return (a.name || "").localeCompare(b.name || "");
+        }
+        if (sortBy === "name_desc") {
+          return (b.name || "").localeCompare(a.name || "");
+        }
+        if (sortBy === "pipeline_desc") {
+          const pipeA = (a.deals || []).reduce((sum: number, d: any) => sum + (Number(d.amount || d.value) || 0), 0);
+          const pipeB = (b.deals || []).reduce((sum: number, d: any) => sum + (Number(d.amount || d.value) || 0), 0);
+          return pipeB - pipeA;
+        }
+        if (sortBy === "contacts_desc") {
+          const cA = (a.contacts || []).length;
+          const cB = (b.contacts || []).length;
+          return cB - cA;
+        }
+        return 0;
+      });
+  }, [accounts, searchTerm, selectedIndustry, selectedTier, sortBy]);
+
+  // Helper function for industry badge colors
+  const getIndustryBadgeClass = (ind?: string) => {
+    const i = (ind || "").toLowerCase();
+    if (i.includes("tech") || i.includes("software") || i.includes("it")) {
+      return "bg-blue-50 text-blue-700 border-blue-200/80";
     }
-    return [
-      {
-        id: "contact-1",
-        firstName: "Sarah",
-        lastName: "Jenkins",
-        role: "VP of Engineering",
-        email: "sarah.j@acmecorp.com",
-        phone: "+1 (555) 234-5678"
-      }
-    ];
-  }, [activeAccount]);
+    if (i.includes("health") || i.includes("pharma") || i.includes("bio")) {
+      return "bg-emerald-50 text-emerald-700 border-emerald-200/80";
+    }
+    if (i.includes("finan") || i.includes("bank") || i.includes("invest")) {
+      return "bg-indigo-50 text-indigo-700 border-indigo-200/80";
+    }
+    if (i.includes("manuf") || i.includes("indus") || i.includes("auto")) {
+      return "bg-amber-50 text-amber-700 border-amber-200/80";
+    }
+    if (i.includes("energy") || i.includes("oil") || i.includes("solar")) {
+      return "bg-cyan-50 text-cyan-700 border-cyan-200/80";
+    }
+    if (i.includes("retail") || i.includes("consumer") || i.includes("ecom")) {
+      return "bg-purple-50 text-purple-700 border-purple-200/80";
+    }
+    return "bg-slate-100 text-slate-700 border-slate-200";
+  };
 
-  const primaryContact = accountContacts[0];
+  // Helper function to export CSV
+  const handleExportCSV = () => {
+    if (filteredAccounts.length === 0) return;
+    const headers = ["Company Name", "Industry", "Location", "Website", "Email", "Phone", "Contacts Count", "Pipeline Value"];
+    const rows = filteredAccounts.map((a) => {
+      const pipe = (a.deals || []).reduce((sum: number, d: any) => sum + (Number(d.amount || d.value) || 0), 0);
+      return [
+        `"${a.name || ""}"`,
+        `"${a.industry || ""}"`,
+        `"${a.address || ""}"`,
+        `"${a.website || ""}"`,
+        `"${a.email || ""}"`,
+        `"${a.phone || ""}"`,
+        (a.contacts || []).length,
+        pipe
+      ];
+    });
 
-  // Pipeline metrics
-  const activeDealsList = accountDeals.filter((d: any) => {
-    const s = (d.status || "").toUpperCase();
-    return s !== "LOST" && !((d.stage?.name || "").toLowerCase().includes("lost"));
-  });
-  const totalPipeline = activeDealsList.reduce((sum: number, d: any) => sum + (Number(d.amount || d.value) || 0), 0) || 1200000;
-  const activeDealsCount = activeDealsList.length || 4;
-  const avgDealSize = activeDealsCount > 0 ? Math.round(totalPipeline / activeDealsCount) : 300000;
-
-  const nameInitial = (activeAccount?.name || "Acme Corp").trim().charAt(0).toUpperCase();
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `nexus_accounts_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   if (isLoading) {
     return (
-      <div className="p-16 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
-        <span className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-        Loading Company Profile...
+      <div className="min-h-screen bg-slate-50/50 p-6 md:p-8 flex items-center justify-center">
+        <div className="p-8 text-center text-xs text-slate-500 flex flex-col items-center gap-3">
+          <span className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          <span className="font-semibold text-slate-700">Loading Enterprise Accounts Directory...</span>
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="p-8 max-w-xl mx-auto my-12 bg-rose-50 border border-rose-200 rounded-2xl p-6 text-center space-y-4 shadow-sm">
+      <div className="p-8 max-w-xl mx-auto my-12 bg-rose-50 border border-rose-200 rounded-2xl text-center space-y-4 shadow-sm">
         <h3 className="text-base font-bold text-rose-900">Failed to Load Accounts</h3>
-        <p className="text-xs text-rose-700">{(error as any).message || "An error occurred."}</p>
+        <p className="text-xs text-rose-700">{(error as any).message || "An unexpected error occurred."}</p>
         <button
           onClick={() => refetch()}
           className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
@@ -290,684 +281,558 @@ export default function Accounts() {
   return (
     <div className="p-6 md:p-8 space-y-6 max-w-7xl mx-auto font-sans bg-slate-50/50 min-h-screen">
       {/* ── TOP HEADER BAR ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
-        <div className="flex items-center gap-3 flex-wrap">
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight">Company Profile</h1>
-
-          {/* Quick Account Switcher Dropdown */}
-          {accounts.length > 0 && (
-            <div className="relative">
-              <select
-                value={activeAccount.id}
-                onChange={(e) => {
-                  setSelectedAccountId(e.target.value);
-                  navigate(`/accounts/${e.target.value}`);
-                }}
-                className="bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-700 hover:border-slate-300 shadow-2xs focus:outline-none cursor-pointer"
-              >
-                {accounts.map((a: any) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name || "Untitled Account"}
-                  </option>
-                ))}
-              </select>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center text-white shadow-md shadow-blue-500/20">
+              <Building2 className="w-5 h-5" />
             </div>
-          )}
-        </div>
-
-        <div className="flex items-center gap-3">
-          {/* Search Input */}
-          <div className="relative">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Search..."
-              value={searchFilter}
-              onChange={(e) => setSearchFilter(e.target.value)}
-              className="bg-white border border-slate-200 rounded-xl pl-8 pr-3 py-1.5 text-xs font-semibold focus:outline-none focus:border-blue-500 shadow-2xs w-48 sm:w-64 transition-all"
-            />
-          </div>
-
-          <button className="p-2 rounded-xl bg-white border border-slate-200/90 text-slate-500 hover:text-slate-800 shadow-2xs transition-colors cursor-pointer">
-            <Bell className="w-4 h-4" />
-          </button>
-
-          <button className="p-2 rounded-xl bg-white border border-slate-200/90 text-slate-500 hover:text-slate-800 shadow-2xs transition-colors cursor-pointer">
-            <HelpCircle className="w-4 h-4" />
-          </button>
-
-          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-xs flex items-center justify-center border-2 border-white shadow-xs">
-            S
-          </div>
-        </div>
-      </div>
-
-      {/* ── HERO HEADER CARD ── */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6">
-        <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
-          {/* Company Logo & Details */}
-          <div className="flex items-start gap-4">
-            {/* Logo box */}
-            <div className="w-16 h-16 rounded-2xl border border-slate-200/90 bg-gradient-to-br from-slate-50 to-indigo-50/50 p-2 shadow-2xs flex items-center justify-center shrink-0">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600 flex items-center justify-center text-white font-black text-xl shadow-xs">
-                {nameInitial}
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <div className="flex items-center gap-2.5 flex-wrap">
-                <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-                  {activeAccount.name || "Acme Corp"}
-                </h2>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-200/60">
-                  NEW LEAD
-                </span>
-              </div>
-
-              <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
-                <Globe className="w-3.5 h-3.5 text-slate-400" />
-                <a
-                  href={`https://${activeAccount.website || "acmecorp.com"}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="hover:text-blue-600 hover:underline"
-                >
-                  {activeAccount.website || (activeAccount.name ? `${activeAccount.name.toLowerCase().replace(/[^a-z0-9]/g, "")}.com` : "acmecorp.com")}
-                </a>
-              </div>
-
-              <p className="text-xs text-slate-500 font-normal leading-relaxed pt-1 max-w-2xl">
-                {activeAccount.description || "Leading provider of enterprise cloud solutions and managed IT services for the modern workforce."}
+            <div>
+              <h1 className="text-2xl font-black text-slate-900 tracking-tight">Accounts & Organizations</h1>
+              <p className="text-xs text-slate-500 font-medium">
+                Manage enterprise clients, corporate relationships, active deal pipelines, and account contacts.
               </p>
             </div>
           </div>
+        </div>
 
-          {/* Actions */}
-          <div className="flex items-center gap-2 shrink-0 self-start md:self-auto">
-            <button
-              onClick={() => {
-                setEditForm({
-                  name: activeAccount.name || "",
-                  industry: activeAccount.industry || "",
-                  address: activeAccount.address || "",
-                  phone: activeAccount.phone || "",
-                  email: activeAccount.email || ""
-                });
-                setIsEditModalOpen(true);
-              }}
-              className="px-3.5 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl shadow-2xs flex items-center gap-1.5 transition-all cursor-pointer"
-            >
-              <Edit2 className="w-3.5 h-3.5 text-slate-500" />
-              <span>Edit</span>
-            </button>
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={handleExportCSV}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-bold shadow-2xs transition-all cursor-pointer"
+          >
+            <Download className="w-3.5 h-3.5 text-slate-500" />
+            Export CSV
+          </button>
+          <button
+            onClick={() => setIsCreateModalOpen(true)}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold shadow-md shadow-blue-500/25 hover:shadow-lg transition-all cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            New Account
+          </button>
+        </div>
+      </div>
 
-            <button
-              onClick={() => setIsNoteModalOpen(true)}
-              className="px-3.5 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl shadow-2xs flex items-center gap-1.5 transition-all cursor-pointer"
-            >
-              <FileText className="w-3.5 h-3.5 text-slate-500" />
-              <span>Add Note</span>
-            </button>
+      {/* ── SUMMARY KPI METRIC CARDS ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Metric 1: Total Accounts */}
+        <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs hover:border-slate-300 transition-all">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Accounts</span>
+            <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+              <Building2 className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-3">
+            <div className="text-2xl font-black text-slate-900">{metrics.totalAccounts}</div>
+            <div className="text-[11px] font-semibold text-emerald-600 flex items-center gap-1 mt-0.5">
+              <TrendingUp className="w-3 h-3" />
+              <span>Active client organizations</span>
+            </div>
+          </div>
+        </div>
 
-            <button
-              onClick={() => setIsTaskModalOpen(true)}
-              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
-            >
-              <CheckSquare className="w-3.5 h-3.5" />
-              <span>New Task</span>
-            </button>
+        {/* Metric 2: Total Active Pipeline */}
+        <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs hover:border-slate-300 transition-all">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Active Pipeline</span>
+            <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+              <DollarSign className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-3">
+            <div className="text-2xl font-black text-slate-900">{formatCurrency(metrics.totalPipeline)}</div>
+            <div className="text-[11px] font-semibold text-slate-500 mt-0.5">Across all commercial opportunities</div>
+          </div>
+        </div>
+
+        {/* Metric 3: Associated Contacts */}
+        <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs hover:border-slate-300 transition-all">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Key Contacts</span>
+            <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+              <Users className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-3">
+            <div className="text-2xl font-black text-slate-900">{metrics.totalContacts}</div>
+            <div className="text-[11px] font-semibold text-indigo-600 mt-0.5">Stakeholders & Decision Makers</div>
+          </div>
+        </div>
+
+        {/* Metric 4: Avg Opportunity Size */}
+        <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs hover:border-slate-300 transition-all">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Avg Opportunity</span>
+            <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+              <Award className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-3">
+            <div className="text-2xl font-black text-slate-900">{formatCurrency(metrics.avgDealValue)}</div>
+            <div className="text-[11px] font-semibold text-purple-600 mt-0.5">Enterprise contract tier</div>
           </div>
         </div>
       </div>
 
-      {/* ── 3-METRICS KPI ROW ── */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Metric 1: Total Pipeline */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[11px] font-bold uppercase tracking-wider">TOTAL PIPELINE</span>
-            <div className="w-7 h-7 rounded-full border border-slate-200 bg-slate-50 text-slate-700 flex items-center justify-center font-bold text-xs">
-              $
-            </div>
-          </div>
-          <div className="mt-2">
-            <div className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-              ${(totalPipeline / 1000000).toFixed(1)}M
-            </div>
-            <div className="text-xs font-semibold text-blue-600 flex items-center gap-1 mt-1">
-              <TrendingUp className="w-3.5 h-3.5" />
-              <span>+15% vs last quarter</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Metric 2: Active Deals */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[11px] font-bold uppercase tracking-wider">ACTIVE DEALS</span>
-            <div className="w-7 h-7 rounded-full border border-slate-200 bg-slate-50 text-slate-700 flex items-center justify-center font-bold text-xs">
-              <Briefcase className="w-3.5 h-3.5 text-slate-600" />
-            </div>
-          </div>
-          <div className="mt-2">
-            <div className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-              {activeDealsCount}
-            </div>
-            <div className="text-xs font-semibold text-slate-500 mt-1">
-              Across 2 divisions
-            </div>
-          </div>
-        </div>
-
-        {/* Metric 3: Avg Deal Size */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[11px] font-bold uppercase tracking-wider">AVG. DEAL SIZE</span>
-            <div className="w-7 h-7 rounded-full border border-slate-200 bg-slate-50 text-slate-700 flex items-center justify-center font-bold text-xs">
-              <BarChart3 className="w-3.5 h-3.5 text-slate-600" />
-            </div>
-          </div>
-          <div className="mt-2">
-            <div className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-              ${Math.round(avgDealSize / 1000)}k
-            </div>
-            <div className="text-xs font-semibold text-slate-500 mt-1">
-              Enterprise Tier
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ── MAIN 2-COLUMN GRID (8 cols left, 4 cols right) ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* ── LEFT COLUMN (About & Deals) ── */}
-        <div className="lg:col-span-8 space-y-6">
-          {/* About Card */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 space-y-3">
-            <h3 className="text-base font-bold text-slate-900">About</h3>
-            <p className="text-xs text-slate-600 leading-relaxed">
-              {activeAccount.about ||
-                `${activeAccount.name || "Acme Corp"} is a multinational technology conglomerate specializing in enterprise software, cloud infrastructure, and data analytics. Founded in 2010, they have rapidly expanded their footprint in the North American and European markets. They are currently looking to upgrade their legacy systems and migrate core operations to a more robust cloud architecture.`}
-            </p>
-          </div>
-
-          {/* Deals Card */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <h3 className="text-base font-bold text-slate-900">Deals</h3>
-
-                {/* Filter Tabs */}
-                <div className="flex items-center bg-slate-100/80 p-0.5 rounded-xl border border-slate-200/60 text-xs">
-                  <button
-                    onClick={() => setDealTab("Active")}
-                    className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
-                      dealTab === "Active"
-                        ? "bg-white text-slate-900 font-bold shadow-2xs"
-                        : "text-slate-500 hover:text-slate-900 font-semibold"
-                    }`}
-                  >
-                    Active
-                  </button>
-                  <button
-                    onClick={() => setDealTab("Closed")}
-                    className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
-                      dealTab === "Closed"
-                        ? "bg-white text-slate-900 font-bold shadow-2xs"
-                        : "text-slate-500 hover:text-slate-900 font-semibold"
-                    }`}
-                  >
-                    Closed
-                  </button>
-                  <button
-                    onClick={() => setDealTab("Lost")}
-                    className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
-                      dealTab === "Lost"
-                        ? "bg-white text-slate-900 font-bold shadow-2xs"
-                        : "text-slate-500 hover:text-slate-900 font-semibold"
-                    }`}
-                  >
-                    Lost
-                  </button>
-                </div>
-              </div>
-
-              <button className="text-slate-400 hover:text-slate-600 p-1 rounded-lg cursor-pointer">
-                <MoreHorizontal className="w-4 h-4" />
+      {/* ── FILTER & SEARCH TOOLBAR ── */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-4 flex flex-col md:flex-row md:items-center justify-between gap-3.5">
+        <div className="flex flex-1 flex-wrap items-center gap-3">
+          {/* Search Box */}
+          <div className="relative min-w-[220px] sm:min-w-[280px] flex-1 max-w-md">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Search by company name, industry, location, email..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full bg-slate-50/80 border border-slate-200/90 rounded-xl pl-9 pr-8 py-2 text-xs font-semibold focus:bg-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
               </button>
-            </div>
+            )}
+          </div>
 
-            {/* Deals Table */}
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                    <th className="pb-3 font-bold">Deal Name</th>
-                    <th className="pb-3 font-bold">Value</th>
-                    <th className="pb-3 font-bold">Stage</th>
-                    <th className="pb-3 font-bold">Close Date</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {filteredDeals.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} className="py-8 text-center text-xs text-slate-400">
-                        No {dealTab.toLowerCase()} deals for this account.
+          {/* Industry Filter Dropdown */}
+          <div className="flex items-center gap-1.5">
+            <Filter className="w-3.5 h-3.5 text-slate-400" />
+            <select
+              value={selectedIndustry}
+              onChange={(e) => setSelectedIndustry(e.target.value)}
+              className="bg-slate-50/80 border border-slate-200/90 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:bg-white focus:outline-none focus:border-blue-500 cursor-pointer"
+            >
+              <option value="all">All Industries ({accounts.length})</option>
+              {availableIndustries.map((ind) => (
+                <option key={ind} value={ind}>
+                  {ind}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Sort By Dropdown */}
+          <div className="flex items-center gap-1.5">
+            <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
+            <select
+              value={sortBy}
+              onChange={(e: any) => setSortBy(e.target.value)}
+              className="bg-slate-50/80 border border-slate-200/90 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:bg-white focus:outline-none focus:border-blue-500 cursor-pointer"
+            >
+              <option value="pipeline_desc">Highest Pipeline</option>
+              <option value="name_asc">Company Name (A-Z)</option>
+              <option value="name_desc">Company Name (Z-A)</option>
+              <option value="contacts_desc">Most Contacts</option>
+            </select>
+          </div>
+        </div>
+
+        {/* View Switcher: Table vs Grid */}
+        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl shrink-0 self-end md:self-auto">
+          <button
+            onClick={() => setViewMode("table")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              viewMode === "table" ? "bg-white text-blue-600 shadow-xs" : "text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            <List className="w-3.5 h-3.5" />
+            <span>Table</span>
+          </button>
+          <button
+            onClick={() => setViewMode("grid")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              viewMode === "grid" ? "bg-white text-blue-600 shadow-xs" : "text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            <LayoutGrid className="w-3.5 h-3.5" />
+            <span>Grid</span>
+          </button>
+        </div>
+      </div>
+
+      {/* ── ACCOUNTS LIST SECTION ── */}
+      {filteredAccounts.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center space-y-3 shadow-xs">
+          <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+            <Building2 className="w-6 h-6" />
+          </div>
+          <h3 className="text-sm font-bold text-slate-800">No matching accounts found</h3>
+          <p className="text-xs text-slate-500 max-w-sm mx-auto">
+            Try adjusting your search criteria or industry filter to find what you are looking for.
+          </p>
+          <button
+            onClick={() => {
+              setSearchTerm("");
+              setSelectedIndustry("all");
+              setSelectedTier("all");
+            }}
+            className="px-3.5 py-1.5 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 text-xs font-bold transition-all cursor-pointer"
+          >
+            Reset Filters
+          </button>
+        </div>
+      ) : viewMode === "table" ? (
+        /* ─── DATA TABLE VIEW ─── */
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50/75 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                  <th className="py-3.5 px-5">Company</th>
+                  <th className="py-3.5 px-4">Industry</th>
+                  <th className="py-3.5 px-4">HQ Location</th>
+                  <th className="py-3.5 px-4">Active Pipeline</th>
+                  <th className="py-3.5 px-4">Contacts</th>
+                  <th className="py-3.5 px-4">Status</th>
+                  <th className="py-3.5 px-5 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredAccounts.map((account) => {
+                  const nameInit = (account.name || "A").trim().charAt(0).toUpperCase();
+                  const deals = Array.isArray(account.deals) ? account.deals : [];
+                  const activeDeals = deals.filter((d: any) => {
+                    const s = (d.status || "").toUpperCase();
+                    const stg = (d.stage?.name || d.stage || "").toLowerCase();
+                    return s !== "LOST" && !stg.includes("lost");
+                  });
+                  const pipeVal = activeDeals.reduce((sum: number, d: any) => sum + (Number(d.amount || d.value) || 0), 0);
+                  const contacts = Array.isArray(account.contacts) ? account.contacts : [];
+                  const primaryContact = contacts[0] || (account.primaryContactName ? { firstName: account.primaryContactName } : null);
+                  const websiteDomain = account.website || (account.name ? `${account.name.toLowerCase().replace(/[^a-z0-9]/g, "")}.com` : "");
+
+                  return (
+                    <tr
+                      key={account.id}
+                      onClick={() => navigate(`/accounts/${account.id}`)}
+                      className="group hover:bg-blue-50/30 transition-colors cursor-pointer"
+                    >
+                      {/* Company Info */}
+                      <td className="py-4 px-5">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600 text-white font-black text-sm flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+                            {nameInit}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors truncate">
+                              {account.name || "Untitled Organization"}
+                            </div>
+                            {websiteDomain && (
+                              <div className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-600 truncate mt-0.5">
+                                <Globe className="w-3 h-3 text-slate-400" />
+                                <span>{websiteDomain}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Industry */}
+                      <td className="py-4 px-4">
+                        <span
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${getIndustryBadgeClass(
+                            account.industry
+                          )}`}
+                        >
+                          {account.industry || "General"}
+                        </span>
+                      </td>
+
+                      {/* Location */}
+                      <td className="py-4 px-4 text-slate-600 font-medium">
+                        <div className="flex items-center gap-1.5 truncate max-w-[200px]">
+                          <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <span className="truncate">{account.address || "Global / Unassigned"}</span>
+                        </div>
+                      </td>
+
+                      {/* Pipeline */}
+                      <td className="py-4 px-4">
+                        <div>
+                          <div className="font-black text-slate-900">{formatCurrency(pipeVal)}</div>
+                          <div className="text-[11px] font-semibold text-slate-400">
+                            {activeDeals.length} {activeDeals.length === 1 ? "active deal" : "active deals"}
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Contacts */}
+                      <td className="py-4 px-4">
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 rounded-full bg-indigo-50 border border-indigo-200/60 text-indigo-700 text-[10px] font-black flex items-center justify-center">
+                            {contacts.length}
+                          </div>
+                          {primaryContact && (
+                            <span className="text-[11px] text-slate-600 font-medium truncate max-w-[130px]">
+                              {primaryContact.firstName} {primaryContact.lastName || ""}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Status */}
+                      <td className="py-4 px-4">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-slate-100 text-slate-700 border border-slate-200">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                          {account.status || "ACTIVE"}
+                        </span>
+                      </td>
+
+                      {/* Actions */}
+                      <td className="py-4 px-5 text-right">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/accounts/${account.id}`);
+                          }}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-blue-600 hover:text-white border border-slate-200/90 text-slate-700 text-xs font-bold shadow-2xs transition-all cursor-pointer"
+                        >
+                          <span>View 360</span>
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </button>
                       </td>
                     </tr>
-                  ) : (
-                    filteredDeals.map((deal: any) => {
-                      const stageName = deal.stage?.name || deal.stage || "Proposal";
-                      return (
-                        <tr
-                          key={deal.id}
-                          onClick={() => navigate(`/opportunities/${deal.id}`)}
-                          className="hover:bg-slate-50/80 cursor-pointer transition-colors group"
-                        >
-                          <td className="py-3.5 pr-4 font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
-                            {deal.name}
-                          </td>
-                          <td className="py-3.5 pr-4 font-semibold text-slate-800">
-                            ${Number(deal.amount || deal.value || 0).toLocaleString()}
-                          </td>
-                          <td className="py-3.5 pr-4">
-                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-100 inline-block">
-                              {stageName}
-                            </span>
-                          </td>
-                          <td className="py-3.5 text-slate-500 font-medium">
-                            {deal.expectedCloseDate
-                              ? new Date(deal.expectedCloseDate).toLocaleDateString("en-US", {
-                                  month: "short",
-                                  day: "2-digit",
-                                  year: "numeric"
-                                })
-                              : "Nov 01, 2024"}
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-
-          {/* Client History & Commercial Track Record */}
-          <AccountClientHistory
-            accountId={activeAccount.id || ""}
-            accountName={activeAccount.name}
-            leads={account360?.leads || account360?.relatedLeads || []}
-            quotes={account360?.quotes || []}
-            deals={account360?.deals || accountDeals || []}
-            orders={account360?.purchaseOrders || account360?.orders || []}
-            activities={account360?.activities || []}
-          />
         </div>
+      ) : (
+        /* ─── VISUAL CARDS GRID VIEW ─── */
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {filteredAccounts.map((account) => {
+            const nameInit = (account.name || "A").trim().charAt(0).toUpperCase();
+            const deals = Array.isArray(account.deals) ? account.deals : [];
+            const activeDeals = deals.filter((d: any) => {
+              const s = (d.status || "").toUpperCase();
+              const stg = (d.stage?.name || d.stage || "").toLowerCase();
+              return s !== "LOST" && !stg.includes("lost");
+            });
+            const pipeVal = activeDeals.reduce((sum: number, d: any) => sum + (Number(d.amount || d.value) || 0), 0);
+            const contacts = Array.isArray(account.contacts) ? account.contacts : [];
+            const websiteDomain = account.website || (account.name ? `${account.name.toLowerCase().replace(/[^a-z0-9]/g, "")}.com` : "");
 
-        {/* ── RIGHT COLUMN (Information & Contacts) ── */}
-        <div className="lg:col-span-4 space-y-6">
-          {/* Information Card */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 space-y-4">
-            <h3 className="text-base font-bold text-slate-900 border-b border-slate-100 pb-3">
-              Information
-            </h3>
-
-            <div className="space-y-3.5 text-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400 font-medium">Industry</span>
-                <span className="font-bold text-slate-800">{activeAccount.industry || "Technology"}</span>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400 font-medium">Size</span>
-                <span className="font-bold text-slate-800">1,000 - 5,000</span>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400 font-medium">Revenue</span>
-                <span className="font-bold text-slate-800">$50M - $100M</span>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400 font-medium">HQ Location</span>
-                <span className="font-bold text-slate-800 flex items-center gap-1">
-                  <span>{activeAccount.address || "San Francisco, CA"}</span>
-                  <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Contacts Card */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold text-slate-900">Contacts</h3>
-              <button
-                onClick={() => setIsContactModalOpen(true)}
-                className="w-6 h-6 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center text-xs font-bold transition-colors cursor-pointer"
-                title="Add Contact"
+            return (
+              <div
+                key={account.id}
+                onClick={() => navigate(`/accounts/${account.id}`)}
+                className="group bg-white rounded-2xl border border-slate-200 p-5 shadow-xs hover:shadow-md hover:border-blue-300 transition-all cursor-pointer flex flex-col justify-between"
               >
-                <Plus className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
-            <div>
-              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2.5">
-                PRIMARY CONTACT
-              </div>
-
-              {/* Contact Card */}
-              <div className="p-3.5 bg-slate-50/70 rounded-xl border border-slate-100 space-y-2.5">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-bold text-sm flex items-center justify-center shrink-0 border border-white shadow-2xs">
-                    {(primaryContact?.firstName || "S").charAt(0)}{(primaryContact?.lastName || "J").charAt(0)}
-                  </div>
-                  <div>
-                    <div className="text-sm font-bold text-slate-900">
-                      {primaryContact?.firstName} {primaryContact?.lastName}
-                    </div>
-                    <div className="text-xs text-slate-500 font-medium">
-                      {primaryContact?.role || "VP of Engineering"}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="pt-2 border-t border-slate-200/50 space-y-1 text-xs text-slate-600">
-                  <div className="flex items-center gap-2">
-                    <Mail className="w-3.5 h-3.5 text-slate-400" />
-                    <a
-                      href={`mailto:${primaryContact?.email || "sarah.j@acmecorp.com"}`}
-                      className="hover:text-blue-600 hover:underline"
-                    >
-                      {primaryContact?.email || "sarah.j@acmecorp.com"}
-                    </a>
-                  </div>
-                  {primaryContact?.phone && (
-                    <div className="flex items-center gap-2 text-slate-500">
-                      <Phone className="w-3.5 h-3.5 text-slate-400" />
-                      <span>{primaryContact.phone}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Other Contacts if available */}
-              {accountContacts.length > 1 && (
-                <div className="mt-3 space-y-2">
-                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                    OTHER CONTACTS ({accountContacts.length - 1})
-                  </div>
-                  {accountContacts.slice(1).map((c: any) => (
-                    <div key={c.id} className="p-2.5 bg-white rounded-lg border border-slate-200 text-xs flex items-center justify-between">
-                      <div>
-                        <div className="font-bold text-slate-900">{c.firstName} {c.lastName}</div>
-                        <div className="text-[11px] text-slate-500">{c.role || "Stakeholder"}</div>
+                <div>
+                  {/* Card Header */}
+                  <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-100">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600 text-white font-black text-base flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+                        {nameInit}
                       </div>
-                      <a href={`mailto:${c.email}`} className="text-slate-400 hover:text-blue-600">
-                        <Mail className="w-3.5 h-3.5" />
-                      </a>
+                      <div className="min-w-0">
+                        <h3 className="font-black text-slate-900 text-sm group-hover:text-blue-600 transition-colors truncate">
+                          {account.name || "Untitled Organization"}
+                        </h3>
+                        {websiteDomain && (
+                          <div className="text-[11px] text-slate-400 font-medium truncate mt-0.5">{websiteDomain}</div>
+                        )}
+                      </div>
                     </div>
-                  ))}
+
+                    <span
+                      className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border shrink-0 ${getIndustryBadgeClass(
+                        account.industry
+                      )}`}
+                    >
+                      {account.industry || "General"}
+                    </span>
+                  </div>
+
+                  {/* Card Description/Location */}
+                  <div className="py-3 space-y-1.5 text-xs text-slate-500">
+                    <div className="flex items-center gap-1.5">
+                      <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span className="truncate">{account.address || "Global / Unassigned HQ"}</span>
+                    </div>
+                    {account.phone && (
+                      <div className="flex items-center gap-1.5">
+                        <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span className="truncate">{account.phone}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Micro Metrics */}
+                  <div className="grid grid-cols-2 gap-2 bg-slate-50/80 p-3 rounded-xl border border-slate-100 mb-4">
+                    <div>
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Pipeline</div>
+                      <div className="text-sm font-black text-slate-900">{formatCurrency(pipeVal)}</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Active Deals</div>
+                      <div className="text-sm font-black text-slate-900">{activeDeals.length}</div>
+                    </div>
+                  </div>
                 </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
 
-      {/* ── MODALS ── */}
+                {/* Card Footer */}
+                <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                  <div className="flex items-center gap-1.5 text-xs text-slate-500 font-semibold">
+                    <Users className="w-3.5 h-3.5 text-slate-400" />
+                    <span>{contacts.length} Contacts</span>
+                  </div>
 
-      {/* Edit Account Modal */}
-      {isEditModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-slate-200 space-y-4">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <h3 className="text-sm font-bold text-slate-900">Edit Company Profile</h3>
-              <button onClick={() => setIsEditModalOpen(false)} className="text-slate-400 hover:text-slate-600">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="space-y-3 text-xs">
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Company Name</label>
-                <input
-                  type="text"
-                  value={editForm.name}
-                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold"
-                />
+                  <span className="text-xs font-bold text-blue-600 group-hover:translate-x-1 transition-transform flex items-center gap-0.5">
+                    <span>Open 360</span>
+                    <ChevronRight className="w-4 h-4" />
+                  </span>
+                </div>
               </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Industry</label>
-                <input
-                  type="text"
-                  value={editForm.industry}
-                  onChange={(e) => setEditForm({ ...editForm, industry: e.target.value })}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">HQ Address / Location</label>
-                <input
-                  type="text"
-                  value={editForm.address}
-                  onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-              <button
-                onClick={() => setIsEditModalOpen(false)}
-                className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => updateAccountMutation.mutate(editForm)}
-                disabled={updateAccountMutation.isPending}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs"
-              >
-                {updateAccountMutation.isPending ? "Saving..." : "Save Changes"}
-              </button>
-            </div>
-          </div>
+            );
+          })}
         </div>
       )}
 
-      {/* Add Note Modal */}
-      {isNoteModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-slate-200 space-y-4">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <h3 className="text-sm font-bold text-slate-900">Add Account Note</h3>
-              <button onClick={() => setIsNoteModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+      {/* ── CREATE NEW ACCOUNT MODAL ── */}
+      {isCreateModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 space-y-5 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                  <Building2 className="w-4 h-4" />
+                </div>
+                <h3 className="text-base font-black text-slate-900">Create New Account</h3>
+              </div>
+              <button
+                onClick={() => setIsCreateModalOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <textarea
-              rows={4}
-              placeholder="Log account notes, customer updates, meeting notes..."
-              value={noteContent}
-              onChange={(e) => setNoteContent(e.target.value)}
-              className="w-full p-3 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-1 focus:ring-blue-500 font-medium"
-            />
-
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-              <button
-                onClick={() => setIsNoteModalOpen(false)}
-                className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => noteContent.trim() && addNoteMutation.mutate(noteContent.trim())}
-                disabled={!noteContent.trim() || addNoteMutation.isPending}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs"
-              >
-                {addNoteMutation.isPending ? "Saving..." : "Save Note"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* New Task Modal */}
-      {isTaskModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-slate-200 space-y-4">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <h3 className="text-sm font-bold text-slate-900">Create New Task</h3>
-              <button onClick={() => setIsTaskModalOpen(false)} className="text-slate-400 hover:text-slate-600">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="space-y-3 text-xs">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!newAccountForm.name.trim()) return;
+                createAccountMutation.mutate(newAccountForm);
+              }}
+              className="space-y-4"
+            >
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Task Title *</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Company Name <span className="text-rose-500">*</span>
+                </label>
                 <input
                   type="text"
-                  placeholder="e.g. Schedule quarterly business review"
-                  value={taskForm.title}
-                  onChange={(e) => setTaskForm({ ...taskForm, title: e.target.value })}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold"
+                  required
+                  placeholder="e.g. Acme Global Technologies"
+                  value={newAccountForm.name}
+                  onChange={(e) => setNewAccountForm({ ...newAccountForm, name: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:bg-white focus:outline-none focus:border-blue-500"
                 />
               </div>
 
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Industry</label>
+                  <select
+                    value={newAccountForm.industry}
+                    onChange={(e) => setNewAccountForm({ ...newAccountForm, industry: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:bg-white focus:outline-none focus:border-blue-500 cursor-pointer"
+                  >
+                    <option value="Technology">Technology</option>
+                    <option value="Healthcare">Healthcare</option>
+                    <option value="Financial Services">Financial Services</option>
+                    <option value="Manufacturing">Manufacturing</option>
+                    <option value="Energy & Utilities">Energy & Utilities</option>
+                    <option value="Retail & E-Commerce">Retail & E-Commerce</option>
+                    <option value="Logistics & Supply Chain">Logistics & Supply Chain</option>
+                    <option value="Telecommunications">Telecommunications</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Website Domain</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. acmeglobal.com"
+                    value={newAccountForm.website}
+                    onChange={(e) => setNewAccountForm({ ...newAccountForm, website: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:bg-white focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Primary Email</label>
+                  <input
+                    type="email"
+                    placeholder="contact@acme.com"
+                    value={newAccountForm.email}
+                    onChange={(e) => setNewAccountForm({ ...newAccountForm, email: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:bg-white focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Phone Number</label>
+                  <input
+                    type="text"
+                    placeholder="+1 (555) 000-0000"
+                    value={newAccountForm.phone}
+                    onChange={(e) => setNewAccountForm({ ...newAccountForm, phone: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:bg-white focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+              </div>
+
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Due Date</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">HQ Address / Location</label>
                 <input
-                  type="date"
-                  value={taskForm.dueDate}
-                  onChange={(e) => setTaskForm({ ...taskForm, dueDate: e.target.value })}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold"
+                  type="text"
+                  placeholder="e.g. 100 Innovation Way, Suite 400, Austin, TX"
+                  value={newAccountForm.address}
+                  onChange={(e) => setNewAccountForm({ ...newAccountForm, address: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:bg-white focus:outline-none focus:border-blue-500"
                 />
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Priority</label>
-                <select
-                  value={taskForm.priority}
-                  onChange={(e) => setTaskForm({ ...taskForm, priority: e.target.value })}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold cursor-pointer"
+                <label className="block text-xs font-bold text-slate-700 mb-1">Primary Contact Name</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Alex Morgan"
+                  value={newAccountForm.primaryContactName}
+                  onChange={(e) => setNewAccountForm({ ...newAccountForm, primaryContactName: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:bg-white focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsCreateModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
                 >
-                  <option value="High">High</option>
-                  <option value="Medium">Medium</option>
-                  <option value="Low">Low</option>
-                </select>
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={createAccountMutation.isPending}
+                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold shadow-md shadow-blue-500/25 transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  {createAccountMutation.isPending && (
+                    <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  )}
+                  <span>Create Account</span>
+                </button>
               </div>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-              <button
-                onClick={() => setIsTaskModalOpen(false)}
-                className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => taskForm.title.trim() && addTaskMutation.mutate(taskForm)}
-                disabled={!taskForm.title.trim() || addTaskMutation.isPending}
-                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-xs"
-              >
-                {addTaskMutation.isPending ? "Creating..." : "Create Task"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Add Contact Modal */}
-      {isContactModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-slate-200 space-y-4">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <h3 className="text-sm font-bold text-slate-900">Add Account Contact</h3>
-              <button onClick={() => setIsContactModalOpen(false)} className="text-slate-400 hover:text-slate-600">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="space-y-3 text-xs">
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">First Name *</label>
-                  <input
-                    type="text"
-                    placeholder="Sarah"
-                    value={contactForm.firstName}
-                    onChange={(e) => setContactForm({ ...contactForm, firstName: e.target.value })}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Last Name</label>
-                  <input
-                    type="text"
-                    placeholder="Jenkins"
-                    value={contactForm.lastName}
-                    onChange={(e) => setContactForm({ ...contactForm, lastName: e.target.value })}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Role / Job Title</label>
-                <input
-                  type="text"
-                  placeholder="VP of Engineering"
-                  value={contactForm.role}
-                  onChange={(e) => setContactForm({ ...contactForm, role: e.target.value })}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Email</label>
-                <input
-                  type="email"
-                  placeholder="sarah.j@acmecorp.com"
-                  value={contactForm.email}
-                  onChange={(e) => setContactForm({ ...contactForm, email: e.target.value })}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Phone</label>
-                <input
-                  type="text"
-                  placeholder="+1 (555) 234-5678"
-                  value={contactForm.phone}
-                  onChange={(e) => setContactForm({ ...contactForm, phone: e.target.value })}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-              <button
-                onClick={() => setIsContactModalOpen(false)}
-                className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => contactForm.firstName.trim() && addContactMutation.mutate(contactForm)}
-                disabled={!contactForm.firstName.trim() || addContactMutation.isPending}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs"
-              >
-                {addContactMutation.isPending ? "Adding..." : "Add Contact"}
-              </button>
-            </div>
+            </form>
           </div>
         </div>
       )}
