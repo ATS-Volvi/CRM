@@ -65,6 +65,18 @@ export async function runDailyCron(req: Request, res: Response): Promise<void> {
   const results: Record<string, any> = {};
 
   try {
+    // 1. Task & Email checks
+    const overdueResult = await checkOverdueTasks().catch(err => ({ error: err.message }));
+    const emailsResult = await processScheduledEmails().catch(err => ({ error: err.message }));
+    const followUpsResult = await processQuoteFollowUps().catch(err => ({ error: err.message }));
+    const connectorsResult = await runPolledConnectors().catch(err => ({ error: err.message }));
+
+    results.checkOverdueTasks = overdueResult || "ok";
+    results.processScheduledEmails = emailsResult || "ok";
+    results.processQuoteFollowUps = followUpsResult || "ok";
+    results.runPolledConnectors = connectorsResult || "ok";
+
+    // 2. Expirations, Escalations, POs & Reports
     await checkExpiredQuotes().catch(err => { results.checkExpiredQuotes = { error: err.message }; });
     await escalateUnactionedApprovals().catch(err => { results.escalateUnactionedApprovals = { error: err.message }; });
     await checkOutstandingPOs().catch(err => { results.checkOutstandingPOs = { error: err.message }; });
