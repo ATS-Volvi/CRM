@@ -51,5 +51,13 @@ export function createServer(): Express {
     next();
   });
 
+  // Global error handler to ensure JSON response for API calls
+  app.use((err: any, _req: any, res: any, _next: any) => {
+    console.error("[EXPRESS ERROR]", err);
+    res.status(err.status || 500).json({
+      error: err.message || "Internal Server Error"
+    });
+  });
+
   return app;
 }
