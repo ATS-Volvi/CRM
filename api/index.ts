@@ -1,5 +1,4 @@
 import "dotenv/config";
-import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createServer } from "../backend/server";
 import { Database, sequelize } from "@nexus-crm/database";
 
@@ -23,7 +22,7 @@ async function initializeApp() {
   }
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: any, res: any) {
   await initializeApp();
   return (app as any)(req, res);
 }
