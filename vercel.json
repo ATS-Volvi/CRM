@@ -1,15 +1,31 @@
 {
+  "version": 2,
   "buildCommand": "npm run build",
   "outputDirectory": "frontend/dist",
-  "installCommand": "npm install",
+  "functions": {
+    "api/index.ts": {
+      "maxDuration": 60,
+      "memory": 1024
+    }
+  },
   "rewrites": [
     {
-      "source": "/api/:path*",
-      "destination": "https://REPLACE_WITH_YOUR_RAILWAY_URL.up.railway.app/api/:path*"
+      "source": "/api/(.*)",
+      "destination": "/api/index.ts"
     },
     {
       "source": "/(.*)",
       "destination": "/index.html"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/v1/cron/hourly",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/v1/cron/daily",
+      "schedule": "0 0 * * *"
     }
   ]
 }

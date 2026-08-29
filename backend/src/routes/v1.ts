@@ -835,4 +835,14 @@ router.get("/support-tickets", authMiddleware, listSupportTickets);
 router.get("/support-tickets/:id", authMiddleware, getSupportTicketById);
 router.put("/support-tickets/:id", authMiddleware, updateSupportTicket);
 
+// ==========================================
+// VERCEL SERVERLESS CRON JOBS
+// ==========================================
+import { runHourlyCron, runDailyCron } from "../controllers/cronController";
+router.get("/cron/hourly", runHourlyCron);
+router.post("/cron/hourly", runHourlyCron);
+router.get("/cron/daily", runDailyCron);
+router.post("/cron/daily", runDailyCron);
+
 export default router;
+

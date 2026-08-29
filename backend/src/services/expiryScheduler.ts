@@ -17,7 +17,7 @@ export function startExpiryScheduler() {
   console.log("Quote Expiry Scheduler service initialized.");
 }
 
-async function checkExpiredQuotes() {
+export async function checkExpiredQuotes() {
   try {
     const { Op } = require("sequelize");
     console.log("Checking for expired quotes...");
@@ -40,7 +40,7 @@ async function checkExpiredQuotes() {
   }
 }
 
-async function escalateUnactionedApprovals() {
+export async function escalateUnactionedApprovals() {
   try {
     const { Op } = require("sequelize");
     console.log("Checking for unactioned approvals to escalate...");
@@ -80,7 +80,7 @@ async function escalateUnactionedApprovals() {
   }
 }
 
-async function checkOutstandingPOs() {
+export async function checkOutstandingPOs() {
   try {
     const { Op } = require("sequelize");
     console.log("Checking for outstanding POs...");
@@ -142,7 +142,7 @@ async function checkOutstandingPOs() {
   }
 }
 
-async function checkOverdueTasksAndSendDigests() {
+export async function checkOverdueTasksAndSendDigests() {
   try {
     const { Op } = require("sequelize");
     console.log("Checking overdue tasks and generating daily task digests...");

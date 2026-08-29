@@ -28,5 +28,9 @@
   },
   "dependencies": {
     "@dietrichgebert/ponytail": "github:DietrichGebert/ponytail"
+  },
+  "devDependencies": {
+    "@vercel/node": "^3.2.33",
+    "typescript": "^5.7.2"
   }
 }
