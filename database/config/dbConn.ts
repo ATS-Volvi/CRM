@@ -1,6 +1,11 @@
 import { Sequelize } from "sequelize";
 import * as path from "path";
-import "dotenv/config";
+import * as dotenv from "dotenv";
+dotenv.config();
+if (!process.env.DATABASE_URL) {
+  dotenv.config({ path: path.resolve(__dirname, "../../backend/.env") });
+  dotenv.config({ path: path.resolve(__dirname, "../../../backend/.env") });
+}
 
 const sqlitePath = __dirname.includes("dist")
   ? path.resolve(__dirname, "../../../nexus_crm.sqlite")

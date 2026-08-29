@@ -35,8 +35,26 @@ const options: swaggerJsdoc.Options = {
   apis: ['./src/routes/*.ts', './src/controllers/*.ts'], // Scan for JSDoc comments
 };
 
-const specs = swaggerJsdoc(options);
+let specs: any = {
+  openapi: '3.0.0',
+  info: {
+    title: 'Nexus CRM API',
+    version: '1.0.0',
+    description: 'API Documentation for Nexus CRM Backend',
+  },
+  paths: {},
+};
+
+try {
+  specs = swaggerJsdoc(options);
+} catch (err) {
+  console.warn('[Swagger] Unable to parse JSDoc annotations in current runtime:', err);
+}
 
 export const setupSwagger = (app: Express) => {
-  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs, { explorer: true }));
+  try {
+    app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs, { explorer: true }));
+  } catch (err) {
+    console.warn('[Swagger] Error mounting swagger UI:', err);
+  }
 };

@@ -59,6 +59,22 @@ module.exports = {
         { transaction: t }
       );
 
+      // Ensure Invoices has a primary key on id
+      await queryInterface.sequelize.query(
+        `
+        DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint WHERE conname = 'Invoices_pkey'
+          ) THEN
+            ALTER TABLE public."Invoices" ADD PRIMARY KEY (id);
+          END IF;
+        END
+        $$;
+        `,
+        { transaction: t }
+      );
+
       // 3. Create Payments table
       if (!tables.includes("Payments")) {
         await queryInterface.createTable(
@@ -70,7 +86,7 @@ module.exports = {
               primaryKey: true
             },
             invoiceId: {
-              type: DataTypes.UUID,
+              type: DataTypes.STRING,
               allowNull: false,
               references: { model: "Invoices", key: "id" },
               onDelete: "CASCADE",

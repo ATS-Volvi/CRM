@@ -48,28 +48,35 @@ export function createServer(): Express {
 
   app.use(["/api/v1", "/v1"], v1Router);
 
-  // Robust SPA build path resolution across Render/Docker environments
-  const fs = require("fs");
-  const possiblePaths = [
-    path.join(process.cwd(), "../frontend/dist"),
-    path.join(process.cwd(), "frontend/dist"),
-    path.resolve(__dirname, "../../../frontend/dist"),
-    path.resolve(__dirname, "../../frontend/dist"),
-    path.resolve(__dirname, "../frontend/dist")
-  ];
-  const frontendBuildPath = possiblePaths.find(p => fs.existsSync(p)) || possiblePaths[0];
-  app.use(express.static(frontendBuildPath));
+  // Robust SPA build path resolution across Render/Docker/Local environments (Vercel serves frontend statically directly)
+  if (!process.env.VERCEL) {
+    const fs = require("fs");
+    const possiblePaths = [
+      path.join(process.cwd(), "../frontend/dist"),
+      path.join(process.cwd(), "frontend/dist"),
+      path.resolve(__dirname, "../../../frontend/dist"),
+      path.resolve(__dirname, "../../frontend/dist"),
+      path.resolve(__dirname, "../frontend/dist")
+    ];
+    const frontendBuildPath = possiblePaths.find(p => fs.existsSync(p)) || possiblePaths[0];
+    app.use(express.static(frontendBuildPath));
 
-  // SPA routing fallback for Client-side React Router paths
-  app.get("*", (req, res, next) => {
-    if (req.path.startsWith("/api") || req.path.startsWith("/static") || req.path.startsWith("/api-docs")) {
-      return next();
-    }
-    const indexPath = path.join(frontendBuildPath, "index.html");
-    if (fs.existsSync(indexPath)) {
-      return res.sendFile(indexPath);
-    }
-    next();
+    // SPA routing fallback for Client-side React Router paths
+    app.get("*", (req, res, next) => {
+      if (req.path.startsWith("/api") || req.path.startsWith("/static") || req.path.startsWith("/api-docs")) {
+        return next();
+      }
+      const indexPath = path.join(frontendBuildPath, "index.html");
+      if (fs.existsSync(indexPath)) {
+        return res.sendFile(indexPath);
+      }
+      next();
+    });
+  }
+
+  // 404 JSON fallback for unmatched API routes
+  app.all("*", (req, res) => {
+    res.status(404).json({ error: "Endpoint not found", path: req.path });
   });
 
   // Global error handler to ensure JSON response for API calls
