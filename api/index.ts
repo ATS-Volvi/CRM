@@ -23,6 +23,14 @@ async function initializeApp() {
 }
 
 export default async function handler(req: any, res: any) {
-  await initializeApp();
-  return (app as any)(req, res);
+  try {
+    await initializeApp();
+    return (app as any)(req, res);
+  } catch (error: any) {
+    console.error("[Vercel Handler Crash]:", error);
+    return res.status(500).json({
+      error: "Serverless Function Handler Exception",
+      message: error.message || String(error)
+    });
+  }
 }
