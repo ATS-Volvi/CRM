@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, Link } from "react-router-dom";
 import { apiClient } from "../lib/apiClient";
 import {
   Building2,
@@ -52,6 +52,27 @@ export default function Accounts() {
   const accounts = useMemo(() => {
     return Array.isArray(accountsData) ? accountsData : [];
   }, [accountsData]);
+
+  const hierarchyAccounts = useMemo(() => {
+    const rootAccounts = accounts.filter(a => !a.parentAccountId);
+    const result: any[] = [];
+    rootAccounts.forEach(root => {
+      result.push(root);
+      const children = accounts.filter(a => a.parentAccountId === root.id);
+      children.forEach(child => {
+        result.push({ ...child, isChild: true });
+      });
+    });
+    // Add any orphans
+    accounts.forEach(a => {
+      if (a.parentAccountId && !rootAccounts.find(r => r.id === a.parentAccountId)) {
+        if (!result.find(r => r.id === a.id)) {
+          result.push(a);
+        }
+      }
+    });
+    return result.length > 0 ? result : accounts;
+  }, [accounts]);
 
   // Selected Account ID (defaults to paramId, or Acme Corp, or first account)
   const [selectedAccountId, setSelectedAccountId] = useState<string>("");
@@ -305,9 +326,9 @@ export default function Accounts() {
                 }}
                 className="bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-700 hover:border-slate-300 shadow-2xs focus:outline-none cursor-pointer"
               >
-                {accounts.map((a: any) => (
+                {hierarchyAccounts.map((a: any) => (
                   <option key={a.id} value={a.id}>
-                    {a.name || "Untitled Account"}
+                    {a.isChild ? `↳ ${a.name || "Untitled Account"}` : a.name || "Untitled Account"}
                   </option>
                 ))}
               </select>
@@ -356,9 +377,15 @@ export default function Accounts() {
 
             <div className="space-y-1">
               <div className="flex items-center gap-2.5 flex-wrap">
-                <h2 className="text-2xl font-black text-slate-900 tracking-tight">
+                <h2 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
                   {activeAccount.name || "Acme Corp"}
                 </h2>
+                {activeAccount.parentAccountId && (
+                  <Link to={`/accounts/${activeAccount.parentAccountId}`} className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-slate-100 text-slate-600 border border-slate-200/60 flex items-center gap-1 hover:bg-slate-200 transition-colors">
+                    <Building2 className="w-3 h-3" />
+                    Parent: {accounts.find(a => a.id === activeAccount.parentAccountId)?.name || "View"}
+                  </Link>
+                )}
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-200/60">
                   NEW LEAD
                 </span>

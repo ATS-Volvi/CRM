@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Home, Inbox, Trello, FileText, Receipt, 
   Users, BarChart, Settings, Clock, ChevronLeft, 
   ChevronRight, MessageSquare, CheckSquare, Search, Bell, Sparkles, LogOut, ChevronDown, Layers, Package, Building2, LifeBuoy, Target,
-  UserCheck, Shield, Briefcase
+  UserCheck, Shield, Briefcase, Megaphone
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
@@ -57,6 +57,7 @@ export function Sidebar({
       icon: Briefcase,
       subItems: [
         { label: "Leads", path: "/leads", icon: Users },
+        { label: "Campaigns", path: "/campaigns", icon: Megaphone },
         { label: "Opportunities", path: "/opportunities", icon: Target },
         { label: "Pipeline", path: "/pipeline", icon: Trello },
       ]

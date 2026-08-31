@@ -62,6 +62,7 @@ import { getQuoteTemplates, createQuoteTemplate, parseReferenceDocument } from '
 import { receiveInboundEmail } from "../controllers/emailController";
 import { verifyInstagramWebhook, receiveInstagramMessage } from "../controllers/instagramController";
 import { getAccounts, getAccountById, createAccount, updateAccount } from "../controllers/accountController";
+import { createSubscription, updateSubscription } from "../controllers/subscriptionController";
 import { getContacts, getContactById, createContact, updateContact } from "../controllers/contactController";
 import { getAssets, getAssetById, createAsset, updateAsset, deleteAsset } from "../controllers/assetController";
 import {
@@ -643,6 +644,10 @@ router.post("/accounts", authMiddleware, createAccount);
 router.get("/accounts/:id", authMiddleware, getAccountById);
 router.post("/accounts", authMiddleware, createAccount);
 router.put("/accounts/:id", authMiddleware, updateAccount);
+
+// Subscriptions
+router.post("/accounts/:accountId/subscriptions", authMiddleware, createSubscription);
+router.put("/subscriptions/:id", authMiddleware, updateSubscription);
 
 router.get("/customers", authMiddleware, getAccounts);
 router.post("/customers", authMiddleware, createAccount);
