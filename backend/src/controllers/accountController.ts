@@ -25,7 +25,10 @@ export const getAccounts = async (req: Request, res: Response) => {
           model: Deal,
           as: "deals",
           include: [{ model: Quote, as: "quotes" }]
-        }
+        },
+        { model: Account, as: "subsidiaries" },
+        { model: Account, as: "parentAccount" },
+        { model: sequelize.models.Subscription, as: "subscriptions" }
       ],
       order: [["createdAt", "DESC"]]
     });
@@ -53,7 +56,10 @@ export const getAccountById = async (req: Request, res: Response) => {
           model: Deal, 
           as: "deals",
           include: [{ model: Quote, as: "quotes" }]
-        }
+        },
+        { model: Account, as: "subsidiaries" },
+        { model: Account, as: "parentAccount" },
+        { model: sequelize.models.Subscription, as: "subscriptions" }
       ]
     });
 

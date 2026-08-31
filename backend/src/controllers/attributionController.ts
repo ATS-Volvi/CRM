@@ -37,7 +37,7 @@ export const getLeadAttribution = async (req: Request, res: Response) => {
       channel: lead.sourceChannel || lead.communicationChannel || lead.source,
       sourceType: lead.sourceType,
       sourceName: lead.sourceName || lead.sourceDetail,
-      campaign: lead.campaignModel || lead.campaign,
+      campaign: lead.campaignModel,
       ad: lead.ad,
       referringAccount: lead.referringAccount,
       firstTouchAttribution: lead.firstTouchAttribution ? JSON.parse(lead.firstTouchAttribution) : null,
