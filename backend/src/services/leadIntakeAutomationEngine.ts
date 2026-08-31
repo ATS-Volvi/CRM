@@ -471,7 +471,6 @@ export async function processInboundIntakeEvent(event: IntakeEvent): Promise<{
       sourceChannel: event.attribution?.sourceChannel || event.channel,
       sourceName: event.attribution?.sourceName || null,
       sourceDetail: event.attribution?.sourceDetail || (event.subject ? `Subject: ${event.subject}` : null),
-      campaign: event.attribution?.campaign || null,
       utmSource: event.attribution?.utmSource || null,
       utmMedium: event.attribution?.utmMedium || null,
       utmCampaign: event.attribution?.utmCampaign || null,

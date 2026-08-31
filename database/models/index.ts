@@ -93,7 +93,6 @@ export class Lead extends Model {
   public assignedToId!: string | null;
   public leadScore!: number;
   public sourceDetail!: string | null;
-  public campaign!: string | null;
   public rawPayload!: string | null;
   public isStrategic!: boolean | null;
   public optedOutEmail!: boolean;
@@ -163,7 +162,6 @@ Lead.init(
     industry: { type: DataTypes.STRING, allowNull: true },
     leadScore: { type: DataTypes.INTEGER, defaultValue: 50 },
     sourceDetail: { type: DataTypes.STRING, allowNull: true },
-    campaign: { type: DataTypes.STRING, allowNull: true },
     rawPayload: { type: DataTypes.TEXT, allowNull: true },
     isStrategic: { type: DataTypes.BOOLEAN, defaultValue: false },
     optedOutEmail: { type: DataTypes.BOOLEAN, defaultValue: false },
@@ -1141,6 +1139,9 @@ export class Account extends Model {
   public industry!: string | null;
   public birthday!: string | null;
   public anniversaryDate!: string | null;
+  public parentAccountId!: string | null;
+  public revenue!: number | null;
+  public employeeCount!: number | null;
 }
 
 Account.init(
@@ -1153,9 +1154,37 @@ Account.init(
     address: { type: DataTypes.TEXT, allowNull: true },
     industry: { type: DataTypes.STRING, allowNull: true },
     birthday: { type: DataTypes.DATEONLY, allowNull: true },
-    anniversaryDate: { type: DataTypes.DATEONLY, allowNull: true }
+    anniversaryDate: { type: DataTypes.DATEONLY, allowNull: true },
+    parentAccountId: { type: DataTypes.UUID, allowNull: true },
+    revenue: { type: DataTypes.DECIMAL(15, 2), allowNull: true },
+    employeeCount: { type: DataTypes.INTEGER, allowNull: true }
   },
   { sequelize, modelName: "Account", tableName: "Accounts" }
+);
+
+export class Subscription extends Model {
+  public id!: string;
+  public accountId!: string;
+  public planName!: string;
+  public status!: string;
+  public startDate!: Date;
+  public endDate!: Date | null;
+  public mrr!: number;
+  public billingCycle!: string;
+}
+
+Subscription.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    accountId: { type: DataTypes.UUID, allowNull: false },
+    planName: { type: DataTypes.STRING, allowNull: false },
+    status: { type: DataTypes.ENUM("Active", "Past Due", "Canceled", "Trialing"), defaultValue: "Active" },
+    startDate: { type: DataTypes.DATEONLY, allowNull: false },
+    endDate: { type: DataTypes.DATEONLY, allowNull: true },
+    mrr: { type: DataTypes.DECIMAL(15, 2), allowNull: false, defaultValue: 0 },
+    billingCycle: { type: DataTypes.ENUM("Monthly", "Quarterly", "Annual"), defaultValue: "Monthly" }
+  },
+  { sequelize, modelName: "Subscription", tableName: "Subscriptions" }
 );
 
 // ── Coaching Notes ───────────────────────────────────────────────────────────
@@ -2115,6 +2144,24 @@ WorkspaceSetting.init(
 );
 
 // ─── Campaign & Marketing Attribution Models ─────────────────────────────────
+
+export class CampaignMember extends Model {
+  public id!: string;
+  public campaignId!: string;
+  public leadId!: string;
+  public status!: string;
+}
+
+CampaignMember.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    campaignId: { type: DataTypes.UUID, allowNull: false },
+    leadId: { type: DataTypes.UUID, allowNull: false },
+    status: { type: DataTypes.ENUM("Sent", "Responded", "Converted", "Opted Out"), defaultValue: "Sent" }
+  },
+  { sequelize, modelName: "CampaignMember", tableName: "CampaignMembers" }
+);
+
 export class Campaign extends Model {
   public id!: string;
   public name!: string;
@@ -2315,5 +2362,17 @@ FulfillmentItem.belongsTo(PriceBookEntry, { foreignKey: "productServiceId", as: 
 
 QuoteLineItem.hasMany(FulfillmentItem, { foreignKey: "quoteLineItemId", as: "fulfillmentItems" });
 FulfillmentItem.belongsTo(QuoteLineItem, { foreignKey: "quoteLineItemId", as: "quoteLineItem" });
+
+Account.hasMany(Account, { as: "subsidiaries", foreignKey: "parentAccountId" });
+Account.belongsTo(Account, { as: "parentAccount", foreignKey: "parentAccountId" });
+
+Account.hasMany(Subscription, { foreignKey: "accountId", as: "subscriptions" });
+Subscription.belongsTo(Account, { foreignKey: "accountId", as: "account" });
+
+Campaign.hasMany(CampaignMember, { foreignKey: "campaignId", as: "members" });
+CampaignMember.belongsTo(Campaign, { foreignKey: "campaignId", as: "campaign" });
+
+Lead.hasMany(CampaignMember, { foreignKey: "leadId", as: "campaignMembers" });
+CampaignMember.belongsTo(Lead, { foreignKey: "leadId", as: "lead" });
 
 export { sequelize };
