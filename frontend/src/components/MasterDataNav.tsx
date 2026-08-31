@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   Package, Tag, Ruler, BookOpen, FileText, CreditCard, Truck, ShieldCheck,
-  LayoutTemplate, UserPlus, GitBranch, Globe, Target, Settings, ChevronRight, MessageSquare
+  LayoutTemplate, UserPlus, GitBranch, Globe, Target, Settings, ChevronRight, MessageSquare, Database
 } from "lucide-react";
 
 interface NavGroup {
@@ -14,7 +14,6 @@ const generalGroups: NavGroup[] = [
   {
     label: "Quotation Config",
     items: [
-      { name: "Quotation Templates", path: "/master-data/quote-templates", icon: LayoutTemplate },
     ],
   },
   {
@@ -161,35 +160,79 @@ export function MasterDataSidebar() {
 // Also keep the old top-tab nav for backward compat (used by BOM pages)
 export function MasterDataNav() {
   const location = useLocation();
+  const isTemplateStudio = location.pathname.startsWith("/master-data/quote-templates");
+  
   const compactTabs = [
     { name: "Service Types", path: "/master-data/requirements" },
     { name: "Service Items", path: "/master-data/line-items" },
     { name: "Construction", path: "/master-data/construction-items" },
     { name: "Pricing Grid", path: "/master-data/pricing" },
-    { name: "Templates", path: "/master-data/quote-templates" },
     { name: "Lead Sources", path: "/master-data/lead-sources" },
     { name: "KPI Master", path: "/master-data/kpis" },
     { name: "Price Lists", path: "/price-book" },
     { name: "Msg Templates", path: "/master-data/message-templates" },
   ];
+
   return (
-    <div className="flex items-center gap-1 overflow-x-auto pb-2 border-b border-border mb-6 no-scrollbar">
-      {compactTabs.map((tab) => {
-        const isActive = location.pathname === tab.path;
-        return (
-          <Link
-            key={tab.name}
-            to={tab.path}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 ${
-              isActive
-                ? "bg-primary text-white shadow-2xs"
-                : "bg-surface hover:bg-muted text-muted-foreground hover:text-foreground border border-border"
-            }`}
-          >
-            {tab.name}
-          </Link>
-        );
-      })}
+    <div className="space-y-6 mb-6">
+      {/* Settings Header */}
+      <div className="flex items-center gap-3">
+        <div className="p-2.5 bg-primary/10 rounded-xl">
+          <Settings className="w-6 h-6 text-primary" />
+        </div>
+        <div>
+          <h2 className="text-xl font-bold text-on-surface">Settings</h2>
+          <p className="text-xs text-on-surface-variant">Manage workspace master data and AI quotation templates.</p>
+        </div>
+      </div>
+
+      {/* Main Tabs */}
+      <div className="flex items-center gap-6 border-b border-border px-1">
+        <Link 
+          to="/master-data/requirements"
+          className={`pb-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 ${
+            !isTemplateStudio 
+              ? "border-primary text-primary" 
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Database className="w-4 h-4" />
+          Master Data
+        </Link>
+        <Link 
+          to="/master-data/quote-templates"
+          className={`pb-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 ${
+            isTemplateStudio 
+              ? "border-primary text-primary" 
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <LayoutTemplate className="w-4 h-4" />
+          Template Studio
+        </Link>
+      </div>
+
+      {/* Sub Tabs for Master Data */}
+      {!isTemplateStudio && (
+        <div className="flex items-center gap-1 overflow-x-auto pb-2 border-b border-border no-scrollbar pt-2">
+          {compactTabs.map((tab) => {
+            const isActive = location.pathname === tab.path;
+            return (
+              <Link
+                key={tab.name}
+                to={tab.path}
+                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 ${
+                  isActive
+                    ? "bg-primary text-white shadow-2xs"
+                    : "bg-surface hover:bg-muted text-muted-foreground hover:text-foreground border border-border"
+                }`}
+              >
+                {tab.name}
+              </Link>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
