@@ -27,13 +27,15 @@ import {
   Briefcase,
   Layers,
   BarChart3,
-  MessageSquare
+  MessageSquare,
+  CreditCard
 } from "lucide-react";
 import { apiClient } from "../lib/apiClient";
 import { formatCurrency } from "../utils/currency";
 import { CreateSupportTicketModal } from "../components/CreateSupportTicketModal";
 import { SupportTicketDetailDrawer } from "../components/SupportTicketDetailDrawer";
 import { AccountClientHistory } from "../components/AccountClientHistory";
+import { SubscriptionStatus, SubscriptionBillingCycle } from "../types/subscription";
 
 export default function AccountDetail() {
   const { id } = useParams<{ id: string }>();
@@ -52,7 +54,9 @@ export default function AccountDetail() {
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
   const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
+  const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState<any | null>(null);
+  const [editingSubscription, setEditingSubscription] = useState<any | null>(null);
 
   // Form states
   const [noteContent, setNoteContent] = useState("");
@@ -73,7 +77,17 @@ export default function AccountDetail() {
     industry: "",
     address: "",
     phone: "",
-    email: ""
+    email: "",
+    parentAccountId: "",
+    revenue: "",
+    employeeCount: ""
+  });
+  const [subscriptionForm, setSubscriptionForm] = useState({
+    planName: "",
+    mrr: "",
+    billingCycle: SubscriptionBillingCycle.Monthly,
+    startDate: new Date().toISOString().split("T")[0],
+    status: SubscriptionStatus.Active
   });
 
   // Fetch Account 360 data
@@ -84,6 +98,15 @@ export default function AccountDetail() {
       return res;
     },
     enabled: !!id
+  });
+
+  // Fetch all accounts for parent dropdown
+  const { data: accountsData } = useQuery({
+    queryKey: ["accounts"],
+    queryFn: async () => {
+      const res = await apiClient.get<any[]>("/api/v1/accounts");
+      return Array.isArray(res) ? res : [];
+    }
   });
 
   // Fetch related contacts
@@ -133,11 +156,38 @@ export default function AccountDetail() {
   // Mutations
   const updateAccountMutation = useMutation({
     mutationFn: async (updatedData: any) => {
+      // Clean up empty parentAccountId so it sets to null if empty
+      if (updatedData.parentAccountId === "") {
+        updatedData.parentAccountId = null;
+      }
       return apiClient.put(`/api/v1/accounts/${id}`, updatedData);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["account-detail-360", id] });
+      queryClient.invalidateQueries({ queryKey: ["accounts"] });
       setIsEditModalOpen(false);
+    }
+  });
+
+  const saveSubscriptionMutation = useMutation({
+    mutationFn: async (subData: any) => {
+      if (editingSubscription) {
+        return apiClient.put(`/api/v1/subscriptions/${editingSubscription.id}`, subData);
+      } else {
+        return apiClient.post(`/api/v1/accounts/${id}/subscriptions`, subData);
+      }
+    },
+    onSuccess: () => {
+      setIsSubscriptionModalOpen(false);
+      setEditingSubscription(null);
+      setSubscriptionForm({
+        planName: "",
+        mrr: "",
+        billingCycle: SubscriptionBillingCycle.Monthly,
+        startDate: new Date().toISOString().split("T")[0],
+        status: SubscriptionStatus.Active
+      });
+      queryClient.invalidateQueries({ queryKey: ["account-detail-360", id] });
     }
   });
 
@@ -381,7 +431,10 @@ export default function AccountDetail() {
                   industry: account.industry || "",
                   address: account.address || "",
                   phone: account.phone || "",
-                  email: account.email || ""
+                  email: account.email || "",
+                  parentAccountId: account.parentAccountId || "",
+                  revenue: account.revenue || "",
+                  employeeCount: account.employeeCount || ""
                 });
                 setIsEditModalOpen(true);
               }}
@@ -583,6 +636,94 @@ export default function AccountDetail() {
             </div>
           </div>
 
+          {/* Subscriptions Card */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-0 overflow-hidden relative">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <CreditCard className="w-4 h-4 text-emerald-500" />
+                  Active Subscriptions
+                </h3>
+              </div>
+              <button
+                onClick={() => {
+                  setEditingSubscription(null);
+                  setSubscriptionForm({
+                    planName: "",
+                    mrr: "",
+                    billingCycle: SubscriptionBillingCycle.Monthly,
+                    startDate: new Date().toISOString().split("T")[0],
+                    status: SubscriptionStatus.Active
+                  });
+                  setIsSubscriptionModalOpen(true);
+                }}
+                className="w-7 h-7 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 flex items-center justify-center text-xs font-bold transition-all shadow-2xs cursor-pointer"
+                title="New Subscription"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
+            
+            <div className="p-5">
+              {(!account.subscriptions || account.subscriptions.length === 0) ? (
+                <div className="text-center py-6">
+                  <p className="text-xs text-slate-400 font-medium">No active subscriptions found.</p>
+                </div>
+              ) : (
+                <div className="grid gap-3">
+                  {account.subscriptions.map((sub: any) => (
+                    <div key={sub.id} className="flex items-center justify-between p-4 rounded-xl border border-slate-100 bg-white hover:border-emerald-100 hover:shadow-xs transition-all group">
+                      <div className="flex gap-4 items-center">
+                        <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0">
+                          <Layers className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <div className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                            {sub.planName}
+                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                              sub.status === SubscriptionStatus.Active ? "bg-emerald-100 text-emerald-700" :
+                              sub.status === SubscriptionStatus.Trialing ? "bg-blue-100 text-blue-700" :
+                              sub.status === SubscriptionStatus.PastDue ? "bg-amber-100 text-amber-700" :
+                              "bg-slate-100 text-slate-600"
+                            }`}>
+                              {sub.status}
+                            </span>
+                          </div>
+                          <div className="text-xs text-slate-500 font-medium flex items-center gap-3 mt-1">
+                            <span>{sub.billingCycle}</span>
+                            <span className="w-1 h-1 rounded-full bg-slate-300"></span>
+                            <span>Started: {new Date(sub.startDate).toLocaleDateString()}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end gap-1">
+                        <div className="font-black text-slate-900">
+                          {formatCurrency(sub.mrr)} <span className="text-xs text-slate-400 font-medium font-normal">/mo</span>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setEditingSubscription(sub);
+                            setSubscriptionForm({
+                              planName: sub.planName,
+                              mrr: sub.mrr,
+                              billingCycle: sub.billingCycle,
+                              startDate: sub.startDate ? new Date(sub.startDate).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
+                              status: sub.status
+                            });
+                            setIsSubscriptionModalOpen(true);
+                          }}
+                          className="text-[10px] font-bold text-blue-600 hover:underline opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          Edit / Update
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Client History & Commercial Track Record */}
           <AccountClientHistory
             accountId={id || ""}
@@ -611,13 +752,26 @@ export default function AccountDetail() {
 
               <div className="flex items-center justify-between">
                 <span className="text-slate-400 font-medium">Size</span>
-                <span className="font-bold text-slate-800">1,000 - 5,000</span>
+                <span className={`font-bold ${account.employeeCount ? "text-slate-800" : "text-slate-400 italic"}`}>
+                  {account.employeeCount ? `${Number(account.employeeCount).toLocaleString()} Employees` : "Not set"}
+                </span>
               </div>
 
               <div className="flex items-center justify-between">
                 <span className="text-slate-400 font-medium">Revenue</span>
-                <span className="font-bold text-slate-800">$50M - $100M</span>
+                <span className={`font-bold ${account.revenue ? "text-slate-800" : "text-slate-400 italic"}`}>
+                  {account.revenue ? formatCurrency(account.revenue) : "Not set"}
+                </span>
               </div>
+
+              {account.parentAccountId && (
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400 font-medium">Parent Account</span>
+                  <Link to={`/accounts/${account.parentAccountId}`} className="font-bold text-blue-600 hover:underline">
+                    {accountsData?.find(a => a.id === account.parentAccountId)?.name || "View Parent"}
+                  </Link>
+                </div>
+              )}
 
               <div className="flex items-center justify-between">
                 <span className="text-slate-400 font-medium">HQ Location</span>
@@ -628,6 +782,31 @@ export default function AccountDetail() {
               </div>
             </div>
           </div>
+
+          {/* Subsidiaries Card (if any) */}
+          {account.subsidiaries && account.subsidiaries.length > 0 && (
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 space-y-4">
+              <h3 className="text-base font-bold text-slate-900 border-b border-slate-100 pb-3 flex items-center gap-2">
+                <Building2 className="w-4 h-4 text-slate-400" />
+                Subsidiaries ({account.subsidiaries.length})
+              </h3>
+              <div className="space-y-2">
+                {account.subsidiaries.map((sub: any) => (
+                  <Link
+                    key={sub.id}
+                    to={`/accounts/${sub.id}`}
+                    className="flex items-center justify-between p-2.5 bg-slate-50 hover:bg-slate-100 rounded-xl transition-colors border border-slate-100"
+                  >
+                    <div>
+                      <div className="text-sm font-bold text-slate-900">{sub.name}</div>
+                      <div className="text-[10px] text-slate-500">{sub.address || sub.industry}</div>
+                    </div>
+                    <ArrowLeft className="w-4 h-4 text-slate-400 rotate-135" />
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Contacts Card */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 space-y-4">
@@ -748,6 +927,44 @@ export default function AccountDetail() {
                   onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold"
                 />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Revenue ($)</label>
+                <input
+                  type="number"
+                  value={editForm.revenue}
+                  onChange={(e) => setEditForm({ ...editForm, revenue: e.target.value })}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold"
+                  placeholder="e.g. 50000000"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Employee Count</label>
+                <input
+                  type="number"
+                  value={editForm.employeeCount}
+                  onChange={(e) => setEditForm({ ...editForm, employeeCount: e.target.value })}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold"
+                  placeholder="e.g. 1500"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Parent Account</label>
+                <select
+                  value={editForm.parentAccountId}
+                  onChange={(e) => setEditForm({ ...editForm, parentAccountId: e.target.value })}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold"
+                >
+                  <option value="">None</option>
+                  {(accountsData || [])
+                    .filter(a => a.id !== id) // Prevent self-referencing
+                    .map(a => (
+                      <option key={a.id} value={a.id}>{a.name}</option>
+                  ))}
+                </select>
               </div>
             </div>
 
@@ -956,6 +1173,96 @@ export default function AccountDetail() {
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs"
               >
                 {addContactMutation.isPending ? "Adding..." : "Add Contact"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit / New Subscription Modal */}
+      {isSubscriptionModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <h3 className="text-sm font-bold text-slate-900">{editingSubscription ? "Update Subscription" : "New Subscription"}</h3>
+              <button onClick={() => setIsSubscriptionModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Plan Name</label>
+                <input
+                  type="text"
+                  value={subscriptionForm.planName}
+                  onChange={(e) => setSubscriptionForm({ ...subscriptionForm, planName: e.target.value })}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold"
+                  placeholder="e.g. Enterprise Cloud Migration"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Monthly Recurring Revenue (MRR)</label>
+                <input
+                  type="number"
+                  value={subscriptionForm.mrr}
+                  onChange={(e) => setSubscriptionForm({ ...subscriptionForm, mrr: e.target.value })}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold"
+                  placeholder="e.g. 5000"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Billing Cycle</label>
+                <select
+                  value={subscriptionForm.billingCycle}
+                  onChange={(e) => setSubscriptionForm({ ...subscriptionForm, billingCycle: e.target.value as SubscriptionBillingCycle })}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold"
+                >
+                  <option value={SubscriptionBillingCycle.Monthly}>Monthly</option>
+                  <option value={SubscriptionBillingCycle.Quarterly}>Quarterly</option>
+                  <option value={SubscriptionBillingCycle.Annual}>Annual</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Start Date</label>
+                <input
+                  type="date"
+                  value={subscriptionForm.startDate}
+                  onChange={(e) => setSubscriptionForm({ ...subscriptionForm, startDate: e.target.value })}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Status</label>
+                <select
+                  value={subscriptionForm.status}
+                  onChange={(e) => setSubscriptionForm({ ...subscriptionForm, status: e.target.value as SubscriptionStatus })}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold"
+                >
+                  <option value={SubscriptionStatus.Active}>Active</option>
+                  <option value={SubscriptionStatus.Trialing}>Trialing</option>
+                  <option value={SubscriptionStatus.PastDue}>Past Due</option>
+                  <option value={SubscriptionStatus.Canceled}>Canceled</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                onClick={() => setIsSubscriptionModalOpen(false)}
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => saveSubscriptionMutation.mutate(subscriptionForm)}
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl"
+              >
+                Save Subscription
               </button>
             </div>
           </div>
