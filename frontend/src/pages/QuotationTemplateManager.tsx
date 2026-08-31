@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Upload, Sparkles, CheckCircle2, Layout, Sliders, Check, FileText, History, RotateCcw, AlertTriangle, ShieldCheck, Layers } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import QuotationDocumentRenderer from "../components/QuotationDocumentRenderer";
+import { MasterDataNav } from "../components/MasterDataNav";
 
 export default function QuotationTemplateManager() {
   const { token } = useAuth();
@@ -110,8 +111,8 @@ export default function QuotationTemplateManager() {
   };
 
   return (
-    <div className="min-h-screen bg-[#fafafa] dark:bg-slate-950 p-6 space-y-6">
-      
+    <div className="min-h-screen w-full bg-[#fafafa] dark:bg-slate-950 px-6 md:px-8 py-6 space-y-6 animate-fade-in">
+      <MasterDataNav />
       {/* Header Bar */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
         <div>
