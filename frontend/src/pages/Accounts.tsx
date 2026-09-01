@@ -142,12 +142,18 @@ export default function Accounts() {
     industry: "",
     address: "",
     phone: "",
-    email: ""
+    email: "",
+    parentAccountId: "",
+    revenue: "",
+    employeeCount: ""
   });
 
   // Mutations
   const updateAccountMutation = useMutation({
     mutationFn: async (updatedData: any) => {
+      if (updatedData.parentAccountId === "") {
+        updatedData.parentAccountId = null;
+      }
       return apiClient.put(`/api/v1/accounts/${activeAccount.id}`, updatedData);
     },
     onSuccess: () => {
@@ -418,7 +424,10 @@ export default function Accounts() {
                   industry: activeAccount.industry || "",
                   address: activeAccount.address || "",
                   phone: activeAccount.phone || "",
-                  email: activeAccount.email || ""
+                  email: activeAccount.email || "",
+                  parentAccountId: activeAccount.parentAccountId || "",
+                  revenue: activeAccount.revenue || "",
+                  employeeCount: activeAccount.employeeCount || ""
                 });
                 setIsEditModalOpen(true);
               }}
@@ -648,12 +657,16 @@ export default function Accounts() {
 
               <div className="flex items-center justify-between">
                 <span className="text-slate-400 font-medium">Size</span>
-                <span className="font-bold text-slate-800">1,000 - 5,000</span>
+                <span className={`font-bold ${activeAccount.employeeCount ? "text-slate-800" : "text-slate-400 italic"}`}>
+                  {activeAccount.employeeCount ? `${Number(activeAccount.employeeCount).toLocaleString()} Employees` : "Not set"}
+                </span>
               </div>
 
               <div className="flex items-center justify-between">
                 <span className="text-slate-400 font-medium">Revenue</span>
-                <span className="font-bold text-slate-800">$50M - $100M</span>
+                <span className={`font-bold ${activeAccount.revenue ? "text-slate-800" : "text-slate-400 italic"}`}>
+                  {activeAccount.revenue ? `$${Number(activeAccount.revenue).toLocaleString()}` : "Not set"}
+                </span>
               </div>
 
               <div className="flex items-center justify-between">
@@ -785,6 +798,43 @@ export default function Accounts() {
                   onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold"
                 />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Parent Account</label>
+                <select
+                  value={editForm.parentAccountId || ""}
+                  onChange={(e) => setEditForm({ ...editForm, parentAccountId: e.target.value })}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold"
+                >
+                  <option value="">None</option>
+                  {accounts.filter(a => a.id !== activeAccount.id).map(a => (
+                    <option key={a.id} value={a.id}>{a.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Revenue ($)</label>
+                  <input
+                    type="number"
+                    value={editForm.revenue || ""}
+                    onChange={(e) => setEditForm({ ...editForm, revenue: e.target.value })}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold"
+                    placeholder="e.g. 50000000"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Employee Count</label>
+                  <input
+                    type="number"
+                    value={editForm.employeeCount || ""}
+                    onChange={(e) => setEditForm({ ...editForm, employeeCount: e.target.value })}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold"
+                    placeholder="e.g. 1500"
+                  />
+                </div>
               </div>
             </div>
 
