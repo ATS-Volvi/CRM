@@ -221,51 +221,14 @@ export async function convertLeadToOpportunity(leadId: string, qualificationData
     }
   }
 
-  // 5. Create Opportunity (Deal) inheriting full context with Second-Tier Closer Assignment Pass
+  // 5. Create Opportunity (Deal) inheriting full context from Lead
   let deal: any = await sequelize.models.Deal.findOne({ where: { leadId: l.id } });
   const triggerUserId = userId || l.assignedToId;
-  const qualifyingRepId = l.assignedToId || triggerUserId || userId;
+  const chosenOwnerId = l.assignedToId || userId || triggerUserId;
   let autoAssigned = false;
   let autoAssignReason: string | undefined;
-  let chosenOwnerId = qualifyingRepId;
 
   if (!deal) {
-    // Perform scoped experience-weighted Second-Tier Closer assignment pass before creating the deal
-    try {
-      const { assignOpportunityCloser } = require("./assignmentEngine");
-      const closerResult = await assignOpportunityCloser(
-        {
-          leadId: l.id,
-          firstName: l.firstName,
-          lastName: l.lastName,
-          email: l.email,
-          phone: l.phone,
-          company: l.company,
-          source: l.source,
-          industry: l.industry,
-          territory: l.territory,
-          budgetRange: l.budgetRange,
-          expectedValue: Number(validQual.estimatedValue || l.estimatedValue || l.expectedValue || 0),
-          leadScore: l.leadScore
-        },
-        {
-          excludeRepId: l.assignedToId || undefined
-        }
-      );
-
-      if (closerResult && closerResult.assigned && closerResult.closerId) {
-        chosenOwnerId = closerResult.closerId;
-        autoAssigned = true;
-        autoAssignReason = closerResult.reason;
-        console.log(`[convertLeadToOpportunity] Second-tier closer assigned: ${chosenOwnerId} (qualifying rep: ${l.assignedToId})`);
-      } else {
-        autoAssignReason = closerResult?.reason || "No distinct closer-tier rep available; maintained qualifying rep ownership";
-        console.log(`[convertLeadToOpportunity] No distinct closer available — keeping qualifying rep ${chosenOwnerId}`);
-      }
-    } catch (assignErr: any) {
-      console.warn("[convertLeadToOpportunity] Closer assignment pass failed (falling back to qualifying rep):", assignErr?.message || assignErr);
-    }
-
     const stage = await sequelize.models.PipelineStage.findOne({ where: { name: "Requirements" } })
       || await sequelize.models.PipelineStage.findOne({ where: { name: "Qualified" } })
       || await sequelize.models.PipelineStage.findOne({ order: [["order", "ASC"]] });
@@ -284,6 +247,7 @@ export async function convertLeadToOpportunity(leadId: string, qualificationData
       accountId: account.id,
       customerId: account.id,
       ownerId: chosenOwnerId,
+      originalOwnerId: chosenOwnerId,
       campaignId: l.campaignId || null,
       adId: l.adId || null,
       sourceType: l.sourceType || null,
@@ -294,19 +258,19 @@ export async function convertLeadToOpportunity(leadId: string, qualificationData
     });
 
     // Record reassignment history if auto-assigned to distinct closer
-    if (autoAssigned && chosenOwnerId !== qualifyingRepId && sequelize.models.DealReassignmentHistory) {
+    if (autoAssigned && sequelize.models.DealReassignmentHistory) {
       try {
         await sequelize.models.DealReassignmentHistory.create({
           id: crypto.randomUUID(),
           dealId: deal.id,
-          oldOwnerId: qualifyingRepId,
+          oldOwnerId: chosenOwnerId,
           newOwnerId: chosenOwnerId,
           changedByUserId: triggerUserId || chosenOwnerId,
           assignmentType: "AUTOMATIC",
           dealAmountAtReassignment: validQual.estimatedValue ? Number(validQual.estimatedValue) : null,
           exceededCutoff: false,
           exceededCapacity: false,
-          reason: autoAssignReason || `Auto-assigned to closer ${chosenOwnerId} upon Lead qualification`
+          reason: autoAssignReason || `Assigned to rep ${chosenOwnerId} upon Lead qualification`
         });
       } catch (histErr) {
         console.warn("[convertLeadToOpportunity] DealReassignmentHistory log error:", histErr);

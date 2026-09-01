@@ -52,10 +52,7 @@ export async function validateStageTransition(
 
   const targetId = lead ? lead.id : deal ? deal.id : recordId;
 
-  const targetCustomerId = deal?.customerId || lead?.customerId || null;
-  const activityWhere: any = targetCustomerId
-    ? { [Op.or]: [{ leadId: targetId }, { customerId: targetCustomerId }] }
-    : { leadId: targetId };
+  const activityWhere: any = { leadId: targetId };
 
   const activities = await Activity.findAll({
     where: activityWhere,
@@ -118,11 +115,15 @@ export async function validateStageTransition(
     const leadVal = lead ? (lead.expectedValue || (lead as any).estimatedValue || (lead as any).qualificationData?.estimatedValue || (lead as any).qualificationData?.budget || (lead as any).budgetRange) : deal?.amount;
     const reqNotes = lead?.body || lead?.notes || (lead as any).requirements || (lead as any).qualificationData?.requirement || (lead as any).qualificationData?.notes || deal?.name;
     
-    if (!leadVal || Number(leadVal) <= 0) {
-      missingRequirements.push("Estimated Deal/Lead Value must be specified for qualification.");
-    }
-    if (!reqNotes) {
-      missingRequirements.push("Client Requirements summary must be documented.");
+    const repActivities = activities.filter((a: any) => {
+      const outcomeText = String(a.outcome || "").toLowerCase();
+      const notesText = String(a.notes || "").toLowerCase();
+      const isSystemIntake = a.type === "stage_change" || outcomeText.includes("inbound") || outcomeText.includes("system") || outcomeText.includes("intake");
+      return !isSystemIntake;
+    });
+
+    if (repActivities.length === 0) {
+      missingRequirements.push("At least one logged activity or call/meeting note is required to qualify a lead.");
     }
 
     if (leadVal) {

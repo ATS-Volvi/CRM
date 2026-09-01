@@ -560,9 +560,11 @@ export const getDeals = async (req: Request, res: Response) => {
 
         const originalRep = chain.length > 0 ? chain[0] : (d.owner ? { id: d.owner.id, name: d.owner.name, email: d.owner.email } : null);
         const currentOwner = chain.length > 0 ? chain[chain.length - 1] : (d.owner ? { id: d.owner.id, name: d.owner.name, email: d.owner.email } : null);
+        const originalOwnerId = d.originalOwnerId || originalRep?.ownerId || originalRep?.id || null;
 
         return {
           ...dJson,
+          originalOwnerId,
           isViewOnly: access.isViewOnly,
           userPermission: access.accessLevel,
           originalRep,

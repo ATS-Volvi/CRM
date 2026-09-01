@@ -339,6 +339,15 @@ export const qualifyLeadEndpoint = async (req: Request, res: Response) => {
       });
     }
 
+    const { validateStageTransition } = require("../services/stageValidationService");
+    const validation = await validateStageTransition(String(id), (lead as any).status || "New", "Qualified", user?.id, user?.role);
+    if (!validation.allowed) {
+      return res.status(400).json({
+        error: `Cannot qualify lead: ${validation.missingRequirements.join(" ")}`,
+        missingRequirements: validation.missingRequirements
+      });
+    }
+
     const { convertLeadToOpportunity } = require("../services/leadJourneyWorkflowEngine");
 
     const result = await convertLeadToOpportunity(String(id), qualificationData?.qualificationData || qualificationData, user?.id);
@@ -603,23 +612,9 @@ export const getLeadDealForQuote = async (req: Request, res: Response) => {
       stageId: stage ? (stage as any).id : null,
       leadId: (lead as any).id,
       ownerId: triggerUserId,
+      originalOwnerId: triggerUserId,
       customerId: (lead as any).customerId || null
     });
-
-    // Attempt auto-assignment to a senior_ae — best-effort, non-blocking.
-    // autoAssignDeal persists the ownerId change to DB internally.
-    try {
-      const assignResult = await autoAssignDeal((deal as any).id, triggerUserId);
-      if (assignResult && assignResult.assigned) {
-        // Reload so the response body reflects the updated ownerId
-        await (deal as any).reload();
-        console.log(`[getLeadDealForQuote] Deal ${(deal as any).id} auto-assigned to senior_ae ${assignResult.newOwnerId}.`);
-      } else if (assignResult && !assignResult.assigned) {
-        console.log(`[getLeadDealForQuote] No eligible senior_ae for deal ${(deal as any).id} — leaving with triggering user. Reason: ${assignResult.reason}`);
-      }
-    } catch (assignErr: any) {
-      console.warn("[getLeadDealForQuote] Auto-assignment attempt failed (non-fatal):", assignErr?.message || assignErr);
-    }
 
     res.status(201).json(deal);
   } catch (error: any) {

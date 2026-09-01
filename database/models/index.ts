@@ -299,6 +299,7 @@ export class Deal extends Model {
   public sourceEntityId!: string | null;
   public firstTouchAttribution!: string | null;
   public actualClosedAt!: Date | null;
+  public originalOwnerId!: string | null;
 }
 
 Deal.init(
@@ -340,6 +341,7 @@ Deal.init(
     sourceName: { type: DataTypes.STRING, allowNull: true },
     sourceEntityId: { type: DataTypes.UUID, allowNull: true },
     firstTouchAttribution: { type: DataTypes.TEXT, allowNull: true },
+    originalOwnerId: { type: DataTypes.UUID, allowNull: true },
   },
   { sequelize, modelName: "Deal" }
 );
