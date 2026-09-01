@@ -46,7 +46,6 @@ const masterDataGroups: NavGroup[] = [
   {
     label: "Sales Config",
     items: [
-      { name: "Lead Sources", path: "/master-data/lead-sources", icon: UserPlus },
       { name: "Pipeline Stages", path: "/master-data/pipeline-stages", icon: GitBranch },
       { name: "Industries", path: "/master-data/industries", icon: Globe },
     ],
@@ -62,7 +61,6 @@ const masterDataGroups: NavGroup[] = [
     items: [
       { name: "Service Types", path: "/master-data/requirements", icon: Settings },
       { name: "Service Items", path: "/master-data/line-items", icon: Settings },
-      { name: "Construction Items", path: "/master-data/construction-items", icon: Settings },
       { name: "Pricing Grid", path: "/master-data/pricing", icon: Settings },
     ],
   },
@@ -165,9 +163,7 @@ export function MasterDataNav() {
   const compactTabs = [
     { name: "Service Types", path: "/master-data/requirements" },
     { name: "Service Items", path: "/master-data/line-items" },
-    { name: "Construction", path: "/master-data/construction-items" },
     { name: "Pricing Grid", path: "/master-data/pricing" },
-    { name: "Lead Sources", path: "/master-data/lead-sources" },
     { name: "KPI Master", path: "/master-data/kpis" },
     { name: "Price Lists", path: "/price-book" },
     { name: "Msg Templates", path: "/master-data/message-templates" },
