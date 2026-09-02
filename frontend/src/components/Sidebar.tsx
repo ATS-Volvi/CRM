@@ -62,14 +62,7 @@ export function Sidebar({
         { label: "Quotes", path: "/quotes", icon: FileText },
       ]
     },
-    { 
-      label: "Governance & Approvals", 
-      icon: Shield,
-      subItems: [
-        { label: "Approval Queue & Limits", path: "/approvals", icon: CheckSquare },
-        { label: "Manager Portal", path: "/manager", icon: BarChart },
-      ]
-    },
+    { label: "Approval Queue & Limits", path: "/approvals", icon: Shield },
     { 
       label: "CRM", 
       icon: Building2,

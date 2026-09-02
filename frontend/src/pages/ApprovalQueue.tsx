@@ -658,6 +658,7 @@ export default function ApprovalQueue() {
                     <thead className="sticky top-0 bg-surface-container-high z-10">
                       <tr className="text-[12px] font-bold tracking-wider text-on-surface-variant uppercase border-b border-outline-variant">
                         <th className="p-4">Member & Role</th>
+                        <th className="p-4">Sub-Team Classification</th>
                         <th className="p-4">Assigned Team Lead</th>
                         <th className="p-4">Direct Approval Limit</th>
                         <th className="p-4">Discount Limit</th>
@@ -690,6 +691,38 @@ export default function ApprovalQueue() {
                                 )}
                               </div>
                               <div className="text-[11px] text-on-surface-variant">{sp.email}</div>
+                            </td>
+                            <td className="p-4">
+                              <select
+                                value={sp.teamType || ""}
+                                onChange={async (e) => {
+                                  const val = e.target.value || null;
+                                  try {
+                                    const res = await fetch(`/api/v1/users/${sp.id}/team-type`, {
+                                      method: "PATCH",
+                                      headers: {
+                                        "Content-Type": "application/json",
+                                        "Authorization": `Bearer ${token}`
+                                      },
+                                      body: JSON.stringify({ teamType: val })
+                                    });
+                                    if (!res.ok) {
+                                      const errData = await res.json().catch(() => ({}));
+                                      alert(errData.error || "Failed to update team assignment.");
+                                      return;
+                                    }
+                                    queryClient.invalidateQueries({ queryKey: ["salespersons"] });
+                                    refetchProfiles();
+                                  } catch (err: any) {
+                                    alert(err.message || "Failed to update team assignment.");
+                                  }
+                                }}
+                                className="bg-white dark:bg-slate-800 border border-outline-variant text-xs font-bold text-on-surface rounded-lg px-2.5 py-1.5 focus:ring-2 focus:ring-primary outline-none shadow-2xs cursor-pointer"
+                              >
+                                <option value="">Unassigned</option>
+                                <option value="PRESALES">Presales Team</option>
+                                <option value="SALES">Sales Team</option>
+                              </select>
                             </td>
                             <td className="p-4 font-semibold text-on-surface">{tlName}</td>
                             <td className="p-4 font-bold text-primary text-sm">{selfLimit}</td>
