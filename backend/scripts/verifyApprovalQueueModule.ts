@@ -118,7 +118,7 @@ async function runApprovalModuleVerification() {
       body: { maximumSalesRepApproval: 9999999 }
     });
     await updateAdminApprovalPolicy(req, res);
-    if (resStatus !== 403) {
+    if (Number(resStatus) !== 403) {
       throw new Error(`Non-admin PUT /approval-policy did not return 403! Got: ${resStatus}`);
     }
     console.log("✅ PUT /approval-policy as non-admin correctly rejected with 403!");
@@ -181,7 +181,7 @@ async function runApprovalModuleVerification() {
   console.log("\n--- [3] PENDING QUEUE TAB TESTS ---");
 
   // Create Deal & Product for Quote
-  const lead = await sequelize.models.Lead.create({
+  const lead: any = await sequelize.models.Lead.create({
     id: crypto.randomUUID(),
     firstName: "Acme",
     lastName: "Corp Lead",
@@ -189,7 +189,7 @@ async function runApprovalModuleVerification() {
     companyName: "Acme Corp"
   });
 
-  const deal = await sequelize.models.Deal.create({
+  const deal: any = await sequelize.models.Deal.create({
     id: crypto.randomUUID(),
     name: "Enterprise Software Deal",
     amount: 250000,
@@ -198,7 +198,7 @@ async function runApprovalModuleVerification() {
     status: "OPEN"
   });
 
-  const product = await sequelize.models.PriceBookEntry.create({
+  const product: any = await sequelize.models.PriceBookEntry.create({
     id: crypto.randomUUID(),
     name: "Software Suite",
     sku: `SW-${Date.now()}`,
@@ -206,7 +206,7 @@ async function runApprovalModuleVerification() {
     listPrice: 250000
   });
 
-  const quote = await sequelize.models.Quote.create({
+  const quote: any = await sequelize.models.Quote.create({
     id: crypto.randomUUID(),
     dealId: deal.id,
     quoteNumber: `QT-CHECKLIST-001`,
@@ -311,7 +311,7 @@ async function runApprovalModuleVerification() {
   }
 
   // Reject Flow & Resubmission
-  const quote2 = await sequelize.models.Quote.create({
+  const quote2: any = await sequelize.models.Quote.create({
     id: crypto.randomUUID(),
     dealId: deal.id,
     quoteNumber: `QT-CHECKLIST-002`,
