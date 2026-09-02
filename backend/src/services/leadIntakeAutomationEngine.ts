@@ -114,6 +114,8 @@ export async function getMissingLeadInformation(leadOrId: any): Promise<MissingI
     known.name = fullName;
   } else if (!isGenericName && firstName && !/^(whatsapp|lead|new)$/i.test(firstName)) {
     known.name = firstName;
+  } else if (lead?.company && !/^(pending|pending identification|unknown|general)$/i.test(lead.company) && (lead?.email || contact?.email) && (lead?.phone || lead?.whatsappPhone || contact?.phone)) {
+    known.name = `${lead.company} Contact`;
   }
 
   // 2. Company Check
@@ -159,6 +161,33 @@ export async function getMissingLeadInformation(leadOrId: any): Promise<MissingI
   };
 }
 
+const NAME_STOPLIST = new Set([
+  "interested", "looking", "needing", "wanting", "contacting", "reaching",
+  "hello", "hi", "hey", "services", "help", "information", "quote", "pricing",
+  "inquiry", "enquiry", "user", "lead", "new", "prospect", "whatsapp",
+  "customer", "client", "thanks", "thank", "please", "regarding", "inbound",
+  "option", "options", "details", "contact", "support"
+]);
+
+function isSanitizedNamePart(word: string): boolean {
+  if (!word || word.length < 2) return false;
+  return !NAME_STOPLIST.has(word.toLowerCase());
+}
+
+function sanitizeGreetingName(name?: string): string | null {
+  if (!name) return null;
+  const trimmed = name.trim();
+  if (!trimmed || trimmed.length === 0) return null;
+
+  const words = trimmed.split(/\s+/);
+  if (words.length > 3) return null;
+  if (trimmed === trimmed.toLowerCase() && trimmed.length > 3) return null;
+  if (words.some(w => NAME_STOPLIST.has(w.toLowerCase()))) return null;
+  if (/^(whatsapp|lead|new|customer|unknown|whatsapp lead|user)$/i.test(trimmed)) return null;
+
+  return words[0];
+}
+
 /**
  * Natural language conversational generator for missing fields.
  * Asks ONLY for what is currently missing without repeated redundant requests.
@@ -168,8 +197,8 @@ export function generateCollectionMessage(
   channel: "whatsapp" | "email" | "website",
   contactName?: string
 ): string {
-  const isGeneric = !contactName || /^(whatsapp|lead|new|customer|unknown|whatsapp lead)$/i.test(contactName.trim());
-  const greeting = !isGeneric ? `Hi ${contactName}!` : "Hi!";
+  const cleanName = sanitizeGreetingName(contactName);
+  const greeting = cleanName ? `Hi ${cleanName}!` : "Hi!";
 
   const needsEmail = missingFields.includes("email");
   const needsPhone = missingFields.includes("phone");
@@ -229,8 +258,8 @@ export function generateAcknowledgementMessage(
   channel: "whatsapp" | "email" | "website",
   contactName?: string
 ): { subject?: string; body: string } {
-  const firstName = contactName ? contactName.trim().split(" ")[0] : "";
-  const namePart = firstName ? `, ${firstName}` : "";
+  const cleanName = sanitizeGreetingName(contactName);
+  const namePart = cleanName ? `, ${cleanName}` : "";
 
   if (channel === "whatsapp") {
     return {
@@ -290,33 +319,35 @@ export function parseInboundCustomerResponse(text: string, channel?: string): Pa
     }
   }
 
-  // 3. Name extraction patterns
+  // 3. Name extraction patterns (strict self-identification & stoplist validation)
   const namePatterns = [
-    /(?:my name is|i am|this is|i'm|name\s*[:\-])\s*([A-Za-z]+(?:\s+[A-Za-z]+)?)/i,
-    /^([A-Za-z]+(?:\s+[A-Za-z]+)?)\s*,\s*(?:i work at|from|at)/i
+    /(?:my name is|this is|i am|i'm|name\s*[:\-])\s*([A-Za-z]+(?:\s+[A-Za-z]+)?)/i,
+    /^([A-Za-z]+(?:\s+[A-Za-z]+)?)\s*,\s*(?:i work at|from|at)\b/i
   ];
   for (const pat of namePatterns) {
     const match = clean.match(pat);
     if (match && match[1]) {
       const parts = match[1].trim().split(/\s+/);
-      result.firstName = parts[0];
-      if (parts.length > 1) {
-        result.lastName = parts.slice(1).join(" ");
+      if (parts.every(isSanitizedNamePart)) {
+        result.firstName = parts[0];
+        if (parts.length > 1) {
+          result.lastName = parts.slice(1).join(" ");
+        }
+        break;
       }
-      break;
     }
   }
 
   // 4. Company extraction patterns
   const companyPatterns = [
-    /(?:work at|employed at|from|company\s*(?:is|name is)?\s*[:\-])\s*([A-Za-z0-9&.,' -]+?)(?:\s+and\s+my|\s*,\s*my|\s*\.|\s*$)/i,
-    /(?:at)\s+([A-Z][A-Za-z0-9&.' -]+?)(?:\s+and\s+|\s*,\s*|\s*\.|\s*$)/
+    /(?:my\s+company\s+(?:is|name\s+is)?|our\s+company\s+(?:is|name\s+is)?|company\s+name\s*(?:is|:)?|company\s*(?:is|:|\-)?)\s*([A-Za-z0-9&.,' -]+?)(?:\s*[\.\,\;\!\n]|\s+and\s+my|\s+my\s+|\s+email|\s+phone|\s+i\s+need|\s*$)/i,
+    /(?:work\s+at|employed\s+at|representing|from)\s+([A-Z0-9][A-Za-z0-9&.,' -]+?)(?:\s*[\.\,\;\!\n]|\s+and\s+my|\s+my\s+|\s+email|\s+phone|\s+i\s+need|\s*$)/i
   ];
   for (const cpat of companyPatterns) {
     const cmatch = clean.match(cpat);
     if (cmatch && cmatch[1]) {
-      const compCandidate = cmatch[1].trim();
-      if (!/^(the|a|an|home|office|work)$/i.test(compCandidate) && compCandidate.length > 2) {
+      let compCandidate = cmatch[1].trim().replace(/[\.\,\;\!\-]+$/, "").trim();
+      if (compCandidate && !/^(the|a|an|home|office|work|my|our|email|phone|requirement|services|information|pricing|quote)$/i.test(compCandidate) && compCandidate.length > 2) {
         result.companyName = compCandidate;
         break;
       }
