@@ -796,6 +796,12 @@ export const acceptPublicQuoteByToken = async (req: Request, res: Response) => {
       return res.json({ success: true, message: "Quote is already accepted.", quote });
     }
 
+    if (!quote.isFinalAgreed) {
+      return res.status(400).json({
+        error: "This quotation is preliminary and not yet valid for formal acceptance. Please wait for the confirmed final quotation."
+      });
+    }
+
     // Set quote status to Accepted
     await quote.update({
       status: "Accepted",
@@ -1343,6 +1349,9 @@ export const acceptQuote = async (req: Request, res: Response) => {
     if (q.status === "Cancelled") {
       return res.status(400).json({ error: "Cannot accept a cancelled quote." });
     }
+    if (!q.isFinalAgreed) {
+      return res.status(400).json({ error: "This quotation is preliminary and not yet valid for formal acceptance. Please wait for the confirmed final quotation." });
+    }
 
     // Enforce only one Final Agreed Quote per Opportunity: Mark all other quotes for this deal as Superseded
     await sequelize.models.Quote.update(
@@ -1406,6 +1415,83 @@ export const markQuoteFinalAgreed = async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Cannot mark a cancelled quote as final agreed." });
     }
 
+    // Evaluate approval range requirements
+    const authUser = (req as any).user;
+    const evaluation = await evaluateQuoteApproval(id, authUser ? { salesRepId: authUser.id } : undefined);
+
+    if (evaluation.approvalRequired) {
+      // OUTSIDE RANGE — Do NOT send to customer yet. Hold for manager approval.
+      const prevStatus = q.status;
+      await q.update({
+        status: "Pending Approval",
+        isFinalAgreed: false,
+        statusChangedAt: new Date()
+      });
+
+      // Find or create pending ApprovalRequest
+      let approvalReq: any = await sequelize.models.ApprovalRequest.findOne({
+        where: { targetId: id, type: "Quote", status: "Pending" }
+      });
+
+      if (!approvalReq) {
+        approvalReq = await sequelize.models.ApprovalRequest.create({
+          id: require("crypto").randomUUID(),
+          targetId: id,
+          type: "Quote",
+          status: "Pending",
+          requestedById: authUser?.id || evaluation.salesRepId,
+          assignedApproverId: evaluation.requiredApproverId,
+          comments: evaluation.reason
+        });
+      } else {
+        await approvalReq.update({
+          assignedApproverId: evaluation.requiredApproverId,
+          comments: evaluation.reason
+        });
+      }
+
+      // Create Audit Log
+      await createApprovalAuditLog({
+        quoteId: id,
+        salesRepId: evaluation.salesRepId,
+        approvalLevel: evaluation.approvalLevel,
+        requiredLimit: evaluation.approvalLevel === "TEAM_LEAD" ? evaluation.repLimit : evaluation.teamLeadLimit,
+        actualQuoteValue: evaluation.quoteValue,
+        discount: evaluation.discount,
+        margin: evaluation.margin,
+        approverId: evaluation.requiredApproverId,
+        decision: "Submitted",
+        comment: evaluation.reason,
+        previousStatus: prevStatus,
+        newStatus: "Pending Approval",
+        reason: evaluation.reason
+      });
+
+      // Find manager's name for rep UI feedback
+      let managerName = "your manager";
+      if (evaluation.requiredApproverId) {
+        const mgr: any = await sequelize.models.User.findByPk(evaluation.requiredApproverId);
+        if (mgr && mgr.name) managerName = mgr.name;
+
+        await createNotification(
+          evaluation.requiredApproverId,
+          "alert",
+          "Quote Approval Required",
+          `Quotation ${q.quoteNumber || id} requires your ${evaluation.approvalLevel.replace("_", " ")} approval: ${evaluation.reason}`,
+          "/approvals"
+        );
+      }
+
+      return res.json({
+        approvalRequired: true,
+        message: `This exceeds your approval limit (${evaluation.reason}) and has been sent to ${managerName} for approval. You'll be notified once it's approved and sent to the customer.`,
+        evaluation,
+        requiredApproverName: managerName,
+        quote: formatQuoteWithTotals(q)
+      });
+    }
+
+    // WITHIN RANGE — Mark as Final Agreed & deliver binding quote to customer immediately
     if (q.dealId) {
       await sequelize.models.Quote.update(
         { isFinalAgreed: false },
@@ -1415,6 +1501,7 @@ export const markQuoteFinalAgreed = async (req: Request, res: Response) => {
 
     await q.update({
       isFinalAgreed: true,
+      status: "Approved",
       statusChangedAt: new Date()
     });
 
@@ -1424,35 +1511,25 @@ export const markQuoteFinalAgreed = async (req: Request, res: Response) => {
         leadId: q.deal.leadId,
         type: "note",
         outcome: `Quote ${q.quoteNumber || id} (v${q.version || 1}) marked as Final Agreed Commercial Terms.`,
-        createdById: (req as any).user?.id || q.deal.ownerId || null,
+        createdById: authUser?.id || q.deal.ownerId || null,
         direction: "internal"
-      });
+      }).catch((err: any) => console.warn("Activity log notice:", err.message));
     }
 
-    await q.update({
-      isFinalAgreed: true,
-      status: "Accepted",
-      acceptedAt: new Date(),
-      statusChangedAt: new Date()
+    // Auto-deliver final agreed quote email with binding acceptance button
+    let deliveryResult: any = null;
+    try {
+      deliveryResult = await deliverQuote(id, { channel: "EMAIL", userId: authUser?.id });
+    } catch (deliverErr: any) {
+      console.warn("Delivery of final agreed quote failed:", deliverErr.message);
+    }
+
+    res.json({
+      approvalRequired: false,
+      message: "Quotation marked as final agreed terms and delivered to customer.",
+      quote: formatQuoteWithTotals(q),
+      deliveryResult
     });
-
-    if (q.dealId) {
-      const deal = await sequelize.models.Deal.findByPk(q.dealId);
-      if (deal) {
-        const wonStage = await sequelize.models.PipelineStage.findOne({
-          where: { name: "Won" }
-        });
-        if (wonStage) {
-          await deal.update({ stageId: (wonStage as any).id, actualClosedAt: new Date() });
-        }
-      }
-    }
-
-    sendFinalAgreedQuoteEmail(id).catch(err =>
-      console.warn("Final agreed quote email notice:", err.message)
-    );
-
-    res.json({ message: "Quote marked as final agreed terms", quote: formatQuoteWithTotals(q) });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

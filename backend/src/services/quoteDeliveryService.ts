@@ -113,41 +113,51 @@ export async function buildQuotePdfBuffer(quoteId: string): Promise<Buffer> {
     };
 
     // Header
-    doc.rect(40, 40, 515, 60).fill("#1e293b");
+    const isFinalAgreed = Boolean((quote as any).isFinalAgreed);
+    doc.rect(40, 40, 515, 60).fill(isFinalAgreed ? "#064e3b" : "#1e293b");
     doc.fillColor("#ffffff").fontSize(20).font("Helvetica-Bold").text("NEXUS CRM", 55, 55);
     doc.fontSize(9).font("Helvetica").fillColor("#94a3b8").text("ENTERPRISE SALES & QUOTATION SYSTEM", 55, 78);
-    doc.fontSize(18).font("Helvetica-Bold").fillColor("#38bdf8").text("COMMERCIAL QUOTE", 340, 55, { align: "right" });
+    doc.fontSize(16).font("Helvetica-Bold").fillColor(isFinalAgreed ? "#34d399" : "#38bdf8").text(isFinalAgreed ? "FINAL AGREED QUOTE" : "COMMERCIAL QUOTE", 340, 55, { align: "right" });
     doc.fontSize(9).font("Helvetica").fillColor("#94a3b8").text(`Quote #: ${(quote as any).quoteNumber || quoteId.slice(0, 8)}`, 340, 78, { align: "right" });
 
+    let headerOffsetY = 110;
+    if (!isFinalAgreed) {
+      doc.rect(40, 105, 515, 26).fill("#fffbe5").strokeColor("#fde68a").stroke();
+      doc.fillColor("#b45309").fontSize(9).font("Helvetica-Bold").text("PRELIMINARY — NOT VALID FOR ACCEPTANCE", 45, 110, { align: "center", width: 505 });
+      doc.fillColor("#92400e").fontSize(7.5).font("Helvetica").text("Indicative quotation for discussion. Pricing is subject to internal review & final confirmation.", 45, 121, { align: "center", width: 505 });
+      headerOffsetY = 140;
+    }
+
     // Details Grid
-    doc.fillColor("#0f172a").fontSize(10).font("Helvetica-Bold").text("QUOTATION DETAILS", 40, 120);
-    doc.moveTo(40, 135).lineTo(555, 135).strokeColor("#cbd5e1").stroke();
+    doc.fillColor("#0f172a").fontSize(10).font("Helvetica-Bold").text("QUOTATION DETAILS", 40, headerOffsetY);
+    doc.moveTo(40, headerOffsetY + 15).lineTo(555, headerOffsetY + 15).strokeColor("#cbd5e1").stroke();
 
     const deal = (quote as any).deal;
     const lead = deal?.lead;
     const clientName = lead?.company || deal?.name || "Valued Customer";
     const contactPerson = lead ? `${lead.firstName || ""} ${lead.lastName || ""}`.trim() : "Procurement Officer";
 
-    doc.fontSize(9).font("Helvetica-Bold").fillColor("#334155").text("Prepared For:", 40, 145);
-    doc.font("Helvetica").text(clientName, 120, 145);
-    doc.font("Helvetica-Bold").text("Contact:", 40, 160);
-    doc.font("Helvetica").text(contactPerson, 120, 160);
-    doc.font("Helvetica-Bold").text("Date:", 340, 145);
-    doc.font("Helvetica").text(new Date((quote as any).createdAt).toLocaleDateString(), 420, 145);
-    doc.font("Helvetica-Bold").text("Status:", 340, 160);
-    doc.font("Helvetica").text((quote as any).status || "Draft", 420, 160);
+    doc.fontSize(9).font("Helvetica-Bold").fillColor("#334155").text("Prepared For:", 40, headerOffsetY + 25);
+    doc.font("Helvetica").text(clientName, 120, headerOffsetY + 25);
+    doc.font("Helvetica-Bold").text("Contact:", 40, headerOffsetY + 40);
+    doc.font("Helvetica").text(contactPerson, 120, headerOffsetY + 40);
+    doc.font("Helvetica-Bold").text("Date:", 340, headerOffsetY + 25);
+    doc.font("Helvetica").text(new Date((quote as any).createdAt).toLocaleDateString(), 420, headerOffsetY + 25);
+    doc.font("Helvetica-Bold").text("Status:", 340, headerOffsetY + 40);
+    doc.font("Helvetica").text((quote as any).status || "Draft", 420, headerOffsetY + 40);
 
     // Line items table
-    doc.moveTo(40, 185).lineTo(555, 185).strokeColor("#cbd5e1").stroke();
-    doc.rect(40, 195, 515, 22).fill("#f1f5f9");
+    const tableTop = headerOffsetY + 65;
+    doc.moveTo(40, tableTop).lineTo(555, tableTop).strokeColor("#cbd5e1").stroke();
+    doc.rect(40, tableTop + 10, 515, 22).fill("#f1f5f9");
     doc.fillColor("#334155").font("Helvetica-Bold").fontSize(8);
-    doc.text("#", 45, 202);
-    doc.text("ITEM & DESCRIPTION", 70, 202);
-    doc.text("QTY", 330, 202, { width: 40, align: "right" });
-    doc.text("UNIT PRICE", 380, 202, { width: 70, align: "right" });
-    doc.text("TOTAL", 460, 202, { width: 90, align: "right" });
+    doc.text("#", 45, tableTop + 17);
+    doc.text("ITEM & DESCRIPTION", 70, tableTop + 17);
+    doc.text("QTY", 330, tableTop + 17, { width: 40, align: "right" });
+    doc.text("UNIT PRICE", 380, tableTop + 17, { width: 70, align: "right" });
+    doc.text("TOTAL", 460, tableTop + 17, { width: 90, align: "right" });
 
-    let y = 225;
+    let y = tableTop + 40;
     const items = (quote as any).QuoteLineItems || [];
 
     if (items.length === 0) {
@@ -391,22 +401,45 @@ export async function deliverQuote(
   const expiresAt = (quote as any).publicAccessExpiresAt || (quote as any).expirationDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
   const customerPortalUrl = `${frontendUrl}/q/${publicToken}`;
 
+  const isFinalAgreed = Boolean((quote as any).isFinalAgreed);
   let providerMessageId: string | null = null;
 
   try {
     // ── REAL TRANSMISSION VIA EXISTING INFRASTRUCTURE ───────────────────────────
     if (channel === "EMAIL") {
-      const subject = `Official Commercial Quotation #${quoteNumber} from Nexus CRM`;
+      const subject = isFinalAgreed
+        ? `Confirmed: Final Agreed Commercial Quotation #${quoteNumber} from Nexus CRM`
+        : `Indicative Commercial Quotation #${quoteNumber} (Preliminary) - Nexus CRM`;
+
+      const disclaimerBox = !isFinalAgreed
+        ? `
+          <div style="background-color: #fffbe5; border: 1px solid #fde68a; border-radius: 6px; padding: 14px 16px; margin: 16px 0; color: #92400e;">
+            <p style="margin: 0; font-size: 13px; font-weight: bold; color: #b45309; text-transform: uppercase; letter-spacing: 0.5px;">⚠️ PRELIMINARY — NOT VALID FOR ACCEPTANCE</p>
+            <p style="margin: 6px 0 0; font-size: 13px; color: #92400e; line-height: 1.5;">
+              Please note: this is an indicative quotation for discussion and does not represent our final commercial offer. Pricing shown is subject to internal review. We will send you the confirmed, final quotation shortly for your formal acceptance.
+            </p>
+          </div>
+        `
+        : `
+          <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 14px 16px; margin: 16px 0; color: #166534;">
+            <p style="margin: 0; font-size: 13px; font-weight: bold; color: #15803d; text-transform: uppercase; letter-spacing: 0.5px;">✅ CONFIRMED FINAL AGREED QUOTATION</p>
+            <p style="margin: 6px 0 0; font-size: 13px; color: #166534; line-height: 1.5;">
+              This document represents our official, binding commercial offer confirmed by management. You may review and formally accept this quotation online.
+            </p>
+          </div>
+        `;
+
       const bodyContent = `
         <p>Dear ${clientName},</p>
-        <p>Thank you for considering Nexus CRM. Please find attached our official commercial quotation <strong>#${quoteNumber}</strong>.</p>
+        <p>Thank you for considering Nexus CRM. Please find attached our commercial quotation <strong>#${quoteNumber}</strong>.</p>
+        ${disclaimerBox}
         <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 16px; margin: 20px 0;">
           <p style="margin: 0; font-size: 14px; color: #64748b;">Quotation Number: <strong style="color: #0f172a;">${quoteNumber}</strong></p>
           <p style="margin: 6px 0 0; font-size: 18px; color: #0284c7; font-weight: bold;">Total: ${formattedAmount}</p>
         </div>
         ${options.messageCustomization ? `<p style="font-style: italic; color: #475569;">"${options.messageCustomization}"</p>` : ""}
-        <p>You can review, download, accept, or request revisions online via your secure quotation link:</p>
-        <p><a href="${customerPortalUrl}" class="btn" style="color: #ffffff; background-color: #0284c7; padding: 10px 20px; text-decoration: none; border-radius: 6px; display: inline-block;">Review Quotation Online</a></p>
+        <p>You can review and inspect your proposal online via your secure quotation link:</p>
+        <p><a href="${customerPortalUrl}" class="btn" style="color: #ffffff; background-color: ${isFinalAgreed ? "#15803d" : "#0284c7"}; padding: 10px 20px; text-decoration: none; border-radius: 6px; display: inline-block;">${isFinalAgreed ? "Review & Accept Quotation Online" : "Review Quotation Online"}</a></p>
         <p>Please feel free to reply directly to this email with any questions or clarifications.</p>
       `;
 
@@ -414,13 +447,18 @@ export async function deliverQuote(
       const emailResult = await sendEmail(recipient, subject, html);
       providerMessageId = (emailResult as any)?.id || (emailResult as any)?.messageId || null;
     } else if (channel === "WHATSAPP") {
-      const whatsappMessage = `*Official Commercial Quotation #${quoteNumber}*\n\n` +
+      const whatsappDisclaimer = !isFinalAgreed
+        ? `⚠️ *PRELIMINARY — NOT VALID FOR ACCEPTANCE*\nPlease note: this is an indicative quotation for discussion and does not represent our final commercial offer. Pricing shown is subject to internal review. We will send you the confirmed, final quotation shortly for your formal acceptance.\n\n`
+        : `✅ *CONFIRMED FINAL AGREED QUOTATION*\nThis document represents our official, binding commercial offer.\n\n`;
+
+      const whatsappMessage = `*Commercial Quotation #${quoteNumber}*\n\n` +
         `Dear ${clientName},\n` +
+        whatsappDisclaimer +
         `Your quotation is ready for review:\n` +
         `• Total Amount: *${formattedAmount}*\n` +
         `• Quote Reference: *${quoteNumber}*\n\n` +
         `${options.messageCustomization ? `Note: ${options.messageCustomization}\n\n` : ""}` +
-        `Review, accept, or request revisions online:\n${customerPortalUrl}\n\n` +
+        `Review online:\n${customerPortalUrl}\n\n` +
         `Reply to this message if you have any questions or require revisions.`;
 
       const waResult = await sendWhatsAppMessage(recipient, whatsappMessage);

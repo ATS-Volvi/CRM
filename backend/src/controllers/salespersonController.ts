@@ -1305,7 +1305,8 @@ export const updateRepTeamType = async (req: Request, res: Response) => {
       });
     }
 
-    await targetRep.update({ teamType: teamType || null });
+    targetRep.teamType = teamType || null;
+    await targetRep.save();
 
     res.json({
       id: targetRep.id,

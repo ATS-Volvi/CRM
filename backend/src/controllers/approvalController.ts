@@ -513,7 +513,11 @@ export const updateApproval = async (req: Request, res: Response) => {
       if (quote) {
         const prevQuoteStatus = (quote as any).status;
         const newQuoteStatus = status === "Approved" ? "Approved" : (status === "Rejected" ? "Rejected" : "Draft");
-        await quote.update({ status: newQuoteStatus, statusChangedAt: new Date() });
+        await quote.update({
+          status: newQuoteStatus,
+          isFinalAgreed: status === "Approved",
+          statusChangedAt: new Date()
+        });
 
         // Log Audit Trail
         await createApprovalAuditLog({
@@ -531,6 +535,21 @@ export const updateApproval = async (req: Request, res: Response) => {
           newStatus: newQuoteStatus,
           reason: `Quote status updated to ${status} by ${authUser?.name || authUser?.role || "Authorized Approver"}. Reason: ${evaluation.reason}`
         });
+
+        // Notify rep if rejected
+        if (status === "Rejected") {
+          const approverName = authUser?.name || authUser?.role || "Manager";
+          const repOwnerId = evaluation?.salesRepId || (approval as any).requestedById;
+          if (repOwnerId) {
+            await createNotification(
+              repOwnerId,
+              "alert",
+              "Quote Approval Rejected ❌",
+              `Your quote request was rejected by ${approverName}: ${comments || "No reason provided"}. The quote remains editable for revision.`,
+              `/quotes/${targetId}`
+            );
+          }
+        }
 
         // Auto-generate invoice if approved
         if (status === "Approved") {

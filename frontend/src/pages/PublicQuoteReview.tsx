@@ -36,6 +36,7 @@ interface QuoteData {
   quoteNumber: string;
   version: number;
   status: string;
+  isFinalAgreed?: boolean;
   totalAmount: number;
   expirationDate: string | null;
   publicAccessToken: string;
@@ -283,18 +284,41 @@ export default function PublicQuoteReview() {
               className={`px-3 py-1 text-xs font-semibold rounded-full border ${
                 isAccepted
                   ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                  : !quote.isFinalAgreed
+                  ? "bg-amber-500/10 text-amber-400 border-amber-500/30"
                   : isRevisionRequested
                   ? "bg-amber-500/10 text-amber-400 border-amber-500/30"
                   : "bg-blue-500/10 text-blue-400 border-blue-500/30"
               }`}
             >
-              {isAccepted ? "Accepted" : isRevisionRequested ? "Revision Requested" : quote.status || "Active Quotation"}
+              {isAccepted
+                ? "Accepted"
+                : !quote.isFinalAgreed
+                ? "PRELIMINARY — NOT BINDING"
+                : isRevisionRequested
+                ? "Revision Requested"
+                : quote.status || "Active Quotation"}
             </span>
             <span className="px-2.5 py-1 text-xs font-medium rounded-full bg-slate-800 text-slate-300 border border-slate-700">
               v{quote.version || 1}
             </span>
           </div>
         </header>
+
+        {/* Preliminary Indicative Disclaimer Card */}
+        {!quote.isFinalAgreed && !isAccepted && (
+          <div className="p-5 bg-amber-950/40 border border-amber-500/40 rounded-2xl flex items-start gap-4 text-amber-200 shadow-lg">
+            <AlertTriangle className="w-6 h-6 text-amber-400 mt-0.5 shrink-0" />
+            <div className="space-y-1">
+              <h4 className="text-sm font-bold text-amber-300 uppercase tracking-wider">
+                PRELIMINARY — NOT VALID FOR ACCEPTANCE
+              </h4>
+              <p className="text-xs text-amber-200/90 leading-relaxed">
+                Please note: this is an indicative quotation for discussion and does not represent our final commercial offer. Pricing shown is subject to internal review. We will send you the confirmed, final quotation shortly for your formal acceptance.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Success Action Alert */}
         {actionSuccessMessage && (
@@ -455,9 +479,13 @@ export default function PublicQuoteReview() {
         {!isAccepted && (
           <div className="bg-gradient-to-r from-slate-900 via-slate-900 to-indigo-950/40 border border-slate-800 rounded-2xl p-6 sm:p-8 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
             <div className="space-y-1 text-center sm:text-left">
-              <h4 className="text-lg font-bold text-white">Ready to proceed?</h4>
+              <h4 className="text-lg font-bold text-white">
+                {quote.isFinalAgreed ? "Ready to proceed?" : "Proposal Review"}
+              </h4>
               <p className="text-xs text-slate-400">
-                You can approve this quotation online or submit revision requests directly to your sales representative.
+                {quote.isFinalAgreed
+                  ? "You can approve this quotation online or submit revision requests directly to your sales representative."
+                  : "This is a preliminary proposal. You can submit feedback or revision requests directly to your sales representative."}
               </p>
             </div>
 
@@ -469,12 +497,18 @@ export default function PublicQuoteReview() {
                 <MessageSquareQuote className="w-4 h-4 text-amber-400" /> Request Changes
               </button>
 
-              <button
-                onClick={() => setShowAcceptModal(true)}
-                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white text-xs font-bold shadow-lg shadow-emerald-900/30 transition-all flex items-center gap-2"
-              >
-                <CheckCircle2 className="w-4 h-4" /> Accept Quotation
-              </button>
+              {quote.isFinalAgreed ? (
+                <button
+                  onClick={() => setShowAcceptModal(true)}
+                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white text-xs font-bold shadow-lg shadow-emerald-900/30 transition-all flex items-center gap-2"
+                >
+                  <CheckCircle2 className="w-4 h-4" /> Accept Quotation
+                </button>
+              ) : (
+                <span className="px-4 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-semibold flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-amber-400" /> Acceptance Available Upon Final Confirmation
+                </span>
+              )}
             </div>
           </div>
         )}
