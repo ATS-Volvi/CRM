@@ -61,9 +61,42 @@ export const getBaseHtmlTemplate = (bodyContent: string, leadId?: string): strin
   `;
 };
 
+import nodemailer from "nodemailer";
+
 export const sendEmail = async (to: string, subject: string, htmlContent: string) => {
   const apiKey = cleanEnv("MAILGUN_API_KEY", "dummy-key");
   const isDummyKey = !apiKey || apiKey === "dummy-key" || apiKey.startsWith("your_");
+
+  const smtpUser = (process.env.SMTP_USER || "").trim();
+  const smtpPass = (process.env.SMTP_PASS || "").trim();
+  const smtpHost = (process.env.SMTP_HOST || "smtp.gmail.com").trim();
+
+  // Try real SMTP dispatch if credentials exist
+  if (smtpUser && smtpPass && !smtpPass.startsWith("your_")) {
+    try {
+      const transporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: Number(process.env.SMTP_PORT || 587),
+        secure: false,
+        auth: {
+          user: smtpUser,
+          pass: smtpPass
+        }
+      });
+
+      const info = await transporter.sendMail({
+        from: process.env.SMTP_FROM || `"Nexus CRM" <${smtpUser}>`,
+        to,
+        subject,
+        html: htmlContent
+      });
+
+      console.log(`Message sent: ${info.messageId} (Real delivery to ${to} via ${smtpUser})`);
+      return { id: info.messageId, message: "Message sent", status: 200, realDelivery: true };
+    } catch (smtpErr: any) {
+      console.warn("SMTP send notice:", smtpErr.message || smtpErr);
+    }
+  }
 
   if (isDummyKey) {
     console.log(`[Email Service - Simulated] Dispatching email to: ${to}, subject: "${subject}"`);
