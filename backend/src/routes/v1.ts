@@ -50,7 +50,7 @@ import { exportLeads, exportQuotes, exportPurchaseOrders } from '../controllers/
 import {
   getSalespersonsPerformance, createSalesperson, getSalespersonPerformanceDetails, getAllSalespersons, updateSalespersonCapacity,
   getSalespersonKpis, editKpiTarget, getKpiHistory, restoreKpiHistory, bulkAssignTargets, lockKpiTargets, approveKpiTargetChange,
-  getOrgChartEmployees, updateRepTeamType
+  getOrgChartEmployees, updateRepTeamType, getManagerDirectTeam, getManagerStuckDeals
 } from '../controllers/salespersonController';
 import {
   getRequirements, createRequirement, updateRequirement, deleteRequirement,
@@ -542,6 +542,8 @@ router.get("/salespersons/:id/performance", authMiddleware, getSalespersonPerfor
 router.post("/salespersons", authMiddleware, createSalesperson);
 router.put("/salespersons/:id/capacity", authMiddleware, updateSalespersonCapacity);
 router.patch("/users/:id/team-type", authMiddleware, updateRepTeamType);
+router.get("/manager/team", authMiddleware, getManagerDirectTeam);
+router.get("/manager/stuck-deals", authMiddleware, getManagerStuckDeals);
 
 // KPI Target Management
 router.get("/salespersons/:id/kpis", authMiddleware, getSalespersonKpis);

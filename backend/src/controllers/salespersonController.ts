@@ -1317,3 +1317,85 @@ export const updateRepTeamType = async (req: Request, res: Response) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+export const getManagerDirectTeam = async (req: Request, res: Response) => {
+  try {
+    const caller = (req as any).user;
+    if (!caller) return res.status(401).json({ error: "Unauthorized" });
+
+    const whereClause: any = caller.role === "admin"
+      ? { role: { [Op.in]: ["sales_rep", "salesperson", "sales_manager"] } }
+      : { managerId: caller.id };
+
+    const reps = await sequelize.models.User.findAll({
+      where: whereClause,
+      attributes: ["id", "name", "email", "role", "isAvailable", "managerId", "dealValueCutoff", "maxOpenDeals", "teamType"]
+    });
+
+    const team = await Promise.all(reps.map(async (rep: any) => {
+      const currentOpenDeals = await sequelize.models.Deal.count({
+        where: {
+          ownerId: rep.id,
+          status: { [Op.notIn]: ["WON", "LOST"] }
+        }
+      }).catch(() => 0);
+
+      return {
+        id: rep.id,
+        name: rep.name || "Sales Rep",
+        email: rep.email || "",
+        role: rep.role || "sales_rep",
+        isAvailable: rep.isAvailable ?? true,
+        dealValueCutoff: rep.dealValueCutoff || null,
+        maxOpenDeals: rep.maxOpenDeals || null,
+        teamType: rep.teamType || null,
+        currentOpenDeals
+      };
+    }));
+
+    res.json({ success: true, team });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message, team: [] });
+  }
+};
+
+export const getManagerStuckDeals = async (req: Request, res: Response) => {
+  try {
+    const caller = (req as any).user;
+    if (!caller) return res.status(401).json({ error: "Unauthorized" });
+
+    const thresholdDays = parseInt(String(req.query.thresholdDays || "14"), 10);
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - thresholdDays);
+
+    const deals = await sequelize.models.Deal.findAll({
+      where: {
+        status: { [Op.notIn]: ["WON", "LOST"] },
+        updatedAt: { [Op.lte]: cutoffDate }
+      },
+      include: [
+        { model: sequelize.models.User, as: "owner", attributes: ["id", "name"] },
+        { model: sequelize.models.PipelineStage, as: "stage", attributes: ["id", "name"] }
+      ],
+      order: [["updatedAt", "ASC"]],
+      limit: 25
+    }).catch(() => []);
+
+    const stuckDeals = (deals || []).map((d: any) => {
+      const updatedAt = new Date(d.updatedAt);
+      const daysSinceUpdate = Math.floor((Date.now() - updatedAt.getTime()) / (1000 * 60 * 60 * 24));
+      return {
+        id: d.id,
+        name: d.name || `Deal #${d.id.slice(0, 8)}`,
+        amount: d.amount || d.value || 0,
+        ownerName: d.owner?.name || "Unassigned",
+        stageName: d.stage?.name || "Negotiation",
+        daysSinceUpdate
+      };
+    });
+
+    res.json({ success: true, stuckDeals, count: stuckDeals.length });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message, stuckDeals: [], count: 0 });
+  }
+};

@@ -409,7 +409,7 @@ export default function ManagerPortal() {
                         <td className="p-3.5">
                           <div className="flex items-center gap-2.5">
                             <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center justify-center">
-                              {member.name.slice(0, 2).toUpperCase()}
+                              {(member?.name || "Member").slice(0, 2).toUpperCase()}
                             </div>
                             <div>
                               <p className="font-bold text-slate-900">{member.name}</p>
