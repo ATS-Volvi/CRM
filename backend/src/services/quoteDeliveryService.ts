@@ -236,16 +236,20 @@ export async function getQuoteContact(quote: any): Promise<{
   const dealContacts = (deal as any).dealContacts || [];
   if (dealContacts.length > 0) {
     const primary = dealContacts[0];
+    const resolvedEmail = (primary.email && !primary.email.includes("@nexus-temp.com")) 
+      ? primary.email 
+      : (lead?.email && !lead.email.includes("@nexus-temp.com") ? lead.email : primary.email);
+
     return {
       contact: {
         id: primary.id,
         name: `${primary.firstName || ""} ${primary.lastName || ""}`.trim() || "Contact",
-        email: primary.email,
-        phone: primary.phone,
-        whatsappNumber: primary.whatsappNumber || primary.phone,
-        preferredCommunicationChannel: primary.preferredCommunicationChannel,
-        emailVerified: primary.emailVerified,
-        whatsappVerified: primary.whatsappVerified
+        email: resolvedEmail,
+        phone: primary.phone || lead?.phone,
+        whatsappNumber: primary.whatsappNumber || primary.phone || lead?.whatsappPhone,
+        preferredCommunicationChannel: primary.preferredCommunicationChannel || lead?.communicationChannel,
+        emailVerified: primary.emailVerified || Boolean(lead?.email),
+        whatsappVerified: primary.whatsappVerified || Boolean(lead?.whatsappPhone)
       },
       leadContext
     };
@@ -255,16 +259,20 @@ export async function getQuoteContact(quote: any): Promise<{
   const accountContacts = (deal as any).account?.contacts || [];
   if (accountContacts.length > 0) {
     const primary = accountContacts[0];
+    const resolvedEmail = (primary.email && !primary.email.includes("@nexus-temp.com")) 
+      ? primary.email 
+      : (lead?.email && !lead.email.includes("@nexus-temp.com") ? lead.email : primary.email);
+
     return {
       contact: {
         id: primary.id,
         name: `${primary.firstName || ""} ${primary.lastName || ""}`.trim() || "Account Contact",
-        email: primary.email,
-        phone: primary.phone,
-        whatsappNumber: primary.whatsappNumber || primary.phone,
-        preferredCommunicationChannel: primary.preferredCommunicationChannel,
-        emailVerified: primary.emailVerified,
-        whatsappVerified: primary.whatsappVerified
+        email: resolvedEmail,
+        phone: primary.phone || lead?.phone,
+        whatsappNumber: primary.whatsappNumber || primary.phone || lead?.whatsappPhone,
+        preferredCommunicationChannel: primary.preferredCommunicationChannel || lead?.communicationChannel,
+        emailVerified: primary.emailVerified || Boolean(lead?.email),
+        whatsappVerified: primary.whatsappVerified || Boolean(lead?.whatsappPhone)
       },
       leadContext
     };

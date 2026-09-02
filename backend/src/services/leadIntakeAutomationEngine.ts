@@ -146,16 +146,15 @@ export async function getMissingLeadInformation(leadOrId: any): Promise<MissingI
     known.requirement = typeof rawReq === "object" ? rawReq.item || reqStr : reqStr.trim();
   }
 
-  const missing: MissingInfoResult["missing"] = [];
-  if (!known.name) missing.push("name");
-  if (!known.company) missing.push("company");
-  if (!known.email) missing.push("email");
-  if (!known.phone) missing.push("phone");
-  if (!known.requirement) missing.push("requirement");
+  // Mandatory fields required for intake completion & rep auto-assignment: email, phone, requirement
+  const missingMandatory: MissingInfoResult["missing"] = [];
+  if (!known.email) missingMandatory.push("email");
+  if (!known.phone) missingMandatory.push("phone");
+  if (!known.requirement) missingMandatory.push("requirement");
 
   return {
-    isComplete: missing.length === 0,
-    missing,
+    isComplete: missingMandatory.length === 0,
+    missing: missingMandatory,
     known,
     verified
   };
@@ -621,6 +620,11 @@ export async function processInboundIntakeEvent(event: IntakeEvent): Promise<{
       await sendWhatsAppMessage(effectivePhone, ack.body);
     } else if (event.channel === "email" && effectiveEmail && !effectiveEmail.includes("@nexus-temp.com")) {
       await sendCustomEmail(effectiveEmail, ack.subject || "We've received your enquiry", ack.body, lead.id);
+    }
+
+    // If company was not provided, set fallback to "Not provided" so sales rep sees it clearly in CRM
+    if (!lead.company || /^(pending|pending identification|unknown|general)$/i.test(lead.company.trim())) {
+      await lead.update({ company: "Not provided" }).catch(() => {});
     }
 
     // Mark READY_FOR_ASSIGNMENT
