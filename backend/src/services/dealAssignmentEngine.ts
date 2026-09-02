@@ -43,7 +43,8 @@ export async function autoAssignDeal(
   triggeredByUserIdOrExpectedValue?: string | number,
   externalTransaction?: any
 ): Promise<any> {
-  const { Deal, User, DealReassignmentHistory, PipelineStage } = sequelize.models;
+  const { Deal, User, DealReassignmentHistory } = sequelize.models;
+  const { assignOpportunityCloser } = require("./assignmentEngine");
 
   const runAssignment = async (t: any) => {
     let deal: any = null;
@@ -62,111 +63,56 @@ export async function autoAssignDeal(
       }
     }
 
-    // 1. Fetch available senior_ae users
-    const seniorAes: any[] = await User.findAll({
-      where: {
-        role: "senior_ae",
-        [Op.or]: [
-          { isAvailable: true },
-          { isAvailable: { [Op.is]: null } }
-        ]
-      },
-      transaction: t
+    const context = {
+      dealId: deal?.id || dealIdOrEntityId,
+      expectedValue: dealAmount,
+      company: deal?.name || "Auto-Assign Deal"
+    };
+
+    const assignResult = await assignOpportunityCloser(context, {
+      excludeRepId: deal?.ownerId
     });
 
-    // 2. Closed stages for capacity counting
-    const closedStages: any[] = await PipelineStage.findAll({
-      where: {
-        name: {
-          [Op.in]: ["Won", "Lost", "Closed Won", "Closed Lost"]
-        }
-      },
-      attributes: ["id"],
-      transaction: t
-    });
-    const closedStageIds = closedStages.map((s: any) => s.id);
-
-    // 3. Filter candidates by cutoff AND capacity (both are HARD filters)
-    const candidateEvaluations = [];
-    for (const rep of seniorAes) {
-      const dealWhere: any = { ownerId: rep.id };
-      if (closedStageIds.length > 0) {
-        dealWhere.stageId = { [Op.notIn]: closedStageIds };
-      }
-
-      const openDealsCount = await Deal.count({
-        where: dealWhere,
-        transaction: t
-      });
-
-      // Cutoff check: null = uncapped
-      const withinCutoff =
-        rep.dealValueCutoff === null ||
-        rep.dealValueCutoff === undefined ||
-        Number(rep.dealValueCutoff) >= dealAmount;
-
-      // Capacity check: null = uncapped
-      const withinCapacity =
-        rep.maxOpenDeals === null ||
-        rep.maxOpenDeals === undefined ||
-        openDealsCount < Number(rep.maxOpenDeals);
-
-      candidateEvaluations.push({
-        rep,
-        openDealsCount,
-        withinCutoff,
-        withinCapacity,
-        isEligible: withinCutoff && withinCapacity
-      });
-    }
-
-    const eligibleCandidates = candidateEvaluations.filter((c) => c.isEligible);
-
-    // 4. If no one is eligible, do NOT throw and do NOT force-assign
-    if (eligibleCandidates.length === 0) {
+    if (!assignResult || !assignResult.assigned || !assignResult.closerId) {
       console.log(
-        `[autoAssignDeal] No eligible senior_ae found for deal ${dealIdOrEntityId} (amount: ${dealAmount}).`
+        `[autoAssignDeal] No eligible closer found for deal ${dealIdOrEntityId} (amount: ${dealAmount}). Reason: ${assignResult?.reason}`
       );
-      await triggerManagerNotification(dealIdOrEntityId, dealAmount, "unassigned (no eligible senior_ae within cutoff/capacity)");
+      await triggerManagerNotification(dealIdOrEntityId, dealAmount, "unassigned (no eligible closer within cutoff/capacity)");
 
-      if (!deal) {
-        return null;
-      }
+      if (!deal) return null;
 
       return {
         assigned: false,
         dealId: deal.id,
         deal,
-        reason: "No eligible senior_ae available within cutoff and capacity constraints"
+        reason: assignResult?.reason || "No eligible closer available within cutoff and capacity constraints"
       };
     }
 
-    // 5. Tie-break: fewest open deals (least loaded)
-    eligibleCandidates.sort((a, b) => a.openDealsCount - b.openDealsCount);
-    const winner = eligibleCandidates[0].rep;
+    const winnerId = assignResult.closerId;
+    const winner: any = await User.findByPk(winnerId, { transaction: t });
 
     if (!deal) {
-      return winner.id;
+      return winnerId;
     }
 
-    // 6. Assign deal and record audit history
     const oldOwnerId = deal.ownerId || null;
-    const auditChangedBy = changedByUserId || winner.id;
+    const auditChangedBy = changedByUserId || winnerId;
 
-    await deal.update({ ownerId: winner.id }, { transaction: t });
+    await deal.update({ ownerId: winnerId }, { transaction: t });
 
     await DealReassignmentHistory.create(
       {
         id: crypto.randomUUID(),
         dealId: deal.id,
         oldOwnerId: oldOwnerId,
-        newOwnerId: winner.id,
+        newOwnerId: winnerId,
         changedByUserId: auditChangedBy,
         assignmentType: "AUTOMATIC",
         dealAmountAtReassignment: deal.amount !== undefined && deal.amount !== null ? Number(deal.amount) : null,
         exceededCutoff: false,
         exceededCapacity: false,
-        reason: `Auto-assigned to ${winner.name} (least loaded senior_ae with ${eligibleCandidates[0].openDealsCount} open deals)`
+        reason: assignResult.reason || `Auto-assigned to ${winner?.name || winnerId} via Opportunity Closer Engine`
       },
       { transaction: t }
     );
@@ -174,16 +120,25 @@ export async function autoAssignDeal(
     return {
       assigned: true,
       dealId: deal.id,
-      newOwnerId: winner.id,
+      newOwnerId: winnerId,
       deal,
-      oldOwnerId
+      oldOwnerId,
+      assignee: assignResult.assignee
     };
   };
 
   if (externalTransaction) {
     return await runAssignment(externalTransaction);
   } else {
-    return await sequelize.transaction(async (t) => await runAssignment(t));
+    try {
+      return await sequelize.transaction(async (t) => await runAssignment(t));
+    } catch (err: any) {
+      if (err.message && err.message.includes("SQLITE_BUSY")) {
+        console.warn("[autoAssignDeal] SQLITE_BUSY encountered; retrying without isolated transaction wrapper...");
+        return await runAssignment(null);
+      }
+      throw err;
+    }
   }
 }
 

@@ -15,6 +15,47 @@ async function runE2EVerification() {
   // Set standard known password for demo accounts
   const bcrypt = require("bcryptjs");
   const defaultHash = await bcrypt.hash("PASSWORD123", 10);
+  const crypto = require("crypto");
+
+  await User.findOrCreate({
+    where: { email: "salesperson1@nexus.com" },
+    defaults: {
+      id: "6946dceb-35c6-4696-b006-c39ce3ca3982",
+      name: "Amelia Rodriguez",
+      email: "salesperson1@nexus.com",
+      role: "salesperson",
+      password: defaultHash,
+      isAvailable: true,
+      status: "Active"
+    }
+  });
+
+  await User.findOrCreate({
+    where: { email: "salesperson2@nexus.com" },
+    defaults: {
+      id: "9f102607-44dc-434e-9f01-2d6f35d82e07",
+      name: "Liam Carter",
+      email: "salesperson2@nexus.com",
+      role: "salesperson",
+      password: defaultHash,
+      isAvailable: true,
+      status: "Active"
+    }
+  });
+
+  await User.findOrCreate({
+    where: { email: "admin@nexus.com" },
+    defaults: {
+      id: "0c9d923f-5090-43da-bb39-177178af37e3",
+      name: "Nexus Admin",
+      email: "admin@nexus.com",
+      role: "admin",
+      password: defaultHash,
+      isAvailable: true,
+      status: "Active"
+    }
+  });
+
   await User.update({ password: defaultHash }, { where: {} });
 
   // 0. Login Tokens

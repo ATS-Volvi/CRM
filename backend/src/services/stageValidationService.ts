@@ -19,6 +19,22 @@ export interface StageValidationResult {
   verificationStatus: "VERIFIED" | "NEEDS_REVIEW";
 }
 
+export function parseNumericAmount(val: any): number {
+  if (val === null || val === undefined) return 100000;
+  if (typeof val === "number") return isNaN(val) ? 100000 : val;
+  if (typeof val === "object") {
+    if (val.estimatedValue) return parseNumericAmount(val.estimatedValue);
+    if (val.budget) return parseNumericAmount(val.budget);
+    if (val.amount) return parseNumericAmount(val.amount);
+  }
+  const str = String(val).trim();
+  const cleaned = str.replace(/[^0-9.-]/g, " ").trim();
+  const nums = cleaned.split(/\s+/).map(Number).filter((n) => !isNaN(n));
+  if (nums.length === 0) return 100000;
+  if (nums.length === 1) return nums[0];
+  return Math.round((nums[0] + nums[1]) / 2);
+}
+
 /**
  * Validates whether a record (Deal or Lead) can transition to a target stage.
  * Enforces evidence-backed pipeline stage rules.
@@ -112,8 +128,13 @@ export async function validateStageTransition(
 
   // 3. QUALIFIED / DISCOVERY / REQUIREMENTS STAGE
   if (normalizedTo === "qualified" || normalizedTo === "qualification" || normalizedTo === "discovery" || normalizedTo === "requirements") {
-    const leadVal = lead ? (lead.expectedValue || (lead as any).estimatedValue || (lead as any).qualificationData?.estimatedValue || (lead as any).qualificationData?.budget || (lead as any).budgetRange) : deal?.amount;
-    const reqNotes = lead?.body || lead?.notes || (lead as any).requirements || (lead as any).qualificationData?.requirement || (lead as any).qualificationData?.notes || deal?.name;
+    const qualObj = typeof (lead as any)?.qualificationData === "string" 
+      ? JSON.parse((lead as any).qualificationData) 
+      : (lead as any)?.qualificationData;
+
+    const rawVal = lead ? (lead.expectedValue || (lead as any).estimatedValue || qualObj?.estimatedValue || qualObj?.budget || (lead as any).budgetRange) : deal?.amount;
+    const numVal = parseNumericAmount(rawVal);
+    const reqNotes = lead?.body || lead?.notes || (lead as any).requirements || qualObj?.requirement || qualObj?.notes || deal?.name;
     
     const repActivities = activities.filter((a: any) => {
       const outcomeText = String(a.outcome || "").toLowerCase();
@@ -126,10 +147,10 @@ export async function validateStageTransition(
       missingRequirements.push("At least one logged activity or call/meeting note is required to qualify a lead.");
     }
 
-    if (leadVal) {
+    if (rawVal) {
       evidenceList.push({
         type: "ESTIMATED_VALUE",
-        description: `Deal value specified: SAR ${Number(leadVal).toLocaleString()}`,
+        description: `Deal value specified: SAR ${numVal.toLocaleString()}`,
         timestamp: new Date(),
         isCustomerSide: false
       });

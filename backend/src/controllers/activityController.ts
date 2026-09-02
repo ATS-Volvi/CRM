@@ -35,7 +35,8 @@ export const getLeadActivities = async (req: Request, res: Response) => {
 
 export const createActivity = async (req: Request, res: Response) => {
   try {
-    const leadId = req.params.leadId || req.body.leadId;
+    const leadId = req.params.leadId || req.body.leadId || (req.body.entityType === "LEAD" ? req.body.entityId : null);
+    const dealIdParam = req.body.dealId || (req.body.entityType === "DEAL" ? req.body.entityId : null);
     const {
       accountId,
       customerId,
@@ -75,6 +76,7 @@ export const createActivity = async (req: Request, res: Response) => {
     const activity = await Activity.create({
       id: require('crypto').randomUUID(),
       leadId: leadId || null,
+      dealId: dealId || dealIdParam || null,
       customerId: targetCustomerId,
       type: type || "note",
       notes: notes || title || "",
