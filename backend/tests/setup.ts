@@ -10,7 +10,9 @@ jest.setTimeout(60000);
 beforeAll(async () => {
   // Connect and sync fresh schema
   await Database.createConnection();
+  await sequelize.query("PRAGMA foreign_keys = OFF;");
   await sequelize.sync({ force: true });
+  await sequelize.query("PRAGMA foreign_keys = ON;");
 
   // Seed default admin user so that Activity's createdById constraint does not fail
   try {

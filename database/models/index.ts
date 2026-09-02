@@ -440,19 +440,37 @@ export class QuoteLineItem extends Model {
   public id!: string;
   public quoteId!: string;
   public productId!: string;
+  public catalogItemId!: string | null;
   public quantity!: number;
   public unitPrice!: number;
+  public discount!: number | null;
+  public tax!: number | null;
   public totalPrice!: number;
+  public totalAmount!: number | null;
   public isOptional!: boolean;
+  public isCustom!: boolean | null;
+  public customDescription!: string | null;
+  public description!: string | null;
+  public sortOrder!: number | null;
+  public internalCostSnapshot!: number | null;
 }
 
 QuoteLineItem.init(
   {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    catalogItemId: { type: DataTypes.UUID, allowNull: true },
     quantity: { type: DataTypes.INTEGER, allowNull: false },
     unitPrice: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
+    discount: { type: DataTypes.FLOAT, allowNull: true, defaultValue: 0 },
+    tax: { type: DataTypes.FLOAT, allowNull: true, defaultValue: 0 },
     totalPrice: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
-    isOptional: { type: DataTypes.BOOLEAN, defaultValue: false }
+    totalAmount: { type: DataTypes.DECIMAL(10, 2), allowNull: true },
+    isOptional: { type: DataTypes.BOOLEAN, defaultValue: false },
+    isCustom: { type: DataTypes.BOOLEAN, defaultValue: false },
+    customDescription: { type: DataTypes.TEXT, allowNull: true },
+    description: { type: DataTypes.TEXT, allowNull: true },
+    sortOrder: { type: DataTypes.INTEGER, allowNull: true },
+    internalCostSnapshot: { type: DataTypes.DECIMAL(10, 2), allowNull: true }
   },
   { sequelize, modelName: "QuoteLineItem" }
 );

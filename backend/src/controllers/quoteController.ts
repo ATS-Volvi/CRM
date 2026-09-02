@@ -41,10 +41,23 @@ export function formatQuoteWithTotals(quoteInput: any) {
   const roundedTotalTax = parseFloat(totalTax.toFixed(2));
   const calculatedTotalAmount = parseFloat((roundedSubtotal - roundedTotalDiscount + roundedTotalTax).toFixed(2));
 
+  const storedTotal = Number(quote.totalAmount || 0);
+
   quote.subtotal = roundedSubtotal;
   quote.totalDiscount = roundedTotalDiscount;
   quote.totalTax = roundedTotalTax;
-  quote.totalAmount = calculatedTotalAmount > 0 ? calculatedTotalAmount : Number(quote.totalAmount || 0);
+
+  if (storedTotal > 0 && Math.abs(calculatedTotalAmount - storedTotal) > 0.01 && items.length > 0) {
+    const hasUnmappedColumns = items.some((it: any) => it.discount === undefined || it.tax === undefined);
+    if (hasUnmappedColumns) {
+      console.warn(`[formatQuoteWithTotals] Warning: Line items for quote ${quote.id || quote.quoteNumber} have unmapped/missing columns. Preserving stored totalAmount (${storedTotal}).`);
+      quote.totalAmount = storedTotal;
+    } else {
+      quote.totalAmount = calculatedTotalAmount;
+    }
+  } else {
+    quote.totalAmount = calculatedTotalAmount > 0 ? calculatedTotalAmount : storedTotal;
+  }
 
   return quote;
 }
@@ -362,15 +375,38 @@ export const updateQuote = async (req: Request, res: Response) => {
     // Update items if provided
     if (items && Array.isArray(items)) {
       await sequelize.models.QuoteLineItem.destroy({ where: { quoteId: id } });
-      const newItems = items.map((item: any) => ({
-        id: require("crypto").randomUUID(),
-        quoteId: id,
-        productId: item.productId,
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        totalPrice: item.quantity * item.unitPrice,
-        isOptional: item.isOptional || false
-      }));
+      const newItems = items.map((item: any) => {
+        const qty = Number(item.quantity || 1);
+        const unitPrice = Number(item.unitPrice || 0);
+        const discountPct = Number(item.discount || 0);
+        const taxPct = Number(item.tax !== undefined && item.tax !== null ? item.tax : 0);
+        const catalogId = item.catalogItemId || item.productId || null;
+        const isCustom = !!item.isCustom;
+
+        const lineGross = qty * unitPrice;
+        const lineSubtotal = item.totalPrice && !item.unitPrice
+          ? Number(item.totalPrice)
+          : lineGross * (1 - discountPct / 100);
+        const lineTaxAmount = lineSubtotal * (taxPct / 100);
+        const lineTotal = lineSubtotal + lineTaxAmount;
+
+        return {
+          id: require("crypto").randomUUID(),
+          quoteId: id,
+          productId: catalogId,
+          catalogItemId: catalogId,
+          quantity: qty,
+          unitPrice,
+          discount: discountPct,
+          tax: taxPct,
+          totalPrice: parseFloat(lineSubtotal.toFixed(2)),
+          totalAmount: parseFloat(lineTotal.toFixed(2)),
+          isOptional: item.isOptional || false,
+          isCustom: isCustom || !catalogId,
+          customDescription: isCustom ? (item.customDescription || item.description || item.nameOverride || "Custom Line Item") : null,
+          description: item.description || item.nameOverride || null
+        };
+      });
       await sequelize.models.QuoteLineItem.bulkCreate(newItems);
       itemsUpdated = true;
     }
@@ -379,9 +415,28 @@ export const updateQuote = async (req: Request, res: Response) => {
       q.totalAmount = totalAmount;
     } else if (itemsUpdated) {
       const updatedLineItems: any = await sequelize.models.QuoteLineItem.findAll({ where: { quoteId: id } });
-      q.totalAmount = updatedLineItems
-        .filter((item: any) => !item.isOptional)
-        .reduce((acc: number, item: any) => acc + Number(item.totalPrice), 0);
+      let accSubtotal = 0;
+      let accTotalDiscount = 0;
+      let accTotalTax = 0;
+
+      for (const item of updatedLineItems) {
+        if (item.isOptional) continue;
+        const qty = Number(item.quantity || 1);
+        const unitPrice = Number(item.unitPrice || 0);
+        const discountPct = Number(item.discount || 0);
+        const taxPct = Number(item.tax || 0);
+
+        const lineGross = qty * unitPrice;
+        const lineSubtotal = Number(item.totalPrice || (lineGross * (1 - discountPct / 100)));
+        const lineDiscount = lineGross - lineSubtotal;
+        const lineTaxAmount = lineSubtotal * (taxPct / 100);
+
+        accSubtotal += lineGross;
+        accTotalDiscount += lineDiscount;
+        accTotalTax += lineTaxAmount;
+      }
+
+      q.totalAmount = parseFloat((accSubtotal - accTotalDiscount + accTotalTax).toFixed(2));
     }
 
     if (expirationDate) q.expirationDate = expirationDate;

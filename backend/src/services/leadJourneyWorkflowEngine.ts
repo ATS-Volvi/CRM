@@ -145,14 +145,25 @@ export interface QualificationModel {
 }
 
 export function validateQualificationData(data: Partial<QualificationModel>): QualificationModel {
-  const estVal = Number(data.estimatedValue || (data as any)?.amount || (data as any)?.budget || 100000);
+  const parseNum = (val: any): number => {
+    if (val === null || val === undefined) return NaN;
+    if (typeof val === "number") return val;
+    const str = String(val).replace(/[^0-9.-]/g, " ").trim();
+    const nums = str.split(/\s+/).map(Number).filter((n) => !isNaN(n));
+    if (nums.length === 0) return NaN;
+    if (nums.length === 1) return nums[0];
+    return Math.round((nums[0] + nums[1]) / 2);
+  };
+
+  const rawVal = parseNum(data.estimatedValue) || parseNum((data as any)?.amount) || parseNum(data.budget);
+  const estVal = isNaN(rawVal) || rawVal <= 0 ? 100000 : rawVal;
   const requirement = data.requirement && typeof data.requirement === "string" && data.requirement.trim()
     ? data.requirement.trim()
     : "Commercial Opportunity";
 
   return {
     requirement,
-    estimatedValue: isNaN(estVal) || estVal <= 0 ? 100000 : estVal,
+    estimatedValue: estVal,
     budget: data.budget || estVal,
     timeline: data.timeline || "Within 30 Days",
     decisionMaker: data.decisionMaker || "Primary Contact",
@@ -286,6 +297,27 @@ export async function convertLeadToOpportunity(leadId: string, qualificationData
     });
   }
 
+  // 5a. Automatically invoke Closer Auto-Assignment engine
+  // Pass deal.id and triggerUserId (chosenOwnerId).
+  // Note: autoAssignDeal delegates to assignOpportunityCloser with excludeRepId: deal.ownerId (chosenOwnerId),
+  // which explicitly excludes the qualifying rep from the candidate pool!
+  let autoAssignResult: any = null;
+  try {
+    const { autoAssignDeal } = require("./dealAssignmentEngine");
+    autoAssignResult = await autoAssignDeal(deal.id, triggerUserId || chosenOwnerId);
+    if (autoAssignResult && autoAssignResult.assigned) {
+      autoAssigned = true;
+      autoAssignReason = autoAssignResult.reason || `Auto-assigned to ${autoAssignResult.assignee?.name || autoAssignResult.newOwnerId}`;
+      deal = await sequelize.models.Deal.findByPk(deal.id);
+    } else {
+      autoAssignReason = autoAssignResult?.reason || "No eligible closer available under cutoff/capacity constraints";
+    }
+  } catch (assignErr: any) {
+    console.warn("[convertLeadToOpportunity] Auto-assignment during lead conversion warning:", assignErr.message || assignErr);
+    autoAssignResult = { assigned: false, reason: assignErr.message };
+    autoAssignReason = assignErr.message;
+  }
+
   // 5b. Link Contact to Deal via DealContact (matching leadIngestion.ts pattern)
   if (contact && sequelize.models.DealContact) {
     const existingDealContact = await sequelize.models.DealContact.findOne({
@@ -415,7 +447,9 @@ export async function convertLeadToOpportunity(leadId: string, qualificationData
   }
 
   // 7. Update Lead record with Conversion & Qualification details
+  const finalAssignedToId = autoAssignResult?.newOwnerId || deal?.ownerId || l.assignedToId || chosenOwnerId;
   await l.update({
+    assignedToId: finalAssignedToId,
     status: "CONVERTED",
     nextAction: nextState.nextAction,
     nextActionDue: nextState.dueDate,
@@ -435,10 +469,20 @@ export async function convertLeadToOpportunity(leadId: string, qualificationData
     leadScore: Math.min(100, (l.leadScore || 50) + 25)
   });
 
+  const updatedLead: any = (await sequelize.models.Lead.findByPk(l.id, {
+    include: [
+      {
+        model: sequelize.models.User,
+        as: "assignedTo",
+        attributes: ["id", "name", "email", "role"]
+      }
+    ]
+  })) || l;
+
   // 8. Notify Sales Rep & Process Opportunity Creation Lifecycle Event
-  if (l.assignedToId) {
+  if (finalAssignedToId) {
     await createNotification({
-      userId: l.assignedToId,
+      userId: finalAssignedToId,
       type: "LEAD_QUALIFIED",
       title: "Lead Qualified & Opportunity Created",
       message: `Lead '${l.firstName} ${l.lastName}' has been converted. Opportunity created with value ₹${validQual.estimatedValue.toLocaleString()}.`
@@ -450,7 +494,7 @@ export async function convertLeadToOpportunity(leadId: string, qualificationData
       eventId: `lead_converted_${l.id}`,
       opportunityId: deal.id,
       type: "OpportunityCreated",
-      actorId: userId || l.assignedToId,
+      actorId: userId || finalAssignedToId,
       payload: {
         leadId: l.id,
         estimatedValue: validQual.estimatedValue
@@ -461,12 +505,13 @@ export async function convertLeadToOpportunity(leadId: string, qualificationData
   }
 
   return {
-    lead: l,
+    lead: updatedLead,
     deal,
     account,
     contact,
     autoAssigned,
-    autoAssignReason
+    autoAssignReason,
+    autoAssignResult
   };
 }
 

@@ -530,7 +530,7 @@ export async function assignOpportunityCloser(
     const { WorkspaceSetting, SalesAssignmentPolicy, User } = sequelize.models;
 
     // 1. Resolve closer tiers
-    let closingTiers: string[] = ["senior_ae", "senior sales representative", "enterprise ae", "strategic ae", "closer", "senior ae", "manager", "sales_rep", "sales representative"];
+    let closingTiers: string[] = ["senior_ae", "salesperson", "sales_rep", "sales representative", "senior sales representative", "enterprise ae", "strategic ae", "closer", "senior ae", "manager"];
     
     try {
       if (WorkspaceSetting) {
@@ -627,6 +627,11 @@ export async function assignOpportunityCloser(
       if (rep.onLeave) continue;
       if (rep.status === "On Leave" || rep.status === "Offline" || rep.status === "Suspended") continue;
 
+      // Deal value cutoff check (hard gate before scoring)
+      if (rep.dealValueCutoff !== null && rep.dealValueCutoff !== undefined) {
+        if (expectedVal > Number(rep.dealValueCutoff)) continue;
+      }
+
       // Open deals capacity check
       if (rep.maxOpenDeals !== null && rep.maxOpenDeals !== undefined) {
         const openDeals = await getOpenDealsCount(rep.id);
@@ -643,7 +648,9 @@ export async function assignOpportunityCloser(
       if (fallbackAction === "keep_lead_rep" && options?.excludeRepId) {
         const leadRep: any = await User.findByPk(options.excludeRepId);
         const isEligible = leadRep ? await checkRepEligibility(leadRep.id) : false;
-        if (leadRep && isEligible) {
+        const withinCutoff = leadRep && (leadRep.dealValueCutoff === null || leadRep.dealValueCutoff === undefined || expectedVal <= Number(leadRep.dealValueCutoff));
+
+        if (leadRep && isEligible && withinCutoff) {
           return {
             assigned: true,
             closerId: leadRep.id,
