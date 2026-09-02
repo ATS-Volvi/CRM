@@ -59,6 +59,15 @@ export function Sidebar({
         { label: "Leads", path: "/leads", icon: Users },
         { label: "Opportunities", path: "/opportunities", icon: Target },
         { label: "Pipeline", path: "/pipeline", icon: Trello },
+        { label: "Quotes", path: "/quotes", icon: FileText },
+      ]
+    },
+    { 
+      label: "Governance & Approvals", 
+      icon: Shield,
+      subItems: [
+        { label: "Approval Queue & Limits", path: "/approvals", icon: CheckSquare },
+        { label: "Manager Portal", path: "/manager", icon: BarChart },
       ]
     },
     { 
@@ -76,6 +85,7 @@ export function Sidebar({
   // Track open dropdowns (default open for active route)
   const [openDropdowns, setOpenDropdowns] = useState<Record<string, boolean>>({
     "Sales Division": true,
+    "Governance & Approvals": true,
     "CRM": false,
   });
 
