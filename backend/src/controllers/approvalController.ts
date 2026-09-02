@@ -351,11 +351,12 @@ export const submitQuoteForApproval = async (req: Request, res: Response) => {
 
 export const getApprovals = async (req: Request, res: Response) => {
   try {
+    const userAttrs = ["id", "name", "email", "role"];
     const approvals = await sequelize.models.ApprovalRequest.findAll({
       include: [
-        { model: sequelize.models.User, as: "requestedBy" },
-        { model: sequelize.models.User, as: "approvedBy" },
-        { model: sequelize.models.User, as: "assignedApprover" },
+        { model: sequelize.models.User, as: "requestedBy", attributes: userAttrs },
+        { model: sequelize.models.User, as: "approvedBy", attributes: userAttrs },
+        { model: sequelize.models.User, as: "assignedApprover", attributes: userAttrs },
       ],
       order: [["createdAt", "DESC"]]
     });
@@ -367,7 +368,7 @@ export const getApprovals = async (req: Request, res: Response) => {
           data.target = await sequelize.models.Quote.findByPk(data.targetId, {
             include: [
               { model: sequelize.models.QuoteLineItem, as: "QuoteLineItems", include: [{ model: sequelize.models.PriceBookEntry, as: "product" }] },
-              { model: sequelize.models.Deal, as: "deal", include: [{ model: sequelize.models.Lead, as: "lead" }, { model: sequelize.models.User, as: "owner" }] }
+              { model: sequelize.models.Deal, as: "deal", include: [{ model: sequelize.models.Lead, as: "lead" }, { model: sequelize.models.User, as: "owner", attributes: userAttrs }] }
             ]
           });
           if (data.target) {
@@ -379,7 +380,7 @@ export const getApprovals = async (req: Request, res: Response) => {
               model: sequelize.models.Quote,
               as: "quote",
               include: [
-                { model: sequelize.models.Deal, as: "deal", include: [{ model: sequelize.models.Lead, as: "lead" }, { model: sequelize.models.User, as: "owner" }] }
+                { model: sequelize.models.Deal, as: "deal", include: [{ model: sequelize.models.Lead, as: "lead" }, { model: sequelize.models.User, as: "owner", attributes: userAttrs }] }
               ]
             }]
           });
@@ -458,12 +459,119 @@ export const updateApproval = async (req: Request, res: Response) => {
     }
 
     const prevApprovalStatus = (approval as any).status;
-    await approval.update({
-      status,
-      approvedById: authUser?.id || (approval as any).assignedApproverId,
-      comments: comments || (approval as any).comments
+
+    let notificationToDeliver: { repOwnerId?: string | null; customerName?: string; customerEmail?: string } = {};
+
+    // ── STEP 1: DB WRITES IN A SINGLE SEQUELIZE TRANSACTION ──────────────────
+    await sequelize.transaction(async (t) => {
+      await approval.update({
+        status,
+        approvedById: authUser?.id || (approval as any).assignedApproverId,
+        comments: comments || (approval as any).comments
+      }, { transaction: t });
+
+      if ((approval as any).type === "PurchaseOrder" || (approval as any).type === "PO") {
+        const po: any = await sequelize.models.PurchaseOrder.findByPk(targetId, {
+          include: [{
+            model: sequelize.models.Quote,
+            as: "quote",
+            include: [{ model: sequelize.models.Deal, as: "deal" }]
+          }],
+          transaction: t
+        });
+
+        if (po) {
+          if (status === "Approved") {
+            await po.update({ status: "Accepted", approvedAt: new Date() }, { transaction: t });
+            if (po.quote?.deal) {
+              const wonStage = await sequelize.models.PipelineStage.findOne({ where: { name: "Won" }, transaction: t }) ||
+                await sequelize.models.PipelineStage.findOne({ order: [["order", "DESC"]], transaction: t });
+              await po.quote.deal.update({ stageId: (wonStage as any)?.id, status: "WON" }, { transaction: t });
+            }
+          } else if (status === "Rejected") {
+            await po.update({ status: "Rejected" }, { transaction: t });
+          }
+        }
+      }
+
+      if ((approval as any).type === "Quote") {
+        const quote = await sequelize.models.Quote.findByPk(targetId, {
+          include: [{ model: sequelize.models.QuoteLineItem, as: "QuoteLineItems" }],
+          transaction: t
+        });
+
+        if (quote) {
+          const prevQuoteStatus = (quote as any).status;
+          const newQuoteStatus = status === "Approved" ? "Approved" : (status === "Rejected" ? "Rejected" : "Draft");
+          await quote.update({
+            status: newQuoteStatus,
+            isFinalAgreed: status === "Approved",
+            statusChangedAt: new Date()
+          }, { transaction: t });
+
+          // Log Audit Trail
+          await createApprovalAuditLog({
+            quoteId: targetId,
+            salesRepId: evaluation?.salesRepId || (approval as any).requestedById || "system",
+            approvalLevel: evaluation?.approvalLevel || "NONE",
+            requiredLimit: evaluation?.repLimit || null,
+            actualQuoteValue: evaluation?.quoteValue || Number((quote as any).totalAmount || 0),
+            discount: evaluation?.discount || 0,
+            margin: evaluation?.margin ?? null,
+            approverId: authUser?.id || null,
+            decision: status,
+            comment: comments || null,
+            previousStatus: prevQuoteStatus,
+            newStatus: newQuoteStatus,
+            reason: `Quote status updated to ${status} by ${authUser?.name || authUser?.role || "Authorized Approver"}. Reason: ${evaluation?.reason || 'Direct Approval Action'}`
+          }, { transaction: t });
+
+          // Auto-generate invoice if approved
+          if (status === "Approved") {
+            const existingInvoice = await sequelize.models.Invoice.findOne({ where: { quoteId: (quote as any).id }, transaction: t });
+            if (!existingInvoice) {
+              let targetLeadId: string | null = null;
+              if ((quote as any).dealId) {
+                const dealObj: any = await sequelize.models.Deal.findByPk((quote as any).dealId, { transaction: t });
+                if (dealObj && dealObj.leadId) {
+                  targetLeadId = dealObj.leadId;
+                }
+              }
+
+              const invoiceId = require("crypto").randomUUID();
+              const invoice = await sequelize.models.Invoice.create({
+                id: invoiceId,
+                quoteId: (quote as any).id,
+                leadId: targetLeadId,
+                status: "Draft",
+                issueDate: new Date(),
+                dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+                subtotal: (quote as any).totalAmount || 0,
+                totalAmount: (quote as any).totalAmount || 0,
+                notes: "Auto-generated invoice upon Quote approval."
+              }, { transaction: t }) as any;
+
+              if ((quote as any).QuoteLineItems && (quote as any).QuoteLineItems.length > 0) {
+                for (const item of (quote as any).QuoteLineItems) {
+                  const qty = Number(item.quantity || 1);
+                  const price = Number(item.unitPrice || 0);
+                  await sequelize.models.InvoiceLineItem.create({
+                    id: require("crypto").randomUUID(),
+                    invoiceId: invoice.id,
+                    productId: item.productId || null,
+                    quantity: qty,
+                    unitPrice: price,
+                    totalPrice: qty * price
+                  }, { transaction: t });
+                }
+              }
+            }
+          }
+        }
+      }
     });
 
+    // ── STEP 2: NOTIFICATIONS & SIDE EFFECTS OUTSIDE TRANSACTION ─────────────
     if ((approval as any).type === "PurchaseOrder" || (approval as any).type === "PO") {
       const po: any = await sequelize.models.PurchaseOrder.findByPk(targetId, {
         include: [{
@@ -472,71 +580,30 @@ export const updateApproval = async (req: Request, res: Response) => {
           include: [{ model: sequelize.models.Deal, as: "deal" }]
         }]
       });
-
-      if (po) {
+      if (po?.quote?.deal?.ownerId) {
         if (status === "Approved") {
-          await po.update({ status: "Accepted", approvedAt: new Date() });
-          if (po.quote?.deal) {
-            const wonStage = await sequelize.models.PipelineStage.findOne({ where: { name: "Won" } }) ||
-              await sequelize.models.PipelineStage.findOne({ order: [["order", "DESC"]] });
-            await po.quote.deal.update({ stageId: (wonStage as any)?.id, status: "WON" });
-          }
-          if (po.quote?.deal?.ownerId) {
-            await createNotification(
-              po.quote.deal.ownerId,
-              'info',
-              'Purchase Order Approved & Deal Won',
-              `PO #${po.poNumber} for "${po.quote.deal.name}" was approved by management. Deal has been marked Won!`,
-              `/opportunities/${po.quote.deal.id}`
-            );
-          }
+          await createNotification(
+            po.quote.deal.ownerId,
+            'info',
+            'Purchase Order Approved & Deal Won',
+            `PO #${po.poNumber} for "${po.quote.deal.name}" was approved by management. Deal has been marked Won!`,
+            `/opportunities/${po.quote.deal.id}`
+          );
         } else if (status === "Rejected") {
-          await po.update({ status: "Rejected" });
-          if (po.quote?.deal?.ownerId) {
-            await createNotification(
-              po.quote.deal.ownerId,
-              'alert',
-              'Purchase Order Rejected',
-              `PO #${po.poNumber} was rejected by management: ${comments || 'Action required'}.`,
-              `/opportunities/${po.quote.deal.id}`
-            );
-          }
+          await createNotification(
+            po.quote.deal.ownerId,
+            'alert',
+            'Purchase Order Rejected',
+            `PO #${po.poNumber} was rejected by management: ${comments || 'Action required'}.`,
+            `/opportunities/${po.quote.deal.id}`
+          );
         }
       }
     }
 
     if ((approval as any).type === "Quote") {
-      const quote = await sequelize.models.Quote.findByPk(targetId, {
-        include: [{ model: sequelize.models.QuoteLineItem, as: "QuoteLineItems" }]
-      });
-
+      const quote = await sequelize.models.Quote.findByPk(targetId);
       if (quote) {
-        const prevQuoteStatus = (quote as any).status;
-        const newQuoteStatus = status === "Approved" ? "Approved" : (status === "Rejected" ? "Rejected" : "Draft");
-        await quote.update({
-          status: newQuoteStatus,
-          isFinalAgreed: status === "Approved",
-          statusChangedAt: new Date()
-        });
-
-        // Log Audit Trail
-        await createApprovalAuditLog({
-          quoteId: targetId,
-          salesRepId: evaluation.salesRepId,
-          approvalLevel: evaluation.approvalLevel,
-          requiredLimit: evaluation.repLimit,
-          actualQuoteValue: evaluation.quoteValue,
-          discount: evaluation.discount,
-          margin: evaluation.margin,
-          approverId: authUser?.id || null,
-          decision: status,
-          comment: comments || null,
-          previousStatus: prevQuoteStatus,
-          newStatus: newQuoteStatus,
-          reason: `Quote status updated to ${status} by ${authUser?.name || authUser?.role || "Authorized Approver"}. Reason: ${evaluation.reason}`
-        });
-
-        // Notify rep if rejected
         if (status === "Rejected") {
           const approverName = authUser?.name || authUser?.role || "Manager";
           const repOwnerId = evaluation?.salesRepId || (approval as any).requestedById;
@@ -549,58 +616,13 @@ export const updateApproval = async (req: Request, res: Response) => {
               `/quotes/${targetId}`
             );
           }
-        }
-
-        // Auto-generate invoice if approved
-        if (status === "Approved") {
-          const existingInvoice = await sequelize.models.Invoice.findOne({ where: { quoteId: (quote as any).id } });
-          if (!existingInvoice) {
-            let targetLeadId: string | null = null;
-            if ((quote as any).dealId) {
-              const dealObj: any = await sequelize.models.Deal.findByPk((quote as any).dealId);
-              if (dealObj && dealObj.leadId) {
-                targetLeadId = dealObj.leadId;
-              }
-            }
-
-            const invoiceId = require("crypto").randomUUID();
-            const invNumber = `INV-${Date.now().toString().slice(-6)}`;
-            const invoice = await sequelize.models.Invoice.create({
-              id: invoiceId,
-              invoiceNumber: invNumber,
-              quoteId: (quote as any).id,
-              leadId: targetLeadId,
-              status: "Draft",
-              issueDate: new Date(),
-              dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-              subtotal: (quote as any).totalAmount || 0,
-              totalAmount: (quote as any).totalAmount || 0,
-              notes: "Auto-generated invoice upon Quote approval."
-            }) as any;
-
-            if ((quote as any).QuoteLineItems && (quote as any).QuoteLineItems.length > 0) {
-              for (const item of (quote as any).QuoteLineItems) {
-                await sequelize.models.InvoiceLineItem.create({
-                  id: require("crypto").randomUUID(),
-                  invoiceId: invoice.id,
-                  productId: item.productId,
-                  description: item.description || "Line Item",
-                  quantity: item.quantity,
-                  unitPrice: item.unitPrice,
-                  amount: item.quantity * item.unitPrice
-                });
-              }
-            }
-          }
-
-          // ── AUTO-SEND QUOTE TO CUSTOMER ──────────────────────────────────
+        } else if (status === "Approved") {
           const approverName = authUser?.name || authUser?.role || "Manager";
           let customerEmail: string | null = null;
           let customerName: string = "Customer";
           let repOwnerId: string | null = null;
 
           try {
-            // Resolve customer contact info (reuses quoteDeliveryService's own logic)
             const quoteWithDeal: any = await sequelize.models.Quote.findByPk((quote as any).id, {
               include: [{
                 model: sequelize.models.Deal,
@@ -615,14 +637,13 @@ export const updateApproval = async (req: Request, res: Response) => {
             repOwnerId = quoteWithDeal?.deal?.ownerId || evaluation?.salesRepId || null;
 
             if (!customerEmail || customerEmail.includes("@nexus-temp.com") || !customerEmail.includes("@")) {
-              throw new Error(`No valid customer email on record (found: "${customerEmail || 'none'}")`); 
+              throw new Error(`No valid customer email on record (found: "${customerEmail || 'none'}")`);
             }
 
             await deliverQuote((quote as any).id, { channel: "EMAIL", userId: authUser?.id });
 
             console.log(`[Approval] Quote ${(quote as any).id} approved by ${approverName}, auto-sent to ${customerEmail}`);
 
-            // Notify the sales rep
             if (repOwnerId) {
               await createNotification(
                 repOwnerId,
@@ -633,13 +654,11 @@ export const updateApproval = async (req: Request, res: Response) => {
               );
             }
           } catch (sendErr: any) {
-            // Mark as Approved (Send Failed) — do NOT silently hide this
             await quote.update({ status: "Approved (Send Failed)", statusChangedAt: new Date() });
             console.error(`[Approval] Quote ${(quote as any).id} approved by ${approverName} but auto-send FAILED: ${sendErr.message}`);
 
             const failureMsg = `Quote approved, but delivery to customer failed: ${sendErr.message}. Please send manually from the Quotes page.`;
 
-            // Notify manager who just approved
             if (authUser?.id) {
               await createNotification(
                 authUser.id,
@@ -650,7 +669,6 @@ export const updateApproval = async (req: Request, res: Response) => {
               );
             }
 
-            // Notify the original sales rep
             if (repOwnerId && repOwnerId !== authUser?.id) {
               await createNotification(
                 repOwnerId,

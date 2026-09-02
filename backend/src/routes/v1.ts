@@ -41,7 +41,11 @@ import {
 } from '../controllers/quoteController';
 import { getInvoices, createInvoiceFromQuote, updateInvoiceStatus, generateInvoicePdf } from '../controllers/invoiceController';
 import { getPurchaseOrders, getOrderById, createPurchaseOrder, updatePurchaseOrder, createOrderFromQuote, resolvePurchaseOrder } from '../controllers/purchaseOrderController';
-import { getApprovals, updateApproval, getApprovalTiers, createApprovalTier, deleteApprovalTier, submitQuoteForApproval } from '../controllers/approvalController';
+import {
+  getApprovals, updateApproval, getApprovalTiers, createApprovalTier, deleteApprovalTier, submitQuoteForApproval,
+  getAdminApprovalPolicy, updateAdminApprovalPolicy, getSalesApprovalProfiles, upsertSalesApprovalProfile,
+  getApprovalAuditLogs, evaluateQuote, approveQuoteDirectly
+} from '../controllers/approvalController';
 import { getKpiDashboard, getManagementDashboard, getMyTodayDashboard, getMyHomeDashboard, getKpiTarget, updateKpiTarget, getActivitiesReports, getHomeDashboard } from '../controllers/dashboardController';
 import { getAssignmentRules, createAssignmentRule, updateAssignmentRule, deleteAssignmentRule, getSalespersonsCapacities, balanceSalespersonsCapacities } from '../controllers/assignmentRuleController';
 import { getAssignmentPolicy, updateAssignmentPolicy, getRepPerformanceProfiles, getAssignmentAudits, reassignLeadManually } from '../controllers/assignmentController';
@@ -517,6 +521,25 @@ router.patch("/fulfillments/items/:itemId", authMiddleware, updateFulfillmentIte
 router.get("/approvals", authMiddleware, getApprovals);
 router.post("/approvals", authMiddleware, createApproval);
 router.put("/approvals/:id", authMiddleware, updateApproval);
+
+// ADMIN APPROVAL POLICY
+router.get("/approval-policy", authMiddleware, getAdminApprovalPolicy);
+router.put("/approval-policy", authMiddleware, updateAdminApprovalPolicy);
+
+// SALES APPROVAL PROFILES
+router.get("/sales-approval-profiles", authMiddleware, getSalesApprovalProfiles);
+router.post("/sales-approval-profiles", authMiddleware, upsertSalesApprovalProfile);
+router.post("/approvals/profiles", authMiddleware, upsertSalesApprovalProfile);
+
+// APPROVAL AUDIT LOGS
+router.get("/approval-audit-logs", authMiddleware, getApprovalAuditLogs);
+
+// QUOTE EVALUATION & DIRECT APPROVALS
+router.post("/quotes/preview/evaluate-approval", authMiddleware, evaluateQuote);
+router.get("/quotes/:id/evaluate-approval", authMiddleware, evaluateQuote);
+router.post("/quotes/:id/evaluate-approval", authMiddleware, evaluateQuote);
+router.post("/quotes/:id/approve-direct", authMiddleware, approveQuoteDirectly);
+router.post("/approvals/quotes/:id/approve", authMiddleware, approveQuoteDirectly);
 
 // ==========================================
 // APPROVAL TIERS

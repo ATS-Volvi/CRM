@@ -432,7 +432,7 @@ export const getDeals = async (req: Request, res: Response) => {
       include: [
         stageInclude,
         { model: sequelize.models.Account, as: "account" },
-        { model: sequelize.models.User, as: "owner" },
+        { model: sequelize.models.User, as: "owner", attributes: ["id", "name", "email", "role"] },
         { model: sequelize.models.Quote, as: "quotes" }
       ],
       order: [["createdAt", "DESC"]]
@@ -590,7 +590,7 @@ export const getOpportunityById = async (req: Request, res: Response) => {
       include: [
         { model: PipelineStage, as: "stage" },
         { model: sequelize.models.Account, as: "account" },
-        { model: sequelize.models.User, as: "owner" },
+        { model: sequelize.models.User, as: "owner", attributes: ["id", "name", "email", "role"] },
         { model: sequelize.models.Quote, as: "quotes" }
       ]
     });

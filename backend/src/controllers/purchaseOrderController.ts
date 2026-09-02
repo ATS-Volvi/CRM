@@ -65,7 +65,7 @@ export const getPurchaseOrders = async (req: Request, res: Response) => {
                 as: "lead",
                 where: Object.keys(leadWhere).length > 0 ? leadWhere : undefined
               },
-              { model: sequelize.models.User, as: "owner" }
+              { model: sequelize.models.User, as: "owner", attributes: ["id", "name", "email", "role"] }
             ] 
           }] 
         }
@@ -105,7 +105,7 @@ export const createPurchaseOrder = async (req: Request, res: Response) => {
         as: "deal",
         include: [
           { model: sequelize.models.Lead, as: "lead" },
-          { model: sequelize.models.User, as: "owner" }
+          { model: sequelize.models.User, as: "owner", attributes: ["id", "name", "email", "role"] }
         ]
       }]
     });
@@ -279,7 +279,7 @@ export const resolvePurchaseOrder = async (req: Request, res: Response) => {
               as: "deal",
               include: [
                 { model: sequelize.models.Lead, as: "lead" },
-                { model: sequelize.models.User, as: "owner" }
+                { model: sequelize.models.User, as: "owner", attributes: ["id", "name", "email", "role"] }
               ]
             }
           ]
@@ -480,7 +480,7 @@ export const getOrderById = async (req: Request, res: Response) => {
               as: "deal",
               include: [
                 { model: sequelize.models.Account, as: "account" },
-                { model: sequelize.models.User, as: "owner" }
+                { model: sequelize.models.User, as: "owner", attributes: ["id", "name", "email", "role"] }
               ]
             }
           ]

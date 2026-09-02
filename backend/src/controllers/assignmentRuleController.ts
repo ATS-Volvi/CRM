@@ -4,7 +4,7 @@ import { sequelize } from "@nexus-crm/database";
 export const getAssignmentRules = async (req: Request, res: Response) => {
   try {
     const rules = await sequelize.models.AssignmentRule.findAll({
-      include: [{ model: sequelize.models.User, as: "assignTo" }],
+      include: [{ model: sequelize.models.User, as: "assignTo", attributes: ["id", "name", "email", "role"] }],
       order: [['priority', 'ASC']]
     });
     res.json(rules);
