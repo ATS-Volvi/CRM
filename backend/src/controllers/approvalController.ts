@@ -4,6 +4,7 @@ import { Op } from "sequelize";
 import { createNotification } from "../services/notificationService";
 import { evaluateQuoteApproval, createApprovalAuditLog } from "../services/approvalEngine";
 import { checkRecordAccess } from "../services/handoffAccessService";
+import { deliverQuote, getQuoteContact } from "../services/quoteDeliveryService";
 
 // ── ADMIN GLOBAL APPROVAL POLICY ─────────────────────────────
 
@@ -570,6 +571,75 @@ export const updateApproval = async (req: Request, res: Response) => {
                   amount: item.quantity * item.unitPrice
                 });
               }
+            }
+          }
+
+          // ── AUTO-SEND QUOTE TO CUSTOMER ──────────────────────────────────
+          const approverName = authUser?.name || authUser?.role || "Manager";
+          let customerEmail: string | null = null;
+          let customerName: string = "Customer";
+          let repOwnerId: string | null = null;
+
+          try {
+            // Resolve customer contact info (reuses quoteDeliveryService's own logic)
+            const quoteWithDeal: any = await sequelize.models.Quote.findByPk((quote as any).id, {
+              include: [{
+                model: sequelize.models.Deal,
+                as: "deal",
+                include: [{ model: sequelize.models.Lead, as: "lead" }]
+              }, { model: sequelize.models.QuoteLineItem, as: "QuoteLineItems" }]
+            });
+
+            const { contact } = await getQuoteContact(quoteWithDeal);
+            customerEmail = contact?.email || null;
+            customerName = contact?.name || "Customer";
+            repOwnerId = quoteWithDeal?.deal?.ownerId || evaluation?.salesRepId || null;
+
+            if (!customerEmail || customerEmail.includes("@nexus-temp.com") || !customerEmail.includes("@")) {
+              throw new Error(`No valid customer email on record (found: "${customerEmail || 'none'}")`); 
+            }
+
+            await deliverQuote((quote as any).id, { channel: "EMAIL", userId: authUser?.id });
+
+            console.log(`[Approval] Quote ${(quote as any).id} approved by ${approverName}, auto-sent to ${customerEmail}`);
+
+            // Notify the sales rep
+            if (repOwnerId) {
+              await createNotification(
+                repOwnerId,
+                "info",
+                "Your Quote Was Approved & Sent ✅",
+                `Your quote for ${customerName} was approved by ${approverName} and automatically sent to ${customerEmail}.`,
+                `/quotes/${(quote as any).id}`
+              );
+            }
+          } catch (sendErr: any) {
+            // Mark as Approved (Send Failed) — do NOT silently hide this
+            await quote.update({ status: "Approved (Send Failed)", statusChangedAt: new Date() });
+            console.error(`[Approval] Quote ${(quote as any).id} approved by ${approverName} but auto-send FAILED: ${sendErr.message}`);
+
+            const failureMsg = `Quote approved, but delivery to customer failed: ${sendErr.message}. Please send manually from the Quotes page.`;
+
+            // Notify manager who just approved
+            if (authUser?.id) {
+              await createNotification(
+                authUser.id,
+                "alert",
+                "Quote Approved — Send Failed ⚠️",
+                failureMsg,
+                `/quotes/${(quote as any).id}`
+              );
+            }
+
+            // Notify the original sales rep
+            if (repOwnerId && repOwnerId !== authUser?.id) {
+              await createNotification(
+                repOwnerId,
+                "alert",
+                "Quote Approved — Send Failed ⚠️",
+                failureMsg,
+                `/quotes/${(quote as any).id}`
+              );
             }
           }
         }

@@ -37,6 +37,7 @@ export class User extends Model {
   public maxOpenDeals!: number | null;
   public createdByUserId!: string | null;
   public phone!: string | null;
+  public teamType!: string | null; // "PRESALES" | "SALES" | null
 }
 
 User.init(
@@ -56,6 +57,7 @@ User.init(
     managerId: { type: DataTypes.UUID, allowNull: true },
     createdByUserId: { type: DataTypes.UUID, allowNull: true },
     phone: { type: DataTypes.STRING, allowNull: true },
+    teamType: { type: DataTypes.STRING, allowNull: true },
     department: { type: DataTypes.STRING, allowNull: true },
     territory: { type: DataTypes.STRING, allowNull: true },
     team: { type: DataTypes.STRING, allowNull: true },

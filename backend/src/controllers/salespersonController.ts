@@ -88,7 +88,7 @@ export const getSalespersonsPerformance = async (req: Request, res: Response) =>
     // 1. Fetch all scoped users in 1 batch query
     const users = await sequelize.models.User.findAll({
       where: { id: { [Op.in]: scopedUserIds } },
-      attributes: ["id", "name", "email", "role", "isAvailable", "maxOpenLeads", "department", "territory", "team", "managerId"]
+      attributes: ["id", "name", "email", "role", "isAvailable", "maxOpenLeads", "department", "territory", "team", "managerId", "teamType"]
     });
 
     // 2. Fetch active KPI Master names in 1 query
@@ -1274,3 +1274,45 @@ export const approveKpiTargetChange = async (req: Request, res: Response) => {
   }
 };
 
+/**
+ * PATCH /api/v1/users/:id/team-type
+ * Allows a manager to assign a rep under their management to PRESALES, SALES, or null.
+ * Permission: Only the rep's direct manager (managerId === authUser.id) or admin.
+ */
+export const updateRepTeamType = async (req: Request, res: Response) => {
+  try {
+    const targetRepId = String(req.params.id);
+    const { teamType } = req.body;
+    const caller = (req as any).user;
+
+    const VALID_TEAM_TYPES = ["PRESALES", "SALES", null];
+    if (!VALID_TEAM_TYPES.includes(teamType === undefined ? null : teamType)) {
+      return res.status(400).json({ error: "teamType must be 'PRESALES', 'SALES', or null." });
+    }
+
+    const targetRep: any = await sequelize.models.User.findByPk(targetRepId);
+    if (!targetRep) {
+      return res.status(404).json({ error: "User not found." });
+    }
+
+    // Permission: admin can edit anyone, manager can only edit their own direct reports
+    const isAdmin = caller?.role === "admin";
+    const isDirectManager = targetRep.managerId === caller?.id;
+
+    if (!isAdmin && !isDirectManager) {
+      return res.status(403).json({
+        error: "You can only update team assignments for reps directly under your management."
+      });
+    }
+
+    await targetRep.update({ teamType: teamType || null });
+
+    res.json({
+      id: targetRep.id,
+      name: targetRep.name,
+      teamType: targetRep.teamType
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};

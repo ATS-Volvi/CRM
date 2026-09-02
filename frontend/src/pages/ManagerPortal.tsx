@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -7,7 +7,7 @@ import {
   BarChart2, ChevronRight, ArrowUpRight,
   CheckCircle2, Clock, User, Building2, Sparkles,
   MapPin, AlertTriangle, Inbox, PieChart, XCircle,
-  ChevronDown, Activity, Eye, FileText, UserCheck, Timer
+  ChevronDown, Activity, Eye, FileText, UserCheck, Timer, Tag
 } from "lucide-react";
 import { apiClient } from "../lib/apiClient";
 import { formatCurrency, formatCurrencyCompact } from "../utils/currency";
@@ -18,8 +18,9 @@ export default function ManagerPortal() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  const [activeTab, setActiveTab] = useState<"overview" | "approvals" | "pipeline" | "revenue" | "leads" | "losses">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "approvals" | "pipeline" | "revenue" | "leads" | "losses" | "team">("overview");
   const [stuckThreshold, setStuckThreshold] = useState(14);
+  const [teamTypeUpdating, setTeamTypeUpdating] = useState<Record<string, boolean>>({});
 
   const managerName = user?.name || "Manager";
 
@@ -149,6 +150,7 @@ export default function ManagerPortal() {
     { key: "revenue", label: "Revenue & Targets", icon: DollarSign },
     { key: "leads", label: "Lead Intake", icon: Inbox, badge: newLeads },
     { key: "losses", label: "Loss Analytics", icon: PieChart },
+    { key: "team", label: "Sub-Teams", icon: Tag },
   ];
 
   return (
@@ -819,6 +821,128 @@ export default function ManagerPortal() {
       {activeTab === "losses" && (
         <LossReasonAnalyticsSection />
       )}
+
+      {/* ── TEAM SUB-GROUPING TAB ── */}
+      {activeTab === "team" && (() => {
+        // Only show reps managed by the current user (or all if admin)
+        const myReps = user?.role === "admin"
+          ? teamReps
+          : teamReps.filter((r: any) => r.managerId === user?.id || r.manager?.id === user?.id);
+
+        const presalesReps = myReps.filter((r: any) => r.teamType === "PRESALES");
+        const salesReps = myReps.filter((r: any) => r.teamType === "SALES");
+        const unassignedReps = myReps.filter((r: any) => !r.teamType || r.teamType === "UNASSIGNED");
+
+        const handleTeamTypeChange = async (repId: string, newTeamType: string | null) => {
+          setTeamTypeUpdating(prev => ({ ...prev, [repId]: true }));
+          try {
+            const res = await apiClient(`/api/v1/users/${repId}/team-type`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ teamType: newTeamType })
+            });
+            if (!res.ok) {
+              const err = await res.json().catch(() => ({}));
+              alert(err.error || "Failed to update team assignment.");
+              return;
+            }
+            queryClient.invalidateQueries({ queryKey: ["salespersonsPerformance"] });
+          } catch (e: any) {
+            alert(e.message || "Error updating team assignment.");
+          } finally {
+            setTeamTypeUpdating(prev => ({ ...prev, [repId]: false }));
+          }
+        };
+
+        const RepCard = ({ rep }: { rep: any }) => (
+          <div className="flex items-center justify-between bg-white border border-slate-200 rounded-xl px-4 py-3 shadow-xs hover:shadow-sm transition-shadow">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-full bg-indigo-100 flex items-center justify-center font-bold text-indigo-700 text-sm flex-shrink-0">
+                {(rep.name || "R").slice(0, 2).toUpperCase()}
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-slate-800">{rep.name}</p>
+                <p className="text-xs text-slate-500">{rep.role?.replace("_", " ") || "Sales Rep"}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {teamTypeUpdating[rep.id] ? (
+                <span className="text-xs text-slate-400 animate-pulse">Saving…</span>
+              ) : (
+                <select
+                  value={rep.teamType || ""}
+                  onChange={(e) => handleTeamTypeChange(rep.id, e.target.value || null)}
+                  className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-slate-50 text-slate-700 font-medium focus:ring-2 focus:ring-indigo-400 outline-none cursor-pointer"
+                >
+                  <option value="">Unassigned</option>
+                  <option value="PRESALES">Presales Team</option>
+                  <option value="SALES">Sales Team</option>
+                </select>
+              )}
+            </div>
+          </div>
+        );
+
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-slate-800">Sub-Team Assignments</h2>
+                <p className="text-xs text-slate-500 mt-0.5">Assign reps under your management to Presales or Sales sub-teams</p>
+              </div>
+              <div className="flex gap-2 text-xs">
+                <span className="px-2.5 py-1 bg-blue-100 text-blue-700 rounded-full font-semibold">{presalesReps.length} Presales</span>
+                <span className="px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded-full font-semibold">{salesReps.length} Sales</span>
+                <span className="px-2.5 py-1 bg-slate-100 text-slate-600 rounded-full font-semibold">{unassignedReps.length} Unassigned</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Presales Column */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 pb-2 border-b border-blue-200">
+                  <div className="w-3 h-3 rounded-full bg-blue-500" />
+                  <h3 className="text-sm font-bold text-blue-700">Presales Team</h3>
+                  <span className="ml-auto text-xs text-blue-500 font-semibold">{presalesReps.length} reps</span>
+                </div>
+                {presalesReps.length === 0 ? (
+                  <p className="text-xs text-slate-400 italic text-center py-6">No reps assigned to Presales</p>
+                ) : (
+                  presalesReps.map((r: any) => <RepCard key={r.id} rep={r} />)
+                )}
+              </div>
+
+              {/* Sales Column */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 pb-2 border-b border-emerald-200">
+                  <div className="w-3 h-3 rounded-full bg-emerald-500" />
+                  <h3 className="text-sm font-bold text-emerald-700">Sales Team</h3>
+                  <span className="ml-auto text-xs text-emerald-500 font-semibold">{salesReps.length} reps</span>
+                </div>
+                {salesReps.length === 0 ? (
+                  <p className="text-xs text-slate-400 italic text-center py-6">No reps assigned to Sales</p>
+                ) : (
+                  salesReps.map((r: any) => <RepCard key={r.id} rep={r} />)
+                )}
+              </div>
+
+              {/* Unassigned Column */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 pb-2 border-b border-slate-200">
+                  <div className="w-3 h-3 rounded-full bg-slate-400" />
+                  <h3 className="text-sm font-bold text-slate-600">Unassigned</h3>
+                  <span className="ml-auto text-xs text-slate-400 font-semibold">{unassignedReps.length} reps</span>
+                </div>
+                {unassignedReps.length === 0 ? (
+                  <p className="text-xs text-slate-400 italic text-center py-6">All reps are assigned</p>
+                ) : (
+                  unassignedReps.map((r: any) => <RepCard key={r.id} rep={r} />)
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
     </div>
   );

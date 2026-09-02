@@ -50,7 +50,7 @@ import { exportLeads, exportQuotes, exportPurchaseOrders } from '../controllers/
 import {
   getSalespersonsPerformance, createSalesperson, getSalespersonPerformanceDetails, getAllSalespersons, updateSalespersonCapacity,
   getSalespersonKpis, editKpiTarget, getKpiHistory, restoreKpiHistory, bulkAssignTargets, lockKpiTargets, approveKpiTargetChange,
-  getOrgChartEmployees
+  getOrgChartEmployees, updateRepTeamType
 } from '../controllers/salespersonController';
 import {
   getRequirements, createRequirement, updateRequirement, deleteRequirement,
@@ -541,6 +541,7 @@ router.get("/salespersons/org-chart", authMiddleware, getOrgChartEmployees);
 router.get("/salespersons/:id/performance", authMiddleware, getSalespersonPerformanceDetails);
 router.post("/salespersons", authMiddleware, createSalesperson);
 router.put("/salespersons/:id/capacity", authMiddleware, updateSalespersonCapacity);
+router.patch("/users/:id/team-type", authMiddleware, updateRepTeamType);
 
 // KPI Target Management
 router.get("/salespersons/:id/kpis", authMiddleware, getSalespersonKpis);
