@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { 
-  ClipboardList, Shield, Users, History, Check, X, Bell, Save, AlertTriangle, Info, Sliders, CheckCircle2, XCircle, RotateCcw, Search, Zap
+  ClipboardList, Shield, Users, History, Check, X, Bell, Save, AlertTriangle, Info, Sliders, CheckCircle2, XCircle, RotateCcw, Search, Zap, Loader2
 } from "lucide-react";
 import { formatCurrency } from "../utils/currency";
 
@@ -42,6 +42,11 @@ export default function ApprovalQueue() {
   const [policyMaxTLDisc, setPolicyMaxTLDisc] = useState<string>("");
   const [policyMinMargin, setPolicyMinMargin] = useState<string>("");
   const [policySuccess, setPolicySuccess] = useState<string>("");
+
+  // Sub-Team Classification Feedback & Loading State
+  const [updatingSubTeamId, setUpdatingSubTeamId] = useState<string | null>(null);
+  const [savedSubTeamId, setSavedSubTeamId] = useState<string | null>(null);
+  const [subTeamError, setSubTeamError] = useState<{ repId: string; message: string } | null>(null);
 
   // 1. Fetch Approvals Queue
   const { data: approvals, isLoading: loadingApprovals } = useQuery({
@@ -693,36 +698,69 @@ export default function ApprovalQueue() {
                               <div className="text-[11px] text-on-surface-variant">{sp.email}</div>
                             </td>
                             <td className="p-4">
-                              <select
-                                value={sp.teamType || ""}
-                                onChange={async (e) => {
-                                  const val = e.target.value || null;
-                                  try {
-                                    const res = await fetch(`/api/v1/users/${sp.id}/team-type`, {
-                                      method: "PATCH",
-                                      headers: {
-                                        "Content-Type": "application/json",
-                                        "Authorization": `Bearer ${token}`
-                                      },
-                                      body: JSON.stringify({ teamType: val })
-                                    });
-                                    if (!res.ok) {
-                                      const errData = await res.json().catch(() => ({}));
-                                      alert(errData.error || "Failed to update team assignment.");
-                                      return;
+                              <div className="flex items-center gap-2">
+                                <select
+                                  value={sp.teamType || ""}
+                                  disabled={updatingSubTeamId === sp.id}
+                                  onChange={async (e) => {
+                                    const val = e.target.value || null;
+                                    setUpdatingSubTeamId(sp.id);
+                                    setSubTeamError(null);
+                                    try {
+                                      const res = await fetch(`/api/v1/users/${sp.id}/team-type`, {
+                                        method: "PATCH",
+                                        headers: {
+                                          "Content-Type": "application/json",
+                                          "Authorization": `Bearer ${token}`
+                                        },
+                                        body: JSON.stringify({ teamType: val })
+                                      });
+                                      if (!res.ok) {
+                                        const errData = await res.json().catch(() => ({}));
+                                        throw new Error(errData.error || "Failed to update team assignment.");
+                                      }
+                                      await queryClient.invalidateQueries({ queryKey: ["salespersons"] });
+                                      refetchProfiles();
+
+                                      setProfileSuccess(`Updated team assignment for ${sp.name} successfully!`);
+                                      setSavedSubTeamId(sp.id);
+                                      setTimeout(() => setProfileSuccess(""), 4000);
+                                      setTimeout(() => setSavedSubTeamId(null), 2500);
+                                    } catch (err: any) {
+                                      setSubTeamError({ repId: sp.id, message: err.message || "Failed to update team assignment." });
+                                      setTimeout(() => setSubTeamError(null), 4000);
+                                    } finally {
+                                      setUpdatingSubTeamId(null);
                                     }
-                                    queryClient.invalidateQueries({ queryKey: ["salespersons"] });
-                                    refetchProfiles();
-                                  } catch (err: any) {
-                                    alert(err.message || "Failed to update team assignment.");
-                                  }
-                                }}
-                                className="bg-white dark:bg-slate-800 border border-outline-variant text-xs font-bold text-on-surface rounded-lg px-2.5 py-1.5 focus:ring-2 focus:ring-primary outline-none shadow-2xs cursor-pointer"
-                              >
-                                <option value="">Unassigned</option>
-                                <option value="PRESALES">Presales Team</option>
-                                <option value="SALES">Sales Team</option>
-                              </select>
+                                  }}
+                                  className={`bg-white dark:bg-slate-800 border text-xs font-bold text-on-surface rounded-lg px-2.5 py-1.5 focus:ring-2 focus:ring-primary outline-none shadow-2xs cursor-pointer transition-all ${
+                                    updatingSubTeamId === sp.id ? "opacity-50 cursor-wait border-amber-300" :
+                                    savedSubTeamId === sp.id ? "border-green-500 ring-1 ring-green-500 bg-green-50/20" :
+                                    subTeamError?.repId === sp.id ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" :
+                                    "border-outline-variant"
+                                  }`}
+                                >
+                                  <option value="">Unassigned</option>
+                                  <option value="PRESALES">Presales Team</option>
+                                  <option value="SALES">Sales Team</option>
+                                </select>
+
+                                {updatingSubTeamId === sp.id && (
+                                  <Loader2 className="w-4 h-4 text-primary animate-spin" />
+                                )}
+
+                                {savedSubTeamId === sp.id && (
+                                  <span className="text-[11px] font-bold text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded flex items-center gap-1 animate-fade-in">
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-green-600" /> Saved
+                                  </span>
+                                )}
+
+                                {subTeamError?.repId === sp.id && (
+                                  <span className="text-[11px] font-bold text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded flex items-center gap-1 animate-fade-in">
+                                    <XCircle className="w-3.5 h-3.5 text-red-600" /> {subTeamError?.message}
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td className="p-4 font-semibold text-on-surface">{tlName}</td>
                             <td className="p-4 font-bold text-primary text-sm">{selfLimit}</td>
