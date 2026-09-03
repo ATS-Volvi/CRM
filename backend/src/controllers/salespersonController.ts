@@ -746,7 +746,9 @@ export const getAllSalespersons = async (req: Request, res: Response) => {
         "maxOpenDeals",
         "department",
         "territory",
-        "status"
+        "status",
+        "managerId",
+        "teamType"
       ],
       order: [["name", "ASC"]]
     });
@@ -755,6 +757,7 @@ export const getAllSalespersons = async (req: Request, res: Response) => {
     res.status(500).json({ error: error.message });
   }
 };
+
 
 export const updateSalespersonCapacity = async (req: Request, res: Response) => {
   try {
@@ -1285,8 +1288,12 @@ export const updateRepTeamType = async (req: Request, res: Response) => {
     const { teamType } = req.body;
     const caller = (req as any).user;
 
+    const normalizedTeamType = (teamType && String(teamType).trim())
+      ? String(teamType).toUpperCase().trim()
+      : null;
+
     const VALID_TEAM_TYPES = ["PRESALES", "SALES", null];
-    if (!VALID_TEAM_TYPES.includes(teamType === undefined ? null : teamType)) {
+    if (!VALID_TEAM_TYPES.includes(normalizedTeamType)) {
       return res.status(400).json({ error: "teamType must be 'PRESALES', 'SALES', or null." });
     }
 
@@ -1305,7 +1312,7 @@ export const updateRepTeamType = async (req: Request, res: Response) => {
       });
     }
 
-    targetRep.teamType = teamType || null;
+    targetRep.teamType = normalizedTeamType;
     await targetRep.save();
 
     res.json({

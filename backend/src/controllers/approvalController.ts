@@ -144,7 +144,7 @@ export const getSalesApprovalProfiles = async (req: Request, res: Response) => {
 
     const profiles = await sequelize.models.SalesApprovalProfile.findAll({
       include: [
-        { model: sequelize.models.User, as: "salesRep", attributes: ["id", "name", "email", "role", "team"] },
+        { model: sequelize.models.User, as: "salesRep", attributes: ["id", "name", "email", "role", "team", "teamType", "managerId"] },
         { model: sequelize.models.User, as: "teamLead", attributes: ["id", "name", "email"] }
       ]
     });
