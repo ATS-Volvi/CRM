@@ -336,14 +336,34 @@ export async function assignLead(leadContext: AssignmentContext): Promise<Assign
       }
     }
 
-    if (eligibleReps.length === 0) {
+    // 4b. Sub-Team Classification Filtering (Presales Team Preference for Inbound Leads)
+    let finalLeadReps = eligibleReps;
+    let subTeamRoutingMethod: "SUB_TEAM_FILTERED" | "SUB_TEAM_FALLBACK" | "SUB_TEAM_UNASSIGNED" = "SUB_TEAM_FILTERED";
+
+    const presalesReps = eligibleReps.filter(
+      r => r.teamType && String(r.teamType).toUpperCase() === "PRESALES"
+    );
+
+    if (presalesReps.length > 0) {
+      finalLeadReps = presalesReps;
+      subTeamRoutingMethod = "SUB_TEAM_FILTERED";
+      console.log(`[ASSIGNMENT SUB-TEAM FILTER] Gated candidate pool to ${presalesReps.length} Presales Team representatives.`);
+    } else if (eligibleReps.length > 0) {
+      finalLeadReps = eligibleReps;
+      subTeamRoutingMethod = "SUB_TEAM_FALLBACK";
+      console.log(`[ASSIGNMENT SUB-TEAM FALLBACK] No Presales-classified rep available. Falling back to general eligible pool (${eligibleReps.length} reps).`);
+    } else {
+      subTeamRoutingMethod = "SUB_TEAM_UNASSIGNED";
+    }
+
+    if (finalLeadReps.length === 0) {
       console.log("[ASSIGNMENT ENGINE] No eligible sales reps available under capacity cap. Falling back to Manager pool.");
       return await fallbackToManager(leadContext, priorityDetails);
     }
 
     // 5. Calculate Performance Profile & Multi-Factor Suitability Score for Candidates concurrently
     const candidateEvaluations = await scoreAndRankCandidates(
-      eligibleReps,
+      finalLeadReps,
       leadContext,
       priorityDetails,
       policyWeights
@@ -351,7 +371,7 @@ export async function assignLead(leadContext: AssignmentContext): Promise<Assign
 
     const winningCandidate = candidateEvaluations[0];
 
-    console.log(`[ASSIGNMENT ENGINE] WINNING CANDIDATE: ${winningCandidate.repName} (${winningCandidate.repRole}) with Score ${winningCandidate.finalScore}/100`);
+    console.log(`[ASSIGNMENT ENGINE] WINNING CANDIDATE: ${winningCandidate.repName} (${winningCandidate.repRole}) with Score ${winningCandidate.finalScore}/100 [Routing: ${subTeamRoutingMethod}]`);
 
     // 6. Update Winner Stats
     await updateRepAssignedTimestamp(winningCandidate.repId);
@@ -641,8 +661,28 @@ export async function assignOpportunityCloser(
       eligibleCloserCandidates.push(rep);
     }
 
+    // 6b. SUB-TEAM CLASSIFICATION FILTERING FOR CLOSERS (Sales Team Priority)
+    let finalCloserCandidates = eligibleCloserCandidates;
+    let subTeamRoutingMethod: "SUB_TEAM_FILTERED" | "SUB_TEAM_FALLBACK" | "SUB_TEAM_UNASSIGNED" = "SUB_TEAM_FILTERED";
+
+    const salesTeamCandidates = eligibleCloserCandidates.filter(
+      r => r.teamType && String(r.teamType).toUpperCase() === "SALES"
+    );
+
+    if (salesTeamCandidates.length > 0) {
+      finalCloserCandidates = salesTeamCandidates;
+      subTeamRoutingMethod = "SUB_TEAM_FILTERED";
+      console.log(`[assignOpportunityCloser] Gated candidates to ${salesTeamCandidates.length} Sales Team closers.`);
+    } else if (eligibleCloserCandidates.length > 0) {
+      finalCloserCandidates = eligibleCloserCandidates;
+      subTeamRoutingMethod = "SUB_TEAM_FALLBACK";
+      console.log(`[assignOpportunityCloser] No Sales-classified closer available. Falling back to general eligible candidates (${eligibleCloserCandidates.length} reps).`);
+    } else {
+      subTeamRoutingMethod = "SUB_TEAM_UNASSIGNED";
+    }
+
     // 7. Handle Fallback if no distinct closer candidate matches
-    if (eligibleCloserCandidates.length === 0) {
+    if (finalCloserCandidates.length === 0) {
       console.log(`[assignOpportunityCloser] No eligible distinct closer-tier rep found. Executing fallback policy: ${fallbackAction}`);
 
       if (fallbackAction === "keep_lead_rep" && options?.excludeRepId) {
@@ -655,6 +695,7 @@ export async function assignOpportunityCloser(
             assigned: true,
             closerId: leadRep.id,
             fallbackApplied: true,
+            subTeamRoutingMethod: "SUB_TEAM_FALLBACK",
             reason: `Fallback Policy: Retained qualifying representative (${leadRep.name}) as Opportunity Owner.`
           };
         }
@@ -667,6 +708,7 @@ export async function assignOpportunityCloser(
             assigned: true,
             closerId: manager.id,
             fallbackApplied: true,
+            subTeamRoutingMethod: "SUB_TEAM_FALLBACK",
             reason: `Fallback Policy: Routed to ${manager.name} (${manager.role}) for assignment review.`
           };
         }
@@ -676,13 +718,14 @@ export async function assignOpportunityCloser(
         assigned: false,
         closerId: null,
         fallbackApplied: true,
+        subTeamRoutingMethod: "SUB_TEAM_UNASSIGNED",
         reason: "No eligible closer-tier rep available under capacity/cutoff constraints."
       };
     }
 
     // 8. Score and rank candidates using dedicated Opportunity closer evaluation
     const profiles = await Promise.all(
-      eligibleCloserCandidates.map(r => calculateRepPerformanceProfile(r.id))
+      finalCloserCandidates.map(r => calculateRepPerformanceProfile(r.id))
     );
 
     const candidateEvaluations = profiles.map(profile =>
@@ -694,15 +737,20 @@ export async function assignOpportunityCloser(
 
     await updateRepAssignedTimestamp(winner.repId);
 
+    const routingReason = subTeamRoutingMethod === "SUB_TEAM_FILTERED"
+      ? `Assigned via Opportunity Policy to Sales Team closer ${winner.repName} (${winner.experienceTier || winner.repRole}) with score ${winner.finalScore}/100 [SUB_TEAM_FILTERED]`
+      : `Fallback: Assigned via Opportunity Policy to ${winner.repName} (${winner.experienceTier || winner.repRole}) with score ${winner.finalScore}/100 [SUB_TEAM_FALLBACK]`;
+
     console.log(
-      `[assignOpportunityCloser] Winner: ${winner.repName} (${winner.repRole} / ${winner.experienceTier}) with Score ${winner.finalScore}/100.`
+      `[assignOpportunityCloser] Winner: ${winner.repName} (${winner.repRole} / ${winner.experienceTier}) with Score ${winner.finalScore}/100 [Method: ${subTeamRoutingMethod}].`
     );
 
     return {
       assigned: true,
       closerId: winner.repId,
       assignee: winner,
-      reason: `Assigned via Opportunity Policy to closer ${winner.repName} (${winner.experienceTier || winner.repRole}) with score ${winner.finalScore}/100.`
+      subTeamRoutingMethod,
+      reason: routingReason
     };
   } catch (error: any) {
     console.error("[assignOpportunityCloser] Error:", error);

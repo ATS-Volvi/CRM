@@ -390,7 +390,8 @@ export const convertLead = async (req: Request, res: Response) => {
       lead: result.lead,
       // Surfaced so the frontend can show "needs manual assignment" if desired
       autoAssigned: result.autoAssigned ?? false,
-      autoAssignReason: result.autoAssignReason
+      autoAssignReason: result.autoAssignReason,
+      autoAssignResult: result.autoAssignResult
     });
   } catch (error: any) {
     res.status(400).json({ error: error.message });

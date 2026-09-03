@@ -123,7 +123,8 @@ export async function autoAssignDeal(
       newOwnerId: winnerId,
       deal,
       oldOwnerId,
-      assignee: assignResult.assignee
+      assignee: assignResult.assignee,
+      subTeamRoutingMethod: assignResult.subTeamRoutingMethod
     };
   };
 
