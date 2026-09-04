@@ -548,7 +548,7 @@ export async function assignDeal(dealContext: AssignmentContext): Promise<string
 export async function assignOpportunityCloser(
   context: AssignmentContext,
   options?: { excludeRepId?: string; fallbackAction?: "keep_lead_rep" | "assign_team_lead" | "assign_manager" | "unassigned_pool" }
-): Promise<{ assigned: boolean; closerId: string | null; assignee?: CandidateEvaluationResult; reason?: string; fallbackApplied?: boolean }> {
+): Promise<{ assigned: boolean; closerId: string | null; assignee?: CandidateEvaluationResult; reason?: string; fallbackApplied?: boolean; subTeamRoutingMethod?: "SUB_TEAM_FILTERED" | "SUB_TEAM_FALLBACK" | "SUB_TEAM_UNASSIGNED" }> {
 
   try {
     const { WorkspaceSetting, SalesAssignmentPolicy, User } = sequelize.models;
