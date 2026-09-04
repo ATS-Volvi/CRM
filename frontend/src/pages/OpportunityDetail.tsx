@@ -28,9 +28,11 @@ import {
   History,
   Check,
   Percent,
-  Shield
+  Shield,
+  ShieldCheck
 } from "lucide-react";
 
+import { useMarkQuoteFinal } from "../hooks/useMarkQuoteFinal";
 import { apiClient } from "../lib/apiClient";
 import { formatCurrency } from "../utils/currency";
 import { useAuth } from "../context/AuthContext";
@@ -136,6 +138,14 @@ export default function OpportunityDetail() {
       alert("Failed to submit for approval: " + (err?.message || "Error submitting quote"));
     }
   });
+
+  const {
+    markFinal,
+    isPending: isMarkingFinal,
+    approvalFeedback,
+    setApprovalFeedback,
+    statusMessage
+  } = useMarkQuoteFinal();
 
   // Accept Quote Mutation
   const acceptQuoteMutation = useMutation({
@@ -742,6 +752,23 @@ export default function OpportunityDetail() {
                 </button>
               </div>
 
+              {statusMessage && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs font-bold text-emerald-800 flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>{statusMessage}</span>
+                </div>
+              )}
+
+              {approvalFeedback && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 space-y-1">
+                  <div className="font-bold text-amber-950 flex items-center gap-1.5">
+                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>{approvalFeedback.title}</span>
+                  </div>
+                  <p className="text-amber-800 font-medium pl-5.5">{approvalFeedback.message}</p>
+                </div>
+              )}
+
               {quotes.length === 0 ? (
                 <div className="p-8 text-center border border-dashed border-slate-200 rounded-xl space-y-2 text-xs text-slate-400">
                   <p className="font-semibold text-slate-600">No quotes generated yet.</p>
@@ -783,6 +810,12 @@ export default function OpportunityDetail() {
                             >
                               {isRejected ? "REJECTED" : q.status === "Pending Approval" || q.status === "Pending" ? "WAITING FOR APPROVAL" : q.status}
                             </span>
+                            {q.isFinalAgreed && (
+                              <span className="px-2 py-0.5 bg-emerald-100 text-emerald-900 border border-emerald-300 rounded text-[10px] font-extrabold flex items-center gap-1 shadow-2xs" title="Final Agreed Quote">
+                                <ShieldCheck className="w-3 h-3 text-emerald-700" />
+                                Final Agreed
+                              </span>
+                            )}
                           </div>
                           <div className="text-[11px] text-slate-400">
                             Created {new Date(q.createdAt).toLocaleDateString()}
@@ -795,6 +828,18 @@ export default function OpportunityDetail() {
                           </div>
 
                           <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                            {/* Mark as Final action button */}
+                            {!q.isFinalAgreed && !isAccepted && !isRejected && !isSuperseded && (
+                              <button
+                                onClick={() => markFinal(q.id)}
+                                disabled={isMarkingFinal}
+                                className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded text-xs font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95 shadow-2xs"
+                                title="Mark this quote revision as Final Agreed terms"
+                              >
+                                <Check className="w-3.5 h-3.5 stroke-[3] text-emerald-700" />
+                                {isMarkingFinal ? "Marking..." : "Mark as Final"}
+                              </button>
+                            )}
                             {/* 1. If Waiting for Approval */}
                             {q.status === "Pending Approval" || q.status === "Pending" || quoteApproval?.status === "Pending" ? (
                               <span className="px-2.5 py-1 bg-amber-50 text-amber-800 border border-amber-300 rounded text-xs font-bold flex items-center gap-1.5 shadow-2xs">

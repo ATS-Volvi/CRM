@@ -265,7 +265,7 @@ export default function PublicQuoteReview() {
   const repPhone = quote.deal?.owner?.phone || "+966 11 000 0000";
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 py-10 px-4 sm:px-6 lg:px-8">
+    <div className="w-full min-h-screen bg-slate-950 text-slate-100 py-10 px-4 sm:px-6 lg:px-8 overflow-y-auto">
       <div className="max-w-4xl mx-auto space-y-8">
         {/* Top Enterprise Brand Bar */}
         <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-6 border-b border-slate-800">

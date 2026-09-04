@@ -14,7 +14,7 @@ import {
   History,
   ShieldCheck
 } from "lucide-react";
-import { apiClient } from "../lib/apiClient";
+import { useMarkQuoteFinal } from "../hooks/useMarkQuoteFinal";
 import { formatCurrency, formatCurrencyCompact } from "../utils/currency";
 import { QuickQuoteRevisionModal } from "./QuickQuoteRevisionModal";
 import { QuoteBillModal } from "./QuoteBillModal";
@@ -44,7 +44,6 @@ export function OpportunityQuoteNegotiationStrip({
   const queryClient = useQueryClient();
   const [revisionQuoteId, setRevisionQuoteId] = useState<string | null>(null);
   const [viewQuoteModalId, setViewQuoteModalId] = useState<string | null>(null);
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   const rawQuotes: QuoteItem[] = Array.isArray(opportunity.quotes) ? opportunity.quotes : [];
 
@@ -100,31 +99,13 @@ export function OpportunityQuoteNegotiationStrip({
     }
   }, [opportunity]);
 
-  const [approvalFeedbackModal, setApprovalFeedbackModal] = React.useState<{
-    title: string;
-    message: string;
-  } | null>(null);
-
-  // Mark as final agreed mutation
-  const markFinalMutation = useMutation({
-    mutationFn: async (quoteId: string) => {
-      return apiClient.post(`/api/v1/quotes/${quoteId}/mark-final`, {});
-    },
-    onSuccess: (res: any) => {
-      queryClient.invalidateQueries({ queryKey: ["opportunities-master-list"] });
-      queryClient.invalidateQueries({ queryKey: ["quotes"] });
-      const data = res?.data || res;
-      if (data?.approvalRequired) {
-        setApprovalFeedbackModal({
-          title: "Approval Required from Manager",
-          message: data.message || "This exceeds your approval limit and has been sent to your manager for approval."
-        });
-      } else {
-        setStatusMessage("Marked as Final Agreed Quote & Delivered!");
-        setTimeout(() => setStatusMessage(null), 3000);
-      }
-    }
-  });
+  const {
+    markFinal,
+    isPending: isMarkingFinal,
+    approvalFeedback: approvalFeedbackModal,
+    setApprovalFeedback: setApprovalFeedbackModal,
+    statusMessage
+  } = useMarkQuoteFinal();
 
   const getStatusBadge = (q: QuoteItem, isActive: boolean) => {
     const isSuperseded = q.status === "Superseded";
@@ -241,14 +222,14 @@ export function OpportunityQuoteNegotiationStrip({
           {/* Mark Final Action */}
           {activeQuote && !activeQuote.isFinalAgreed && activeQuote.status !== "Accepted" && (
             <button
-              onClick={() => markFinalMutation.mutate(activeQuote.id)}
-              disabled={markFinalMutation.isPending}
+              onClick={() => markFinal(activeQuote.id)}
+              disabled={isMarkingFinal}
               type="button"
               className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded text-[10px] font-bold transition-all flex items-center gap-1 active:scale-95 shadow-2xs"
               title="Mark this active quote revision as the Final Agreed terms"
             >
               <Check className="w-3 h-3 stroke-[3] text-emerald-700" />
-              {markFinalMutation.isPending ? "Marking..." : "Mark as Final"}
+              {isMarkingFinal ? "Marking..." : "Mark as Final"}
             </button>
           )}
 
