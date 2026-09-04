@@ -441,21 +441,24 @@ export const updateQuote = async (req: Request, res: Response) => {
 
     if (expirationDate) q.expirationDate = expirationDate;
 
-    // Re-evaluate approval hierarchy if items or total changed
+    // Re-evaluate approval hierarchy if items or total changed (strictly financial edits)
     if (itemsUpdated || totalAmount !== undefined) {
       const evaluation = await evaluateQuoteApproval(id);
       
-      // Edge Case 15 & Acceptance Test 6: If quote was approved or pending approval and now requires higher level
-      if (prevStatus === "Approved" || prevStatus === "Pending Approval") {
+      const existingPendingReq: any = await sequelize.models.ApprovalRequest.findOne({
+        where: { targetId: id, type: "Quote", status: ["Pending", "Approved"] }
+      });
+
+      if (existingPendingReq || prevStatus === "Approved" || prevStatus === "Pending Approval") {
+        // Invalidate existing pending/approved approval request
+        await sequelize.models.ApprovalRequest.update(
+          { status: "Invalidated" },
+          { where: { targetId: id, type: "Quote", status: ["Pending", "Approved"] } }
+        );
+
         if (evaluation.approvalRequired) {
           q.status = "Pending Approval";
           
-          // Invalidate existing pending/approved approval request
-          await sequelize.models.ApprovalRequest.update(
-            { status: "Invalidated" },
-            { where: { targetId: id, type: "Quote" } }
-          );
-
           // Create new pending request for required approver
           await sequelize.models.ApprovalRequest.create({
             id: require("crypto").randomUUID(),
@@ -464,7 +467,7 @@ export const updateQuote = async (req: Request, res: Response) => {
             status: "Pending",
             requestedById: (req as any).user?.id || evaluation.salesRepId,
             assignedApproverId: evaluation.requiredApproverId,
-            comments: `Re-evaluated after quote modification. ${evaluation.reason}`
+            comments: `Re-evaluated after quote pricing modification. ${evaluation.reason}`
           });
 
           await createApprovalAuditLog({
@@ -477,10 +480,29 @@ export const updateQuote = async (req: Request, res: Response) => {
             margin: evaluation.margin,
             approverId: (req as any).user?.id || null,
             decision: "Invalidated",
-            comment: "Quote modified after approval request. Previous approval invalidated and new approval required.",
+            comment: "Quote financial terms modified after escalation. Previous approval invalidated and new approval required.",
             previousStatus: prevStatus,
             newStatus: "Pending Approval",
             reason: evaluation.reason
+          });
+        } else {
+          if (q.status === "Pending Approval") {
+            q.status = "Draft";
+          }
+          await createApprovalAuditLog({
+            quoteId: id,
+            salesRepId: evaluation.salesRepId,
+            approvalLevel: "NONE",
+            requiredLimit: evaluation.repLimit,
+            actualQuoteValue: evaluation.quoteValue,
+            discount: evaluation.discount,
+            margin: evaluation.margin,
+            approverId: null,
+            decision: "Invalidated",
+            comment: "Quote financial terms modified to within rep limit. Previous approval request invalidated.",
+            previousStatus: prevStatus,
+            newStatus: q.status,
+            reason: "Modified within limit"
           });
         }
       }
@@ -1636,6 +1658,165 @@ export const rejectQuote = async (req: Request, res: Response) => {
     res.json({
       message: "Quote marked as rejected",
       quote: formatQuoteWithTotals(updatedQuote || q)
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const expressPublicQuoteInterest = async (req: Request, res: Response) => {
+  try {
+    const { token } = req.params;
+    if (!token) return res.status(400).json({ error: "Token is required" });
+
+    const quote: any = await sequelize.models.Quote.findOne({
+      where: { publicAccessToken: token },
+      include: [
+        {
+          model: sequelize.models.Deal,
+          as: "deal",
+          include: [
+            { model: sequelize.models.Lead, as: "lead" },
+            { model: sequelize.models.User, as: "owner", attributes: ["id", "name", "email"] }
+          ]
+        }
+      ]
+    });
+
+    if (!quote) {
+      return res.status(404).json({ error: "Invalid quotation link. Quotation not found." });
+    }
+
+    if (quote.publicAccessExpiresAt && new Date() > new Date(quote.publicAccessExpiresAt)) {
+      return res.status(410).json({
+        error: "This quotation link has expired. Please contact your sales representative for a revised proposal.",
+        expired: true
+      });
+    }
+
+    // IDEMPOTENCY CHECK:
+    // If interest was already expressed or quote is currently Pending Approval, do not duplicate requests or notifications
+    const existingPendingReq = await sequelize.models.ApprovalRequest.findOne({
+      where: { targetId: quote.id, type: "Quote", status: "Pending" }
+    });
+
+    if (quote.status === "Pending Approval" || existingPendingReq) {
+      const repName = quote.deal?.owner?.name || "your sales representative";
+      return res.json({
+        success: true,
+        alreadyExpressed: true,
+        message: `Thank you! You've already expressed interest in this quotation. ${repName} will follow up shortly with your confirmed final proposal.`
+      });
+    }
+
+    // Evaluate approval requirements against rep limits
+    const evaluation = await evaluateQuoteApproval(quote.id);
+    const repId = evaluation.salesRepId || quote.deal?.ownerId;
+    const repName = quote.deal?.owner?.name || "your sales representative";
+    const quoteNumber = quote.quoteNumber || `QT-${quote.id.slice(0, 6)}`;
+
+    // CASE A: WITHIN REP LIMIT -> NO ESCALATION NEEDED
+    if (!evaluation.approvalRequired) {
+      await createApprovalAuditLog({
+        quoteId: quote.id,
+        salesRepId: repId,
+        approvalLevel: "NONE",
+        requiredLimit: evaluation.repLimit,
+        actualQuoteValue: evaluation.quoteValue,
+        discount: evaluation.discount,
+        margin: evaluation.margin,
+        approverId: null,
+        decision: "Customer Interest Expressed",
+        comment: `Customer expressed interest on preliminary quote #${quoteNumber}. Within rep limit — ready to finalize.`,
+        previousStatus: quote.status,
+        newStatus: quote.status,
+        reason: "Customer expressed interest"
+      });
+
+      if (repId) {
+        await createNotification(
+          repId,
+          "info",
+          "Customer Expressed Interest",
+          `Customer expressed interest in quotation ${quoteNumber} — ready to finalize.`,
+          quote.dealId ? `/opportunities/${quote.dealId}` : "/quotes"
+        );
+      }
+
+      return res.json({
+        success: true,
+        escalated: false,
+        message: `Thank you! We've notified ${repName}, they'll be in touch with your confirmed proposal.`
+      });
+    }
+
+    // CASE B: ABOVE REP LIMIT -> AUTO-ESCALATE TO TEAM LEAD
+    const prevStatus = quote.status;
+    await quote.update({
+      status: "Pending Approval",
+      statusChangedAt: new Date()
+    });
+
+    const approvalReq = await sequelize.models.ApprovalRequest.create({
+      id: require("crypto").randomUUID(),
+      targetId: quote.id,
+      type: "Quote",
+      status: "Pending",
+      requestedById: repId,
+      assignedApproverId: evaluation.requiredApproverId,
+      comments: `Customer expressed interest on preliminary quote #${quoteNumber}. Auto-escalated for approval: ${evaluation.reason}`
+    });
+
+    await createApprovalAuditLog({
+      quoteId: quote.id,
+      salesRepId: repId,
+      approvalLevel: evaluation.approvalLevel,
+      requiredLimit: evaluation.approvalLevel === "TEAM_LEAD" ? evaluation.repLimit : evaluation.teamLeadLimit,
+      actualQuoteValue: evaluation.quoteValue,
+      discount: evaluation.discount,
+      margin: evaluation.margin,
+      approverId: evaluation.requiredApproverId,
+      decision: "Submitted",
+      comment: `Customer expressed interest on preliminary quote #${quoteNumber}. Auto-escalated for approval: ${evaluation.reason}`,
+      previousStatus: prevStatus,
+      newStatus: "Pending Approval",
+      reason: evaluation.reason
+    });
+
+    // Notify Approver (Team Lead)
+    if (evaluation.requiredApproverId) {
+      await createNotification(
+        evaluation.requiredApproverId,
+        "alert",
+        "Quote Approval Required",
+        `Quotation ${quoteNumber} requires your ${evaluation.approvalLevel.replace("_", " ")} approval: ${evaluation.reason}`,
+        "/approvals"
+      );
+    }
+
+    // Get Approver Name for Rep Notification
+    let approverName = "Team Lead";
+    if (evaluation.requiredApproverId) {
+      const approverUser: any = await sequelize.models.User.findByPk(evaluation.requiredApproverId);
+      if (approverUser?.name) approverName = approverUser.name;
+    }
+
+    // Notify Quote Rep
+    if (repId) {
+      await createNotification(
+        repId,
+        "alert",
+        "Customer Interest - Auto-Escalated",
+        `Customer expressed interest in quotation ${quoteNumber} — sent to ${approverName} for approval since it exceeds your limit.`,
+        quote.dealId ? `/opportunities/${quote.dealId}` : "/quotes"
+      );
+    }
+
+    res.json({
+      success: true,
+      escalated: true,
+      approvalRequestId: (approvalReq as any).id,
+      message: `Thank you! We've notified ${repName}, they'll be in touch with your confirmed proposal.`
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });

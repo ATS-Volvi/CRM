@@ -37,7 +37,7 @@ import {
   getQuotes, getQuoteById, createQuote, updateQuote, getQuoteRecommendations, sendQuote, acceptQuote, rejectQuote, createQuoteRevision,
   getOpportunityQuotes, createOpportunityQuote, getPublicQuote, generateQuotePdf, signQuote, getQuoteHistoryByClient,
   getSimilarQuotesStats, getSimilarClientQuotes, markQuoteFinalAgreed, getQuoteDeliveryPreview, getQuoteDeliveries, recordDeliveryStatus,
-  getPublicQuoteByToken, acceptPublicQuoteByToken, requestPublicQuoteChanges
+  getPublicQuoteByToken, acceptPublicQuoteByToken, requestPublicQuoteChanges, expressPublicQuoteInterest
 } from '../controllers/quoteController';
 import { getInvoices, createInvoiceFromQuote, updateInvoiceStatus, generateInvoicePdf } from '../controllers/invoiceController';
 import { getPurchaseOrders, getOrderById, createPurchaseOrder, updatePurchaseOrder, createOrderFromQuote, resolvePurchaseOrder } from '../controllers/purchaseOrderController';
@@ -259,6 +259,7 @@ router.post("/public/quotes/:id/sign", signQuote);
 router.get("/public/quotes/by-token/:token", getPublicQuoteByToken);
 router.post("/public/quotes/by-token/:token/accept", acceptPublicQuoteByToken);
 router.post("/public/quotes/by-token/:token/request-changes", requestPublicQuoteChanges);
+router.post("/public/quotes/by-token/:token/express-interest", expressPublicQuoteInterest);
 
 // ==========================================
 // QUOTE TEMPLATES & AI VISION PARSER

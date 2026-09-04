@@ -15,7 +15,8 @@ import {
   RefreshCw,
   MessageSquareQuote,
   Download,
-  AlertCircle
+  AlertCircle,
+  Sparkles
 } from "lucide-react";
 
 interface QuoteLineItem {
@@ -84,6 +85,10 @@ export default function PublicQuoteReview() {
   const [showChangesModal, setShowChangesModal] = useState(false);
   const [changeMessage, setChangeMessage] = useState("");
   const [submittingChanges, setSubmittingChanges] = useState(false);
+
+  // Express Interest State
+  const [interestExpressed, setInterestExpressed] = useState(false);
+  const [submittingInterest, setSubmittingInterest] = useState(false);
 
   // Success Feedback
   const [actionSuccessMessage, setActionSuccessMessage] = useState<string | null>(null);
@@ -197,6 +202,37 @@ export default function PublicQuoteReview() {
       alert(err.message || "Failed to submit revision request. Please try again.");
     } finally {
       setSubmittingChanges(false);
+    }
+  };
+
+  const handleExpressInterestSubmit = async () => {
+    if (!token || submittingInterest) return;
+
+    try {
+      setSubmittingInterest(true);
+      const res = await fetch(`/api/v1/public/quotes/by-token/${token}/express-interest`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to submit interest. Please try again.");
+      }
+
+      setInterestExpressed(true);
+      if (data.alreadyExpressed) {
+        setActionSuccessMessage(data.message);
+      } else {
+        const rep = quote?.deal?.owner?.name || "your dedicated representative";
+        setActionSuccessMessage(
+          `Thank you! We've notified ${rep}, and they will follow up shortly with your confirmed final proposal.`
+        );
+      }
+    } catch (err: any) {
+      alert(err.message || "Failed to submit interest. Please try again.");
+    } finally {
+      setSubmittingInterest(false);
     }
   };
 
@@ -504,10 +540,19 @@ export default function PublicQuoteReview() {
                 >
                   <CheckCircle2 className="w-4 h-4" /> Accept Quotation
                 </button>
-              ) : (
-                <span className="px-4 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-semibold flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-amber-400" /> Acceptance Available Upon Final Confirmation
+              ) : interestExpressed || quote.status === "Pending Approval" ? (
+                <span className="px-4 py-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 text-xs font-semibold flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-indigo-400" /> Interest Registered — Follow-Up Pending
                 </span>
+              ) : (
+                <button
+                  onClick={handleExpressInterestSubmit}
+                  disabled={submittingInterest}
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-500 hover:from-indigo-500 hover:to-blue-400 text-white text-xs font-bold shadow-lg shadow-indigo-900/30 transition-all flex items-center gap-2 active:scale-95 disabled:opacity-50"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  {submittingInterest ? "Submitting..." : "I'm Interested — Proceed"}
+                </button>
               )}
             </div>
           </div>
