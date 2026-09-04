@@ -531,11 +531,15 @@ export async function scoreAndRankCandidates(
 }
 
 /**
- * Legacy compatibility alias for Opportunity closer routing
+ * Lead assignment alias — routes NEW INBOUND LEADS through assignLead (PRESALES-gated).
+ *
+ * Previously this called assignOpportunityCloser (the SALES-gated closer engine), which
+ * was incorrect: inbound leads should be distributed to Presales reps, not Sales closers.
+ * assignOpportunityCloser is reserved for Opportunity/Deal auto-assignment after conversion.
  */
 export async function assignDeal(dealContext: AssignmentContext): Promise<string | null> {
-  const res = await assignOpportunityCloser(dealContext);
-  return res.closerId;
+  const res = await assignLead(dealContext);
+  return res?.assignedToId ?? null;
 }
 
 /**
