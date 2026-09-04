@@ -515,13 +515,32 @@ export const updateQuote = async (req: Request, res: Response) => {
 export const sendQuote = async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id);
-    const { channel, messageCustomization } = req.body || {};
+    const { channel, messageCustomization, cc } = req.body || {};
     const userId = (req as any).user?.id;
+
+    // Validate CC entries if provided
+    if (cc !== undefined && cc !== null) {
+      if (!Array.isArray(cc)) {
+        return res.status(400).json({ error: "cc must be an array of email addresses" });
+      }
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const invalid = (cc as any[]).filter((addr) => typeof addr !== "string" || !emailRegex.test(addr.trim()));
+      if (invalid.length > 0) {
+        return res.status(400).json({
+          error: `Invalid email address(es) in cc: ${invalid.join(", ")}. Please provide valid email addresses.`
+        });
+      }
+    }
+
+    const validatedCc: string[] | undefined = Array.isArray(cc) && cc.length > 0
+      ? (cc as string[]).map((a) => a.trim())
+      : undefined;
 
     const result = await deliverQuote(id, {
       channel,
       userId,
-      messageCustomization
+      messageCustomization,
+      cc: validatedCc
     });
 
     res.json(result);

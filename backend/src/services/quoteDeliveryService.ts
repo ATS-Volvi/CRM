@@ -350,6 +350,7 @@ export async function deliverQuote(
     channel?: string | null;
     userId?: string;
     messageCustomization?: string;
+    cc?: string[];
   } = {}
 ) {
   const quote = await sequelize.models.Quote.findByPk(quoteId, {
@@ -444,7 +445,7 @@ export async function deliverQuote(
       `;
 
       const html = getBaseHtmlTemplate(bodyContent);
-      const emailResult = await sendEmail(recipient, subject, html);
+      const emailResult = await sendEmail(recipient, subject, html, options.cc);
       providerMessageId = (emailResult as any)?.id || (emailResult as any)?.messageId || null;
     } else if (channel === "WHATSAPP") {
       const whatsappDisclaimer = !isFinalAgreed

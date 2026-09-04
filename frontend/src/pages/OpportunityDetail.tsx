@@ -147,6 +147,9 @@ export default function OpportunityDetail() {
       queryClient.invalidateQueries({ queryKey: ["opportunity-quotes", id] });
       queryClient.invalidateQueries({ queryKey: ["opportunity-approvals", id] });
       queryClient.invalidateQueries({ queryKey: ["opportunity-timeline", id] });
+    },
+    onError: (err: any) => {
+      alert("Failed to accept quote: " + (err?.response?.data?.error || err?.message || "Unknown error"));
     }
   });
 
