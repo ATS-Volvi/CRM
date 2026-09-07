@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { register, login } from "../controllers/auth";
 import { createPublicLead } from "../controllers/publicLeads";
-import { authMiddleware, requireAdminOrManager } from "../middleware/auth";
+import { authMiddleware, requireAdminOrManager, requireAdmin } from "../middleware/auth";
 import {
   getPipeline, moveDealStage, createDeal, getDeals, validateTransition,
   getOpportunities, getOpportunityById, createOpportunity, updateOpportunity, moveOpportunityStage,
@@ -524,15 +524,15 @@ router.post("/approvals", authMiddleware, createApproval);
 router.put("/approvals/:id", authMiddleware, updateApproval);
 
 // ADMIN APPROVAL POLICY
-router.get("/approval-policy", authMiddleware, getAdminApprovalPolicy);
-router.put("/approval-policy", authMiddleware, updateAdminApprovalPolicy);
+router.get("/approval-policy", authMiddleware, requireAdminOrManager, getAdminApprovalPolicy);
+router.put("/approval-policy", authMiddleware, requireAdmin, updateAdminApprovalPolicy);
 
 // SALES APPROVAL PROFILES
-router.get("/sales-approval-profiles", authMiddleware, getSalesApprovalProfiles);
-router.post("/sales-approval-profiles", authMiddleware, upsertSalesApprovalProfile);
-router.post("/approvals/profiles", authMiddleware, upsertSalesApprovalProfile);
+router.get("/sales-approval-profiles", authMiddleware, requireAdminOrManager, getSalesApprovalProfiles);
+router.post("/sales-approval-profiles", authMiddleware, requireAdminOrManager, upsertSalesApprovalProfile);
+router.post("/approvals/profiles", authMiddleware, requireAdminOrManager, upsertSalesApprovalProfile);
 
-// APPROVAL AUDIT LOGS
+// APPROVAL AUDIT LOGS — all roles allowed; controller scopes reps to own records
 router.get("/approval-audit-logs", authMiddleware, getApprovalAuditLogs);
 
 // QUOTE EVALUATION & DIRECT APPROVALS

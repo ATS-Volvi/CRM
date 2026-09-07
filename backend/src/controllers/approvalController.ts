@@ -148,6 +148,20 @@ export const getSalesApprovalProfiles = async (req: Request, res: Response) => {
         { model: sequelize.models.User, as: "teamLead", attributes: ["id", "name", "email"] }
       ]
     });
+
+    const callerRole = (req as any).user?.role ?? "";
+    const callerId = (req as any).user?.id;
+    if (callerRole === "manager" || callerRole === "sales_manager") {
+      const scopedProfiles = profiles.filter((p: any) => {
+        return (
+          p.teamLeadId === callerId ||
+          p.salesRepId === callerId ||
+          p.salesRep?.managerId === callerId
+        );
+      });
+      return res.json(scopedProfiles);
+    }
+
     res.json(profiles);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -173,6 +187,30 @@ export const upsertSalesApprovalProfile = async (req: Request, res: Response) =>
 
     if (targetIds.length === 0) {
       return res.status(400).json({ error: "salesRepId or salesRepIds is required." });
+    }
+
+    // Manager-level scope enforcement: managers may only edit their own direct reports.
+    // A rep "belongs" to a manager if EITHER the HR managerId OR the approval-hierarchy
+    // teamLeadId on the rep's SalesApprovalProfile points to the caller.
+    // (These two fields can diverge when a rep is manually reassigned in the approval
+    // hierarchy without updating the HR field, so we must check both.)
+    const callerRole = (req as any).user?.role ?? "";
+    const callerId = (req as any).user?.id;
+    if (callerRole === "manager" || callerRole === "sales_manager") {
+      for (const id of targetIds) {
+        const targetUser: any = await sequelize.models.User.findByPk(id);
+        const existingProfile: any = await sequelize.models.SalesApprovalProfile.findOne({
+          where: { salesRepId: id }
+        });
+        const reportsToMe =
+          targetUser?.managerId === callerId ||
+          existingProfile?.teamLeadId === callerId;
+        if (!reportsToMe) {
+          return res.status(403).json({
+            error: "Forbidden: You can only configure approval limits for sales representatives who report to you."
+          });
+        }
+      }
     }
 
     // Load Admin Global Policy to enforce authority ceilings
@@ -351,8 +389,22 @@ export const submitQuoteForApproval = async (req: Request, res: Response) => {
 
 export const getApprovals = async (req: Request, res: Response) => {
   try {
-    const userAttrs = ["id", "name", "email", "role"];
+    const authUser = (req as any).user;
+    const callerRole = authUser?.role ?? "";
+    const isRepRole = callerRole === "sales_rep" || callerRole === "senior_ae";
+
+    const callerId = authUser?.id;
+    const isManagerRole = callerRole === "manager" || callerRole === "sales_manager";
+
+    // Sales reps and senior AEs may only see their own submitted requests
+    const where: any = {};
+    if (isRepRole) {
+      where.requestedById = callerId;
+    }
+
+    const userAttrs = ["id", "name", "email", "role", "managerId"];
     const approvals = await sequelize.models.ApprovalRequest.findAll({
+      where,
       include: [
         { model: sequelize.models.User, as: "requestedBy", attributes: userAttrs },
         { model: sequelize.models.User, as: "approvedBy", attributes: userAttrs },
@@ -361,8 +413,20 @@ export const getApprovals = async (req: Request, res: Response) => {
       order: [["createdAt", "DESC"]]
     });
 
+    // Managers / Team Leads see requests assigned to them, requested by them, or requested by reps reporting to them
+    let filteredApprovals = approvals;
+    if (isManagerRole) {
+      filteredApprovals = approvals.filter((app: any) => {
+        return (
+          app.assignedApproverId === callerId ||
+          app.requestedById === callerId ||
+          app.requestedBy?.managerId === callerId
+        );
+      });
+    }
+
     const approvalsWithDetails = await Promise.all(
-      approvals.map(async (approval: any) => {
+      filteredApprovals.map(async (approval: any) => {
         const data = approval.toJSON();
         if (data.type === "Quote") {
           data.target = await sequelize.models.Quote.findByPk(data.targetId, {
@@ -413,6 +477,14 @@ export const updateApproval = async (req: Request, res: Response) => {
     const id = String(req.params.id);
     const { status, comments } = req.body;
     const authUser = (req as any).user;
+
+    // Sales reps and senior AEs cannot approve or reject — approver-only action
+    const callerRole = authUser?.role ?? "";
+    if (callerRole === "sales_rep" || callerRole === "senior_ae") {
+      return res.status(403).json({
+        error: "Forbidden: Only designated approvers (Team Lead or Admin) can act on approval requests."
+      });
+    }
 
     const approval = await sequelize.models.ApprovalRequest.findByPk(id);
     if (!approval) {
@@ -773,21 +845,43 @@ export const approveQuoteDirectly = async (req: Request, res: Response) => {
 
 export const getApprovalAuditLogs = async (req: Request, res: Response) => {
   try {
+    const authUser = (req as any).user;
+    const callerRole = authUser?.role ?? "";
+    const isRepRole = callerRole === "sales_rep" || callerRole === "senior_ae";
+    const callerId = authUser?.id;
+    const isManagerRole = callerRole === "manager" || callerRole === "sales_manager";
+
     const { quoteId, salesRepId } = req.query;
     const where: any = {};
 
     if (quoteId) where.quoteId = quoteId;
-    if (salesRepId) where.salesRepId = salesRepId;
+    if (isRepRole) {
+      // Force reps to see only their own audit history regardless of query params
+      where.salesRepId = callerId;
+    } else if (salesRepId) {
+      where.salesRepId = salesRepId;
+    }
 
     const logs = await sequelize.models.ApprovalAuditLog.findAll({
       where,
       include: [
-        { model: sequelize.models.User, as: "salesRep", attributes: ["id", "name", "email"] },
+        { model: sequelize.models.User, as: "salesRep", attributes: ["id", "name", "email", "managerId"] },
         { model: sequelize.models.User, as: "approver", attributes: ["id", "name", "email", "role"] },
         { model: sequelize.models.Quote, as: "quote", attributes: ["id", "quoteNumber", "totalAmount", "status"] }
       ],
       order: [["createdAt", "DESC"]]
     });
+
+    if (isManagerRole && !salesRepId) {
+      const scopedLogs = logs.filter((log: any) => {
+        return (
+          log.salesRepId === callerId ||
+          log.approverId === callerId ||
+          log.salesRep?.managerId === callerId
+        );
+      });
+      return res.json(scopedLogs);
+    }
 
     res.json(logs);
   } catch (error: any) {
