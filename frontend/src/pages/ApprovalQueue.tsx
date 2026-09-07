@@ -27,16 +27,17 @@ export default function ApprovalQueue() {
     : ["queue", "audit"];
 
   const urlTab = (searchParams.get("tab") as any) || "queue";
-  const initialTab = allowedTabs.includes(urlTab) ? urlTab : "queue";
-
-  const [activeTab, setActiveTab] = useState<"queue" | "policy" | "profiles" | "audit">(initialTab);
+  const [activeTab, setActiveTab] = useState<"queue" | "policy" | "profiles" | "audit">(
+    allowedTabs.includes(urlTab) ? urlTab : "queue"
+  );
 
   // Enforce allowed tabs state guard if url parameter or activeTab is disallowed
   useEffect(() => {
-    if (!allowedTabs.includes(activeTab)) {
+    const validTab = allowedTabs.includes(urlTab) ? urlTab : "queue";
+    if (activeTab !== validTab && !allowedTabs.includes(activeTab)) {
       setActiveTab("queue");
     }
-  }, [activeTab, allowedTabs]);
+  }, [urlTab, allowedTabs, activeTab]);
 
   const [filterStatus, setFilterStatus] = useState("Pending");
 

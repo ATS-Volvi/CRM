@@ -203,6 +203,7 @@ export const upsertSalesApprovalProfile = async (req: Request, res: Response) =>
           where: { salesRepId: id }
         });
         const reportsToMe =
+          id === callerId ||
           targetUser?.managerId === callerId ||
           existingProfile?.teamLeadId === callerId;
         if (!reportsToMe) {
@@ -413,14 +414,29 @@ export const getApprovals = async (req: Request, res: Response) => {
       order: [["createdAt", "DESC"]]
     });
 
-    // Managers / Team Leads see requests assigned to them, requested by them, or requested by reps reporting to them
+    // Fetch rep profiles to map salesRepId -> teamLeadId for manager queue scoping
+    const repProfiles = await sequelize.models.SalesApprovalProfile.findAll({
+      attributes: ["salesRepId", "teamLeadId"]
+    });
+    const repTeamLeadMap = new Map<string, string>();
+    repProfiles.forEach((p: any) => {
+      if (p.salesRepId && p.teamLeadId) {
+        repTeamLeadMap.set(p.salesRepId, p.teamLeadId);
+      }
+    });
+
+    // Managers / Team Leads see all requests for reps in their team (by profile teamLeadId, HR managerId, assigned approver, or requester)
+    // Admin & Director have unrestricted access to all entries.
     let filteredApprovals = approvals;
-    if (isManagerRole) {
+    if (callerRole === "manager" || callerRole === "sales_manager") {
       filteredApprovals = approvals.filter((app: any) => {
+        const reqRepId = app.requestedById;
+        const repTeamLeadId = repTeamLeadMap.get(reqRepId);
         return (
           app.assignedApproverId === callerId ||
-          app.requestedById === callerId ||
-          app.requestedBy?.managerId === callerId
+          reqRepId === callerId ||
+          app.requestedBy?.managerId === callerId ||
+          repTeamLeadId === callerId
         );
       });
     }
