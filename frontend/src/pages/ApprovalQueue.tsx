@@ -73,7 +73,7 @@ export default function ApprovalQueue() {
 
   // 1. Fetch Approvals Queue
   const { data: approvals, isLoading: loadingApprovals } = useQuery({
-    queryKey: ["approvals"],
+    queryKey: ["approvals", user?.id],
     queryFn: async () => {
       const res = await fetch("/api/v1/approvals", {
         headers: { "Authorization": `Bearer ${token}` }
@@ -84,7 +84,7 @@ export default function ApprovalQueue() {
     enabled: !!token
   });
 
-  // 2. Fetch Admin Global Policy (admin and manager only)
+  // 2. Fetch Admin Global Policy (admin only)
   const { data: policy, refetch: refetchPolicy } = useQuery({
     queryKey: ["approvalPolicy"],
     queryFn: async () => {
@@ -266,6 +266,9 @@ export default function ApprovalQueue() {
   };
 
   const filteredApprovals = approvals?.filter((item: any) => {
+    if (isRep && user?.id && item.requestedById !== user.id) {
+      return false;
+    }
     if (filterStatus === "All") return true;
     return item.status === filterStatus;
   });

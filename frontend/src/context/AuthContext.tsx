@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { setLogoutCallback } from "../lib/apiClient";
 
 interface User {
@@ -60,7 +61,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(false);
   }, []);
 
+  const queryClient = useQueryClient();
+
   const login = (newToken: string, newUser: User) => {
+    queryClient.clear();
     setToken(newToken);
     setUser(newUser);
     sessionStorage.setItem("nexus_token", newToken);
@@ -68,6 +72,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = () => {
+    queryClient.clear();
     setToken(null);
     setUser(null);
     sessionStorage.removeItem("nexus_token");

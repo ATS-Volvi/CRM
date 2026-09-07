@@ -523,8 +523,8 @@ router.get("/approvals", authMiddleware, getApprovals);
 router.post("/approvals", authMiddleware, createApproval);
 router.put("/approvals/:id", authMiddleware, updateApproval);
 
-// ADMIN APPROVAL POLICY
-router.get("/approval-policy", authMiddleware, requireAdminOrManager, getAdminApprovalPolicy);
+// ADMIN APPROVAL POLICY — strictly restricted to role: admin (UI and API)
+router.get("/approval-policy", authMiddleware, requireAdmin, getAdminApprovalPolicy);
 router.put("/approval-policy", authMiddleware, requireAdmin, updateAdminApprovalPolicy);
 
 // SALES APPROVAL PROFILES

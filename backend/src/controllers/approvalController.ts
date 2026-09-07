@@ -383,12 +383,14 @@ export const submitQuoteForApproval = async (req: Request, res: Response) => {
 export const getApprovals = async (req: Request, res: Response) => {
   try {
     const authUser = (req as any).user;
-    const callerRole = authUser?.role ?? "";
+    const callerRole = (authUser?.role ?? "").toLowerCase().trim();
     const isRepRole = callerRole === "sales_rep" || callerRole === "senior_ae";
+    const isManagerRole = callerRole === "manager" || callerRole === "sales_manager";
+    const isAdminRole = callerRole === "admin" || callerRole === "director";
 
     const callerId = authUser?.id;
 
-    // Sales reps and senior AEs may only see their own submitted requests
+    // Build DB WHERE clause: reps may only query their own submitted requests
     const where: any = {};
     if (isRepRole) {
       where.requestedById = callerId;
@@ -416,11 +418,14 @@ export const getApprovals = async (req: Request, res: Response) => {
       }
     });
 
-    // Managers / Team Leads see all requests for reps in their team.
-    // teamLeadId from SalesApprovalProfile is primary; HR managerId is fallback when teamLeadId is null/unset.
-    // Admin & Director have unrestricted access to all entries.
-    let filteredApprovals = approvals;
-    if (callerRole === "manager" || callerRole === "sales_manager") {
+    // Role-based queue scoping (mutually exclusive per role):
+    // 1. Sales Rep / Senior AE: Strictly restricted to own submitted requests
+    // 2. Manager / Sales Manager: Team-scoped by primary teamLeadId (profile) or fallback managerId (HR), plus assigned/requested
+    // 3. Admin / Director: Unrestricted global access to all requests
+    let filteredApprovals: any[] = [];
+    if (isRepRole) {
+      filteredApprovals = approvals.filter((app: any) => app.requestedById === callerId);
+    } else if (isManagerRole) {
       filteredApprovals = approvals.filter((app: any) => {
         const reqRepId = app.requestedById;
         const hasProfile = repTeamLeadMap.has(reqRepId);
@@ -432,6 +437,11 @@ export const getApprovals = async (req: Request, res: Response) => {
           effectiveLeadId === callerId
         );
       });
+    } else if (isAdminRole) {
+      filteredApprovals = approvals;
+    } else {
+      // Secure fallback for any unspecified non-admin role: own submissions only
+      filteredApprovals = approvals.filter((app: any) => app.requestedById === callerId);
     }
 
     const approvalsWithDetails = await Promise.all(
