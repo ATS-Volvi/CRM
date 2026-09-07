@@ -153,11 +153,8 @@ export const getSalesApprovalProfiles = async (req: Request, res: Response) => {
     const callerId = (req as any).user?.id;
     if (callerRole === "manager" || callerRole === "sales_manager") {
       const scopedProfiles = profiles.filter((p: any) => {
-        return (
-          p.teamLeadId === callerId ||
-          p.salesRepId === callerId ||
-          p.salesRep?.managerId === callerId
-        );
+        const effectiveLeadId = p.teamLeadId || p.salesRep?.managerId || null;
+        return p.salesRepId === callerId || effectiveLeadId === callerId;
       });
       return res.json(scopedProfiles);
     }
@@ -190,10 +187,7 @@ export const upsertSalesApprovalProfile = async (req: Request, res: Response) =>
     }
 
     // Manager-level scope enforcement: managers may only edit their own direct reports.
-    // A rep "belongs" to a manager if EITHER the HR managerId OR the approval-hierarchy
-    // teamLeadId on the rep's SalesApprovalProfile points to the caller.
-    // (These two fields can diverge when a rep is manually reassigned in the approval
-    // hierarchy without updating the HR field, so we must check both.)
+    // teamLeadId is primary source of truth, managerId is fallback when teamLeadId is null/unset.
     const callerRole = (req as any).user?.role ?? "";
     const callerId = (req as any).user?.id;
     if (callerRole === "manager" || callerRole === "sales_manager") {
@@ -202,10 +196,8 @@ export const upsertSalesApprovalProfile = async (req: Request, res: Response) =>
         const existingProfile: any = await sequelize.models.SalesApprovalProfile.findOne({
           where: { salesRepId: id }
         });
-        const reportsToMe =
-          id === callerId ||
-          targetUser?.managerId === callerId ||
-          existingProfile?.teamLeadId === callerId;
+        const effectiveLeadId = existingProfile?.teamLeadId || targetUser?.managerId || null;
+        const reportsToMe = id === callerId || effectiveLeadId === callerId;
         if (!reportsToMe) {
           return res.status(403).json({
             error: "Forbidden: You can only configure approval limits for sales representatives who report to you."
@@ -257,7 +249,7 @@ export const upsertSalesApprovalProfile = async (req: Request, res: Response) =>
         selfApprovalLimit: requestedLimit,
         discountApprovalLimit: requestedDiscount,
         minimumMargin: Number(minimumMargin ?? 0.20),
-        teamLeadId: teamLeadId || null,
+        teamLeadId: teamLeadId !== undefined ? (teamLeadId || null) : (profile?.teamLeadId || null),
         approvalEnabled: approvalEnabled !== undefined ? Boolean(approvalEnabled) : true,
         effectiveFrom: effectiveFrom ? new Date(effectiveFrom) : null,
         effectiveUntil: effectiveUntil ? new Date(effectiveUntil) : null
@@ -395,7 +387,6 @@ export const getApprovals = async (req: Request, res: Response) => {
     const isRepRole = callerRole === "sales_rep" || callerRole === "senior_ae";
 
     const callerId = authUser?.id;
-    const isManagerRole = callerRole === "manager" || callerRole === "sales_manager";
 
     // Sales reps and senior AEs may only see their own submitted requests
     const where: any = {};
@@ -418,25 +409,27 @@ export const getApprovals = async (req: Request, res: Response) => {
     const repProfiles = await sequelize.models.SalesApprovalProfile.findAll({
       attributes: ["salesRepId", "teamLeadId"]
     });
-    const repTeamLeadMap = new Map<string, string>();
+    const repTeamLeadMap = new Map<string, string | null>();
     repProfiles.forEach((p: any) => {
-      if (p.salesRepId && p.teamLeadId) {
-        repTeamLeadMap.set(p.salesRepId, p.teamLeadId);
+      if (p.salesRepId) {
+        repTeamLeadMap.set(p.salesRepId, p.teamLeadId || null);
       }
     });
 
-    // Managers / Team Leads see all requests for reps in their team (by profile teamLeadId, HR managerId, assigned approver, or requester)
+    // Managers / Team Leads see all requests for reps in their team.
+    // teamLeadId from SalesApprovalProfile is primary; HR managerId is fallback when teamLeadId is null/unset.
     // Admin & Director have unrestricted access to all entries.
     let filteredApprovals = approvals;
     if (callerRole === "manager" || callerRole === "sales_manager") {
       filteredApprovals = approvals.filter((app: any) => {
         const reqRepId = app.requestedById;
-        const repTeamLeadId = repTeamLeadMap.get(reqRepId);
+        const hasProfile = repTeamLeadMap.has(reqRepId);
+        const profileTeamLeadId = repTeamLeadMap.get(reqRepId);
+        const effectiveLeadId = hasProfile ? (profileTeamLeadId || null) : (app.requestedBy?.managerId || null);
         return (
           app.assignedApproverId === callerId ||
           reqRepId === callerId ||
-          app.requestedBy?.managerId === callerId ||
-          repTeamLeadId === callerId
+          effectiveLeadId === callerId
         );
       });
     }
