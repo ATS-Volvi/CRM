@@ -15,26 +15,28 @@ describe("Opportunity Closer Auto-Assignment Tests", () => {
           id: rep1Id,
           name: "Amelia Rodriguez (Salesman 1)",
           email: "salesperson1@nexus.com",
-          role: "sales_rep",
+          role: "salesperson",
           isAvailable: true,
           status: "Active",
           onLeave: false,
-          maxOpenDeals: 20
+          maxOpenDeals: 20,
+          dealValueCutoff: 1000000
         },
         {
           id: rep2Id,
           name: "Emma Watson (Salesman 2)",
           email: "salesperson2@nexus.com",
-          role: "senior_ae",
+          role: "salesperson",
           isAvailable: true,
           status: "Active",
           onLeave: false,
-          maxOpenDeals: 20
+          maxOpenDeals: 20,
+          dealValueCutoff: 1000000 // 1,000,000 max
         }
       ]),
       findByPk: jest.fn().mockImplementation(async (id: string) => {
-        if (id === rep1Id) return { id: rep1Id, name: "Amelia Rodriguez", role: "sales_rep" };
-        if (id === rep2Id) return { id: rep2Id, name: "Emma Watson", role: "senior_ae" };
+        if (id === rep1Id) return { id: rep1Id, name: "Amelia Rodriguez", role: "salesperson", dealValueCutoff: 1000000 };
+        if (id === rep2Id) return { id: rep2Id, name: "Emma Watson", role: "salesperson", dealValueCutoff: 1000000 };
         return null;
       }),
       update: jest.fn().mockResolvedValue([1])
@@ -49,7 +51,7 @@ describe("Opportunity Closer Auto-Assignment Tests", () => {
     } as any;
   });
 
-  test("1. When Salesman 1 converts lead, Opportunity is auto-assigned to distinct available rep (Salesman 2)", async () => {
+  test("1. When Salesman 1 converts lead, Opportunity is auto-assigned to distinct available rep (Salesman 2 with role: salesperson)", async () => {
     const context = {
       leadId: "lead-test-100",
       firstName: "Xain",
@@ -64,5 +66,22 @@ describe("Opportunity Closer Auto-Assignment Tests", () => {
     expect(result.assigned).toBe(true);
     expect(result.closerId).toBe(rep2Id);
     expect(result.closerId).not.toBe(rep1Id);
+  });
+
+  test("2. When deal value exceeds candidate's dealValueCutoff, rep is skipped in eligibility loop", async () => {
+    const context = {
+      leadId: "lead-test-200",
+      firstName: "HighValue",
+      lastName: "Deal",
+      email: "highvalue@gmail.com",
+      company: "Mega Enterprise",
+      expectedValue: 5000000 // 5M > 1M cutoff of rep2
+    };
+
+    const result = await assignOpportunityCloser(context, { excludeRepId: rep1Id });
+
+    // Since rep2 has cutoff 1M and rep1 is excluded, no eligible closer remains under cutoff
+    expect(result.assigned).toBe(false);
+    expect(result.closerId).toBeNull();
   });
 });

@@ -34,10 +34,10 @@ export async function runHourlyCron(req: Request, res: Response): Promise<void> 
   const results: Record<string, any> = {};
 
   try {
-    const overdueResult = await checkOverdueTasks().catch(err => ({ error: err.message }));
-    const emailsResult = await processScheduledEmails().catch(err => ({ error: err.message }));
-    const followUpsResult = await processQuoteFollowUps().catch(err => ({ error: err.message }));
-    const connectorsResult = await runPolledConnectors().catch(err => ({ error: err.message }));
+    const overdueResult = await checkOverdueTasks().catch((err: any) => ({ error: err.message }));
+    const emailsResult = await processScheduledEmails().catch((err: any) => ({ error: err.message }));
+    const followUpsResult = await processQuoteFollowUps().catch((err: any) => ({ error: err.message }));
+    const connectorsResult = await runPolledConnectors().catch((err: any) => ({ error: err.message }));
 
     results.checkOverdueTasks = overdueResult || "ok";
     results.processScheduledEmails = emailsResult || "ok";
@@ -66,10 +66,10 @@ export async function runDailyCron(req: Request, res: Response): Promise<void> {
 
   try {
     // 1. Task & Email checks
-    const overdueResult = await checkOverdueTasks().catch(err => ({ error: err.message }));
-    const emailsResult = await processScheduledEmails().catch(err => ({ error: err.message }));
-    const followUpsResult = await processQuoteFollowUps().catch(err => ({ error: err.message }));
-    const connectorsResult = await runPolledConnectors().catch(err => ({ error: err.message }));
+    const overdueResult = await checkOverdueTasks().catch((err: any) => ({ error: err.message }));
+    const emailsResult = await processScheduledEmails().catch((err: any) => ({ error: err.message }));
+    const followUpsResult = await processQuoteFollowUps().catch((err: any) => ({ error: err.message }));
+    const connectorsResult = await runPolledConnectors().catch((err: any) => ({ error: err.message }));
 
     results.checkOverdueTasks = overdueResult || "ok";
     results.processScheduledEmails = emailsResult || "ok";
@@ -77,12 +77,12 @@ export async function runDailyCron(req: Request, res: Response): Promise<void> {
     results.runPolledConnectors = connectorsResult || "ok";
 
     // 2. Expirations, Escalations, POs & Reports
-    await checkExpiredQuotes().catch(err => { results.checkExpiredQuotes = { error: err.message }; });
-    await escalateUnactionedApprovals().catch(err => { results.escalateUnactionedApprovals = { error: err.message }; });
-    await checkOutstandingPOs().catch(err => { results.checkOutstandingPOs = { error: err.message }; });
-    await checkOverdueTasksAndSendDigests().catch(err => { results.checkOverdueTasksAndSendDigests = { error: err.message }; });
-    await runTemperatureSweep().catch(err => { results.runTemperatureSweep = { error: err.message }; });
-    await checkAndSendWeeklyReport().catch(err => { results.checkAndSendWeeklyReport = { error: err.message }; });
+    await checkExpiredQuotes().catch((err: any) => { results.checkExpiredQuotes = { error: err.message }; });
+    await escalateUnactionedApprovals().catch((err: any) => { results.escalateUnactionedApprovals = { error: err.message }; });
+    await checkOutstandingPOs().catch((err: any) => { results.checkOutstandingPOs = { error: err.message }; });
+    await checkOverdueTasksAndSendDigests().catch((err: any) => { results.checkOverdueTasksAndSendDigests = { error: err.message }; });
+    await runTemperatureSweep().catch((err: any) => { results.runTemperatureSweep = { error: err.message }; });
+    await checkAndSendWeeklyReport().catch((err: any) => { results.checkAndSendWeeklyReport = { error: err.message }; });
 
     res.json({
       status: "success",

@@ -12,7 +12,7 @@ export function createServer(): Express {
   app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
   const corsOrigins = process.env.CORS_ORIGIN
     ? process.env.CORS_ORIGIN.split(",").map(o => o.trim())
-    : ["http://localhost:5173", "https://crm-frontend-9xq4.vercel.app"];
+    : ["http://localhost:5173", "https://crm-k8g4.onrender.com"];
   app.use(cors({ origin: corsOrigins, credentials: true }));
   app.use(express.json({ verify: (req: any, _res, buf) => { req.rawBody = buf; } }));
   app.use(express.urlencoded({ extended: true }));

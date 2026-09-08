@@ -931,10 +931,17 @@ export default function LeadDetail() {
                 </div>
               ) : (
                 <div className="flex items-center gap-2.5 bg-slate-50 dark:bg-slate-800 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-700">
-                  <div className="w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-xs">
-                    {lead.assignedTo?.name ? lead.assignedTo.name.substring(0, 2).toUpperCase() : "UN"}
-                  </div>
-                  <span className="font-semibold text-slate-800 dark:text-slate-200">{lead.assignedTo?.name || "Unassigned"}</span>
+                  {(() => {
+                    const repName = lead.assignedTo?.name || salespersons?.find((s: any) => s.id === (lead.assignedToId || lead.assignedTo))?.name || (typeof lead.assignedTo === "string" ? lead.assignedTo : null);
+                    return (
+                      <>
+                        <div className="w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-xs">
+                          {repName ? repName.substring(0, 2).toUpperCase() : "UN"}
+                        </div>
+                        <span className="font-semibold text-slate-800 dark:text-slate-200">{repName || "Unassigned"}</span>
+                      </>
+                    );
+                  })()}
                 </div>
               )}
             </div>

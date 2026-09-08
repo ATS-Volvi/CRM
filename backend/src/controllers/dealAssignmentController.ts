@@ -39,7 +39,7 @@ export async function autoAssignDealHandler(req: Request, res: Response) {
     } else {
       return res.status(200).json({
         success: false,
-        message: "No eligible senior_ae found matching cutoff and capacity limits. Please assign manually.",
+        message: result?.reason || "No eligible closer found matching cutoff and capacity limits. Please assign manually.",
         ...result
       });
     }

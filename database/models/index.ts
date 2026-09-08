@@ -37,6 +37,7 @@ export class User extends Model {
   public maxOpenDeals!: number | null;
   public createdByUserId!: string | null;
   public phone!: string | null;
+  public teamType!: string | null; // "PRESALES" | "SALES" | null
 }
 
 User.init(
@@ -56,6 +57,7 @@ User.init(
     managerId: { type: DataTypes.UUID, allowNull: true },
     createdByUserId: { type: DataTypes.UUID, allowNull: true },
     phone: { type: DataTypes.STRING, allowNull: true },
+    teamType: { type: DataTypes.STRING, allowNull: true },
     department: { type: DataTypes.STRING, allowNull: true },
     territory: { type: DataTypes.STRING, allowNull: true },
     team: { type: DataTypes.STRING, allowNull: true },
@@ -299,6 +301,7 @@ export class Deal extends Model {
   public sourceEntityId!: string | null;
   public firstTouchAttribution!: string | null;
   public actualClosedAt!: Date | null;
+  public originalOwnerId!: string | null;
 }
 
 Deal.init(
@@ -340,6 +343,7 @@ Deal.init(
     sourceName: { type: DataTypes.STRING, allowNull: true },
     sourceEntityId: { type: DataTypes.UUID, allowNull: true },
     firstTouchAttribution: { type: DataTypes.TEXT, allowNull: true },
+    originalOwnerId: { type: DataTypes.UUID, allowNull: true },
   },
   { sequelize, modelName: "Deal" }
 );
@@ -438,19 +442,37 @@ export class QuoteLineItem extends Model {
   public id!: string;
   public quoteId!: string;
   public productId!: string;
+  public catalogItemId!: string | null;
   public quantity!: number;
   public unitPrice!: number;
+  public discount!: number | null;
+  public tax!: number | null;
   public totalPrice!: number;
+  public totalAmount!: number | null;
   public isOptional!: boolean;
+  public isCustom!: boolean | null;
+  public customDescription!: string | null;
+  public description!: string | null;
+  public sortOrder!: number | null;
+  public internalCostSnapshot!: number | null;
 }
 
 QuoteLineItem.init(
   {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    catalogItemId: { type: DataTypes.UUID, allowNull: true },
     quantity: { type: DataTypes.INTEGER, allowNull: false },
     unitPrice: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
+    discount: { type: DataTypes.FLOAT, allowNull: true, defaultValue: 0 },
+    tax: { type: DataTypes.FLOAT, allowNull: true, defaultValue: 0 },
     totalPrice: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
-    isOptional: { type: DataTypes.BOOLEAN, defaultValue: false }
+    totalAmount: { type: DataTypes.DECIMAL(10, 2), allowNull: true },
+    isOptional: { type: DataTypes.BOOLEAN, defaultValue: false },
+    isCustom: { type: DataTypes.BOOLEAN, defaultValue: false },
+    customDescription: { type: DataTypes.TEXT, allowNull: true },
+    description: { type: DataTypes.TEXT, allowNull: true },
+    sortOrder: { type: DataTypes.INTEGER, allowNull: true },
+    internalCostSnapshot: { type: DataTypes.DECIMAL(10, 2), allowNull: true }
   },
   { sequelize, modelName: "QuoteLineItem" }
 );
@@ -2258,6 +2280,29 @@ AttributionEvent.init(
     metadata: { type: DataTypes.TEXT, defaultValue: "{}" }
   },
   { sequelize, modelName: "AttributionEvent", tableName: "AttributionEvents", updatedAt: false }
+);
+
+export class FlaggedLead extends Model {
+  public id!: string;
+  public payload!: any;
+  public source!: string;
+  public ip!: string | null;
+  public reason!: string;
+  public reviewed!: boolean;
+  public createdAt!: Date;
+  public updatedAt!: Date;
+}
+
+FlaggedLead.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    payload: { type: DataTypes.JSON, allowNull: false },
+    source: { type: DataTypes.STRING, allowNull: false, defaultValue: "Website" },
+    ip: { type: DataTypes.STRING, allowNull: true },
+    reason: { type: DataTypes.STRING, allowNull: false },
+    reviewed: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+  },
+  { sequelize, modelName: "FlaggedLead", tableName: "FlaggedLeads" }
 );
 
 // ─── Campaign & Attribution Associations ─────────────────────────────────────

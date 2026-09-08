@@ -15,6 +15,9 @@ const startServer = async () => {
     if (sequelize.models.WhatsAppLog) {
       await sequelize.models.WhatsAppLog.sync().catch(err => console.error("Failed to sync WhatsAppLog model:", err));
     }
+    await sequelize.query("ALTER TABLE Deals ADD COLUMN originalOwnerId TEXT;").catch(() => {});
+    await sequelize.query('ALTER TABLE "Users" ADD COLUMN IF NOT EXISTS "teamType" VARCHAR(255);').catch(() => {});
+    await sequelize.query('ALTER TABLE Users ADD COLUMN teamType TEXT;').catch(() => {});
     console.log("Database connection established successfully.");
     
     // Seed default message templates if not exists

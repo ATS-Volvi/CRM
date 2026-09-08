@@ -1,0 +1,69 @@
+name: Verify Lead Security Layer (Live ClamAV)
+
+on:
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  verify-security:
+    name: ClamAV Daemon & Security Verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Start ClamAV Daemon Container
+        run: |
+          echo "Starting official ClamAV container..."
+          docker run -d --name clamav -p 3310:3310 clamav/clamav:latest
+          echo "Waiting for ClamAV daemon to finish loading virus database..."
+          for i in {1..60}; do
+            if docker exec clamav clamdscan --ping 3 2>/dev/null; then
+              echo "ClamAV daemon is fully initialized and responding to PING!"
+              break
+            fi
+            echo "Waiting for ClamAV to initialize... ($i/60)"
+            sleep 3
+          done
+          docker ps
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build Database Workspace
+        run: npm run build --workspace=database
+
+      - name: Run Lead Security Verification Suite
+        env:
+          USE_SQLITE: "true"
+          CLAMAV_HOST: "127.0.0.1"
+          CLAMAV_PORT: "3310"
+          AI_MODERATION_PROVIDER: "openrouter"
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          npx ts-node --transpile-only backend/scripts/verifyLeadSecurityLayer.ts 2>&1 | tee test_output.log
+
+      - name: Publish Test Summary to GitHub
+        if: always()
+        run: |
+          echo "### Lead Security Verification Suite Output" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          if [ -f test_output.log ]; then
+            cat test_output.log >> $GITHUB_STEP_SUMMARY
+          else
+            echo "test_output.log not generated" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "### ClamAV Container Logs" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          docker logs --tail 50 clamav 2>&1 >> $GITHUB_STEP_SUMMARY || true
+          echo '```' >> $GITHUB_STEP_SUMMARY

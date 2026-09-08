@@ -27,6 +27,11 @@ export default function QuotationBuilder() {
   };
   const [activeTab, setActiveTab] = useState<"builder" | "preview" | "client" | "similar">("builder");
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
+  const [approvalSubmittedModal, setApprovalSubmittedModal] = useState<{
+    visible: boolean;
+    reason?: string;
+    managerName?: string;
+  }>({ visible: false });
 
   const { data: quotes, isLoading } = useQuery({
     queryKey: ["quotes"],
@@ -576,20 +581,28 @@ export default function QuotationBuilder() {
         const err = await res.json().catch(() => ({ error: "Failed to save quote" }));
         throw new Error(err.error || "Failed to save quote");
       }
-      return res.json();
+      return { data: await res.json(), requestedStatus: status };
     },
-    onSuccess: (data: any) => {
+    onSuccess: ({ data, requestedStatus }: any) => {
       queryClient.invalidateQueries({ queryKey: ["quotes"] });
       if (selectedDealId) {
         queryClient.invalidateQueries({ queryKey: ["opportunity-quotes", selectedDealId] });
         queryClient.invalidateQueries({ queryKey: ["opportunity-detail", selectedDealId] });
         queryClient.invalidateQueries({ queryKey: ["opportunity-timeline", selectedDealId] });
       }
-      alert("Quote saved successfully!");
-      if (selectedDealId) {
-        navigate(`/opportunities/${selectedDealId}`);
+      if (requestedStatus === "Pending Approval") {
+        setApprovalSubmittedModal({
+          visible: true,
+          reason: evaluation?.reason || "This quote exceeds your approval limit.",
+          managerName: evaluation?.teamLeadName || "your manager"
+        });
       } else {
-        navigate("/quotes");
+        alert("Quote saved successfully!");
+        if (selectedDealId) {
+          navigate(`/opportunities/${selectedDealId}`);
+        } else {
+          navigate("/quotes");
+        }
       }
     }
   });
@@ -598,6 +611,42 @@ export default function QuotationBuilder() {
 
   return (
     <div className="flex-1 overflow-y-auto p-8 bg-background h-[calc(100vh-64px)]">
+      {/* ── APPROVAL SUBMITTED MODAL ── */}
+      {approvalSubmittedModal.visible && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4 space-y-4 border border-amber-200">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+                <Clock className="w-5 h-5 text-amber-600" />
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-slate-800">Quote Submitted for Approval</h2>
+                <p className="text-xs text-slate-500 mt-0.5">Awaiting manager review</p>
+              </div>
+            </div>
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
+              <p className="font-semibold mb-1">Outside your approval limit</p>
+              <p>{approvalSubmittedModal.reason}</p>
+            </div>
+            <p className="text-sm text-slate-600">
+              This quote has been sent to <strong>{approvalSubmittedModal.managerName}</strong> for approval.
+              Once approved, the customer quote will be <strong>sent automatically</strong> — no action needed from you.
+              You'll receive a notification when it's done.
+            </p>
+            <button
+              onClick={() => {
+                setApprovalSubmittedModal({ visible: false });
+                if (selectedDealId) navigate(`/opportunities/${selectedDealId}`);
+                else navigate("/quotes");
+              }}
+              className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm transition-colors"
+            >
+              Got it — go back to opportunity
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center gap-1.5 text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-6">
         <Link to="/quotes" className="hover:text-primary">Quotes</Link>
         <span className="opacity-50">/</span>

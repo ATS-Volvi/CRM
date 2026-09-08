@@ -106,17 +106,8 @@ export default function Requirements() {
     <div className="w-full px-6 md:px-8 py-6 space-y-6 animate-fade-in">
       <MasterDataNav />
       
-      {/* Page Header */}
-      <div className="flex justify-between items-center">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-primary/10 rounded-xl">
-            <Layers className="w-5 h-5 text-primary" />
-          </div>
-          <div>
-            <h2 className="text-lg font-bold text-on-surface">Service Types</h2>
-            <p className="text-xs text-on-surface-variant">Manage master service types, service packages, and deliverable categories.</p>
-          </div>
-        </div>
+      {/* Actions */}
+      <div className="flex justify-end items-center">
         {!isFormOpen && (
           <button 
             onClick={() => {

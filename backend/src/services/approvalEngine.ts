@@ -319,7 +319,7 @@ export const createApprovalAuditLog = async (data: {
   previousStatus?: string | null;
   newStatus?: string | null;
   reason: string;
-}) => {
+}, options?: { transaction?: any }) => {
   try {
     await sequelize.models.ApprovalAuditLog.create({
       id: require("crypto").randomUUID(),
@@ -336,7 +336,7 @@ export const createApprovalAuditLog = async (data: {
       previousStatus: data.previousStatus || null,
       newStatus: data.newStatus || null,
       reason: data.reason
-    });
+    }, options?.transaction ? { transaction: options.transaction } : undefined);
   } catch (err) {
     console.error("[ApprovalAuditLog] Failed to log audit record:", err);
   }

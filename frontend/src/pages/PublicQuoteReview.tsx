@@ -15,7 +15,8 @@ import {
   RefreshCw,
   MessageSquareQuote,
   Download,
-  AlertCircle
+  AlertCircle,
+  Sparkles
 } from "lucide-react";
 
 interface QuoteLineItem {
@@ -36,6 +37,7 @@ interface QuoteData {
   quoteNumber: string;
   version: number;
   status: string;
+  isFinalAgreed?: boolean;
   totalAmount: number;
   expirationDate: string | null;
   publicAccessToken: string;
@@ -83,6 +85,10 @@ export default function PublicQuoteReview() {
   const [showChangesModal, setShowChangesModal] = useState(false);
   const [changeMessage, setChangeMessage] = useState("");
   const [submittingChanges, setSubmittingChanges] = useState(false);
+
+  // Express Interest State
+  const [interestExpressed, setInterestExpressed] = useState(false);
+  const [submittingInterest, setSubmittingInterest] = useState(false);
 
   // Success Feedback
   const [actionSuccessMessage, setActionSuccessMessage] = useState<string | null>(null);
@@ -199,6 +205,37 @@ export default function PublicQuoteReview() {
     }
   };
 
+  const handleExpressInterestSubmit = async () => {
+    if (!token || submittingInterest) return;
+
+    try {
+      setSubmittingInterest(true);
+      const res = await fetch(`/api/v1/public/quotes/by-token/${token}/express-interest`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to submit interest. Please try again.");
+      }
+
+      setInterestExpressed(true);
+      if (data.alreadyExpressed) {
+        setActionSuccessMessage(data.message);
+      } else {
+        const rep = quote?.deal?.owner?.name || "your dedicated representative";
+        setActionSuccessMessage(
+          `Thank you! We've notified ${rep}, and they will follow up shortly with your confirmed final proposal.`
+        );
+      }
+    } catch (err: any) {
+      alert(err.message || "Failed to submit interest. Please try again.");
+    } finally {
+      setSubmittingInterest(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
@@ -264,7 +301,7 @@ export default function PublicQuoteReview() {
   const repPhone = quote.deal?.owner?.phone || "+966 11 000 0000";
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 py-10 px-4 sm:px-6 lg:px-8">
+    <div className="w-full min-h-screen bg-slate-950 text-slate-100 py-10 px-4 sm:px-6 lg:px-8 overflow-y-auto">
       <div className="max-w-4xl mx-auto space-y-8">
         {/* Top Enterprise Brand Bar */}
         <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-6 border-b border-slate-800">
@@ -283,18 +320,41 @@ export default function PublicQuoteReview() {
               className={`px-3 py-1 text-xs font-semibold rounded-full border ${
                 isAccepted
                   ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                  : !quote.isFinalAgreed
+                  ? "bg-amber-500/10 text-amber-400 border-amber-500/30"
                   : isRevisionRequested
                   ? "bg-amber-500/10 text-amber-400 border-amber-500/30"
                   : "bg-blue-500/10 text-blue-400 border-blue-500/30"
               }`}
             >
-              {isAccepted ? "Accepted" : isRevisionRequested ? "Revision Requested" : quote.status || "Active Quotation"}
+              {isAccepted
+                ? "Accepted"
+                : !quote.isFinalAgreed
+                ? "PRELIMINARY — NOT BINDING"
+                : isRevisionRequested
+                ? "Revision Requested"
+                : quote.status || "Active Quotation"}
             </span>
             <span className="px-2.5 py-1 text-xs font-medium rounded-full bg-slate-800 text-slate-300 border border-slate-700">
               v{quote.version || 1}
             </span>
           </div>
         </header>
+
+        {/* Preliminary Indicative Disclaimer Card */}
+        {!quote.isFinalAgreed && !isAccepted && (
+          <div className="p-5 bg-amber-950/40 border border-amber-500/40 rounded-2xl flex items-start gap-4 text-amber-200 shadow-lg">
+            <AlertTriangle className="w-6 h-6 text-amber-400 mt-0.5 shrink-0" />
+            <div className="space-y-1">
+              <h4 className="text-sm font-bold text-amber-300 uppercase tracking-wider">
+                PRELIMINARY — NOT VALID FOR ACCEPTANCE
+              </h4>
+              <p className="text-xs text-amber-200/90 leading-relaxed">
+                Please note: this is an indicative quotation for discussion and does not represent our final commercial offer. Pricing shown is subject to internal review. We will send you the confirmed, final quotation shortly for your formal acceptance.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Success Action Alert */}
         {actionSuccessMessage && (
@@ -455,9 +515,13 @@ export default function PublicQuoteReview() {
         {!isAccepted && (
           <div className="bg-gradient-to-r from-slate-900 via-slate-900 to-indigo-950/40 border border-slate-800 rounded-2xl p-6 sm:p-8 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
             <div className="space-y-1 text-center sm:text-left">
-              <h4 className="text-lg font-bold text-white">Ready to proceed?</h4>
+              <h4 className="text-lg font-bold text-white">
+                {quote.isFinalAgreed ? "Ready to proceed?" : "Proposal Review"}
+              </h4>
               <p className="text-xs text-slate-400">
-                You can approve this quotation online or submit revision requests directly to your sales representative.
+                {quote.isFinalAgreed
+                  ? "You can approve this quotation online or submit revision requests directly to your sales representative."
+                  : "This is a preliminary proposal. You can submit feedback or revision requests directly to your sales representative."}
               </p>
             </div>
 
@@ -469,12 +533,27 @@ export default function PublicQuoteReview() {
                 <MessageSquareQuote className="w-4 h-4 text-amber-400" /> Request Changes
               </button>
 
-              <button
-                onClick={() => setShowAcceptModal(true)}
-                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white text-xs font-bold shadow-lg shadow-emerald-900/30 transition-all flex items-center gap-2"
-              >
-                <CheckCircle2 className="w-4 h-4" /> Accept Quotation
-              </button>
+              {quote.isFinalAgreed ? (
+                <button
+                  onClick={() => setShowAcceptModal(true)}
+                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white text-xs font-bold shadow-lg shadow-emerald-900/30 transition-all flex items-center gap-2"
+                >
+                  <CheckCircle2 className="w-4 h-4" /> Accept Quotation
+                </button>
+              ) : interestExpressed || quote.status === "Pending Approval" ? (
+                <span className="px-4 py-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 text-xs font-semibold flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-indigo-400" /> Interest Registered — Follow-Up Pending
+                </span>
+              ) : (
+                <button
+                  onClick={handleExpressInterestSubmit}
+                  disabled={submittingInterest}
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-500 hover:from-indigo-500 hover:to-blue-400 text-white text-xs font-bold shadow-lg shadow-indigo-900/30 transition-all flex items-center gap-2 active:scale-95 disabled:opacity-50"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  {submittingInterest ? "Submitting..." : "I'm Interested — Proceed"}
+                </button>
+              )}
             </div>
           </div>
         )}

@@ -70,4 +70,32 @@ describe("Quote Totals Calculation Unit Tests", () => {
     expect(formatted.totalTax).toBe(120);
     expect(formatted.totalAmount).toBe(920);
   });
+
+  it("should preserve stored totalAmount when line items have unmapped/undefined discount or tax", () => {
+    const rawQuote = {
+      id: "quote-test-3",
+      totalAmount: 856750, // Correct stored total
+      QuoteLineItems: [
+        {
+          quantity: 10,
+          unitPrice: 65000,
+          // discount and tax unmapped / undefined
+          totalPrice: 650000,
+          isOptional: false
+        },
+        {
+          quantity: 1,
+          unitPrice: 100000,
+          // discount and tax unmapped / undefined
+          totalPrice: 100000,
+          isOptional: false
+        }
+      ]
+    };
+
+    const formatted = formatQuoteWithTotals(rawQuote);
+
+    // Recalculating with missing discount/tax would give 750,000, but stored total 856,750 is preserved!
+    expect(formatted.totalAmount).toBe(856750);
+  });
 });

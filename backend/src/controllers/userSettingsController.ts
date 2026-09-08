@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { sequelize } from "@nexus-crm/database";
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 
 export const getMySettings = async (req: Request, res: Response) => {
   try {

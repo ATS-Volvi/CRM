@@ -25,7 +25,7 @@ describe("E2E: Email Delivery Automation", () => {
     
     // Create a default user to satisfy Activity foreign key constraint
     try {
-      const hashedPassword = await require("bcrypt").hash("password123", 10);
+      const hashedPassword = await require("bcryptjs").hash("password123", 10);
       await sequelize.models.User.create({
         id: require('crypto').randomUUID(),
         name: "Default Admin",
@@ -124,7 +124,7 @@ describe("E2E: Email Delivery Automation", () => {
   it("should assign lead directly to salesperson if email is addressed to their email address", async () => {
     // Create a known salesperson
     const userEmail = `sales_rep_${require('crypto').randomUUID()}@nexus.com`;
-    const hashedPassword = await require("bcrypt").hash("password123", 10);
+    const hashedPassword = await require("bcryptjs").hash("password123", 10);
     const salesperson = await sequelize.models.User.create({
       id: require('crypto').randomUUID(),
       name: "Test Rep Direct",
@@ -177,7 +177,7 @@ describe("E2E: Email Delivery Automation", () => {
   });
 
   it("should route by plus-addressing tag (e.g. face+alias@123.com)", async () => {
-    const hashedPassword = await require("bcrypt").hash("password123", 10);
+    const hashedPassword = await require("bcryptjs").hash("password123", 10);
     const aliasRep = await sequelize.models.User.create({
       id: require('crypto').randomUUID(),
       name: "Alias Tester",
@@ -204,7 +204,7 @@ describe("E2E: Email Delivery Automation", () => {
   });
 
   it("should route by explicit Attn: or For: convention", async () => {
-    const hashedPassword = await require("bcrypt").hash("password123", 10);
+    const hashedPassword = await require("bcryptjs").hash("password123", 10);
     const attnRep = await sequelize.models.User.create({
       id: require('crypto').randomUUID(),
       name: "Marcus Aurelius",
@@ -230,7 +230,7 @@ describe("E2E: Email Delivery Automation", () => {
   });
 
   it("should route by single confident name mention and record an activity log", async () => {
-    const hashedPassword = await require("bcrypt").hash("password123", 10);
+    const hashedPassword = await require("bcryptjs").hash("password123", 10);
     const singleNameRep = await sequelize.models.User.create({
       id: require('crypto').randomUUID(),
       name: "Gwen Stacy",
@@ -263,7 +263,7 @@ describe("E2E: Email Delivery Automation", () => {
   });
 
   it("should fall through to least-workload when multiple names are mentioned (ambiguous match)", async () => {
-    const hashedPassword = await require("bcrypt").hash("password123", 10);
+    const hashedPassword = await require("bcryptjs").hash("password123", 10);
     const repA = await sequelize.models.User.create({
       id: "00000000-0000-0000-0000-00000000000a",
       name: "Alice Rep",
@@ -298,7 +298,7 @@ describe("E2E: Email Delivery Automation", () => {
   });
 
   it("should exclude unavailable users (isAvailable: false) from least-workload even if they have 0 leads", async () => {
-    const hashedPassword = await require("bcrypt").hash("password123", 10);
+    const hashedPassword = await require("bcryptjs").hash("password123", 10);
     
     // Create an unavailable user with 0 leads
     const unavailableRep = await sequelize.models.User.create({
@@ -337,7 +337,7 @@ describe("E2E: Email Delivery Automation", () => {
   });
 
   it("should process Mailgun multipart/form-data payloads with sender, recipient, stripped-text", async () => {
-    const hashedPassword = await require("bcrypt").hash("password123", 10);
+    const hashedPassword = await require("bcryptjs").hash("password123", 10);
     const mailgunRep = await sequelize.models.User.create({
       id: require('crypto').randomUUID(),
       name: "Mailgun Target Rep",

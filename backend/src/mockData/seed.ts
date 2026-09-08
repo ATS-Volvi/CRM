@@ -1,5 +1,5 @@
 import { Database, sequelize } from "@nexus-crm/database";
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { customMasterData } from "./customMasterData";
 
@@ -30,16 +30,18 @@ async function seedEnterpriseDatabase() {
       'MessageTemplates', 'InvoiceLineItems', 'Invoices', 'Activities', 'AssignmentRules',
       'ApprovalRequests', 'PurchaseOrders', 'QuoteDeliveries', 'QuoteLineItems', 'PriceBookEntries',
       'Quotes', 'DealContacts', 'DealSplits', 'DealOwners', 'Deals', 'LeadStageHistories', 'PipelineStages',
-      'Contacts', 'Leads', 'Accounts', 'Users',
+      'Contacts', 'Leads', 'Accounts', 'SalesApprovalProfiles', 'AdminApprovalPolicies', 'Users',
       'ConstructionItems', 'LineItems', 'Requirements', 'Customers', 'LeadSources',
       'Tasks', 'CallLogs', 'Documents', 'Meetings', 'EmailMessages', 'KpiTargets',
       'KpiTargetHistories', 'KpiMasters', 'ApprovalTiers'
     ];
 
     if (process.env.USE_SQLITE === "true") {
+      try { await sequelize.query(`PRAGMA foreign_keys = OFF;`); } catch (e) {}
       for (const table of tables) {
         try { await sequelize.query(`DELETE FROM "${table}";`); } catch (e) {}
       }
+      try { await sequelize.query(`PRAGMA foreign_keys = ON;`); } catch (e) {}
     } else {
       for (const table of tables) {
         try { await sequelize.query(`TRUNCATE TABLE "${table}" CASCADE;`); } catch (e) {
