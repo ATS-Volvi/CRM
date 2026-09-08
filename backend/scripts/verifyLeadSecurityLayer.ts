@@ -4,7 +4,7 @@ dotenv.config({ path: path.resolve(__dirname, "../.env") });
 dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 
 import { sequelize, Lead, FlaggedLead } from "@nexus-crm/database";
-import { runPipeline, leadSecurityPipeline } from "../src/lead-security-layer";
+import { runPipeline, leadSecurityPipeline } from "../src/lead-security-layer/index";
 import { ingestOmnichannelLead } from "../src/services/leadIngestion";
 
 async function runSecurityVerification() {
@@ -21,6 +21,27 @@ async function runSecurityVerification() {
     } else {
       console.error(`  ❌ [FAIL] ${testName} - ${detail}`);
     }
+  }
+
+  // Ensure database tables exist (vital for fresh CI runner environments)
+  await sequelize.sync();
+
+  // Ensure at least one sales rep exists for assignment engine in fresh environments
+  const userCount = await sequelize.models.User.count();
+  if (userCount === 0) {
+    await sequelize.models.User.create({
+      id: require("crypto").randomUUID(),
+      name: "Rahul Verma",
+      email: "rahul.verma@nexus-crm.com",
+      password: "hashedpassword",
+      role: "sales_rep",
+      isAvailable: true,
+      status: "Available",
+      maxOpenLeads: 100,
+      territory: "Global",
+      skills: JSON.stringify(["Enterprise", "Technology"]),
+      weight: 100
+    });
   }
 
   const initialFlaggedCount = await FlaggedLead.count();
