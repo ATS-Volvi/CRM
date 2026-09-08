@@ -4,9 +4,9 @@
  * regardless of what happens downstream.
  */
 
-const sanitizeHtml = require('sanitize-html'); // npm i sanitize-html
+import sanitizeHtml from 'sanitize-html';
 
-const FIELD_LIMITS = {
+const FIELD_LIMITS: Record<string, number> = {
   name: 120,
   firstName: 60,
   lastName: 60,
@@ -21,12 +21,10 @@ const FIELD_LIMITS = {
 
 // Fields that are allowed to contain rich text (e.g. inbound email body).
 // Everything else is treated as plain text and fully stripped of markup.
-// Covers both raw-payload field names (message) and the Lead schema's own
-// field names (subject/body) so this runs the same on either shape.
 const RICH_TEXT_FIELDS = new Set(['message', 'body']);
 
-function sanitizeFields(rawLead) {
-  const clean = {};
+export function sanitizeFields(rawLead: Record<string, any>): Record<string, any> {
+  const clean: Record<string, any> = {};
 
   for (const [key, rawValue] of Object.entries(rawLead || {})) {
     if (typeof rawValue !== 'string') {
@@ -62,16 +60,14 @@ function sanitizeFields(rawLead) {
   return clean;
 }
 
-function validateEmail(email) {
+function validateEmail(email: string): void {
   const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!re.test(email)) {
     throw new Error('Invalid email format');
   }
 }
 
-function normalizePhone(phone) {
+function normalizePhone(phone: string): string {
   // Keep leading + for country code, strip everything else non-digit.
   return phone.replace(/(?!^\+)[^\d]/g, '');
 }
-
-module.exports = { sanitizeFields };

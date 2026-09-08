@@ -7,9 +7,9 @@
  * run it as a sidecar container; see the docker-compose snippet in README.md.
  */
 
-const fileType = require('file-type'); // npm i file-type
+const fileType = require('file-type');
 const fileTypeFromBuffer = fileType.fileTypeFromBuffer || fileType.fromBuffer;
-const NodeClam = require('clamscan');               // npm i clamscan
+const NodeClam = require('clamscan');
 
 const ALLOWED_MIME = new Set([
   'image/jpeg',
@@ -24,18 +24,19 @@ const ALLOWED_MIME = new Set([
 
 const MAX_FILE_BYTES = 15 * 1024 * 1024; // 15 MB
 
-let clamscanInstance;
+let clamscanInstance: any = null;
+
 async function getScanner() {
   if (!clamscanInstance) {
     try {
       clamscanInstance = await new NodeClam().init({
         clamdscan: {
           host: process.env.CLAMAV_HOST || 'clamav',
-          port: process.env.CLAMAV_PORT || 3310,
+          port: Number(process.env.CLAMAV_PORT) || 3310,
           timeout: 60000,
         },
       });
-    } catch (err) {
+    } catch (err: any) {
       console.warn('[lead-security] ClamAV daemon offline/unreachable:', err.message);
       return null;
     }
@@ -43,11 +44,22 @@ async function getScanner() {
   return clamscanInstance;
 }
 
-/**
- * @param {Array<{buffer: Buffer, filename: string}>} attachments
- * @returns {{clean: boolean, reason?: string, safeAttachments?: Array}}
- */
-async function scanAttachments(attachments) {
+export interface AttachmentInput {
+  buffer: Buffer;
+  filename: string;
+}
+
+export interface AttachmentScanResult {
+  clean: boolean;
+  reason?: string;
+  safeAttachments?: Array<{
+    filename: string;
+    mime: string;
+    buffer: Buffer;
+  }>;
+}
+
+export async function scanAttachments(attachments: AttachmentInput[]): Promise<AttachmentScanResult> {
   const safeAttachments = [];
 
   for (const file of attachments) {
@@ -78,12 +90,10 @@ async function scanAttachments(attachments) {
   return { clean: true, safeAttachments };
 }
 
-function sanitizeFilename(name) {
+function sanitizeFilename(name: string): string {
   return name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 150);
 }
 
-module.exports = {
-  scanAttachments,
-  _setScanner: (scanner) => { clamscanInstance = scanner; },
-};
-
+export function _setScanner(scanner: any): void {
+  clamscanInstance = scanner;
+}

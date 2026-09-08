@@ -3,8 +3,8 @@
  * junk cheaply, before spending an LLM call on it.
  */
 
-const { Lead } = require('@nexus-crm/database'); // adjust to your Sequelize models path
-const { Op } = require('sequelize');
+import { Lead } from '@nexus-crm/database';
+import { Op } from 'sequelize';
 
 // Keep this list updated periodically — this is exactly what HubSpot's
 // "domain blocklist" feature does under the hood.
@@ -18,7 +18,12 @@ const DISPOSABLE_EMAIL_DOMAINS = new Set([
 
 const GIBBERISH_RE = /^(.)\1{4,}$/; // "aaaaaa", "xxxxxxx" style junk
 
-async function spamRules(lead, meta) {
+export interface SpamVerdict {
+  isSpam: boolean;
+  reason?: string;
+}
+
+export async function spamRules(lead: Record<string, any>, meta?: Record<string, any>): Promise<SpamVerdict> {
   // Accepts either raw inbound payloads (name/message) or the Lead schema's
   // own fields (firstName/lastName, body) so this works for both public form
   // submissions and internal Lead objects without breaking either.
@@ -56,5 +61,3 @@ async function spamRules(lead, meta) {
 
   return { isSpam: false };
 }
-
-module.exports = { spamRules };

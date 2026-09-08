@@ -36,13 +36,13 @@ const OPENROUTER_MODELS = [
   'openrouter/free',
 ];
 
-let customModerationHandler = null;
+let customModerationHandler: ((lead: any) => Promise<any>) | null = null;
 
 /**
  * Robust JSON extraction that handles markdown code blocks, backticks,
  * and conversational preambles often produced by free open-weight models.
  */
-function parseAiVerdict(rawText) {
+export function parseAiVerdict(rawText: string): any {
   if (!rawText || typeof rawText !== 'string') {
     throw new Error('Empty or non-string AI response');
   }
@@ -66,13 +66,13 @@ function parseAiVerdict(rawText) {
 /**
  * Classifies lead content via OpenRouter free tier models with fallback
  */
-async function classifyWithOpenRouter(textToReview) {
+async function classifyWithOpenRouter(textToReview: string): Promise<any> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey || apiKey.startsWith('your_')) {
     throw new Error('OPENROUTER_API_KEY is not configured or is a placeholder');
   }
 
-  let lastError = null;
+  let lastError: any = null;
 
   for (const model of OPENROUTER_MODELS) {
     try {
@@ -100,7 +100,7 @@ async function classifyWithOpenRouter(textToReview) {
         continue; // Try next fallback model
       }
 
-      const data = await response.json();
+      const data: any = await response.json();
       const rawContent = data.choices?.[0]?.message?.content;
       if (!rawContent) {
         lastError = new Error(`Empty response content from ${model}`);
@@ -120,7 +120,7 @@ async function classifyWithOpenRouter(textToReview) {
 /**
  * Classifies lead content via Anthropic Claude Haiku 4.5
  */
-async function classifyWithAnthropic(textToReview) {
+async function classifyWithAnthropic(textToReview: string): Promise<any> {
   const Anthropic = require('@anthropic-ai/sdk');
   const client = new Anthropic(); // reads ANTHROPIC_API_KEY
 
@@ -136,11 +136,16 @@ async function classifyWithAnthropic(textToReview) {
     ],
   });
 
-  const raw = response.content.find((b) => b.type === 'text')?.text || '{}';
+  const raw = response.content.find((b: any) => b.type === 'text')?.text || '{}';
   return parseAiVerdict(raw);
 }
 
-async function aiContentModeration(lead) {
+export interface ModerationVerdict {
+  flagged: boolean;
+  category: string;
+}
+
+export async function aiContentModeration(lead: Record<string, any>): Promise<ModerationVerdict> {
   // Accepts either raw inbound payloads (name/message) or the Lead schema's
   // own fields (firstName/lastName, subject/body).
   const fullName = lead.name || `${lead.firstName || ''} ${lead.lastName || ''}`.trim();
@@ -158,7 +163,7 @@ async function aiContentModeration(lead) {
   const provider = (process.env.AI_MODERATION_PROVIDER || 'openrouter').toLowerCase();
 
   try {
-    let verdict;
+    let verdict: any;
     if (customModerationHandler) {
       verdict = await customModerationHandler(lead);
     } else if (provider === 'anthropic') {
@@ -173,7 +178,7 @@ async function aiContentModeration(lead) {
       return { flagged: true, category: verdict.category };
     }
     return { flagged: false, category: verdict?.category || 'none' };
-  } catch (err) {
+  } catch (err: any) {
     console.error(`[lead-security] AI moderation call failed (${provider}):`, err.message);
     // Fail OPEN on the AI step specifically (not the whole pipeline) —
     // structural checks (1-4) already ran, so worst case is a spam/abusive
@@ -182,8 +187,6 @@ async function aiContentModeration(lead) {
   }
 }
 
-module.exports = {
-  aiContentModeration,
-  parseAiVerdict,
-  _setModerationHandler: (handler) => { customModerationHandler = handler; },
-};
+export function _setModerationHandler(handler: ((lead: any) => Promise<any>) | null): void {
+  customModerationHandler = handler;
+}
