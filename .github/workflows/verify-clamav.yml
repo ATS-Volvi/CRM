@@ -1,0 +1,54 @@
+name: Verify Lead Security Layer (Live ClamAV)
+
+on:
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  verify-security:
+    name: ClamAV Daemon & Security Verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Start ClamAV Daemon Container
+        run: |
+          echo "Starting official ClamAV container..."
+          docker run -d --name clamav -p 3310:3310 clamav/clamav:latest
+          echo "Waiting for ClamAV daemon to load virus signatures and listen on port 3310..."
+          for i in {1..60}; do
+            if nc -z 127.0.0.1 3310 2>/dev/null; then
+              echo "ClamAV daemon is healthy and listening on port 3310!"
+              break
+            fi
+            echo "Waiting for ClamAV to initialize... ($i/60)"
+            sleep 3
+          done
+          docker ps
+          nc -zv 127.0.0.1 3310
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Run Lead Security Verification Suite
+        env:
+          USE_SQLITE: "true"
+          CLAMAV_HOST: "127.0.0.1"
+          CLAMAV_PORT: "3310"
+          AI_MODERATION_PROVIDER: "openrouter"
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: npx ts-node backend/scripts/verifyLeadSecurityLayer.ts
+
+      - name: Print ClamAV Container Logs on Failure
+        if: failure()
+        run: docker logs clamav
