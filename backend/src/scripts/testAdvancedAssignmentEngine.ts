@@ -93,7 +93,7 @@ async function testAdvancedAssignmentEngine() {
       message: "New enquiry from PepsiCo procurement"
     });
 
-    const newPepsiLead: any = await sequelize.models.Lead.findByPk(newPepsiLeadId);
+    const newPepsiLead: any = await sequelize.models.Lead.findByPk(newPepsiLeadId!);
     console.log(`   Inbound PepsiCo Lead Assigned To: ${newPepsiLead.assignedToId} (Expected Rahul: ${(rep1 as any).id})`);
     const isMatchedToExistingOwner = newPepsiLead.assignedToId === (rep1 as any).id;
     console.log(`   ✔ Existing Account Owner Priority Check: ${isMatchedToExistingOwner ? "PASSED (Assigned to Rahul)" : "FAILED"}`);

@@ -51,12 +51,29 @@ export interface LeadPayload {
   categoriesData?: any;
 }
 
+const { runPipeline } = require("../lead-security-layer");
+
 /**
  * Normalizes input lead data, runs duplicate detection and lead scoring,
  * assigns the lead using the assignment engine, and persists the lead.
  */
-export async function ingestLead(payload: LeadPayload) {
+export async function ingestLead(rawPayload: LeadPayload) {
   try {
+    // 0. Lead Ingestion Security Layer (sanitize, file scan, spam rules, AI moderation)
+    let payload = rawPayload;
+    try {
+      payload = await runPipeline(rawPayload, {
+        source: rawPayload.source || "Omnichannel",
+        attachments: (rawPayload as any).attachments || []
+      });
+    } catch (secErr: any) {
+      if (secErr.blocked) {
+        console.warn(`[lead-security] Ingestion held for review: ${rawPayload.email} Reason: ${secErr.reason}`);
+        return null;
+      }
+      throw secErr;
+    }
+
     const email = payload.email?.trim().toLowerCase() || "";
     let companyName = payload.company?.trim() || "";
 
@@ -232,6 +249,8 @@ export async function ingestLead(payload: LeadPayload) {
     throw error;
   }
 }
+
+export const ingestOmnichannelLead = ingestLead;
 
 async function getFirstAdminId(): Promise<string> {
   const admin = await sequelize.models.User.findOne({ where: { role: "admin" } });

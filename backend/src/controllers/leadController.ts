@@ -232,6 +232,10 @@ export const createLead = async (req: Request, res: Response) => {
       rawPayload: req.body
     });
 
+    if (!leadId) {
+      return res.status(202).json({ status: "held_for_review" });
+    }
+
     const lead = await sequelize.models.Lead.findByPk(leadId);
     if (email) {
       const slaHours = process.env.LEAD_RESPONSE_SLA_HOURS || "24";

@@ -224,7 +224,17 @@ import express from "express";
 import multer from "multer";
 const upload = multer();
 
-router.post("/public/leads", createPublicLead);
+const { leadSecurityPipeline } = require("../lead-security-layer");
+
+router.post(
+  "/public/leads",
+  (req, res, next) => {
+    (req as any).leadSource = req.body?.source || "Website";
+    next();
+  },
+  ...leadSecurityPipeline(),
+  createPublicLead
+);
 router.post(
   "/emails/inbound",
   express.urlencoded({ extended: true }),

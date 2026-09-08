@@ -4,6 +4,7 @@ import { triggerTemplatedEmail } from "../services/emailService";
 
 export const createPublicLead = async (req: Request, res: Response) => {
   try {
+    const payload = (req as any).leadCandidate || req.body;
     const {
       firstName,
       lastName,
@@ -40,7 +41,7 @@ export const createPublicLead = async (req: Request, res: Response) => {
       industry,
       budgetRange,
       rawPayload
-    } = req.body;
+    } = payload;
 
     if (!firstName || !lastName || !email) {
       return res.status(400).json({ error: "First name, last name, and email are required" });
@@ -76,6 +77,10 @@ export const createPublicLead = async (req: Request, res: Response) => {
       budgetRange,
       rawPayload: rawPayload || req.body
     });
+
+    if (!leadId) {
+      return res.status(202).json({ status: "held_for_review" });
+    }
 
     // Run Automated Lead Intake & Missing Information Collection Engine
     try {

@@ -2282,6 +2282,29 @@ AttributionEvent.init(
   { sequelize, modelName: "AttributionEvent", tableName: "AttributionEvents", updatedAt: false }
 );
 
+export class FlaggedLead extends Model {
+  public id!: string;
+  public payload!: any;
+  public source!: string;
+  public ip!: string | null;
+  public reason!: string;
+  public reviewed!: boolean;
+  public createdAt!: Date;
+  public updatedAt!: Date;
+}
+
+FlaggedLead.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    payload: { type: DataTypes.JSON, allowNull: false },
+    source: { type: DataTypes.STRING, allowNull: false, defaultValue: "Website" },
+    ip: { type: DataTypes.STRING, allowNull: true },
+    reason: { type: DataTypes.STRING, allowNull: false },
+    reviewed: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+  },
+  { sequelize, modelName: "FlaggedLead", tableName: "FlaggedLeads" }
+);
+
 // ─── Campaign & Attribution Associations ─────────────────────────────────────
 User.hasMany(Campaign, { foreignKey: "ownerId", as: "campaigns" });
 Campaign.belongsTo(User, { foreignKey: "ownerId", as: "owner" });
