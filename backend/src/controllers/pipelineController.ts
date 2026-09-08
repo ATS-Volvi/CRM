@@ -6,6 +6,7 @@ import { triggerStageChangeAutomations } from "../services/automationService";
 import { validateStageTransition } from "../services/stageValidationService";
 import { isWonStage, isLostStage } from "../utils/pipelineStageHelpers";
 import { getDealAccessLevel } from "../services/handoffAccessService";
+import { evaluateDealApproval } from "../services/approvalEngine";
 
 export const validateTransition = async (req: Request, res: Response) => {
   try {
@@ -136,6 +137,26 @@ export const moveDealStage = async (req: Request, res: Response) => {
         error: `Cannot transition to ${toStageName}. Stage entry criteria not satisfied.`,
         validation
       });
+    }
+
+    if (toStageObj && isWonStage(toStageObj.name)) {
+      const evaluation = await evaluateDealApproval(id);
+      if (evaluation.approvalRequired && userRole !== "admin" && userRole !== "manager" && !forceBypass) {
+        const approvedReq = await sequelize.models.ApprovalRequest.findOne({
+          where: {
+            targetId: id,
+            type: "Deal",
+            status: "Approved"
+          }
+        });
+        if (!approvedReq) {
+          return res.status(403).json({
+            error: `Approval required: Deal value (₹${Number(deal.amount).toLocaleString()}) exceeds your authority limit (₹${Number(evaluation.repLimit).toLocaleString()}). Manager approval must be obtained before closing this deal.`,
+            requiresApproval: true,
+            evaluation
+          });
+        }
+      }
     }
 
     // Write LeadStageHistory audit log
@@ -686,6 +707,41 @@ export const updateOpportunity = async (req: Request, res: Response) => {
       lossNotes: lossNotes !== undefined ? lossNotes : (deal as any).lossNotes
     });
 
+    if (amount !== undefined && Number(amount) > 0) {
+      const evaluation = await evaluateDealApproval(deal.id, Number(amount));
+      if (evaluation.approvalRequired) {
+        const existingPending = await sequelize.models.ApprovalRequest.findOne({
+          where: {
+            targetId: deal.id,
+            type: "Deal",
+            status: "Pending"
+          }
+        });
+
+        if (!existingPending) {
+          await sequelize.models.ApprovalRequest.create({
+            id: require("crypto").randomUUID(),
+            type: "Deal",
+            targetId: deal.id,
+            requestedById: user?.id || (deal as any).ownerId,
+            assignedApproverId: evaluation.requiredApproverId,
+            status: "Pending",
+            comments: evaluation.reason
+          });
+
+          if (evaluation.requiredApproverId) {
+            await createNotification(
+              evaluation.requiredApproverId,
+              "alert",
+              "Deal Approval Required 💼",
+              `Deal "${(deal as any).name}" (₹${Number(amount).toLocaleString()}) exceeds representative authority limit (₹${evaluation.repLimit.toLocaleString()}). Manager approval requested.`,
+              `/approvals`
+            );
+          }
+        }
+      }
+    }
+
     res.json(deal);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -717,6 +773,29 @@ export const markOpportunityWon = async (req: Request, res: Response) => {
     const opportunityId = String(req.params.id);
     const { quoteId, reason, transitionType } = req.body;
     const userId = (req as any).user?.id || "mock-user";
+    const userRole = (req as any).user?.role || "sales_rep";
+
+    const deal: any = await Deal.findByPk(opportunityId);
+    if (!deal) return res.status(404).json({ error: "Opportunity not found" });
+
+    // Authority limit enforcement
+    const evaluation = await evaluateDealApproval(opportunityId);
+    if (evaluation.approvalRequired && userRole !== "admin" && userRole !== "manager") {
+      const approvedReq = await sequelize.models.ApprovalRequest.findOne({
+        where: {
+          targetId: opportunityId,
+          type: "Deal",
+          status: "Approved"
+        }
+      });
+      if (!approvedReq) {
+        return res.status(403).json({
+          error: `Approval required: Deal value (₹${Number(deal.amount).toLocaleString()}) exceeds your authority limit (₹${Number(evaluation.repLimit).toLocaleString()}). Manager approval must be obtained before closing this deal.`,
+          requiresApproval: true,
+          evaluation
+        });
+      }
+    }
 
     const result = await processOpportunityEvent({
       opportunityId,

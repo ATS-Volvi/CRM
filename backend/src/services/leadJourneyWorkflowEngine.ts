@@ -177,7 +177,12 @@ export function validateQualificationData(data: Partial<QualificationModel>): Qu
 
 // ─── STEP 4: OPPORTUNITY CONVERSION & CONTEXT INHERITANCE ─────────────────────
 
-export async function convertLeadToOpportunity(leadId: string, qualificationData: Partial<QualificationModel> = {}, userId?: string) {
+export async function convertLeadToOpportunity(
+  leadId: string,
+  qualificationData: Partial<QualificationModel> = {},
+  userId?: string,
+  options?: { targetRepId?: string; handoffNotes?: string }
+) {
   const lead = await sequelize.models.Lead.findByPk(leadId);
   if (!lead) throw new Error("Lead not found");
   const l = lead as any;
@@ -297,25 +302,87 @@ export async function convertLeadToOpportunity(leadId: string, qualificationData
     });
   }
 
-  // 5a. Automatically invoke Closer Auto-Assignment engine
-  // Pass deal.id and triggerUserId (chosenOwnerId).
-  // Note: autoAssignDeal delegates to assignOpportunityCloser with excludeRepId: deal.ownerId (chosenOwnerId),
-  // which explicitly excludes the qualifying rep from the candidate pool!
+  // 5a. Closer Assignment: explicit targetRepId or automatic assignment engine
   let autoAssignResult: any = null;
-  try {
-    const { autoAssignDeal } = require("./dealAssignmentEngine");
-    autoAssignResult = await autoAssignDeal(deal.id, triggerUserId || chosenOwnerId);
-    if (autoAssignResult && autoAssignResult.assigned) {
+  if (options?.targetRepId) {
+    const targetRep: any = await sequelize.models.User.findByPk(options.targetRepId);
+    if (targetRep) {
+      await deal.update({ ownerId: targetRep.id });
       autoAssigned = true;
-      autoAssignReason = autoAssignResult.reason || `Auto-assigned to ${autoAssignResult.assignee?.name || autoAssignResult.newOwnerId}`;
+      autoAssignReason = options.handoffNotes ? `Handed off to ${targetRep.name}: ${options.handoffNotes}` : `Handed off to ${targetRep.name}`;
+      autoAssignResult = { assigned: true, newOwnerId: targetRep.id, assignee: targetRep, reason: autoAssignReason };
       deal = await sequelize.models.Deal.findByPk(deal.id);
-    } else {
-      autoAssignReason = autoAssignResult?.reason || "No eligible closer available under cutoff/capacity constraints";
     }
-  } catch (assignErr: any) {
-    console.warn("[convertLeadToOpportunity] Auto-assignment during lead conversion warning:", assignErr.message || assignErr);
-    autoAssignResult = { assigned: false, reason: assignErr.message };
-    autoAssignReason = assignErr.message;
+  }
+
+  if (!autoAssignResult) {
+    try {
+      const { autoAssignDeal } = require("./dealAssignmentEngine");
+      autoAssignResult = await autoAssignDeal(deal.id, triggerUserId || chosenOwnerId);
+      if (autoAssignResult && autoAssignResult.assigned) {
+        autoAssigned = true;
+        autoAssignReason = autoAssignResult.reason || `Auto-assigned to ${autoAssignResult.assignee?.name || autoAssignResult.newOwnerId}`;
+        deal = await sequelize.models.Deal.findByPk(deal.id);
+      } else {
+        autoAssignReason = autoAssignResult?.reason || "No eligible closer available under cutoff/capacity constraints";
+      }
+    } catch (assignErr: any) {
+      console.warn("[convertLeadToOpportunity] Auto-assignment during lead conversion warning:", assignErr.message || assignErr);
+      autoAssignResult = { assigned: false, reason: assignErr.message };
+      autoAssignReason = assignErr.message;
+    }
+  }
+
+  const closerId = autoAssignResult?.newOwnerId || deal.ownerId;
+
+  // Record HandoffMessage and Activity notes if handoff notes are provided
+  if (options?.handoffNotes) {
+    if (sequelize.models.HandoffMessage) {
+      try {
+        await sequelize.models.HandoffMessage.create({
+          id: crypto.randomUUID(),
+          dealId: deal.id,
+          leadId: l.id,
+          senderId: triggerUserId || chosenOwnerId,
+          recipientId: closerId,
+          message: options.handoffNotes,
+          isRead: false
+        });
+      } catch (hmErr) {
+        console.warn("[convertLeadToOpportunity] HandoffMessage error:", hmErr);
+      }
+    }
+    if (sequelize.models.Activity) {
+      try {
+        await sequelize.models.Activity.create({
+          id: crypto.randomUUID(),
+          type: "note",
+          title: "Lead Handoff",
+          content: options.handoffNotes,
+          leadId: l.id,
+          dealId: deal.id,
+          userId: triggerUserId || chosenOwnerId
+        });
+      } catch (actErr) {
+        // non-fatal
+      }
+    }
+  }
+
+  // Ensure LeadReassignmentHistory is logged so handoffAccessService grants permanent read-only access to qualifying rep
+  if (sequelize.models.LeadReassignmentHistory && closerId && closerId !== chosenOwnerId) {
+    try {
+      await sequelize.models.LeadReassignmentHistory.create({
+        id: crypto.randomUUID(),
+        leadId: l.id,
+        oldAssignedToId: chosenOwnerId,
+        newAssignedToId: closerId,
+        changedByUserId: triggerUserId || chosenOwnerId,
+        reason: options?.handoffNotes ? `Handoff: ${options.handoffNotes}` : (autoAssignReason || "Lead qualified and handed off to closer")
+      });
+    } catch (lrhErr) {
+      console.warn("[convertLeadToOpportunity] LeadReassignmentHistory error:", lrhErr);
+    }
   }
 
   // 5b. Link Contact to Deal via DealContact (matching leadIngestion.ts pattern)

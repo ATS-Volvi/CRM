@@ -341,3 +341,91 @@ export const createApprovalAuditLog = async (data: {
     console.error("[ApprovalAuditLog] Failed to log audit record:", err);
   }
 };
+
+export interface DealApprovalEvaluationResult {
+  approvalRequired: boolean;
+  approvalLevel: "NONE" | "TEAM_LEAD" | "ADMIN";
+  requiredApproverId: string | null;
+  reason: string;
+  dealValue: number;
+  repLimit: number;
+  managerLimit: number;
+  salesRepId: string;
+  managerId: string | null;
+  exceededBy: number;
+}
+
+export const evaluateDealApproval = async (
+  dealId: string,
+  amountOverride?: number
+): Promise<DealApprovalEvaluationResult> => {
+  let deal: any = null;
+  if (dealId) {
+    deal = await sequelize.models.Deal.findByPk(dealId, {
+      include: [
+        { model: sequelize.models.User, as: "owner", attributes: ["id", "name", "email", "role", "managerId", "dealValueCutoff", "isAvailable"] }
+      ]
+    });
+  }
+
+  const dealValue = amountOverride !== undefined ? Number(amountOverride) : Number(deal?.amount || 0);
+  const salesRepId = deal?.ownerId || "system";
+  const salesRep = deal?.owner;
+
+  // Rep profile
+  let repProfile: any = null;
+  if (salesRepId && salesRepId !== "system") {
+    repProfile = await sequelize.models.SalesApprovalProfile.findOne({
+      where: { salesRepId }
+    });
+  }
+
+  // Global admin policy
+  let adminPolicy: any = await sequelize.models.AdminApprovalPolicy.findOne({
+    order: [["createdAt", "DESC"]]
+  });
+
+  const maxSalesRepApproval = Number(adminPolicy?.maximumSalesRepApproval ?? 2500000);
+  const maxTeamLeadApproval = Number(adminPolicy?.maximumTeamLeadApproval ?? 10000000);
+
+  // Rep limit (from SalesApprovalProfile.selfApprovalLimit, or dealValueCutoff, or 10,00,000 fallback)
+  const repLimit = Math.min(
+    Number(repProfile?.selfApprovalLimit ?? salesRep?.dealValueCutoff ?? 1000000),
+    maxSalesRepApproval
+  );
+
+  const managerId = repProfile?.teamLeadId || salesRep?.managerId || null;
+
+  let approvalRequired = false;
+  let approvalLevel: "NONE" | "TEAM_LEAD" | "ADMIN" = "NONE";
+  let requiredApproverId: string | null = null;
+  let reason = "Deal within representative authority limits";
+  let exceededBy = 0;
+
+  if (dealValue > repLimit) {
+    approvalRequired = true;
+    exceededBy = dealValue - repLimit;
+    if (dealValue > maxTeamLeadApproval) {
+      approvalLevel = "ADMIN";
+      reason = `Deal value of ₹${dealValue.toLocaleString()} exceeds Team Lead authority limit (₹${maxTeamLeadApproval.toLocaleString()}). Admin approval required.`;
+    } else {
+      approvalLevel = "TEAM_LEAD";
+      requiredApproverId = managerId;
+      reason = `Deal value of ₹${dealValue.toLocaleString()} exceeds representative authority limit (₹${repLimit.toLocaleString()}) by ₹${exceededBy.toLocaleString()}. Manager approval required.`;
+    }
+  }
+
+  return {
+    approvalRequired,
+    approvalLevel,
+    requiredApproverId,
+    reason,
+    dealValue,
+    repLimit,
+    managerLimit: maxTeamLeadApproval,
+    salesRepId,
+    managerId,
+    exceededBy
+  };
+};
+

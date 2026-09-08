@@ -15,6 +15,7 @@ import {
   getLead,
   updateLead,
   convertLead,
+  handoffLead,
   qualifyLeadEndpoint,
   markLeadNotConverted,
   deleteLead,
@@ -391,6 +392,7 @@ router.put("/leads/:id", authMiddleware, updateLead);
 router.patch("/leads/:id", authMiddleware, updateLead);
 router.post("/leads/:id/qualify", authMiddleware, qualifyLeadEndpoint);
 router.post("/leads/:id/convert", authMiddleware, convertLead);
+router.post("/leads/:id/handoff", authMiddleware, handoffLead);
 router.post("/leads/:id/not-converted", authMiddleware, markLeadNotConverted);
 router.post("/leads/:id/temperature", authMiddleware, updateTemperature);
 router.post("/leads/:id/temperature/unlock", authMiddleware, unlockTemperature);

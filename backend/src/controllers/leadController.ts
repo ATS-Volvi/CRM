@@ -382,7 +382,11 @@ export const convertLead = async (req: Request, res: Response) => {
     const result = await convertLeadToOpportunity(
       id,
       req.body?.qualificationData || req.body,
-      (req as any).user?.id
+      (req as any).user?.id,
+      {
+        targetRepId: req.body?.targetRepId,
+        handoffNotes: req.body?.handoffNotes || req.body?.notes
+      }
     );
 
     res.json({
@@ -395,6 +399,54 @@ export const convertLead = async (req: Request, res: Response) => {
       // Surfaced so the frontend can show "needs manual assignment" if desired
       autoAssigned: result.autoAssigned ?? false,
       autoAssignReason: result.autoAssignReason,
+      autoAssignResult: result.autoAssignResult
+    });
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+};
+
+export const handoffLead = async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const user = (req as any).user;
+    const { targetRepId, handoffNotes, estimatedValue, dealName } = req.body;
+
+    const lead = await sequelize.models.Lead.findByPk(id);
+    if (!lead) return res.status(404).json({ error: "Lead not found" });
+
+    const access = await getLeadAccessLevel(user?.id, user?.role, lead);
+    if (!access.canWrite) {
+      return res.status(403).json({
+        error: access.reason || "Handed off — view only. This lead has been reassigned to another representative.",
+        isViewOnly: true
+      });
+    }
+
+    const { convertLeadToOpportunity } = require("../services/leadJourneyWorkflowEngine");
+    const l = lead as any;
+    const qualData = {
+      estimatedValue: estimatedValue || Number(l.budgetRange) || 50000,
+      dealName: dealName || (l.company ? `${l.company} Opportunity` : `${l.firstName} ${l.lastName} Opportunity`),
+      accountName: l.company || `${l.firstName} ${l.lastName}`.trim(),
+      ...req.body?.qualificationData
+    };
+
+    const result = await convertLeadToOpportunity(
+      id,
+      qualData,
+      user?.id,
+      {
+        targetRepId,
+        handoffNotes: handoffNotes || req.body?.notes
+      }
+    );
+
+    res.json({
+      message: "Lead handed off to closer successfully",
+      deal: result.deal,
+      lead: result.lead,
+      targetRepId: result.deal?.ownerId,
       autoAssignResult: result.autoAssignResult
     });
   } catch (error: any) {

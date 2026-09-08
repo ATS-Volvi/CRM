@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import { sequelize } from "@nexus-crm/database";
 import { Op } from "sequelize";
 import { createNotification } from "../services/notificationService";
-import { evaluateQuoteApproval, createApprovalAuditLog } from "../services/approvalEngine";
+import { evaluateQuoteApproval, createApprovalAuditLog, evaluateDealApproval } from "../services/approvalEngine";
 import { checkRecordAccess } from "../services/handoffAccessService";
 import { deliverQuote, getQuoteContact } from "../services/quoteDeliveryService";
 
@@ -480,6 +480,18 @@ export const getApprovals = async (req: Request, res: Response) => {
               reason: data.comments || (quoted !== poAmt ? `PO Amount Mismatch: Quoted SAR ${quoted.toLocaleString()} vs PO SAR ${poAmt.toLocaleString()}` : `PO Verification for #${(data.target as any).poNumber}`)
             };
           }
+        } else if (data.type === "Deal") {
+          data.target = await sequelize.models.Deal.findByPk(data.targetId, {
+            include: [
+              { model: sequelize.models.Lead, as: "lead" },
+              { model: sequelize.models.User, as: "owner", attributes: userAttrs },
+              { model: sequelize.models.Account, as: "account" }
+            ]
+          });
+          if (data.target) {
+            const { evaluateDealApproval } = require("../services/approvalEngine");
+            data.evaluation = await evaluateDealApproval(data.targetId);
+          }
         }
         return data;
       })
@@ -545,6 +557,20 @@ export const updateApproval = async (req: Request, res: Response) => {
               error: "Security Violation: You do not have authority to approve this quotation. Team Lead approval is required."
             });
           }
+        }
+      }
+    }
+
+    if ((approval as any).type === "Deal" && targetId) {
+      evaluation = await evaluateDealApproval(targetId);
+      if (authUser && authUser.role !== "admin") {
+        const isAssigned = (approval as any).assignedApproverId === authUser.id;
+        const isTeamLead = evaluation.managerId === authUser.id;
+        const isManagerRole = authUser.role === "manager" || authUser.role === "director";
+        if (!isAssigned && !isTeamLead && !isManagerRole) {
+          return res.status(403).json({
+            error: "Approval authority required: You do not have permission to approve this deal escalation. Manager approval is required."
+          });
         }
       }
     }
@@ -660,6 +686,21 @@ export const updateApproval = async (req: Request, res: Response) => {
           }
         }
       }
+
+      if ((approval as any).type === "Deal") {
+        const deal: any = await sequelize.models.Deal.findByPk(targetId, { transaction: t });
+        if (deal && deal.leadId) {
+          await sequelize.models.Activity.create({
+            id: require("crypto").randomUUID(),
+            leadId: deal.leadId,
+            type: "note",
+            outcome: `Deal Approval ${status}`,
+            notes: `Deal value approval was ${status.toLowerCase()} by ${authUser?.name || authUser?.role || "Manager"}.${comments ? ` Comments: ${comments}` : ""}`,
+            createdById: authUser?.id || null,
+            direction: "internal"
+          }, { transaction: t });
+        }
+      }
     });
 
     // ── STEP 2: NOTIFICATIONS & SIDE EFFECTS OUTSIDE TRANSACTION ─────────────
@@ -770,6 +811,30 @@ export const updateApproval = async (req: Request, res: Response) => {
               );
             }
           }
+        }
+      }
+    }
+
+    if ((approval as any).type === "Deal") {
+      const deal: any = await sequelize.models.Deal.findByPk(targetId);
+      if (deal && deal.ownerId) {
+        const approverName = authUser?.name || authUser?.role || "Manager";
+        if (status === "Approved") {
+          await createNotification(
+            deal.ownerId,
+            "info",
+            "Deal Approval Granted ✅",
+            `Your deal value escalation for "${deal.name}" (₹${Number(deal.amount).toLocaleString()}) was approved by ${approverName}. You can now proceed to close or win this deal.`,
+            `/opportunities/${deal.id}`
+          );
+        } else if (status === "Rejected") {
+          await createNotification(
+            deal.ownerId,
+            "alert",
+            "Deal Approval Rejected ❌",
+            `Your deal value escalation for "${deal.name}" was rejected by ${approverName}: ${comments || "No reason provided"}. Please revise the deal terms.`,
+            `/opportunities/${deal.id}`
+          );
         }
       }
     }

@@ -401,15 +401,16 @@ export default function ApprovalQueue() {
                   ) : (
                     filteredApprovals?.map((item: any) => {
                       const isPO = item.type === "PurchaseOrder" || item.type === "PO";
+                      const isDeal = item.type === "Deal";
                       const target = item.target;
                       const evalData = item.evaluation;
-                      const deal = isPO ? target?.quote?.deal : target?.deal;
+                      const deal = isDeal ? target : (isPO ? target?.quote?.deal : target?.deal);
                       const lead = deal?.lead;
                       const customerName = lead?.company || (lead ? `${lead.firstName} ${lead.lastName}` : deal?.name || "Direct Customer");
                       const repName = item.requestedBy?.name || deal?.owner?.name || "Sales Rep";
-                      const value = isPO ? (target?.amount || target?.quote?.totalAmount || 0) : (target?.totalAmount || 0);
-                      const discountPct = evalData?.discount ? (evalData.discount * 100).toFixed(1) + "%" : isPO ? "Matched" : "0%";
-                      const marginPct = evalData?.margin !== null && evalData?.margin !== undefined ? (evalData.margin * 100).toFixed(1) + "%" : "N/A";
+                      const value = isDeal ? (Number(target?.amount) || 0) : (isPO ? (target?.amount || target?.quote?.totalAmount || 0) : (target?.totalAmount || 0));
+                      const discountPct = isDeal ? "N/A" : (evalData?.discount ? (evalData.discount * 100).toFixed(1) + "%" : isPO ? "Matched" : "0%");
+                      const marginPct = isDeal ? "N/A" : (evalData?.margin !== null && evalData?.margin !== undefined ? (evalData.margin * 100).toFixed(1) + "%" : "N/A");
 
                       return (
                         <tr key={item.id} className="hover:bg-surface-container-low transition-colors">
@@ -417,13 +418,16 @@ export default function ApprovalQueue() {
                             <div className="flex items-center gap-2">
                               <div className="font-bold text-on-surface text-sm">{customerName}</div>
                               <span className={`text-[10px] font-bold px-2 py-0.2 rounded-full uppercase border ${
+                                isDeal ? "bg-amber-50 text-amber-800 border-amber-300" :
                                 isPO ? "bg-purple-50 text-purple-700 border-purple-200" : "bg-blue-50 text-blue-700 border-blue-200"
                               }`}>
-                                {isPO ? "Purchase Order" : "Quotation"}
+                                {isDeal ? "Deal Escalation" : isPO ? "Purchase Order" : "Quotation"}
                               </span>
                             </div>
                             <div className="text-[11px] text-primary font-semibold mt-0.5 flex items-center gap-1.5">
-                              {isPO ? (
+                              {isDeal ? (
+                                <span className="font-bold text-slate-800">Deal: {target?.name || "Commercial Opportunity"}</span>
+                              ) : isPO ? (
                                 <>
                                   <span className="font-bold text-slate-800">PO: {target?.poNumber || "PO-Received"}</span>
                                   {target?.quote?.quoteNumber && (
@@ -438,7 +442,11 @@ export default function ApprovalQueue() {
                           <td className="p-4 text-on-surface font-semibold">{repName}</td>
                           <td className="p-4 font-bold text-on-surface text-sm">{formatCurrency(value)}</td>
                           <td className="p-4 font-semibold text-amber-700">
-                            {isPO ? (
+                            {isDeal ? (
+                              <span className="text-[11px] text-amber-800 font-bold bg-amber-100 px-2 py-0.5 rounded">
+                                +₹{evalData?.exceededBy ? evalData.exceededBy.toLocaleString() : "0"}
+                              </span>
+                            ) : isPO ? (
                               <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${
                                 evalData?.mismatch ? "bg-rose-100 text-rose-800" : "bg-emerald-100 text-emerald-800"
                               }`}>
@@ -448,28 +456,44 @@ export default function ApprovalQueue() {
                               discountPct
                             )}
                           </td>
-                          <td className="p-4 font-semibold text-green-700">{marginPct}</td>
+                          <td className="p-4 font-semibold text-green-700">
+                            {isDeal ? (
+                              <span className="text-[11px] text-slate-500 font-semibold">
+                                Rep Limit: ₹{evalData?.repLimit ? evalData.repLimit.toLocaleString() : "10,00,000"}
+                              </span>
+                            ) : (
+                              marginPct
+                            )}
+                          </td>
                           <td className="p-4 max-w-[280px]">
                             <div className="bg-amber-50 text-amber-900 border border-amber-200 p-2 rounded text-[11px] font-semibold leading-relaxed">
-                              {item.comments || evalData?.reason || (isPO ? "Purchase order verification required." : "Approval limit threshold exceeded.")}
+                              {item.comments || evalData?.reason || (isDeal ? "Deal value exceeds representative authority limit." : isPO ? "Purchase order verification required." : "Approval limit threshold exceeded.")}
                             </div>
                           </td>
                           <td className="p-4 text-right">
                             {item.status === "Pending" && !isRep ? (
                               <div className="flex gap-1.5 justify-end">
                                 <button
-                                  onClick={() => updateApprovalMutation.mutate({ id: item.id, status: "Approved", comments: isPO ? "PO Verified & Approved by Manager" : "Approved by Manager" })}
+                                  onClick={() => updateApprovalMutation.mutate({
+                                    id: item.id,
+                                    status: "Approved",
+                                    comments: isDeal ? "Deal Value Escalation Approved by Manager" : isPO ? "PO Verified & Approved by Manager" : "Approved by Manager"
+                                  })}
                                   disabled={updateApprovalMutation.isPending}
                                   className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-2xs flex items-center gap-1 cursor-pointer"
                                 >
-                                  <Check className="w-3.5 h-3.5" /> {isPO ? "Approve PO" : "Approve"}
+                                  <Check className="w-3.5 h-3.5" /> {isDeal ? "Approve Deal" : isPO ? "Approve PO" : "Approve"}
                                 </button>
                                 <button
-                                  onClick={() => updateApprovalMutation.mutate({ id: item.id, status: "Rejected", comments: isPO ? "PO Rejected by Manager" : "Rejected" })}
+                                  onClick={() => updateApprovalMutation.mutate({
+                                    id: item.id,
+                                    status: "Rejected",
+                                    comments: isDeal ? "Deal Value Escalation Rejected by Manager" : isPO ? "PO Rejected by Manager" : "Rejected"
+                                  })}
                                   disabled={updateApprovalMutation.isPending}
                                   className="bg-rose-600 hover:bg-rose-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-2xs flex items-center gap-1 cursor-pointer"
                                 >
-                                  <X className="w-3.5 h-3.5" /> {isPO ? "Reject PO" : "Reject"}
+                                  <X className="w-3.5 h-3.5" /> {isDeal ? "Reject Deal" : isPO ? "Reject PO" : "Reject"}
                                 </button>
                               </div>
                             ) : (
