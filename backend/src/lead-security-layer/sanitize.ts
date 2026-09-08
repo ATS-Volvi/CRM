@@ -4,7 +4,8 @@
  * regardless of what happens downstream.
  */
 
-import sanitizeHtml from 'sanitize-html';
+// @ts-ignore
+const sanitizeHtml: any = require('sanitize-html');
 
 const FIELD_LIMITS: Record<string, number> = {
   name: 120,
