@@ -315,6 +315,10 @@ export async function processGmailConnector() {
   console.log(`[CONNECTOR] Gmail Ingest falling back to Mock. Mock Mode: ${isMockMode}`);
   
   if (isMockMode) {
+    if (process.env.ENABLE_MOCK_CONNECTORS !== "true") {
+      console.log(`[CONNECTOR] Gmail Mock disabled. Set ENABLE_MOCK_CONNECTORS=true to generate test leads.`);
+      return null;
+    }
     // Generate simulated lead
     const mockNames = [
       { firstName: "Majed", lastName: "Al-Otaibi", company: "Riyadh Construction", email: "majed@riyadhconst.com" },
@@ -338,6 +342,10 @@ export async function processMetaConnector() {
   console.log(`[CONNECTOR] Meta Ingest running. Mock Mode: ${isMockMode}`);
 
   if (isMockMode) {
+    if (process.env.ENABLE_MOCK_CONNECTORS !== "true") {
+      console.log(`[CONNECTOR] Meta Mock disabled. Set ENABLE_MOCK_CONNECTORS=true to generate test leads.`);
+      return null;
+    }
     const mockNames = [
       { firstName: "Yasmin", lastName: "Qureshi", company: "Designers Hub", email: "yasmin@designershub.com" },
       { firstName: "Tariq", lastName: "Jameel", company: "BuildCorp LLC", email: "tariq@buildcorp.ae" }
@@ -360,6 +368,10 @@ export async function processLinkedInConnector() {
   console.log(`[CONNECTOR] LinkedIn Ingest running. Mock Mode: ${isMockMode}`);
 
   if (isMockMode) {
+    if (process.env.ENABLE_MOCK_CONNECTORS !== "true") {
+      console.log(`[CONNECTOR] LinkedIn Mock disabled. Set ENABLE_MOCK_CONNECTORS=true to generate test leads.`);
+      return null;
+    }
     return await ingestLead({
       firstName: "Hassan",
       lastName: "Raza",
