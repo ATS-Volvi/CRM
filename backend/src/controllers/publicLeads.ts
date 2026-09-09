@@ -133,7 +133,13 @@ export const createPublicLead = async (req: Request, res: Response) => {
 
     res.status(201).json({ success: true, leadId });
   } catch (error: any) {
+    // Log the full error chain — Sequelize wraps driver-level errors in
+    // error.original (and error.parent as an alias). Without this, a pg
+    // type mismatch or constraint violation surfaces only as the generic
+    // Sequelize message and the real cause is lost in production logs.
     console.error("Error creating public lead:", error);
+    if (error.original) console.error("  -> original driver error:", error.original);
+    if (error.parent && error.parent !== error.original) console.error("  -> parent error:", error.parent);
     res.status(500).json({ error: error.message || "Failed to create lead" });
   }
 };
