@@ -102,7 +102,7 @@ async function flag(lead: Record<string, any>, meta: PipelineMeta, reason: strin
   // Never throw from here — a logging failure should not crash ingestion.
   try {
     await FlaggedLead.create({
-      payload: JSON.stringify(lead),
+      payload: lead, // FlaggedLeads.payload is a JSON column; pass object directly
       source: meta.source || 'unknown',
       ip: meta.ip || null,
       reason,
