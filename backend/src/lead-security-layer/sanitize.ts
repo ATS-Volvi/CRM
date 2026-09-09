@@ -24,14 +24,41 @@ const FIELD_LIMITS: Record<string, number> = {
 // Everything else is treated as plain text and fully stripped of markup.
 const RICH_TEXT_FIELDS = new Set(['message', 'body']);
 
+// Fields that may legitimately carry non-string values (objects, arrays,
+// numbers, booleans) when the pipeline is called with a full LeadPayload
+// rather than a raw HTML form submission. These are passed through untouched
+// so the sanitizer never throws on internal metadata fields.
+const PASSTHROUGH_FIELDS = new Set([
+  'rawPayload',
+  'categoriesData',
+  'assignedToId',
+  'leadScore',
+  'attachments',
+]);
+
 export function sanitizeFields(rawLead: Record<string, any>): Record<string, any> {
   const clean: Record<string, any> = {};
 
   for (const [key, rawValue] of Object.entries(rawLead || {})) {
+    // Pass through null/undefined without adding to clean object.
+    if (rawValue == null) continue;
+
+    // Pass through known non-string metadata fields unchanged.
+    if (PASSTHROUGH_FIELDS.has(key)) {
+      clean[key] = rawValue;
+      continue;
+    }
+
     if (typeof rawValue !== 'string') {
-      // Reject unexpected types outright rather than coercing them —
-      // a "phone" field that arrives as an object/array is already suspicious.
-      if (rawValue == null) continue;
+      // Non-string, non-null values in unexpected fields are suspicious
+      // (e.g. an object in a "phone" field). Pass numeric/boolean primitives
+      // through since some form libs send those legitimately; throw on
+      // objects/arrays that could mask injection or type-confusion attacks.
+      if (typeof rawValue === 'number' || typeof rawValue === 'boolean') {
+        clean[key] = rawValue;
+        continue;
+      }
+      // Object or array in a field that should be a string: reject.
       throw new Error(`Unexpected type for field "${key}"`);
     }
 
