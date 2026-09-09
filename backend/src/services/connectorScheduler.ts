@@ -14,8 +14,8 @@ export async function runPolledConnectors() {
 }
 
 export function startConnectorScheduler() {
-  if (process.env.NODE_ENV === "test") {
-    console.log("[CONNECTOR SCHEDULER] Test environment detected. Skipping poller.");
+  if (process.env.NODE_ENV === "test" || process.env.ENABLE_CONNECTOR_SCHEDULER === "false") {
+    console.log("[CONNECTOR SCHEDULER] Scheduler disabled (test environment or ENABLE_CONNECTOR_SCHEDULER=false). Skipping poller.");
     return;
   }
 
