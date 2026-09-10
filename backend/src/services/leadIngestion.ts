@@ -7,6 +7,7 @@ import { handleDealInboundActivity } from "./leadTemperatureService";
 import { triggerLeadAssignedNotifications } from "./notificationEngine";
 
 import { recordLeadTouch } from "./attributionService";
+import { enrichLeadAsync, isPersonalDomain, extractDomain } from "./enrichmentService";
 
 function isDummyKey(val?: string): boolean {
   if (!val) return true;
@@ -99,7 +100,8 @@ export async function ingestLead(rawPayload: LeadPayload) {
 
     // 3. Lead Scoring
     let leadScore = 50; // base score
-    if (email && !email.endsWith("@gmail.com") && !email.endsWith("@yahoo.com") && !email.endsWith("@hotmail.com") && !email.endsWith("@outlook.com")) {
+    const emailDomain = email ? extractDomain(email) : null;
+    if (emailDomain && !isPersonalDomain(emailDomain)) {
       leadScore += 15; // Corporate email bonus
     }
     if (payload.phone) leadScore += 10;
@@ -242,6 +244,11 @@ export async function ingestLead(rawPayload: LeadPayload) {
         `/leads`
       );
     }
+
+    // 8. Async Company Enrichment (Hunter.io) — fire-and-forget, never blocks the response
+    enrichLeadAsync(leadId, email, companyName).catch(e =>
+      console.error(`[enrichment] Background enrichment failed for lead ${leadId}:`, e)
+    );
 
     return leadId;
   } catch (error) {

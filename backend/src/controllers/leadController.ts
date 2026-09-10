@@ -922,3 +922,37 @@ export const requestMissingDetails = async (req: Request, res: Response) => {
     return res.status(500).json({ error: error.message });
   }
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /leads/:id/enrich — Manually trigger / re-trigger enrichment for a lead
+// Returns 202 Accepted immediately; enrichment runs in the background
+// ─────────────────────────────────────────────────────────────────────────────
+export const triggerLeadEnrichment = async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const { Lead } = sequelize.models;
+
+    const lead = await Lead.findByPk(id, { attributes: ["id", "email", "company"] });
+    if (!lead) return res.status(404).json({ error: "Lead not found" });
+
+    // Import lazily to keep the controller boot time unchanged
+    const { enrichLeadAsync } = await import("../services/enrichmentService");
+
+    // Fire-and-forget — return 202 before enrichment completes
+    enrichLeadAsync(
+      (lead as any).id,
+      (lead as any).email ?? "",
+      (lead as any).company ?? ""
+    ).catch((e: any) =>
+      console.error(`[enrichment] Manual re-enrich failed for lead ${id}:`, e)
+    );
+
+    return res.status(202).json({
+      success: true,
+      message: "Enrichment triggered — status will update momentarily"
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+};
+
