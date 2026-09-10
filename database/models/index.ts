@@ -2342,6 +2342,43 @@ EnrichmentUsage.init(
   { sequelize, modelName: "EnrichmentUsage", tableName: "EnrichmentUsages" }
 );
 
+// ─────────────────────────────────────────────────────────────────────────────
+// LeadContactDiscovery — Hunter.io on-demand domain contact discovery
+// ─────────────────────────────────────────────────────────────────────────────
+export class LeadContactDiscovery extends Model {
+  public id!: string;
+  public leadId!: string;
+  public domain!: string;
+  public contactsFound!: string; // JSON string of normalized DiscoveredContact[]
+  public emailPattern!: string | null;
+  public totalFound!: number;
+  public discoveredAt!: Date;
+  public requestedById!: string | null;
+  public readonly createdAt!: Date;
+  public readonly updatedAt!: Date;
+}
+
+LeadContactDiscovery.init(
+  {
+    id:            { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    leadId:        { type: DataTypes.UUID, allowNull: false },
+    domain:        { type: DataTypes.STRING(255), allowNull: false },
+    contactsFound: { type: DataTypes.TEXT, allowNull: false, defaultValue: "[]" },
+    emailPattern:  { type: DataTypes.STRING(100), allowNull: true },
+    totalFound:    { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+    discoveredAt:  { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
+    requestedById: { type: DataTypes.UUID, allowNull: true }
+  },
+  { sequelize, modelName: "LeadContactDiscovery", tableName: "LeadContactDiscoveries" }
+);
+
+Lead.hasMany(LeadContactDiscovery, { foreignKey: "leadId", as: "contactDiscoveries" });
+LeadContactDiscovery.belongsTo(Lead, { foreignKey: "leadId", as: "lead" });
+
+User.hasMany(LeadContactDiscovery, { foreignKey: "requestedById", as: "requestedDiscoveries" });
+LeadContactDiscovery.belongsTo(User, { foreignKey: "requestedById", as: "requestedBy" });
+
+
 // ─── Campaign & Attribution Associations ─────────────────────────────────────
 User.hasMany(Campaign, { foreignKey: "ownerId", as: "campaigns" });
 Campaign.belongsTo(User, { foreignKey: "ownerId", as: "owner" });
