@@ -8,8 +8,8 @@ import crypto from "crypto";
 const HUNTER_API_BASE = "https://api.hunter.io/v2";
 
 // Free-tier personal email domains — skip enrichment for these.
-// Mirrors the existing exclusion list in leadIngestion.ts (line 102).
-const PERSONAL_DOMAINS = new Set([
+// Single shared constant reused across leadIngestion.ts and enrichmentService.ts.
+export const PERSONAL_DOMAINS = new Set([
   "gmail.com", "yahoo.com", "hotmail.com", "outlook.com",
   "hotmail.co.uk", "yahoo.co.uk", "icloud.com", "me.com",
   "aol.com", "live.com", "msn.com", "protonmail.com",
@@ -62,13 +62,13 @@ export interface EnrichmentResult {
 // HELPERS
 // ─────────────────────────────────────────────────────────────────
 
-function extractDomain(email: string): string | null {
+export function extractDomain(email: string): string | null {
   const parts = email.trim().toLowerCase().split("@");
   if (parts.length !== 2 || !parts[1].includes(".")) return null;
   return parts[1];
 }
 
-function isPersonalDomain(domain: string): boolean {
+export function isPersonalDomain(domain: string): boolean {
   return PERSONAL_DOMAINS.has(domain.toLowerCase());
 }
 
@@ -81,21 +81,21 @@ function normalizeHunterResponse(data: any, domain: string): EnrichmentResult {
     industry: d.category?.industry ?? null,
     sector: d.category?.sector ?? null,
     sizeRange: d.metrics?.employees ?? null,
-    employeeCount: d.metrics?.employeesCount ?? null,
-    estimatedRevenue: d.metrics?.estimatedAnnualRevenue ?? null,
-    foundedYear: d.foundedYear ?? null,
-    linkedinHandle: d.linkedin?.handle ?? null,
-    websiteUrl: domain ? `https://${domain}` : null,
+    employeeCount: typeof d.metrics?.headcount === "number" ? d.metrics.headcount : null,
+    estimatedRevenue: d.metrics?.estimated_annual_revenue ?? null,
+    foundedYear: typeof d.founded_year === "number" ? d.founded_year : null,
+    linkedinHandle: d.social?.linkedin ?? null,
+    websiteUrl: d.domain ? `https://${d.domain}` : null,
     description: d.description ?? null,
-    country: d.geo?.country ?? null,
-    city: d.geo?.city ?? null,
-    companyType: d.companyType ?? d.type ?? null,
-    tags: Array.isArray(d.tags) ? d.tags.slice(0, 10) : [],
+    country: d.location?.country ?? null,
+    city: d.location?.city ?? null,
+    companyType: d.company_type ?? null,
+    tags: Array.isArray(d.category?.tags) ? d.category.tags.slice(0, 8) : [],
     domain
   };
 }
 
-async function logUsage(
+async function logEnrichmentUsage(
   leadId: string | null,
   provider: string,
   domain: string | null,
@@ -104,9 +104,9 @@ async function logUsage(
   errorMessage: string | null
 ): Promise<void> {
   try {
-    // Check monthly credit usage against warning threshold
+    // Check monthly credit usage against warning threshold (Hunter free plan provides 50 searches/mo)
     if (status === "enriched" || status === "failed" || status === "rate_limited") {
-      const threshold = parseInt(process.env.HUNTER_MONTHLY_WARNING_THRESHOLD ?? "20", 10);
+      const threshold = parseInt(process.env.HUNTER_MONTHLY_WARNING_THRESHOLD ?? "40", 10);
       const startOfMonth = new Date();
       startOfMonth.setDate(1);
       startOfMonth.setHours(0, 0, 0, 0);
@@ -124,7 +124,7 @@ async function logUsage(
         console.warn(
           `[enrichment] ⚠️  CREDIT WARNING: ${monthlyCount + 1} ${provider} API calls this month.` +
           ` You are at or above the ${threshold}-call warning threshold.` +
-          ` Free plan limit is 25 calls/month. Monitor at https://hunter.io/dashboard`
+          ` Free plan limit is 50 calls/month. Monitor at https://hunter.io/dashboard`
         );
       }
     }
@@ -256,7 +256,7 @@ export async function enrichLeadAsync(
         { enrichmentStatus: "skipped" },
         { where: { id: leadId } }
       );
-      await logUsage(leadId, "hunter", domain, "skipped", null, null);
+      await logEnrichmentUsage(leadId, "hunter", domain, "skipped", null, null);
       console.log(`[enrichment] Skipped personal/invalid domain for lead ${leadId} (${domain ?? "no domain"})`);
     } catch (skipErr) {
       console.error("[enrichment] Error marking lead as skipped:", leadId, skipErr);
@@ -314,5 +314,5 @@ export async function enrichLeadAsync(
   }
 
   // ── Log usage for credit tracking ──────────────────────────────
-  await logUsage(leadId, "hunter", domain, callStatus, httpStatus, errorMessage);
+  await logEnrichmentUsage(leadId, "hunter", domain, callStatus, httpStatus, errorMessage);
 }

@@ -7,7 +7,7 @@ import { handleDealInboundActivity } from "./leadTemperatureService";
 import { triggerLeadAssignedNotifications } from "./notificationEngine";
 
 import { recordLeadTouch } from "./attributionService";
-import { enrichLeadAsync } from "./enrichmentService";
+import { enrichLeadAsync, isPersonalDomain, extractDomain } from "./enrichmentService";
 
 function isDummyKey(val?: string): boolean {
   if (!val) return true;
@@ -100,7 +100,8 @@ export async function ingestLead(rawPayload: LeadPayload) {
 
     // 3. Lead Scoring
     let leadScore = 50; // base score
-    if (email && !email.endsWith("@gmail.com") && !email.endsWith("@yahoo.com") && !email.endsWith("@hotmail.com") && !email.endsWith("@outlook.com")) {
+    const emailDomain = email ? extractDomain(email) : null;
+    if (emailDomain && !isPersonalDomain(emailDomain)) {
       leadScore += 15; // Corporate email bonus
     }
     if (payload.phone) leadScore += 10;
