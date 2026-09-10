@@ -148,6 +148,11 @@ export class Lead extends Model {
   public missingFields!: any | null;
   public lastProcessedEventId!: string | null;
   public extractedRequirement!: any | null;
+
+  // Hunter.io Company Enrichment
+  public enrichmentStatus!: string | null;
+  public enrichmentData!: string | null;
+  public enrichedAt!: Date | null;
 }
 
 Lead.init(
@@ -212,6 +217,10 @@ Lead.init(
     missingFields: { type: DataTypes.JSON, allowNull: true },
     lastProcessedEventId: { type: DataTypes.STRING, allowNull: true },
     extractedRequirement: { type: DataTypes.JSON, allowNull: true },
+    // Hunter.io Company Enrichment
+    enrichmentStatus: { type: DataTypes.STRING(20), allowNull: true, defaultValue: "pending" },
+    enrichmentData: { type: DataTypes.TEXT, allowNull: true },
+    enrichedAt: { type: DataTypes.DATE, allowNull: true },
   },
   { 
     sequelize, 
