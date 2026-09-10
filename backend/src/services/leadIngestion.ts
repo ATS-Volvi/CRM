@@ -7,6 +7,7 @@ import { handleDealInboundActivity } from "./leadTemperatureService";
 import { triggerLeadAssignedNotifications } from "./notificationEngine";
 
 import { recordLeadTouch } from "./attributionService";
+import { enrichLeadAsync } from "./enrichmentService";
 
 function isDummyKey(val?: string): boolean {
   if (!val) return true;
@@ -242,6 +243,11 @@ export async function ingestLead(rawPayload: LeadPayload) {
         `/leads`
       );
     }
+
+    // 8. Async Company Enrichment (Hunter.io) — fire-and-forget, never blocks the response
+    enrichLeadAsync(leadId, email, companyName).catch(e =>
+      console.error(`[enrichment] Background enrichment failed for lead ${leadId}:`, e)
+    );
 
     return leadId;
   } catch (error) {

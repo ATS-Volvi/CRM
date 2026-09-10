@@ -293,7 +293,25 @@ export default function LeadDetail() {
     }
   });
 
+  // Re-enrich mutation — hoisted here to satisfy React rules-of-hooks (used in Company Intelligence card)
+  const reEnrichMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/v1/leads/${id}/enrich`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: () => {
+      // Poll twice — enrichment takes ~1-3s after the 202 is returned
+      setTimeout(() => queryClient.invalidateQueries({ queryKey: ["lead", id] }), 2500);
+      setTimeout(() => queryClient.invalidateQueries({ queryKey: ["lead", id] }), 5000);
+    }
+  });
+
   const [whatsAppText, setWhatsAppText] = useState("");
+
   const [skipReason, setSkipReason] = useState("");
   const [isSkippingSummary, setIsSkippingSummary] = useState(false);
   const [whatsAppTemplateError, setWhatsAppTemplateError] = useState<string | null>(null);
@@ -946,6 +964,163 @@ export default function LeadDetail() {
               )}
             </div>
           </div>
+
+          {/* ── Company Intelligence Card (Hunter.io enrichment) ─────────────── */}
+          {lead.enrichmentStatus && lead.enrichmentStatus !== null && (() => {
+            const status = lead.enrichmentStatus as string;
+            const enriched = lead.enrichmentData ? (() => { try { return JSON.parse(lead.enrichmentData); } catch { return null; } })() : null;
+
+            // reEnrichMutation is defined as a top-level hook above (rules-of-hooks compliant)
+
+            return (
+              <div className="bg-white dark:bg-slate-900 border border-violet-200/80 dark:border-violet-900/40 rounded-2xl p-5 shadow-xs space-y-3 relative overflow-hidden">
+                {/* Header */}
+                <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-2.5">
+                  <h3 className="text-xs font-black uppercase tracking-wider text-violet-600 dark:text-violet-400 flex items-center gap-1.5">
+                    <Building2 className="w-4 h-4" /> Company Intelligence
+                  </h3>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                    status === "enriched"     ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800" :
+                    status === "pending"      ? "bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950 dark:text-violet-300 dark:border-violet-800" :
+                    status === "skipped"      ? "bg-slate-50 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700" :
+                    /* failed/rate_limited */   "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800"
+                  }`}>
+                    {status === "enriched" ? "Enriched" : status === "pending" ? "Enriching…" : status === "skipped" ? "N/A" : "Failed"}
+                  </span>
+                </div>
+
+                {/* PENDING — shimmer skeleton */}
+                {status === "pending" && (
+                  <div className="space-y-2.5 animate-pulse">
+                    {[85, 60, 75, 50, 90].map((w, i) => (
+                      <div key={i} className={`h-3 bg-slate-200 dark:bg-slate-700 rounded-full`} style={{ width: `${w}%` }} />
+                    ))}
+                    <p className="text-[10px] text-slate-400 text-center pt-1">Fetching company data from Hunter.io…</p>
+                  </div>
+                )}
+
+                {/* ENRICHED — populated grid */}
+                {status === "enriched" && enriched && (
+                  <div className="space-y-3 text-xs">
+                    {enriched.industry && (
+                      <div className="flex justify-between items-start gap-2">
+                        <span className="text-slate-400 font-medium shrink-0">Industry</span>
+                        <span className="font-semibold text-slate-800 dark:text-slate-200 text-right">{enriched.industry}</span>
+                      </div>
+                    )}
+                    {enriched.sector && enriched.sector !== enriched.industry && (
+                      <div className="flex justify-between items-start gap-2">
+                        <span className="text-slate-400 font-medium shrink-0">Sector</span>
+                        <span className="font-semibold text-slate-800 dark:text-slate-200 text-right">{enriched.sector}</span>
+                      </div>
+                    )}
+                    {(enriched.sizeRange || enriched.employeeCount) && (
+                      <div className="flex justify-between items-start gap-2">
+                        <span className="text-slate-400 font-medium shrink-0">Headcount</span>
+                        <span className="font-semibold text-slate-800 dark:text-slate-200 text-right">
+                          {enriched.employeeCount ? enriched.employeeCount.toLocaleString() : enriched.sizeRange}
+                          {enriched.sizeRange && enriched.employeeCount && <span className="text-slate-400 ml-1">({enriched.sizeRange})</span>}
+                        </span>
+                      </div>
+                    )}
+                    {enriched.foundedYear && (
+                      <div className="flex justify-between items-start gap-2">
+                        <span className="text-slate-400 font-medium shrink-0">Founded</span>
+                        <span className="font-semibold text-slate-800 dark:text-slate-200">{enriched.foundedYear}</span>
+                      </div>
+                    )}
+                    {enriched.country && (
+                      <div className="flex justify-between items-start gap-2">
+                        <span className="text-slate-400 font-medium shrink-0">HQ</span>
+                        <span className="font-semibold text-slate-800 dark:text-slate-200 text-right">
+                          {[enriched.city, enriched.country].filter(Boolean).join(", ")}
+                        </span>
+                      </div>
+                    )}
+                    {enriched.companyType && (
+                      <div className="flex justify-between items-start gap-2">
+                        <span className="text-slate-400 font-medium shrink-0">Type</span>
+                        <span className="font-semibold text-slate-800 dark:text-slate-200 capitalize text-right">{enriched.companyType}</span>
+                      </div>
+                    )}
+                    {enriched.linkedinHandle && (
+                      <div className="flex justify-between items-center gap-2">
+                        <span className="text-slate-400 font-medium shrink-0">LinkedIn</span>
+                        <a
+                          href={`https://linkedin.com/${enriched.linkedinHandle}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1 text-right"
+                        >
+                          View profile <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
+                    )}
+                    {enriched.description && (
+                      <div className="pt-1 border-t border-slate-100 dark:border-slate-800">
+                        <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed line-clamp-3">{enriched.description}</p>
+                      </div>
+                    )}
+                    {enriched.tags && enriched.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1 pt-1">
+                        {enriched.tags.slice(0, 5).map((tag: string) => (
+                          <span key={tag} className="text-[10px] bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800 px-2 py-0.5 rounded-full font-medium">
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {/* Re-enrich stale data */}
+                    <div className="pt-1 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                      <span className="text-[10px] text-slate-400">
+                        {lead.enrichedAt ? `Updated ${new Date(lead.enrichedAt).toLocaleDateString()}` : "via Hunter.io"}
+                      </span>
+                      <button
+                        id="btn-reenrich-lead"
+                        onClick={() => reEnrichMutation.mutate()}
+                        disabled={reEnrichMutation.isPending}
+                        className="text-[10px] text-violet-600 hover:text-violet-700 font-bold hover:underline flex items-center gap-1 disabled:opacity-50"
+                      >
+                        {reEnrichMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                        Re-enrich
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* SKIPPED — personal/unknown domain */}
+                {status === "skipped" && (
+                  <div className="flex items-start gap-2 text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-slate-400" />
+                    <span>Personal or unknown domain — enrichment not available for this lead.</span>
+                  </div>
+                )}
+
+                {/* FAILED / RATE_LIMITED — show re-enrich button */}
+                {(status === "failed" || status === "rate_limited") && (
+                  <div className="space-y-2">
+                    <div className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 p-3 rounded-xl border border-amber-200 dark:border-amber-900/60">
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                      <span>
+                        {status === "rate_limited"
+                          ? "Hunter.io rate limit hit — try again shortly."
+                          : "Enrichment failed — company may not be in Hunter's database."}
+                      </span>
+                    </div>
+                    <button
+                      id="btn-reenrich-lead-failed"
+                      onClick={() => reEnrichMutation.mutate()}
+                      disabled={reEnrichMutation.isPending}
+                      className="w-full py-1.5 text-xs font-bold text-violet-700 dark:text-violet-300 border border-violet-300 dark:border-violet-700 rounded-xl hover:bg-violet-50 dark:hover:bg-violet-950/40 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
+                    >
+                      {reEnrichMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Building2 className="w-3.5 h-3.5" />}
+                      {reEnrichMutation.isPending ? "Enriching…" : "Retry Enrichment"}
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Quick Tasks Widget */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3">

@@ -2305,6 +2305,34 @@ FlaggedLead.init(
   { sequelize, modelName: "FlaggedLead", tableName: "FlaggedLeads" }
 );
 
+// ─────────────────────────────────────────────────────────────────────────────
+// EnrichmentUsage — Hunter.io credit tracking
+// ─────────────────────────────────────────────────────────────────────────────
+export class EnrichmentUsage extends Model {
+  public id!: string;
+  public leadId!: string | null;
+  public provider!: string;
+  public domain!: string | null;
+  public status!: string; // enriched | skipped | failed | rate_limited
+  public httpStatus!: number | null;
+  public errorMessage!: string | null;
+  public calledAt!: Date;
+}
+
+EnrichmentUsage.init(
+  {
+    id:           { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    leadId:       { type: DataTypes.UUID, allowNull: true },
+    provider:     { type: DataTypes.STRING(50),  allowNull: false, defaultValue: "hunter" },
+    domain:       { type: DataTypes.STRING(255), allowNull: true },
+    status:       { type: DataTypes.STRING(20),  allowNull: false },
+    httpStatus:   { type: DataTypes.INTEGER,     allowNull: true },
+    errorMessage: { type: DataTypes.TEXT,        allowNull: true },
+    calledAt:     { type: DataTypes.DATE,        allowNull: false, defaultValue: DataTypes.NOW }
+  },
+  { sequelize, modelName: "EnrichmentUsage", tableName: "EnrichmentUsages" }
+);
+
 // ─── Campaign & Attribution Associations ─────────────────────────────────────
 User.hasMany(Campaign, { foreignKey: "ownerId", as: "campaigns" });
 Campaign.belongsTo(User, { foreignKey: "ownerId", as: "owner" });

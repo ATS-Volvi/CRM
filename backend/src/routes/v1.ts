@@ -31,7 +31,8 @@ import {
   updateTemperature,
   unlockTemperature,
   getLeadMissingInfo,
-  requestMissingDetails
+  requestMissingDetails,
+  triggerLeadEnrichment
 } from "../controllers/leadController";
 import { getPriceBookEntries, createPriceBookEntry, updatePriceBookEntry, deletePriceBookEntry, importPriceBookEntries, getPriceSuggestion, importPriceBookEntriesPreview, getCatalogCategories, getCatalogUoms } from '../controllers/priceBookController';
 import {
@@ -406,6 +407,7 @@ router.get("/leads/:id/contacts", authMiddleware, getLeadContacts);
 router.put("/leads/:id/clear-unread", authMiddleware, clearUnreadCount);
 router.get("/leads/:id/missing-info", authMiddleware, getLeadMissingInfo);
 router.post("/leads/:id/request-details", authMiddleware, requestMissingDetails);
+router.post("/leads/:id/enrich", authMiddleware, triggerLeadEnrichment);
 
 // ==========================================
 // OPPORTUNITIES / DEALS
