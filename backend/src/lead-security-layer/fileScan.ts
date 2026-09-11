@@ -37,7 +37,9 @@ async function getScanner() {
         },
       });
     } catch (err: any) {
-      console.warn('[lead-security] ClamAV daemon offline/unreachable:', err.message);
+      console.error(
+        `[lead-security] CRITICAL: ClamAV daemon offline/unreachable at ${process.env.CLAMAV_HOST || 'clamav'}:${Number(process.env.CLAMAV_PORT) || 3310}. Malware scanning is DOWN. File attachments will be blocked (fail-closed). Error: ${err.message}`
+      );
       return null;
     }
   }
@@ -64,20 +66,35 @@ export async function scanAttachments(attachments: AttachmentInput[]): Promise<A
 
   for (const file of attachments) {
     if (file.buffer.length > MAX_FILE_BYTES) {
+      console.error(`[lead-security] Attachment "${file.filename}" exceeds max size of ${MAX_FILE_BYTES} bytes.`);
       return { clean: false, reason: 'file_too_large' };
     }
 
     const detected = await fileTypeFromBuffer(file.buffer);
     if (!detected || !ALLOWED_MIME.has(detected.mime)) {
+      console.error(`[lead-security] Attachment "${file.filename}" rejected with disallowed MIME type: ${detected?.mime || 'unknown'}.`);
       return { clean: false, reason: `disallowed_file_type:${detected?.mime || 'unknown'}` };
     }
 
     const scanner = await getScanner();
-    if (scanner) {
+    if (!scanner) {
+      console.error(
+        `[lead-security] Attachment "${file.filename}" REJECTED: ClamAV scanner unreachable at ${process.env.CLAMAV_HOST || 'clamav'} (fail-closed policy).`
+      );
+      return { clean: false, reason: 'malware_scan_unavailable' };
+    }
+
+    try {
       const { isInfected, viruses } = await scanner.scanBuffer(file.buffer);
       if (isInfected) {
+        console.error(`[lead-security] Attachment "${file.filename}" INFECTED with malware: ${viruses.join(',')}.`);
         return { clean: false, reason: `malware_detected:${viruses.join(',')}` };
       }
+    } catch (scanErr: any) {
+      console.error(
+        `[lead-security] Attachment "${file.filename}" REJECTED: ClamAV scan failed during buffer inspection: ${scanErr.message} (fail-closed policy).`
+      );
+      return { clean: false, reason: 'malware_scan_unavailable' };
     }
 
     safeAttachments.push({
