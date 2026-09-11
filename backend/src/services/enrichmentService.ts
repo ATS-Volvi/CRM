@@ -58,6 +58,26 @@ export interface EnrichmentResult {
   domain: string;
 }
 
+export interface DiscoveredContact {
+  email: string;
+  firstName: string | null;
+  lastName: string | null;
+  position: string | null;
+  department: string | null;
+  confidence: number;
+  linkedinUrl: string | null;
+  phone: string | null;
+}
+
+export interface DomainSearchDiscoveryResult {
+  domain: string;
+  organization: string | null;
+  pattern: string | null;
+  contacts: DiscoveredContact[];
+  totalFound: number;
+  fetchedAt: string;
+}
+
 // ─────────────────────────────────────────────────────────────────
 // HELPERS
 // ─────────────────────────────────────────────────────────────────
@@ -95,7 +115,7 @@ function normalizeHunterResponse(data: any, domain: string): EnrichmentResult {
   };
 }
 
-async function logEnrichmentUsage(
+export async function logEnrichmentUsage(
   leadId: string | null,
   provider: string,
   domain: string | null,
@@ -105,7 +125,7 @@ async function logEnrichmentUsage(
 ): Promise<void> {
   try {
     // Check monthly credit usage against warning threshold (Hunter free plan provides 50 searches/mo)
-    if (status === "enriched" || status === "failed" || status === "rate_limited") {
+    if (status === "enriched" || status === "failed" || status === "rate_limited" || status === "contacts_discovered") {
       const threshold = parseInt(process.env.HUNTER_MONTHLY_WARNING_THRESHOLD ?? "40", 10);
       const startOfMonth = new Date();
       startOfMonth.setDate(1);
@@ -116,7 +136,7 @@ async function logEnrichmentUsage(
         where: {
           provider,
           calledAt: { [Op.gte]: startOfMonth },
-          status: { [Op.in]: ["enriched", "failed", "rate_limited"] }
+          status: { [Op.in]: ["enriched", "failed", "rate_limited", "contacts_discovered"] }
         }
       });
 
@@ -143,6 +163,93 @@ async function logEnrichmentUsage(
     // Non-critical — never allow usage logging to surface errors to the caller
     console.error("[enrichment] Failed to log usage record:", logErr);
   }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// PUBLIC: findContactsForDomain (on-demand domain search)
+// ─────────────────────────────────────────────────────────────────
+
+/**
+ * Calls Hunter.io /v2/domain-search?domain={domain}&api_key={key}
+ * Normalizes returned contacts and captures the detected email pattern.
+ *
+ * NOTE (Data Provenance & Privacy):
+ * Contact data (names, emails, phone numbers, LinkedIn URLs) returned by this function
+ * is sourced from Hunter.io's third-party database, not collected directly from the individuals.
+ * Relevant for any future GDPR/privacy policy review.
+ */
+export async function findContactsForDomain(
+  domain: string
+): Promise<DomainSearchDiscoveryResult> {
+  const apiKey = process.env.HUNTER_API_KEY;
+  if (!apiKey || apiKey === "your_hunter_api_key_here") {
+    throw new Error("HUNTER_API_KEY is not configured in environment variables.");
+  }
+
+  if (isPersonalDomain(domain)) {
+    throw new Error("Cannot search contacts for personal email domains.");
+  }
+
+  const url = `${HUNTER_API_BASE}/domain-search?domain=${encodeURIComponent(domain)}&api_key=${apiKey}&limit=10`;
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: { "Accept": "application/json" },
+      signal: AbortSignal.timeout(12_000)
+    });
+  } catch (networkErr: any) {
+    throw new Error(`Network error calling Hunter domain search: ${networkErr.message}`);
+  }
+
+  if (res.status === 200) {
+    const json = (await res.json()) as any;
+    const data = json?.data || {};
+    const emails = Array.isArray(data.emails) ? data.emails : [];
+
+    const contacts: DiscoveredContact[] = emails
+      .map((e: any) => ({
+        email: e.value || "",
+        firstName: e.first_name || null,
+        lastName: e.last_name || null,
+        position: e.position || e.position_raw || null,
+        department: e.department || null,
+        confidence: typeof e.confidence === "number" ? e.confidence : 0,
+        linkedinUrl: e.linkedin || null,
+        phone: e.phone_number || null
+      }))
+      .filter((c: DiscoveredContact) => !!c.email);
+
+    return {
+      domain,
+      organization: data.organization || null,
+      pattern: data.pattern || null,
+      contacts,
+      totalFound: typeof json?.meta?.results === "number" ? json.meta.results : contacts.length,
+      fetchedAt: new Date().toISOString()
+    };
+  }
+
+  if (res.status === 404 || res.status === 422) {
+    return {
+      domain,
+      organization: null,
+      pattern: null,
+      contacts: [],
+      totalFound: 0,
+      fetchedAt: new Date().toISOString()
+    };
+  }
+
+  if (res.status === 401 || res.status === 403) {
+    throw new Error(`Hunter API authentication failed (${res.status}). Verify HUNTER_API_KEY.`);
+  }
+
+  if (res.status === 429) {
+    throw new Error("Hunter API rate limit hit (429). Please wait a few minutes before retrying.");
+  }
+
+  throw new Error(`Hunter Domain Search returned unexpected status ${res.status}`);
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -276,9 +383,13 @@ export async function enrichLeadAsync(
     if (result) {
       callStatus = "enriched";
       httpStatus = 200;
+    } else if (!process.env.HUNTER_API_KEY || process.env.HUNTER_API_KEY === "your_hunter_api_key_here") {
+      callStatus = "failed";
+      errorMessage = "HUNTER_API_KEY is not configured on server";
     } else {
-      // null = company not found OR personal domain (already handled above)
-      callStatus = "skipped";
+      // Company not found in Hunter database (404/422)
+      callStatus = "not_found";
+      httpStatus = 404;
     }
   } catch (enrichErr: any) {
     callStatus = enrichErr?.message?.includes("429") ? "rate_limited" : "failed";

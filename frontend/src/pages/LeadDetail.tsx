@@ -7,7 +7,8 @@ import {
   ChevronRight, Calendar, DollarSign, Activity, ShoppingBag, FileText, ChevronDown, Loader2,
   Users, TrendingUp, MessageSquare, CheckSquare, AlertCircle, Sparkles, Send, Upload, Plus,
   FilePlus, Award, ShieldAlert, CheckCircle2, Clock, MapPin, Video, ExternalLink, Pin,
-  FileEdit, Landmark, Inbox, User, Receipt, AlertTriangle, Target, Lock, XCircle
+  FileEdit, Landmark, Inbox, User, Receipt, AlertTriangle, Target, Lock, XCircle,
+  Copy, Search, RefreshCw, Briefcase
 } from "lucide-react";
 import { formatCurrency } from "../utils/currency";
 import { formatDistanceToNow } from "date-fns";
@@ -307,6 +308,51 @@ export default function LeadDetail() {
       // Poll twice — enrichment takes ~1-3s after the 202 is returned
       setTimeout(() => queryClient.invalidateQueries({ queryKey: ["lead", id] }), 2500);
       setTimeout(() => queryClient.invalidateQueries({ queryKey: ["lead", id] }), 5000);
+    }
+  });
+
+  // On-demand Domain Contact Discovery (Hunter.io Domain Search)
+  const [copiedEmail, setCopiedEmail] = useState<string | null>(null);
+
+  const copyEmailToClipboard = (email: string) => {
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText(email);
+    }
+    setCopiedEmail(email);
+    setTimeout(() => setCopiedEmail(null), 2000);
+  };
+
+  const { data: discoveredContactsData, isLoading: isLoadingDiscoveredContacts } = useQuery({
+    queryKey: ["leadDiscoveredContacts", id],
+    queryFn: async () => {
+      const res = await fetch(`/api/v1/leads/${id}/discovered-contacts`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data.discovery || null;
+    },
+    enabled: !!id && !!token
+  });
+
+  const findContactsMutation = useMutation({
+    mutationFn: async (refresh: boolean = false) => {
+      const res = await fetch(`/api/v1/leads/${id}/find-contacts${refresh ? "?refresh=true" : ""}`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to discover contacts");
+      return data;
+    },
+    onSuccess: (data) => {
+      if (data?.discovery) {
+        queryClient.setQueryData(["leadDiscoveredContacts", id], data.discovery);
+      }
+      queryClient.invalidateQueries({ queryKey: ["leadDiscoveredContacts", id] });
     }
   });
 
@@ -982,10 +1028,11 @@ export default function LeadDetail() {
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
                     status === "enriched"     ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800" :
                     status === "pending"      ? "bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950 dark:text-violet-300 dark:border-violet-800" :
-                    status === "skipped"      ? "bg-slate-50 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700" :
+                    status === "skipped"      ? "bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-800" :
+                    status === "not_found"    ? "bg-slate-50 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700" :
                     /* failed/rate_limited */   "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800"
                   }`}>
-                    {status === "enriched" ? "Enriched" : status === "pending" ? "Enriching…" : status === "skipped" ? "N/A" : "Failed"}
+                    {status === "enriched" ? "Enriched" : status === "pending" ? "Enriching…" : status === "skipped" ? "Personal Email" : status === "not_found" ? "No Data" : "Failed"}
                   </span>
                 </div>
 
@@ -1088,11 +1135,19 @@ export default function LeadDetail() {
                   </div>
                 )}
 
-                {/* SKIPPED — personal/unknown domain */}
+                {/* SKIPPED — personal email domain */}
                 {status === "skipped" && (
-                  <div className="flex items-start gap-2 text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <div className="flex items-start gap-2 text-xs text-blue-700 dark:text-blue-300 bg-blue-50/60 dark:bg-blue-950/30 p-3 rounded-xl border border-blue-200/70 dark:border-blue-800/60">
+                    <Mail className="w-3.5 h-3.5 shrink-0 mt-0.5 text-blue-500" />
+                    <span>Personal email domain — company enrichment skipped to conserve API quota.</span>
+                  </div>
+                )}
+
+                {/* NOT FOUND — company not in Hunter database */}
+                {status === "not_found" && (
+                  <div className="flex items-start gap-2 text-xs text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
                     <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-slate-400" />
-                    <span>Personal or unknown domain — enrichment not available for this lead.</span>
+                    <span>No company data found in Hunter.io for this domain.</span>
                   </div>
                 )}
 
@@ -1104,7 +1159,7 @@ export default function LeadDetail() {
                       <span>
                         {status === "rate_limited"
                           ? "Hunter.io rate limit hit — try again shortly."
-                          : "Enrichment failed — company may not be in Hunter's database."}
+                          : "Enrichment failed — check API key and domain formatting."}
                       </span>
                     </div>
                     <button
@@ -1118,6 +1173,169 @@ export default function LeadDetail() {
                     </button>
                   </div>
                 )}
+
+                {/* ── Domain Contacts & Email Pattern Section (On-Demand Discovery) ── */}
+                <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                      <Users className="w-3.5 h-3.5 text-violet-500" />
+                      Key Decision Makers & Contacts
+                    </h4>
+                    {discoveredContactsData && (
+                      <button
+                        id="btn-refresh-discovered-contacts"
+                        onClick={() => findContactsMutation.mutate(true)}
+                        disabled={findContactsMutation.isPending}
+                        title="Re-run Hunter domain search"
+                        className="text-[10px] text-violet-600 hover:text-violet-700 dark:text-violet-400 font-semibold flex items-center gap-1 disabled:opacity-50 hover:underline"
+                      >
+                        <RefreshCw className={`w-3 h-3 ${findContactsMutation.isPending ? "animate-spin" : ""}`} />
+                        Refresh
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Pending state while discovering */}
+                  {findContactsMutation.isPending && (
+                    <div className="p-3 bg-violet-50/50 dark:bg-violet-950/20 border border-violet-100 dark:border-violet-900/40 rounded-xl space-y-2 animate-pulse">
+                      <div className="flex items-center gap-2 text-xs text-violet-700 dark:text-violet-300 font-medium">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        Searching Hunter.io for verified contacts…
+                      </div>
+                      <div className="h-2.5 bg-violet-200 dark:bg-violet-800 rounded-full w-3/4" />
+                      <div className="h-2.5 bg-violet-200 dark:bg-violet-800 rounded-full w-1/2" />
+                    </div>
+                  )}
+
+                  {/* Error state */}
+                  {findContactsMutation.isError && (
+                    <div className="flex items-start gap-2 text-xs text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/30 p-2.5 rounded-xl border border-rose-200 dark:border-rose-900/50">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-rose-500" />
+                      <span>{(findContactsMutation.error as any)?.message || "Failed to discover contacts"}</span>
+                    </div>
+                  )}
+
+                  {/* Discovered Contacts Data View */}
+                  {discoveredContactsData && !findContactsMutation.isPending && (
+                    <div className="space-y-2">
+                      {/* Email Pattern Banner */}
+                      {discoveredContactsData.emailPattern && (
+                        <div className="flex items-center justify-between text-[11px] bg-slate-50 dark:bg-slate-800/80 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700">
+                          <span className="text-slate-500 font-medium flex items-center gap-1">
+                            <Mail className="w-3 h-3 text-slate-400" /> Pattern
+                          </span>
+                          <span className="font-mono text-violet-700 dark:text-violet-300 font-bold text-[10px]">
+                            {discoveredContactsData.emailPattern}@{discoveredContactsData.domain}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Domain Email Index Count vs Displayed Contacts */}
+                      {discoveredContactsData.totalFound > 0 && (
+                        <div className="text-[10px] text-slate-500 dark:text-slate-400 px-1 font-medium">
+                          {discoveredContactsData.totalFound > (discoveredContactsData.contacts?.length || 0)
+                            ? `${discoveredContactsData.totalFound.toLocaleString()} emails on file, showing top ${discoveredContactsData.contacts?.length || 0}`
+                            : `${discoveredContactsData.contacts?.length || 0} contact${discoveredContactsData.contacts?.length === 1 ? "" : "s"} found`}
+                        </div>
+                      )}
+
+                      {/* Contacts list */}
+                      {discoveredContactsData.contacts && discoveredContactsData.contacts.length > 0 ? (
+                        <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                          {discoveredContactsData.contacts.map((contact: any, idx: number) => (
+                            <div
+                              key={idx}
+                              className="p-2.5 bg-slate-50/70 dark:bg-slate-800/60 rounded-xl border border-slate-200/80 dark:border-slate-700/80 hover:border-violet-300 dark:hover:border-violet-700 transition-colors space-y-1.5"
+                            >
+                              <div className="flex items-start justify-between gap-1.5">
+                                <div className="min-w-0">
+                                  <div className="font-bold text-slate-900 dark:text-slate-100 text-xs truncate">
+                                    {[contact.firstName, contact.lastName].filter(Boolean).join(" ") || "Verified Contact"}
+                                  </div>
+                                  {contact.position && (
+                                    <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate flex items-center gap-1">
+                                      <Briefcase className="w-2.5 h-2.5 shrink-0 text-slate-400" />
+                                      {contact.position}
+                                    </div>
+                                  )}
+                                </div>
+                                {contact.department && (
+                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-slate-200/80 dark:bg-slate-700 text-slate-700 dark:text-slate-300 uppercase shrink-0">
+                                    {contact.department}
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-200/50 dark:border-slate-700/50">
+                                <span className="font-mono text-[11px] text-slate-700 dark:text-slate-300 truncate max-w-[170px]" title={contact.email}>
+                                  {contact.email}
+                                </span>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  {contact.confidence > 0 && (
+                                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                                      contact.confidence >= 80
+                                        ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                                        : "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                                    }`}>
+                                      {contact.confidence}%
+                                    </span>
+                                  )}
+                                  <button
+                                    onClick={() => copyEmailToClipboard(contact.email)}
+                                    title="Copy email address"
+                                    className="p-1 text-slate-400 hover:text-violet-600 hover:bg-violet-50 dark:hover:bg-slate-700 rounded-md transition-colors"
+                                  >
+                                    {copiedEmail === contact.email ? (
+                                      <Check className="w-3 h-3 text-emerald-600" />
+                                    ) : (
+                                      <Copy className="w-3 h-3" />
+                                    )}
+                                  </button>
+                                  {contact.linkedinUrl && (
+                                    <a
+                                      href={contact.linkedinUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="p-1 text-slate-400 hover:text-blue-600 rounded-md"
+                                      title="LinkedIn Profile"
+                                    >
+                                      <ExternalLink className="w-3 h-3" />
+                                    </a>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-2.5 text-xs text-slate-400 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
+                          No named contacts found for this domain in Hunter.io.
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Initial state before discovery is triggered */}
+                  {!discoveredContactsData && !findContactsMutation.isPending && (
+                    <div className="pt-1">
+                      {status === "skipped" ? (
+                        <p className="text-[11px] text-slate-400 italic">
+                          Contact discovery is disabled for personal webmail domains.
+                        </p>
+                      ) : (
+                        <button
+                          id="btn-find-contacts"
+                          onClick={() => findContactsMutation.mutate(false)}
+                          disabled={findContactsMutation.isPending}
+                          className="w-full py-2 px-3 text-xs font-bold text-violet-700 dark:text-violet-300 bg-violet-50/80 dark:bg-violet-950/40 border border-violet-200 dark:border-violet-800/80 rounded-xl hover:bg-violet-100 dark:hover:bg-violet-900/40 transition-colors flex items-center justify-center gap-1.5 shadow-2xs"
+                        >
+                          <Search className="w-3.5 h-3.5" />
+                          Find Company Contacts
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             );
           })()}

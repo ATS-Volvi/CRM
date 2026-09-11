@@ -956,3 +956,153 @@ export const triggerLeadEnrichment = async (req: Request, res: Response) => {
   }
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /leads/:id/find-contacts — On-demand domain contacts search via Hunter
+// Synchronous (reps wait for the result after clicking the button)
+// ─────────────────────────────────────────────────────────────────────────────
+export const findLeadContacts = async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const refresh = req.query.refresh === "true";
+    const requestedById = (req as any).user?.id || null;
+    const { Lead, LeadContactDiscovery } = sequelize.models;
+
+    const lead = await Lead.findByPk(id, { attributes: ["id", "email", "company"] });
+    if (!lead) return res.status(404).json({ error: "Lead not found" });
+
+    const leadData = lead.toJSON() as any;
+    const { extractDomain, isPersonalDomain, findContactsForDomain, logEnrichmentUsage } = await import("../services/enrichmentService");
+
+    const email = leadData.email || "";
+    let domain = extractDomain(email);
+
+    // If email doesn't yield a domain, try deriving from company name if it contains a dot
+    if (!domain && leadData.company && leadData.company.includes(".")) {
+      domain = leadData.company.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+    }
+
+    if (!domain) {
+      return res.status(400).json({ error: "Cannot discover contacts: No valid company domain found on this lead." });
+    }
+
+    if (isPersonalDomain(domain)) {
+      return res.status(400).json({ error: "Cannot search contacts for personal email domains." });
+    }
+
+    // Check if discovery already exists for this lead
+    const existing = await LeadContactDiscovery.findOne({
+      where: { leadId: id },
+      order: [["createdAt", "DESC"]]
+    });
+
+    // If already discovered and refresh not requested, return cached discovery immediately
+    if (!refresh && existing) {
+      const existingData = existing.toJSON() as any;
+      return res.status(200).json({
+        fromCache: true,
+        discovery: {
+          id: existingData.id,
+          domain: existingData.domain,
+          emailPattern: existingData.emailPattern,
+          totalFound: existingData.totalFound,
+          discoveredAt: existingData.discoveredAt,
+          contacts: JSON.parse(existingData.contactsFound || "[]")
+        }
+      });
+    }
+
+    // Call Hunter domain search
+    let discoveryResult;
+    try {
+      discoveryResult = await findContactsForDomain(domain);
+    } catch (hunterErr: any) {
+      await logEnrichmentUsage(id, "hunter", domain, "failed", null, hunterErr.message || String(hunterErr));
+      return res.status(hunterErr.message?.includes("429") ? 429 : 502).json({
+        error: hunterErr.message || "Failed to retrieve contacts from Hunter.io"
+      });
+    }
+
+    // Log unified credit usage
+    const callStatus = discoveryResult.contacts.length > 0 ? "contacts_discovered" : "not_found";
+    await logEnrichmentUsage(id, "hunter", domain, callStatus, 200, null);
+
+    // Save or update in LeadContactDiscoveries table
+    let savedDiscovery;
+    const now = new Date();
+    if (existing) {
+      await existing.update({
+        domain,
+        contactsFound: JSON.stringify(discoveryResult.contacts),
+        emailPattern: discoveryResult.pattern,
+        totalFound: discoveryResult.totalFound,
+        discoveredAt: now,
+        requestedById
+      });
+      savedDiscovery = existing;
+    } else {
+      savedDiscovery = await LeadContactDiscovery.create({
+        id: crypto.randomUUID(),
+        leadId: id,
+        domain,
+        contactsFound: JSON.stringify(discoveryResult.contacts),
+        emailPattern: discoveryResult.pattern,
+        totalFound: discoveryResult.totalFound,
+        discoveredAt: now,
+        requestedById
+      });
+    }
+
+    const savedData = savedDiscovery.toJSON() as any;
+
+    return res.status(200).json({
+      fromCache: false,
+      discovery: {
+        id: savedData.id,
+        domain,
+        organization: discoveryResult.organization,
+        emailPattern: discoveryResult.pattern,
+        totalFound: discoveryResult.totalFound,
+        discoveredAt: savedData.discoveredAt,
+        contacts: discoveryResult.contacts
+      }
+    });
+  } catch (error: any) {
+    console.error("[findLeadContacts] Error discovering contacts:", error);
+    return res.status(500).json({ error: error.message || "Internal server error discovering contacts" });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /leads/:id/discovered-contacts — Fetch cached contact discovery if available
+// ─────────────────────────────────────────────────────────────────────────────
+export const getLeadDiscoveredContacts = async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const { LeadContactDiscovery } = sequelize.models;
+
+    const existing = await LeadContactDiscovery.findOne({
+      where: { leadId: id },
+      order: [["createdAt", "DESC"]]
+    });
+
+    if (!existing) {
+      return res.status(200).json({ discovery: null });
+    }
+
+    const existingData = existing.toJSON() as any;
+    return res.status(200).json({
+      discovery: {
+        id: existingData.id,
+        domain: existingData.domain,
+        emailPattern: existingData.emailPattern,
+        totalFound: existingData.totalFound,
+        discoveredAt: existingData.discoveredAt,
+        contacts: JSON.parse(existingData.contactsFound || "[]")
+      }
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+
