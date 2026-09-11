@@ -348,7 +348,10 @@ export default function LeadDetail() {
       if (!res.ok) throw new Error(data.error || "Failed to discover contacts");
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      if (data?.discovery) {
+        queryClient.setQueryData(["leadDiscoveredContacts", id], data.discovery);
+      }
       queryClient.invalidateQueries({ queryKey: ["leadDiscoveredContacts", id] });
     }
   });

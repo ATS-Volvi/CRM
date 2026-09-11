@@ -172,6 +172,11 @@ export async function logEnrichmentUsage(
 /**
  * Calls Hunter.io /v2/domain-search?domain={domain}&api_key={key}
  * Normalizes returned contacts and captures the detected email pattern.
+ *
+ * NOTE (Data Provenance & Privacy):
+ * Contact data (names, emails, phone numbers, LinkedIn URLs) returned by this function
+ * is sourced from Hunter.io's third-party database, not collected directly from the individuals.
+ * Relevant for any future GDPR/privacy policy review.
  */
 export async function findContactsForDomain(
   domain: string

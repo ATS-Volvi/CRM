@@ -989,27 +989,26 @@ export const findLeadContacts = async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Cannot search contacts for personal email domains." });
     }
 
-    // Check if discovery already exists for this lead (unless refresh is requested)
-    if (!refresh) {
-      const existing = await LeadContactDiscovery.findOne({
-        where: { leadId: id },
-        order: [["createdAt", "DESC"]]
-      });
+    // Check if discovery already exists for this lead
+    const existing = await LeadContactDiscovery.findOne({
+      where: { leadId: id },
+      order: [["createdAt", "DESC"]]
+    });
 
-      if (existing) {
-        const existingData = existing.toJSON() as any;
-        return res.status(200).json({
-          fromCache: true,
-          discovery: {
-            id: existingData.id,
-            domain: existingData.domain,
-            emailPattern: existingData.emailPattern,
-            totalFound: existingData.totalFound,
-            discoveredAt: existingData.discoveredAt,
-            contacts: JSON.parse(existingData.contactsFound || "[]")
-          }
-        });
-      }
+    // If already discovered and refresh not requested, return cached discovery immediately
+    if (!refresh && existing) {
+      const existingData = existing.toJSON() as any;
+      return res.status(200).json({
+        fromCache: true,
+        discovery: {
+          id: existingData.id,
+          domain: existingData.domain,
+          emailPattern: existingData.emailPattern,
+          totalFound: existingData.totalFound,
+          discoveredAt: existingData.discoveredAt,
+          contacts: JSON.parse(existingData.contactsFound || "[]")
+        }
+      });
     }
 
     // Call Hunter domain search
@@ -1027,29 +1026,43 @@ export const findLeadContacts = async (req: Request, res: Response) => {
     const callStatus = discoveryResult.contacts.length > 0 ? "contacts_discovered" : "not_found";
     await logEnrichmentUsage(id, "hunter", domain, callStatus, 200, null);
 
-    // Save to LeadContactDiscoveries table
-    const createdDiscovery = await LeadContactDiscovery.create({
-      id: crypto.randomUUID(),
-      leadId: id,
-      domain,
-      contactsFound: JSON.stringify(discoveryResult.contacts),
-      emailPattern: discoveryResult.pattern,
-      totalFound: discoveryResult.totalFound,
-      discoveredAt: new Date(),
-      requestedById
-    });
+    // Save or update in LeadContactDiscoveries table
+    let savedDiscovery;
+    const now = new Date();
+    if (existing) {
+      await existing.update({
+        domain,
+        contactsFound: JSON.stringify(discoveryResult.contacts),
+        emailPattern: discoveryResult.pattern,
+        totalFound: discoveryResult.totalFound,
+        discoveredAt: now,
+        requestedById
+      });
+      savedDiscovery = existing;
+    } else {
+      savedDiscovery = await LeadContactDiscovery.create({
+        id: crypto.randomUUID(),
+        leadId: id,
+        domain,
+        contactsFound: JSON.stringify(discoveryResult.contacts),
+        emailPattern: discoveryResult.pattern,
+        totalFound: discoveryResult.totalFound,
+        discoveredAt: now,
+        requestedById
+      });
+    }
 
-    const createdData = createdDiscovery.toJSON() as any;
+    const savedData = savedDiscovery.toJSON() as any;
 
     return res.status(200).json({
       fromCache: false,
       discovery: {
-        id: createdData.id,
+        id: savedData.id,
         domain,
         organization: discoveryResult.organization,
         emailPattern: discoveryResult.pattern,
         totalFound: discoveryResult.totalFound,
-        discoveredAt: createdData.discoveredAt,
+        discoveredAt: savedData.discoveredAt,
         contacts: discoveryResult.contacts
       }
     });
