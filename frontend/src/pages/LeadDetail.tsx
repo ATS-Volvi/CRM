@@ -1230,6 +1230,15 @@ export default function LeadDetail() {
                         </div>
                       )}
 
+                      {/* Domain Email Index Count vs Displayed Contacts */}
+                      {discoveredContactsData.totalFound > 0 && (
+                        <div className="text-[10px] text-slate-500 dark:text-slate-400 px-1 font-medium">
+                          {discoveredContactsData.totalFound > (discoveredContactsData.contacts?.length || 0)
+                            ? `${discoveredContactsData.totalFound.toLocaleString()} emails on file, showing top ${discoveredContactsData.contacts?.length || 0}`
+                            : `${discoveredContactsData.contacts?.length || 0} contact${discoveredContactsData.contacts?.length === 1 ? "" : "s"} found`}
+                        </div>
+                      )}
+
                       {/* Contacts list */}
                       {discoveredContactsData.contacts && discoveredContactsData.contacts.length > 0 ? (
                         <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
