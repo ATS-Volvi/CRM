@@ -140,7 +140,7 @@ async function runSecurityVerification() {
     assert(
       errorCaught?.blocked === true &&
       latestFlagged?.reason?.includes("disallowed_file_type") &&
-      JSON.parse(latestFlagged.payload).email === maliciousPayload.email,
+      (typeof latestFlagged.payload === "string" ? JSON.parse(latestFlagged.payload) : latestFlagged.payload).email === maliciousPayload.email,
       "Renamed executable (.exe with .pdf extension) is blocked by real MIME signature and logged to FlaggedLead",
       `Error: ${errorCaught?.message}, Flagged Reason: ${latestFlagged?.reason}`
     );
@@ -171,7 +171,7 @@ async function runSecurityVerification() {
     assert(
       errorCaught?.blocked === true &&
       latestFlagged?.reason === "spam_rule:disposable_email" &&
-      JSON.parse(latestFlagged.payload).email === disposableLead.email,
+      (typeof latestFlagged.payload === "string" ? JSON.parse(latestFlagged.payload) : latestFlagged.payload).email === disposableLead.email,
       "Disposable email domain (mailinator.com) is intercepted by spamRules and logged to FlaggedLead",
       `Reason: ${latestFlagged?.reason}`
     );
@@ -458,6 +458,50 @@ async function runSecurityVerification() {
       "EICAR test file in valid PDF container passes MIME check, is flagged as malware, and is recorded in FlaggedLead",
       `MIME: ${detectedMime?.mime}, Blocked: ${errorCaught?.blocked}, Reason: ${latestFlagged?.reason}`
     );
+  }
+
+  // ── TEST 11: Stage 3 - ClamAV Offline / Unreachable (Fail-Closed Policy) ───
+  console.log("\n--- TEST 11: Stage 3 - ClamAV Daemon Offline (Fail-Closed Rejection) ---");
+  {
+    const { scanAttachments, _setScanner } = require("../src/lead-security-layer/fileScan");
+
+    const validPdfBuffer = Buffer.from(
+      "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n" +
+      "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n" +
+      "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>\nendobj\n" +
+      "4 0 obj\n<< /Length 12 >>\nstream\nHello World\nendstream\nendobj\nxref\n0 5\n" +
+      "0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000204 00000 n \n" +
+      "trailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n268\n%%EOF\n"
+    );
+
+    // Save original env
+    const origHost = process.env.CLAMAV_HOST;
+    const origPort = process.env.CLAMAV_PORT;
+
+    try {
+      // Intentionally point to an unreachable address/port
+      process.env.CLAMAV_HOST = "127.0.0.1";
+      process.env.CLAMAV_PORT = "39998";
+      _setScanner(null); // Clear cached scanner
+
+      const scanRes = await scanAttachments([
+        { filename: "unscannable_attachment.pdf", buffer: validPdfBuffer }
+      ]);
+
+      assert(
+        scanRes.clean === false && scanRes.reason === "malware_scan_unavailable",
+        "Unreachable ClamAV daemon fails CLOSED and rejects attachment with 'malware_scan_unavailable'",
+        `clean=${scanRes.clean}, reason=${scanRes.reason}`
+      );
+    } finally {
+      if (origHost !== undefined) process.env.CLAMAV_HOST = origHost;
+      else delete process.env.CLAMAV_HOST;
+
+      if (origPort !== undefined) process.env.CLAMAV_PORT = origPort;
+      else delete process.env.CLAMAV_PORT;
+
+      _setScanner(null);
+    }
   }
 
   const finalFlaggedCount = await FlaggedLead.count();
