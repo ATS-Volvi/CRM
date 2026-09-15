@@ -55,6 +55,7 @@ const masterDataGroups: NavGroup[] = [
     label: "Performance",
     items: [
       { name: "KPI Master", path: "/master-data/kpis", icon: Target },
+      { name: "KPI Assignments", path: "/master-data/kpi-assignments", icon: Target },
     ],
   },
   {
@@ -169,6 +170,7 @@ export function MasterDataNav() {
     { name: "Pricing Grid", path: "/master-data/pricing" },
     { name: "Lead Sources", path: "/master-data/lead-sources" },
     { name: "KPI Master", path: "/master-data/kpis" },
+    { name: "KPI Assignments", path: "/master-data/kpi-assignments" },
     { name: "Price Lists", path: "/price-book" },
     { name: "Msg Templates", path: "/master-data/message-templates" },
   ];
