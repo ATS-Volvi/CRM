@@ -63,6 +63,7 @@ const masterDataGroups: NavGroup[] = [
       { name: "Service Types", path: "/master-data/requirements", icon: Settings },
       { name: "Service Items", path: "/master-data/line-items", icon: Settings },
       { name: "Pricing Grid", path: "/master-data/pricing", icon: Settings },
+      { name: "Construction Items", path: "/master-data/construction-items", icon: Settings },
     ],
   },
 ];
@@ -165,6 +166,7 @@ export function MasterDataNav() {
     { name: "Service Types", path: "/master-data/requirements" },
     { name: "Service Items", path: "/master-data/line-items" },
     { name: "Pricing Grid", path: "/master-data/pricing" },
+    { name: "Construction Items", path: "/master-data/construction-items" },
     { name: "KPI Master", path: "/master-data/kpis" },
     { name: "KPI Assignments", path: "/master-data/kpi-assignments" },
     { name: "Price Lists", path: "/price-book" },
