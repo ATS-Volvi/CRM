@@ -1,4 +1,5 @@
 import { DataTypes, Model, Op } from "sequelize";
+import crypto from "crypto";
 import { sequelize } from "../config/dbConn";
 
 export type UserRole = "admin" | "manager" | "senior_ae" | "sales_rep" | "director";
@@ -221,6 +222,42 @@ Lead.init(
     ]
   }
 );
+
+// ─── Lead → Account auto-link hook ───────────────────────────────────────────
+// Fires for every Lead creation regardless of intake channel (email, WhatsApp,
+// Gmail, Instagram, web form, manual). If the lead already has a customerId,
+// we skip. Otherwise we find-or-create an Account by case-insensitive name
+// match (company, falling back to "firstName lastName"), then link the lead.
+Lead.addHook("afterCreate", "autoCreateAccount", async (lead: any) => {
+  try {
+    if (lead.customerId) return; // already linked — skip
+
+    const rawName: string =
+      (lead.company || "").trim() ||
+      `${(lead.firstName || "").trim()} ${(lead.lastName || "").trim()}`.trim();
+    if (!rawName) return;
+
+    // Resolve Account model from the shared sequelize instance at runtime
+    // (Account is registered in the same file; safe to access via sequelize.models post-init)
+    const Account = sequelize.models.Account;
+    const [account] = await Account.findOrCreate({
+      where: sequelize.where(
+        sequelize.fn("LOWER", sequelize.col("name")),
+        rawName.toLowerCase()
+      ),
+      defaults: {
+        id: crypto.randomUUID(),
+        name: rawName,
+        industry: lead.industry || null,
+      },
+    });
+    // hooks: false prevents triggering any Account afterCreate hooks (avoids recursion)
+    await lead.update({ customerId: (account as any).id }, { hooks: false });
+  } catch (err) {
+    // Non-fatal: log and continue — never block lead creation
+    console.error("[afterCreate:autoCreateAccount] Failed to auto-link account:", err);
+  }
+});
 
 export class PipelineStage extends Model {
   public id!: string;
@@ -1441,20 +1478,27 @@ export class KpiMaster extends Model {
   public frequency!: string;
   public weightage!: number;
   public isActive!: boolean;
+  /** null = global KPI visible to all teams; set = owned by that manager's team */
+  public teamLeadId!: string | null;
 }
 
 KpiMaster.init(
   {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
-    name: { type: DataTypes.STRING, allowNull: false, unique: true },
+    name: { type: DataTypes.STRING, allowNull: false },
     category: { type: DataTypes.STRING, allowNull: false },
     targetValue: { type: DataTypes.FLOAT, defaultValue: 0 },
     frequency: { type: DataTypes.STRING, defaultValue: "monthly" },
     weightage: { type: DataTypes.INTEGER, defaultValue: 10 },
-    isActive: { type: DataTypes.BOOLEAN, defaultValue: true }
+    isActive: { type: DataTypes.BOOLEAN, defaultValue: true },
+    teamLeadId: { type: DataTypes.UUID, allowNull: true, defaultValue: null },
   },
   { sequelize, modelName: "KpiMaster" }
 );
+
+// Team-lead scoping association
+KpiMaster.belongsTo(User, { foreignKey: "teamLeadId", as: "teamLead" });
+User.hasMany(KpiMaster, { foreignKey: "teamLeadId", as: "teamKpis" });
 
 export class GmailConfig extends Model {
   public id!: string;

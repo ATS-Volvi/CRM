@@ -848,9 +848,18 @@ export const getSalespersonKpis = async (req: Request, res: Response) => {
       return;
     }
 
-    // 1. Fetch KPI Master definitions (or auto-populate if none exist)
-    let kpiMasters = await sequelize.models.KpiMaster.findAll({ where: { isActive: true } });
-    if (kpiMasters.length === 0) {
+    // 1. Fetch KPI Master definitions scoped to this salesperson:
+    //    - Global KPIs (teamLeadId IS NULL) visible to everyone
+    //    - Team KPIs for the rep's direct manager (teamLeadId = salesperson.managerId)
+    //    Auto-populate STANDARD_KPIS only when zero global KPIs exist.
+    const managerId = (salesperson as any).managerId || null;
+    const kpiWhere: any = managerId
+      ? { isActive: true, [Op.or]: [{ teamLeadId: null }, { teamLeadId: managerId }] }
+      : { isActive: true, teamLeadId: null };
+
+    let kpiMasters = await sequelize.models.KpiMaster.findAll({ where: kpiWhere });
+    const hasGlobalKpis = kpiMasters.some((m: any) => m.teamLeadId === null);
+    if (!hasGlobalKpis) {
       const createdMasters = [];
       for (const kpi of STANDARD_KPIS) {
         const m = await sequelize.models.KpiMaster.create({
@@ -860,11 +869,16 @@ export const getSalespersonKpis = async (req: Request, res: Response) => {
           targetValue: kpi.defaultVal,
           frequency: kpi.freq,
           weightage: kpi.weight,
-          isActive: true
+          isActive: true,
+          teamLeadId: null, // auto-populated KPIs are always global
         });
         createdMasters.push(m);
       }
-      kpiMasters = createdMasters;
+      // Merge: keep any existing team KPIs, add the newly seeded global ones
+      kpiMasters = [
+        ...createdMasters,
+        ...kpiMasters.filter((m: any) => m.teamLeadId !== null),
+      ];
     }
 
     // 2. Fetch saved targets for salesperson
@@ -1049,7 +1063,8 @@ export const getSalespersonKpis = async (req: Request, res: Response) => {
 export const editKpiTarget = async (req: Request, res: Response) => {
   try {
     const caller = (req as any).user;
-    if (!caller || !["admin", "director", "manager"].includes(caller.role)) {
+    const callerRole: string = caller?.role ?? "";
+    if (!caller || !["admin", "director", "manager", "sales_manager"].includes(callerRole)) {
       res.status(403).json({ error: "Forbidden: Only Admin or Managers can edit targets" });
       return;
     }
@@ -1061,6 +1076,17 @@ export const editKpiTarget = async (req: Request, res: Response) => {
     if (!kpi) {
       res.status(404).json({ error: "KPI target not found" });
       return;
+    }
+
+    // Manager scoping: managers can only edit targets belonging to their own direct reports
+    if (["manager", "sales_manager"].includes(callerRole)) {
+      const targetOwner = await sequelize.models.User.findByPk((kpi as any).salespersonId, {
+        attributes: ["id", "managerId"],
+      });
+      if (!targetOwner || (targetOwner as any).managerId !== caller.id) {
+        res.status(403).json({ error: "Forbidden: You can only edit targets for your own direct reports" });
+        return;
+      }
     }
 
     // Check if target is locked
@@ -1162,8 +1188,12 @@ export const restoreKpiHistory = async (req: Request, res: Response) => {
 export const bulkAssignTargets = async (req: Request, res: Response) => {
   try {
     const caller = (req as any).user;
-    if (!caller || !["admin", "director"].includes(caller.role)) {
-      res.status(403).json({ error: "Forbidden: Only admins can bulk assign targets" });
+    const callerRole: string = caller?.role ?? "";
+    const isAdminOrDirector = ["admin", "director"].includes(callerRole);
+    const isManagerRole = ["manager", "sales_manager"].includes(callerRole);
+
+    if (!caller || (!isAdminOrDirector && !isManagerRole)) {
+      res.status(403).json({ error: "Forbidden: Only admins or managers can bulk assign targets" });
       return;
     }
 
@@ -1180,6 +1210,11 @@ export const bulkAssignTargets = async (req: Request, res: Response) => {
     } else {
       if (department) whereUser.department = department;
       if (team) whereUser.team = team;
+    }
+
+    // Managers can only assign to their own direct reports, regardless of filters passed
+    if (isManagerRole) {
+      whereUser.managerId = caller.id;
     }
 
     // Find all matching users
@@ -1234,13 +1269,28 @@ export const bulkAssignTargets = async (req: Request, res: Response) => {
 export const lockKpiTargets = async (req: Request, res: Response) => {
   try {
     const caller = (req as any).user;
-    if (!caller || !["admin", "director"].includes(caller.role)) {
-      res.status(403).json({ error: "Forbidden" });
+    const callerRole: string = caller?.role ?? "";
+    const isAdminOrDirector = ["admin", "director"].includes(callerRole);
+    const isManagerRole = ["manager", "sales_manager"].includes(callerRole);
+
+    if (!caller || (!isAdminOrDirector && !isManagerRole)) {
+      res.status(403).json({ error: "Forbidden: Only admins or managers can lock targets" });
       return;
     }
 
     const { salespersonId, status } = req.body; // status: 'Locked' or 'Active'
-    
+
+    // Managers can only lock/unlock targets for their own direct reports
+    if (isManagerRole) {
+      const targetRep = await sequelize.models.User.findByPk(salespersonId, {
+        attributes: ["id", "managerId"],
+      });
+      if (!targetRep || (targetRep as any).managerId !== caller.id) {
+        res.status(403).json({ error: "Forbidden: You can only lock targets for your own direct reports" });
+        return;
+      }
+    }
+
     await sequelize.models.KpiTarget.update(
       { status: status === "Locked" ? "Locked" : "Active" },
       { where: { salespersonId } }
