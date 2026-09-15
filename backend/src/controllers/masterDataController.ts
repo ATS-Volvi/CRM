@@ -139,6 +139,8 @@ export const getLineItems = async (req: Request, res: Response) => {
 export const createLineItem = async (req: Request, res: Response) => {
   try {
     const { requirementId, name, unit, description, defaultQuantity, price } = req.body;
+    const parsedPrice = price !== undefined && price !== null && price !== "" ? Number(price) : null;
+
     const item = await LineItem.create({
       id: crypto.randomUUID(),
       requirementId,
@@ -146,8 +148,22 @@ export const createLineItem = async (req: Request, res: Response) => {
       unit,
       description,
       defaultQuantity: defaultQuantity || 1,
-      price: price !== undefined && price !== null && price !== "" ? Number(price) : null
+      price: parsedPrice
     });
+
+    // Auto-create a corresponding ConstructionItem so it appears immediately in the Pricing Grid
+    await ConstructionItem.create({
+      id: crypto.randomUUID(),
+      lineItemId: item.id,
+      name,
+      category: "material",
+      unit: unit || "nos",
+      quantityPerLineItem: 1,
+      unitCost: 0,
+      unitPrice: parsedPrice || 0,
+      isActive: true
+    });
+
     res.status(201).json(item);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -159,12 +175,37 @@ export const updateLineItem = async (req: Request, res: Response) => {
     const { id } = req.params;
     const item = await LineItem.findByPk(String(id));
     if (!item) return res.status(404).json({ error: "Line Item not found" });
-    const { price } = req.body;
+
+    const { price, name, unit } = req.body;
     const updateData = { ...req.body };
     if (price !== undefined) {
       updateData.price = price !== null && price !== "" ? Number(price) : null;
     }
     await item.update(updateData);
+
+    // Sync to linked ConstructionItem
+    const parsedPrice = price !== undefined ? (price !== null && price !== "" ? Number(price) : 0) : undefined;
+    const ci = await ConstructionItem.findOne({ where: { lineItemId: item.id } });
+    if (ci) {
+      await ci.update({
+        name: name || item.name,
+        unit: unit || item.unit,
+        ...(parsedPrice !== undefined ? { unitPrice: parsedPrice } : {})
+      });
+    } else {
+      await ConstructionItem.create({
+        id: crypto.randomUUID(),
+        lineItemId: item.id,
+        name: item.name,
+        category: "material",
+        unit: item.unit || "nos",
+        quantityPerLineItem: 1,
+        unitCost: 0,
+        unitPrice: parsedPrice || 0,
+        isActive: true
+      });
+    }
+
     res.json(item);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -312,6 +353,28 @@ export const getRequirementRollup = async (req: Request, res: Response) => {
 export const getPricingGrid = async (req: Request, res: Response) => {
   try {
     const { search, requirementId } = req.query;
+
+    // Auto-create missing ConstructionItems for any LineItems that do not have one
+    const allLineItems = await LineItem.findAll({
+      include: [{ model: ConstructionItem, as: "constructionItems" }]
+    });
+    for (const li of allLineItems) {
+      const json = li.toJSON() as any;
+      if (!json.constructionItems || json.constructionItems.length === 0) {
+        await ConstructionItem.create({
+          id: crypto.randomUUID(),
+          lineItemId: li.id,
+          name: li.name,
+          category: "material",
+          unit: li.unit || "nos",
+          quantityPerLineItem: 1,
+          unitCost: 0,
+          unitPrice: li.price ? Number(li.price) : 0,
+          isActive: true
+        });
+      }
+    }
+
     const where: any = {};
 
     if (search) {
@@ -319,7 +382,7 @@ export const getPricingGrid = async (req: Request, res: Response) => {
     }
 
     const lineItemWhere: any = {};
-    const hasRequirementFilter = !!requirementId;
+    const hasRequirementFilter = !!requirementId && requirementId !== "All";
     if (hasRequirementFilter) {
       lineItemWhere.requirementId = requirementId;
     }
@@ -366,10 +429,21 @@ export const updateConstructionItemPricing = async (req: Request, res: Response)
     const item = await ConstructionItem.findByPk(String(id));
     if (!item) return res.status(404).json({ error: "Construction Item not found" });
 
+    const newCost = unitCost !== undefined ? parseFloat(unitCost) : item.unitCost;
+    const newPrice = unitPrice !== undefined ? parseFloat(unitPrice) : item.unitPrice;
+
     await item.update({
-      unitCost: unitCost !== undefined ? parseFloat(unitCost) : item.unitCost,
-      unitPrice: unitPrice !== undefined ? parseFloat(unitPrice) : item.unitPrice
+      unitCost: newCost,
+      unitPrice: newPrice
     });
+
+    // Also update parent LineItem price
+    if (unitPrice !== undefined) {
+      const lineItem = await LineItem.findByPk(item.lineItemId);
+      if (lineItem) {
+        await lineItem.update({ price: newPrice });
+      }
+    }
 
     res.json(item);
   } catch (error: any) {

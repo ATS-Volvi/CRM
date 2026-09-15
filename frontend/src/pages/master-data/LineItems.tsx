@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { Plus, Edit2, Trash2, Sliders, Check, X } from "lucide-react";
 import { MasterDataNav } from "../../components/MasterDataNav";
+import { formatCurrency } from "../../utils/currency";
 
 export default function LineItems() {
   const { token } = useAuth();
