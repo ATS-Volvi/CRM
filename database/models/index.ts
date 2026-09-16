@@ -1415,6 +1415,7 @@ export class KpiTarget extends Model {
   public id!: string;
   public salespersonId!: string;
   public kpiName!: string;
+  public kpiMasterId!: string | null;
   public targetValue!: number;
   public currentValue!: number;
   public frequency!: string;
@@ -1433,6 +1434,7 @@ KpiTarget.init(
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
     salespersonId: { type: DataTypes.UUID, allowNull: false },
     kpiName: { type: DataTypes.STRING, allowNull: false },
+    kpiMasterId: { type: DataTypes.UUID, allowNull: true, defaultValue: null },
     targetValue: { type: DataTypes.FLOAT, defaultValue: 0 },
     currentValue: { type: DataTypes.FLOAT, defaultValue: 0 },
     frequency: { type: DataTypes.STRING, defaultValue: "monthly" },
@@ -1508,6 +1510,10 @@ KpiMaster.init(
 // Team-lead scoping association
 KpiMaster.belongsTo(User, { foreignKey: "teamLeadId", as: "teamLead" });
 User.hasMany(KpiMaster, { foreignKey: "teamLeadId", as: "teamKpis" });
+
+// KpiTarget <-> KpiMaster link association
+KpiTarget.belongsTo(KpiMaster, { foreignKey: "kpiMasterId", as: "master" });
+KpiMaster.hasMany(KpiTarget, { foreignKey: "kpiMasterId", as: "targets" });
 
 export class GmailConfig extends Model {
   public id!: string;

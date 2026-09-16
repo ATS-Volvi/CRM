@@ -748,7 +748,8 @@ export const getAllSalespersons = async (req: Request, res: Response) => {
         "territory",
         "status",
         "managerId",
-        "teamType"
+        "teamType",
+        "team"
       ],
       order: [["name", "ASC"]]
     });
@@ -896,6 +897,7 @@ export const getSalespersonKpis = async (req: Request, res: Response) => {
         const t = await sequelize.models.KpiTarget.create({
           id: crypto.randomUUID(),
           salespersonId: id,
+          kpiMasterId: (master as any).id,
           kpiName: (master as any).name,
           targetValue: (master as any).targetValue,
           currentValue: 0,
@@ -908,6 +910,9 @@ export const getSalespersonKpis = async (req: Request, res: Response) => {
         });
         matchedTargets.push(t);
       } else {
+        if (!(existing as any).kpiMasterId && (master as any).id) {
+          await (existing as any).update({ kpiMasterId: (master as any).id });
+        }
         matchedTargets.push(existing);
       }
     }
@@ -1070,7 +1075,7 @@ export const editKpiTarget = async (req: Request, res: Response) => {
     }
 
     const kpiId = req.params.kpiId as string;
-    const { targetValue, frequency, weightage, effectiveDate, expiryDate, notes, reason } = req.body;
+    const { targetValue, frequency, weightage, effectiveDate, expiryDate, notes, reason, kpiMasterId } = req.body;
 
     const kpi = await sequelize.models.KpiTarget.findByPk(kpiId);
     if (!kpi) {
@@ -1098,7 +1103,7 @@ export const editKpiTarget = async (req: Request, res: Response) => {
     const oldVal = (kpi as any).targetValue;
 
     // Update target
-    await kpi.update({
+    const updateData: any = {
       targetValue: targetValue !== undefined ? Number(targetValue) : (kpi as any).targetValue,
       frequency: frequency || (kpi as any).frequency,
       weightage: weightage !== undefined ? Number(weightage) : (kpi as any).weightage,
@@ -1106,7 +1111,11 @@ export const editKpiTarget = async (req: Request, res: Response) => {
       expiryDate: expiryDate || (kpi as any).expiryDate,
       notes: notes || (kpi as any).notes,
       createdBy: caller.id
-    });
+    };
+    if (kpiMasterId !== undefined) {
+      updateData.kpiMasterId = kpiMasterId;
+    }
+    await kpi.update(updateData);
 
     // Write to audit history
     await sequelize.models.KpiTargetHistory.create({
@@ -1197,19 +1206,32 @@ export const bulkAssignTargets = async (req: Request, res: Response) => {
       return;
     }
 
-    const { kpiName, targetValue, frequency, weightage, department, team, salespersonIds } = req.body;
+    const { kpiName, targetValue, frequency, weightage, department, team, salespersonIds, kpiMasterId } = req.body;
 
     if (!kpiName || targetValue === undefined) {
       res.status(400).json({ error: "kpiName and targetValue are required" });
       return;
     }
 
+    const hasSalespersonIds = Array.isArray(salespersonIds) && salespersonIds.length > 0;
+    const hasDepartment = typeof department === "string" && department.trim().length > 0;
+    const hasTeam = typeof team === "string" && team.trim().length > 0;
+
+    // Admin/Director must provide at least one scope (salespersonIds, department, or team)
+    // to prevent accidental unbounded mass assignment across all users in the organization.
+    if (isAdminOrDirector && !hasSalespersonIds && !hasDepartment && !hasTeam) {
+      res.status(400).json({
+        error: "Scope is required: Please provide salespersonIds, team, or department to scope the bulk assignment."
+      });
+      return;
+    }
+
     const whereUser: any = {};
-    if (salespersonIds && Array.isArray(salespersonIds) && salespersonIds.length > 0) {
+    if (hasSalespersonIds) {
       whereUser.id = { [Op.in]: salespersonIds };
     } else {
-      if (department) whereUser.department = department;
-      if (team) whereUser.team = team;
+      if (hasDepartment) whereUser.department = department.trim();
+      if (hasTeam) whereUser.team = team.trim();
     }
 
     // Managers can only assign to their own direct reports, regardless of filters passed
@@ -1229,16 +1251,21 @@ export const bulkAssignTargets = async (req: Request, res: Response) => {
       const oldVal = kpi ? (kpi as any).targetValue : 0;
 
       if (kpi) {
-        await kpi.update({
+        const updateData: any = {
           targetValue: Number(targetValue),
           frequency: frequency || (kpi as any).frequency,
           weightage: weightage !== undefined ? Number(weightage) : (kpi as any).weightage,
           createdBy: caller.id
-        });
+        };
+        if (kpiMasterId !== undefined) {
+          updateData.kpiMasterId = kpiMasterId;
+        }
+        await kpi.update(updateData);
       } else {
         kpi = await sequelize.models.KpiTarget.create({
           id: crypto.randomUUID(),
           salespersonId: (u as any).id,
+          kpiMasterId: kpiMasterId || null,
           kpiName,
           targetValue: Number(targetValue),
           currentValue: 0,
@@ -1255,7 +1282,7 @@ export const bulkAssignTargets = async (req: Request, res: Response) => {
         oldValue: oldVal,
         newValue: Number(targetValue),
         changedBy: caller.id,
-        reason: `Bulk assigned target by ${department ? 'department: ' + department : team ? 'team: ' + team : 'admin select'}`,
+        reason: `Bulk assigned target by ${hasDepartment ? 'department: ' + department : hasTeam ? 'team: ' + team : 'selected reps'}`,
         changeDate: new Date()
       });
     }
