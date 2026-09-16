@@ -150,7 +150,7 @@ export default function Pricing() {
               : "text-on-surface-variant hover:bg-surface-container"
           }`}
         >
-          All Categories
+          All Service Types
         </button>
         {requirements?.map(req => (
           <button
@@ -173,7 +173,7 @@ export default function Pricing() {
           <thead>
             <tr className="border-b border-outline-variant bg-surface-container-low text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">
               <th className="px-6 py-3.5">Component / Item</th>
-              <th className="px-6 py-3.5">Category</th>
+              <th className="px-6 py-3.5">Cost Type</th>
               <th className="px-6 py-3.5">Unit</th>
               <th className="px-6 py-3.5 text-right">Procurement Cost</th>
               <th className="px-6 py-3.5 text-right">Target Sell Price</th>

@@ -211,7 +211,7 @@ export default function ConstructionItems() {
             </div>
 
             <div>
-              <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Category</label>
+              <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Cost Type</label>
               <select 
                 value={formData.category}
                 onChange={e => setFormData({ ...formData, category: e.target.value })}
@@ -290,7 +290,7 @@ export default function ConstructionItems() {
             <tr className="border-b border-outline-variant bg-surface-container-low text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">
               <th className="w-8"></th>
               <th className="px-6 py-3.5">Name</th>
-              <th className="px-6 py-3.5">Category</th>
+              <th className="px-6 py-3.5">Cost Type</th>
               <th className="px-6 py-3.5">Unit</th>
               <th className="px-6 py-3.5">Cost & Price</th>
               <th className="px-6 py-3.5">Status</th>
@@ -387,13 +387,13 @@ export default function ConstructionItems() {
                             </div>
                             
                             <div>
-                              <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Category</label>
+                              <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Cost Type</label>
                               <select 
                                 value={editFormData.category}
                                 onChange={e => {
                                   const newValue = e.target.value;
                                   if (newValue !== editFormData.category) {
-                                    const confirmed = window.confirm(`Change category from "${editFormData.category}" to "${newValue}"? This affects cost breakdowns and reporting groupings for this item.`);
+                                    const confirmed = window.confirm(`Change cost type from "${editFormData.category}" to "${newValue}"? This affects cost breakdowns and reporting groupings for this item.`);
                                     if (!confirmed) return;
                                   }
                                   setEditFormData({ ...editFormData, category: newValue });
