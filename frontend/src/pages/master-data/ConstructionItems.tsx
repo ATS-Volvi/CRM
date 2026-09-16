@@ -58,6 +58,7 @@ export default function ConstructionItems() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["constructionItems"] });
+      queryClient.invalidateQueries({ queryKey: ["lineItemsAll"] });
       setIsFormOpen(false);
       setExpandedId(null);
       setEditFormData(null);
@@ -76,6 +77,7 @@ export default function ConstructionItems() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["constructionItems"] });
+      queryClient.invalidateQueries({ queryKey: ["lineItemsAll"] });
       setExpandedId(null);
     }
   });

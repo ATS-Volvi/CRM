@@ -74,6 +74,7 @@ export default function Pricing() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pricingGrid"] });
+      queryClient.invalidateQueries({ queryKey: ["lineItemsAll"] });
     }
   });
 
