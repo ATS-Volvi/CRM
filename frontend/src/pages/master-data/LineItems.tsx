@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { Plus, Edit2, Trash2, Sliders, Check, X } from "lucide-react";
 import { MasterDataNav } from "../../components/MasterDataNav";
+import { formatCurrency } from "../../utils/currency";
 
 export default function LineItems() {
   const { token } = useAuth();
@@ -274,7 +275,9 @@ export default function LineItems() {
                   placeholder="e.g. 100.00"
                   className="w-full bg-surface border border-outline rounded-lg p-2.5 text-xs font-semibold focus:outline-none"
                 />
-                <p className="text-[10px] text-on-surface-variant mt-1">Creates a starter Construction Item automatically, so the rollup price populates without a separate step. Add more BOM components later on the Construction Items screen.</p>
+                <p className="text-[10px] text-on-surface-variant mt-1">
+                  One-time starter value. Creating a starter Construction Item turns the price shown in the table into a live BOM rollup instead of a static number. Going forward, cost/price edits should happen on the Construction Items or Pricing Grid screens — both of which stay in sync with each other and with this table, since they all read the same ConstructionItem records.
+                </p>
               </div>
             )}
 
@@ -347,7 +350,29 @@ export default function LineItems() {
                   <td className="px-6 py-3 text-on-surface-variant text-xs font-medium">{li.unit}</td>
                   <td className="px-6 py-3 text-center text-on-surface font-semibold">{li.defaultQuantity}</td>
                   <td className="px-6 py-3 text-right text-on-surface font-semibold text-xs">
-                    {li.price !== null && li.price !== undefined && li.price !== "" ? `₹${Number(li.price).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
+                    {li.constructionItems && li.constructionItems.length > 0 ? (
+                      <div 
+                        title={`Rolled up live from ${li.constructionItems.length} BOM ${li.constructionItems.length === 1 ? "component" : "components"} — edit on Construction Items or Pricing Grid.`}
+                        className="cursor-help inline-block"
+                      >
+                        <div>{formatCurrency(li.totalPrice)}</div>
+                        <div className="text-[9px] font-bold text-on-surface-variant normal-case tracking-normal">
+                          rolled up · {li.constructionItems.length} BOM {li.constructionItems.length === 1 ? "item" : "items"}
+                        </div>
+                      </div>
+                    ) : li.price !== null && li.price !== undefined && li.price !== "" ? (
+                      <div 
+                        title="No BOM components yet — this is a manually-entered price, not a rollup."
+                        className="cursor-help inline-block"
+                      >
+                        <div>{formatCurrency(li.price)}</div>
+                        <div className="text-[9px] font-bold text-on-surface-variant normal-case tracking-normal">
+                          manual · no BOM yet
+                        </div>
+                      </div>
+                    ) : (
+                      "—"
+                    )}
                   </td>
                   <td className="px-6 py-3 text-right">
                     <div className="flex gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
