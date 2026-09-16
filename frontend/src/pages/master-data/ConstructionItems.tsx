@@ -390,7 +390,14 @@ export default function ConstructionItems() {
                               <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Category</label>
                               <select 
                                 value={editFormData.category}
-                                onChange={e => setEditFormData({ ...editFormData, category: e.target.value })}
+                                onChange={e => {
+                                  const newValue = e.target.value;
+                                  if (newValue !== editFormData.category) {
+                                    const confirmed = window.confirm(`Change category from "${editFormData.category}" to "${newValue}"? This affects cost breakdowns and reporting groupings for this item.`);
+                                    if (!confirmed) return;
+                                  }
+                                  setEditFormData({ ...editFormData, category: newValue });
+                                }}
                                 className="w-full bg-surface border border-outline rounded-lg p-2.5 text-xs font-semibold focus:outline-none"
                               >
                                 <option value="material">Material</option>
