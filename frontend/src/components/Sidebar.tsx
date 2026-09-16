@@ -60,6 +60,7 @@ export function Sidebar({
         { label: "Opportunities", path: "/opportunities", icon: Target },
         { label: "Pipeline", path: "/pipeline", icon: Trello },
         { label: "Quotes", path: "/quotes", icon: FileText },
+        { label: "KPI Performance", path: "/kpi/team-performance", icon: Target },
       ]
     },
     { label: "Approval Queue & Limits", path: "/approvals", icon: Shield },
