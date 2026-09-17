@@ -157,7 +157,6 @@ export async function ingestLead(rawPayload: LeadPayload) {
           company: companyName,
           source: payload.source || 'Website',
           sourceDetail: payload.sourceDetail || null,
-          campaign: payload.campaign || null,
           industry: payload.industry || null,
           body: payload.message || null,
           status: "NEW",

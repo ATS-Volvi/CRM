@@ -39,6 +39,7 @@ export class User extends Model {
   public createdByUserId!: string | null;
   public phone!: string | null;
   public teamType!: string | null; // "PRESALES" | "SALES" | null
+  public tier!: string | null;
 }
 
 User.init(
@@ -48,6 +49,7 @@ User.init(
     email: { type: DataTypes.STRING, allowNull: false, unique: true },
     password: { type: DataTypes.STRING, allowNull: false },
     role: { type: DataTypes.STRING, defaultValue: "sales_rep" },
+    tier: { type: DataTypes.STRING, allowNull: true },
     maxOpenLeads: { type: DataTypes.INTEGER, defaultValue: 20 },
     maxActiveOpportunities: { type: DataTypes.INTEGER, defaultValue: 10 },
     maxOpenDeals: { type: DataTypes.INTEGER, allowNull: true },
@@ -94,7 +96,6 @@ export class Lead extends Model {
   public assignedToId!: string | null;
   public leadScore!: number;
   public sourceDetail!: string | null;
-  public campaign!: string | null;
   public rawPayload!: string | null;
   public isStrategic!: boolean | null;
   public optedOutEmail!: boolean;
@@ -169,7 +170,6 @@ Lead.init(
     industry: { type: DataTypes.STRING, allowNull: true },
     leadScore: { type: DataTypes.INTEGER, defaultValue: 50 },
     sourceDetail: { type: DataTypes.STRING, allowNull: true },
-    campaign: { type: DataTypes.STRING, allowNull: true },
     rawPayload: { type: DataTypes.TEXT, allowNull: true },
     isStrategic: { type: DataTypes.BOOLEAN, defaultValue: false },
     optedOutEmail: { type: DataTypes.BOOLEAN, defaultValue: false },
@@ -1207,6 +1207,9 @@ export class Account extends Model {
   public industry!: string | null;
   public birthday!: string | null;
   public anniversaryDate!: string | null;
+  public parentAccountId!: string | null;
+  public revenue!: number | null;
+  public employeeCount!: number | null;
 }
 
 Account.init(
@@ -1219,9 +1222,37 @@ Account.init(
     address: { type: DataTypes.TEXT, allowNull: true },
     industry: { type: DataTypes.STRING, allowNull: true },
     birthday: { type: DataTypes.DATEONLY, allowNull: true },
-    anniversaryDate: { type: DataTypes.DATEONLY, allowNull: true }
+    anniversaryDate: { type: DataTypes.DATEONLY, allowNull: true },
+    parentAccountId: { type: DataTypes.UUID, allowNull: true },
+    revenue: { type: DataTypes.DECIMAL(15, 2), allowNull: true },
+    employeeCount: { type: DataTypes.INTEGER, allowNull: true }
   },
   { sequelize, modelName: "Account", tableName: "Accounts" }
+);
+
+export class Subscription extends Model {
+  public id!: string;
+  public accountId!: string;
+  public planName!: string;
+  public status!: string;
+  public startDate!: Date;
+  public endDate!: Date | null;
+  public mrr!: number;
+  public billingCycle!: string;
+}
+
+Subscription.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    accountId: { type: DataTypes.UUID, allowNull: false },
+    planName: { type: DataTypes.STRING, allowNull: false },
+    status: { type: DataTypes.ENUM("Active", "Past Due", "Canceled", "Trialing"), defaultValue: "Active" },
+    startDate: { type: DataTypes.DATEONLY, allowNull: false },
+    endDate: { type: DataTypes.DATEONLY, allowNull: true },
+    mrr: { type: DataTypes.DECIMAL(15, 2), allowNull: false, defaultValue: 0 },
+    billingCycle: { type: DataTypes.ENUM("Monthly", "Quarterly", "Annual"), defaultValue: "Monthly" }
+  },
+  { sequelize, modelName: "Subscription", tableName: "Subscriptions" }
 );
 
 // ── Coaching Notes ───────────────────────────────────────────────────────────
@@ -1514,7 +1545,6 @@ User.hasMany(KpiMaster, { foreignKey: "teamLeadId", as: "teamKpis" });
 // KpiTarget <-> KpiMaster link association
 KpiTarget.belongsTo(KpiMaster, { foreignKey: "kpiMasterId", as: "master" });
 KpiMaster.hasMany(KpiTarget, { foreignKey: "kpiMasterId", as: "targets" });
-
 export class GmailConfig extends Model {
   public id!: string;
   public connectedEmail!: string;
@@ -1925,6 +1955,258 @@ Asset.hasMany(SupportTicket, { foreignKey: "assetId", as: "supportTickets" });
 SupportTicket.belongsTo(User, { foreignKey: "raisedBy", as: "raisedByUser" });
 User.hasMany(SupportTicket, { foreignKey: "raisedBy", as: "supportTicketsRaised" });
 
+// ─── Field Service Models & Associations ──────────────────────────────────────
+
+export type WorkOrderStatus = "New" | "In Progress" | "On Hold" | "Completed" | "Cannot Complete" | "Closed" | "Canceled" | string;
+export type WorkOrderPriority = "Low" | "Medium" | "High" | "Critical" | string;
+export type ServiceAppointmentStatus = "New" | "Scheduled" | "Dispatched" | "In Progress" | "Completed" | "Cannot Complete" | "Canceled" | string;
+
+export class ServiceResource extends Model {
+  public id!: string;
+  public name!: string;
+  public resourceType!: string;
+  public userId!: string | null;
+  public description!: string | null;
+  public isActive!: boolean;
+  public location!: string | null;
+  public email!: string | null;
+  public phone!: string | null;
+  public createdAt!: Date;
+  public updatedAt!: Date;
+}
+
+ServiceResource.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    name: { type: DataTypes.STRING, allowNull: false },
+    resourceType: { type: DataTypes.STRING, allowNull: false, defaultValue: "Technician" },
+    userId: { type: DataTypes.UUID, allowNull: true },
+    description: { type: DataTypes.TEXT, allowNull: true },
+    isActive: { type: DataTypes.BOOLEAN, defaultValue: true },
+    location: { type: DataTypes.STRING, allowNull: true },
+    email: { type: DataTypes.STRING, allowNull: true },
+    phone: { type: DataTypes.STRING, allowNull: true },
+  },
+  { sequelize, modelName: "ServiceResource", tableName: "ServiceResources" }
+);
+
+export class WorkOrder extends Model {
+  public id!: string;
+  public workOrderNumber!: string | null;
+  public status!: WorkOrderStatus;
+  public priority!: WorkOrderPriority;
+  public subject!: string | null;
+  public description!: string | null;
+  public accountId!: string | null;
+  public contactId!: string | null;
+  public dealId!: string | null;
+  public assetId!: string | null;
+  public supportTicketId!: string | null;
+  public ownerId!: string | null;
+  public startDate!: Date | null;
+  public endDate!: Date | null;
+  public duration!: number | null;
+  public durationInHours!: number | null;
+  public subtotal!: number;
+  public totalPrice!: number;
+  public tax!: number;
+  public grandTotal!: number;
+  public street!: string | null;
+  public city!: string | null;
+  public state!: string | null;
+  public postalCode!: string | null;
+  public country!: string | null;
+  public latitude!: number | null;
+  public longitude!: number | null;
+  public createdAt!: Date;
+  public updatedAt!: Date;
+}
+
+WorkOrder.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    workOrderNumber: { type: DataTypes.STRING, allowNull: true },
+    status: { type: DataTypes.STRING, allowNull: false, defaultValue: "New" },
+    priority: { type: DataTypes.STRING, allowNull: false, defaultValue: "Medium" },
+    subject: { type: DataTypes.STRING, allowNull: true },
+    description: { type: DataTypes.TEXT, allowNull: true },
+    accountId: { type: DataTypes.UUID, allowNull: true },
+    contactId: { type: DataTypes.UUID, allowNull: true },
+    dealId: { type: DataTypes.UUID, allowNull: true },
+    assetId: { type: DataTypes.UUID, allowNull: true },
+    supportTicketId: { type: DataTypes.UUID, allowNull: true },
+    ownerId: { type: DataTypes.UUID, allowNull: true },
+    startDate: { type: DataTypes.DATE, allowNull: true },
+    endDate: { type: DataTypes.DATE, allowNull: true },
+    duration: { type: DataTypes.DECIMAL(10, 2), allowNull: true },
+    durationInHours: { type: DataTypes.DECIMAL(10, 2), allowNull: true },
+    subtotal: { type: DataTypes.DECIMAL(12, 2), defaultValue: 0 },
+    totalPrice: { type: DataTypes.DECIMAL(12, 2), defaultValue: 0 },
+    tax: { type: DataTypes.DECIMAL(12, 2), defaultValue: 0 },
+    grandTotal: { type: DataTypes.DECIMAL(12, 2), defaultValue: 0 },
+    street: { type: DataTypes.TEXT, allowNull: true },
+    city: { type: DataTypes.STRING, allowNull: true },
+    state: { type: DataTypes.STRING, allowNull: true },
+    postalCode: { type: DataTypes.STRING, allowNull: true },
+    country: { type: DataTypes.STRING, allowNull: true },
+    latitude: { type: DataTypes.DECIMAL(9, 6), allowNull: true },
+    longitude: { type: DataTypes.DECIMAL(9, 6), allowNull: true },
+  },
+  { sequelize, modelName: "WorkOrder", tableName: "WorkOrders" }
+);
+
+export class WorkOrderLineItem extends Model {
+  public id!: string;
+  public workOrderId!: string;
+  public lineItemNumber!: string | null;
+  public status!: WorkOrderStatus;
+  public description!: string | null;
+  public assetId!: string | null;
+  public priceBookEntryId!: string | null;
+  public quantity!: number;
+  public unitPrice!: number;
+  public totalPrice!: number;
+  public startDate!: Date | null;
+  public endDate!: Date | null;
+  public duration!: number | null;
+  public durationInHours!: number | null;
+  public createdAt!: Date;
+  public updatedAt!: Date;
+}
+
+WorkOrderLineItem.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    workOrderId: { type: DataTypes.UUID, allowNull: false },
+    lineItemNumber: { type: DataTypes.STRING, allowNull: true },
+    status: { type: DataTypes.STRING, allowNull: false, defaultValue: "New" },
+    description: { type: DataTypes.TEXT, allowNull: true },
+    assetId: { type: DataTypes.UUID, allowNull: true },
+    priceBookEntryId: { type: DataTypes.UUID, allowNull: true },
+    quantity: { type: DataTypes.DECIMAL(10, 2), defaultValue: 1 },
+    unitPrice: { type: DataTypes.DECIMAL(12, 2), defaultValue: 0 },
+    totalPrice: { type: DataTypes.DECIMAL(12, 2), defaultValue: 0 },
+    startDate: { type: DataTypes.DATE, allowNull: true },
+    endDate: { type: DataTypes.DATE, allowNull: true },
+    duration: { type: DataTypes.DECIMAL(10, 2), allowNull: true },
+    durationInHours: { type: DataTypes.DECIMAL(10, 2), allowNull: true },
+  },
+  { sequelize, modelName: "WorkOrderLineItem", tableName: "WorkOrderLineItems" }
+);
+
+export class ServiceAppointment extends Model {
+  public id!: string;
+  public appointmentNumber!: string | null;
+  public parentRecordId!: string | null;
+  public workOrderId!: string | null;
+  public workOrderLineItemId!: string | null;
+  public serviceResourceId!: string | null;
+  public contactId!: string | null;
+  public accountId!: string | null;
+  public status!: ServiceAppointmentStatus;
+  public earliestStartTime!: Date | null;
+  public dueDate!: Date | null;
+  public scheduledStartTime!: Date | null;
+  public scheduledEndTime!: Date | null;
+  public actualStartTime!: Date | null;
+  public actualEndTime!: Date | null;
+  public actualDuration!: number | null;
+  public duration!: number | null;
+  public durationInHours!: number | null;
+  public subject!: string | null;
+  public description!: string | null;
+  public street!: string | null;
+  public city!: string | null;
+  public state!: string | null;
+  public postalCode!: string | null;
+  public country!: string | null;
+  public latitude!: number | null;
+  public longitude!: number | null;
+  public createdAt!: Date;
+  public updatedAt!: Date;
+}
+
+ServiceAppointment.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    appointmentNumber: { type: DataTypes.STRING, allowNull: true },
+    parentRecordId: { type: DataTypes.UUID, allowNull: true },
+    workOrderId: { type: DataTypes.UUID, allowNull: true },
+    workOrderLineItemId: { type: DataTypes.UUID, allowNull: true },
+    serviceResourceId: { type: DataTypes.UUID, allowNull: true },
+    contactId: { type: DataTypes.UUID, allowNull: true },
+    accountId: { type: DataTypes.UUID, allowNull: true },
+    status: { type: DataTypes.STRING, allowNull: false, defaultValue: "New" },
+    earliestStartTime: { type: DataTypes.DATE, allowNull: true },
+    dueDate: { type: DataTypes.DATE, allowNull: true },
+    scheduledStartTime: { type: DataTypes.DATE, allowNull: true },
+    scheduledEndTime: { type: DataTypes.DATE, allowNull: true },
+    actualStartTime: { type: DataTypes.DATE, allowNull: true },
+    actualEndTime: { type: DataTypes.DATE, allowNull: true },
+    actualDuration: { type: DataTypes.DECIMAL(10, 2), allowNull: true },
+    duration: { type: DataTypes.DECIMAL(10, 2), allowNull: true },
+    durationInHours: { type: DataTypes.DECIMAL(10, 2), allowNull: true },
+    subject: { type: DataTypes.STRING, allowNull: true },
+    description: { type: DataTypes.TEXT, allowNull: true },
+    street: { type: DataTypes.TEXT, allowNull: true },
+    city: { type: DataTypes.STRING, allowNull: true },
+    state: { type: DataTypes.STRING, allowNull: true },
+    postalCode: { type: DataTypes.STRING, allowNull: true },
+    country: { type: DataTypes.STRING, allowNull: true },
+    latitude: { type: DataTypes.DECIMAL(9, 6), allowNull: true },
+    longitude: { type: DataTypes.DECIMAL(9, 6), allowNull: true },
+  },
+  { sequelize, modelName: "ServiceAppointment", tableName: "ServiceAppointments" }
+);
+
+// WorkOrder Associations
+WorkOrder.belongsTo(Account, { foreignKey: "accountId", as: "account" });
+Account.hasMany(WorkOrder, { foreignKey: "accountId", as: "workOrders" });
+
+WorkOrder.belongsTo(Contact, { foreignKey: "contactId", as: "contact" });
+Contact.hasMany(WorkOrder, { foreignKey: "contactId", as: "workOrders" });
+
+WorkOrder.belongsTo(Deal, { foreignKey: "dealId", as: "deal" });
+Deal.hasMany(WorkOrder, { foreignKey: "dealId", as: "workOrders" });
+
+WorkOrder.belongsTo(Asset, { foreignKey: "assetId", as: "asset" });
+Asset.hasMany(WorkOrder, { foreignKey: "assetId", as: "workOrders" });
+
+WorkOrder.belongsTo(SupportTicket, { foreignKey: "supportTicketId", as: "supportTicket" });
+SupportTicket.hasMany(WorkOrder, { foreignKey: "supportTicketId", as: "workOrders" });
+
+WorkOrder.belongsTo(User, { foreignKey: "ownerId", as: "owner" });
+User.hasMany(WorkOrder, { foreignKey: "ownerId", as: "ownedWorkOrders" });
+
+WorkOrder.hasMany(WorkOrderLineItem, { foreignKey: "workOrderId", as: "lineItems" });
+WorkOrderLineItem.belongsTo(WorkOrder, { foreignKey: "workOrderId", as: "workOrder" });
+
+WorkOrderLineItem.belongsTo(Asset, { foreignKey: "assetId", as: "asset" });
+Asset.hasMany(WorkOrderLineItem, { foreignKey: "assetId", as: "workOrderLineItems" });
+
+WorkOrderLineItem.belongsTo(PriceBookEntry, { foreignKey: "priceBookEntryId", as: "priceBookEntry" });
+PriceBookEntry.hasMany(WorkOrderLineItem, { foreignKey: "priceBookEntryId", as: "workOrderLineItems" });
+
+// ServiceResource Associations
+ServiceResource.belongsTo(User, { foreignKey: "userId", as: "user" });
+User.hasOne(ServiceResource, { foreignKey: "userId", as: "serviceResource" });
+
+ServiceResource.hasMany(ServiceAppointment, { foreignKey: "serviceResourceId", as: "serviceAppointments" });
+ServiceAppointment.belongsTo(ServiceResource, { foreignKey: "serviceResourceId", as: "serviceResource" });
+
+// ServiceAppointment Associations
+WorkOrder.hasMany(ServiceAppointment, { foreignKey: "workOrderId", as: "serviceAppointments" });
+ServiceAppointment.belongsTo(WorkOrder, { foreignKey: "workOrderId", as: "workOrder" });
+
+WorkOrderLineItem.hasMany(ServiceAppointment, { foreignKey: "workOrderLineItemId", as: "serviceAppointments" });
+ServiceAppointment.belongsTo(WorkOrderLineItem, { foreignKey: "workOrderLineItemId", as: "workOrderLineItem" });
+
+ServiceAppointment.belongsTo(Account, { foreignKey: "accountId", as: "account" });
+Account.hasMany(ServiceAppointment, { foreignKey: "accountId", as: "serviceAppointments" });
+
+ServiceAppointment.belongsTo(Contact, { foreignKey: "contactId", as: "contact" });
+Contact.hasMany(ServiceAppointment, { foreignKey: "contactId", as: "serviceAppointments" });
+
 export class LeadContact extends Model {
   public id!: string;
   public leadId!: string;
@@ -2194,6 +2476,24 @@ WorkspaceSetting.init(
 );
 
 // ─── Campaign & Marketing Attribution Models ─────────────────────────────────
+
+export class CampaignMember extends Model {
+  public id!: string;
+  public campaignId!: string;
+  public leadId!: string;
+  public status!: string;
+}
+
+CampaignMember.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    campaignId: { type: DataTypes.UUID, allowNull: false },
+    leadId: { type: DataTypes.UUID, allowNull: false },
+    status: { type: DataTypes.ENUM("Sent", "Responded", "Converted", "Opted Out"), defaultValue: "Sent" }
+  },
+  { sequelize, modelName: "CampaignMember", tableName: "CampaignMembers" }
+);
+
 export class Campaign extends Model {
   public id!: string;
   public name!: string;
@@ -2482,5 +2782,17 @@ FulfillmentItem.belongsTo(PriceBookEntry, { foreignKey: "productServiceId", as: 
 
 QuoteLineItem.hasMany(FulfillmentItem, { foreignKey: "quoteLineItemId", as: "fulfillmentItems" });
 FulfillmentItem.belongsTo(QuoteLineItem, { foreignKey: "quoteLineItemId", as: "quoteLineItem" });
+
+Account.hasMany(Account, { as: "subsidiaries", foreignKey: "parentAccountId" });
+Account.belongsTo(Account, { as: "parentAccount", foreignKey: "parentAccountId" });
+
+Account.hasMany(Subscription, { foreignKey: "accountId", as: "subscriptions" });
+Subscription.belongsTo(Account, { foreignKey: "accountId", as: "account" });
+
+Campaign.hasMany(CampaignMember, { foreignKey: "campaignId", as: "members" });
+CampaignMember.belongsTo(Campaign, { foreignKey: "campaignId", as: "campaign" });
+
+Lead.hasMany(CampaignMember, { foreignKey: "leadId", as: "campaignMembers" });
+CampaignMember.belongsTo(Lead, { foreignKey: "leadId", as: "lead" });
 
 export { sequelize };

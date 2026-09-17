@@ -64,7 +64,7 @@ export const evaluateQuoteApproval = async (
   let salesRep: any = null;
   if (salesRepId && salesRepId !== "system") {
     salesRep = await sequelize.models.User.findByPk(salesRepId, {
-      attributes: ["id", "name", "email", "role", "managerId", "isAvailable"]
+      attributes: ["id", "name", "email", "role", "tier", "dealValueCutoff", "managerId", "isAvailable"]
     });
   }
 
@@ -90,9 +90,13 @@ export const evaluateQuoteApproval = async (
   const maxTeamLeadDiscount = Number(adminPolicy?.maximumTeamLeadDiscount ?? 0.20);
   const minAllowedMargin = Number(adminPolicy?.minimumAllowedMargin ?? 0.15);
 
+  const repDefaultCutoff = salesRep?.dealValueCutoff !== null && salesRep?.dealValueCutoff !== undefined
+    ? Number(salesRep.dealValueCutoff)
+    : (salesRep?.tier === "executive" ? 250000 : salesRep?.tier === "agent" ? 50000 : 1000000);
+
   // Authority limits for Rep (capped by Admin Policy)
   const repLimit = Math.min(
-    Number(repProfile?.selfApprovalLimit ?? 1000000),
+    Number(repProfile?.selfApprovalLimit ?? repDefaultCutoff),
     maxSalesRepApproval
   );
   const repDiscountLimit = Math.min(
