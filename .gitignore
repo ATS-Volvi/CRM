@@ -8,6 +8,7 @@ build/
 .DS_Store
 .vercel
 *.sqlite
+*.sqlite.backup*
 dev.sqlite
 quote-flow-pro-18/
 frontend/tsconfig.app.tsbuildinfo
