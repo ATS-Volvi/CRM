@@ -55,6 +55,7 @@ import OpportunityDetail from "./pages/OpportunityDetail";
 import AccountDetail from "./pages/AccountDetail";
 import Campaigns from "./pages/Campaigns";
 import SupportTickets from "./pages/SupportTickets";
+import FieldService from "./pages/FieldService";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { Navigate, Outlet } from "react-router-dom";
 
@@ -123,6 +124,8 @@ function App() {
               <Route path="/assets" element={<AssetTracking />} />
               <Route path="/tickets" element={<SupportTickets />} />
               <Route path="/support-tickets" element={<Navigate to="/tickets" replace />} />
+              <Route path="/work-orders" element={<FieldService />} />
+              <Route path="/field-service" element={<Navigate to="/work-orders" replace />} />
               
               {/* Accounts & Contacts */}
               <Route path="/accounts" element={<Accounts />} />
