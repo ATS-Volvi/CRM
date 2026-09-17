@@ -137,6 +137,14 @@ import {
 import { createPayment, getPaymentsForInvoice } from "../controllers/paymentController";
 import { createSupportTicket, listSupportTickets, getSupportTicketById, updateSupportTicket } from "../controllers/supportTicketController";
 import { getInvoiceById } from "../controllers/invoiceController";
+import {
+  getWorkOrders,
+  createWorkOrder,
+  getWorkOrderById,
+  updateWorkOrder,
+  getWorkOrderAppointments,
+  createWorkOrderAppointment
+} from "../controllers/workOrderController";
 
 const router = Router();
 
@@ -839,5 +847,15 @@ router.post("/support-tickets", authMiddleware, createSupportTicket);
 router.get("/support-tickets", authMiddleware, listSupportTickets);
 router.get("/support-tickets/:id", authMiddleware, getSupportTicketById);
 router.put("/support-tickets/:id", authMiddleware, updateSupportTicket);
+
+// ==========================================
+// FIELD SERVICE / WORK ORDERS
+// ==========================================
+router.get("/work-orders", authMiddleware, getWorkOrders);
+router.post("/work-orders", authMiddleware, createWorkOrder);
+router.get("/work-orders/:id", authMiddleware, getWorkOrderById);
+router.put("/work-orders/:id", authMiddleware, updateWorkOrder);
+router.get("/work-orders/:id/appointments", authMiddleware, getWorkOrderAppointments);
+router.post("/work-orders/:id/appointments", authMiddleware, createWorkOrderAppointment);
 
 export default router;

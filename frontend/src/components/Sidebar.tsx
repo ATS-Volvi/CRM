@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Home, Inbox, Trello, FileText, Receipt, 
   Users, BarChart, Settings, Clock, ChevronLeft, 
   ChevronRight, MessageSquare, CheckSquare, Search, Bell, Sparkles, LogOut, ChevronDown, Layers, Package, Building2, LifeBuoy, Target,
-  UserCheck, Shield, Briefcase, Megaphone
+  UserCheck, Shield, Briefcase, Megaphone, Wrench
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
@@ -69,6 +69,7 @@ export function Sidebar({
         { label: "Accounts", path: "/accounts", icon: Building2 },
         { label: "Contacts", path: "/contacts", icon: Users },
         { label: "Business Users", path: "/salespersons", icon: UserCheck },
+        { label: "Work Orders", path: "/work-orders", icon: Wrench },
       ]
     },
     { label: "Settings", path: "/master-data/requirements", icon: Settings },
