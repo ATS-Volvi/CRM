@@ -91,7 +91,7 @@ export const SalesOrbit: React.FC<{
     team: [
       { id: "team_list", label: "All Reps", icon: Users, path: "/salespersons" },
       { id: "assign_rules", label: "Assignment Rules", icon: Filter, path: "/rules" },
-      { id: "performance", label: "KPI Performance", icon: TrendingUp, path: "/kpi text" },
+      { id: "performance", label: "Team Performance", icon: TrendingUp, path: "/salespersons" },
       { id: "ai_coaching", label: "AI Coaching", icon: Sparkles, action: onOpenAi },
     ],
     customers: [

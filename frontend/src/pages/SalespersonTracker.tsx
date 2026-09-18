@@ -9,6 +9,7 @@ import {
   ShieldCheck
 } from "lucide-react";
 import { formatCurrency } from "../utils/currency";
+import KpiAttainmentTable from "../components/KpiAttainmentTable";
 
 interface Salesperson {
   id: string;
@@ -836,6 +837,19 @@ export default function SalespersonTracker() {
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {/* TAB 1 addendum: TEAM KPI ATTAINMENT */}
+      {activeTab === "performance" && (
+        <div className="mt-2 bg-card border border-border rounded-2xl p-6 shadow-2xs">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-base font-bold text-foreground">Team KPI Attainment</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">Live current vs. target breakdown across all reps and KPI categories.</p>
+            </div>
+          </div>
+          <KpiAttainmentTable salespersonId="all" />
         </div>
       )}
 

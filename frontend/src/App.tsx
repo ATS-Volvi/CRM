@@ -6,7 +6,6 @@ import { SalesLayout } from "./components/SalesLayout";
 // Page Imports
 import ManagementDashboard from "./pages/ManagementDashboard";
 import MyDashboard from "./pages/MyDashboard";
-import KpiDashboard from "./pages/KpiDashboard";
 import SalesQueue from "./pages/SalesQueue";
 import LeadInbox from "./pages/LeadInbox";
 import LeadDetail from "./pages/LeadDetail";
@@ -93,7 +92,7 @@ function App() {
               <Route path="/" element={<RoleBasedHome />} />
               <Route path="/home" element={<MyDashboard />} />
               <Route path="/inbox" element={<LeadInbox />} />
-              <Route path="/kpi" element={<KpiDashboard />} />
+              <Route path="/kpi" element={<Navigate to="/salespersons" replace />} />
               
               {/* Pre-Sales Leads Workspace */}
               <Route path="/leads" element={<Leads />} />
