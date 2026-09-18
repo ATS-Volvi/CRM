@@ -6,7 +6,7 @@ export function startReportScheduler() {
   console.log("Weekly Scheduled Report service initialized.");
 }
 
-async function checkAndSendWeeklyReport() {
+export async function checkAndSendWeeklyReport() {
   try {
     const today = new Date();
     // Monday is day 1

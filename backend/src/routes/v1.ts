@@ -858,4 +858,13 @@ router.put("/work-orders/:id", authMiddleware, updateWorkOrder);
 router.get("/work-orders/:id/appointments", authMiddleware, getWorkOrderAppointments);
 router.post("/work-orders/:id/appointments", authMiddleware, createWorkOrderAppointment);
 
+// ==========================================
+// VERCEL SERVERLESS CRON JOBS
+// ==========================================
+import { runHourlyCron, runDailyCron } from "../controllers/cronController";
+router.get("/cron/hourly", runHourlyCron);
+router.post("/cron/hourly", runHourlyCron);
+router.get("/cron/daily", runDailyCron);
+router.post("/cron/daily", runDailyCron);
+
 export default router;
