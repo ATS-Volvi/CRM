@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { Plus, Edit2, Trash2, Sliders, Check, X } from "lucide-react";
 import { MasterDataNav } from "../../components/MasterDataNav";
+import { formatCurrency } from "../../utils/currency";
 
 export default function LineItems() {
   const { token } = useAuth();
@@ -12,7 +13,7 @@ export default function LineItems() {
   const filterReqId = searchParams.get("requirementId") || "All";
 
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [formData, setFormData] = useState<any>({ name: "", requirementId: "", unit: "nos", description: "", defaultQuantity: 1, price: "" });
+  const [formData, setFormData] = useState<any>({ name: "", requirementId: "", unit: "nos", description: "", defaultQuantity: 1, price: "", unitCost: "" });
 
   // Fetch all requirements for tabs and selection dropdown
   const { data: requirements } = useQuery<any[]>({
@@ -46,18 +47,43 @@ export default function LineItems() {
   const saveMutation = useMutation({
     mutationFn: async (data: any) => {
       const isEdit = !!data.id;
+      const { unitCost, ...lineItemPayload } = data;
       const res = await fetch(isEdit ? `/api/v1/master-data/line-items/${data.id}` : "/api/v1/master-data/line-items", {
         method: isEdit ? "PUT" : "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-        body: JSON.stringify(data)
+        body: JSON.stringify(lineItemPayload)
       });
       if (!res.ok) throw new Error(await res.text());
-      return res.json();
+      const savedLineItem = await res.json();
+
+      if (!isEdit && unitCost !== "" && unitCost !== null && unitCost !== undefined) {
+        const parsedCost = parseFloat(unitCost) || 0;
+        const parsedPrice = (data.price !== "" && data.price !== null && data.price !== undefined) ? (parseFloat(data.price) || 0) : 0;
+        const ciRes = await fetch("/api/v1/master-data/construction-items", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+          body: JSON.stringify({
+            lineItemId: savedLineItem.id,
+            name: data.name,
+            category: "material",
+            unit: data.unit || "nos",
+            quantityPerLineItem: 1,
+            unitCost: parsedCost,
+            unitPrice: parsedPrice,
+            isActive: true
+          })
+        });
+        if (!ciRes.ok) throw new Error(await ciRes.text());
+      }
+
+      return savedLineItem;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["lineItemsAll"] });
+      queryClient.invalidateQueries({ queryKey: ["constructionItems"] });
+      queryClient.invalidateQueries({ queryKey: ["pricingGrid"] });
       setIsFormOpen(false);
-      setFormData({ name: "", requirementId: filterReqId !== "All" ? filterReqId : "", unit: "nos", description: "", defaultQuantity: 1, price: "" });
+      setFormData({ name: "", requirementId: filterReqId !== "All" ? filterReqId : "", unit: "nos", description: "", defaultQuantity: 1, price: "", unitCost: "" });
     }
   });
 
@@ -78,7 +104,8 @@ export default function LineItems() {
   const handleEdit = (item: any) => {
     setFormData({
       ...item,
-      price: item.price !== null && item.price !== undefined ? item.price : ""
+      price: item.price !== null && item.price !== undefined ? item.price : "",
+      unitCost: ""
     });
     setIsFormOpen(true);
   };
@@ -121,7 +148,8 @@ export default function LineItems() {
                 unit: "nos", 
                 description: "", 
                 defaultQuantity: 1,
-                price: ""
+                price: "",
+                unitCost: ""
               });
               setIsFormOpen(true);
             }} 
@@ -184,7 +212,16 @@ export default function LineItems() {
               <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Service Type</label>
               <select 
                 value={formData.requirementId}
-                onChange={e => setFormData({ ...formData, requirementId: e.target.value })}
+                onChange={e => {
+                  const newValue = e.target.value;
+                  if (formData.id && newValue !== formData.requirementId) {
+                    const oldName = requirements?.find((r: any) => r.id === formData.requirementId)?.name || formData.requirementId;
+                    const newName = requirements?.find((r: any) => r.id === newValue)?.name || newValue;
+                    const confirmed = window.confirm(`Change Service Type from "${oldName}" to "${newName}"? This moves the item to a different category everywhere it's listed (Pricing Grid, Construction Items tabs, rollups).`);
+                    if (!confirmed) return;
+                  }
+                  setFormData({ ...formData, requirementId: newValue });
+                }}
                 className="w-full bg-surface border border-outline rounded-lg p-2.5 text-xs font-semibold focus:outline-none cursor-pointer"
               >
                 <option value="">Select Service Type</option>
@@ -226,6 +263,23 @@ export default function LineItems() {
                 className="w-full bg-surface border border-outline rounded-lg p-2.5 text-xs font-semibold focus:outline-none"
               />
             </div>
+
+            {!formData.id && (
+              <div>
+                <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Default BOM Cost (Optional)</label>
+                <input 
+                  type="number" 
+                  step="0.01" 
+                  value={formData.unitCost ?? ""}
+                  onChange={e => setFormData({ ...formData, unitCost: e.target.value })}
+                  placeholder="e.g. 100.00"
+                  className="w-full bg-surface border border-outline rounded-lg p-2.5 text-xs font-semibold focus:outline-none"
+                />
+                <p className="text-[10px] text-on-surface-variant mt-1">
+                  One-time starter value. Creating a starter Construction Item turns the price shown in the table into a live BOM rollup instead of a static number. Going forward, cost/price edits should happen on the Construction Items or Pricing Grid screens — both of which stay in sync with each other and with this table, since they all read the same ConstructionItem records.
+                </p>
+              </div>
+            )}
 
             <div className="md:col-span-3">
               <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Description</label>
@@ -296,7 +350,29 @@ export default function LineItems() {
                   <td className="px-6 py-3 text-on-surface-variant text-xs font-medium">{li.unit}</td>
                   <td className="px-6 py-3 text-center text-on-surface font-semibold">{li.defaultQuantity}</td>
                   <td className="px-6 py-3 text-right text-on-surface font-semibold text-xs">
-                    {li.price !== null && li.price !== undefined && li.price !== "" ? `₹${Number(li.price).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
+                    {li.constructionItems && li.constructionItems.length > 0 ? (
+                      <div 
+                        title={`Rolled up live from ${li.constructionItems.length} BOM ${li.constructionItems.length === 1 ? "component" : "components"} — edit on Construction Items or Pricing Grid.`}
+                        className="cursor-help inline-block"
+                      >
+                        <div>{formatCurrency(li.totalPrice)}</div>
+                        <div className="text-[9px] font-bold text-on-surface-variant normal-case tracking-normal">
+                          rolled up · {li.constructionItems.length} BOM {li.constructionItems.length === 1 ? "item" : "items"}
+                        </div>
+                      </div>
+                    ) : li.price !== null && li.price !== undefined && li.price !== "" ? (
+                      <div 
+                        title="No BOM components yet — this is a manually-entered price, not a rollup."
+                        className="cursor-help inline-block"
+                      >
+                        <div>{formatCurrency(li.price)}</div>
+                        <div className="text-[9px] font-bold text-on-surface-variant normal-case tracking-normal">
+                          manual · no BOM yet
+                        </div>
+                      </div>
+                    ) : (
+                      "—"
+                    )}
                   </td>
                   <td className="px-6 py-3 text-right">
                     <div className="flex gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">

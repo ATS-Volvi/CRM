@@ -88,7 +88,7 @@ export const getSalespersonsPerformance = async (req: Request, res: Response) =>
     // 1. Fetch all scoped users in 1 batch query
     const users = await sequelize.models.User.findAll({
       where: { id: { [Op.in]: scopedUserIds } },
-      attributes: ["id", "name", "email", "role", "isAvailable", "maxOpenLeads", "department", "territory", "team", "managerId"]
+      attributes: ["id", "name", "email", "role", "isAvailable", "maxOpenLeads", "department", "territory", "team", "managerId", "teamType"]
     });
 
     // 2. Fetch active KPI Master names in 1 query
@@ -762,7 +762,10 @@ export const getAllSalespersons = async (req: Request, res: Response) => {
         "maxOpenDeals",
         "department",
         "territory",
-        "status"
+        "status",
+        "managerId",
+        "teamType",
+        "team"
       ],
       order: [["name", "ASC"]]
     });
@@ -771,6 +774,7 @@ export const getAllSalespersons = async (req: Request, res: Response) => {
     res.status(500).json({ error: error.message });
   }
 };
+
 
 export const updateSalespersonCapacity = async (req: Request, res: Response) => {
   try {
@@ -915,6 +919,7 @@ export const getSalespersonKpis = async (req: Request, res: Response) => {
         const t = await sequelize.models.KpiTarget.create({
           id: crypto.randomUUID(),
           salespersonId: id,
+          kpiMasterId: (master as any).id,
           kpiName: (master as any).name,
           targetValue: (master as any).targetValue,
           currentValue: 0,
@@ -927,6 +932,9 @@ export const getSalespersonKpis = async (req: Request, res: Response) => {
         });
         matchedTargets.push(t);
       } else {
+        if (!(existing as any).kpiMasterId && (master as any).id) {
+          await (existing as any).update({ kpiMasterId: (master as any).id });
+        }
         matchedTargets.push(existing);
       }
     }
@@ -1089,7 +1097,7 @@ export const editKpiTarget = async (req: Request, res: Response) => {
     }
 
     const kpiId = req.params.kpiId as string;
-    const { targetValue, frequency, weightage, effectiveDate, expiryDate, notes, reason } = req.body;
+    const { targetValue, frequency, weightage, effectiveDate, expiryDate, notes, reason, kpiMasterId } = req.body;
 
     const kpi = await sequelize.models.KpiTarget.findByPk(kpiId);
     if (!kpi) {
@@ -1117,7 +1125,7 @@ export const editKpiTarget = async (req: Request, res: Response) => {
     const oldVal = (kpi as any).targetValue;
 
     // Update target
-    await kpi.update({
+    const updateData: any = {
       targetValue: targetValue !== undefined ? Number(targetValue) : (kpi as any).targetValue,
       frequency: frequency || (kpi as any).frequency,
       weightage: weightage !== undefined ? Number(weightage) : (kpi as any).weightage,
@@ -1125,7 +1133,11 @@ export const editKpiTarget = async (req: Request, res: Response) => {
       expiryDate: expiryDate || (kpi as any).expiryDate,
       notes: notes || (kpi as any).notes,
       createdBy: caller.id
-    });
+    };
+    if (kpiMasterId !== undefined) {
+      updateData.kpiMasterId = kpiMasterId;
+    }
+    await kpi.update(updateData);
 
     // Write to audit history
     await sequelize.models.KpiTargetHistory.create({
@@ -1216,19 +1228,37 @@ export const bulkAssignTargets = async (req: Request, res: Response) => {
       return;
     }
 
-    const { kpiName, targetValue, frequency, weightage, department, team, salespersonIds } = req.body;
+    const { kpiName, targetValue, frequency, weightage, department, team, salespersonIds, kpiMasterId } = req.body;
 
     if (!kpiName || targetValue === undefined) {
       res.status(400).json({ error: "kpiName and targetValue are required" });
       return;
     }
 
+    const hasSalespersonIds = Array.isArray(salespersonIds) && salespersonIds.length > 0;
+    const hasDepartment = typeof department === "string" && department.trim().length > 0;
+    const hasTeam = typeof team === "string" && team.trim().length > 0;
+
+    // Admin/Director must provide at least one scope (salespersonIds, department, or team)
+    // to prevent accidental unbounded mass assignment across all users in the organization.
+    if (isAdminOrDirector && !hasSalespersonIds && !hasDepartment && !hasTeam) {
+      res.status(400).json({
+        error: "Scope is required: Please provide salespersonIds, team, or department to scope the bulk assignment."
+      });
+      return;
+    }
+
     const whereUser: any = {};
-    if (salespersonIds && Array.isArray(salespersonIds) && salespersonIds.length > 0) {
+    if (hasSalespersonIds) {
       whereUser.id = { [Op.in]: salespersonIds };
     } else {
-      if (department) whereUser.department = department;
-      if (team) whereUser.team = team;
+      if (hasDepartment) whereUser.department = department.trim();
+      if (hasTeam) whereUser.team = team.trim();
+    }
+
+    // Managers can only assign to their own direct reports, regardless of filters passed
+    if (isManagerRole) {
+      whereUser.managerId = caller.id;
     }
 
     // Managers can only assign to their own direct reports, regardless of filters passed
@@ -1248,16 +1278,21 @@ export const bulkAssignTargets = async (req: Request, res: Response) => {
       const oldVal = kpi ? (kpi as any).targetValue : 0;
 
       if (kpi) {
-        await kpi.update({
+        const updateData: any = {
           targetValue: Number(targetValue),
           frequency: frequency || (kpi as any).frequency,
           weightage: weightage !== undefined ? Number(weightage) : (kpi as any).weightage,
           createdBy: caller.id
-        });
+        };
+        if (kpiMasterId !== undefined) {
+          updateData.kpiMasterId = kpiMasterId;
+        }
+        await kpi.update(updateData);
       } else {
         kpi = await sequelize.models.KpiTarget.create({
           id: crypto.randomUUID(),
           salespersonId: (u as any).id,
+          kpiMasterId: kpiMasterId || null,
           kpiName,
           targetValue: Number(targetValue),
           currentValue: 0,
@@ -1274,7 +1309,7 @@ export const bulkAssignTargets = async (req: Request, res: Response) => {
         oldValue: oldVal,
         newValue: Number(targetValue),
         changedBy: caller.id,
-        reason: `Bulk assigned target by ${department ? 'department: ' + department : team ? 'team: ' + team : 'admin select'}`,
+        reason: `Bulk assigned target by ${hasDepartment ? 'department: ' + department : hasTeam ? 'team: ' + team : 'selected reps'}`,
         changeDate: new Date()
       });
     }
@@ -1346,3 +1381,132 @@ export const approveKpiTargetChange = async (req: Request, res: Response) => {
   }
 };
 
+/**
+ * PATCH /api/v1/users/:id/team-type
+ * Allows a manager to assign a rep under their management to PRESALES, SALES, or null.
+ * Permission: Only the rep's direct manager (managerId === authUser.id) or admin.
+ */
+export const updateRepTeamType = async (req: Request, res: Response) => {
+  try {
+    const targetRepId = String(req.params.id);
+    const { teamType } = req.body;
+    const caller = (req as any).user;
+
+    const normalizedTeamType = (teamType && String(teamType).trim())
+      ? String(teamType).toUpperCase().trim()
+      : null;
+
+    const VALID_TEAM_TYPES = ["PRESALES", "SALES", null];
+    if (!VALID_TEAM_TYPES.includes(normalizedTeamType)) {
+      return res.status(400).json({ error: "teamType must be 'PRESALES', 'SALES', or null." });
+    }
+
+    const targetRep: any = await sequelize.models.User.findByPk(targetRepId);
+    if (!targetRep) {
+      return res.status(404).json({ error: "User not found." });
+    }
+
+    // Permission: admin can edit anyone, manager can only edit their own direct reports
+    const isAdmin = caller?.role === "admin";
+    const isDirectManager = targetRep.managerId === caller?.id;
+
+    if (!isAdmin && !isDirectManager) {
+      return res.status(403).json({
+        error: "You can only update team assignments for reps directly under your management."
+      });
+    }
+
+    targetRep.teamType = normalizedTeamType;
+    await targetRep.save();
+
+    res.json({
+      id: targetRep.id,
+      name: targetRep.name,
+      teamType: targetRep.teamType
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const getManagerDirectTeam = async (req: Request, res: Response) => {
+  try {
+    const caller = (req as any).user;
+    if (!caller) return res.status(401).json({ error: "Unauthorized" });
+
+    const whereClause: any = caller.role === "admin"
+      ? { role: { [Op.in]: ["sales_rep", "salesperson", "sales_manager"] } }
+      : { managerId: caller.id };
+
+    const reps = await sequelize.models.User.findAll({
+      where: whereClause,
+      attributes: ["id", "name", "email", "role", "isAvailable", "managerId", "dealValueCutoff", "maxOpenDeals", "teamType"]
+    });
+
+    const team = await Promise.all(reps.map(async (rep: any) => {
+      const currentOpenDeals = await sequelize.models.Deal.count({
+        where: {
+          ownerId: rep.id,
+          status: { [Op.notIn]: ["WON", "LOST"] }
+        }
+      }).catch(() => 0);
+
+      return {
+        id: rep.id,
+        name: rep.name || "Sales Rep",
+        email: rep.email || "",
+        role: rep.role || "sales_rep",
+        isAvailable: rep.isAvailable ?? true,
+        dealValueCutoff: rep.dealValueCutoff || null,
+        maxOpenDeals: rep.maxOpenDeals || null,
+        teamType: rep.teamType || null,
+        currentOpenDeals
+      };
+    }));
+
+    res.json({ success: true, team });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message, team: [] });
+  }
+};
+
+export const getManagerStuckDeals = async (req: Request, res: Response) => {
+  try {
+    const caller = (req as any).user;
+    if (!caller) return res.status(401).json({ error: "Unauthorized" });
+
+    const thresholdDays = parseInt(String(req.query.thresholdDays || "14"), 10);
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - thresholdDays);
+
+    const deals = await sequelize.models.Deal.findAll({
+      where: {
+        status: { [Op.notIn]: ["WON", "LOST"] },
+        updatedAt: { [Op.lte]: cutoffDate }
+      },
+      include: [
+        { model: sequelize.models.User, as: "owner", attributes: ["id", "name"] },
+        { model: sequelize.models.PipelineStage, as: "stage", attributes: ["id", "name"] }
+      ],
+      order: [["updatedAt", "ASC"]],
+      limit: 25
+    }).catch(() => []);
+
+    const stuckDeals = (deals || []).map((d: any) => {
+      const updatedAt = new Date(d.updatedAt);
+      const daysSinceUpdate = Math.floor((Date.now() - updatedAt.getTime()) / (1000 * 60 * 60 * 24));
+      return {
+        id: d.id,
+        name: d.name || `Deal #${d.id.slice(0, 8)}`,
+        amount: d.amount || d.value || 0,
+        ownerName: d.owner?.name || "Unassigned",
+        stageName: d.stage?.name || "Negotiation",
+        daysSinceUpdate
+      };
+    });
+
+    res.json({ success: true, stuckDeals, count: stuckDeals.length });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message, stuckDeals: [], count: 0 });
+  }
+};

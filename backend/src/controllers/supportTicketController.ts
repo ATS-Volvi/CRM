@@ -57,7 +57,8 @@ export const listSupportTickets = async (req: Request, res: Response): Promise<v
     if (status && status !== "all") whereClause.status = status;
     if (category && category !== "all") whereClause.category = category;
     if (search) {
-      whereClause.description = { [Op.iLike]: `%${search}%` };
+      const likeOp = sequelize.getDialect() === "sqlite" ? Op.like : Op.iLike;
+      whereClause.description = { [likeOp]: `%${search}%` };
     }
 
     const tickets = await SupportTicket.findAll({

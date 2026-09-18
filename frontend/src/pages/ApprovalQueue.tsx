@@ -1,9 +1,9 @@
 import { useAuth } from "../context/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { 
-  ClipboardList, Shield, Users, History, Check, X, Bell, Save, AlertTriangle, Info, Sliders, CheckCircle2, XCircle, RotateCcw, Search, Zap
+  ClipboardList, Shield, Users, History, Check, X, Bell, Save, AlertTriangle, Info, Sliders, CheckCircle2, XCircle, RotateCcw, Search, Zap, Loader2
 } from "lucide-react";
 import { formatCurrency } from "../utils/currency";
 
@@ -13,9 +13,32 @@ export default function ApprovalQueue() {
   const { token, user } = useAuth();
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
-  const initialTab = (searchParams.get("tab") as any) || "queue";
 
-  const [activeTab, setActiveTab] = useState<"queue" | "policy" | "profiles" | "audit">(initialTab);
+  // Role derivation & tab gating
+  const role = ((user as any)?.role || "sales_rep").toLowerCase();
+  const isAdmin = role === "admin";
+  const isManager = ["director", "manager", "sales_manager"].includes(role);
+  const isRep = ["sales_rep", "senior_ae"].includes(role);
+
+  const allowedTabs: ("queue" | "policy" | "profiles" | "audit")[] = isAdmin
+    ? ["queue", "policy", "profiles", "audit"]
+    : isManager
+    ? ["queue", "profiles", "audit"]
+    : ["queue", "audit"];
+
+  const urlTab = (searchParams.get("tab") as any) || "queue";
+  const [activeTab, setActiveTab] = useState<"queue" | "policy" | "profiles" | "audit">(
+    allowedTabs.includes(urlTab) ? urlTab : "queue"
+  );
+
+  // Enforce allowed tabs state guard if url parameter or activeTab is disallowed
+  useEffect(() => {
+    const validTab = allowedTabs.includes(urlTab) ? urlTab : "queue";
+    if (activeTab !== validTab && !allowedTabs.includes(activeTab)) {
+      setActiveTab("queue");
+    }
+  }, [urlTab, allowedTabs, activeTab]);
+
   const [filterStatus, setFilterStatus] = useState("Pending");
 
   // Profile Edit State
@@ -43,19 +66,25 @@ export default function ApprovalQueue() {
   const [policyMinMargin, setPolicyMinMargin] = useState<string>("");
   const [policySuccess, setPolicySuccess] = useState<string>("");
 
+  // Sub-Team Classification Feedback & Loading State
+  const [updatingSubTeamId, setUpdatingSubTeamId] = useState<string | null>(null);
+  const [savedSubTeamId, setSavedSubTeamId] = useState<string | null>(null);
+  const [subTeamError, setSubTeamError] = useState<{ repId: string; message: string } | null>(null);
+
   // 1. Fetch Approvals Queue
   const { data: approvals, isLoading: loadingApprovals } = useQuery({
-    queryKey: ["approvals"],
+    queryKey: ["approvals", user?.id],
     queryFn: async () => {
       const res = await fetch("/api/v1/approvals", {
         headers: { "Authorization": `Bearer ${token}` }
       });
       if (!res.ok) throw new Error("Failed to fetch approvals");
       return res.json();
-    }
+    },
+    enabled: !!token
   });
 
-  // 2. Fetch Admin Global Policy
+  // 2. Fetch Admin Global Policy (admin only)
   const { data: policy, refetch: refetchPolicy } = useQuery({
     queryKey: ["approvalPolicy"],
     queryFn: async () => {
@@ -70,10 +99,11 @@ export default function ApprovalQueue() {
       setPolicyMaxTLDisc(String((Number(data.maximumTeamLeadDiscount ?? 0.20) * 100).toFixed(1)));
       setPolicyMinMargin(String((Number(data.minimumAllowedMargin ?? 0.15) * 100).toFixed(1)));
       return data;
-    }
+    },
+    enabled: !!token && isAdmin
   });
 
-  // 3. Fetch Sales Approval Profiles & Salespersons
+  // 3. Fetch Sales Approval Profiles & Salespersons (admin and manager only)
   const { data: profiles, refetch: refetchProfiles } = useQuery({
     queryKey: ["salesApprovalProfiles"],
     queryFn: async () => {
@@ -82,7 +112,8 @@ export default function ApprovalQueue() {
       });
       if (!res.ok) return [];
       return res.json();
-    }
+    },
+    enabled: !!token && (isAdmin || isManager)
   });
 
   const { data: salespersons } = useQuery({
@@ -93,7 +124,8 @@ export default function ApprovalQueue() {
       });
       if (!res.ok) return [];
       return res.json();
-    }
+    },
+    enabled: !!token && (isAdmin || isManager)
   });
 
   // 4. Fetch Audit Logs
@@ -105,7 +137,8 @@ export default function ApprovalQueue() {
       });
       if (!res.ok) return [];
       return res.json();
-    }
+    },
+    enabled: !!token
   });
 
   // Actions Mutations
@@ -233,6 +266,9 @@ export default function ApprovalQueue() {
   };
 
   const filteredApprovals = approvals?.filter((item: any) => {
+    if (isRep && user?.id && item.requestedById !== user.id) {
+      return false;
+    }
     if (filterStatus === "All") return true;
     return item.status === filterStatus;
   });
@@ -246,58 +282,68 @@ export default function ApprovalQueue() {
           <div>
             <h1 className="text-2xl font-bold text-on-surface flex items-center gap-2.5">
               <Shield className="w-7 h-7 text-primary" />
-              Hierarchical Quotation Approval Center
+              {isRep ? "My Approval Requests" : "Hierarchical Quotation Approval Center"}
             </h1>
             <p className="text-xs text-on-surface-variant mt-1">
-              3-Level Approval Hierarchy: Sales Rep → Team Lead → Admin with dynamic limit, discount & margin governance.
+              {isRep 
+                ? "Track your submitted quote approval requests and approval history."
+                : "3-Level Approval Hierarchy: Sales Rep → Team Lead → Admin with dynamic limit, discount & margin governance."}
             </p>
           </div>
 
           <div className="flex items-center gap-2 bg-surface-container-low p-1.5 rounded-lg border border-outline-variant">
-            <button
-              onClick={() => setActiveTab("queue")}
-              className={`px-4 py-2 text-xs font-bold rounded-md transition-all flex items-center gap-2 ${
-                activeTab === "queue" 
-                  ? "bg-primary text-white shadow-xs" 
-                  : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container"
-              }`}
-            >
-              <ClipboardList className="w-4 h-4" />
-              Pending Queue ({approvals?.filter((a: any) => a.status === "Pending").length || 0})
-            </button>
-            <button
-              onClick={() => setActiveTab("policy")}
-              className={`px-4 py-2 text-xs font-bold rounded-md transition-all flex items-center gap-2 ${
-                activeTab === "policy" 
-                  ? "bg-primary text-white shadow-xs" 
-                  : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container"
-              }`}
-            >
-              <Sliders className="w-4 h-4" />
-              Admin Policy
-            </button>
-            <button
-              onClick={() => setActiveTab("profiles")}
-              className={`px-4 py-2 text-xs font-bold rounded-md transition-all flex items-center gap-2 ${
-                activeTab === "profiles" 
-                  ? "bg-primary text-white shadow-xs" 
-                  : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container"
-              }`}
-            >
-              <Users className="w-4 h-4" />
-              Rep Profiles
-            </button>
-            <button
-              onClick={() => setActiveTab("audit")}
-              className={`px-4 py-2 text-xs font-bold rounded-md transition-all flex items-center gap-2 ${
-                activeTab === "audit" 
-                  ? "bg-primary text-white shadow-xs" 
-                  : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container"
-              }`}
-            >
-              <History className="w-4 h-4" />
-              Audit Trail
-            </button>
+            {allowedTabs.includes("queue") && (
+              <button
+                onClick={() => setActiveTab("queue")}
+                className={`px-4 py-2 text-xs font-bold rounded-md transition-all flex items-center gap-2 ${
+                  activeTab === "queue" 
+                    ? "bg-primary text-white shadow-xs" 
+                    : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container"
+                }`}
+              >
+                <ClipboardList className="w-4 h-4" />
+                {isRep ? "My Requests" : "Pending Queue"} ({approvals?.filter((a: any) => a.status === "Pending").length || 0})
+              </button>
+            )}
+            {allowedTabs.includes("policy") && (
+              <button
+                onClick={() => setActiveTab("policy")}
+                className={`px-4 py-2 text-xs font-bold rounded-md transition-all flex items-center gap-2 ${
+                  activeTab === "policy" 
+                    ? "bg-primary text-white shadow-xs" 
+                    : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container"
+                }`}
+              >
+                <Sliders className="w-4 h-4" />
+                Admin Policy
+              </button>
+            )}
+            {allowedTabs.includes("profiles") && (
+              <button
+                onClick={() => setActiveTab("profiles")}
+                className={`px-4 py-2 text-xs font-bold rounded-md transition-all flex items-center gap-2 ${
+                  activeTab === "profiles" 
+                    ? "bg-primary text-white shadow-xs" 
+                    : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container"
+                }`}
+              >
+                <Users className="w-4 h-4" />
+                Rep Profiles
+              </button>
+            )}
+            {allowedTabs.includes("audit") && (
+              <button
+                onClick={() => setActiveTab("audit")}
+                className={`px-4 py-2 text-xs font-bold rounded-md transition-all flex items-center gap-2 ${
+                  activeTab === "audit" 
+                    ? "bg-primary text-white shadow-xs" 
+                    : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container"
+                }`}
+              >
+                <History className="w-4 h-4" />
+                {isRep ? "My History" : "Audit Trail"}
+              </button>
+            )}
           </div>
         </div>
 
@@ -355,15 +401,16 @@ export default function ApprovalQueue() {
                   ) : (
                     filteredApprovals?.map((item: any) => {
                       const isPO = item.type === "PurchaseOrder" || item.type === "PO";
+                      const isDeal = item.type === "Deal";
                       const target = item.target;
                       const evalData = item.evaluation;
-                      const deal = isPO ? target?.quote?.deal : target?.deal;
+                      const deal = isDeal ? target : (isPO ? target?.quote?.deal : target?.deal);
                       const lead = deal?.lead;
                       const customerName = lead?.company || (lead ? `${lead.firstName} ${lead.lastName}` : deal?.name || "Direct Customer");
                       const repName = item.requestedBy?.name || deal?.owner?.name || "Sales Rep";
-                      const value = isPO ? (target?.amount || target?.quote?.totalAmount || 0) : (target?.totalAmount || 0);
-                      const discountPct = evalData?.discount ? (evalData.discount * 100).toFixed(1) + "%" : isPO ? "Matched" : "0%";
-                      const marginPct = evalData?.margin !== null && evalData?.margin !== undefined ? (evalData.margin * 100).toFixed(1) + "%" : "N/A";
+                      const value = isDeal ? (Number(target?.amount) || 0) : (isPO ? (target?.amount || target?.quote?.totalAmount || 0) : (target?.totalAmount || 0));
+                      const discountPct = isDeal ? "N/A" : (evalData?.discount ? (evalData.discount * 100).toFixed(1) + "%" : isPO ? "Matched" : "0%");
+                      const marginPct = isDeal ? "N/A" : (evalData?.margin !== null && evalData?.margin !== undefined ? (evalData.margin * 100).toFixed(1) + "%" : "N/A");
 
                       return (
                         <tr key={item.id} className="hover:bg-surface-container-low transition-colors">
@@ -371,13 +418,16 @@ export default function ApprovalQueue() {
                             <div className="flex items-center gap-2">
                               <div className="font-bold text-on-surface text-sm">{customerName}</div>
                               <span className={`text-[10px] font-bold px-2 py-0.2 rounded-full uppercase border ${
+                                isDeal ? "bg-amber-50 text-amber-800 border-amber-300" :
                                 isPO ? "bg-purple-50 text-purple-700 border-purple-200" : "bg-blue-50 text-blue-700 border-blue-200"
                               }`}>
-                                {isPO ? "Purchase Order" : "Quotation"}
+                                {isDeal ? "Deal Escalation" : isPO ? "Purchase Order" : "Quotation"}
                               </span>
                             </div>
                             <div className="text-[11px] text-primary font-semibold mt-0.5 flex items-center gap-1.5">
-                              {isPO ? (
+                              {isDeal ? (
+                                <span className="font-bold text-slate-800">Deal: {target?.name || "Commercial Opportunity"}</span>
+                              ) : isPO ? (
                                 <>
                                   <span className="font-bold text-slate-800">PO: {target?.poNumber || "PO-Received"}</span>
                                   {target?.quote?.quoteNumber && (
@@ -392,7 +442,11 @@ export default function ApprovalQueue() {
                           <td className="p-4 text-on-surface font-semibold">{repName}</td>
                           <td className="p-4 font-bold text-on-surface text-sm">{formatCurrency(value)}</td>
                           <td className="p-4 font-semibold text-amber-700">
-                            {isPO ? (
+                            {isDeal ? (
+                              <span className="text-[11px] text-amber-800 font-bold bg-amber-100 px-2 py-0.5 rounded">
+                                +₹{evalData?.exceededBy ? evalData.exceededBy.toLocaleString() : "0"}
+                              </span>
+                            ) : isPO ? (
                               <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${
                                 evalData?.mismatch ? "bg-rose-100 text-rose-800" : "bg-emerald-100 text-emerald-800"
                               }`}>
@@ -402,34 +456,51 @@ export default function ApprovalQueue() {
                               discountPct
                             )}
                           </td>
-                          <td className="p-4 font-semibold text-green-700">{marginPct}</td>
+                          <td className="p-4 font-semibold text-green-700">
+                            {isDeal ? (
+                              <span className="text-[11px] text-slate-500 font-semibold">
+                                Rep Limit: ₹{evalData?.repLimit ? evalData.repLimit.toLocaleString() : "10,00,000"}
+                              </span>
+                            ) : (
+                              marginPct
+                            )}
+                          </td>
                           <td className="p-4 max-w-[280px]">
                             <div className="bg-amber-50 text-amber-900 border border-amber-200 p-2 rounded text-[11px] font-semibold leading-relaxed">
-                              {item.comments || evalData?.reason || (isPO ? "Purchase order verification required." : "Approval limit threshold exceeded.")}
+                              {item.comments || evalData?.reason || (isDeal ? "Deal value exceeds representative authority limit." : isPO ? "Purchase order verification required." : "Approval limit threshold exceeded.")}
                             </div>
                           </td>
                           <td className="p-4 text-right">
-                            {item.status === "Pending" ? (
+                            {item.status === "Pending" && !isRep ? (
                               <div className="flex gap-1.5 justify-end">
                                 <button
-                                  onClick={() => updateApprovalMutation.mutate({ id: item.id, status: "Approved", comments: isPO ? "PO Verified & Approved by Manager" : "Approved by Manager" })}
+                                  onClick={() => updateApprovalMutation.mutate({
+                                    id: item.id,
+                                    status: "Approved",
+                                    comments: isDeal ? "Deal Value Escalation Approved by Manager" : isPO ? "PO Verified & Approved by Manager" : "Approved by Manager"
+                                  })}
                                   disabled={updateApprovalMutation.isPending}
                                   className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-2xs flex items-center gap-1 cursor-pointer"
                                 >
-                                  <Check className="w-3.5 h-3.5" /> {isPO ? "Approve PO" : "Approve"}
+                                  <Check className="w-3.5 h-3.5" /> {isDeal ? "Approve Deal" : isPO ? "Approve PO" : "Approve"}
                                 </button>
                                 <button
-                                  onClick={() => updateApprovalMutation.mutate({ id: item.id, status: "Rejected", comments: isPO ? "PO Rejected by Manager" : "Rejected" })}
+                                  onClick={() => updateApprovalMutation.mutate({
+                                    id: item.id,
+                                    status: "Rejected",
+                                    comments: isDeal ? "Deal Value Escalation Rejected by Manager" : isPO ? "PO Rejected by Manager" : "Rejected"
+                                  })}
                                   disabled={updateApprovalMutation.isPending}
                                   className="bg-rose-600 hover:bg-rose-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-2xs flex items-center gap-1 cursor-pointer"
                                 >
-                                  <X className="w-3.5 h-3.5" /> {isPO ? "Reject PO" : "Reject"}
+                                  <X className="w-3.5 h-3.5" /> {isDeal ? "Reject Deal" : isPO ? "Reject PO" : "Reject"}
                                 </button>
                               </div>
                             ) : (
                               <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold uppercase ${
                                 item.status === "Approved" ? "bg-green-100 text-green-800 border border-green-200" :
                                 item.status === "Rejected" ? "bg-red-100 text-red-800 border border-red-200" :
+                                item.status === "Pending" ? "bg-amber-100 text-amber-800 border border-amber-200" :
                                 "bg-slate-100 text-slate-700 border border-slate-200"
                               }`}>
                                 {item.status}
@@ -551,6 +622,13 @@ export default function ApprovalQueue() {
 
             const tlId = getRepTeamLeadId(sp);
 
+            // Managers (non-admins) may only view/configure reps who report to them
+            if (!isAdmin && isManager) {
+              const callerId = (user as any)?.id;
+              const reportsToMe = sp.managerId === callerId || tlId === callerId || sp.id === callerId;
+              if (!reportsToMe) return false;
+            }
+
             if (selectedTeamFilter !== "All") {
               if (selectedTeamFilter === "unassigned" && tlId !== "unassigned") return false;
               if (selectedTeamFilter !== "unassigned") {
@@ -658,6 +736,7 @@ export default function ApprovalQueue() {
                     <thead className="sticky top-0 bg-surface-container-high z-10">
                       <tr className="text-[12px] font-bold tracking-wider text-on-surface-variant uppercase border-b border-outline-variant">
                         <th className="p-4">Member & Role</th>
+                        <th className="p-4">Sub-Team Classification</th>
                         <th className="p-4">Assigned Team Lead</th>
                         <th className="p-4">Direct Approval Limit</th>
                         <th className="p-4">Discount Limit</th>
@@ -690,6 +769,71 @@ export default function ApprovalQueue() {
                                 )}
                               </div>
                               <div className="text-[11px] text-on-surface-variant">{sp.email}</div>
+                            </td>
+                            <td className="p-4">
+                              <div className="flex items-center gap-2">
+                                <select
+                                  value={sp.teamType || ""}
+                                  disabled={updatingSubTeamId === sp.id}
+                                  onChange={async (e) => {
+                                    const val = e.target.value || null;
+                                    setUpdatingSubTeamId(sp.id);
+                                    setSubTeamError(null);
+                                    try {
+                                      const res = await fetch(`/api/v1/users/${sp.id}/team-type`, {
+                                        method: "PATCH",
+                                        headers: {
+                                          "Content-Type": "application/json",
+                                          "Authorization": `Bearer ${token}`
+                                        },
+                                        body: JSON.stringify({ teamType: val })
+                                      });
+                                      if (!res.ok) {
+                                        const errData = await res.json().catch(() => ({}));
+                                        throw new Error(errData.error || "Failed to update team assignment.");
+                                      }
+                                      await queryClient.invalidateQueries({ queryKey: ["salespersons"] });
+                                      refetchProfiles();
+
+                                      setProfileSuccess(`Updated team assignment for ${sp.name} successfully!`);
+                                      setSavedSubTeamId(sp.id);
+                                      setTimeout(() => setProfileSuccess(""), 4000);
+                                      setTimeout(() => setSavedSubTeamId(null), 2500);
+                                    } catch (err: any) {
+                                      setSubTeamError({ repId: sp.id, message: err.message || "Failed to update team assignment." });
+                                      setTimeout(() => setSubTeamError(null), 4000);
+                                    } finally {
+                                      setUpdatingSubTeamId(null);
+                                    }
+                                  }}
+                                  className={`bg-white dark:bg-slate-800 border text-xs font-bold text-on-surface rounded-lg px-2.5 py-1.5 focus:ring-2 focus:ring-primary outline-none shadow-2xs cursor-pointer transition-all ${
+                                    updatingSubTeamId === sp.id ? "opacity-50 cursor-wait border-amber-300" :
+                                    savedSubTeamId === sp.id ? "border-green-500 ring-1 ring-green-500 bg-green-50/20" :
+                                    subTeamError?.repId === sp.id ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" :
+                                    "border-outline-variant"
+                                  }`}
+                                >
+                                  <option value="">Unassigned</option>
+                                  <option value="PRESALES">Presales Team</option>
+                                  <option value="SALES">Sales Team</option>
+                                </select>
+
+                                {updatingSubTeamId === sp.id && (
+                                  <Loader2 className="w-4 h-4 text-primary animate-spin" />
+                                )}
+
+                                {savedSubTeamId === sp.id && (
+                                  <span className="text-[11px] font-bold text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded flex items-center gap-1 animate-fade-in">
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-green-600" /> Saved
+                                  </span>
+                                )}
+
+                                {subTeamError?.repId === sp.id && (
+                                  <span className="text-[11px] font-bold text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded flex items-center gap-1 animate-fade-in">
+                                    <XCircle className="w-3.5 h-3.5 text-red-600" /> {subTeamError?.message}
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td className="p-4 font-semibold text-on-surface">{tlName}</td>
                             <td className="p-4 font-bold text-primary text-sm">{selfLimit}</td>

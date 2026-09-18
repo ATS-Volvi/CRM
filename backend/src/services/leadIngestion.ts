@@ -7,6 +7,7 @@ import { handleDealInboundActivity } from "./leadTemperatureService";
 import { triggerLeadAssignedNotifications } from "./notificationEngine";
 
 import { recordLeadTouch } from "./attributionService";
+import { enrichLeadAsync, isPersonalDomain, extractDomain } from "./enrichmentService";
 
 function isDummyKey(val?: string): boolean {
   if (!val) return true;
@@ -51,12 +52,29 @@ export interface LeadPayload {
   categoriesData?: any;
 }
 
+const { runPipeline } = require("../lead-security-layer");
+
 /**
  * Normalizes input lead data, runs duplicate detection and lead scoring,
  * assigns the lead using the assignment engine, and persists the lead.
  */
-export async function ingestLead(payload: LeadPayload) {
+export async function ingestLead(rawPayload: LeadPayload) {
   try {
+    // 0. Lead Ingestion Security Layer (sanitize, file scan, spam rules, AI moderation)
+    let payload = rawPayload;
+    try {
+      payload = await runPipeline(rawPayload, {
+        source: rawPayload.source || "Omnichannel",
+        attachments: (rawPayload as any).attachments || []
+      });
+    } catch (secErr: any) {
+      if (secErr.blocked) {
+        console.warn(`[lead-security] Ingestion held for review: ${rawPayload.email} Reason: ${secErr.reason}`);
+        return null;
+      }
+      throw secErr;
+    }
+
     const email = payload.email?.trim().toLowerCase() || "";
     let companyName = payload.company?.trim() || "";
 
@@ -82,7 +100,8 @@ export async function ingestLead(payload: LeadPayload) {
 
     // 3. Lead Scoring
     let leadScore = 50; // base score
-    if (email && !email.endsWith("@gmail.com") && !email.endsWith("@yahoo.com") && !email.endsWith("@hotmail.com") && !email.endsWith("@outlook.com")) {
+    const emailDomain = email ? extractDomain(email) : null;
+    if (emailDomain && !isPersonalDomain(emailDomain)) {
       leadScore += 15; // Corporate email bonus
     }
     if (payload.phone) leadScore += 10;
@@ -225,12 +244,19 @@ export async function ingestLead(payload: LeadPayload) {
       );
     }
 
+    // 8. Async Company Enrichment (Hunter.io) — fire-and-forget, never blocks the response
+    enrichLeadAsync(leadId, email, companyName).catch(e =>
+      console.error(`[enrichment] Background enrichment failed for lead ${leadId}:`, e)
+    );
+
     return leadId;
   } catch (error) {
     console.error("Lead Ingestion Error:", error);
     throw error;
   }
 }
+
+export const ingestOmnichannelLead = ingestLead;
 
 async function getFirstAdminId(): Promise<string> {
   const admin = await sequelize.models.User.findOne({ where: { role: "admin" } });
@@ -295,6 +321,10 @@ export async function processGmailConnector() {
   console.log(`[CONNECTOR] Gmail Ingest falling back to Mock. Mock Mode: ${isMockMode}`);
   
   if (isMockMode) {
+    if (process.env.ENABLE_MOCK_CONNECTORS !== "true") {
+      console.log(`[CONNECTOR] Gmail Mock disabled. Set ENABLE_MOCK_CONNECTORS=true to generate test leads.`);
+      return null;
+    }
     // Generate simulated lead
     const mockNames = [
       { firstName: "Majed", lastName: "Al-Otaibi", company: "Riyadh Construction", email: "majed@riyadhconst.com" },
@@ -318,6 +348,10 @@ export async function processMetaConnector() {
   console.log(`[CONNECTOR] Meta Ingest running. Mock Mode: ${isMockMode}`);
 
   if (isMockMode) {
+    if (process.env.ENABLE_MOCK_CONNECTORS !== "true") {
+      console.log(`[CONNECTOR] Meta Mock disabled. Set ENABLE_MOCK_CONNECTORS=true to generate test leads.`);
+      return null;
+    }
     const mockNames = [
       { firstName: "Yasmin", lastName: "Qureshi", company: "Designers Hub", email: "yasmin@designershub.com" },
       { firstName: "Tariq", lastName: "Jameel", company: "BuildCorp LLC", email: "tariq@buildcorp.ae" }
@@ -340,6 +374,10 @@ export async function processLinkedInConnector() {
   console.log(`[CONNECTOR] LinkedIn Ingest running. Mock Mode: ${isMockMode}`);
 
   if (isMockMode) {
+    if (process.env.ENABLE_MOCK_CONNECTORS !== "true") {
+      console.log(`[CONNECTOR] LinkedIn Mock disabled. Set ENABLE_MOCK_CONNECTORS=true to generate test leads.`);
+      return null;
+    }
     return await ingestLead({
       firstName: "Hassan",
       lastName: "Raza",

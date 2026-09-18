@@ -49,3 +49,18 @@ export const requireAdminOrManager = (req: Request, res: Response, next: NextFun
   }
   next();
 };
+
+/**
+ * requireAdmin — must be used AFTER authMiddleware.
+ * Permits access only to users with role: admin.
+ * All other roles (including director, manager) receive 403 Forbidden.
+ * Used for admin-ceiling-only endpoints such as PUT /approval-policy.
+ */
+export const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
+  const role: string = (req as any).user?.role ?? "";
+  if (role !== "admin") {
+    res.status(403).json({ error: "Forbidden: admin role required" });
+    return;
+  }
+  next();
+};

@@ -33,9 +33,20 @@ services:
       - DATABASE_URL=postgresql://nexus_user:nexus_secure_password_123@postgres:5432/nexus_crm_prod
       - JWT_SECRET=change_this_to_a_secure_jwt_secret_in_production_9988
       - CORS_ORIGIN=*
+      - CLAMAV_HOST=clamav
+      - CLAMAV_PORT=3310
     depends_on:
       postgres:
         condition: service_healthy
+      clamav:
+        condition: service_started
+
+  clamav:
+    image: clamav/clamav:latest
+    container_name: nexus_crm_clamav
+    restart: always
+    ports:
+      - "3310:3310"
 
 volumes:
   postgres_data:

@@ -38,6 +38,7 @@ export class User extends Model {
   public maxOpenDeals!: number | null;
   public createdByUserId!: string | null;
   public phone!: string | null;
+  public teamType!: string | null; // "PRESALES" | "SALES" | null
   public tier!: string | null;
 }
 
@@ -59,6 +60,7 @@ User.init(
     managerId: { type: DataTypes.UUID, allowNull: true },
     createdByUserId: { type: DataTypes.UUID, allowNull: true },
     phone: { type: DataTypes.STRING, allowNull: true },
+    teamType: { type: DataTypes.STRING, allowNull: true },
     department: { type: DataTypes.STRING, allowNull: true },
     territory: { type: DataTypes.STRING, allowNull: true },
     team: { type: DataTypes.STRING, allowNull: true },
@@ -148,6 +150,11 @@ export class Lead extends Model {
   public missingFields!: any | null;
   public lastProcessedEventId!: string | null;
   public extractedRequirement!: any | null;
+
+  // Hunter.io Company Enrichment
+  public enrichmentStatus!: string | null;
+  public enrichmentData!: string | null;
+  public enrichedAt!: Date | null;
 }
 
 Lead.init(
@@ -211,6 +218,10 @@ Lead.init(
     missingFields: { type: DataTypes.JSON, allowNull: true },
     lastProcessedEventId: { type: DataTypes.STRING, allowNull: true },
     extractedRequirement: { type: DataTypes.JSON, allowNull: true },
+    // Hunter.io Company Enrichment
+    enrichmentStatus: { type: DataTypes.STRING(20), allowNull: true, defaultValue: "pending" },
+    enrichmentData: { type: DataTypes.TEXT, allowNull: true },
+    enrichedAt: { type: DataTypes.DATE, allowNull: true },
   },
   { 
     sequelize, 
@@ -1435,6 +1446,7 @@ export class KpiTarget extends Model {
   public id!: string;
   public salespersonId!: string;
   public kpiName!: string;
+  public kpiMasterId!: string | null;
   public targetValue!: number;
   public currentValue!: number;
   public frequency!: string;
@@ -1453,6 +1465,7 @@ KpiTarget.init(
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
     salespersonId: { type: DataTypes.UUID, allowNull: false },
     kpiName: { type: DataTypes.STRING, allowNull: false },
+    kpiMasterId: { type: DataTypes.UUID, allowNull: true, defaultValue: null },
     targetValue: { type: DataTypes.FLOAT, defaultValue: 0 },
     currentValue: { type: DataTypes.FLOAT, defaultValue: 0 },
     frequency: { type: DataTypes.STRING, defaultValue: "monthly" },
@@ -1529,6 +1542,9 @@ KpiMaster.init(
 KpiMaster.belongsTo(User, { foreignKey: "teamLeadId", as: "teamLead" });
 User.hasMany(KpiMaster, { foreignKey: "teamLeadId", as: "teamKpis" });
 
+// KpiTarget <-> KpiMaster link association
+KpiTarget.belongsTo(KpiMaster, { foreignKey: "kpiMasterId", as: "master" });
+KpiMaster.hasMany(KpiTarget, { foreignKey: "kpiMasterId", as: "targets" });
 export class GmailConfig extends Model {
   public id!: string;
   public connectedEmail!: string;
@@ -2624,6 +2640,94 @@ AttributionEvent.init(
   },
   { sequelize, modelName: "AttributionEvent", tableName: "AttributionEvents", updatedAt: false }
 );
+
+export class FlaggedLead extends Model {
+  public id!: string;
+  public payload!: any;
+  public source!: string;
+  public ip!: string | null;
+  public reason!: string;
+  public reviewed!: boolean;
+  public createdAt!: Date;
+  public updatedAt!: Date;
+}
+
+FlaggedLead.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    payload: { type: DataTypes.JSON, allowNull: false },
+    source: { type: DataTypes.STRING, allowNull: false, defaultValue: "Website" },
+    ip: { type: DataTypes.STRING, allowNull: true },
+    reason: { type: DataTypes.STRING, allowNull: false },
+    reviewed: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+  },
+  { sequelize, modelName: "FlaggedLead", tableName: "FlaggedLeads" }
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// EnrichmentUsage — Hunter.io credit tracking
+// ─────────────────────────────────────────────────────────────────────────────
+export class EnrichmentUsage extends Model {
+  public id!: string;
+  public leadId!: string | null;
+  public provider!: string;
+  public domain!: string | null;
+  public status!: string; // enriched | skipped | failed | rate_limited
+  public httpStatus!: number | null;
+  public errorMessage!: string | null;
+  public calledAt!: Date;
+}
+
+EnrichmentUsage.init(
+  {
+    id:           { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    leadId:       { type: DataTypes.UUID, allowNull: true },
+    provider:     { type: DataTypes.STRING(50),  allowNull: false, defaultValue: "hunter" },
+    domain:       { type: DataTypes.STRING(255), allowNull: true },
+    status:       { type: DataTypes.STRING(20),  allowNull: false },
+    httpStatus:   { type: DataTypes.INTEGER,     allowNull: true },
+    errorMessage: { type: DataTypes.TEXT,        allowNull: true },
+    calledAt:     { type: DataTypes.DATE,        allowNull: false, defaultValue: DataTypes.NOW }
+  },
+  { sequelize, modelName: "EnrichmentUsage", tableName: "EnrichmentUsages" }
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LeadContactDiscovery — Hunter.io on-demand domain contact discovery
+// ─────────────────────────────────────────────────────────────────────────────
+export class LeadContactDiscovery extends Model {
+  public id!: string;
+  public leadId!: string;
+  public domain!: string;
+  public contactsFound!: string; // JSON string of normalized DiscoveredContact[]
+  public emailPattern!: string | null;
+  public totalFound!: number;
+  public discoveredAt!: Date;
+  public requestedById!: string | null;
+  public readonly createdAt!: Date;
+  public readonly updatedAt!: Date;
+}
+
+LeadContactDiscovery.init(
+  {
+    id:            { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    leadId:        { type: DataTypes.UUID, allowNull: false },
+    domain:        { type: DataTypes.STRING(255), allowNull: false },
+    contactsFound: { type: DataTypes.TEXT, allowNull: false, defaultValue: "[]" },
+    emailPattern:  { type: DataTypes.STRING(100), allowNull: true },
+    totalFound:    { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+    discoveredAt:  { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
+    requestedById: { type: DataTypes.UUID, allowNull: true }
+  },
+  { sequelize, modelName: "LeadContactDiscovery", tableName: "LeadContactDiscoveries" }
+);
+
+Lead.hasMany(LeadContactDiscovery, { foreignKey: "leadId", as: "contactDiscoveries" });
+LeadContactDiscovery.belongsTo(Lead, { foreignKey: "leadId", as: "lead" });
+
+User.hasMany(LeadContactDiscovery, { foreignKey: "requestedById", as: "requestedDiscoveries" });
+LeadContactDiscovery.belongsTo(User, { foreignKey: "requestedById", as: "requestedBy" });
+
 
 // ─── Campaign & Attribution Associations ─────────────────────────────────────
 User.hasMany(Campaign, { foreignKey: "ownerId", as: "campaigns" });

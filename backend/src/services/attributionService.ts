@@ -195,11 +195,12 @@ export async function resolveCampaignAndAd(input: RawTouchPayload, transaction?:
   // Resolve Campaign by code, name, or utm_campaign
   if (!campaignId && (input.campaignCode || input.campaign || input.utmCampaign)) {
     const term = input.campaignCode || input.campaign || input.utmCampaign;
+    const likeOp = sequelize.getDialect() === "sqlite" ? Op.like : Op.iLike;
     const campaignRecord: any = await Campaign.findOne({
       where: {
         [Op.or]: [
           { code: term },
-          { name: { [Op.iLike]: `%${term}%` } }
+          { name: { [likeOp]: `%${term}%` } }
         ]
       },
       transaction
@@ -211,13 +212,14 @@ export async function resolveCampaignAndAd(input: RawTouchPayload, transaction?:
 
   // Resolve Ad by externalId, name, or utm_content
   if (!adId && (input.adName || input.utmContent)) {
+    const likeOp = sequelize.getDialect() === "sqlite" ? Op.like : Op.iLike;
     const adTerm = input.adName || input.utmContent;
     const adRecord: any = await CampaignAd.findOne({
       where: {
         ...(campaignId ? { campaignId } : {}),
         [Op.or]: [
           { externalId: adTerm },
-          { name: { [Op.iLike]: `%${adTerm}%` } }
+          { name: { [likeOp]: `%${adTerm}%` } }
         ]
       },
       transaction

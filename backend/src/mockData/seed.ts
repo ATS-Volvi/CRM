@@ -30,16 +30,18 @@ async function seedEnterpriseDatabase() {
       'MessageTemplates', 'InvoiceLineItems', 'Invoices', 'Activities', 'AssignmentRules',
       'ApprovalRequests', 'PurchaseOrders', 'QuoteDeliveries', 'QuoteLineItems', 'PriceBookEntries',
       'Quotes', 'DealContacts', 'DealSplits', 'DealOwners', 'Deals', 'LeadStageHistories', 'PipelineStages',
-      'Contacts', 'Leads', 'Accounts', 'Users',
+      'Contacts', 'Leads', 'Accounts', 'SalesApprovalProfiles', 'AdminApprovalPolicies', 'Users',
       'ConstructionItems', 'LineItems', 'Requirements', 'Customers', 'LeadSources',
       'Tasks', 'CallLogs', 'Documents', 'Meetings', 'EmailMessages', 'KpiTargets',
       'KpiTargetHistories', 'KpiMasters', 'ApprovalTiers'
     ];
 
     if (process.env.USE_SQLITE === "true") {
+      try { await sequelize.query(`PRAGMA foreign_keys = OFF;`); } catch (e) {}
       for (const table of tables) {
         try { await sequelize.query(`DELETE FROM "${table}";`); } catch (e) {}
       }
+      try { await sequelize.query(`PRAGMA foreign_keys = ON;`); } catch (e) {}
     } else {
       for (const table of tables) {
         try { await sequelize.query(`TRUNCATE TABLE "${table}" CASCADE;`); } catch (e) {
@@ -201,7 +203,7 @@ async function seedEnterpriseDatabase() {
       name: "Marcus Vance",
       email: "marcus@nexus.com",
       password: hashedPassword,
-      role: "sales_manager",
+      role: "manager",
       department: "North America Sales",
       territory: "North America",
       isAvailable: true,
@@ -213,7 +215,7 @@ async function seedEnterpriseDatabase() {
       name: "Helena Rostova",
       email: "helena@nexus.com",
       password: hashedPassword,
-      role: "sales_manager",
+      role: "manager",
       department: "EMEA & APAC Sales",
       territory: "EMEA / APAC",
       isAvailable: true,
@@ -536,7 +538,7 @@ async function seedEnterpriseDatabase() {
 
       // Generate PO for Accepted quotes
       if (status === "Accepted") {
-        const poNum = `PO-${deal.name.substring(0, 3).toUpperCase()}-${randomInt(1000, 9999)}`;
+        const poNum = `PO-${String(i + 1001).padStart(4, '0')}-${randomInt(1000, 9999)}`;
         await models.PurchaseOrder.create({
           id: crypto.randomUUID(),
           quoteId: quoteRecord.id,
@@ -755,7 +757,7 @@ async function seedEnterpriseDatabase() {
 
     // Approval Tiers & Requests
     if (models.ApprovalTier) {
-      await models.ApprovalTier.create({ id: crypto.randomUUID(), name: "Standard Discount (< 15%)", thresholdValue: 25000, requiredRole: "sales_manager" });
+      await models.ApprovalTier.create({ id: crypto.randomUUID(), name: "Standard Discount (< 15%)", thresholdValue: 25000, requiredRole: "manager" });
       await models.ApprovalTier.create({ id: crypto.randomUUID(), name: "Executive VP Discount (> 15%)", thresholdValue: 100000, requiredRole: "admin" });
     }
 

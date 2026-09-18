@@ -61,12 +61,14 @@ export const getBaseHtmlTemplate = (bodyContent: string, leadId?: string): strin
   `;
 };
 
-export const sendEmail = async (to: string, subject: string, htmlContent: string) => {
+export const sendEmail = async (to: string, subject: string, htmlContent: string, cc?: string[]) => {
   const apiKey = cleanEnv("MAILGUN_API_KEY", "dummy-key");
   const isDummyKey = !apiKey || apiKey === "dummy-key" || apiKey.startsWith("your_");
 
+  const ccSuffix = cc && cc.length > 0 ? `, cc: [${cc.join(", ")}]` : "";
+
   if (isDummyKey) {
-    console.log(`[Email Service - Simulated] Dispatching email to: ${to}, subject: "${subject}"`);
+    console.log(`[Email Service - Simulated] Dispatching email to: ${to}${ccSuffix}, subject: "${subject}"`);
     return {
       id: `<simulated_${Date.now()}@nexus-crm.local>`,
       message: "Queued (simulated/dev mode)",
@@ -77,18 +79,20 @@ export const sendEmail = async (to: string, subject: string, htmlContent: string
 
   try {
     const domain = cleanEnv("MAILGUN_DOMAIN", "inbound.volvitech.com");
-    const info = await mg.messages.create(domain, {
+    const payload: any = {
       from: cleanEnv("MAILGUN_FROM", '"Nexus CRM" <no-reply@inbound.volvitech.com>'),
       to: [to],
       subject,
       html: htmlContent,
-    });
+    };
+    if (cc && cc.length > 0) payload.cc = cc;
+    const info = await mg.messages.create(domain, payload);
     console.log("Message sent:", info);
     return info;
   } catch (error: any) {
     console.warn("Mailgun API send notice:", error.message || error);
     if (process.env.NODE_ENV !== "production" || error.status === 401) {
-      console.log(`[Email Service - Dev Fallback] Simulated successful delivery to ${to}`);
+      console.log(`[Email Service - Dev Fallback] Simulated successful delivery to ${to}${ccSuffix}`);
       return {
         id: `<dev_fallback_${Date.now()}@nexus-crm.local>`,
         message: "Queued (fallback simulation)",

@@ -118,6 +118,30 @@ export const receiveInboundEmail = async (req: Request, res: Response) => {
 
     const { assignedToId, assignmentMethod, isFuzzyNameMatch, matchedNameStr } = routingResult;
 
+    // Scan file attachments through Lead Security Layer (fail-closed ClamAV & MIME inspection)
+    const rawFiles = ((req.files as Express.Multer.File[]) || (req.file ? [req.file] : []));
+    const safeAttachments: any[] = [];
+    const rejectedAttachments: Array<{ filename: string; reason: string }> = [];
+
+    if (rawFiles.length > 0) {
+      const { scanAttachments } = require("../lead-security-layer/fileScan");
+      for (const file of rawFiles) {
+        const scanRes = await scanAttachments([{
+          buffer: file.buffer,
+          filename: file.originalname || file.fieldname || "attachment"
+        }]);
+
+        if (scanRes.clean && scanRes.safeAttachments?.length) {
+          safeAttachments.push(scanRes.safeAttachments[0]);
+        } else {
+          rejectedAttachments.push({
+            filename: file.originalname || file.fieldname || "attachment",
+            reason: scanRes.reason || "unknown_scan_error"
+          });
+        }
+      }
+    }
+
     const { ingestLead } = require("../services/leadIngestion");
     const leadId = await ingestLead({
       firstName,
@@ -131,8 +155,28 @@ export const receiveInboundEmail = async (req: Request, res: Response) => {
       assignedToId: assignedToId,
       assignmentMethod: assignmentMethod || null,
       recipientEmail: recipientEmail || null,
-      rawPayload: { subject: emailSubject, body: emailBody, recipientEmail }
+      rawPayload: { subject: emailSubject, body: emailBody, recipientEmail, attachments: safeAttachments }
     });
+
+    // If any attachment was rejected/quarantined, log a high-priority Activity on the lead for operational awareness
+    if (leadId && rejectedAttachments.length > 0) {
+      try {
+        for (const rejected of rejectedAttachments) {
+          await Activity.create({
+            id: require("crypto").randomUUID(),
+            type: "Security Alert",
+            outcome: `Attachment Quarantined: File "${rejected.filename}" was blocked by security scan (${rejected.reason}).`,
+            leadId: leadId,
+            createdById: assignedToId || null,
+            pinned: true,
+            priority: "High",
+            direction: "internal"
+          });
+        }
+      } catch (actErr) {
+        console.warn("Failed to log attachment quarantine activity:", actErr);
+      }
+    }
 
     // Run Automated Lead Intake & Missing Info Collection Engine for Email
     try {

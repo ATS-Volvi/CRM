@@ -13,10 +13,11 @@ export const getCampaigns = async (req: Request, res: Response) => {
     if (status) where.status = status;
     if (channel) where.channel = channel;
     if (search) {
+      const likeOp = sequelize.getDialect() === "sqlite" ? Op.like : Op.iLike;
       where[Op.or] = [
-        { name: { [Op.iLike]: `%${search}%` } },
-        { code: { [Op.iLike]: `%${search}%` } },
-        { description: { [Op.iLike]: `%${search}%` } }
+        { name: { [likeOp]: `%${search}%` } },
+        { code: { [likeOp]: `%${search}%` } },
+        { description: { [likeOp]: `%${search}%` } }
       ];
     }
 

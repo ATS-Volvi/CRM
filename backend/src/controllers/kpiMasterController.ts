@@ -208,7 +208,12 @@ export const deleteKpiMaster = async (req: Request, res: Response) => {
 
     // Delete corresponding targets
     await sequelize.models.KpiTarget.destroy({
-      where: { kpiName: (kpi as any).name },
+      where: {
+        [Op.or]: [
+          { kpiMasterId: id },
+          { kpiName: (kpi as any).name },
+        ],
+      },
     });
 
     await kpi.destroy();
