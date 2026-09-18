@@ -6,7 +6,7 @@ import { useAuth } from "../context/AuthContext";
 import {
   Users, Search, Plus, X, MapPin, Building2, ChevronDown, Crown,
   UserCheck, BarChart3, ChevronRight, Mail, UserPlus,
-  ShieldCheck
+  ShieldCheck, Target
 } from "lucide-react";
 import { formatCurrency } from "../utils/currency";
 import KpiAttainmentTable from "../components/KpiAttainmentTable";
@@ -97,6 +97,7 @@ export default function SalespersonTracker() {
   const queryClient = useQueryClient();
 
   const [activeTab, setActiveTab] = useState<"performance" | "orgchart">("performance");
+  const [perfSubTab, setPerfSubTab] = useState<"overview" | "kpi">("overview");
   const [search, setSearch] = useState("");
   const [filterDept, setFilterDept] = useState("All");
   const [filterTerritory, setFilterTerritory] = useState("All");
@@ -548,7 +549,37 @@ export default function SalespersonTracker() {
       {/* TAB 1: SALES PERFORMANCE */}
       {activeTab === "performance" && (
         <div className="space-y-6">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Sub-view switcher: Team Overview vs KPI Detail */}
+          <div className="flex items-center gap-1 bg-surface-container-low p-1 rounded-xl border border-outline-variant w-fit">
+            <button
+              type="button"
+              onClick={() => setPerfSubTab("overview")}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                perfSubTab === "overview"
+                  ? "bg-primary text-white shadow-xs"
+                  : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/50"
+              }`}
+            >
+              <Users className="w-3.5 h-3.5" />
+              Team Overview
+            </button>
+            <button
+              type="button"
+              onClick={() => setPerfSubTab("kpi")}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                perfSubTab === "kpi"
+                  ? "bg-primary text-white shadow-xs"
+                  : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/50"
+              }`}
+            >
+              <Target className="w-3.5 h-3.5" />
+              KPI Detail
+            </button>
+          </div>
+
+          {/* Sub-view 1: Team Overview */}
+          <div className={perfSubTab === "overview" ? "space-y-6" : "hidden"}>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-card border border-border rounded-xl p-4 shadow-2xs space-y-1">
               <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Active Sales Reps</span>
               <p className="text-xl font-black text-foreground">{salespersons.length}</p>
@@ -837,19 +868,18 @@ export default function SalespersonTracker() {
               })}
             </div>
           )}
-        </div>
-      )}
-
-      {/* TAB 1 addendum: TEAM KPI ATTAINMENT */}
-      {activeTab === "performance" && (
-        <div className="mt-2 bg-card border border-border rounded-2xl p-6 shadow-2xs">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-base font-bold text-foreground">Team KPI Attainment</h2>
-              <p className="text-xs text-muted-foreground mt-0.5">Live current vs. target breakdown across all reps and KPI categories.</p>
-            </div>
           </div>
-          <KpiAttainmentTable salespersonId="all" />
+
+          {/* Sub-view 2: KPI Detail */}
+          <div className={perfSubTab === "kpi" ? "bg-card border border-border rounded-2xl p-6 shadow-2xs" : "hidden"}>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-base font-bold text-foreground">Team KPI Attainment</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">Live current vs. target breakdown across all reps and KPI categories.</p>
+              </div>
+            </div>
+            <KpiAttainmentTable salespersonId="all" />
+          </div>
         </div>
       )}
 
