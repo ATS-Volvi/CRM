@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { apiClient } from "../lib/apiClient";
 import { formatCurrency, formatCurrencyCompact } from "../utils/currency";
+import KpiAttainmentTable from "../components/KpiAttainmentTable";
 
 // ─── Interfaces & Helpers ───
 
@@ -629,43 +630,13 @@ export default function SalespersonDetail() {
 
             {/* ── SECTION 5: PERFORMANCE ANALYTICS ── */}
             {activeTab === "performance" && (
-              <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-1">
-                  <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Win Rate</span>
-                  <p className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">42.8%</p>
-                  <p className="text-xs text-slate-500 font-medium">Based on 14 closed opportunities</p>
+              <div className="space-y-1">
+                <div className="mb-4">
+                  <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">KPI Attainment</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Live current vs. target performance for this rep.</p>
                 </div>
-
-                <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-1">
-                  <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Lead Conversion Rate</span>
-                  <p className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">38.4%</p>
-                  <p className="text-xs text-slate-500 font-medium">Lead to Qualified Deal ratio</p>
-                </div>
-
-                <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-1">
-                  <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Quote Conversion Rate</span>
-                  <p className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">64.0%</p>
-                  <p className="text-xs text-slate-500 font-medium">Sent Quotes converted to Won</p>
-                </div>
-
-                <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-1">
-                  <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Average Deal Size</span>
-                  <p className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">SAR 685K</p>
-                  <p className="text-xs text-slate-500 font-medium">Average contract value</p>
-                </div>
-
-                <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-1">
-                  <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Average Sales Cycle</span>
-                  <p className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">22 Days</p>
-                  <p className="text-xs text-slate-500 font-medium">Lead creation to Closed Won</p>
-                </div>
-
-                <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-1">
-                  <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Avg First Response Time</span>
-                  <p className="text-3xl font-extrabold text-emerald-600 dark:text-emerald-400 tracking-tight">18 mins</p>
-                  <p className="text-xs text-slate-500 font-medium">Top 5% speed benchmark</p>
-                </div>
-              </section>
+                <KpiAttainmentTable salespersonId={id!} compact />
+              </div>
             )}
 
           </main>
