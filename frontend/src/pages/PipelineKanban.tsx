@@ -89,6 +89,8 @@ export default function PipelineKanban() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const ownerId = searchParams.get("ownerId");
+  const stageParam = searchParams.get("stage");
+  const isWonStage = stageParam?.toLowerCase() === "won" || stageParam?.toLowerCase() === "closed won";
   const queryClient = useQueryClient();
 
   const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
@@ -115,7 +117,9 @@ export default function PipelineKanban() {
   const [searchQuery, setSearchQuery] = useState("");
   const [stageFilter, setStageFilter] = useState("all");
   const [verificationFilter, setVerificationFilter] = useState("all");
-  const [activeTab, setActiveTab] = useState<"leads" | "opportunities" | "deals">("opportunities");
+  const [activeTab, setActiveTab] = useState<"leads" | "opportunities" | "deals">(
+    isWonStage ? "deals" : "opportunities"
+  );
 
   const { data: leads = [] } = useQuery<any[]>({
     queryKey: ["leads"],
@@ -141,6 +145,7 @@ export default function PipelineKanban() {
     return s === "Won" || s === "Lost" || s === "Closed Won" || s === "Closed Lost";
   });
   const totalValue = allDeals.reduce((sum: number, d: any) => sum + Number(d.value || d.amount || 0), 0);
+  const filteredOwnerName = allDeals.find((d: any) => d.owner?.id === ownerId)?.owner?.name;
 
   const createDealMutation = useMutation({
     mutationFn: async (deal: any) => {
@@ -336,6 +341,20 @@ export default function PipelineKanban() {
               <List className="w-3.5 h-3.5" /> List
             </button>
           </div>
+
+          {(ownerId || stageParam) && (
+            <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-xl text-xs shrink-0">
+              <span className="font-semibold text-blue-900">
+                Filtered: {filteredOwnerName ? `Rep: ${filteredOwnerName}` : ownerId ? "Selected Rep" : ""} {stageParam ? `• Stage: ${stageParam}` : ""}
+              </span>
+              <button
+                onClick={() => navigate("/pipeline")}
+                className="text-blue-700 hover:text-blue-900 font-bold ml-1 hover:underline cursor-pointer text-[11px]"
+              >
+                Clear Filter
+              </button>
+            </div>
+          )}
         </div>
       </section>
 
@@ -427,6 +446,9 @@ export default function PipelineKanban() {
             {pipelineStages
               .filter((stage) => {
                 const isWonLost = stage.name === "Won" || stage.name === "Lost" || stage.name === "Closed Won" || stage.name === "Closed Lost";
+                if (stageParam && (stageParam.toLowerCase() === "won" || stageParam.toLowerCase() === "closed won")) {
+                  return stage.name.toLowerCase() === "won" || stage.name.toLowerCase() === "closed won";
+                }
                 return activeTab === "deals" ? isWonLost : !isWonLost;
               })
               .map((stage) => {
