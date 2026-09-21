@@ -23,10 +23,17 @@ export default function Campaigns() {
   const [activeTab, setActiveTab] = useState<"campaigns" | "sources">("campaigns");
   const [search, setSearch] = useState("");
 
-  // Fetch all campaigns performance
+  // Fetch all campaigns with performance data
   const { data: campaignsData, isLoading: loadingCampaigns } = useQuery({
     queryKey: ["campaigns-analytics"],
     queryFn: async () => {
+      try {
+        const res = await campaignsApi.getCampaigns({ limit: 100 });
+        if (res?.data && Array.isArray(res.data) && res.data.length > 0) {
+          return res.data;
+        }
+      } catch (e) {}
+
       const res = await attributionApi.getCampaignsAnalytics();
       return res.data || [];
     }
@@ -41,11 +48,20 @@ export default function Campaigns() {
     }
   });
 
-  const campaigns: CampaignPerformance[] = Array.isArray(campaignsData) ? campaignsData : [];
+  const campaigns: any[] = Array.isArray(campaignsData) ? campaignsData : [];
 
-  const totalLeads = campaigns.reduce((sum, c) => sum + (c.metrics?.totalLeads || 0), 0);
-  const totalWonRevenue = campaigns.reduce((sum, c) => sum + (c.metrics?.totalRevenue || 0), 0);
-  const totalSpend = campaigns.reduce((sum, c) => sum + (c.campaign?.actualSpend || 0), 0);
+  const totalLeads = campaigns.reduce((sum, row: any) => {
+    const m = row.metrics || row;
+    return sum + (m.totalLeads || 0);
+  }, 0);
+  const totalWonRevenue = campaigns.reduce((sum, row: any) => {
+    const m = row.metrics || row;
+    return sum + (m.totalRevenue || 0);
+  }, 0);
+  const totalSpend = campaigns.reduce((sum, row: any) => {
+    const c = row.campaign || row;
+    return sum + (c.actualSpend || 0);
+  }, 0);
   const overallRoas = totalSpend > 0 ? (totalWonRevenue / totalSpend).toFixed(2) : null;
 
   return (
@@ -163,9 +179,9 @@ export default function Campaigns() {
                     </td>
                   </tr>
                 ) : (
-                  campaigns.map((row) => {
-                    const c = row.campaign;
-                    const m = row.metrics;
+                  campaigns.map((row: any) => {
+                    const c = row.campaign || row;
+                    const m = row.metrics || row;
                     return (
                       <tr key={c.id} className="transition-colors">
                         <td className="font-semibold text-slate-900">
@@ -193,7 +209,7 @@ export default function Campaigns() {
                           ₹{Number(c.budget || 0).toLocaleString()}
                         </td>
                         <td className="text-slate-900 font-bold">
-                          {c.actualSpend !== null ? `₹${Number(c.actualSpend).toLocaleString()}` : "—"}
+                          {c.actualSpend !== null && c.actualSpend !== undefined ? `₹${Number(c.actualSpend).toLocaleString()}` : "—"}
                         </td>
                         <td className="font-semibold text-slate-800">{m?.totalLeads || 0}</td>
                         <td className="text-slate-700">{m?.qualifiedLeads || 0}</td>
