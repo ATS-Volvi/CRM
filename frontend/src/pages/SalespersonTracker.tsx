@@ -306,9 +306,7 @@ export default function SalespersonTracker() {
   useEffect(() => {
     if (deepLinkTeamId && teamGroups.length > 0) {
       const matchingTeam = teamGroups.find(
-        t => t.id === deepLinkTeamId ||
-             t.name.toLowerCase() === deepLinkTeamId.toLowerCase() ||
-             t.teamLead?.id === deepLinkTeamId
+        t => t.id === deepLinkTeamId || t.teamLead?.id === deepLinkTeamId
       );
       if (matchingTeam) {
         setActiveTab("performance");
@@ -345,16 +343,15 @@ export default function SalespersonTracker() {
     const revenueForAttainment = membersWithTarget.reduce((acc, m) => acc + (m.revenueClosed || 0), 0);
     const teamAttainment = totalTarget > 0
       ? Math.round((revenueForAttainment / totalTarget) * 100)
-      : 0;
+      : null;
 
     return { totalMembers, availableCount, totalRevenue, totalTarget, totalLeads, totalDeals, avgAchievement: teamAttainment };
   };
 
   const formatRevenue = (val: number) => {
-    if (val >= 1000000) return `₹${(val / 1000000).toFixed(1)}M`;
-    if (val >= 100000) return `₹${(val / 100000).toFixed(1)}L`;
-    if (val >= 1000) return `₹${(val / 1000).toFixed(0)}K`;
-    return `₹${val}`;
+    if (val >= 1000000) return `SAR ${(val / 1000000).toFixed(1)}M`;
+    if (val >= 1000) return `SAR ${(val / 1000).toFixed(0)}K`;
+    return `SAR ${val.toLocaleString()}`;
   };
 
   const filteredOrgEmployees = useMemo(() => {
@@ -640,8 +637,8 @@ export default function SalespersonTracker() {
                   const withTarget = salespersons.filter(s => (s.revenueTarget || 0) > 0);
                   const totTarget = withTarget.reduce((acc, s) => acc + (s.revenueTarget || 0), 0);
                   const totRev = withTarget.reduce((acc, s) => acc + (s.revenueClosed || 0), 0);
-                  return totTarget > 0 ? Math.round((totRev / totTarget) * 100) : 0;
-                })()}%
+                  return totTarget > 0 ? `${Math.round((totRev / totTarget) * 100)}%` : "—";
+                })()}
               </p>
               <span className="text-[11px] text-muted-foreground font-semibold">Total revenue / quota target</span>
             </div>
@@ -704,7 +701,13 @@ export default function SalespersonTracker() {
                 const currentSubTab = teamSubTabs[team.id] || "members";
                 const stats = getTeamStats(teamLead, members);
                 const gradientClass = AVATAR_GRADIENTS[Math.abs(teamName.length) % AVATAR_GRADIENTS.length];
-                const pctColor = stats.avgAchievement >= 90 ? "text-emerald-600" : stats.avgAchievement >= 60 ? "text-primary" : "text-amber-500";
+                const pctColor = stats.avgAchievement === null
+                  ? "text-on-surface-variant"
+                  : stats.avgAchievement >= 90
+                  ? "text-emerald-600"
+                  : stats.avgAchievement >= 60
+                  ? "text-primary"
+                  : "text-amber-500";
 
                 return (
                   <div key={team.id} className="bg-surface-container-lowest border border-outline rounded-2xl overflow-hidden shadow-2xs">
@@ -732,7 +735,9 @@ export default function SalespersonTracker() {
                       <div className="flex items-center gap-6">
                         <div className="text-center">
                           <p className="text-[9px] font-bold text-on-surface-variant uppercase tracking-wider">Quota Attainment</p>
-                          <p className={`text-lg font-black ${pctColor}`}>{stats.avgAchievement}%</p>
+                          <p className={`text-lg font-black ${pctColor}`}>
+                            {stats.avgAchievement !== null ? `${stats.avgAchievement}%` : "—"}
+                          </p>
                         </div>
                         <div className="text-center">
                           <p className="text-[9px] font-bold text-on-surface-variant uppercase tracking-wider">Revenue</p>
@@ -810,8 +815,8 @@ export default function SalespersonTracker() {
                                   <div className="flex items-center gap-6 flex-shrink-0">
                                     <div className="text-center">
                                       <p className="text-[9px] font-bold text-on-surface-variant uppercase">Target</p>
-                                      <p className={`text-lg font-black ${teamLead.targetAchievementPct >= 90 ? "text-emerald-600" : teamLead.targetAchievementPct >= 60 ? "text-primary" : "text-amber-500"}`}>
-                                        {teamLead.targetAchievementPct || 0}%
+                                      <p className={`text-lg font-black ${(teamLead.revenueTarget || 0) <= 0 && (teamLead.activeKpiCount || 0) <= 0 ? "text-on-surface-variant" : teamLead.targetAchievementPct >= 90 ? "text-emerald-600" : teamLead.targetAchievementPct >= 60 ? "text-primary" : "text-amber-500"}`}>
+                                        {(teamLead.revenueTarget || 0) > 0 || (teamLead.activeKpiCount || 0) > 0 ? `${teamLead.targetAchievementPct || 0}%` : "—"}
                                       </p>
                                     </div>
                                     <div className="text-center">
@@ -847,8 +852,11 @@ export default function SalespersonTracker() {
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                                   {members.map((rep, idx) => {
                                     const memberGrad = AVATAR_GRADIENTS[idx % AVATAR_GRADIENTS.length];
+                                    const hasTarget = (rep.revenueTarget || 0) > 0 || (rep.activeKpiCount || 0) > 0;
                                     const pct = rep.targetAchievementPct || 0;
-                                    const memPctColor = pct >= 90 ? "text-emerald-600" : pct >= 60 ? "text-primary" : pct >= 30 ? "text-amber-500" : "text-rose-500";
+                                    const memPctColor = !hasTarget
+                                      ? "text-on-surface-variant"
+                                      : pct >= 90 ? "text-emerald-600" : pct >= 60 ? "text-primary" : pct >= 30 ? "text-amber-500" : "text-rose-500";
 
                                     return (
                                       <div
@@ -871,7 +879,9 @@ export default function SalespersonTracker() {
                                           </div>
 
                                           <div className="flex-shrink-0 text-right">
-                                            <p className={`text-sm font-black ${memPctColor}`}>{pct}%</p>
+                                            <p className={`text-sm font-black ${memPctColor}`}>
+                                              {hasTarget ? `${pct}%` : "—"}
+                                            </p>
                                             <p className="text-[8px] text-on-surface-variant font-bold uppercase tracking-wider">Attainment</p>
                                           </div>
                                         </div>
