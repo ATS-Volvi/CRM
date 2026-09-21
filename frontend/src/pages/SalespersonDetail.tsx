@@ -267,7 +267,7 @@ export default function SalespersonDetail() {
             <Sliders className="w-3.5 h-3.5" />
             Configure Limits
           </button>
-          <button onClick={() => navigate("/approvals")} className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 dark:text-slate-900 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer">
+          <button onClick={() => navigate(`/approvals?repId=${activeRep.id}&status=Pending`)} className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 dark:text-slate-900 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer">
             <Shield className="w-3.5 h-3.5" />
             Approvals ({pendingApprovalsCount})
           </button>
@@ -306,8 +306,11 @@ export default function SalespersonDetail() {
         <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
           
           {/* Card 1: Assigned Leads & Conversion Rate */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-1">
-            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">📋 Assigned Leads</span>
+          <div
+            onClick={() => setActiveTab("active-deals")}
+            className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-1 cursor-pointer hover:border-primary/40 hover:shadow-md transition-all active:scale-[0.99] group"
+          >
+            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block group-hover:text-primary transition-colors">📋 Assigned Leads</span>
             <p className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">{activeDealsCount} Assigned Leads</p>
             <span className="text-[10px] text-emerald-600 font-extrabold flex items-center gap-1">
               ⚡ 40% Lead Conversion Rate
@@ -315,23 +318,32 @@ export default function SalespersonDetail() {
           </div>
 
           {/* Card 2: Pipeline Value */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-1">
-            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">💰 Pipeline Value</span>
+          <div
+            onClick={() => navigate(`/pipeline?ownerId=${activeRep.id}`)}
+            className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-1 cursor-pointer hover:border-primary/40 hover:shadow-md transition-all active:scale-[0.99] group"
+          >
+            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block group-hover:text-primary transition-colors">💰 Pipeline Value</span>
             <p className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">SAR 5.2M</p>
             <span className="text-[10px] text-slate-400 font-medium">Total Open Volume</span>
           </div>
 
           {/* Card 3: Revenue Closed */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-1">
-            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">📈 Revenue Closed (Month)</span>
+          <div
+            onClick={() => navigate(`/pipeline?ownerId=${activeRep.id}&stage=Won`)}
+            className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-1 cursor-pointer hover:border-primary/40 hover:shadow-md transition-all active:scale-[0.99] group"
+          >
+            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block group-hover:text-primary transition-colors">📈 Revenue Closed (Month)</span>
             <p className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400 tracking-tight">SAR 1.8M</p>
             <span className="text-[10px] text-emerald-600 font-medium">+12% vs last month</span>
           </div>
 
           {/* Card 4: Target Achievement */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-2">
+          <div
+            onClick={() => setActiveTab("performance")}
+            className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-2 cursor-pointer hover:border-primary/40 hover:shadow-md transition-all active:scale-[0.99] group"
+          >
             <div className="flex justify-between items-baseline">
-              <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">🎯 Target Progress</span>
+              <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider group-hover:text-primary transition-colors">🎯 Target Progress</span>
               <span className="text-xs font-black text-slate-900 dark:text-white">{targetAchievementPct}%</span>
             </div>
             <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
@@ -341,15 +353,21 @@ export default function SalespersonDetail() {
           </div>
 
           {/* Card 5: Pending Approvals */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-1">
-            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">⏳ Pending Approvals</span>
+          <div
+            onClick={() => navigate(`/approvals?repId=${activeRep.id}&status=Pending`)}
+            className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-1 cursor-pointer hover:border-primary/40 hover:shadow-md transition-all active:scale-[0.99] group"
+          >
+            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block group-hover:text-primary transition-colors">⏳ Pending Approvals</span>
             <p className="text-2xl font-extrabold text-amber-600 dark:text-amber-400 tracking-tight">{pendingApprovalsCount} Pending</p>
             <span className="text-[10px] text-amber-600 font-medium">Requires Signoff</span>
           </div>
 
           {/* Card 6: Follow-ups Due Today */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-1">
-            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">📞 Follow-ups Today</span>
+          <div
+            onClick={() => setActiveTab("todays-tasks")}
+            className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-1 cursor-pointer hover:border-primary/40 hover:shadow-md transition-all active:scale-[0.99] group"
+          >
+            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block group-hover:text-primary transition-colors">📞 Follow-ups Today</span>
             <p className="text-2xl font-extrabold text-blue-600 dark:text-blue-400 tracking-tight">{followupsTodayCount} Follow-ups</p>
             <span className="text-[10px] text-slate-400 font-medium">3 Meetings Scheduled</span>
           </div>
