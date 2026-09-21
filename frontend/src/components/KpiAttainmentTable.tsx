@@ -69,24 +69,29 @@ function AttainmentBar({ pct }: { pct: number }) {
 interface Props {
   /**
    * Pass a salesperson UUID for single-rep mode (Performance Analytics tab).
-   * Pass "all" for team-aggregate mode (Business Users → Sales Performance tab).
+   * Pass "all" for company-wide mode (Business Users → Sales Performance tab).
    */
-  salespersonId: string | "all";
+  salespersonId?: string | "all";
+  /** Pass a team ID/name to fetch only that team's KPIs */
+  teamId?: string;
   /** Optional: compact layout for embedding inside a detail page */
   compact?: boolean;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function KpiAttainmentTable({ salespersonId, compact = false }: Props) {
+export default function KpiAttainmentTable({ salespersonId, teamId, compact = false }: Props) {
   const { token } = useAuth();
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("All");
 
+  const isTeamMode = Boolean(teamId) || salespersonId === "all";
+  const isSingleRepMode = !teamId && salespersonId && salespersonId !== "all";
+
   // ── Single rep mode ─────────────────────────────────────────────────────────
   const { data: repKpis, isLoading: repLoading } = useQuery<KpiRow[]>({
     queryKey: ["kpi-attainment-single", salespersonId],
-    enabled: salespersonId !== "all",
+    enabled: Boolean(isSingleRepMode),
     queryFn: async () => {
       const res = await fetch(`/api/v1/salespersons/${salespersonId}/kpis`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -106,52 +111,25 @@ export default function KpiAttainmentTable({ salespersonId, compact = false }: P
     },
   });
 
-  // ── Team-aggregate mode ──────────────────────────────────────────────────────
+  // ── Team / Batch mode (single batch endpoint) ──────────────────────────────
   const { data: teamKpis, isLoading: teamLoading } = useQuery<KpiRow[]>({
-    queryKey: ["kpi-attainment-team"],
-    enabled: salespersonId === "all",
+    queryKey: ["kpi-attainment-batch", teamId || "all"],
+    enabled: isTeamMode,
     queryFn: async () => {
-      // Fetch all reps, then fetch their KPIs in parallel
-      const repsRes = await fetch("/api/v1/salespersons", {
+      const url = teamId
+        ? `/api/v1/salespersons/kpis?teamId=${encodeURIComponent(teamId)}`
+        : `/api/v1/salespersons/kpis`;
+      const res = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!repsRes.ok) throw new Error("Failed to fetch reps");
-      const reps: any[] = await repsRes.json();
-
-      const allRows: KpiRow[] = [];
-      await Promise.all(
-        reps.map(async (rep) => {
-          try {
-            const kpiRes = await fetch(`/api/v1/salespersons/${rep.id}/kpis`, {
-              headers: { Authorization: `Bearer ${token}` },
-            });
-            if (!kpiRes.ok) return;
-            const targets: any[] = await kpiRes.json();
-            targets.forEach((t) => {
-              allRows.push({
-                id: `${rep.id}-${t.id}`,
-                kpiName: t.kpiName,
-                category: t.category || t.kpiMaster?.category || "General",
-                currentValue: Number(t.currentValue ?? 0),
-                targetValue: Number(t.targetValue ?? 0),
-                weightage: Number(t.weightage ?? 0),
-                frequency: t.frequency || "monthly",
-                status: t.status || "Active",
-                repName: rep.name,
-                repId: rep.id,
-              });
-            });
-          } catch {
-            // skip rep on error
-          }
-        })
-      );
-      return allRows;
+      if (!res.ok) throw new Error("Failed to fetch team KPIs");
+      return res.json();
     },
   });
 
-  const rows: KpiRow[] = salespersonId === "all" ? (teamKpis ?? []) : (repKpis ?? []);
-  const isLoading = salespersonId === "all" ? teamLoading : repLoading;
+  const rows: KpiRow[] = isTeamMode ? (teamKpis ?? []) : (repKpis ?? []);
+  const isLoading = isTeamMode ? teamLoading : repLoading;
+  const showRepCol = isTeamMode;
 
   const categories = ["All", ...Array.from(new Set(rows.map((r) => r.category))).sort()];
 
@@ -182,10 +160,12 @@ export default function KpiAttainmentTable({ salespersonId, compact = false }: P
 
   if (!isLoading && rows.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-slate-400 text-sm gap-2">
-        <Target className="w-10 h-10 opacity-30" />
-        <p className="font-medium">No KPI targets assigned yet.</p>
-        <p className="text-xs">Go to Settings → KPI Assignments to create targets.</p>
+      <div className="flex flex-col items-center justify-center py-12 text-slate-400 text-sm gap-2 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
+        <Target className="w-8 h-8 opacity-30 text-primary" />
+        <p className="font-semibold text-xs text-slate-700 dark:text-slate-300">
+          No KPI targets assigned {teamId ? "for this team" : "yet"}.
+        </p>
+        <p className="text-[11px] text-slate-500">Go to Master Data → KPI Assignments to create targets.</p>
       </div>
     );
   }
@@ -220,7 +200,7 @@ export default function KpiAttainmentTable({ salespersonId, compact = false }: P
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder={salespersonId === "all" ? "Search KPI or rep name…" : "Search KPI name…"}
+            placeholder={showRepCol ? "Search KPI or rep name…" : "Search KPI name…"}
             className="flex-1 bg-transparent text-xs outline-none text-slate-700 dark:text-slate-200 placeholder:text-slate-400"
           />
         </div>
@@ -251,7 +231,7 @@ export default function KpiAttainmentTable({ salespersonId, compact = false }: P
           <table className="w-full border-collapse text-xs">
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 text-left">
-                {salespersonId === "all" && (
+                {showRepCol && (
                   <th className="px-4 py-3 font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">
                     Rep
                   </th>
@@ -283,7 +263,7 @@ export default function KpiAttainmentTable({ salespersonId, compact = false }: P
               {filtered.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={salespersonId === "all" ? 8 : 7}
+                    colSpan={showRepCol ? 8 : 7}
                     className="px-4 py-10 text-center text-slate-400"
                   >
                     No results match your filters.
@@ -299,7 +279,7 @@ export default function KpiAttainmentTable({ salespersonId, compact = false }: P
                       key={row.id}
                       className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
                     >
-                      {salespersonId === "all" && (
+                      {showRepCol && (
                         <td className="px-4 py-3 font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">
                           {row.repName || "—"}
                         </td>
