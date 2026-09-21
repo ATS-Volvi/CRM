@@ -57,7 +57,7 @@ import { getBundleTemplates, createBundleTemplate, deleteBundleTemplate } from '
 import { exportLeads, exportQuotes, exportPurchaseOrders } from '../controllers/exportController';
 import {
   getSalespersonsPerformance, createSalesperson, getSalespersonPerformanceDetails, getAllSalespersons, updateSalespersonCapacity,
-  getSalespersonKpis, editKpiTarget, getKpiHistory, restoreKpiHistory, bulkAssignTargets, lockKpiTargets, approveKpiTargetChange,
+  getSalespersonKpis, getTeamKpis, editKpiTarget, getKpiHistory, restoreKpiHistory, bulkAssignTargets, lockKpiTargets, approveKpiTargetChange,
   getOrgChartEmployees, updateRepTeamType, getManagerDirectTeam, getManagerStuckDeals
 } from '../controllers/salespersonController';
 import {
@@ -600,6 +600,7 @@ router.get("/manager/team", authMiddleware, getManagerDirectTeam);
 router.get("/manager/stuck-deals", authMiddleware, getManagerStuckDeals);
 
 // KPI Target Management
+router.get("/salespersons/kpis", authMiddleware, getTeamKpis);
 router.get("/salespersons/:id/kpis", authMiddleware, getSalespersonKpis);
 router.put("/kpis/target/:kpiId", authMiddleware, editKpiTarget);
 router.get("/kpis/target/:kpiId/history", authMiddleware, getKpiHistory);

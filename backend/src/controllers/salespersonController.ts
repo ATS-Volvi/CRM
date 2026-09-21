@@ -4,6 +4,7 @@ import { Op } from "sequelize";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { isWonStage, isLostStage } from "../utils/pipelineStageHelpers";
+import { findRevenueKpiTarget, REVENUE_KPI_NAMES, isRevenueKpiName } from "../services/kpiHelpers";
 
 /**
  * Derives a normalized pipeline cycle stage from a quote's status and timestamps.
@@ -95,11 +96,12 @@ export const getSalespersonsPerformance = async (req: Request, res: Response) =>
     const activeMasters = await sequelize.models.KpiMaster.findAll({ where: { isActive: true }, attributes: ["name"] });
     const activeKpiNames = activeMasters.map((m: any) => m.name);
 
-    // 3. Bulk fetch KPI Targets for all users in 1 query
+    // 3. Bulk fetch KPI Targets for all users in 1 query (including revenue targets)
+    const targetNamesToFetch = Array.from(new Set([...activeKpiNames, ...REVENUE_KPI_NAMES, "Monthly Achievement"]));
     const allTargets = await sequelize.models.KpiTarget.findAll({
       where: { 
         salespersonId: { [Op.in]: scopedUserIds },
-        kpiName: { [Op.in]: activeKpiNames }
+        kpiName: { [Op.in]: targetNamesToFetch }
       }
     });
 
@@ -212,11 +214,16 @@ export const getSalespersonsPerformance = async (req: Request, res: Response) =>
 
       const activeKpiCount = targets.filter((t: any) => t.targetValue > 0).length;
 
-      const revClosedModel = targets.find((t: any) => t.kpiName === "Revenue Closed");
-      const revenueClosed = revClosedModel ? (revClosedModel as any).currentValue : 0;
+      const revClosedModel = findRevenueKpiTarget(targets);
+      const revenueClosed = revClosedModel ? Number(revClosedModel.currentValue || 0) : 0;
+      const revenueTarget = revClosedModel ? Number(revClosedModel.targetValue || 0) : 0;
 
       const monthlyAchievementModel = targets.find((t: any) => t.kpiName === "Monthly Achievement");
-      const targetAchievementPct = monthlyAchievementModel ? (monthlyAchievementModel as any).currentValue : 0;
+      const targetAchievementPct = monthlyAchievementModel 
+        ? Number(monthlyAchievementModel.currentValue || 0)
+        : revenueTarget > 0
+        ? Math.round((revenueClosed / revenueTarget) * 100)
+        : 0;
 
       const purchaseOrders: any[] = [];
       const quotesResult: any[] = [];
@@ -318,6 +325,7 @@ export const getSalespersonsPerformance = async (req: Request, res: Response) =>
         team: u.team || "Aces",
         activeKpiCount,
         revenueClosed,
+        revenueTarget,
         targetAchievementPct,
         totalLeads: leads.length,
         totalDeals: deals.length,
@@ -865,6 +873,16 @@ const STANDARD_KPIS = [
 export const getSalespersonKpis = async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
+    const caller = (req as any).user;
+    if (caller) {
+      const { getScopedUserIds } = require("../services/scopeHelper");
+      const allowedUserIds: string[] = await getScopedUserIds(caller);
+      if (!allowedUserIds.includes(id)) {
+        res.status(403).json({ error: "Access denied" });
+        return;
+      }
+    }
+
     const salesperson = await sequelize.models.User.findByPk(id);
     if (!salesperson) {
       res.status(404).json({ error: "Salesperson not found" });
@@ -1015,7 +1033,6 @@ export const getSalespersonKpis = async (req: Request, res: Response) => {
           case "Quotations Sent": current = quotesSentCount; break;
           case "Quotations Approved": current = quotesApprovedCount; break;
           case "Purchase Orders": current = posCount; break;
-          case "Revenue Closed": current = revenueClosedVal; break;
           case "Lead → Meeting %": current = leadToMeetingPct; break;
           case "Meeting → Proposal %": current = meetingToProposalPct; break;
           case "Proposal → PO %": current = proposalToPoPct; break;
@@ -1025,7 +1042,13 @@ export const getSalespersonKpis = async (req: Request, res: Response) => {
           case "Outstanding Collections": current = outstandingVal; break;
           case "New Clients": current = newClientsCount; break;
           case "Repeat Clients": current = repeatClientsCount; break;
-          default: current = targetModel.currentValue || 0; break;
+          default:
+            if (isRevenueKpiName(name)) {
+              current = revenueClosedVal;
+            } else {
+              current = targetModel.currentValue || 0;
+            }
+            break;
         }
 
         targetValMaps[name] = current;
@@ -1510,3 +1533,108 @@ export const getManagerStuckDeals = async (req: Request, res: Response) => {
     res.status(500).json({ success: false, error: error.message, stuckDeals: [], count: 0 });
   }
 };
+
+/**
+ * Batch endpoint for fetching KPI rows across a team or all scoped reps in a single request.
+ * GET /api/v1/salespersons/kpis?teamId=<id>&salespersonIds=<csv>
+ * Enforces server-side role authorization:
+ * - Admin/Director: all teams/reps.
+ * - Manager: only their team members / direct reports.
+ * - Sales Rep: only themselves.
+ */
+export const getTeamKpis = async (req: Request, res: Response) => {
+  try {
+    const caller = (req as any).user;
+    const { getScopedUserIds } = require("../services/scopeHelper");
+    const allowedUserIds: string[] = await getScopedUserIds(caller);
+
+    if (!allowedUserIds || allowedUserIds.length === 0) {
+      return res.json([]);
+    }
+
+    const { teamId, salespersonIds } = req.query;
+
+    let targetUserWhere: any = {
+      id: { [Op.in]: allowedUserIds }
+    };
+
+    if (teamId && typeof teamId === "string") {
+      const cleanTeamId = teamId.trim();
+      // Match by managerId = teamId, id = teamId (if manager), or team name
+      targetUserWhere[Op.and] = [
+        { id: { [Op.in]: allowedUserIds } },
+        {
+          [Op.or]: [
+            { managerId: cleanTeamId },
+            { id: cleanTeamId },
+            sequelize.where(sequelize.fn("LOWER", sequelize.col("team")), cleanTeamId.toLowerCase()),
+            { team: cleanTeamId }
+          ]
+        }
+      ];
+    }
+
+    if (salespersonIds) {
+      const parsedIds = (typeof salespersonIds === "string" ? salespersonIds.split(",") : (salespersonIds as string[]))
+        .map(id => id.trim())
+        .filter(Boolean);
+      if (parsedIds.length > 0) {
+        const filteredIds = parsedIds.filter(id => allowedUserIds.includes(id));
+        if (targetUserWhere[Op.and]) {
+          targetUserWhere[Op.and].push({ id: { [Op.in]: filteredIds } });
+        } else {
+          targetUserWhere.id = { [Op.in]: filteredIds };
+        }
+      }
+    }
+
+    // 1. Fetch authorized users
+    const users = await sequelize.models.User.findAll({
+      where: targetUserWhere,
+      attributes: ["id", "name", "email", "role", "team", "department"]
+    });
+
+    if (users.length === 0) {
+      return res.json([]);
+    }
+
+    const userIds = users.map((u: any) => u.id);
+    const userMap = new Map(users.map((u: any) => [u.id, u]));
+
+    // 2. Fetch active KPI Masters to map category
+    const masters = await sequelize.models.KpiMaster.findAll({
+      attributes: ["name", "category"]
+    });
+    const categoryMap = new Map(masters.map((m: any) => [m.name, m.category]));
+
+    // 3. Batch fetch all KPI targets for these users
+    const targets = await sequelize.models.KpiTarget.findAll({
+      where: {
+        salespersonId: { [Op.in]: userIds }
+      },
+      order: [["salespersonId", "ASC"], ["kpiName", "ASC"]]
+    });
+
+    const rows = targets.map((t: any) => {
+      const rep = userMap.get(t.salespersonId);
+      return {
+        id: `${t.salespersonId}-${t.id}`,
+        kpiName: t.kpiName,
+        category: t.category || categoryMap.get(t.kpiName) || "General",
+        currentValue: Number(t.currentValue ?? 0),
+        targetValue: Number(t.targetValue ?? 0),
+        weightage: Number(t.weightage ?? 0),
+        frequency: t.frequency || "monthly",
+        status: t.status || "Active",
+        repName: rep ? (rep as any).name : "Unknown",
+        repId: t.salespersonId,
+        teamName: rep ? (rep as any).team || "Unassigned" : "Unassigned"
+      };
+    });
+
+    res.json(rows);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+

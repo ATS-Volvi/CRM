@@ -1,6 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiClient } from "../lib/apiClient";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -27,6 +27,7 @@ interface Salesperson {
   team: string;
   activeKpiCount: number;
   revenueClosed: number;
+  revenueTarget?: number;
   targetAchievementPct: number;
   managerId?: string | null;
   hireDate?: string | null;
@@ -96,6 +97,10 @@ export default function SalespersonTracker() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
+  const [searchParams] = useSearchParams();
+  const deepLinkTeamId = searchParams.get("teamId");
+  const deepLinkView = searchParams.get("view");
+
   const [activeTab, setActiveTab] = useState<"performance" | "orgchart">("performance");
   const [perfSubTab, setPerfSubTab] = useState<"overview" | "kpi">("overview");
   const [search, setSearch] = useState("");
@@ -103,11 +108,13 @@ export default function SalespersonTracker() {
   const [filterTerritory, setFilterTerritory] = useState("All");
   const [filterTeam, setFilterTeam] = useState("All");
   const [filterStatus, setFilterStatus] = useState("All");
+  const [filterKpiTeam, setFilterKpiTeam] = useState<string>("All");
 
   const [orgSearch, setOrgSearch] = useState("");
   const [selectedEmployee, setSelectedEmployee] = useState<any | null>(null);
 
   const [expandedTeams, setExpandedTeams] = useState<Set<string>>(new Set());
+  const [teamSubTabs, setTeamSubTabs] = useState<Record<string, "members" | "kpi">>({});
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -147,9 +154,10 @@ export default function SalespersonTracker() {
         department: u.department || "Sales",
         territory: u.territory || "EMEA",
         team: u.team || "Aces",
-        activeKpiCount: 0,
-        revenueClosed: 0,
-        targetAchievementPct: 0,
+        activeKpiCount: u.activeKpiCount || 0,
+        revenueClosed: Number(u.revenueClosed || 0),
+        revenueTarget: Number(u.revenueTarget || 0),
+        targetAchievementPct: Number(u.targetAchievementPct || 0),
         managerId: u.managerId || null,
         hireDate: u.hireDate,
         phone: u.phone,
@@ -280,22 +288,48 @@ export default function SalespersonTracker() {
       }
     });
 
-    return Object.entries(groups).sort(([a], [b]) => {
-      if (a === "Unassigned") return 1;
-      if (b === "Unassigned") return -1;
-      return a.localeCompare(b);
-    });
+    return Object.entries(groups)
+      .sort(([a], [b]) => {
+        if (a === "Unassigned") return 1;
+        if (b === "Unassigned") return -1;
+        return a.localeCompare(b);
+      })
+      .map(([teamName, data]) => ({
+        id: data.teamLead?.id || teamName.toLowerCase().replace(/[^a-z0-9]/g, "-"),
+        name: teamName,
+        teamLead: data.teamLead,
+        members: data.members
+      }));
   }, [filtered]);
 
-  const toggleTeam = (teamName: string) => {
+  // Deep-link support: /salespersons?teamId=<id>&view=kpi expands team and activates its KPI Detail
+  useEffect(() => {
+    if (deepLinkTeamId && teamGroups.length > 0) {
+      const matchingTeam = teamGroups.find(
+        t => t.id === deepLinkTeamId || t.teamLead?.id === deepLinkTeamId
+      );
+      if (matchingTeam) {
+        setActiveTab("performance");
+        setPerfSubTab("overview");
+        setExpandedTeams(prev => new Set(prev).add(matchingTeam.id));
+        if (deepLinkView === "kpi") {
+          setTeamSubTabs(prev => ({ ...prev, [matchingTeam.id]: "kpi" }));
+        }
+      }
+    }
+  }, [deepLinkTeamId, deepLinkView, teamGroups]);
+
+  const toggleTeam = (teamId: string) => {
     setExpandedTeams(prev => {
       const next = new Set(prev);
-      if (next.has(teamName)) next.delete(teamName);
-      else next.add(teamName);
+      if (next.has(teamId)) next.delete(teamId);
+      else next.add(teamId);
       return next;
     });
   };
 
+  // Definition: Team quota attainment is computed as total revenue / total target across
+  // members who have an active revenue target (excluding reps with no target instead of counting them as 0%).
   const getTeamStats = (teamLead: Salesperson | null, members: Salesperson[]) => {
     const all = teamLead ? [teamLead, ...members] : members;
     const totalMembers = all.length;
@@ -303,17 +337,21 @@ export default function SalespersonTracker() {
     const totalRevenue = all.reduce((acc, m) => acc + (m.revenueClosed || 0), 0);
     const totalLeads = all.reduce((acc, m) => acc + (m.totalLeads || 0), 0);
     const totalDeals = all.reduce((acc, m) => acc + (m.totalDeals || 0), 0);
-    const avgAchievement = totalMembers > 0
-      ? Math.round(all.reduce((acc, m) => acc + (m.targetAchievementPct || 0), 0) / totalMembers)
-      : 0;
-    return { totalMembers, availableCount, totalRevenue, totalLeads, totalDeals, avgAchievement };
+
+    const membersWithTarget = all.filter(m => (m.revenueTarget || 0) > 0);
+    const totalTarget = membersWithTarget.reduce((acc, m) => acc + (m.revenueTarget || 0), 0);
+    const revenueForAttainment = membersWithTarget.reduce((acc, m) => acc + (m.revenueClosed || 0), 0);
+    const teamAttainment = totalTarget > 0
+      ? Math.round((revenueForAttainment / totalTarget) * 100)
+      : null;
+
+    return { totalMembers, availableCount, totalRevenue, totalTarget, totalLeads, totalDeals, avgAchievement: teamAttainment };
   };
 
   const formatRevenue = (val: number) => {
-    if (val >= 1000000) return `₹${(val / 1000000).toFixed(1)}M`;
-    if (val >= 100000) return `₹${(val / 100000).toFixed(1)}L`;
-    if (val >= 1000) return `₹${(val / 1000).toFixed(0)}K`;
-    return `₹${val}`;
+    if (val >= 1000000) return `SAR ${(val / 1000000).toFixed(1)}M`;
+    if (val >= 1000) return `SAR ${(val / 1000).toFixed(0)}K`;
+    return `SAR ${val.toLocaleString()}`;
   };
 
   const filteredOrgEmployees = useMemo(() => {
@@ -593,13 +631,16 @@ export default function SalespersonTracker() {
               <span className="text-[11px] text-muted-foreground font-semibold">Attributed sales volume</span>
             </div>
             <div className="bg-card border border-border rounded-xl p-4 shadow-2xs space-y-1">
-              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Avg Quota Attainment</span>
+              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Company Quota Attainment</span>
               <p className="text-xl font-black text-amber-600">
-                {salespersons.length > 0
-                  ? Math.round(salespersons.reduce((acc, s) => acc + (s.targetAchievementPct || 0), 0) / salespersons.length)
-                  : 0}%
+                {(() => {
+                  const withTarget = salespersons.filter(s => (s.revenueTarget || 0) > 0);
+                  const totTarget = withTarget.reduce((acc, s) => acc + (s.revenueTarget || 0), 0);
+                  const totRev = withTarget.reduce((acc, s) => acc + (s.revenueClosed || 0), 0);
+                  return totTarget > 0 ? `${Math.round((totRev / totTarget) * 100)}%` : "—";
+                })()}
               </p>
-              <span className="text-[11px] text-muted-foreground font-semibold">Team performance average</span>
+              <span className="text-[11px] text-muted-foreground font-semibold">Total revenue / quota target</span>
             </div>
             <div className="bg-card border border-border rounded-xl p-4 shadow-2xs space-y-1">
               <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Active Teams</span>
@@ -652,16 +693,26 @@ export default function SalespersonTracker() {
             </div>
           ) : (
             <div className="space-y-4">
-              {teamGroups.map(([teamName, { teamLead, members }]) => {
-                const isExpanded = expandedTeams.has(teamName);
+              {teamGroups.map((team) => {
+                const teamName = team.name;
+                const teamLead = team.teamLead;
+                const members = team.members;
+                const isExpanded = expandedTeams.has(team.id);
+                const currentSubTab = teamSubTabs[team.id] || "members";
                 const stats = getTeamStats(teamLead, members);
                 const gradientClass = AVATAR_GRADIENTS[Math.abs(teamName.length) % AVATAR_GRADIENTS.length];
-                const pctColor = stats.avgAchievement >= 90 ? "text-emerald-600" : stats.avgAchievement >= 60 ? "text-primary" : "text-amber-500";
+                const pctColor = stats.avgAchievement === null
+                  ? "text-on-surface-variant"
+                  : stats.avgAchievement >= 90
+                  ? "text-emerald-600"
+                  : stats.avgAchievement >= 60
+                  ? "text-primary"
+                  : "text-amber-500";
 
                 return (
-                  <div key={teamName} className="bg-surface-container-lowest border border-outline rounded-2xl overflow-hidden shadow-2xs">
+                  <div key={team.id} className="bg-surface-container-lowest border border-outline rounded-2xl overflow-hidden shadow-2xs">
                     <button
-                      onClick={() => toggleTeam(teamName)}
+                      onClick={() => toggleTeam(team.id)}
                       className="w-full p-5 flex items-center justify-between hover:bg-surface-container-low/30 transition-colors text-left"
                     >
                       <div className="flex items-center gap-3">
@@ -684,7 +735,9 @@ export default function SalespersonTracker() {
                       <div className="flex items-center gap-6">
                         <div className="text-center">
                           <p className="text-[9px] font-bold text-on-surface-variant uppercase tracking-wider">Quota Attainment</p>
-                          <p className={`text-lg font-black ${pctColor}`}>{stats.avgAchievement}%</p>
+                          <p className={`text-lg font-black ${pctColor}`}>
+                            {stats.avgAchievement !== null ? `${stats.avgAchievement}%` : "—"}
+                          </p>
                         </div>
                         <div className="text-center">
                           <p className="text-[9px] font-bold text-on-surface-variant uppercase tracking-wider">Revenue</p>
@@ -707,160 +760,185 @@ export default function SalespersonTracker() {
 
                     {isExpanded && (
                       <div className="border-t border-outline-variant bg-surface-container-low/20 px-5 pt-4 pb-5 space-y-4">
-                        {teamLead && (
-                          <div className="mb-3">
-                            <span className="flex items-center gap-1.5 text-[10px] font-extrabold text-amber-600 uppercase tracking-wider mb-2">
-                              <Crown className="w-3 h-3" /> Team Lead
-                            </span>
-                            <div
-                              onClick={() => navigate(`/salespersons/${teamLead.id}`)}
-                              className="group bg-surface-container-lowest border-2 border-amber-200 dark:border-amber-800 rounded-xl p-4 shadow-sm hover:shadow-md hover:border-amber-400 transition-all cursor-pointer flex items-center gap-4"
-                            >
-                              <div className="relative flex-shrink-0">
-                                <div className={`w-12 h-12 rounded-full bg-gradient-to-br ${gradientClass} flex items-center justify-center text-white font-bold text-sm ring-2 ring-amber-300`}>
-                                  {getInitials(teamLead.name)}
-                                </div>
-                                <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${teamLead.isAvailable ? "bg-emerald-500" : "bg-slate-400"}`} />
-                              </div>
+                        {/* Sub-tabs: Members vs KPI Detail inside expanded team */}
+                        <div className="flex items-center gap-1 bg-surface-container-high/50 p-1 rounded-lg border border-outline-variant w-fit">
+                          <button
+                            type="button"
+                            onClick={() => setTeamSubTabs(prev => ({ ...prev, [team.id]: "members" }))}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
+                              currentSubTab === "members"
+                                ? "bg-surface-container-lowest text-primary shadow-xs"
+                                : "text-on-surface-variant hover:text-on-surface"
+                            }`}
+                          >
+                            <Users className="w-3.5 h-3.5" />
+                            Members ({stats.totalMembers})
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setTeamSubTabs(prev => ({ ...prev, [team.id]: "kpi" }))}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
+                              currentSubTab === "kpi"
+                                ? "bg-surface-container-lowest text-primary shadow-xs"
+                                : "text-on-surface-variant hover:text-on-surface"
+                            }`}
+                          >
+                            <Target className="w-3.5 h-3.5" />
+                            KPI Detail
+                          </button>
+                        </div>
 
-                              <div className="flex-1 min-w-0">
-                                <p className="font-bold text-on-surface text-sm truncate group-hover:text-primary transition-colors">{teamLead.name}</p>
-                                <p className="text-[10px] text-on-surface-variant font-semibold">{roleLabel(teamLead.role, teamLead.tier)} · {teamLead.department || "Sales"} · {teamLead.territory || "EMEA"}</p>
-                                {teamLead.email && <p className="text-[10px] font-mono text-primary truncate">{teamLead.email}</p>}
-                              </div>
-
-                              <div className="flex items-center gap-6 flex-shrink-0">
-                                <div className="text-center">
-                                  <p className="text-[9px] font-bold text-on-surface-variant uppercase">Target</p>
-                                  <p className={`text-lg font-black ${teamLead.targetAchievementPct >= 90 ? "text-emerald-600" : teamLead.targetAchievementPct >= 60 ? "text-primary" : "text-amber-500"}`}>
-                                    {teamLead.targetAchievementPct || 0}%
-                                  </p>
-                                </div>
-                                <div className="text-center">
-                                  <p className="text-[9px] font-bold text-on-surface-variant uppercase">Revenue</p>
-                                  <p className="text-lg font-black text-on-surface">{formatRevenue(teamLead.revenueClosed || 0)}</p>
-                                </div>
-                                <div className="text-center">
-                                  <p className="text-[9px] font-bold text-on-surface-variant uppercase">Leads</p>
-                                  <p className="text-sm font-black text-on-surface">{teamLead.totalLeads}</p>
-                                </div>
-                                <div className="text-center">
-                                  <p className="text-[9px] font-bold text-on-surface-variant uppercase">Deals</p>
-                                  <p className="text-sm font-black text-on-surface">{teamLead.totalDeals}</p>
-                                </div>
-                                <span className="flex items-center gap-1 text-[10px] font-bold text-primary opacity-0 group-hover:opacity-100 transition-opacity">
-                                  View <ChevronRight className="w-3 h-3" />
+                        {currentSubTab === "members" ? (
+                          <>
+                            {teamLead && (
+                              <div className="mb-3">
+                                <span className="flex items-center gap-1.5 text-[10px] font-extrabold text-amber-600 uppercase tracking-wider mb-2">
+                                  <Crown className="w-3 h-3" /> Team Lead
                                 </span>
+                                <div
+                                  onClick={() => navigate(`/salespersons/${teamLead.id}`)}
+                                  className="group bg-surface-container-lowest border-2 border-amber-200 dark:border-amber-800 rounded-xl p-4 shadow-sm hover:shadow-md hover:border-amber-400 transition-all cursor-pointer flex items-center gap-4"
+                                >
+                                  <div className="relative flex-shrink-0">
+                                    <div className={`w-12 h-12 rounded-full bg-gradient-to-br ${gradientClass} flex items-center justify-center text-white font-bold text-sm ring-2 ring-amber-300`}>
+                                      {getInitials(teamLead.name)}
+                                    </div>
+                                    <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${teamLead.isAvailable ? "bg-emerald-500" : "bg-slate-400"}`} />
+                                  </div>
+
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-bold text-on-surface text-sm truncate group-hover:text-primary transition-colors">{teamLead.name}</p>
+                                    <p className="text-[10px] text-on-surface-variant font-semibold">{roleLabel(teamLead.role, teamLead.tier)} · {teamLead.department || "Sales"} · {teamLead.territory || "EMEA"}</p>
+                                    {teamLead.email && <p className="text-[10px] font-mono text-primary truncate">{teamLead.email}</p>}
+                                  </div>
+
+                                  <div className="flex items-center gap-6 flex-shrink-0">
+                                    <div className="text-center">
+                                      <p className="text-[9px] font-bold text-on-surface-variant uppercase">Target</p>
+                                      <p className={`text-lg font-black ${(teamLead.revenueTarget || 0) <= 0 && (teamLead.activeKpiCount || 0) <= 0 ? "text-on-surface-variant" : teamLead.targetAchievementPct >= 90 ? "text-emerald-600" : teamLead.targetAchievementPct >= 60 ? "text-primary" : "text-amber-500"}`}>
+                                        {(teamLead.revenueTarget || 0) > 0 || (teamLead.activeKpiCount || 0) > 0 ? `${teamLead.targetAchievementPct || 0}%` : "—"}
+                                      </p>
+                                    </div>
+                                    <div className="text-center">
+                                      <p className="text-[9px] font-bold text-on-surface-variant uppercase">Revenue</p>
+                                      <p className="text-lg font-black text-on-surface">{formatRevenue(teamLead.revenueClosed || 0)}</p>
+                                    </div>
+                                    <div className="text-center">
+                                      <p className="text-[9px] font-bold text-on-surface-variant uppercase">Leads</p>
+                                      <p className="text-sm font-black text-on-surface">{teamLead.totalLeads}</p>
+                                    </div>
+                                    <div className="text-center">
+                                      <p className="text-[9px] font-bold text-on-surface-variant uppercase">Deals</p>
+                                      <p className="text-sm font-black text-on-surface">{teamLead.totalDeals}</p>
+                                    </div>
+                                    <span className="flex items-center gap-1 text-[10px] font-bold text-primary opacity-0 group-hover:opacity-100 transition-opacity">
+                                      View <ChevronRight className="w-3 h-3" />
+                                    </span>
+                                  </div>
+                                </div>
                               </div>
+                            )}
+
+                            <div>
+                              <span className="flex items-center gap-1.5 text-[10px] font-extrabold text-on-surface-variant uppercase tracking-wider mb-2">
+                                <Users className="w-3 h-3" /> Team Members ({members.length})
+                              </span>
+
+                              {members.length === 0 ? (
+                                <div className="text-center py-6 text-xs text-on-surface-variant font-medium italic">
+                                  No additional team members found.
+                                </div>
+                              ) : (
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                  {members.map((rep, idx) => {
+                                    const memberGrad = AVATAR_GRADIENTS[idx % AVATAR_GRADIENTS.length];
+                                    const hasTarget = (rep.revenueTarget || 0) > 0 || (rep.activeKpiCount || 0) > 0;
+                                    const pct = rep.targetAchievementPct || 0;
+                                    const memPctColor = !hasTarget
+                                      ? "text-on-surface-variant"
+                                      : pct >= 90 ? "text-emerald-600" : pct >= 60 ? "text-primary" : pct >= 30 ? "text-amber-500" : "text-rose-500";
+
+                                    return (
+                                      <div
+                                        key={rep.id}
+                                        onClick={() => navigate(`/salespersons/${rep.id}`)}
+                                        className="group bg-surface-container-lowest border border-outline-variant rounded-xl p-4 shadow-2xs hover:shadow-md hover:border-primary/30 transition-all cursor-pointer relative"
+                                      >
+                                        <div className="flex items-center gap-3">
+                                          <div className="relative flex-shrink-0">
+                                            <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${memberGrad} flex items-center justify-center text-white font-bold text-xs`}>
+                                              {getInitials(rep.name)}
+                                            </div>
+                                            <div className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white ${rep.isAvailable ? "bg-emerald-500" : "bg-slate-400"}`} />
+                                          </div>
+
+                                          <div className="flex-1 min-w-0">
+                                            <p className="font-bold text-on-surface text-xs truncate group-hover:text-primary transition-colors">{rep.name}</p>
+                                            <p className="text-[10px] text-on-surface-variant font-medium truncate">{roleLabel(rep.role, rep.tier)}</p>
+                                            {rep.email && <p className="text-[9px] font-mono text-on-surface-variant truncate opacity-80">{rep.email}</p>}
+                                          </div>
+
+                                          <div className="flex-shrink-0 text-right">
+                                            <p className={`text-sm font-black ${memPctColor}`}>
+                                              {hasTarget ? `${pct}%` : "—"}
+                                            </p>
+                                            <p className="text-[8px] text-on-surface-variant font-bold uppercase tracking-wider">Attainment</p>
+                                          </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-4 gap-1 mt-3 pt-2.5 border-t border-outline-variant text-center">
+                                          <div>
+                                            <p className="text-xs font-black text-on-surface">{formatRevenue(rep.revenueClosed || 0)}</p>
+                                            <p className="text-[8px] text-on-surface-variant font-semibold">Revenue</p>
+                                          </div>
+                                          <div>
+                                            <p className="text-xs font-black text-on-surface">{rep.totalLeads}</p>
+                                            <p className="text-[8px] text-on-surface-variant font-semibold">Leads</p>
+                                          </div>
+                                          <div>
+                                            <p className="text-xs font-black text-on-surface">{rep.totalDeals}</p>
+                                            <p className="text-[8px] text-on-surface-variant font-semibold">Deals</p>
+                                          </div>
+                                          <div>
+                                            <p className="text-xs font-black text-on-surface">{rep.activeKpiCount || 0}</p>
+                                            <p className="text-[8px] text-on-surface-variant font-semibold">KPIs</p>
+                                          </div>
+                                        </div>
+
+                                        <div className="flex items-center justify-between mt-2 pt-2 border-t border-outline-variant">
+                                          <button
+                                            onClick={e => { e.stopPropagation(); handleToggleAvailability(rep); }}
+                                            className={`px-2 py-0.5 rounded-full text-[9px] font-bold border transition-all ${
+                                              rep.isAvailable
+                                                ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                                                : "bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200"
+                                            }`}
+                                          >
+                                            {rep.isAvailable ? "● Available" : "○ OOO"}
+                                          </button>
+                                          <span className="flex items-center gap-1 text-[10px] font-bold text-primary opacity-0 group-hover:opacity-100 transition-opacity">
+                                            View Profile <ChevronRight className="w-3 h-3" />
+                                          </span>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
                             </div>
+                          </>
+                        ) : (
+                          /* Lazy-loaded Team KPI Detail subtab */
+                          <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-5 shadow-2xs">
+                            <div className="mb-4">
+                              <h4 className="text-xs font-bold text-on-surface uppercase tracking-wider flex items-center gap-1.5">
+                                <Target className="w-3.5 h-3.5 text-primary" /> {teamName} Team KPI Detail
+                              </h4>
+                              <p className="text-[11px] text-on-surface-variant">Live metrics breakdown across all {teamName} members.</p>
+                            </div>
+                            <KpiAttainmentTable teamId={team.id} />
                           </div>
                         )}
-
-                        <div>
-                          <span className="flex items-center gap-1.5 text-[10px] font-extrabold text-on-surface-variant uppercase tracking-wider mb-2">
-                            <Users className="w-3 h-3" /> Team Members ({members.length})
-                          </span>
-
-                          {members.length === 0 ? (
-                            <div className="text-center py-6 text-xs text-on-surface-variant font-medium italic">
-                              No additional team members found.
-                            </div>
-                          ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                              {members.map((rep, idx) => {
-                                const memberGrad = AVATAR_GRADIENTS[idx % AVATAR_GRADIENTS.length];
-                                const pct = rep.targetAchievementPct || 0;
-                                const memPctColor = pct >= 90 ? "text-emerald-600" : pct >= 60 ? "text-primary" : pct >= 30 ? "text-amber-500" : "text-rose-500";
-
-                                return (
-                                  <div
-                                    key={rep.id}
-                                    onClick={() => navigate(`/salespersons/${rep.id}`)}
-                                    className="group bg-surface-container-lowest border border-outline-variant rounded-xl p-4 shadow-2xs hover:shadow-md hover:border-primary/30 transition-all cursor-pointer relative"
-                                  >
-                                    <div className={`absolute top-3 right-3 w-2 h-2 rounded-full ${rep.isAvailable ? "bg-emerald-500" : "bg-slate-400"}`} />
-
-                                    <div className="flex items-start gap-3 mb-3">
-                                      <div className="relative flex-shrink-0">
-                                        <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${memberGrad} flex items-center justify-center text-white font-bold text-xs`}>
-                                          {getInitials(rep.name)}
-                                        </div>
-                                        <div className="absolute -bottom-1 -right-1">
-                                          <ProgressRing pct={pct} size={22} stroke={2} />
-                                        </div>
-                                      </div>
-                                      <div className="flex-1 min-w-0">
-                                        <p className="font-bold text-on-surface text-sm truncate group-hover:text-primary transition-colors">{rep.name}</p>
-                                        <p className="text-[10px] text-on-surface-variant font-semibold">{roleLabel(rep.role, rep.tier)}</p>
-                                        {rep.email && <p className="text-[10px] font-mono text-primary truncate">{rep.email}</p>}
-                                      </div>
-                                    </div>
-
-                                    <div className="flex items-center justify-between mb-2">
-                                      <div>
-                                        <p className="text-[9px] font-bold text-on-surface-variant uppercase">Target</p>
-                                        <p className={`text-base font-black ${memPctColor}`}>{pct}%</p>
-                                      </div>
-                                      <div className="text-right">
-                                        <p className="text-[9px] font-bold text-on-surface-variant uppercase">Revenue</p>
-                                        <p className="text-sm font-black text-on-surface">{formatRevenue(rep.revenueClosed || 0)}</p>
-                                      </div>
-                                    </div>
-
-                                    <div className="mb-3">
-                                      <div className="h-1 bg-surface-container-low rounded-full overflow-hidden">
-                                        <div
-                                          className={`h-full rounded-full transition-all ${pct >= 90 ? "bg-emerald-500" : pct >= 60 ? "bg-primary" : pct >= 30 ? "bg-amber-500" : "bg-rose-500"}`}
-                                          style={{ width: `${Math.min(100, pct)}%` }}
-                                        />
-                                      </div>
-                                    </div>
-
-                                    <div className="flex flex-wrap gap-1 mb-2">
-                                      <span className="flex items-center gap-0.5 px-1.5 py-0.5 bg-surface-container-low rounded-full text-[9px] font-semibold text-on-surface-variant">
-                                        <Building2 className="w-2 h-2" /> {rep.department || "Sales"}
-                                      </span>
-                                      <span className="flex items-center gap-0.5 px-1.5 py-0.5 bg-surface-container-low rounded-full text-[9px] font-semibold text-on-surface-variant">
-                                        <MapPin className="w-2 h-2" /> {rep.territory || "EMEA"}
-                                      </span>
-                                    </div>
-
-                                    <div className="grid grid-cols-3 gap-2 text-center border-t border-outline-variant pt-2">
-                                      <div>
-                                        <p className="text-xs font-black text-on-surface">{rep.totalLeads}</p>
-                                        <p className="text-[8px] text-on-surface-variant font-semibold">Leads</p>
-                                      </div>
-                                      <div>
-                                        <p className="text-xs font-black text-on-surface">{rep.totalDeals}</p>
-                                        <p className="text-[8px] text-on-surface-variant font-semibold">Deals</p>
-                                      </div>
-                                      <div>
-                                        <p className="text-xs font-black text-on-surface">{rep.activeKpiCount || 0}</p>
-                                        <p className="text-[8px] text-on-surface-variant font-semibold">KPIs</p>
-                                      </div>
-                                    </div>
-
-                                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-outline-variant">
-                                      <button
-                                        onClick={e => { e.stopPropagation(); handleToggleAvailability(rep); }}
-                                        className={`px-2 py-0.5 rounded-full text-[9px] font-bold border transition-all ${
-                                          rep.isAvailable
-                                            ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
-                                            : "bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200"
-                                        }`}
-                                      >
-                                        {rep.isAvailable ? "● Available" : "○ OOO"}
-                                      </button>
-                                      <span className="flex items-center gap-1 text-[10px] font-bold text-primary opacity-0 group-hover:opacity-100 transition-opacity">
-                                        View Profile <ChevronRight className="w-3 h-3" />
-                                      </span>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
                       </div>
                     )}
                   </div>
@@ -870,15 +948,35 @@ export default function SalespersonTracker() {
           )}
           </div>
 
-          {/* Sub-view 2: KPI Detail */}
+          {/* Sub-view 2: Standalone Company-wide KPI Detail */}
           <div className={perfSubTab === "kpi" ? "bg-card border border-border rounded-2xl p-6 shadow-2xs" : "hidden"}>
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
               <div>
-                <h2 className="text-base font-bold text-foreground">Team KPI Attainment</h2>
-                <p className="text-xs text-muted-foreground mt-0.5">Live current vs. target breakdown across all reps and KPI categories.</p>
+                <h2 className="text-base font-bold text-foreground">Company KPI Attainment</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">Live current vs. target breakdown across all teams, reps, and KPI categories.</p>
+              </div>
+
+              {/* Team dropdown filter */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-muted-foreground">Team:</span>
+                <select
+                  value={filterKpiTeam}
+                  onChange={(e) => setFilterKpiTeam(e.target.value)}
+                  className="bg-surface border border-outline rounded-lg px-3 py-1.5 text-xs font-semibold text-on-surface cursor-pointer focus:outline-none"
+                >
+                  <option value="All">All Teams</option>
+                  {teamGroups.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name} Team
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
-            <KpiAttainmentTable salespersonId="all" />
+            <KpiAttainmentTable
+              salespersonId={filterKpiTeam === "All" ? "all" : undefined}
+              teamId={filterKpiTeam === "All" ? undefined : filterKpiTeam}
+            />
           </div>
         </div>
       )}
