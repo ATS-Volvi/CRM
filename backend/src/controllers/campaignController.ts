@@ -32,8 +32,54 @@ export const getCampaigns = async (req: Request, res: Response) => {
       ]
     });
 
+    // Fetch batched performance metrics across all campaigns (single batched call)
+    const allPerformance = await getCampaignPerformance();
+    const perfMap = new Map<string, any>();
+    if (Array.isArray(allPerformance)) {
+      for (const p of allPerformance) {
+        if (p.campaign?.id) {
+          perfMap.set(p.campaign.id, p.metrics);
+        }
+      }
+    }
+
+    const defaultMetrics = {
+      totalLeads: 0,
+      qualifiedLeads: 0,
+      totalOpportunities: 0,
+      wonDealsCount: 0,
+      wonOrdersCount: 0,
+      totalRevenue: 0,
+      conversionRateLeadToQual: 0,
+      conversionRateQualToOpp: 0,
+      conversionRateOppToWon: 0,
+      costPerLead: null,
+      costPerQualifiedLead: null,
+      costPerOpportunity: null,
+      costPerWonDeal: null,
+      roas: null,
+      roiPct: null
+    };
+
+    const enrichedRows = rows.map((r: any) => {
+      const c = r.toJSON();
+      const metrics = perfMap.get(c.id) || defaultMetrics;
+      return {
+        ...c,
+        metrics,
+        totalLeads: metrics.totalLeads,
+        qualifiedLeads: metrics.qualifiedLeads,
+        totalOpportunities: metrics.totalOpportunities,
+        wonDealsCount: metrics.wonDealsCount,
+        wonOrdersCount: metrics.wonOrdersCount,
+        totalRevenue: metrics.totalRevenue,
+        roas: metrics.roas,
+        roiPct: metrics.roiPct
+      };
+    });
+
     res.json({
-      data: rows,
+      data: enrichedRows,
       page: Number(page),
       limit: Number(limit),
       total: count,
