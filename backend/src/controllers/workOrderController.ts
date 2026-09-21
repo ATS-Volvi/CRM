@@ -372,3 +372,97 @@ export const createWorkOrderAppointment = async (req: Request, res: Response) =>
     return res.status(500).json({ message: "Internal server error", error: error.message });
   }
 };
+
+/**
+ * POST /api/v1/work-orders/:id/line-items
+ * Add a line item to an existing work order and update totals.
+ */
+export const createWorkOrderLineItem = async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const workOrder = await WorkOrder.findByPk(id);
+
+    if (!workOrder) {
+      return res.status(404).json({ message: "Work Order not found" });
+    }
+
+    const { description, quantity = 1, unitPrice = 0, status = "New", assetId } = req.body;
+
+    const qty = parseFloat(quantity) || 1;
+    const price = parseFloat(unitPrice) || 0;
+    const totalPrice = qty * price;
+
+    const existingCount = await WorkOrderLineItem.count({ where: { workOrderId: id } });
+    const lineItemNumber = `${(workOrder as any).workOrderNumber || "WO"}-${existingCount + 1}`;
+    const lineItemId = crypto.randomUUID();
+
+    const lineItem = await WorkOrderLineItem.create({
+      id: lineItemId,
+      workOrderId: id,
+      lineItemNumber,
+      status,
+      description: description || null,
+      assetId: assetId || null,
+      quantity: qty,
+      unitPrice: price,
+      totalPrice
+    });
+
+    // Recalculate totals on parent work order
+    const allItems = await WorkOrderLineItem.findAll({ where: { workOrderId: id } });
+    const newSubtotal = allItems.reduce((sum, it) => sum + (Number(it.totalPrice) || 0), 0);
+
+    await workOrder.update({
+      subtotal: newSubtotal,
+      totalPrice: newSubtotal,
+      grandTotal: newSubtotal
+    });
+
+    return res.status(201).json(lineItem);
+  } catch (error: any) {
+    console.error("Error adding work order line item:", error);
+    return res.status(500).json({ message: "Internal server error", error: error.message });
+  }
+};
+
+/**
+ * DELETE /api/v1/work-orders/:id/line-items/:lineItemId
+ * Delete a line item from a work order and update totals.
+ */
+export const deleteWorkOrderLineItem = async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const lineItemId = String(req.params.lineItemId);
+
+    const workOrder = await WorkOrder.findByPk(id);
+    if (!workOrder) {
+      return res.status(404).json({ message: "Work Order not found" });
+    }
+
+    const item = await WorkOrderLineItem.findOne({
+      where: { id: lineItemId, workOrderId: id }
+    });
+
+    if (!item) {
+      return res.status(404).json({ message: "Line item not found" });
+    }
+
+    await item.destroy();
+
+    // Recalculate totals
+    const allItems = await WorkOrderLineItem.findAll({ where: { workOrderId: id } });
+    const newSubtotal = allItems.reduce((sum, it) => sum + (Number(it.totalPrice) || 0), 0);
+
+    await workOrder.update({
+      subtotal: newSubtotal,
+      totalPrice: newSubtotal,
+      grandTotal: newSubtotal
+    });
+
+    return res.status(200).json({ message: "Line item deleted successfully", grandTotal: newSubtotal });
+  } catch (error: any) {
+    console.error("Error deleting work order line item:", error);
+    return res.status(500).json({ message: "Internal server error", error: error.message });
+  }
+};
+

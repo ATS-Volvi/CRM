@@ -17,7 +17,8 @@ import {
   ChevronRight,
   MapPin,
   DollarSign,
-  Tag
+  Tag,
+  Trash2
 } from "lucide-react";
 import { apiClient } from "../lib/apiClient";
 
@@ -26,6 +27,16 @@ interface AccountSummary {
   name: string;
   email?: string;
   phone?: string;
+  industry?: string;
+  primaryContactName?: string;
+  contacts?: Array<{
+    id: string;
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    phone?: string;
+    role?: string;
+  }>;
 }
 
 interface WorkOrderLineItem {
@@ -122,6 +133,7 @@ export default function FieldService() {
   const [selectedWorkOrderId, setSelectedWorkOrderId] = useState<string | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isAppointmentModalOpen, setIsAppointmentModalOpen] = useState(false);
+  const [isLineItemModalOpen, setIsLineItemModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<{ type: "ok" | "err"; msg: string } | null>(null);
 
   // New Work Order Form State
@@ -130,6 +142,7 @@ export default function FieldService() {
     priority: "Medium",
     status: "New",
     accountId: "",
+    contactId: "",
     description: "",
     startDate: "",
     endDate: "",
@@ -137,6 +150,14 @@ export default function FieldService() {
     city: "",
     state: "",
     postalCode: "",
+  });
+
+  // New Line Item Form State
+  const [lineItemFormData, setLineItemFormData] = useState({
+    description: "",
+    quantity: 1,
+    unitPrice: 0,
+    status: "New",
   });
 
   // New Appointment Form State
@@ -205,6 +226,7 @@ export default function FieldService() {
         priority: "Medium",
         status: "New",
         accountId: "",
+        contactId: "",
         description: "",
         startDate: "",
         endDate: "",
@@ -259,6 +281,57 @@ export default function FieldService() {
       showToast("err", err.message || "Failed to schedule appointment.");
     },
   });
+
+  // Add Line Item Mutation
+  const addLineItemMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      if (!selectedWorkOrderId) throw new Error("No work order selected");
+      return apiClient.post(`/api/v1/work-orders/${selectedWorkOrderId}/line-items`, payload);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["work-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["work-order-detail", selectedWorkOrderId] });
+      setIsLineItemModalOpen(false);
+      setLineItemFormData({
+        description: "",
+        quantity: 1,
+        unitPrice: 0,
+        status: "New",
+      });
+      showToast("ok", "Line item added successfully!");
+    },
+    onError: (err: any) => {
+      showToast("err", err.message || "Failed to add line item.");
+    },
+  });
+
+  // Delete Line Item Mutation
+  const deleteLineItemMutation = useMutation({
+    mutationFn: async (lineItemId: string) => {
+      if (!selectedWorkOrderId) throw new Error("No work order selected");
+      return apiClient.delete(`/api/v1/work-orders/${selectedWorkOrderId}/line-items/${lineItemId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["work-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["work-order-detail", selectedWorkOrderId] });
+      showToast("ok", "Line item removed.");
+    },
+    onError: (err: any) => {
+      showToast("err", err.message || "Failed to delete line item.");
+    },
+  });
+
+  // Filter contacts for selected account
+  const selectedAccount = useMemo(() => {
+    return accounts.find((a) => a.id === formData.accountId);
+  }, [accounts, formData.accountId]);
+
+  const availableContacts = useMemo(() => {
+    if (selectedAccount?.contacts && selectedAccount.contacts.length > 0) {
+      return selectedAccount.contacts;
+    }
+    return accounts.flatMap((a) => a.contacts || []);
+  }, [selectedAccount, accounts]);
 
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -713,8 +786,16 @@ export default function FieldService() {
                         <FileText className="w-4 h-4 text-blue-600" /> Line Items (
                         {activeWorkOrder.lineItems?.length || 0})
                       </h3>
-                      <div className="text-xs font-bold text-slate-800">
-                        Total: ₹{Number(activeWorkOrder.grandTotal || 0).toLocaleString()}
+                      <div className="flex items-center gap-3">
+                        <div className="text-xs font-bold text-slate-800">
+                          Total: ₹{Number(activeWorkOrder.grandTotal || 0).toLocaleString()}
+                        </div>
+                        <button
+                          onClick={() => setIsLineItemModalOpen(true)}
+                          className="text-xs font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-md transition-colors"
+                        >
+                          <Plus className="w-3.5 h-3.5" /> Add Line Item
+                        </button>
                       </div>
                     </div>
 
@@ -728,6 +809,7 @@ export default function FieldService() {
                               <th className="text-right">Qty</th>
                               <th className="text-right">Unit Price</th>
                               <th className="text-right">Total</th>
+                              <th className="text-center w-10">Action</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -744,14 +826,29 @@ export default function FieldService() {
                                 <td className="text-right text-xs font-bold text-slate-900">
                                   ₹{Number(li.totalPrice).toLocaleString()}
                                 </td>
+                                <td className="text-center text-xs">
+                                  <button
+                                    onClick={() => deleteLineItemMutation.mutate(li.id)}
+                                    title="Delete line item"
+                                    className="text-slate-400 hover:text-rose-600 p-1 rounded hover:bg-rose-50 transition-colors"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </td>
                               </tr>
                             ))}
                           </tbody>
                         </table>
                       </div>
                     ) : (
-                      <div className="p-4 bg-slate-50 rounded-lg text-center text-xs text-slate-400 border border-slate-200/80">
-                        No line items recorded for this work order.
+                      <div className="p-4 bg-slate-50 rounded-lg text-center text-xs text-slate-400 border border-slate-200/80 flex flex-col items-center justify-center gap-2">
+                        <span>No line items recorded for this work order.</span>
+                        <button
+                          onClick={() => setIsLineItemModalOpen(true)}
+                          className="text-xs text-blue-600 font-semibold hover:underline flex items-center gap-1"
+                        >
+                          <Plus className="w-3.5 h-3.5" /> Add First Line Item
+                        </button>
                       </div>
                     )}
                   </div>
@@ -876,21 +973,46 @@ export default function FieldService() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Account</label>
+                  <label className="block text-slate-700 font-semibold mb-1">
+                    Account (Company / Organization)
+                  </label>
                   <select
                     value={formData.accountId}
-                    onChange={(e) => setFormData({ ...formData, accountId: e.target.value })}
+                    onChange={(e) => {
+                      const accId = e.target.value;
+                      setFormData({ ...formData, accountId: accId, contactId: "" });
+                    }}
                     className="enterprise-input w-full"
                   >
                     <option value="">Select Account (Optional)</option>
                     {accounts.map((a) => (
                       <option key={a.id} value={a.id}>
-                        {a.name}
+                        {a.name} {a.industry ? `(${a.industry})` : ""}
                       </option>
                     ))}
                   </select>
                 </div>
 
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">
+                    Contact Person
+                  </label>
+                  <select
+                    value={formData.contactId}
+                    onChange={(e) => setFormData({ ...formData, contactId: e.target.value })}
+                    className="enterprise-input w-full"
+                  >
+                    <option value="">Select Contact (Optional)</option>
+                    {availableContacts.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.firstName} {c.lastName} {c.role ? `— ${c.role}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-slate-700 font-semibold mb-1">Priority</label>
                   <select
@@ -902,6 +1024,20 @@ export default function FieldService() {
                     <option value="Medium">Medium</option>
                     <option value="High">High</option>
                     <option value="Critical">Critical</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Status</label>
+                  <select
+                    value={formData.status}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                    className="enterprise-input w-full"
+                  >
+                    <option value="New">New</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="On Hold">On Hold</option>
+                    <option value="Completed">Completed</option>
                   </select>
                 </div>
               </div>
@@ -1078,6 +1214,133 @@ export default function FieldService() {
                   className="enterprise-btn-primary"
                 >
                   {createAppointmentMutation.isPending ? "Scheduling..." : "Confirm Schedule"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ADD LINE ITEM MODAL */}
+      {isLineItemModalOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div
+            className="w-full max-w-md bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden animate-fade-in"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <Plus className="w-4 h-4 text-blue-600" /> Add Work Order Line Item
+              </h3>
+              <button
+                onClick={() => setIsLineItemModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!lineItemFormData.description.trim()) {
+                  showToast("err", "Description is required.");
+                  return;
+                }
+                addLineItemMutation.mutate(lineItemFormData);
+              }}
+              className="p-5 space-y-4 text-xs"
+            >
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">
+                  Description <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Diagnostic & Repair Service"
+                  value={lineItemFormData.description}
+                  onChange={(e) =>
+                    setLineItemFormData({ ...lineItemFormData, description: e.target.value })
+                  }
+                  className="enterprise-input w-full"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Quantity</label>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    required
+                    value={lineItemFormData.quantity}
+                    onChange={(e) =>
+                      setLineItemFormData({
+                        ...lineItemFormData,
+                        quantity: Math.max(1, parseInt(e.target.value) || 1),
+                      })
+                    }
+                    className="enterprise-input w-full"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Unit Price (₹)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    required
+                    value={lineItemFormData.unitPrice}
+                    onChange={(e) =>
+                      setLineItemFormData({
+                        ...lineItemFormData,
+                        unitPrice: Math.max(0, parseFloat(e.target.value) || 0),
+                      })
+                    }
+                    className="enterprise-input w-full"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">Status</label>
+                <select
+                  value={lineItemFormData.status}
+                  onChange={(e) =>
+                    setLineItemFormData({ ...lineItemFormData, status: e.target.value })
+                  }
+                  className="enterprise-input w-full"
+                >
+                  <option value="New">New</option>
+                  <option value="In Progress">In Progress</option>
+                  <option value="Completed">Completed</option>
+                </select>
+              </div>
+
+              <div className="p-2.5 bg-slate-50 rounded-lg text-slate-600 flex justify-between font-semibold">
+                <span>Calculated Item Total:</span>
+                <span className="text-slate-900 font-bold">
+                  ₹{(lineItemFormData.quantity * lineItemFormData.unitPrice).toLocaleString()}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setIsLineItemModalOpen(false)}
+                  className="enterprise-btn-secondary"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={addLineItemMutation.isPending}
+                  className="enterprise-btn-primary"
+                >
+                  {addLineItemMutation.isPending ? "Adding..." : "Add Line Item"}
                 </button>
               </div>
             </form>
