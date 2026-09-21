@@ -12,13 +12,13 @@ import { useSearchParams } from "react-router-dom";
 export default function ApprovalQueue() {
   const { token, user } = useAuth();
   const queryClient = useQueryClient();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   // Role derivation & tab gating
   const role = ((user as any)?.role || "sales_rep").toLowerCase();
   const isAdmin = role === "admin";
   const isManager = ["director", "manager", "sales_manager"].includes(role);
-  const isRep = ["sales_rep", "senior_ae"].includes(role);
+  const isRep = ["sales_rep", "senior_ae", "salesperson"].includes(role);
 
   const allowedTabs: ("queue" | "policy" | "profiles" | "audit")[] = isAdmin
     ? ["queue", "policy", "profiles", "audit"]
@@ -27,6 +27,9 @@ export default function ApprovalQueue() {
     : ["queue", "audit"];
 
   const urlTab = (searchParams.get("tab") as any) || "queue";
+  const repIdFilter = searchParams.get("repId") || searchParams.get("salespersonId");
+  const initialStatus = searchParams.get("status") || "Pending";
+
   const [activeTab, setActiveTab] = useState<"queue" | "policy" | "profiles" | "audit">(
     allowedTabs.includes(urlTab) ? urlTab : "queue"
   );
@@ -39,7 +42,7 @@ export default function ApprovalQueue() {
     }
   }, [urlTab, allowedTabs, activeTab]);
 
-  const [filterStatus, setFilterStatus] = useState("Pending");
+  const [filterStatus, setFilterStatus] = useState(initialStatus);
 
   // Profile Edit State
   const [selectedRep, setSelectedRep] = useState<any>(null);
@@ -269,9 +272,29 @@ export default function ApprovalQueue() {
     if (isRep && user?.id && item.requestedById !== user.id) {
       return false;
     }
-    if (filterStatus === "All") return true;
-    return item.status === filterStatus;
+    if (filterStatus !== "All" && item.status !== filterStatus) return false;
+
+    if (repIdFilter) {
+      const isPO = item.type === "PurchaseOrder" || item.type === "PO";
+      const target = item.target;
+      const deal = isPO ? target?.quote?.deal : target?.deal;
+      const matchRequestedBy = item.requestedById === repIdFilter || item.requestedBy?.id === repIdFilter;
+      const matchDealOwner = deal?.ownerId === repIdFilter || deal?.owner?.id === repIdFilter;
+      if (!matchRequestedBy && !matchDealOwner) return false;
+    }
+
+    return true;
   });
+
+  const repFilterName = repIdFilter ? (
+    approvals?.find((a: any) => a.requestedById === repIdFilter || a.requestedBy?.id === repIdFilter)?.requestedBy?.name ||
+    approvals?.find((a: any) => {
+      const isPO = a.type === "PurchaseOrder" || a.type === "PO";
+      const deal = isPO ? a.target?.quote?.deal : a.target?.deal;
+      return deal?.ownerId === repIdFilter || deal?.owner?.id === repIdFilter;
+    })?.target?.deal?.owner?.name ||
+    null
+  ) : null;
 
   return (
     <div className="flex-1 overflow-y-auto bg-surface h-[calc(100vh-64px)] relative">
@@ -362,6 +385,24 @@ export default function ApprovalQueue() {
                 )}
               </div>
               <div className="flex gap-2 items-center">
+                {repIdFilter && (
+                  <div className="flex items-center gap-1.5 bg-primary/10 text-primary border border-primary/20 px-2.5 py-1 rounded-lg text-xs font-bold">
+                    <span>Filtered: {repFilterName ? `Rep: ${repFilterName}` : `Rep ID: ${repIdFilter}`}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = new URLSearchParams(searchParams);
+                        next.delete("repId");
+                        next.delete("salespersonId");
+                        setSearchParams(next);
+                      }}
+                      className="ml-1 text-primary hover:underline hover:opacity-80 cursor-pointer"
+                      title="Clear Filter"
+                    >
+                      ✕ Clear
+                    </button>
+                  </div>
+                )}
                 <select 
                   value={filterStatus} 
                   onChange={(e) => setFilterStatus(e.target.value)} 
