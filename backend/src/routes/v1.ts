@@ -143,7 +143,9 @@ import {
   getWorkOrderById,
   updateWorkOrder,
   getWorkOrderAppointments,
-  createWorkOrderAppointment
+  createWorkOrderAppointment,
+  createWorkOrderLineItem,
+  deleteWorkOrderLineItem
 } from "../controllers/workOrderController";
 
 const router = Router();
@@ -857,6 +859,8 @@ router.get("/work-orders/:id", authMiddleware, getWorkOrderById);
 router.put("/work-orders/:id", authMiddleware, updateWorkOrder);
 router.get("/work-orders/:id/appointments", authMiddleware, getWorkOrderAppointments);
 router.post("/work-orders/:id/appointments", authMiddleware, createWorkOrderAppointment);
+router.post("/work-orders/:id/line-items", authMiddleware, createWorkOrderLineItem);
+router.delete("/work-orders/:id/line-items/:lineItemId", authMiddleware, deleteWorkOrderLineItem);
 
 // ==========================================
 // VERCEL SERVERLESS CRON JOBS
