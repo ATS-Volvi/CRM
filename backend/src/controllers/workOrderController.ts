@@ -9,10 +9,58 @@ import {
   User,
   Asset,
   Deal,
-  SupportTicket
+  SupportTicket,
+  Lead
 } from "@nexus-crm/database";
 import crypto from "crypto";
 import { Op } from "sequelize";
+
+/**
+ * Helper to resolve read-only primary phone number and source label for a Work Order
+ */
+async function enrichWorkOrderPhone(workOrderRecord: any) {
+  if (!workOrderRecord) return null;
+  const json = workOrderRecord.toJSON ? workOrderRecord.toJSON() : { ...workOrderRecord };
+
+  let primaryPhone: string | null = null;
+  let phoneSource: string | null = null;
+
+  // 1. Check contact phone
+  if (json.contact && json.contact.phone && json.contact.phone.trim() !== "") {
+    primaryPhone = json.contact.phone.trim();
+    phoneSource = "via Contact";
+  }
+  // 2. Check account phone
+  else if (json.account && json.account.phone && json.account.phone.trim() !== "") {
+    primaryPhone = json.account.phone.trim();
+    phoneSource = "via Account";
+  }
+  // 3. Fallback: query linked Lead for the account
+  else if (json.accountId) {
+    try {
+      const linkedLead = await Lead.findOne({
+        where: {
+          [Op.or]: [
+            { accountId: json.accountId },
+            { convertedAccountId: json.accountId }
+          ],
+          phone: { [Op.ne]: null }
+        },
+        order: [["createdAt", "DESC"]]
+      });
+      if (linkedLead && (linkedLead as any).phone && (linkedLead as any).phone.trim() !== "") {
+        primaryPhone = (linkedLead as any).phone.trim();
+        phoneSource = "via Lead";
+      }
+    } catch (err) {
+      console.warn("Error looking up linked lead for phone:", err);
+    }
+  }
+
+  json.primaryPhone = primaryPhone;
+  json.phoneSource = phoneSource;
+  return json;
+}
 
 /**
  * GET /api/v1/work-orders
@@ -54,7 +102,8 @@ export const getWorkOrders = async (req: Request, res: Response) => {
       order: [["createdAt", "DESC"]]
     });
 
-    return res.status(200).json(workOrders);
+    const enriched = await Promise.all(workOrders.map((wo) => enrichWorkOrderPhone(wo)));
+    return res.status(200).json(enriched);
   } catch (error: any) {
     console.error("Error fetching work orders:", error);
     return res.status(500).json({ message: "Internal server error", error: error.message });
@@ -86,6 +135,7 @@ export const createWorkOrder = async (req: Request, res: Response) => {
       state,
       postalCode,
       country,
+      alternatePhone,
       lineItems
     } = req.body;
 
@@ -134,7 +184,8 @@ export const createWorkOrder = async (req: Request, res: Response) => {
       city: city || null,
       state: state || null,
       postalCode: postalCode || null,
-      country: country || null
+      country: country || null,
+      alternatePhone: alternatePhone || null
     });
 
     if (Array.isArray(lineItems) && lineItems.length > 0) {
@@ -166,7 +217,8 @@ export const createWorkOrder = async (req: Request, res: Response) => {
       ]
     });
 
-    return res.status(201).json(createdRecord);
+    const enriched = await enrichWorkOrderPhone(createdRecord);
+    return res.status(201).json(enriched);
   } catch (error: any) {
     console.error("Error creating work order:", error);
     return res.status(500).json({ message: "Internal server error", error: error.message });
@@ -201,7 +253,8 @@ export const getWorkOrderById = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Work Order not found" });
     }
 
-    return res.status(200).json(workOrder);
+    const enriched = await enrichWorkOrderPhone(workOrder);
+    return res.status(200).json(enriched);
   } catch (error: any) {
     console.error("Error fetching work order detail:", error);
     return res.status(500).json({ message: "Internal server error", error: error.message });
@@ -235,7 +288,8 @@ export const updateWorkOrder = async (req: Request, res: Response) => {
       city,
       state,
       postalCode,
-      country
+      country,
+      alternatePhone
     } = req.body;
 
     if (status !== undefined) workOrder.set("status", status);
@@ -252,6 +306,7 @@ export const updateWorkOrder = async (req: Request, res: Response) => {
     if (state !== undefined) workOrder.set("state", state);
     if (postalCode !== undefined) workOrder.set("postalCode", postalCode);
     if (country !== undefined) workOrder.set("country", country);
+    if (alternatePhone !== undefined) workOrder.set("alternatePhone", alternatePhone || null);
 
     await workOrder.save();
 
@@ -269,7 +324,8 @@ export const updateWorkOrder = async (req: Request, res: Response) => {
       ]
     });
 
-    return res.status(200).json(updated);
+    const enriched = await enrichWorkOrderPhone(updated);
+    return res.status(200).json(enriched);
   } catch (error: any) {
     console.error("Error updating work order:", error);
     return res.status(500).json({ message: "Internal server error", error: error.message });
