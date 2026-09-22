@@ -144,9 +144,16 @@ import {
   updateWorkOrder,
   getWorkOrderAppointments,
   createWorkOrderAppointment,
+  updateWorkOrderAppointment,
   createWorkOrderLineItem,
   deleteWorkOrderLineItem
 } from "../controllers/workOrderController";
+import {
+  getServiceResources,
+  createServiceResource,
+  updateServiceResource,
+  getAvailableUsersForResource
+} from "../controllers/serviceResourceController";
 
 const router = Router();
 
@@ -859,8 +866,17 @@ router.get("/work-orders/:id", authMiddleware, getWorkOrderById);
 router.put("/work-orders/:id", authMiddleware, updateWorkOrder);
 router.get("/work-orders/:id/appointments", authMiddleware, getWorkOrderAppointments);
 router.post("/work-orders/:id/appointments", authMiddleware, createWorkOrderAppointment);
+router.put("/work-orders/:id/appointments/:appointmentId", authMiddleware, updateWorkOrderAppointment);
 router.post("/work-orders/:id/line-items", authMiddleware, createWorkOrderLineItem);
 router.delete("/work-orders/:id/line-items/:lineItemId", authMiddleware, deleteWorkOrderLineItem);
+
+// ==========================================
+// SERVICE RESOURCES
+// ==========================================
+router.get("/service-resources", authMiddleware, getServiceResources);
+router.post("/service-resources", authMiddleware, createServiceResource);
+router.put("/service-resources/:id", authMiddleware, updateServiceResource);
+router.get("/service-resources/available-users", authMiddleware, getAvailableUsersForResource);
 
 // ==========================================
 // VERCEL SERVERLESS CRON JOBS

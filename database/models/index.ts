@@ -1953,6 +1953,7 @@ export class ServiceResource extends Model {
   public description!: string | null;
   public isActive!: boolean;
   public location!: string | null;
+  public skills!: string[];
   public email!: string | null;
   public phone!: string | null;
   public createdAt!: Date;
@@ -1968,6 +1969,7 @@ ServiceResource.init(
     description: { type: DataTypes.TEXT, allowNull: true },
     isActive: { type: DataTypes.BOOLEAN, defaultValue: true },
     location: { type: DataTypes.STRING, allowNull: true },
+    skills: { type: DataTypes.JSON, allowNull: true, defaultValue: [] },
     email: { type: DataTypes.STRING, allowNull: true },
     phone: { type: DataTypes.STRING, allowNull: true },
   },
