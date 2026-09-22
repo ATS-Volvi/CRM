@@ -2002,6 +2002,7 @@ export class WorkOrder extends Model {
   public country!: string | null;
   public latitude!: number | null;
   public longitude!: number | null;
+  public alternatePhone!: string | null;
   public createdAt!: Date;
   public updatedAt!: Date;
 }
@@ -2035,6 +2036,7 @@ WorkOrder.init(
     country: { type: DataTypes.STRING, allowNull: true },
     latitude: { type: DataTypes.DECIMAL(9, 6), allowNull: true },
     longitude: { type: DataTypes.DECIMAL(9, 6), allowNull: true },
+    alternatePhone: { type: DataTypes.STRING, allowNull: true },
   },
   { sequelize, modelName: "WorkOrder", tableName: "WorkOrders" }
 );
