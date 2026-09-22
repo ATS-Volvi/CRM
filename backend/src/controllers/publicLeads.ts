@@ -125,7 +125,7 @@ export const createPublicLead = async (req: Request, res: Response) => {
         await triggerTemplatedEmail("lead_acknowledgement", email, { 
           lead_name: firstName, 
           sla_hours: slaHours 
-        }, leadId);
+        }, leadId || undefined);
       } catch (err: any) {
         console.warn("Non-blocking lead acknowledgement email automation failed:", err.message || err);
       }

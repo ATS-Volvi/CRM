@@ -9,6 +9,7 @@ import {
   Clock,
   Building2,
   User,
+  Users,
   CheckCircle2,
   AlertCircle,
   X,
@@ -20,7 +21,10 @@ import {
   Tag,
   Trash2,
   Phone,
-  PhoneCall
+  PhoneCall,
+  LogIn,
+  LogOut,
+  Edit2
 } from "lucide-react";
 import { apiClient } from "../lib/apiClient";
 
@@ -62,11 +66,35 @@ interface ServiceAppointment {
   dueDate?: string;
   city?: string;
   state?: string;
+  checkedInAt?: string | null;
+  checkedOutAt?: string | null;
+  actualDuration?: number | null;
   serviceResource?: {
     id: string;
     name: string;
     resourceType?: string;
   };
+}
+
+interface ServiceResourceItem {
+  id: string;
+  name: string;
+  resourceType: string;
+  userId?: string | null;
+  description?: string | null;
+  isActive: boolean;
+  location?: string | null;
+  territory?: string | null;
+  skills?: string[];
+  email?: string | null;
+  phone?: string | null;
+  user?: {
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+  };
+  createdAt?: string;
 }
 
 interface WorkOrder {
@@ -173,12 +201,138 @@ export default function FieldService() {
     scheduledEndTime: "",
     dueDate: "",
     description: "",
+    serviceResourceId: "",
+  });
+
+  // Active Tab: "work-orders" | "service-resources"
+  const [activeTab, setActiveTab] = useState<"work-orders" | "service-resources">("work-orders");
+
+  // Service Resource Management States
+  const [resourceSearch, setResourceSearch] = useState("");
+  const [resourceTerritoryFilter, setResourceTerritoryFilter] = useState("ALL");
+  const [isResourceModalOpen, setIsResourceModalOpen] = useState(false);
+  const [isEditResourceModalOpen, setIsEditResourceModalOpen] = useState(false);
+  const [editingResource, setEditingResource] = useState<ServiceResourceItem | null>(null);
+  const [resourceFormData, setResourceFormData] = useState({
+    userId: "",
+    territory: "",
+    skills: "",
+    resourceType: "Technician",
+    isActive: true,
+    description: "",
   });
 
   const showToast = (type: "ok" | "err", msg: string) => {
     setToastMessage({ type, msg });
     setTimeout(() => setToastMessage(null), 4000);
   };
+
+  // Fetch Service Resources
+  const { data: serviceResourcesData } = useQuery({
+    queryKey: ["service-resources"],
+    queryFn: async () => {
+      const res = await apiClient.get<ServiceResourceItem[]>("/api/v1/service-resources");
+      return Array.isArray(res) ? res : [];
+    },
+  });
+  const serviceResources: ServiceResourceItem[] = serviceResourcesData || [];
+
+  // Fetch Available Users for Service Resource Creation
+  const { data: availableUsersData } = useQuery({
+    queryKey: ["service-resources-available-users"],
+    queryFn: async () => {
+      const res = await apiClient.get<any[]>("/api/v1/service-resources/available-users");
+      return Array.isArray(res) ? res : [];
+    },
+    enabled: isResourceModalOpen,
+  });
+  const availableUsers: any[] = availableUsersData || [];
+
+  // Create Service Resource Mutation
+  const createServiceResourceMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      return apiClient.post("/api/v1/service-resources", payload);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["service-resources"] });
+      queryClient.invalidateQueries({ queryKey: ["service-resources-available-users"] });
+      setIsResourceModalOpen(false);
+      setResourceFormData({
+        userId: "",
+        territory: "",
+        skills: "",
+        resourceType: "Technician",
+        isActive: true,
+        description: "",
+      });
+      showToast("ok", "Service resource created successfully!");
+    },
+    onError: (err: any) => {
+      showToast("err", err.message || "Failed to create service resource.");
+    },
+  });
+
+  // Update Service Resource Mutation
+  const updateServiceResourceMutation = useMutation({
+    mutationFn: async ({ id, payload }: { id: string; payload: any }) => {
+      return apiClient.put(`/api/v1/service-resources/${id}`, payload);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["service-resources"] });
+      setIsEditResourceModalOpen(false);
+      setEditingResource(null);
+      showToast("ok", "Service resource updated successfully!");
+    },
+    onError: (err: any) => {
+      showToast("err", err.message || "Failed to update service resource.");
+    },
+  });
+
+  // Check-In Appointment Mutation
+  const checkInAppointmentMutation = useMutation({
+    mutationFn: async ({
+      workOrderId,
+      appointmentId,
+    }: {
+      workOrderId: string;
+      appointmentId: string;
+    }) => {
+      return apiClient.put(`/api/v1/work-orders/${workOrderId}/appointments/${appointmentId}`, {
+        action: "check-in",
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["work-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["work-order-detail", selectedWorkOrderId] });
+      showToast("ok", "Technician checked in successfully!");
+    },
+    onError: (err: any) => {
+      showToast("err", err.message || "Failed to check in.");
+    },
+  });
+
+  // Check-Out Appointment Mutation
+  const checkOutAppointmentMutation = useMutation({
+    mutationFn: async ({
+      workOrderId,
+      appointmentId,
+    }: {
+      workOrderId: string;
+      appointmentId: string;
+    }) => {
+      return apiClient.put(`/api/v1/work-orders/${workOrderId}/appointments/${appointmentId}`, {
+        action: "check-out",
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["work-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["work-order-detail", selectedWorkOrderId] });
+      showToast("ok", "Technician checked out successfully! Appointment completed.");
+    },
+    onError: (err: any) => {
+      showToast("err", err.message || "Failed to check out.");
+    },
+  });
 
   // Fetch Accounts for dropdown
   const { data: accountsData } = useQuery({
@@ -220,19 +374,23 @@ export default function FieldService() {
 
   // Create Work Order Mutation
   const createMutation = useMutation({
-    mutationFn: async (payload: any) => {
-      return apiClient.post("/api/v1/work-orders", payload);
+    mutationFn: async (newWO: typeof formData) => {
+      return apiClient.post("/api/v1/work-orders", {
+        ...newWO,
+        accountId: newWO.accountId || null,
+        contactId: newWO.contactId || null,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["work-orders"] });
       setIsCreateModalOpen(false);
       setFormData({
         subject: "",
-        priority: "Medium",
-        status: "New",
+        description: "",
         accountId: "",
         contactId: "",
-        description: "",
+        status: "New",
+        priority: "Medium",
         startDate: "",
         endDate: "",
         street: "",
@@ -285,7 +443,10 @@ export default function FieldService() {
   const createAppointmentMutation = useMutation({
     mutationFn: async (payload: any) => {
       if (!selectedWorkOrderId) throw new Error("No work order selected");
-      return apiClient.post(`/api/v1/work-orders/${selectedWorkOrderId}/appointments`, payload);
+      return apiClient.post(`/api/v1/work-orders/${selectedWorkOrderId}/appointments`, {
+        ...payload,
+        serviceResourceId: payload.serviceResourceId || null,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["work-orders"] });
@@ -298,6 +459,7 @@ export default function FieldService() {
         scheduledEndTime: "",
         dueDate: "",
         description: "",
+        serviceResourceId: "",
       });
       showToast("ok", "Appointment scheduled successfully!");
     },
@@ -333,17 +495,45 @@ export default function FieldService() {
   const deleteLineItemMutation = useMutation({
     mutationFn: async (lineItemId: string) => {
       if (!selectedWorkOrderId) throw new Error("No work order selected");
-      return apiClient.delete(`/api/v1/work-orders/${selectedWorkOrderId}/line-items/${lineItemId}`);
+      return apiClient.delete(
+        `/api/v1/work-orders/${selectedWorkOrderId}/line-items/${lineItemId}`
+      );
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["work-orders"] });
       queryClient.invalidateQueries({ queryKey: ["work-order-detail", selectedWorkOrderId] });
-      showToast("ok", "Line item removed.");
+      showToast("ok", "Line item removed successfully.");
     },
     onError: (err: any) => {
       showToast("err", err.message || "Failed to delete line item.");
     },
   });
+
+  // Filter resources for service resources tab
+  const filteredResources = useMemo(() => {
+    return serviceResources.filter((r) => {
+      const matchSearch =
+        !resourceSearch.trim() ||
+        r.name.toLowerCase().includes(resourceSearch.toLowerCase()) ||
+        (r.email && r.email.toLowerCase().includes(resourceSearch.toLowerCase())) ||
+        (r.skills && r.skills.some((s) => s.toLowerCase().includes(resourceSearch.toLowerCase())));
+      const matchTerritory =
+        resourceTerritoryFilter === "ALL" ||
+        (r.territory && r.territory === resourceTerritoryFilter) ||
+        (r.location && r.location === resourceTerritoryFilter);
+      return matchSearch && matchTerritory;
+    });
+  }, [serviceResources, resourceSearch, resourceTerritoryFilter]);
+
+  // Distinct territories list for filtering
+  const distinctTerritories = useMemo(() => {
+    const set = new Set<string>();
+    serviceResources.forEach((r) => {
+      const t = r.territory || r.location;
+      if (t) set.add(t);
+    });
+    return Array.from(set);
+  }, [serviceResources]);
 
   // Filter contacts for selected account
   const selectedAccount = useMemo(() => {
@@ -414,14 +604,52 @@ export default function FieldService() {
           </p>
         </div>
 
-        <button
-          onClick={() => setIsCreateModalOpen(true)}
-          className="enterprise-btn-primary"
-        >
-          <Plus className="w-4 h-4" /> New Work Order
-        </button>
+        <div className="flex items-center gap-3">
+          {/* Tab Navigation */}
+          <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+            <button
+              onClick={() => setActiveTab("work-orders")}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                activeTab === "work-orders"
+                  ? "bg-white text-blue-600 shadow-xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Work Orders ({workOrders.length})
+            </button>
+            <button
+              onClick={() => setActiveTab("service-resources")}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                activeTab === "service-resources"
+                  ? "bg-white text-blue-600 shadow-xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Service Resources ({serviceResources.length})
+            </button>
+          </div>
+
+          {activeTab === "work-orders" ? (
+            <button
+              onClick={() => setIsCreateModalOpen(true)}
+              className="enterprise-btn-primary"
+            >
+              <Plus className="w-4 h-4" /> New Work Order
+            </button>
+          ) : (
+            <button
+              onClick={() => setIsResourceModalOpen(true)}
+              className="enterprise-btn-primary"
+            >
+              <Plus className="w-4 h-4" /> Add Service Resource
+            </button>
+          )}
+        </div>
       </div>
 
+      {/* WORK ORDERS TAB CONTENT */}
+      {activeTab === "work-orders" && (
+        <>
       {/* Metrics Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="enterprise-card p-4 space-y-1">
@@ -646,6 +874,207 @@ export default function FieldService() {
           </tbody>
         </table>
       </div>
+        </>
+      )}
+
+      {/* SERVICE RESOURCES TAB CONTENT */}
+      {activeTab === "service-resources" && (
+        <>
+          {/* Service Resources Metrics Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="enterprise-card p-4 space-y-1">
+              <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                Total Technicians
+              </div>
+              <div className="text-xl font-extrabold text-slate-900">{serviceResources.length}</div>
+              <div className="text-[11px] text-slate-500">Registered service resources</div>
+            </div>
+
+            <div className="enterprise-card p-4 space-y-1">
+              <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                Active & Available
+              </div>
+              <div className="text-xl font-extrabold text-emerald-600">
+                {serviceResources.filter((r) => r.isActive).length}
+              </div>
+              <div className="text-[11px] text-slate-500">Available for assignment</div>
+            </div>
+
+            <div className="enterprise-card p-4 space-y-1">
+              <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                Inactive Resources
+              </div>
+              <div className="text-xl font-extrabold text-slate-600">
+                {serviceResources.filter((r) => !r.isActive).length}
+              </div>
+              <div className="text-[11px] text-slate-500">Off-duty or decommissioned</div>
+            </div>
+
+            <div className="enterprise-card p-4 space-y-1">
+              <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                Service Territories
+              </div>
+              <div className="text-xl font-extrabold text-blue-600">{distinctTerritories.length}</div>
+              <div className="text-[11px] text-slate-500">Operational service regions</div>
+            </div>
+          </div>
+
+          {/* Service Resources Search and Filter Bar */}
+          <div className="enterprise-card p-4 flex flex-col md:flex-row gap-3 items-center justify-between">
+            <div className="relative w-full md:w-80">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+              <input
+                type="text"
+                placeholder="Search technician name, email, skills..."
+                value={resourceSearch}
+                onChange={(e) => setResourceSearch(e.target.value)}
+                className="enterprise-input pl-9 w-full"
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
+              <div className="flex items-center gap-1.5 text-xs text-slate-600 font-medium">
+                <Filter className="w-3.5 h-3.5 text-slate-400" />
+                <span>Territory:</span>
+                <select
+                  value={resourceTerritoryFilter}
+                  onChange={(e) => setResourceTerritoryFilter(e.target.value)}
+                  className="enterprise-input py-1.5 text-xs"
+                >
+                  <option value="ALL">All Territories</option>
+                  {distinctTerritories.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {(resourceTerritoryFilter !== "ALL" || resourceSearch) && (
+                <button
+                  onClick={() => {
+                    setResourceTerritoryFilter("ALL");
+                    setResourceSearch("");
+                  }}
+                  className="text-xs text-blue-600 hover:text-blue-800 font-semibold px-2 py-1"
+                >
+                  Reset Filters
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Service Resources Table */}
+          <div className="enterprise-card overflow-hidden">
+            <table className="enterprise-table">
+              <thead>
+                <tr>
+                  <th>Technician / User</th>
+                  <th>Type</th>
+                  <th>Territory</th>
+                  <th>Skills</th>
+                  <th>Status</th>
+                  <th className="text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredResources.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="text-center py-12 text-slate-400">
+                      <div className="flex flex-col items-center gap-2">
+                        <Users className="w-8 h-8 text-slate-300" />
+                        <p className="font-semibold text-slate-600">No service resources found</p>
+                        <p className="text-xs text-slate-400">
+                          {resourceSearch || resourceTerritoryFilter !== "ALL"
+                            ? "Try adjusting your search query or territory filter."
+                            : "Click '+ Add Service Resource' above to register technicians."}
+                        </p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredResources.map((r) => (
+                    <tr key={r.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td>
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs">
+                            {r.name.slice(0, 2).toUpperCase()}
+                          </div>
+                          <div>
+                            <div className="font-semibold text-slate-900 text-xs">{r.name}</div>
+                            <div className="text-[10px] text-slate-400">
+                              {r.email || "No email"} {r.phone ? `• ${r.phone}` : ""}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <span className="enterprise-badge bg-blue-50 text-blue-700 border-blue-200">
+                          {r.resourceType || "Technician"}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="flex items-center gap-1.5 text-xs text-slate-700 font-medium">
+                          <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <span>{r.territory || r.location || "Unassigned"}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="flex flex-wrap gap-1 max-w-xs">
+                          {r.skills && r.skills.length > 0 ? (
+                            r.skills.map((skill, idx) => (
+                              <span
+                                key={idx}
+                                className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-700 border border-slate-200"
+                              >
+                                {skill}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-slate-400 text-xs italic">No skills listed</span>
+                          )}
+                        </div>
+                      </td>
+                      <td>
+                        <span
+                          className={`enterprise-badge ${
+                            r.isActive
+                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                              : "bg-slate-100 text-slate-500 border-slate-200"
+                          }`}
+                        >
+                          {r.isActive ? "Active" : "Inactive"}
+                        </span>
+                      </td>
+                      <td className="text-right">
+                        <button
+                          onClick={() => {
+                            setEditingResource(r);
+                            setResourceFormData({
+                              userId: r.userId || "",
+                              territory: r.territory || r.location || "",
+                              skills: (r.skills || []).join(", "),
+                              resourceType: r.resourceType || "Technician",
+                              isActive: r.isActive ?? true,
+                              description: r.description || "",
+                            });
+                            setIsEditResourceModalOpen(true);
+                          }}
+                          className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-slate-100 rounded-md transition-colors inline-flex items-center gap-1 text-xs font-semibold"
+                          title="Edit Service Resource"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                          <span>Edit</span>
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
 
       {/* DETAIL DRAWER */}
       {selectedWorkOrderId && (
@@ -997,7 +1426,7 @@ export default function FieldService() {
                         {activeWorkOrder.serviceAppointments.map((sa) => (
                           <div
                             key={sa.id}
-                            className="p-3.5 bg-white rounded-lg border border-slate-200 shadow-2xs space-y-1.5"
+                            className="p-3.5 bg-white rounded-lg border border-slate-200 shadow-2xs space-y-2.5"
                           >
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
@@ -1008,7 +1437,15 @@ export default function FieldService() {
                                   {sa.subject || "Appointment"}
                                 </span>
                               </div>
-                              <span className="enterprise-badge bg-blue-50 text-blue-700 border-blue-200">
+                              <span
+                                className={`enterprise-badge ${
+                                  sa.status === "Completed"
+                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                    : sa.status === "In Progress"
+                                    ? "bg-amber-50 text-amber-700 border-amber-200"
+                                    : "bg-blue-50 text-blue-700 border-blue-200"
+                                }`}
+                              >
                                 {sa.status}
                               </span>
                             </div>
@@ -1027,12 +1464,94 @@ export default function FieldService() {
                                   </span>
                                 </div>
                               )}
-                              {sa.serviceResource && (
-                                <div className="flex items-center gap-1 font-medium text-slate-700">
-                                  <User className="w-3 h-3 text-slate-400" />
+                              {sa.serviceResource ? (
+                                <div className="flex items-center gap-1 font-medium text-slate-700 bg-slate-100 px-2 py-0.5 rounded">
+                                  <User className="w-3 h-3 text-blue-500" />
                                   <span>{sa.serviceResource.name}</span>
                                 </div>
+                              ) : (
+                                <span className="text-slate-400 italic">No technician assigned</span>
                               )}
+                            </div>
+
+                            {/* Check-In / Check-Out Actions & Timestamps */}
+                            <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+                              <div className="flex flex-wrap items-center gap-2 text-[10px]">
+                                {sa.checkedInAt && (
+                                  <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium flex items-center gap-1">
+                                    <LogIn className="w-3 h-3 text-emerald-600" />
+                                    <span>
+                                      In:{" "}
+                                      {new Date(sa.checkedInAt).toLocaleTimeString([], {
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                      })}
+                                    </span>
+                                  </span>
+                                )}
+                                {sa.checkedOutAt && (
+                                  <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 font-medium flex items-center gap-1">
+                                    <LogOut className="w-3 h-3 text-blue-600" />
+                                    <span>
+                                      Out:{" "}
+                                      {new Date(sa.checkedOutAt).toLocaleTimeString([], {
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                      })}
+                                    </span>
+                                  </span>
+                                )}
+                                {!sa.checkedInAt && !sa.checkedOutAt && (
+                                  <span className="text-slate-400 italic">Pending technician arrival</span>
+                                )}
+                              </div>
+
+                              <div className="flex items-center gap-1.5">
+                                {/* Check In button */}
+                                {!sa.checkedInAt && sa.status !== "Completed" && sa.status !== "Canceled" && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      checkInAppointmentMutation.mutate({
+                                        workOrderId: activeWorkOrder.id,
+                                        appointmentId: sa.id,
+                                      })
+                                    }
+                                    disabled={checkInAppointmentMutation.isPending}
+                                    className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-[11px] font-semibold flex items-center gap-1 transition-colors shadow-2xs"
+                                    title="Mark technician arrival on-site"
+                                  >
+                                    <LogIn className="w-3 h-3" />
+                                    <span>Check In</span>
+                                  </button>
+                                )}
+
+                                {/* Check Out button */}
+                                {sa.checkedInAt && !sa.checkedOutAt && sa.status !== "Completed" && sa.status !== "Canceled" && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      checkOutAppointmentMutation.mutate({
+                                        workOrderId: activeWorkOrder.id,
+                                        appointmentId: sa.id,
+                                      })
+                                    }
+                                    disabled={checkOutAppointmentMutation.isPending}
+                                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[11px] font-semibold flex items-center gap-1 transition-colors shadow-2xs"
+                                    title="Mark service job completed"
+                                  >
+                                    <LogOut className="w-3 h-3" />
+                                    <span>Check Out</span>
+                                  </button>
+                                )}
+
+                                {sa.checkedOutAt && (
+                                  <span className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1">
+                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                    <span>Completed</span>
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
                         ))}
@@ -1275,6 +1794,29 @@ export default function FieldService() {
                 />
               </div>
 
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">Assigned Technician</label>
+                <select
+                  value={appointmentFormData.serviceResourceId}
+                  onChange={(e) =>
+                    setAppointmentFormData({
+                      ...appointmentFormData,
+                      serviceResourceId: e.target.value,
+                    })
+                  }
+                  className="enterprise-input w-full"
+                >
+                  <option value="">-- Select Technician (Optional) --</option>
+                  {serviceResources
+                    .filter((r) => r.isActive)
+                    .map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.name} {r.territory || r.location ? `(${r.territory || r.location})` : ""}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-slate-700 font-semibold mb-1">Start Time</label>
@@ -1464,6 +2006,306 @@ export default function FieldService() {
                   className="enterprise-btn-primary"
                 >
                   {addLineItemMutation.isPending ? "Adding..." : "Add Line Item"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ADD SERVICE RESOURCE MODAL */}
+      {isResourceModalOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div
+            className="w-full max-w-md bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden animate-fade-in"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <Users className="w-4 h-4 text-blue-600" /> Add Service Resource / Technician
+              </h3>
+              <button
+                onClick={() => setIsResourceModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!resourceFormData.userId) {
+                  showToast("err", "Please select a user account to link.");
+                  return;
+                }
+                const skillsArray = resourceFormData.skills
+                  .split(",")
+                  .map((s) => s.trim())
+                  .filter(Boolean);
+                createServiceResourceMutation.mutate({
+                  userId: resourceFormData.userId,
+                  territory: resourceFormData.territory.trim() || undefined,
+                  skills: skillsArray,
+                  resourceType: resourceFormData.resourceType,
+                  isActive: resourceFormData.isActive,
+                  description: resourceFormData.description.trim() || undefined,
+                });
+              }}
+              className="p-5 space-y-4 text-xs"
+            >
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">
+                  Select User Account <span className="text-red-500">*</span>
+                </label>
+                <select
+                  required
+                  value={resourceFormData.userId}
+                  onChange={(e) =>
+                    setResourceFormData({ ...resourceFormData, userId: e.target.value })
+                  }
+                  className="enterprise-input w-full"
+                >
+                  <option value="">-- Choose User --</option>
+                  {availableUsers.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.firstName} {u.lastName} ({u.email})
+                    </option>
+                  ))}
+                </select>
+                {availableUsers.length === 0 && (
+                  <p className="text-[11px] text-amber-600 mt-1">
+                    All existing users are already registered as service resources.
+                  </p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Resource Type</label>
+                  <select
+                    value={resourceFormData.resourceType}
+                    onChange={(e) =>
+                      setResourceFormData({ ...resourceFormData, resourceType: e.target.value })
+                    }
+                    className="enterprise-input w-full"
+                  >
+                    <option value="Technician">Technician</option>
+                    <option value="Dispatcher">Dispatcher</option>
+                    <option value="Crew">Crew</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Territory / Location</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. North Zone, Bangalore"
+                    value={resourceFormData.territory}
+                    onChange={(e) =>
+                      setResourceFormData({ ...resourceFormData, territory: e.target.value })
+                    }
+                    className="enterprise-input w-full"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">
+                  Skills (comma-separated)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. HVAC, Electrical, Plumbing, Diagnostic"
+                  value={resourceFormData.skills}
+                  onChange={(e) =>
+                    setResourceFormData({ ...resourceFormData, skills: e.target.value })
+                  }
+                  className="enterprise-input w-full"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">Description / Notes</label>
+                <textarea
+                  rows={2}
+                  placeholder="Optional technician qualifications or notes..."
+                  value={resourceFormData.description}
+                  onChange={(e) =>
+                    setResourceFormData({ ...resourceFormData, description: e.target.value })
+                  }
+                  className="enterprise-input w-full"
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="create-is-active"
+                  checked={resourceFormData.isActive}
+                  onChange={(e) =>
+                    setResourceFormData({ ...resourceFormData, isActive: e.target.checked })
+                  }
+                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                />
+                <label htmlFor="create-is-active" className="text-xs text-slate-700 font-medium">
+                  Active (Available for appointment assignments)
+                </label>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setIsResourceModalOpen(false)}
+                  className="enterprise-btn-secondary"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={createServiceResourceMutation.isPending}
+                  className="enterprise-btn-primary"
+                >
+                  {createServiceResourceMutation.isPending ? "Adding..." : "Add Resource"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT SERVICE RESOURCE MODAL */}
+      {isEditResourceModalOpen && editingResource && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div
+            className="w-full max-w-md bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden animate-fade-in"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <Edit2 className="w-4 h-4 text-blue-600" /> Edit Service Resource: {editingResource.name}
+              </h3>
+              <button
+                onClick={() => {
+                  setIsEditResourceModalOpen(false);
+                  setEditingResource(null);
+                }}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const skillsArray = resourceFormData.skills
+                  .split(",")
+                  .map((s) => s.trim())
+                  .filter(Boolean);
+                updateServiceResourceMutation.mutate({
+                  id: editingResource.id,
+                  payload: {
+                    territory: resourceFormData.territory.trim() || undefined,
+                    skills: skillsArray,
+                    resourceType: resourceFormData.resourceType,
+                    isActive: resourceFormData.isActive,
+                    description: resourceFormData.description.trim() || undefined,
+                  },
+                });
+              }}
+              className="p-5 space-y-4 text-xs"
+            >
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Resource Type</label>
+                  <select
+                    value={resourceFormData.resourceType}
+                    onChange={(e) =>
+                      setResourceFormData({ ...resourceFormData, resourceType: e.target.value })
+                    }
+                    className="enterprise-input w-full"
+                  >
+                    <option value="Technician">Technician</option>
+                    <option value="Dispatcher">Dispatcher</option>
+                    <option value="Crew">Crew</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Territory / Location</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. North Zone, Bangalore"
+                    value={resourceFormData.territory}
+                    onChange={(e) =>
+                      setResourceFormData({ ...resourceFormData, territory: e.target.value })
+                    }
+                    className="enterprise-input w-full"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">
+                  Skills (comma-separated)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. HVAC, Electrical, Plumbing, Diagnostic"
+                  value={resourceFormData.skills}
+                  onChange={(e) =>
+                    setResourceFormData({ ...resourceFormData, skills: e.target.value })
+                  }
+                  className="enterprise-input w-full"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">Description / Notes</label>
+                <textarea
+                  rows={2}
+                  placeholder="Optional technician qualifications or notes..."
+                  value={resourceFormData.description}
+                  onChange={(e) =>
+                    setResourceFormData({ ...resourceFormData, description: e.target.value })
+                  }
+                  className="enterprise-input w-full"
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="edit-is-active"
+                  checked={resourceFormData.isActive}
+                  onChange={(e) =>
+                    setResourceFormData({ ...resourceFormData, isActive: e.target.checked })
+                  }
+                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                />
+                <label htmlFor="edit-is-active" className="text-xs text-slate-700 font-medium">
+                  Active (Available for appointment assignments)
+                </label>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsEditResourceModalOpen(false);
+                    setEditingResource(null);
+                  }}
+                  className="enterprise-btn-secondary"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={updateServiceResourceMutation.isPending}
+                  className="enterprise-btn-primary"
+                >
+                  {updateServiceResourceMutation.isPending ? "Saving..." : "Save Changes"}
                 </button>
               </div>
             </form>

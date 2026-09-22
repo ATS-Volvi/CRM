@@ -333,6 +333,19 @@ export const updateWorkOrder = async (req: Request, res: Response) => {
 };
 
 /**
+ * Helper to format appointment record with checkedInAt and checkedOutAt aliases
+ */
+function formatAppointment(appRecord: any) {
+  if (!appRecord) return null;
+  const json = appRecord.toJSON ? appRecord.toJSON() : { ...appRecord };
+  return {
+    ...json,
+    checkedInAt: json.actualStartTime || null,
+    checkedOutAt: json.actualEndTime || null
+  };
+}
+
+/**
  * GET /api/v1/work-orders/:id/appointments
  * List appointments for a work order.
  */
@@ -348,7 +361,7 @@ export const getWorkOrderAppointments = async (req: Request, res: Response) => {
       order: [["scheduledStartTime", "ASC"], ["createdAt", "DESC"]]
     });
 
-    return res.status(200).json(appointments);
+    return res.status(200).json(appointments.map(formatAppointment));
   } catch (error: any) {
     console.error("Error fetching appointments:", error);
     return res.status(500).json({ message: "Internal server error", error: error.message });
@@ -422,9 +435,98 @@ export const createWorkOrderAppointment = async (req: Request, res: Response) =>
       ]
     });
 
-    return res.status(201).json(created);
+    return res.status(201).json(formatAppointment(created || appointment));
   } catch (error: any) {
     console.error("Error creating service appointment:", error);
+    return res.status(500).json({ message: "Internal server error", error: error.message });
+  }
+};
+
+/**
+ * PUT /api/v1/work-orders/:id/appointments/:appointmentId
+ * Update service appointment, including Check In and Check Out actions
+ */
+export const updateWorkOrderAppointment = async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const appointmentId = String(req.params.appointmentId);
+    const appointment = await ServiceAppointment.findOne({
+      where: { id: appointmentId, workOrderId: id }
+    });
+
+    if (!appointment) {
+      return res.status(404).json({ message: "Service Appointment not found" });
+    }
+
+    const {
+      status,
+      checkedInAt,
+      checkedOutAt,
+      actualStartTime,
+      actualEndTime,
+      serviceResourceId,
+      description,
+      subject,
+      action
+    } = req.body;
+
+    const now = new Date();
+
+    // Check In handling
+    if (checkedInAt || actualStartTime) {
+      appointment.actualStartTime = checkedInAt ? new Date(checkedInAt) : new Date(actualStartTime);
+      if (!status || status === "Scheduled" || status === "Dispatched" || status === "New") {
+        appointment.status = "In Progress";
+      }
+    } else if (action === "check-in") {
+      appointment.actualStartTime = now;
+      appointment.status = "In Progress";
+    }
+
+    // Check Out handling
+    if (checkedOutAt || actualEndTime) {
+      appointment.actualEndTime = checkedOutAt ? new Date(checkedOutAt) : new Date(actualEndTime);
+      if (!status || status === "In Progress") {
+        appointment.status = "Completed";
+      }
+    } else if (action === "check-out") {
+      appointment.actualEndTime = now;
+      appointment.status = "Completed";
+    }
+
+    // Compute duration if both start and end exist
+    if (appointment.actualStartTime && appointment.actualEndTime) {
+      const diffMs = new Date(appointment.actualEndTime).getTime() - new Date(appointment.actualStartTime).getTime();
+      const diffMins = Math.max(0, Math.round(diffMs / 60000));
+      appointment.actualDuration = diffMins;
+      appointment.durationInHours = Number((diffMins / 60).toFixed(2));
+    }
+
+    if (status) {
+      appointment.status = status;
+    }
+    if (serviceResourceId !== undefined) {
+      appointment.serviceResourceId = serviceResourceId || null;
+    }
+    if (description !== undefined) {
+      appointment.description = description;
+    }
+    if (subject !== undefined) {
+      appointment.subject = subject;
+    }
+
+    await appointment.save();
+
+    const reloaded = await ServiceAppointment.findByPk(appointmentId, {
+      include: [
+        { model: ServiceResource, as: "serviceResource" },
+        { model: Contact, as: "contact" }
+      ]
+    });
+
+    return res.status(200).json(formatAppointment(reloaded || appointment));
+  } catch (error: any) {
+    console.error("Error updating service appointment:", error);
     return res.status(500).json({ message: "Internal server error", error: error.message });
   }
 };
