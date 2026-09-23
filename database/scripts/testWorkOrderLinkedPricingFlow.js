@@ -173,6 +173,41 @@ async function runTests() {
     throw new Error("Expected Work Order status to be 'Approved'!");
   }
 
+  // Test D2: Manager Rejection flow
+  console.log("\n  [Test D2: Manager Rejection Flow on another below-floor item]");
+  const rejectItemRes = await apiRequest("POST", `/work-orders/${targetWO.id}/line-items`, {
+    priceBookEntryId: sampleItem.id,
+    description: sampleItem.name,
+    quantity: 1,
+    unitPrice: 500, // Below minPrice of 723
+    status: "New"
+  }, token);
+  console.log(`  Second below-floor item status: ${rejectItemRes.status}, approvalRequired: ${rejectItemRes.data.approvalRequired}`);
+
+  // Find the new pending approval
+  const approvalsRes2 = await apiRequest("GET", "/approvals", null, token);
+  const rejectApproval = approvalsRes2.data.find(a => a.type === "WorkOrder" && a.targetId === targetWO.id && a.status === "Pending");
+  console.log(`  Found second approval request: id=${rejectApproval?.id}`);
+
+  // Manager rejects
+  const rejectRes = await apiRequest("PUT", `/approvals/${rejectApproval.id}`, {
+    status: "Rejected",
+    comments: "Price ₹500 is strictly below allowable margins. Rejected."
+  }, token);
+  console.log(`  Approval update status: ${rejectRes.status}, approval status: ${rejectRes.data.status}`);
+
+  const woRejectedRes = await apiRequest("GET", `/work-orders/${targetWO.id}`, null, token);
+  console.log(`  Work Order status after rejection: "${woRejectedRes.data.status}" (Expected "Rejected")`);
+  const rejectedLineItem = woRejectedRes.data.lineItems?.find(li => li.id === rejectItemRes.data.id);
+  console.log(`  Rejected line item status: "${rejectedLineItem?.status}" (Expected "Rejected", stays attached: ${!!rejectedLineItem})`);
+
+  if (woRejectedRes.data.status !== "Rejected") {
+    throw new Error("Expected Work Order status to be 'Rejected' after manager rejection!");
+  }
+  if (!rejectedLineItem || rejectedLineItem.status !== "Rejected") {
+    throw new Error("Expected line item to stay attached with status 'Rejected'!");
+  }
+
   // Test E: Free-text fallback line item without catalog link
   console.log("\n  [Test E: Free-text manual fallback line item]");
   const itemCRes = await apiRequest("POST", `/work-orders/${targetWO.id}/line-items`, {
