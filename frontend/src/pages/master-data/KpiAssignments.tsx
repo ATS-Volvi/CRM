@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import {
   Target, Users, Lock, Unlock, Save, ChevronDown, History, X,
-  AlertTriangle, CheckCircle2, ArrowRight
+  AlertTriangle, CheckCircle2, ArrowRight, ShieldAlert, UserCheck
 } from "lucide-react";
 import { MasterDataNav } from "../../components/MasterDataNav";
 
@@ -15,11 +15,25 @@ interface Rep {
   email: string;
   role: string;
   managerId: string | null;
+  department?: string | null;
+  team?: string | null;
+}
+
+interface KpiMaster {
+  id: string;
+  name: string;
+  category: string;
+  targetValue: number;
+  frequency: string;
+  weightage: number;
+  teamLeadId: string | null;
+  isActive: boolean;
 }
 
 interface KpiTarget {
   id: string;
   salespersonId: string;
+  kpiMasterId?: string | null;
   kpiName: string;
   targetValue: number;
   currentValue: number;
@@ -63,7 +77,24 @@ export default function KpiAssignments() {
   const [editState, setEditState] = useState<Record<string, Partial<KpiTarget>>>({});
   const [historyKpiId, setHistoryKpiId] = useState<string | null>(null);
   const [bulkModal, setBulkModal] = useState(false);
-  const [bulk, setBulk] = useState({ kpiName: "", targetValue: 0, frequency: "monthly", weightage: 10 });
+  const [confirmStep, setConfirmStep] = useState(false);
+  const [bulk, setBulk] = useState<{
+    kpiMasterId: string;
+    kpiName: string;
+    targetValue: number;
+    frequency: string;
+    weightage: number;
+    scopeType: "selected" | "team" | "department";
+    scopeValue: string;
+  }>({
+    kpiMasterId: "",
+    kpiName: "",
+    targetValue: 0,
+    frequency: "monthly",
+    weightage: 10,
+    scopeType: "selected",
+    scopeValue: "",
+  });
   const [toast, setToast] = useState<{ type: "ok" | "err"; msg: string } | null>(null);
 
   const showToast = (type: "ok" | "err", msg: string) => {
@@ -84,6 +115,18 @@ export default function KpiAssignments() {
       if (isAdmin) return all;
       if (isManager) return all.filter((r) => r.managerId === callerId);
       return all.filter((r) => r.id === callerId);
+    },
+  });
+
+  // ── Fetch KPI master definitions (scoped to caller by backend) ───────────
+  const { data: kpiMasters = [] } = useQuery<KpiMaster[]>({
+    queryKey: ["kpiMasters", callerId, callerRole],
+    queryFn: async () => {
+      const res = await fetch("/api/v1/master-data/kpis", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed to fetch KPI definitions");
+      return res.json();
     },
   });
 
@@ -159,9 +202,30 @@ export default function KpiAssignments() {
   // ── Bulk assign ───────────────────────────────────────────────────────────
   const bulkMutation = useMutation({
     mutationFn: async () => {
-      const body: any = { ...bulk };
-      // manager scope: backend will restrict to own reports
-      if (!isAdmin && isManager) body.managerId = callerId;
+      const body: any = {
+        kpiMasterId: bulk.kpiMasterId || undefined,
+        kpiName: bulk.kpiName,
+        targetValue: bulk.targetValue,
+        frequency: bulk.frequency,
+        weightage: bulk.weightage,
+      };
+
+      if (isAdmin) {
+        if (bulk.scopeType === "selected") {
+          const repId = bulk.scopeValue || selectedRepId;
+          if (!repId) throw new Error("Please select a salesperson");
+          body.salespersonIds = [repId];
+        } else if (bulk.scopeType === "team") {
+          if (!bulk.scopeValue) throw new Error("Please select a team");
+          body.team = bulk.scopeValue;
+        } else if (bulk.scopeType === "department") {
+          if (!bulk.scopeValue) throw new Error("Please select a department");
+          body.department = bulk.scopeValue;
+        }
+      } else if (isManager) {
+        body.salespersonIds = reps.map((r) => r.id);
+      }
+
       const res = await fetch("/api/v1/kpis/bulk-assign", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -176,6 +240,7 @@ export default function KpiAssignments() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["kpiTargets"] });
       setBulkModal(false);
+      setConfirmStep(false);
       showToast("ok", data.message ?? "Bulk assignment complete");
     },
     onError: (e: any) => showToast("err", e.message),
@@ -183,6 +248,89 @@ export default function KpiAssignments() {
 
   const allLocked = targets.length > 0 && targets.every((t) => t.status === "Locked");
   const selectedRep = reps.find((r) => r.id === selectedRepId);
+
+  // ── Distinct team & department lists ─────────────────────────────────────
+  const availableTeams = Array.from(
+    new Set(reps.map((r) => r.team).filter((t): t is string => !!t && t.trim().length > 0))
+  ).sort();
+
+  const availableDepartments = Array.from(
+    new Set(reps.map((r) => r.department).filter((d): d is string => !!d && d.trim().length > 0))
+  ).sort();
+
+  // ── Compute target reps for preview & safety checks ───────────────────────
+  const getTargetReps = (): Rep[] => {
+    if (isManager && !isAdmin) {
+      return reps; // Already scoped to manager's reports
+    }
+    if (bulk.scopeType === "selected") {
+      const targetId = bulk.scopeValue || selectedRepId;
+      const r = reps.find((rep) => rep.id === targetId);
+      return r ? [r] : [];
+    }
+    if (bulk.scopeType === "team") {
+      return reps.filter((r) => r.team === bulk.scopeValue);
+    }
+    if (bulk.scopeType === "department") {
+      return reps.filter((r) => r.department === bulk.scopeValue);
+    }
+    return [];
+  };
+
+  const targetReps = getTargetReps();
+  const targetCount = targetReps.length;
+
+  // ── Open modal handler ───────────────────────────────────────────────────
+  const handleOpenBulkModal = () => {
+    setConfirmStep(false);
+    const initialScopeType = selectedRepId
+      ? "selected"
+      : availableTeams.length > 0
+      ? "team"
+      : availableDepartments.length > 0
+      ? "department"
+      : "selected";
+
+    const initialScopeValue =
+      initialScopeType === "selected"
+        ? (selectedRepId || (reps[0]?.id ?? ""))
+        : initialScopeType === "team"
+        ? (availableTeams[0] ?? "")
+        : (availableDepartments[0] ?? "");
+
+    // Pick first KPI master if none chosen
+    const firstMaster = kpiMasters[0];
+    setBulk({
+      kpiMasterId: firstMaster?.id ?? "",
+      kpiName: firstMaster?.name ?? "",
+      targetValue: firstMaster?.targetValue ?? 0,
+      frequency: firstMaster?.frequency ?? "monthly",
+      weightage: firstMaster?.weightage ?? 10,
+      scopeType: initialScopeType,
+      scopeValue: initialScopeValue,
+    });
+    setBulkModal(true);
+  };
+
+  const handleKpiMasterChange = (masterId: string) => {
+    const master = kpiMasters.find((m) => m.id === masterId);
+    if (master) {
+      setBulk((prev) => ({
+        ...prev,
+        kpiMasterId: master.id,
+        kpiName: master.name,
+        targetValue: master.targetValue,
+        frequency: master.frequency,
+        weightage: master.weightage,
+      }));
+    } else {
+      setBulk((prev) => ({
+        ...prev,
+        kpiMasterId: "",
+        kpiName: "",
+      }));
+    }
+  };
 
   // ── Helper: get inline edit value ────────────────────────────────────────
   const getField = <K extends keyof KpiTarget>(t: KpiTarget, k: K): KpiTarget[K] =>
@@ -226,26 +374,28 @@ export default function KpiAssignments() {
             </p>
           </div>
         </div>
-        {(isAdmin || isManager) && selectedRepId && (
+        {(isAdmin || isManager) && (
           <div className="flex items-center gap-2">
+            {selectedRepId && (
+              <button
+                onClick={() => lockMutation.mutate(allLocked ? "Active" : "Locked")}
+                disabled={lockMutation.isPending}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all ${
+                  allLocked
+                    ? "bg-amber-500/10 text-amber-600 border border-amber-500/30 hover:bg-amber-500/20"
+                    : "bg-surface-container-low border border-outline text-on-surface-variant hover:bg-surface-container"
+                }`}
+              >
+                {allLocked ? <Unlock className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
+                {allLocked ? "Unlock All" : "Lock All"}
+              </button>
+            )}
             <button
-              onClick={() => lockMutation.mutate(allLocked ? "Active" : "Locked")}
-              disabled={lockMutation.isPending}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all ${
-                allLocked
-                  ? "bg-amber-500/10 text-amber-600 border border-amber-500/30 hover:bg-amber-500/20"
-                  : "bg-surface-container-low border border-outline text-on-surface-variant hover:bg-surface-container"
-              }`}
-            >
-              {allLocked ? <Unlock className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
-              {allLocked ? "Unlock All" : "Lock All"}
-            </button>
-            <button
-              onClick={() => setBulkModal(true)}
-              className="flex items-center gap-1.5 px-3 py-2 bg-primary text-white text-xs font-bold rounded-lg hover:opacity-90 transition-all"
+              onClick={handleOpenBulkModal}
+              className="flex items-center gap-1.5 px-3 py-2 bg-primary text-white text-xs font-bold rounded-lg hover:opacity-90 transition-all shadow-sm"
             >
               <Users className="w-3.5 h-3.5" />
-              Bulk Assign to Team
+              Bulk Assign Targets
             </button>
           </div>
         )}
@@ -268,6 +418,11 @@ export default function KpiAssignments() {
               }`}
             >
               {r.name}
+              {r.team && (
+                <span className={`ml-1.5 text-[10px] opacity-80 ${selectedRepId === r.id ? "text-white/80" : "text-on-surface-variant"}`}>
+                  • {r.team}
+                </span>
+              )}
             </button>
           ))}
           {reps.length === 0 && (
@@ -466,87 +621,337 @@ export default function KpiAssignments() {
 
       {/* Bulk assign modal */}
       {bulkModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setBulkModal(false)}>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in" onClick={() => setBulkModal(false)}>
           <div
-            className="bg-surface rounded-2xl border border-outline p-6 w-full max-w-sm shadow-xl space-y-4"
+            className="bg-surface rounded-2xl border border-outline p-6 w-full max-w-md shadow-2xl space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex justify-between items-center">
-              <h3 className="font-bold text-on-surface">Bulk Assign to Team</h3>
-              <button onClick={() => setBulkModal(false)} className="p-1 hover:bg-surface-container rounded-lg">
+            {/* Modal Header */}
+            <div className="flex justify-between items-center pb-2 border-b border-outline-variant">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-primary/10 rounded-xl">
+                  <Target className="w-4 h-4 text-primary" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-on-surface">Bulk Assign KPI Target</h3>
+                  <p className="text-[11px] text-on-surface-variant">
+                    {isManager && !isAdmin
+                      ? "Assign to your direct reports with explicit verification."
+                      : "Scoped assignment to prevent accidental organization-wide updates."}
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setBulkModal(false)} className="p-1 hover:bg-surface-container rounded-lg text-on-surface-variant">
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <p className="text-xs text-on-surface-variant">
-              {isManager
-                ? "Assign a KPI target to all your direct reports."
-                : "Assign a KPI target to all matching reps."}
-            </p>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1">KPI Name</label>
-                <select
-                  value={bulk.kpiName}
-                  onChange={(e) => setBulk({ ...bulk, kpiName: e.target.value })}
-                  className="w-full bg-surface-container-low border border-outline rounded-lg p-2.5 text-xs font-semibold focus:outline-none cursor-pointer"
-                >
-                  <option value="">Select KPI…</option>
-                  {[...new Set(targets.map((t) => t.kpiName))].map((n) => (
-                    <option key={n} value={n}>{n}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="grid grid-cols-3 gap-2">
+
+            {!confirmStep ? (
+              /* STEP 1: Configuration Form */
+              <div className="space-y-4">
+                {/* Admin Scope Selector */}
+                {isAdmin && (
+                  <div className="space-y-2 bg-surface-container-low p-3 rounded-xl border border-outline-variant">
+                    <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">
+                      Assignment Scope <span className="text-primary">*</span>
+                    </label>
+                    <div className="grid grid-cols-3 gap-1 bg-surface-container p-1 rounded-lg">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setBulk((b) => ({
+                            ...b,
+                            scopeType: "selected",
+                            scopeValue: selectedRepId || reps[0]?.id || "",
+                          }));
+                        }}
+                        className={`py-1.5 px-2 rounded-md text-xs font-bold transition-all ${
+                          bulk.scopeType === "selected"
+                            ? "bg-surface shadow-sm text-primary"
+                            : "text-on-surface-variant hover:text-on-surface"
+                        }`}
+                      >
+                        Individual
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setBulk((b) => ({
+                            ...b,
+                            scopeType: "team",
+                            scopeValue: availableTeams[0] || "",
+                          }));
+                        }}
+                        className={`py-1.5 px-2 rounded-md text-xs font-bold transition-all ${
+                          bulk.scopeType === "team"
+                            ? "bg-surface shadow-sm text-primary"
+                            : "text-on-surface-variant hover:text-on-surface"
+                        }`}
+                      >
+                        By Team
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setBulk((b) => ({
+                            ...b,
+                            scopeType: "department",
+                            scopeValue: availableDepartments[0] || "",
+                          }));
+                        }}
+                        className={`py-1.5 px-2 rounded-md text-xs font-bold transition-all ${
+                          bulk.scopeType === "department"
+                            ? "bg-surface shadow-sm text-primary"
+                            : "text-on-surface-variant hover:text-on-surface"
+                        }`}
+                      >
+                        Department
+                      </button>
+                    </div>
+
+                    {/* Sub-selectors per scopeType */}
+                    {bulk.scopeType === "selected" && (
+                      <select
+                        value={bulk.scopeValue}
+                        onChange={(e) => setBulk({ ...bulk, scopeValue: e.target.value })}
+                        className="w-full bg-surface border border-outline rounded-lg p-2 text-xs font-semibold focus:outline-none"
+                      >
+                        <option value="">Select Salesperson…</option>
+                        {reps.map((r) => (
+                          <option key={r.id} value={r.id}>
+                            {r.name} {r.team ? `(${r.team})` : ""}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+
+                    {bulk.scopeType === "team" && (
+                      availableTeams.length > 0 ? (
+                        <select
+                          value={bulk.scopeValue}
+                          onChange={(e) => setBulk({ ...bulk, scopeValue: e.target.value })}
+                          className="w-full bg-surface border border-outline rounded-lg p-2 text-xs font-semibold focus:outline-none"
+                        >
+                          <option value="">Select Team…</option>
+                          {availableTeams.map((t) => (
+                            <option key={t} value={t}>
+                              Team: {t} ({reps.filter((r) => r.team === t).length} reps)
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <p className="text-xs text-amber-600 font-medium">No teams defined on salespersons.</p>
+                      )
+                    )}
+
+                    {bulk.scopeType === "department" && (
+                      availableDepartments.length > 0 ? (
+                        <select
+                          value={bulk.scopeValue}
+                          onChange={(e) => setBulk({ ...bulk, scopeValue: e.target.value })}
+                          className="w-full bg-surface border border-outline rounded-lg p-2 text-xs font-semibold focus:outline-none"
+                        >
+                          <option value="">Select Department…</option>
+                          {availableDepartments.map((d) => (
+                            <option key={d} value={d}>
+                              Dept: {d} ({reps.filter((r) => r.department === d).length} reps)
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <p className="text-xs text-amber-600 font-medium">No departments defined on salespersons.</p>
+                      )
+                    )}
+                  </div>
+                )}
+
+                {/* Manager Scope Info */}
+                {isManager && !isAdmin && (
+                  <div className="flex items-center gap-2 bg-primary/5 border border-primary/20 rounded-xl p-3">
+                    <UserCheck className="w-4 h-4 text-primary shrink-0" />
+                    <p className="text-xs text-on-surface">
+                      Will be assigned to all <strong className="text-primary">{reps.length} direct reports</strong> on your team.
+                    </p>
+                  </div>
+                )}
+
+                {/* KPI Master Definition Select */}
                 <div>
-                  <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1">Target</label>
-                  <input
-                    type="number"
-                    value={bulk.targetValue}
-                    onChange={(e) => setBulk({ ...bulk, targetValue: parseFloat(e.target.value) || 0 })}
-                    className="w-full bg-surface-container-low border border-outline rounded-lg p-2.5 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-primary/40"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1">Freq.</label>
+                  <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1">
+                    KPI Definition <span className="text-primary">*</span>
+                  </label>
                   <select
-                    value={bulk.frequency}
-                    onChange={(e) => setBulk({ ...bulk, frequency: e.target.value })}
+                    value={bulk.kpiMasterId}
+                    onChange={(e) => handleKpiMasterChange(e.target.value)}
                     className="w-full bg-surface-container-low border border-outline rounded-lg p-2.5 text-xs font-semibold focus:outline-none cursor-pointer"
                   >
-                    <option value="monthly">Monthly</option>
-                    <option value="quarterly">Quarterly</option>
-                    <option value="annual">Annual</option>
+                    <option value="">Choose a KPI Definition…</option>
+                    {kpiMasters.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name} {m.teamLeadId ? "(Team Scoped)" : "(Global)"} — Target: {m.targetValue} ({m.frequency})
+                      </option>
+                    ))}
                   </select>
+                  {kpiMasters.length === 0 && (
+                    <p className="text-[11px] text-amber-600 mt-1">
+                      No KPI definitions found. Please define them under Master Data → KPI Master.
+                    </p>
+                  )}
                 </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1">Weight</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={bulk.weightage}
-                    onChange={(e) => setBulk({ ...bulk, weightage: parseFloat(e.target.value) || 0 })}
-                    className="w-full bg-surface-container-low border border-outline rounded-lg p-2.5 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-primary/40"
-                  />
+
+                {/* KPI Name fallback if custom/legacy */}
+                {!bulk.kpiMasterId && (
+                  <div>
+                    <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1">
+                      Or Custom KPI Name
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g., Monthly Revenue"
+                      value={bulk.kpiName}
+                      onChange={(e) => setBulk({ ...bulk, kpiName: e.target.value })}
+                      className="w-full bg-surface-container-low border border-outline rounded-lg p-2.5 text-xs font-semibold focus:outline-none"
+                    />
+                  </div>
+                )}
+
+                {/* Values: Target, Freq, Weight */}
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1">Target Value</label>
+                    <input
+                      type="number"
+                      value={bulk.targetValue}
+                      onChange={(e) => setBulk({ ...bulk, targetValue: parseFloat(e.target.value) || 0 })}
+                      className="w-full bg-surface-container-low border border-outline rounded-lg p-2 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-primary/40"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1">Frequency</label>
+                    <select
+                      value={bulk.frequency}
+                      onChange={(e) => setBulk({ ...bulk, frequency: e.target.value })}
+                      className="w-full bg-surface-container-low border border-outline rounded-lg p-2 text-xs font-semibold focus:outline-none cursor-pointer"
+                    >
+                      <option value="monthly">Monthly</option>
+                      <option value="quarterly">Quarterly</option>
+                      <option value="annual">Annual</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1">Weight (%)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={bulk.weightage}
+                      onChange={(e) => setBulk({ ...bulk, weightage: parseFloat(e.target.value) || 0 })}
+                      className="w-full bg-surface-container-low border border-outline rounded-lg p-2 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-primary/40"
+                    />
+                  </div>
+                </div>
+
+                {/* Impact Preview Card */}
+                <div className="p-3 bg-surface-container-low rounded-xl border border-outline-variant text-xs space-y-1">
+                  <div className="flex items-center justify-between font-bold">
+                    <span className="text-on-surface-variant">Target Recipients:</span>
+                    <span className={targetCount > 0 ? "text-primary" : "text-amber-600"}>
+                      {targetCount} {targetCount === 1 ? "salesperson" : "salespersons"}
+                    </span>
+                  </div>
+                  {targetCount > 0 ? (
+                    <p className="text-[11px] text-on-surface-variant truncate">
+                      {targetReps.slice(0, 4).map((r) => r.name).join(", ")}
+                      {targetCount > 4 ? ` +${targetCount - 4} more` : ""}
+                    </p>
+                  ) : (
+                    <p className="text-[11px] text-amber-600">
+                      No salespersons match the chosen scope criteria. Please select a valid scope.
+                    </p>
+                  )}
+                </div>
+
+                {/* Step 1 Actions */}
+                <div className="flex gap-2 justify-end pt-2">
+                  <button
+                    onClick={() => setBulkModal(false)}
+                    className="px-4 py-2 border border-outline rounded-lg text-xs font-bold text-on-surface-variant hover:bg-surface-container-low"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => setConfirmStep(true)}
+                    disabled={!bulk.kpiName || targetCount === 0}
+                    className="px-4 py-2 bg-primary text-white rounded-lg text-xs font-bold hover:opacity-90 disabled:opacity-50 flex items-center gap-1.5 shadow-sm"
+                  >
+                    Review & Confirm
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
-            </div>
-            <div className="flex gap-2 justify-end pt-2">
-              <button
-                onClick={() => setBulkModal(false)}
-                className="px-4 py-2 border border-outline rounded-lg text-xs font-bold text-on-surface-variant hover:bg-surface-container-low"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => bulkMutation.mutate()}
-                disabled={!bulk.kpiName || bulkMutation.isPending}
-                className="px-4 py-2 bg-primary text-white rounded-lg text-xs font-bold hover:opacity-90 disabled:opacity-60 flex items-center gap-1.5"
-              >
-                <Users className="w-3.5 h-3.5" />
-                {bulkMutation.isPending ? "Assigning…" : "Assign to Team"}
-              </button>
-            </div>
+            ) : (
+              /* STEP 2: Pre-Mutation Confirmation */
+              <div className="space-y-4 animate-fade-in">
+                <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-start gap-3">
+                  <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="text-xs space-y-1">
+                    <p className="font-bold text-amber-700">Confirm Bulk Assignment</p>
+                    <p className="text-amber-900/80 leading-relaxed">
+                      You are about to assign or update <strong>{bulk.kpiName}</strong> for{" "}
+                      <strong>{targetCount} {targetCount === 1 ? "salesperson" : "salespersons"}</strong>.
+                      Any existing targets for this KPI will be updated with the new target value and weightage.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Summary Table */}
+                <div className="bg-surface-container-low rounded-xl p-3.5 border border-outline-variant text-xs space-y-2">
+                  <div className="flex justify-between py-1 border-b border-outline-variant/60">
+                    <span className="text-on-surface-variant">KPI Name:</span>
+                    <span className="font-bold text-on-surface">{bulk.kpiName}</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-outline-variant/60">
+                    <span className="text-on-surface-variant">Target Value:</span>
+                    <span className="font-bold text-on-surface">{bulk.targetValue}</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-outline-variant/60">
+                    <span className="text-on-surface-variant">Frequency / Weight:</span>
+                    <span className="font-bold text-on-surface">{bulk.frequency} / {bulk.weightage}%</span>
+                  </div>
+                  <div className="flex justify-between py-1">
+                    <span className="text-on-surface-variant">Scope Target:</span>
+                    <span className="font-bold text-primary">
+                      {isAdmin
+                        ? bulk.scopeType === "selected"
+                          ? `Individual (${targetReps[0]?.name})`
+                          : bulk.scopeType === "team"
+                          ? `Team: ${bulk.scopeValue}`
+                          : `Department: ${bulk.scopeValue}`
+                        : `Direct Reports (${targetCount} reps)`}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Step 2 Actions */}
+                <div className="flex gap-2 justify-end pt-2">
+                  <button
+                    onClick={() => setConfirmStep(false)}
+                    disabled={bulkMutation.isPending}
+                    className="px-4 py-2 border border-outline rounded-lg text-xs font-bold text-on-surface-variant hover:bg-surface-container-low"
+                  >
+                    Back
+                  </button>
+                  <button
+                    onClick={() => bulkMutation.mutate()}
+                    disabled={bulkMutation.isPending}
+                    className="px-4 py-2 bg-primary text-white rounded-lg text-xs font-bold hover:opacity-90 disabled:opacity-60 flex items-center gap-1.5 shadow-sm"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    {bulkMutation.isPending ? "Assigning Targets…" : `Confirm & Assign (${targetCount})`}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

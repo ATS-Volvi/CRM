@@ -31,7 +31,7 @@ async function verifyFullSalesLifecycle() {
     // STEP 2: LEAD APPEARS IN INBOX
     // ─────────────────────────────────────────────────────────────
     console.log("\n▶ STEP 2: Lead Appears in Inbox");
-    const lead = await sequelize.models.Lead.findByPk(leadId, {
+    const lead = await sequelize.models.Lead.findByPk(leadId!, {
       include: [{ model: sequelize.models.User, as: "assignedTo" }]
     });
 

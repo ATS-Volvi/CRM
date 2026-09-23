@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && node -e \"try { const fs = require('fs'); fs.cpSync('dist', '../dist', { recursive: true }); } catch (e) {}\"",
     "lint": "oxlint",
     "preview": "vite preview"
   },

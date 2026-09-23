@@ -56,8 +56,18 @@ export default function MyDashboard() {
     }
   });
 
+  // Fetch Rep's Notifications
+  const { data: notificationsData } = useQuery({
+    queryKey: ["notifications"],
+    queryFn: async () => {
+      const res = await apiClient.get("/api/v1/notifications");
+      return Array.isArray(res) ? res : res?.data || [];
+    }
+  });
+
   const leads: any[] = Array.isArray(leadsData) ? leadsData : [];
   const opportunities: any[] = Array.isArray(oppsData) ? oppsData : [];
+  const notifications: any[] = Array.isArray(notificationsData) ? notificationsData : [];
 
   // Metrics Calculation
   const newLeads = leads.filter((l) => (l.status || "").toUpperCase() === "NEW");
@@ -97,6 +107,22 @@ export default function MyDashboard() {
     badgeColor: string;
     url: string;
   }[] = [];
+
+  // 0. Customer Interest & Auto-Escalation Notifications
+  notifications
+    .filter((n) => !n.isRead && (n.title?.includes("Customer") || n.title?.includes("Interest") || n.title?.includes("Approval")))
+    .slice(0, 3)
+    .forEach((n) => {
+      focusItems.push({
+        id: `notif-${n.id}`,
+        type: "opportunity",
+        title: n.title,
+        subtitle: n.message,
+        badge: n.type === "alert" ? "Approval Escalation" : "Customer Engagement",
+        badgeColor: n.type === "alert" ? "bg-purple-50 text-purple-700 border-purple-200 font-bold" : "bg-emerald-50 text-emerald-700 border-emerald-200 font-bold",
+        url: n.link || "/opportunities"
+      });
+    });
 
   // 1. High priority/new leads
   newLeads.slice(0, 3).forEach((l) => {
