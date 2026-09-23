@@ -31,6 +31,7 @@ import Kpis from "./pages/master-data/Kpis";
 import KpiAssignments from "./pages/master-data/KpiAssignments";
 import MessageTemplates from "./pages/master-data/MessageTemplates";
 import LineItemCatalog from "./pages/master-data/LineItemCatalog";
+import DiscountRules from "./pages/master-data/DiscountRules";
 import Accounts from "./pages/Accounts";
 import Contacts from "./pages/Contacts";
 
@@ -166,6 +167,7 @@ function App() {
               <Route path="/master-data/kpis" element={<Kpis />} />
               <Route path="/master-data/kpi-assignments" element={<KpiAssignments />} />
               <Route path="/master-data/message-templates" element={<MessageTemplates />} />
+              <Route path="/master-data/discount-rules" element={<DiscountRules />} />
             </Route>
           </Route>
         </Routes>

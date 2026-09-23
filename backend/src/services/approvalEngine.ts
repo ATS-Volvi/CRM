@@ -84,10 +84,26 @@ export const evaluateQuoteApproval = async (
     order: [["createdAt", "DESC"]]
   });
 
+  // Load Configurable Discount Policy Master Data (fallback to adminPolicy or defaults)
+  let repDiscountPolicy: any = null;
+  let tlDiscountPolicy: any = null;
+  if (sequelize.models.DiscountPolicy) {
+    repDiscountPolicy = await sequelize.models.DiscountPolicy.findOne({
+      where: { role: "Sales Rep", isActive: true }
+    });
+    tlDiscountPolicy = await sequelize.models.DiscountPolicy.findOne({
+      where: { role: "Team Lead", isActive: true }
+    });
+  }
+
   const maxSalesRepApproval = Number(adminPolicy?.maximumSalesRepApproval ?? 2500000);
   const maxTeamLeadApproval = Number(adminPolicy?.maximumTeamLeadApproval ?? 10000000);
-  const maxRepDiscount = Number(adminPolicy?.maximumRepDiscount ?? 0.10);
-  const maxTeamLeadDiscount = Number(adminPolicy?.maximumTeamLeadDiscount ?? 0.20);
+  const maxRepDiscount = repDiscountPolicy
+    ? Number(repDiscountPolicy.maxDiscountPercent) / 100
+    : Number(adminPolicy?.maximumRepDiscount ?? 0.10);
+  const maxTeamLeadDiscount = tlDiscountPolicy
+    ? Number(tlDiscountPolicy.maxDiscountPercent) / 100
+    : Number(adminPolicy?.maximumTeamLeadDiscount ?? 0.20);
   const minAllowedMargin = Number(adminPolicy?.minimumAllowedMargin ?? 0.15);
 
   const repDefaultCutoff = salesRep?.dealValueCutoff !== null && salesRep?.dealValueCutoff !== undefined
