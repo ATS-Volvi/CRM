@@ -10,7 +10,11 @@ import {
   Asset,
   Deal,
   SupportTicket,
-  Lead
+  Lead,
+  PriceBookEntry,
+  ApprovalRequest,
+  DiscountPolicy,
+  sequelize
 } from "@nexus-crm/database";
 import crypto from "crypto";
 import { Op } from "sequelize";
@@ -96,7 +100,11 @@ export const getWorkOrders = async (req: Request, res: Response) => {
         { model: Contact, as: "contact", attributes: ["id", "firstName", "lastName", "email", "phone"] },
         { model: User, as: "owner", attributes: ["id", "name", "email"] },
         { model: Asset, as: "asset", attributes: ["id", "name", "serialNumber"] },
-        { model: WorkOrderLineItem, as: "lineItems" },
+        {
+          model: WorkOrderLineItem,
+          as: "lineItems",
+          include: [{ model: PriceBookEntry, as: "priceBookEntry" }]
+        },
         { model: ServiceAppointment, as: "serviceAppointments" }
       ],
       order: [["createdAt", "DESC"]]
@@ -200,6 +208,7 @@ export const createWorkOrder = async (req: Request, res: Response) => {
           status: item.status || "New",
           description: item.description || null,
           assetId: item.assetId || null,
+          priceBookEntryId: item.priceBookEntryId || null,
           quantity: qty,
           unitPrice: price,
           totalPrice: qty * price
@@ -240,7 +249,11 @@ export const getWorkOrderById = async (req: Request, res: Response) => {
         { model: Asset, as: "asset" },
         { model: Deal, as: "deal" },
         { model: SupportTicket, as: "supportTicket" },
-        { model: WorkOrderLineItem, as: "lineItems" },
+        {
+          model: WorkOrderLineItem,
+          as: "lineItems",
+          include: [{ model: PriceBookEntry, as: "priceBookEntry" }]
+        },
         {
           model: ServiceAppointment,
           as: "serviceAppointments",
@@ -544,11 +557,56 @@ export const createWorkOrderLineItem = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Work Order not found" });
     }
 
-    const { description, quantity = 1, unitPrice = 0, status = "New", assetId } = req.body;
+    const { description, quantity = 1, unitPrice = 0, status = "New", assetId, priceBookEntryId } = req.body;
 
     const qty = parseFloat(quantity) || 1;
     const price = parseFloat(unitPrice) || 0;
     const totalPrice = qty * price;
+
+    let pbe: any = null;
+    let approvalRequired = false;
+    let approvalMessage = "";
+
+    if (priceBookEntryId) {
+      pbe = await PriceBookEntry.findByPk(priceBookEntryId);
+    }
+
+    if (pbe) {
+      // Find configured rep discount policy
+      let repDiscountLimit = 0.10;
+      if (sequelize.models.DiscountPolicy) {
+        const policy: any = await sequelize.models.DiscountPolicy.findOne({
+          where: { role: "Sales Rep", isActive: true }
+        });
+        if (policy) repDiscountLimit = Number(policy.maxDiscountPercent) / 100;
+      }
+
+      // Check minPrice floor
+      const catalogFloor = pbe.minPrice !== null && pbe.minPrice !== undefined
+        ? Number(pbe.minPrice)
+        : Math.round(Number(pbe.unitPrice) * (1 - repDiscountLimit));
+
+      if (price < catalogFloor) {
+        approvalRequired = true;
+        approvalMessage = `Work Order ${(workOrder as any).workOrderNumber || "WO"} line item "${pbe.name}" unit price (₹${price.toLocaleString()}) is below catalog floor price of ₹${catalogFloor.toLocaleString()} (SKU: ${pbe.sku}). Manager approval required.`;
+
+        // Invalidate any previous Pending Approval requests for this WO
+        await ApprovalRequest.update(
+          { status: "Invalidated" },
+          { where: { targetId: id, type: "WorkOrder", status: "Pending" } }
+        );
+
+        // Create new ApprovalRequest
+        await ApprovalRequest.create({
+          id: crypto.randomUUID(),
+          type: "WorkOrder",
+          targetId: id,
+          status: "Pending",
+          requestedById: (req as any).user?.id || (workOrder as any).ownerId || null,
+          comments: approvalMessage
+        });
+      }
+    }
 
     const existingCount = await WorkOrderLineItem.count({ where: { workOrderId: id } });
     const lineItemNumber = `${(workOrder as any).workOrderNumber || "WO"}-${existingCount + 1}`;
@@ -558,9 +616,10 @@ export const createWorkOrderLineItem = async (req: Request, res: Response) => {
       id: lineItemId,
       workOrderId: id,
       lineItemNumber,
-      status,
-      description: description || null,
+      status: approvalRequired ? "Pending Approval" : status,
+      description: description || pbe?.name || null,
       assetId: assetId || null,
+      priceBookEntryId: pbe ? pbe.id : null,
       quantity: qty,
       unitPrice: price,
       totalPrice
@@ -573,10 +632,19 @@ export const createWorkOrderLineItem = async (req: Request, res: Response) => {
     await workOrder.update({
       subtotal: newSubtotal,
       totalPrice: newSubtotal,
-      grandTotal: newSubtotal
+      grandTotal: newSubtotal,
+      ...(approvalRequired ? { status: "Pending Approval" } : {})
     });
 
-    return res.status(201).json(lineItem);
+    const itemWithEntry = await WorkOrderLineItem.findByPk(lineItemId, {
+      include: [{ model: PriceBookEntry, as: "priceBookEntry" }]
+    });
+
+    return res.status(201).json({
+      ...(itemWithEntry ? itemWithEntry.toJSON() : lineItem.toJSON()),
+      approvalRequired,
+      approvalMessage: approvalRequired ? approvalMessage : undefined
+    });
   } catch (error: any) {
     console.error("Error adding work order line item:", error);
     return res.status(500).json({ message: "Internal server error", error: error.message });

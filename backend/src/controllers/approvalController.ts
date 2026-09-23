@@ -395,6 +395,28 @@ export const getApprovals = async (req: Request, res: Response) => {
               reason: data.comments || (quoted !== poAmt ? `PO Amount Mismatch: Quoted SAR ${quoted.toLocaleString()} vs PO SAR ${poAmt.toLocaleString()}` : `PO Verification for #${(data.target as any).poNumber}`)
             };
           }
+        } else if (data.type === "WorkOrder") {
+          data.target = await sequelize.models.WorkOrder.findByPk(data.targetId, {
+            include: [
+              {
+                model: sequelize.models.WorkOrderLineItem,
+                as: "lineItems",
+                include: [{ model: sequelize.models.PriceBookEntry, as: "priceBookEntry" }]
+              },
+              { model: sequelize.models.Account, as: "account" },
+              { model: sequelize.models.Contact, as: "contact" },
+              { model: sequelize.models.User, as: "owner" }
+            ]
+          });
+          if (data.target) {
+            data.evaluation = {
+              approvalLevel: "TEAM_LEAD",
+              quoteValue: Number((data.target as any).grandTotal || (data.target as any).subtotal || 0),
+              discount: 0,
+              margin: 0.20,
+              reason: data.comments || `Work Order ${(data.target as any).workOrderNumber} requires manager approval for below-catalog pricing.`
+            };
+          }
         }
         return data;
       })
@@ -572,6 +594,30 @@ export const updateApproval = async (req: Request, res: Response) => {
               }
             }
           }
+        }
+      }
+    }
+
+    if ((approval as any).type === "WorkOrder") {
+      const wo: any = await sequelize.models.WorkOrder.findByPk(targetId);
+      if (wo) {
+        const newWoStatus = status === "Approved" ? "Approved" : (status === "Rejected" ? "Rejected" : "In Progress");
+        await wo.update({ status: newWoStatus });
+
+        // Update pending line items
+        await sequelize.models.WorkOrderLineItem.update(
+          { status: newWoStatus },
+          { where: { workOrderId: targetId, status: "Pending Approval" } }
+        );
+
+        if (wo.ownerId) {
+          await createNotification(
+            wo.ownerId,
+            status === "Approved" ? 'info' : 'alert',
+            `Work Order ${wo.workOrderNumber || "WO"} ${status}`,
+            `Work Order ${wo.workOrderNumber || "WO"} pricing was ${status.toLowerCase()} by management: ${comments || 'No comments'}.`,
+            `/field-service`
+          );
         }
       }
     }

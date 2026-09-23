@@ -2463,6 +2463,28 @@ WorkspaceSetting.init(
   { sequelize, modelName: "WorkspaceSetting", tableName: "WorkspaceSettings" }
 );
 
+// ─── DiscountPolicy (role-based discount authority master data) ───────────────
+export class DiscountPolicy extends Model {
+  public id!: string;
+  public role!: string;
+  public maxDiscountPercent!: number;
+  public description!: string | null;
+  public isActive!: boolean;
+  public readonly createdAt!: Date;
+  public readonly updatedAt!: Date;
+}
+
+DiscountPolicy.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    role: { type: DataTypes.STRING, allowNull: false, unique: true },
+    maxDiscountPercent: { type: DataTypes.DECIMAL(5, 2), allowNull: false },
+    description: { type: DataTypes.TEXT, allowNull: true },
+    isActive: { type: DataTypes.BOOLEAN, defaultValue: true }
+  },
+  { sequelize, modelName: "DiscountPolicy", tableName: "DiscountPolicies" }
+);
+
 // ─── Campaign & Marketing Attribution Models ─────────────────────────────────
 
 export class CampaignMember extends Model {
