@@ -442,7 +442,6 @@ export default function ApprovalQueue() {
                   ) : (
                     filteredApprovals?.map((item: any) => {
                       const isPO = item.type === "PurchaseOrder" || item.type === "PO";
-                      const isPO = item.type === "PurchaseOrder" || item.type === "PO";
                       const isWO = item.type === "WorkOrder";
                       const isDeal = item.type === "Deal";
                       const target = item.target;

@@ -514,7 +514,6 @@ export const getApprovals = async (req: Request, res: Response) => {
             const { evaluateDealApproval } = require("../services/approvalEngine");
             data.evaluation = await evaluateDealApproval(data.targetId);
           }
-          }
         }
         return data;
       })
