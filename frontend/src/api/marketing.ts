@@ -48,6 +48,10 @@ export const campaignsApi = {
       method: "POST",
       body: JSON.stringify(data)
     });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || err.message || `Failed to create campaign (${res.status})`);
+    }
     return res.json();
   },
 
@@ -56,6 +60,10 @@ export const campaignsApi = {
       method: "PATCH",
       body: JSON.stringify(data)
     });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || err.message || `Failed to update campaign (${res.status})`);
+    }
     return res.json();
   },
 
@@ -63,6 +71,10 @@ export const campaignsApi = {
     const res = await apiClient(`/api/v1/campaigns/${id}`, {
       method: "DELETE"
     });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || err.message || `Failed to delete campaign (${res.status})`);
+    }
     return res.json();
   },
 
