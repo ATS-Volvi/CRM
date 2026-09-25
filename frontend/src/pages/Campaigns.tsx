@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import {
   Megaphone,
   Search,
@@ -163,18 +163,19 @@ export default function Campaigns() {
                   <th>Won Orders</th>
                   <th>Won Revenue</th>
                   <th>ROAS</th>
+                  <th className="text-right">Action</th>
                 </tr>
               </thead>
               <tbody>
                 {loadingCampaigns ? (
                   <tr>
-                    <td colSpan={11} className="text-center py-8 text-slate-400">
+                    <td colSpan={12} className="text-center py-8 text-slate-400">
                       Loading campaign performance data...
                     </td>
                   </tr>
                 ) : campaigns.length === 0 ? (
                   <tr>
-                    <td colSpan={11} className="text-center py-8 text-slate-400">
+                    <td colSpan={12} className="text-center py-8 text-slate-400">
                       No active marketing campaigns found.
                     </td>
                   </tr>
@@ -183,13 +184,23 @@ export default function Campaigns() {
                     const c = row.campaign || row;
                     const m = row.metrics || row;
                     return (
-                      <tr key={c.id} className="transition-colors">
+                      <tr
+                        key={c.id}
+                        onClick={() => navigate(`/campaigns/${c.id}`)}
+                        className="transition-colors hover:bg-slate-50/90 dark:hover:bg-slate-800/60 cursor-pointer"
+                      >
                         <td className="font-semibold text-slate-900">
-                          <div className="text-xs font-bold text-slate-900">{c.name}</div>
+                          <Link
+                            to={`/campaigns/${c.id}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-xs font-bold text-slate-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 hover:underline"
+                          >
+                            {c.name}
+                          </Link>
                           <div className="text-[11px] text-slate-400 font-mono">code: {c.code}</div>
                         </td>
                         <td>
-                          <div className="text-xs font-medium text-slate-800">{c.channel}</div>
+                          <div className="text-xs font-medium text-slate-800 dark:text-slate-200">{c.channel}</div>
                           <div className="text-[10px] text-slate-400">{c.platform || "Direct"}</div>
                         </td>
                         <td>
@@ -220,6 +231,16 @@ export default function Campaigns() {
                         </td>
                         <td className="font-bold text-blue-600">
                           {m?.roas !== null && m?.roas !== undefined ? `${m.roas}x` : "—"}
+                        </td>
+                        <td className="text-right">
+                          <Link
+                            to={`/campaigns/${c.id}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-800 hover:underline"
+                          >
+                            <span>View</span>
+                            <ArrowRight className="w-3.5 h-3.5" />
+                          </Link>
                         </td>
                       </tr>
                     );

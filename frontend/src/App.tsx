@@ -53,6 +53,7 @@ import Opportunities from "./pages/Opportunities";
 import OpportunityDetail from "./pages/OpportunityDetail";
 import AccountDetail from "./pages/AccountDetail";
 import Campaigns from "./pages/Campaigns";
+import CampaignDetail from "./pages/CampaignDetail";
 import SupportTickets from "./pages/SupportTickets";
 import FieldService from "./pages/FieldService";
 import { AuthProvider, useAuth } from "./context/AuthContext";
@@ -134,7 +135,7 @@ function App() {
               
               {/* Marketing & Attribution */}
               <Route path="/campaigns" element={<Campaigns />} />
-              <Route path="/campaigns/:id" element={<Campaigns />} />
+              <Route path="/campaigns/:id" element={<CampaignDetail />} />
               
               {/* Operations, Approvals & Governance */}
               <Route path="/approvals" element={<ApprovalQueue />} />
