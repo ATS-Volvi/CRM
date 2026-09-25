@@ -5,7 +5,7 @@
 
 import { CampaignAd } from "../types/marketing";
 
-export function verifyCampaignAdCrudRules() {
+describe("Campaign Ad CRUD & Validation Logic Tests", () => {
   const validateAdPayload = (data: Partial<CampaignAd>) => {
     const errors: Record<string, string> = {};
 
@@ -19,41 +19,37 @@ export function verifyCampaignAdCrudRules() {
 
     return {
       isValid: Object.keys(errors).length === 0,
-      errors
+      errors,
     };
   };
 
-  // Test 1: Valid Ad Payload
-  const validAd: Partial<CampaignAd> = {
-    name: "Summer Search Ad 1",
-    externalId: "gads_summer_01",
-    platform: "Google Ads",
-    creativeType: "Text / Search",
-    status: "ACTIVE"
-  };
-  const validResult = validateAdPayload(validAd);
-  if (!validResult.isValid) {
-    throw new Error("Valid ad payload failed validation");
-  }
+  test("1. Valid Ad Payload passes validation", () => {
+    const validAd: Partial<CampaignAd> = {
+      name: "Summer Search Ad 1",
+      externalId: "gads_summer_01",
+      platform: "google_ads",
+      creativeType: "search_text",
+      status: "ACTIVE",
+    };
+    const validResult = validateAdPayload(validAd);
+    expect(validResult.isValid).toBe(true);
+    expect(Object.keys(validResult.errors)).toHaveLength(0);
+  });
 
-  // Test 2: Invalid Ad Payload (missing name)
-  const invalidAd: Partial<CampaignAd> = {
-    name: "",
-    externalId: "gads_summer_02"
-  };
-  const invalidResult = validateAdPayload(invalidAd);
-  if (invalidResult.isValid || !invalidResult.errors.name) {
-    throw new Error("Invalid ad payload without name was incorrectly marked valid");
-  }
+  test("2. Invalid Ad Payload (missing name) triggers validation error", () => {
+    const invalidAd: Partial<CampaignAd> = {
+      name: "",
+      externalId: "gads_summer_02",
+    };
+    const invalidResult = validateAdPayload(invalidAd);
+    expect(invalidResult.isValid).toBe(false);
+    expect(invalidResult.errors.name).toBe("Ad name is required.");
+  });
 
-  // Test 3: Ad Status values
-  const statuses = ["ACTIVE", "PAUSED", "ARCHIVED"];
-  for (const s of statuses) {
-    if (!s) throw new Error("Invalid status");
-  }
-
-  return {
-    success: true,
-    message: "Campaign Ad CRUD validation rules verified successfully."
-  };
-}
+  test("3. Ad Status values are well defined", () => {
+    const statuses = ["ACTIVE", "PAUSED", "ARCHIVED"];
+    for (const s of statuses) {
+      expect(s).toBeDefined();
+    }
+  });
+});

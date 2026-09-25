@@ -4,10 +4,9 @@
  * and payload normalization for CampaignFormModal.
  */
 
-import { Campaign, CampaignStatus } from "../types/marketing";
+import { Campaign } from "../types/marketing";
 
-export function verifyCampaignCrudRules() {
-  // Test 1: Required field validation (name & code)
+describe("Campaign CRUD & Validation Logic Tests", () => {
   const validateCampaignPayload = (data: Partial<Campaign>) => {
     const errors: Record<string, string> = {};
 
@@ -31,55 +30,52 @@ export function verifyCampaignCrudRules() {
 
     return {
       isValid: Object.keys(errors).length === 0,
-      errors
+      errors,
     };
   };
 
-  // Valid payload test
-  const validData: Partial<Campaign> = {
-    name: "Summer Google Search Ads",
-    code: "GOOGLE-SUMMER-2026",
-    channel: "Website",
-    platform: "Google Ads",
-    status: "ACTIVE",
-    budget: 50000,
-    currency: "SAR",
-    startDate: "2026-06-01",
-    endDate: "2026-08-31"
-  };
+  test("1. Valid campaign payload passes validation", () => {
+    const validData: Partial<Campaign> = {
+      name: "Summer Google Search Ads",
+      code: "GOOGLE-SUMMER-2026",
+      channel: "Website",
+      platform: "Google Ads",
+      status: "ACTIVE",
+      budget: 50000,
+      currency: "SAR",
+      startDate: "2026-06-01",
+      endDate: "2026-08-31",
+    };
 
-  const validResult = validateCampaignPayload(validData);
-  if (!validResult.isValid) {
-    throw new Error("Valid campaign payload failed validation: " + JSON.stringify(validResult.errors));
-  }
+    const validResult = validateCampaignPayload(validData);
+    expect(validResult.isValid).toBe(true);
+    expect(Object.keys(validResult.errors)).toHaveLength(0);
+  });
 
-  // Invalid payload test (missing name, invalid code characters, negative budget, inverted dates)
-  const invalidData: Partial<Campaign> = {
-    name: "",
-    code: "BAD CODE WITH SPACES!",
-    budget: -100,
-    startDate: "2026-08-31",
-    endDate: "2026-06-01"
-  };
+  test("2. Invalid campaign payload triggers appropriate validation errors", () => {
+    const invalidData: Partial<Campaign> = {
+      name: "",
+      code: "BAD CODE WITH SPACES!",
+      budget: -100,
+      startDate: "2026-08-31",
+      endDate: "2026-06-01",
+    };
 
-  const invalidResult = validateCampaignPayload(invalidData);
-  if (invalidResult.isValid) {
-    throw new Error("Invalid campaign payload was incorrectly marked valid");
-  }
+    const invalidResult = validateCampaignPayload(invalidData);
+    expect(invalidResult.isValid).toBe(false);
+    expect(invalidResult.errors.name).toBe("Campaign name is required.");
+    expect(invalidResult.errors.code).toBe(
+      "Campaign code must contain only letters, numbers, hyphens, and underscores."
+    );
+    expect(invalidResult.errors.budget).toBe("Budget cannot be negative.");
+    expect(invalidResult.errors.dates).toBe("End date cannot be earlier than start date.");
+  });
 
-  if (!invalidResult.errors.name || !invalidResult.errors.code || !invalidResult.errors.budget || !invalidResult.errors.dates) {
-    throw new Error("Missing expected field errors in validation result: " + JSON.stringify(invalidResult.errors));
-  }
-
-  // Test 2: Uniqueness Error Formatting
-  const duplicateCodeError = "Campaign with code 'GOOGLE-SUMMER-2026' already exists.";
-  const isDuplicateCodeError = duplicateCodeError.toLowerCase().includes("code") && duplicateCodeError.toLowerCase().includes("already exists");
-  if (!isDuplicateCodeError) {
-    throw new Error("Duplicate code error detection logic failed");
-  }
-
-  return {
-    success: true,
-    message: "Campaign CRUD validation rules verified successfully."
-  };
-}
+  test("3. Duplicate code error detection string format", () => {
+    const duplicateCodeError = "Campaign with code 'GOOGLE-SUMMER-2026' already exists.";
+    const isDuplicateCodeError =
+      duplicateCodeError.toLowerCase().includes("code") &&
+      duplicateCodeError.toLowerCase().includes("already exists");
+    expect(isDuplicateCodeError).toBe(true);
+  });
+});
