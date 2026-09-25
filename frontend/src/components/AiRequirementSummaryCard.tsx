@@ -115,11 +115,11 @@ export const AiRequirementSummaryCard: React.FC<AiRequirementSummaryCardProps> =
           <div>
             <div className="flex items-center gap-2">
               <h3 className="font-extrabold text-blue-950 dark:text-white text-sm tracking-tight flex items-center gap-1.5">
-                AI Customer Scope & Requirements Insight
+                Customer Scope & Requirements Insight
               </h3>
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xs">
                 <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
-                AI Verified
+                Synthesized Scope
               </span>
             </div>
             <p className="text-xs text-blue-900/70 dark:text-blue-300/70 mt-0.5 font-medium">
@@ -259,7 +259,7 @@ export const AiRequirementSummaryCard: React.FC<AiRequirementSummaryCardProps> =
                 </div>
                 <div>
                   <span className="text-[10px] font-black uppercase tracking-wider text-blue-700 dark:text-blue-300 flex items-center gap-1">
-                    <Sparkles className="w-3 h-3 text-blue-600" /> Recommended AI Action
+                    <Sparkles className="w-3 h-3 text-blue-600" /> Recommended Action
                   </span>
                   <p className="text-xs font-bold text-slate-900 dark:text-white mt-0.5">
                     {data.recommendedAction}

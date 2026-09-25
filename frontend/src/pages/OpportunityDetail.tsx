@@ -785,14 +785,14 @@ export default function OpportunityDetail() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
         {/* ── LEFT / SIDEBAR COLUMN (4 Cols): AI Copilot, Customer Details, Company Intelligence ── */}
         <div className="lg:col-span-4 space-y-5">
-          {/* AI Sales Copilot Card */}
+          {/* Sales Copilot & Smart Insights Card */}
           <div className="bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-900/60 rounded-2xl p-5 shadow-xs space-y-3.5 relative overflow-hidden">
             <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-2.5">
               <h3 className="text-xs font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400" /> AI Sales Copilot & Insights
+                <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400" /> Sales Copilot & Smart Insights
               </h3>
               <span className="text-[10px] font-bold bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 px-2 py-0.5 rounded-full">
-                Real-time
+                Live Insights
               </span>
             </div>
 
@@ -811,10 +811,10 @@ export default function OpportunityDetail() {
                 </span>
               </div>
 
-              {/* Recommended Action */}
+              {/* Smart Recommendation */}
               <div>
                 <span className="text-slate-500 dark:text-slate-400 font-bold block mb-1 text-[11px] uppercase tracking-wider">
-                  Recommended Action:
+                  Smart Recommendation:
                 </span>
                 <p className="font-medium text-slate-800 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/80 p-3 rounded-xl border border-slate-200/80 dark:border-slate-700 leading-relaxed">
                   {recommendedAction}
