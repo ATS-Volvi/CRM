@@ -7,6 +7,7 @@ describe("Campaign Search Endpoint (getCampaigns with ?search=)", () => {
   let createdCampaignIds: string[] = [];
 
   beforeAll(async () => {
+    await sequelize.models.Campaign.sync();
     const timestamp = Date.now();
     const c1 = await sequelize.models.Campaign.create({
       id: crypto.randomUUID(),

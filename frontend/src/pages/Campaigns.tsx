@@ -343,7 +343,7 @@ export default function Campaigns() {
                         <td className="font-bold text-blue-600 dark:text-blue-400">
                           {m?.roas !== null && m?.roas !== undefined ? `${m.roas}x` : "—"}
                         </td>
-                        <td className="text-right">
+                        <td className="text-right" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-1">
                             {/* Edit Action Button */}
                             <button
