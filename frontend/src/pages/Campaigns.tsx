@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import {
   Megaphone,
   Search,
-  Plus,
+  X,
   TrendingUp,
   DollarSign,
   Users,
@@ -22,14 +22,26 @@ export default function Campaigns() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<"campaigns" | "sources">("campaigns");
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  // Debounce search by 350ms before triggering API fetch
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   // Fetch all campaigns with performance data
   const { data: campaignsData, isLoading: loadingCampaigns } = useQuery({
-    queryKey: ["campaigns-analytics"],
+    queryKey: ["campaigns-analytics", debouncedSearch],
     queryFn: async () => {
       try {
-        const res = await campaignsApi.getCampaigns({ limit: 100 });
-        if (res?.data && Array.isArray(res.data) && res.data.length > 0) {
+        const res = await campaignsApi.getCampaigns({
+          limit: 100,
+          search: debouncedSearch.trim() || undefined
+        });
+        if (res?.data && Array.isArray(res.data)) {
           return res.data;
         }
       } catch (e) {}
@@ -64,6 +76,16 @@ export default function Campaigns() {
   }, 0);
   const overallRoas = totalSpend > 0 ? (totalWonRevenue / totalSpend).toFixed(2) : null;
 
+  const filteredChannels = (sourceData?.byChannel || []).filter((ch) => {
+    if (!debouncedSearch.trim()) return true;
+    return ch.channel?.toLowerCase().includes(debouncedSearch.toLowerCase().trim());
+  });
+
+  const filteredSourceTypes = (sourceData?.bySourceType || []).filter((st) => {
+    if (!debouncedSearch.trim()) return true;
+    return st.sourceType?.toLowerCase().includes(debouncedSearch.toLowerCase().trim());
+  });
+
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
       {/* Header Bar */}
@@ -77,7 +99,29 @@ export default function Campaigns() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          {/* Search Input */}
+          <div className="relative w-full sm:w-64">
+            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search campaigns..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-8 pr-8 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900 focus:bg-white transition-all"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded"
+                aria-label="Clear search"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
           {/* Tabs */}
           <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
             <button
@@ -175,7 +219,18 @@ export default function Campaigns() {
                 ) : campaigns.length === 0 ? (
                   <tr>
                     <td colSpan={11} className="text-center py-8 text-slate-400">
-                      No active marketing campaigns found.
+                      {debouncedSearch.trim() ? (
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium text-slate-600">
+                            No campaigns matching &ldquo;{debouncedSearch}&rdquo;
+                          </p>
+                          <p className="text-xs text-slate-400">
+                            Try adjusting your search terms or clearing the filter.
+                          </p>
+                        </div>
+                      ) : (
+                        "No active marketing campaigns found."
+                      )}
                     </td>
                   </tr>
                 ) : (
@@ -252,18 +307,34 @@ export default function Campaigns() {
                 </tr>
               </thead>
               <tbody>
-                {sourceData?.byChannel?.map((ch) => (
-                  <tr key={ch.channel}>
-                    <td className="font-semibold text-slate-800">{ch.channel}</td>
-                    <td>{ch.leads}</td>
-                    <td>{ch.qualified}</td>
-                    <td>{ch.opportunities}</td>
-                    <td>{ch.won}</td>
-                    <td className="font-bold text-emerald-600">
-                      ₹{Number(ch.revenue || 0).toLocaleString()}
+                {loadingSources ? (
+                  <tr>
+                    <td colSpan={6} className="text-center py-6 text-slate-400">
+                      Loading channel performance...
                     </td>
                   </tr>
-                ))}
+                ) : filteredChannels.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="text-center py-6 text-slate-400">
+                      {debouncedSearch.trim()
+                        ? `No channels matching "${debouncedSearch}"`
+                        : "No channel data available."}
+                    </td>
+                  </tr>
+                ) : (
+                  filteredChannels.map((ch) => (
+                    <tr key={ch.channel}>
+                      <td className="font-semibold text-slate-800">{ch.channel}</td>
+                      <td>{ch.leads}</td>
+                      <td>{ch.qualified}</td>
+                      <td>{ch.opportunities}</td>
+                      <td>{ch.won}</td>
+                      <td className="font-bold text-emerald-600">
+                        ₹{Number(ch.revenue || 0).toLocaleString()}
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -286,18 +357,34 @@ export default function Campaigns() {
                 </tr>
               </thead>
               <tbody>
-                {sourceData?.bySourceType?.map((st) => (
-                  <tr key={st.sourceType}>
-                    <td className="font-semibold text-slate-800">{st.sourceType}</td>
-                    <td>{st.leads}</td>
-                    <td>{st.qualified}</td>
-                    <td>{st.opportunities}</td>
-                    <td>{st.won}</td>
-                    <td className="font-bold text-emerald-600">
-                      ₹{Number(st.revenue || 0).toLocaleString()}
+                {loadingSources ? (
+                  <tr>
+                    <td colSpan={6} className="text-center py-6 text-slate-400">
+                      Loading source type performance...
                     </td>
                   </tr>
-                ))}
+                ) : filteredSourceTypes.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="text-center py-6 text-slate-400">
+                      {debouncedSearch.trim()
+                        ? `No source types matching "${debouncedSearch}"`
+                        : "No source type data available."}
+                    </td>
+                  </tr>
+                ) : (
+                  filteredSourceTypes.map((st) => (
+                    <tr key={st.sourceType}>
+                      <td className="font-semibold text-slate-800">{st.sourceType}</td>
+                      <td>{st.leads}</td>
+                      <td>{st.qualified}</td>
+                      <td>{st.opportunities}</td>
+                      <td>{st.won}</td>
+                      <td className="font-bold text-emerald-600">
+                        ₹{Number(st.revenue || 0).toLocaleString()}
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
