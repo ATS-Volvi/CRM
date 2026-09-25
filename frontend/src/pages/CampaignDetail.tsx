@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   Megaphone,
@@ -16,6 +16,7 @@ import {
   Activity,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
   Clock,
   ArrowRight,
   ExternalLink,
@@ -31,10 +32,14 @@ import {
   Building2,
   Mail,
   Phone,
-  UserCheck
+  UserCheck,
+  Plus,
+  Edit2,
+  Trash2
 } from "lucide-react";
 import { campaignsApi } from "../api/marketing";
 import { Campaign, CampaignPerformance, CampaignMetrics, CampaignAd } from "../types/marketing";
+import { CampaignAdFormModal } from "../components/CampaignAdFormModal";
 
 /**
  * Currency and Money Formatter helper
@@ -77,8 +82,15 @@ function getStatusBadgeClass(status: string): string {
 export default function CampaignDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const [activeTab, setActiveTab] = useState<"overview" | "performance" | "leads" | "opportunities" | "ads">("overview");
+
+  // Ad modal and delete state
+  const [isAdModalOpen, setIsAdModalOpen] = useState(false);
+  const [selectedAd, setSelectedAd] = useState<CampaignAd | null>(null);
+  const [adToDelete, setAdToDelete] = useState<CampaignAd | null>(null);
+  const [deleteAdError, setDeleteAdError] = useState<string | null>(null);
 
   // Fetch campaign and performance report
   const {
@@ -93,6 +105,26 @@ export default function CampaignDetail() {
       return await campaignsApi.getCampaignById(id);
     },
     enabled: !!id
+  });
+
+  // Delete Ad Mutation
+  const deleteAdMutation = useMutation({
+    mutationFn: async (adId: string) => {
+      if (!id) throw new Error("Campaign ID required");
+      return await campaignsApi.deleteCampaignAd(id, adId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["campaign-detail", id] });
+      queryClient.invalidateQueries({ queryKey: ["campaigns-analytics"] });
+      queryClient.invalidateQueries({ queryKey: ["campaign-leads", id] });
+      queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+      refetchCampaign();
+      setAdToDelete(null);
+      setDeleteAdError(null);
+    },
+    onError: (err: any) => {
+      setDeleteAdError(err.message || "Failed to delete creative ad");
+    }
   });
 
   // Fetch leads attributed to this campaign
@@ -944,7 +976,7 @@ export default function CampaignDetail() {
       {activeTab === "ads" && (
         <div className="space-y-4">
           <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-xs overflow-hidden">
-            <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+            <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">
                   Tracked Creatives & Ads ({ads.length})
@@ -953,6 +985,18 @@ export default function CampaignDetail() {
                   Sub-campaign ad units and creative variations attributed under this campaign.
                 </p>
               </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedAd(null);
+                  setIsAdModalOpen(true);
+                }}
+                className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 active:scale-98 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-md shadow-blue-500/20 transition-all cursor-pointer whitespace-nowrap self-start sm:self-auto"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Ad</span>
+              </button>
             </div>
 
             <div className="overflow-x-auto">
@@ -965,17 +1009,29 @@ export default function CampaignDetail() {
                     <th className="py-3 px-4">Creative Type</th>
                     <th className="py-3 px-4">Status</th>
                     <th className="py-3 px-4">Created Date</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
                   {ads.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="text-center py-10 text-slate-400">
+                      <td colSpan={7} className="text-center py-10 text-slate-400">
                         <Layers className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
                         <div className="font-semibold text-slate-700 dark:text-slate-300">No creative ads registered</div>
-                        <div className="text-xs text-slate-400 mt-0.5">
+                        <div className="text-xs text-slate-400 mt-0.5 mb-3">
                           Attribution is currently operating at the campaign level (code: {campaign.code}).
                         </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedAd(null);
+                            setIsAdModalOpen(true);
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-900 rounded-xl text-xs font-bold hover:bg-blue-100 transition-colors cursor-pointer"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Register First Ad</span>
+                        </button>
                       </td>
                     </tr>
                   ) : (
@@ -994,18 +1050,140 @@ export default function CampaignDetail() {
                           {ad.creativeType || "Standard Ad"}
                         </td>
                         <td className="py-3 px-4">
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800">
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider border ${
+                              ad.status === "ACTIVE"
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800"
+                                : ad.status === "PAUSED"
+                                ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800"
+                                : "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
+                            }`}
+                          >
                             {ad.status || "ACTIVE"}
                           </span>
                         </td>
                         <td className="py-3 px-4 text-slate-500 text-[11px]">
                           {new Date(ad.createdAt).toLocaleDateString()}
                         </td>
+                        <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-end gap-1">
+                            {/* Edit Action */}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedAd(ad);
+                                setIsAdModalOpen(true);
+                              }}
+                              className="p-1.5 text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                              title="Edit Creative Ad"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+
+                            {/* Delete Action */}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDeleteAdError(null);
+                                setAdToDelete(ad);
+                              }}
+                              className="p-1.5 text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-lg transition-colors cursor-pointer"
+                              title="Delete Creative Ad"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     ))
                   )}
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── CREATE / EDIT CAMPAIGN AD MODAL ── */}
+      {id && (
+        <CampaignAdFormModal
+          isOpen={isAdModalOpen}
+          onClose={() => {
+            setIsAdModalOpen(false);
+            setSelectedAd(null);
+          }}
+          campaignId={id}
+          campaignName={campaign.name}
+          defaultPlatform={campaign.platform || campaign.channel}
+          ad={selectedAd}
+          onSuccess={() => {
+            refetchCampaign();
+          }}
+        />
+      )}
+
+      {/* ── DELETE AD CONFIRMATION MODAL ── */}
+      {adToDelete && id && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="p-6 space-y-4">
+              <div className="w-12 h-12 rounded-2xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center border border-rose-200 dark:border-rose-900 shadow-sm">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+
+              <div className="space-y-1.5">
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                  Delete Creative Ad "{adToDelete.name}"?
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                  Are you sure you want to remove this creative ad? Historical attribution records will remain preserved under the parent campaign.
+                </p>
+              </div>
+
+              {deleteAdError && (
+                <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 text-xs flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold block">Deletion Error</span>
+                    <span>{deleteAdError}</span>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAdToDelete(null);
+                    setDeleteAdError(null);
+                  }}
+                  disabled={deleteAdMutation.isPending}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => deleteAdMutation.mutate(adToDelete.id)}
+                  disabled={deleteAdMutation.isPending}
+                  className="px-4 py-2 text-xs font-black text-white bg-rose-600 hover:bg-rose-700 active:scale-98 rounded-xl shadow-md shadow-rose-500/20 transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  {deleteAdMutation.isPending ? (
+                    <>
+                      <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                      <span>Deleting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Delete Ad</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>

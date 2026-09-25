@@ -239,6 +239,58 @@ export const createCampaignAd = async (req: Request, res: Response) => {
   }
 };
 
+export const updateCampaignAd = async (req: Request, res: Response) => {
+  try {
+    const { id, adId } = req.params;
+    const targetAdId = adId || id;
+    const where: any = { id: String(targetAdId) };
+    if (adId && id) {
+      where.campaignId = String(id);
+    }
+
+    const ad = await sequelize.models.CampaignAd.findOne({ where });
+    if (!ad) {
+      return res.status(404).json({ error: "Campaign Ad not found" });
+    }
+
+    if (req.body.externalId && req.body.externalId !== (ad as any).externalId) {
+      const campaignId = (ad as any).campaignId;
+      const existing = await sequelize.models.CampaignAd.findOne({
+        where: { campaignId, externalId: req.body.externalId }
+      });
+      if (existing) {
+        return res.status(409).json({ error: `Ad with external ID '${req.body.externalId}' already exists in this campaign.` });
+      }
+    }
+
+    await ad.update(req.body);
+    res.json(ad);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const deleteCampaignAd = async (req: Request, res: Response) => {
+  try {
+    const { id, adId } = req.params;
+    const targetAdId = adId || id;
+    const where: any = { id: String(targetAdId) };
+    if (adId && id) {
+      where.campaignId = String(id);
+    }
+
+    const ad = await sequelize.models.CampaignAd.findOne({ where });
+    if (!ad) {
+      return res.status(404).json({ error: "Campaign Ad not found" });
+    }
+
+    await ad.destroy();
+    res.json({ message: "Campaign Ad deleted successfully" });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 export const getCampaignLeads = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;

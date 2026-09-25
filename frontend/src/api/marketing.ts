@@ -83,6 +83,33 @@ export const campaignsApi = {
       method: "POST",
       body: JSON.stringify(data)
     });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || err.message || `Failed to create campaign ad (${res.status})`);
+    }
+    return res.json();
+  },
+
+  updateCampaignAd: async (campaignId: string, adId: string, data: Partial<CampaignAd>): Promise<CampaignAd> => {
+    const res = await apiClient(`/api/v1/campaigns/${campaignId}/ads/${adId}`, {
+      method: "PATCH",
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || err.message || `Failed to update campaign ad (${res.status})`);
+    }
+    return res.json();
+  },
+
+  deleteCampaignAd: async (campaignId: string, adId: string): Promise<{ message: string }> => {
+    const res = await apiClient(`/api/v1/campaigns/${campaignId}/ads/${adId}`, {
+      method: "DELETE"
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || err.message || `Failed to delete campaign ad (${res.status})`);
+    }
     return res.json();
   },
 

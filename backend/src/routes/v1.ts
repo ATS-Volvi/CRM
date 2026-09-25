@@ -87,6 +87,8 @@ import {
   updateCampaign,
   deleteCampaign,
   createCampaignAd,
+  updateCampaignAd,
+  deleteCampaignAd,
   getCampaignLeads,
   getCampaignOpportunities,
   getCampaignPerformanceReport
@@ -886,6 +888,8 @@ router.post("/campaigns", authMiddleware, createCampaign);
 router.patch("/campaigns/:id", authMiddleware, updateCampaign);
 router.delete("/campaigns/:id", authMiddleware, deleteCampaign);
 router.post("/campaigns/:id/ads", authMiddleware, createCampaignAd);
+router.patch("/campaigns/:id/ads/:adId", authMiddleware, updateCampaignAd);
+router.delete("/campaigns/:id/ads/:adId", authMiddleware, deleteCampaignAd);
 router.get("/campaigns/:id/leads", authMiddleware, getCampaignLeads);
 router.get("/campaigns/:id/opportunities", authMiddleware, getCampaignOpportunities);
 router.get("/campaigns/:id/performance", authMiddleware, getCampaignPerformanceReport);
