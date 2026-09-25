@@ -29,12 +29,14 @@ describe("Campaign Ad CRUD Endpoints", () => {
   });
 
   afterAll(async () => {
-    if (createdAdId) {
-      await sequelize.models.CampaignAd.destroy({ where: { id: createdAdId } });
-    }
-    if (campaignId) {
-      await sequelize.models.Campaign.destroy({ where: { id: campaignId } });
-    }
+    try {
+      if (createdAdId) {
+        await sequelize.models.CampaignAd.destroy({ where: { id: createdAdId } });
+      }
+      if (campaignId) {
+        await sequelize.models.Campaign.destroy({ where: { id: campaignId } });
+      }
+    } catch (e) {}
   });
 
   it("should create a new campaign ad under the campaign", async () => {
