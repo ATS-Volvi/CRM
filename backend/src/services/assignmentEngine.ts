@@ -153,6 +153,19 @@ export async function assignLead(leadContext: AssignmentContext): Promise<Assign
           accountOwnerId = existingAccount.ownerId;
         }
       }
+
+      if (!accountOwnerId && sequelize.models.Lead) {
+        const existingCompanyLead: any = await sequelize.models.Lead.findOne({
+          where: {
+            company: { [Op.like]: `%${company}%` },
+            assignedToId: { [Op.ne]: null }
+          },
+          order: [["createdAt", "DESC"]]
+        });
+        if (existingCompanyLead && existingCompanyLead.assignedToId) {
+          accountOwnerId = existingCompanyLead.assignedToId;
+        }
+      }
     }
 
     if (accountOwnerId) {

@@ -108,6 +108,7 @@ export class Lead extends Model {
   public categoriesData!: any | null;
   public recipientEmail!: string | null;
   public assignmentMethod!: string | null;
+  public assignmentType!: string | null;
   // WhatsApp tracking fields
   public lastWhatsappAt!: Date | null;
   public unreadWhatsappCount!: number;
@@ -182,6 +183,7 @@ Lead.init(
     categoriesData: { type: DataTypes.JSON, allowNull: true },
     recipientEmail: { type: DataTypes.STRING, allowNull: true },
     assignmentMethod: { type: DataTypes.STRING, allowNull: true },
+    assignmentType: { type: DataTypes.STRING, allowNull: true, defaultValue: "AUTOMATIC" },
     // WhatsApp tracking
     lastWhatsappAt: { type: DataTypes.DATE, allowNull: true },
     unreadWhatsappCount: { type: DataTypes.INTEGER, defaultValue: 0 },
