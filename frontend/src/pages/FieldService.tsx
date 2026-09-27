@@ -24,7 +24,11 @@ import {
   PhoneCall,
   LogIn,
   LogOut,
-  Edit2
+  Edit2,
+  AlertTriangle,
+  BookOpen,
+  Info,
+  Check
 } from "lucide-react";
 import { apiClient } from "../lib/apiClient";
 
@@ -53,6 +57,16 @@ interface WorkOrderLineItem {
   quantity: number;
   unitPrice: number;
   totalPrice: number;
+  priceBookEntryId?: string | null;
+  priceBookEntry?: {
+    id: string;
+    sku: string;
+    name: string;
+    unitPrice?: number | null;
+    minPrice?: number | null;
+    maxPrice?: number | null;
+    category?: string | null;
+  } | null;
 }
 
 interface ServiceAppointment {
@@ -141,6 +155,8 @@ const STATUS_PILLS: Record<string, string> = {
   New: "bg-blue-50 text-blue-700 border-blue-200",
   "In Progress": "bg-amber-50 text-amber-700 border-amber-200",
   "On Hold": "bg-purple-50 text-purple-700 border-purple-200",
+  "Pending Approval": "bg-amber-100 text-amber-800 border-amber-300 font-semibold",
+  Approved: "bg-teal-50 text-teal-700 border-teal-200 font-semibold",
   Completed: "bg-emerald-50 text-emerald-700 border-emerald-200",
   "Cannot Complete": "bg-rose-50 text-rose-700 border-rose-200",
   Closed: "bg-slate-100 text-slate-700 border-slate-300",
@@ -156,6 +172,15 @@ const PRIORITY_BADGES: Record<string, string> = {
 
 export default function FieldService() {
   const queryClient = useQueryClient();
+
+  // Fetch PriceBook catalog entries
+  const { data: priceBookEntries = [] } = useQuery<any[]>({
+    queryKey: ["priceBook"],
+    queryFn: async () => {
+      const res = await apiClient.get("/api/v1/price-book");
+      return Array.isArray(res) ? res : (res as any)?.data || [];
+    },
+  });
 
   // Filters & Search
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
@@ -186,12 +211,23 @@ export default function FieldService() {
   });
 
   // New Line Item Form State
-  const [lineItemFormData, setLineItemFormData] = useState({
+  const [lineItemFormData, setLineItemFormData] = useState<{
+    description: string;
+    quantity: number;
+    unitPrice: number;
+    status: string;
+    priceBookEntryId?: string;
+    isCustom: boolean;
+  }>({
     description: "",
     quantity: 1,
     unitPrice: 0,
     status: "New",
+    priceBookEntryId: "",
+    isCustom: false,
   });
+  const [selectedCatalogItem, setSelectedCatalogItem] = useState<any>(null);
+  const [catalogSearch, setCatalogSearch] = useState<string>("");
 
   // New Appointment Form State
   const [appointmentFormData, setAppointmentFormData] = useState({
@@ -474,17 +510,26 @@ export default function FieldService() {
       if (!selectedWorkOrderId) throw new Error("No work order selected");
       return apiClient.post(`/api/v1/work-orders/${selectedWorkOrderId}/line-items`, payload);
     },
-    onSuccess: () => {
+    onSuccess: (res: any) => {
       queryClient.invalidateQueries({ queryKey: ["work-orders"] });
       queryClient.invalidateQueries({ queryKey: ["work-order-detail", selectedWorkOrderId] });
+      queryClient.invalidateQueries({ queryKey: ["approvals"] });
       setIsLineItemModalOpen(false);
       setLineItemFormData({
         description: "",
         quantity: 1,
         unitPrice: 0,
         status: "New",
+        priceBookEntryId: "",
+        isCustom: false,
       });
-      showToast("ok", "Line item added successfully!");
+      setSelectedCatalogItem(null);
+      setCatalogSearch("");
+      if (res?.approvalRequired) {
+        showToast("ok", "Line item added! Price below catalog floor routed to Manager Approvals.");
+      } else {
+        showToast("ok", "Line item added successfully!");
+      }
     },
     onError: (err: any) => {
       showToast("err", err.message || "Failed to add line item.");
@@ -1369,7 +1414,19 @@ export default function FieldService() {
                               <tr key={li.id}>
                                 <td className="font-mono text-xs">{li.lineItemNumber || "—"}</td>
                                 <td className="text-xs font-medium text-slate-800">
-                                  {li.description || "Service item"}
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span>{li.description || "Service item"}</span>
+                                    {li.priceBookEntry?.sku && (
+                                      <span className="font-mono text-[10px] font-bold px-1.5 py-0.2 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                                        {li.priceBookEntry.sku}
+                                      </span>
+                                    )}
+                                    {li.status === "Pending Approval" && (
+                                      <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-amber-100 text-amber-800 border border-amber-300">
+                                        Pending Approval
+                                      </span>
+                                    )}
+                                  </div>
                                 </td>
                                 <td className="text-right text-xs">{li.quantity}</td>
                                 <td className="text-right text-xs">
@@ -1890,7 +1947,7 @@ export default function FieldService() {
       {isLineItemModalOpen && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
           <div
-            className="w-full max-w-md bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden animate-fade-in"
+            className="w-full max-w-lg bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden animate-fade-in"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
@@ -1916,21 +1973,155 @@ export default function FieldService() {
               }}
               className="p-5 space-y-4 text-xs"
             >
-              <div>
-                <label className="block text-slate-700 font-semibold mb-1">
-                  Description <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Diagnostic & Repair Service"
-                  value={lineItemFormData.description}
-                  onChange={(e) =>
-                    setLineItemFormData({ ...lineItemFormData, description: e.target.value })
-                  }
-                  className="enterprise-input w-full"
-                />
+              {/* Item Mode Switcher: Price Book vs Custom */}
+              <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs font-semibold">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLineItemFormData((prev) => ({ ...prev, isCustom: false }));
+                  }}
+                  className={`flex-1 py-1.5 rounded-md flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    !lineItemFormData.isCustom
+                      ? "bg-white text-blue-700 shadow-2xs font-bold"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <BookOpen className="w-3.5 h-3.5" /> Price Book Catalog ({priceBookEntries.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLineItemFormData((prev) => ({
+                      ...prev,
+                      isCustom: true,
+                      priceBookEntryId: "",
+                    }));
+                    setSelectedCatalogItem(null);
+                  }}
+                  className={`flex-1 py-1.5 rounded-md flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    lineItemFormData.isCustom
+                      ? "bg-white text-slate-900 shadow-2xs font-bold"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <Edit2 className="w-3.5 h-3.5" /> Custom / One-Off Item
+                </button>
               </div>
+
+              {!lineItemFormData.isCustom ? (
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">
+                      Catalog Item <span className="text-red-500">*</span>
+                    </label>
+                    <div className="space-y-1.5">
+                      <div className="relative">
+                        <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+                        <input
+                          type="text"
+                          placeholder="Search catalog by name or SKU..."
+                          value={catalogSearch}
+                          onChange={(e) => setCatalogSearch(e.target.value)}
+                          className="w-full text-xs pl-8 pr-3 py-1.5 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                      </div>
+                      <select
+                        value={lineItemFormData.priceBookEntryId || ""}
+                        onChange={(e) => {
+                          const selectedId = e.target.value;
+                          const item = priceBookEntries.find((p: any) => p.id === selectedId);
+                          if (item) {
+                            setSelectedCatalogItem(item);
+                            setLineItemFormData((prev) => ({
+                              ...prev,
+                              priceBookEntryId: item.id,
+                              description: item.name,
+                              unitPrice: Number(item.unitPrice || 0),
+                            }));
+                          } else {
+                            setSelectedCatalogItem(null);
+                            setLineItemFormData((prev) => ({
+                              ...prev,
+                              priceBookEntryId: "",
+                              description: "",
+                              unitPrice: 0,
+                            }));
+                          }
+                        }}
+                        className="enterprise-input w-full font-medium"
+                        required={!lineItemFormData.isCustom}
+                      >
+                        <option value="">-- Choose from Catalog ({priceBookEntries.length} items) --</option>
+                        {priceBookEntries
+                          .filter((p: any) => {
+                            if (!catalogSearch.trim()) return true;
+                            const q = catalogSearch.toLowerCase();
+                            return (
+                              (p.name && p.name.toLowerCase().includes(q)) ||
+                              (p.sku && p.sku.toLowerCase().includes(q)) ||
+                              (p.category && p.category.toLowerCase().includes(q))
+                            );
+                          })
+                          .slice(0, 100)
+                          .map((p: any) => (
+                            <option key={p.id} value={p.id}>
+                              {p.sku ? `[${p.sku}] ` : ""}{p.name} — ₹{Number(p.unitPrice).toLocaleString()}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {selectedCatalogItem && (
+                    <div className="p-3 bg-blue-50/60 border border-blue-200/80 rounded-lg text-[11px] space-y-1">
+                      <div className="flex justify-between font-semibold text-blue-900">
+                        <span>SKU: {selectedCatalogItem.sku}</span>
+                        <span className="text-slate-500">{selectedCatalogItem.category || "General"}</span>
+                      </div>
+                      <div className="text-slate-600 flex justify-between">
+                        <span>Catalog Standard: ₹{Number(selectedCatalogItem.unitPrice || 0).toLocaleString()}</span>
+                        <span className="font-semibold text-slate-800">
+                          Floor: ₹{Number(selectedCatalogItem.minPrice || selectedCatalogItem.unitPrice * 0.9).toLocaleString()}
+                          {selectedCatalogItem.maxPrice && ` — Max: ₹${Number(selectedCatalogItem.maxPrice).toLocaleString()}`}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">
+                      Line Item Description / Notes
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Diagnostic & Repair Service"
+                      value={lineItemFormData.description}
+                      onChange={(e) =>
+                        setLineItemFormData({ ...lineItemFormData, description: e.target.value })
+                      }
+                      className="enterprise-input w-full"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">
+                    Description <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Custom on-site labor or non-catalog part"
+                    value={lineItemFormData.description}
+                    onChange={(e) =>
+                      setLineItemFormData({ ...lineItemFormData, description: e.target.value })
+                    }
+                    className="enterprise-input w-full"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">One-off item — manual pricing without catalog link.</p>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -1969,6 +2160,37 @@ export default function FieldService() {
                   />
                 </div>
               </div>
+
+              {/* Guardrail Pricing Feedback */}
+              {selectedCatalogItem && (
+                <div>
+                  {lineItemFormData.unitPrice <
+                  Number(selectedCatalogItem.minPrice || selectedCatalogItem.unitPrice * 0.9) ? (
+                    <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-300 text-amber-900 text-[11px] font-semibold flex items-start gap-2">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-bold">Discount Below Catalog Floor!</span>
+                        <p className="font-normal text-[10px] text-amber-800 mt-0.5">
+                          Unit price ₹{lineItemFormData.unitPrice.toLocaleString()} is below the approved floor of ₹
+                          {Number(selectedCatalogItem.minPrice || selectedCatalogItem.unitPrice * 0.9).toLocaleString()}.
+                          Saving will automatically route this Work Order to Manager Approvals and set its status to <strong>"Pending Approval"</strong>.
+                        </p>
+                      </div>
+                    </div>
+                  ) : selectedCatalogItem.maxPrice &&
+                    lineItemFormData.unitPrice > Number(selectedCatalogItem.maxPrice) ? (
+                    <div className="p-2 rounded-lg bg-blue-50 border border-blue-200 text-blue-900 text-[11px] flex items-center gap-1.5">
+                      <Info className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                      <span>Unit price exceeds standard catalog ceiling (₹{Number(selectedCatalogItem.maxPrice).toLocaleString()}).</span>
+                    </div>
+                  ) : (
+                    <div className="p-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-semibold flex items-center gap-1.5">
+                      <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>Price is within approved catalog bracket.</span>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div>
                 <label className="block text-slate-700 font-semibold mb-1">Status</label>

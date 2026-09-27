@@ -442,16 +442,39 @@ export default function ApprovalQueue() {
                   ) : (
                     filteredApprovals?.map((item: any) => {
                       const isPO = item.type === "PurchaseOrder" || item.type === "PO";
+                      const isWO = item.type === "WorkOrder";
                       const isDeal = item.type === "Deal";
                       const target = item.target;
                       const evalData = item.evaluation;
                       const deal = isDeal ? target : (isPO ? target?.quote?.deal : target?.deal);
                       const lead = deal?.lead;
-                      const customerName = lead?.company || (lead ? `${lead.firstName} ${lead.lastName}` : deal?.name || "Direct Customer");
-                      const repName = item.requestedBy?.name || deal?.owner?.name || "Sales Rep";
-                      const value = isDeal ? (Number(target?.amount) || 0) : (isPO ? (target?.amount || target?.quote?.totalAmount || 0) : (target?.totalAmount || 0));
-                      const discountPct = isDeal ? "N/A" : (evalData?.discount ? (evalData.discount * 100).toFixed(1) + "%" : isPO ? "Matched" : "0%");
-                      const marginPct = isDeal ? "N/A" : (evalData?.margin !== null && evalData?.margin !== undefined ? (evalData.margin * 100).toFixed(1) + "%" : "N/A");
+                      const customerName = isWO
+                        ? (target?.account?.name || (target?.contact ? `${target.contact.firstName} ${target.contact.lastName}` : "Field Service Customer"))
+                        : (lead?.company || (lead ? `${lead.firstName} ${lead.lastName}` : deal?.name || "Direct Customer"));
+                      const repName = isWO
+                        ? (target?.owner?.name || item.requestedBy?.name || "Service Tech")
+                        : (item.requestedBy?.name || deal?.owner?.name || "Sales Rep");
+                      const value = isDeal
+                        ? (Number(target?.amount) || 0)
+                        : isPO
+                        ? (target?.amount || target?.quote?.totalAmount || 0)
+                        : isWO
+                        ? (target?.grandTotal || target?.totalPrice || 0)
+                        : (target?.totalAmount || 0);
+                      const discountPct = isDeal
+                        ? "N/A"
+                        : evalData?.discount
+                        ? (evalData.discount * 100).toFixed(1) + "%"
+                        : isPO
+                        ? "Matched"
+                        : isWO
+                        ? "Catalog Floor"
+                        : "0%";
+                      const marginPct = isDeal
+                        ? "N/A"
+                        : evalData?.margin !== null && evalData?.margin !== undefined
+                        ? (evalData.margin * 100).toFixed(1) + "%"
+                        : "N/A";
 
                       return (
                         <tr key={item.id} className="hover:bg-surface-container-low transition-colors">
@@ -459,10 +482,15 @@ export default function ApprovalQueue() {
                             <div className="flex items-center gap-2">
                               <div className="font-bold text-on-surface text-sm">{customerName}</div>
                               <span className={`text-[10px] font-bold px-2 py-0.2 rounded-full uppercase border ${
-                                isDeal ? "bg-amber-50 text-amber-800 border-amber-300" :
-                                isPO ? "bg-purple-50 text-purple-700 border-purple-200" : "bg-blue-50 text-blue-700 border-blue-200"
+                                isDeal
+                                  ? "bg-amber-50 text-amber-800 border-amber-300"
+                                  : isPO
+                                  ? "bg-purple-50 text-purple-700 border-purple-200"
+                                  : isWO
+                                  ? "bg-teal-50 text-teal-700 border-teal-200"
+                                  : "bg-blue-50 text-blue-700 border-blue-200"
                               }`}>
-                                {isDeal ? "Deal Escalation" : isPO ? "Purchase Order" : "Quotation"}
+                                {isDeal ? "Deal Escalation" : isPO ? "Purchase Order" : isWO ? "Work Order" : "Quotation"}
                               </span>
                             </div>
                             <div className="text-[11px] text-primary font-semibold mt-0.5 flex items-center gap-1.5">
@@ -475,6 +503,8 @@ export default function ApprovalQueue() {
                                     <span className="text-slate-400 font-normal">({target.quote.quoteNumber})</span>
                                   )}
                                 </>
+                              ) : isWO ? (
+                                <span className="font-bold text-slate-800">{target?.workOrderNumber || "WO-LineItem"}</span>
                               ) : (
                                 <span>{target?.quoteNumber || `QT-${item.targetId.substring(0,8)}`}</span>
                               )}
@@ -493,6 +523,10 @@ export default function ApprovalQueue() {
                               }`}>
                                 {evalData?.mismatch ? "Mismatch" : "Match"}
                               </span>
+                            ) : isWO ? (
+                              <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-100 text-amber-800">
+                                Below Floor
+                              </span>
                             ) : (
                               discountPct
                             )}
@@ -508,7 +542,7 @@ export default function ApprovalQueue() {
                           </td>
                           <td className="p-4 max-w-[280px]">
                             <div className="bg-amber-50 text-amber-900 border border-amber-200 p-2 rounded text-[11px] font-semibold leading-relaxed">
-                              {item.comments || evalData?.reason || (isDeal ? "Deal value exceeds representative authority limit." : isPO ? "Purchase order verification required." : "Approval limit threshold exceeded.")}
+                              {item.comments || evalData?.reason || (isDeal ? "Deal value exceeds representative authority limit." : isPO ? "Purchase order verification required." : isWO ? "Line item price below catalog floor price." : "Approval limit threshold exceeded.")}
                             </div>
                           </td>
                           <td className="p-4 text-right">
@@ -518,23 +552,23 @@ export default function ApprovalQueue() {
                                   onClick={() => updateApprovalMutation.mutate({
                                     id: item.id,
                                     status: "Approved",
-                                    comments: isDeal ? "Deal Value Escalation Approved by Manager" : isPO ? "PO Verified & Approved by Manager" : "Approved by Manager"
+                                    comments: isDeal ? "Deal Value Escalation Approved by Manager" : isPO ? "PO Verified & Approved by Manager" : isWO ? "Work Order Pricing Approved by Manager" : "Approved by Manager"
                                   })}
                                   disabled={updateApprovalMutation.isPending}
                                   className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-2xs flex items-center gap-1 cursor-pointer"
                                 >
-                                  <Check className="w-3.5 h-3.5" /> {isDeal ? "Approve Deal" : isPO ? "Approve PO" : "Approve"}
+                                  <Check className="w-3.5 h-3.5" /> {isDeal ? "Approve Deal" : isPO ? "Approve PO" : isWO ? "Approve WO" : "Approve"}
                                 </button>
                                 <button
                                   onClick={() => updateApprovalMutation.mutate({
                                     id: item.id,
                                     status: "Rejected",
-                                    comments: isDeal ? "Deal Value Escalation Rejected by Manager" : isPO ? "PO Rejected by Manager" : "Rejected"
+                                    comments: isDeal ? "Deal Value Escalation Rejected by Manager" : isPO ? "PO Rejected by Manager" : isWO ? "Work Order Pricing Rejected by Manager" : "Rejected"
                                   })}
                                   disabled={updateApprovalMutation.isPending}
                                   className="bg-rose-600 hover:bg-rose-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-2xs flex items-center gap-1 cursor-pointer"
                                 >
-                                  <X className="w-3.5 h-3.5" /> {isDeal ? "Reject Deal" : isPO ? "Reject PO" : "Reject"}
+                                  <X className="w-3.5 h-3.5" /> {isDeal ? "Reject Deal" : isPO ? "Reject PO" : isWO ? "Reject WO" : "Reject"}
                                 </button>
                               </div>
                             ) : (

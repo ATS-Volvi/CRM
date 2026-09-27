@@ -49,7 +49,8 @@ import {
   getApprovals, updateApproval, getApprovalTiers, createApprovalTier, deleteApprovalTier, submitQuoteForApproval,
   getAdminApprovalPolicy, updateAdminApprovalPolicy, getSalesApprovalProfiles, upsertSalesApprovalProfile,
   getApprovalAuditLogs, evaluateQuote, approveQuoteDirectly
-} from '../controllers/approvalController';
+} from "../controllers/approvalController";
+import { getDiscountPolicies, createDiscountPolicy, updateDiscountPolicy, deleteDiscountPolicy } from "../controllers/discountPolicyController";
 import { getKpiDashboard, getManagementDashboard, getMyTodayDashboard, getMyHomeDashboard, getKpiTarget, updateKpiTarget, getActivitiesReports, getHomeDashboard } from '../controllers/dashboardController';
 import { getAssignmentRules, createAssignmentRule, updateAssignmentRule, deleteAssignmentRule, getSalespersonsCapacities, balanceSalespersonsCapacities } from '../controllers/assignmentRuleController';
 import { getAssignmentPolicy, updateAssignmentPolicy, getRepPerformanceProfiles, getAssignmentAudits, reassignLeadManually } from '../controllers/assignmentController';
@@ -558,6 +559,8 @@ router.patch("/fulfillments/items/:itemId", authMiddleware, updateFulfillmentIte
 router.get("/approvals", authMiddleware, getApprovals);
 router.post("/approvals", authMiddleware, createApproval);
 router.put("/approvals/:id", authMiddleware, updateApproval);
+router.get("/approval-policy", authMiddleware, getAdminApprovalPolicy);
+router.put("/approval-policy", authMiddleware, updateAdminApprovalPolicy);
 
 // ADMIN APPROVAL POLICY — strictly restricted to role: admin (UI and API)
 router.get("/approval-policy", authMiddleware, requireAdmin, getAdminApprovalPolicy);
@@ -701,6 +704,11 @@ router.get("/master-data/kpis", authMiddleware, getKpiMasters);
 router.post("/master-data/kpis", authMiddleware, createKpiMaster);
 router.put("/master-data/kpis/:id", authMiddleware, updateKpiMaster);
 router.delete("/master-data/kpis/:id", authMiddleware, deleteKpiMaster);
+
+router.get("/master-data/discount-rules", authMiddleware, getDiscountPolicies);
+router.post("/master-data/discount-rules", authMiddleware, createDiscountPolicy);
+router.put("/master-data/discount-rules/:id", authMiddleware, updateDiscountPolicy);
+router.delete("/master-data/discount-rules/:id", authMiddleware, deleteDiscountPolicy);
 
 // ==========================================
 // CUSTOMERS & ACCOUNTS
