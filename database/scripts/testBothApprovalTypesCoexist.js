@@ -63,12 +63,34 @@ async function verifyBothApprovalTypes() {
 
   // 3. Trigger Work Order below-floor pricing approval
   console.log("\n--- Step 3: Trigger Work Order Below-Floor Approval ---");
-  const woRes = await apiRequest("GET", "/work-orders", null, token);
-  const targetWO = woRes.data[0];
+  let woRes = await apiRequest("GET", "/work-orders", null, token);
+  let targetWO = Array.isArray(woRes.data) && woRes.data.length > 0 ? woRes.data[0] : null;
+  if (!targetWO) {
+    console.log("No work orders found, creating a test Work Order...");
+    const createWoRes = await apiRequest("POST", "/work-orders", {
+      subject: "Annual Maintenance and System Inspection",
+      description: "Routine field service inspection and parts maintenance",
+      priority: "High"
+    }, token);
+    targetWO = createWoRes.data;
+  }
   console.log(`3.1 Target Work Order: ${targetWO.workOrderNumber} (${targetWO.id})`);
 
   const pbRes = await apiRequest("GET", "/price-book", null, token);
-  const sampleItem = pbRes.data.find(i => i.minPrice && i.unitPrice);
+  let sampleItem = Array.isArray(pbRes.data) ? pbRes.data.find(i => i.minPrice && i.unitPrice) : null;
+  if (!sampleItem) {
+    console.log("No catalog item with minPrice found, creating one...");
+    const createItemRes = await apiRequest("POST", "/price-book", {
+      name: "Industrial Turbine Valve 5000",
+      sku: "ITV-5000",
+      category: "Industrial Equipment",
+      unitPrice: 1000,
+      minPrice: 800,
+      cost: 500,
+      isActive: true
+    }, token);
+    sampleItem = createItemRes.data;
+  }
   console.log(`3.2 Catalog item: ${sampleItem.name} (${sampleItem.sku}), standard: ₹${sampleItem.unitPrice}, min: ₹${sampleItem.minPrice}`);
 
   const belowFloorPrice = Math.max(1, Math.floor(Number(sampleItem.minPrice) - 100));
@@ -161,7 +183,14 @@ async function verifyBothApprovalTypes() {
 
   // 9. Master data Discount Rules API
   console.log("\n--- Step 9: Verify Discount Rules Master Data API ---");
-  const discountRulesRes = await apiRequest("GET", "/master-data/discount-rules", null, token);
+  let discountRulesRes = await apiRequest("GET", "/master-data/discount-rules", null, token);
+  if (!Array.isArray(discountRulesRes.data) || discountRulesRes.data.length < 3) {
+    console.log("Seeding standard discount policies...");
+    await apiRequest("POST", "/master-data/discount-rules", { role: "Sales Rep", maxDiscountPercent: 10, approvalRequiredAbove: 10, isActive: true }, token);
+    await apiRequest("POST", "/master-data/discount-rules", { role: "Team Lead", maxDiscountPercent: 20, approvalRequiredAbove: 20, isActive: true }, token);
+    await apiRequest("POST", "/master-data/discount-rules", { role: "Director", maxDiscountPercent: 35, approvalRequiredAbove: 35, isActive: true }, token);
+    discountRulesRes = await apiRequest("GET", "/master-data/discount-rules", null, token);
+  }
   console.log(`9.1 GET /master-data/discount-rules status: ${discountRulesRes.status}, count: ${discountRulesRes.data.length}`);
   if (discountRulesRes.status !== 200 || discountRulesRes.data.length < 3) {
     throw new Error("Discount rules API failed!");
