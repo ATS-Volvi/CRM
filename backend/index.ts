@@ -24,6 +24,10 @@ const startServer = async () => {
     const { seedDefaultMessageTemplates } = require("./src/services/communicationService");
     await seedDefaultMessageTemplates();
 
+    // Recover any campaign sends interrupted during previous server shutdown
+    const { recoverStuckCampaignSends } = require("./src/services/campaignMessageService");
+    await recoverStuckCampaignSends();
+
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`Nexus CRM backend running on port ${PORT}`);
       // Setup simple cron job for checking overdue tasks every hour

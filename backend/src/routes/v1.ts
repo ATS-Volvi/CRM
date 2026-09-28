@@ -104,6 +104,21 @@ import {
   getCampaignsAnalytics,
   getAttributionTaxonomy
 } from "../controllers/attributionController";
+import {
+  getCampaignMessageConfigHandler,
+  getCampaignMessages,
+  getCampaignMessageById,
+  getCampaignMessageStatsHandler,
+  createCampaignMessage,
+  updateCampaignMessage,
+  deleteCampaignMessage,
+  previewAudience,
+  sendCampaignMessage,
+  resumeCampaignMessage,
+  getCampaignMessageRecipients,
+  cancelCampaignMessageHandler,
+  trackPixel
+} from "../controllers/campaignMessageController";
 
 import { getLeadSources, createLeadSource, updateLeadSource, deleteLeadSource } from "../controllers/leadSourceController";
 import { queryAiReport } from "../controllers/aiReportController";
@@ -274,11 +289,13 @@ router.get("/instagram/webhook", verifyInstagramWebhook);
 router.post("/instagram/webhook", receiveInstagramMessage);
 router.use("/whatsapp", whatsappRoutes);
 
-import { handleUnsubscribe } from "../controllers/leadController";
-router.get("/leads/unsubscribe/:id", handleUnsubscribe);
+import { renderUnsubscribePage, handleUnsubscribe } from "../controllers/leadController";
+router.get("/leads/unsubscribe/:id", renderUnsubscribePage);
+router.post("/leads/unsubscribe/:id", handleUnsubscribe);
 
 import { trackEmailOpen, getAbTestStats, declareWinner } from "../controllers/messageTemplateController";
 router.get("/message-templates/track/:id", trackEmailOpen);
+router.get("/campaign-messages/track/:recipientId", trackPixel);
 
 // Special KPI endpoints for dashboard mock (Public for preview)
 router.get("/kpis/salesperson", async (req, res) => {
@@ -899,6 +916,21 @@ router.delete("/campaigns/:id/ads/:adId", authMiddleware, deleteCampaignAd);
 router.get("/campaigns/:id/leads", authMiddleware, getCampaignLeads);
 router.get("/campaigns/:id/opportunities", authMiddleware, getCampaignOpportunities);
 router.get("/campaigns/:id/performance", authMiddleware, getCampaignPerformanceReport);
+
+// Campaign Messages & Email Execution
+router.get("/campaigns/:id/messages/config", authMiddleware, requireAdminOrManager, getCampaignMessageConfigHandler);
+router.get("/campaigns/:id/messages", authMiddleware, requireAdminOrManager, getCampaignMessages);
+router.post("/campaigns/:id/messages", authMiddleware, requireAdminOrManager, createCampaignMessage);
+router.post("/campaigns/:id/messages/preview-audience", authMiddleware, requireAdminOrManager, previewAudience);
+router.get("/campaigns/:id/messages/:messageId", authMiddleware, requireAdminOrManager, getCampaignMessageById);
+router.get("/campaigns/:id/messages/:messageId/stats", authMiddleware, requireAdminOrManager, getCampaignMessageStatsHandler);
+router.patch("/campaigns/:id/messages/:messageId", authMiddleware, requireAdminOrManager, updateCampaignMessage);
+router.delete("/campaigns/:id/messages/:messageId", authMiddleware, requireAdminOrManager, deleteCampaignMessage);
+router.post("/campaigns/:id/messages/:messageId/preview-audience", authMiddleware, requireAdminOrManager, previewAudience);
+router.post("/campaigns/:id/messages/:messageId/send", authMiddleware, requireAdminOrManager, sendCampaignMessage);
+router.post("/campaigns/:id/messages/:messageId/resume", authMiddleware, requireAdminOrManager, resumeCampaignMessage);
+router.get("/campaigns/:id/messages/:messageId/recipients", authMiddleware, requireAdminOrManager, getCampaignMessageRecipients);
+router.post("/campaigns/:id/messages/:messageId/cancel", authMiddleware, requireAdminOrManager, cancelCampaignMessageHandler);
 
 router.get("/leads/:id/attribution", authMiddleware, getLeadAttribution);
 router.get("/leads/:id/attribution-history", authMiddleware, getLeadAttributionHistory);

@@ -167,3 +167,85 @@ export interface AttributionTaxonomy {
   sourceTypes: string[];
   customLeadSources: LeadSource[];
 }
+
+export type CampaignMessageStatus = "DRAFT" | "SCHEDULED" | "SENDING" | "SENT" | "PARTIAL" | "FAILED" | "CANCELLED";
+export type CampaignRecipientStatus = "QUEUED" | "SENT" | "FAILED" | "SKIPPED";
+
+
+export interface CampaignAudienceFilter {
+  leadStatus?: string[];
+  minScore?: number;
+  maxScore?: number;
+  country?: string[] | string;
+  territory?: string[] | string;
+  industry?: string[] | string;
+}
+
+export interface CampaignMessageStats {
+  total: number;
+  queued: number;
+  sent: number;
+  failed: number;
+  skipped: number;
+  opened: number;
+  unsubscribed: number;
+  openRatePct: number;
+}
+
+export interface CampaignMessage {
+  id: string;
+  campaignId: string;
+  name: string;
+  subject: string;
+  bodyHtml: string;
+  audienceFilter?: string | null;
+  status: CampaignMessageStatus;
+  scheduledAt?: string | null;
+  sentAt?: string | null;
+  createdBy?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  stats?: CampaignMessageStats;
+}
+
+export interface CampaignRecipient {
+  id: string;
+  campaignMessageId: string;
+  leadId?: string | null;
+  email: string;
+  status: CampaignRecipientStatus;
+  skipReason?: string | null;
+  sentAt?: string | null;
+  openedAt?: string | null;
+  unsubscribedAt?: string | null;
+  error?: string | null;
+  createdAt: string;
+}
+
+export interface AudiencePreviewResponse {
+  eligibleCount: number;
+  excludedCount: number;
+  excludedByReason: {
+    optedOut: number;
+    invalidEmail: number;
+    duplicate: number;
+    closedStatus: number;
+  };
+  sample: Array<{
+    id: string;
+    firstName?: string;
+    lastName?: string;
+    email: string;
+    company?: string;
+    leadScore?: number;
+    status?: string;
+    country?: string | null;
+    industry?: string | null;
+  }>;
+}
+
+export interface CampaignMessageConfig {
+  dryRun: boolean;
+  maxRecipients: number;
+  allowlistActive: boolean;
+}

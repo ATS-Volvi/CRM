@@ -556,6 +556,76 @@ export const deleteLead = async (req: Request, res: Response) => {
   }
 };
 
+export const renderUnsubscribePage = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const lead = await sequelize.models.Lead.findByPk(String(id));
+    if (!lead) return res.status(404).send("Lead not found.");
+
+    const l = lead as any;
+    const emailEscaped = (l.email || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+
+    if (l.optedOutEmail) {
+      const alreadyHtml = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <title>Already Unsubscribed</title>
+          <style>
+            body { font-family: 'Inter', -apple-system, sans-serif; background-color: #f8fafc; color: #1e293b; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; }
+            .card { background: #fff; max-width: 480px; width: 100%; padding: 40px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); text-align: center; border: 1px solid #e2e8f0; }
+            h2 { margin-top: 0; color: #0f172a; font-size: 22px; }
+            p { color: #64748b; font-size: 14px; line-height: 1.6; }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <h2>Already Unsubscribed</h2>
+            <p><strong>${emailEscaped}</strong> is already unsubscribed from our mailing list.</p>
+          </div>
+        </body>
+      </html>
+      `;
+      return res.send(alreadyHtml);
+    }
+
+    const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Unsubscribe Confirmation</title>
+        <style>
+          body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background-color: #f8fafc; color: #1e293b; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
+          .card { background: #ffffff; max-width: 480px; width: 100%; padding: 40px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); text-align: center; border: 1px solid #e2e8f0; }
+          h2 { margin-top: 0; color: #0f172a; font-size: 22px; }
+          p { color: #64748b; font-size: 14px; line-height: 1.6; margin: 16px 0 24px; }
+          .btn { background-color: #ef4444; color: #ffffff; border: none; padding: 12px 28px; font-size: 14px; font-weight: 600; border-radius: 8px; cursor: pointer; transition: background-color 0.2s; }
+          .btn:hover { background-color: #dc2626; }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <h2>Unsubscribe from Emails</h2>
+          <p>Please confirm that you would like to unsubscribe <strong>${emailEscaped}</strong> from all automated and marketing emails.</p>
+          <form method="POST" action="/api/v1/leads/unsubscribe/${l.id}">
+            <button type="submit" class="btn">Unsubscribe</button>
+          </form>
+        </div>
+      </body>
+    </html>
+    `;
+    res.send(html);
+  } catch (error: any) {
+    res.status(500).send("An error occurred loading the page.");
+  }
+};
+
 export const handleUnsubscribe = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -573,16 +643,37 @@ export const handleUnsubscribe = async (req: Request, res: Response) => {
         type: "Email",
         status: "Completed",
         assignedToId: l.assignedToId,
-        notes: "Client clicked Unsubscribe. All future marketing/templated emails are now blocked.",
-      direction: "internal"
+        notes: "Client confirmed Unsubscribe. All future marketing/templated emails are now blocked.",
+        direction: "internal"
       });
     }
 
+    // Update any CampaignRecipients for this lead with unsubscribedAt timestamp
+    if (sequelize.models.CampaignRecipient) {
+      await sequelize.models.CampaignRecipient.update(
+        { unsubscribedAt: new Date() },
+        { where: { leadId: l.id, unsubscribedAt: null } }
+      ).catch((err: any) => console.error("Error updating campaign recipients unsubscribe:", err));
+    }
+
     const html = `
+    <!DOCTYPE html>
     <html>
-      <body style="font-family: sans-serif; text-align: center; margin-top: 50px;">
-        <h2>Unsubscribed Successfully</h2>
-        <p>You have been removed from our mailing list. You will no longer receive automated emails from us.</p>
+      <head>
+        <meta charset="utf-8">
+        <title>Unsubscribed Successfully</title>
+        <style>
+          body { font-family: 'Inter', sans-serif; background-color: #f8fafc; color: #1e293b; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; }
+          .card { background: #fff; max-width: 480px; width: 100%; padding: 40px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); text-align: center; border: 1px solid #e2e8f0; }
+          h2 { margin-top: 0; color: #10b981; font-size: 22px; }
+          p { color: #64748b; font-size: 14px; line-height: 1.6; }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <h2>Unsubscribed Successfully</h2>
+          <p>You have been removed from our mailing list. You will no longer receive automated emails from us.</p>
+        </div>
       </body>
     </html>
     `;
@@ -591,6 +682,7 @@ export const handleUnsubscribe = async (req: Request, res: Response) => {
     res.status(500).send("An error occurred processing your request.");
   }
 };
+
 
 export const reassignLead = async (req: Request, res: Response) => {
   try {

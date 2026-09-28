@@ -2564,6 +2564,68 @@ CampaignAd.init(
   { sequelize, modelName: "CampaignAd", tableName: "CampaignAds" }
 );
 
+export class CampaignMessage extends Model {
+  public id!: string;
+  public campaignId!: string;
+  public name!: string;
+  public subject!: string;
+  public bodyHtml!: string;
+  public audienceFilter!: string | null;
+  public status!: string; // 'DRAFT' | 'SCHEDULED' | 'SENDING' | 'SENT' | 'CANCELLED'
+  public scheduledAt!: Date | null;
+  public sentAt!: Date | null;
+  public createdBy!: string | null;
+  public createdAt!: Date;
+  public updatedAt!: Date;
+}
+
+CampaignMessage.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    campaignId: { type: DataTypes.UUID, allowNull: false },
+    name: { type: DataTypes.STRING, allowNull: false },
+    subject: { type: DataTypes.STRING, allowNull: false },
+    bodyHtml: { type: DataTypes.TEXT, allowNull: false },
+    audienceFilter: { type: DataTypes.TEXT, allowNull: true },
+    status: { type: DataTypes.STRING, allowNull: false, defaultValue: "DRAFT" },
+    scheduledAt: { type: DataTypes.DATE, allowNull: true },
+    sentAt: { type: DataTypes.DATE, allowNull: true },
+    createdBy: { type: DataTypes.UUID, allowNull: true }
+  },
+  { sequelize, modelName: "CampaignMessage", tableName: "CampaignMessages" }
+);
+
+export class CampaignRecipient extends Model {
+  public id!: string;
+  public campaignMessageId!: string;
+  public leadId!: string | null;
+  public email!: string;
+  public status!: string; // 'QUEUED' | 'SENT' | 'FAILED' | 'SKIPPED'
+  public skipReason!: string | null;
+  public sentAt!: Date | null;
+  public openedAt!: Date | null;
+  public unsubscribedAt!: Date | null;
+  public error!: string | null;
+  public createdAt!: Date;
+}
+
+CampaignRecipient.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    campaignMessageId: { type: DataTypes.UUID, allowNull: false },
+    leadId: { type: DataTypes.UUID, allowNull: true },
+    email: { type: DataTypes.STRING, allowNull: false },
+    status: { type: DataTypes.STRING, allowNull: false, defaultValue: "QUEUED" },
+    skipReason: { type: DataTypes.STRING, allowNull: true },
+    sentAt: { type: DataTypes.DATE, allowNull: true },
+    openedAt: { type: DataTypes.DATE, allowNull: true },
+    unsubscribedAt: { type: DataTypes.DATE, allowNull: true },
+    error: { type: DataTypes.TEXT, allowNull: true }
+  },
+  { sequelize, modelName: "CampaignRecipient", tableName: "CampaignRecipients", updatedAt: false }
+);
+
+
 export class LeadAttribution extends Model {
   public id!: string;
   public leadId!: string;
@@ -2799,4 +2861,17 @@ CampaignMember.belongsTo(Campaign, { foreignKey: "campaignId", as: "campaign" })
 Lead.hasMany(CampaignMember, { foreignKey: "leadId", as: "campaignMembers" });
 CampaignMember.belongsTo(Lead, { foreignKey: "leadId", as: "lead" });
 
+Campaign.hasMany(CampaignMessage, { foreignKey: "campaignId", as: "messages" });
+CampaignMessage.belongsTo(Campaign, { foreignKey: "campaignId", as: "campaign" });
+
+CampaignMessage.hasMany(CampaignRecipient, { foreignKey: "campaignMessageId", as: "recipients" });
+CampaignRecipient.belongsTo(CampaignMessage, { foreignKey: "campaignMessageId", as: "message" });
+
+CampaignRecipient.belongsTo(Lead, { foreignKey: "leadId", as: "lead" });
+Lead.hasMany(CampaignRecipient, { foreignKey: "leadId", as: "campaignRecipients" });
+
+CampaignMessage.belongsTo(User, { foreignKey: "createdBy", as: "author" });
+User.hasMany(CampaignMessage, { foreignKey: "createdBy", as: "createdCampaignMessages" });
+
 export { sequelize };
+

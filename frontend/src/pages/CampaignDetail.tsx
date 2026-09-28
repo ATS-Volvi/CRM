@@ -56,6 +56,7 @@ import {
 import { campaignsApi } from "../api/marketing";
 import { Campaign, CampaignPerformance, CampaignMetrics, CampaignAd } from "../types/marketing";
 import { CampaignAdFormModal } from "../components/CampaignAdFormModal";
+import { CampaignMessagesTab } from "../components/CampaignMessagesTab";
 
 import { formatMoney } from "../lib/formatMoney";
 
@@ -83,7 +84,7 @@ export default function CampaignDetail() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const [activeTab, setActiveTab] = useState<"overview" | "performance" | "leads" | "opportunities" | "ads">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "performance" | "leads" | "opportunities" | "ads" | "messages">("overview");
 
   // Timeseries granularity & query
   const [timeseriesGranularity, setTimeseriesGranularity] = useState<"day" | "week">("day");
@@ -465,6 +466,18 @@ export default function CampaignDetail() {
           <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
             {ads.length}
           </span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab("messages")}
+          className={`px-4 py-2.5 font-bold text-xs flex items-center gap-2 border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+            activeTab === "messages"
+              ? "border-blue-600 text-blue-600 dark:text-blue-400"
+              : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300"
+          }`}
+        >
+          <Mail className="w-4 h-4" />
+          <span>Messages & Broadcasts</span>
         </button>
       </div>
 
@@ -1478,6 +1491,11 @@ export default function CampaignDetail() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── 8. TAB 6: MESSAGES & BROADCASTS ── */}
+      {activeTab === "messages" && id && (
+        <CampaignMessagesTab campaignId={id} campaignName={campaign.name} />
       )}
 
       {/* ── CREATE / EDIT CAMPAIGN AD MODAL ── */}
