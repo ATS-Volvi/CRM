@@ -82,6 +82,9 @@ import {
 } from "../controllers/fulfillmentController";
 import {
   getCampaigns,
+  exportCampaigns,
+  exportCampaignLeads,
+  getCampaignTimeseries,
   getCampaignById,
   createCampaign,
   updateCampaign,
@@ -883,6 +886,9 @@ router.get("/dashboard/win-celebrations", authMiddleware, getWinCelebrations);
 // PHASE 5: CAMPAIGNS & ATTRIBUTION
 // ==========================================
 router.get("/campaigns", authMiddleware, getCampaigns);
+router.get("/campaigns/export", authMiddleware, exportCampaigns);
+router.get("/campaigns/:id/leads/export", authMiddleware, exportCampaignLeads);
+router.get("/campaigns/:id/timeseries", authMiddleware, getCampaignTimeseries);
 router.get("/campaigns/:id", authMiddleware, getCampaignById);
 router.post("/campaigns", authMiddleware, createCampaign);
 router.patch("/campaigns/:id", authMiddleware, updateCampaign);

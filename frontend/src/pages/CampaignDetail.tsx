@@ -35,30 +35,28 @@ import {
   UserCheck,
   Plus,
   Edit2,
-  Trash2
+  Trash2,
+  Download,
+  X
 } from "lucide-react";
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  Legend,
+  Cell
+} from "recharts";
 import { campaignsApi } from "../api/marketing";
 import { Campaign, CampaignPerformance, CampaignMetrics, CampaignAd } from "../types/marketing";
 import { CampaignAdFormModal } from "../components/CampaignAdFormModal";
 
-/**
- * Currency and Money Formatter helper
- */
-function formatMoney(amount: number | string | null | undefined, currency: string = "SAR"): string {
-  if (amount === null || amount === undefined || isNaN(Number(amount))) return "—";
-  const num = Number(amount);
-  const curr = currency || "SAR";
-  try {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: curr,
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 2
-    }).format(num);
-  } catch (e) {
-    return `${curr} ${num.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
-  }
-}
+import { formatMoney } from "../lib/formatMoney";
 
 /**
  * Status Badge Renderer for Campaign Status
@@ -86,6 +84,13 @@ export default function CampaignDetail() {
 
   const [activeTab, setActiveTab] = useState<"overview" | "performance" | "leads" | "opportunities" | "ads">("overview");
 
+  // Timeseries granularity & query
+  const [timeseriesGranularity, setTimeseriesGranularity] = useState<"day" | "week">("day");
+
+  // Leads CSV export state
+  const [isExportingLeads, setIsExportingLeads] = useState(false);
+  const [exportLeadsError, setExportLeadsError] = useState<string | null>(null);
+
   // Ad modal and delete state
   const [isAdModalOpen, setIsAdModalOpen] = useState(false);
   const [selectedAd, setSelectedAd] = useState<CampaignAd | null>(null);
@@ -106,6 +111,33 @@ export default function CampaignDetail() {
     },
     enabled: !!id
   });
+
+  // Fetch timeseries data for Performance & Funnel tab
+  const {
+    data: timeseriesData,
+    isLoading: loadingTimeseries,
+    refetch: refetchTimeseries
+  } = useQuery({
+    queryKey: ["campaign-timeseries", id, timeseriesGranularity],
+    queryFn: async () => {
+      if (!id) return null;
+      return await campaignsApi.getCampaignTimeseries(id, timeseriesGranularity);
+    },
+    enabled: !!id && (activeTab === "performance" || activeTab === "overview")
+  });
+
+  const handleExportLeadsCsv = async () => {
+    if (!id || !campaignDetailData?.campaign) return;
+    try {
+      setIsExportingLeads(true);
+      setExportLeadsError(null);
+      await campaignsApi.exportCampaignLeadsCsv(id, campaignDetailData.campaign.code);
+    } catch (err: any) {
+      setExportLeadsError(err.message || "Failed to export campaign leads");
+    } finally {
+      setIsExportingLeads(false);
+    }
+  };
 
   // Delete Ad Mutation
   const deleteAdMutation = useMutation({
@@ -609,173 +641,360 @@ export default function CampaignDetail() {
       {/* ── 4. TAB 2: PERFORMANCE & FUNNEL ── */}
       {activeTab === "performance" && (
         <div className="space-y-6">
-          {/* Full-Funnel Visual Pipeline */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-6 shadow-xs space-y-5">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+          {/* Empty State: If campaign has no leads or data yet */}
+          {metrics.totalLeads === 0 && leads.length === 0 ? (
+            <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-12 text-center shadow-xs space-y-3">
+              <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 flex items-center justify-center mx-auto">
+                <BarChart2 className="w-7 h-7" />
+              </div>
               <div>
-                <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4 text-blue-600" /> Attribution Marketing-to-Revenue Funnel
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  End-to-end conversion efficiency from initial lead acquisition to closed won revenue.
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">No data yet</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-md mx-auto">
+                  There are no leads or interactions attributed to this campaign yet. Performance charts and funnel conversion rates will populate automatically as leads are captured.
                 </p>
               </div>
-              <span className="px-2.5 py-1 rounded-full text-xs font-black bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                Full-Funnel Attribution
-              </span>
             </div>
-
-            {/* Visual 5-Stage Funnel Flow */}
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-stretch">
-              {/* Stage 1: Inbound Leads */}
-              <div className="bg-gradient-to-b from-blue-50/80 to-white dark:from-slate-800/90 dark:to-slate-900 border border-blue-200/90 dark:border-blue-900/60 rounded-xl p-4 flex flex-col justify-between shadow-2xs">
-                <div>
-                  <span className="text-[10px] font-black uppercase tracking-wider text-blue-700 dark:text-blue-300">
-                    1. Inbound Leads
-                  </span>
-                  <div className="text-2xl font-black text-slate-900 dark:text-white mt-1">
-                    {metrics.totalLeads}
+          ) : (
+            <>
+              {/* Full-Funnel Visual Pipeline */}
+              <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-6 shadow-xs space-y-5">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+                  <div>
+                    <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                      <TrendingUp className="w-4 h-4 text-blue-600" /> Attribution Marketing-to-Revenue Funnel
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      End-to-end conversion efficiency from initial lead acquisition to closed won revenue.
+                    </p>
                   </div>
-                  <span className="text-[11px] text-slate-500 font-medium">Attributed touches</span>
-                </div>
-                <div className="mt-3 pt-2 border-t border-blue-100 dark:border-slate-800 text-[11px] font-bold text-blue-600 dark:text-blue-400 flex items-center justify-between">
-                  <span>Qual. Rate</span>
-                  <span>{metrics.conversionRateLeadToQual}%</span>
-                </div>
-              </div>
-
-              {/* Stage 2: Qualified Leads */}
-              <div className="bg-gradient-to-b from-indigo-50/80 to-white dark:from-slate-800/90 dark:to-slate-900 border border-indigo-200/90 dark:border-indigo-900/60 rounded-xl p-4 flex flex-col justify-between shadow-2xs">
-                <div>
-                  <span className="text-[10px] font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-300">
-                    2. Qualified Leads
+                  <span className="px-2.5 py-1 rounded-full text-xs font-black bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                    Full-Funnel Attribution
                   </span>
-                  <div className="text-2xl font-black text-slate-900 dark:text-white mt-1">
-                    {metrics.qualifiedLeads}
+                </div>
+
+                {/* Visual 5-Stage Funnel Flow */}
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-stretch">
+                  {/* Stage 1: Inbound Leads */}
+                  <div className="bg-gradient-to-b from-blue-50/80 to-white dark:from-slate-800/90 dark:to-slate-900 border border-blue-200/90 dark:border-blue-900/60 rounded-xl p-4 flex flex-col justify-between shadow-2xs">
+                    <div>
+                      <span className="text-[10px] font-black uppercase tracking-wider text-blue-700 dark:text-blue-300">
+                        1. Inbound Leads
+                      </span>
+                      <div className="text-2xl font-black text-slate-900 dark:text-white mt-1">
+                        {metrics.totalLeads}
+                      </div>
+                      <span className="text-[11px] text-slate-500 font-medium">Attributed touches</span>
+                    </div>
+                    <div className="mt-3 pt-2 border-t border-blue-100 dark:border-slate-800 text-[11px] font-bold text-blue-600 dark:text-blue-400 flex items-center justify-between">
+                      <span>Qual. Rate</span>
+                      <span>{metrics.conversionRateLeadToQual}%</span>
+                    </div>
                   </div>
-                  <span className="text-[11px] text-slate-500 font-medium">Sales accepted</span>
-                </div>
-                <div className="mt-3 pt-2 border-t border-indigo-100 dark:border-slate-800 text-[11px] font-bold text-indigo-600 dark:text-indigo-400 flex items-center justify-between">
-                  <span>Opp. Conv.</span>
-                  <span>{metrics.conversionRateQualToOpp}%</span>
-                </div>
-              </div>
 
-              {/* Stage 3: Opportunities */}
-              <div className="bg-gradient-to-b from-purple-50/80 to-white dark:from-slate-800/90 dark:to-slate-900 border border-purple-200/90 dark:border-purple-900/60 rounded-xl p-4 flex flex-col justify-between shadow-2xs">
-                <div>
-                  <span className="text-[10px] font-black uppercase tracking-wider text-purple-700 dark:text-purple-300">
-                    3. Opportunities
-                  </span>
-                  <div className="text-2xl font-black text-slate-900 dark:text-white mt-1">
-                    {metrics.totalOpportunities}
+                  {/* Stage 2: Qualified Leads */}
+                  <div className="bg-gradient-to-b from-indigo-50/80 to-white dark:from-slate-800/90 dark:to-slate-900 border border-indigo-200/90 dark:border-indigo-900/60 rounded-xl p-4 flex flex-col justify-between shadow-2xs">
+                    <div>
+                      <span className="text-[10px] font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-300">
+                        2. Qualified Leads
+                      </span>
+                      <div className="text-2xl font-black text-slate-900 dark:text-white mt-1">
+                        {metrics.qualifiedLeads}
+                      </div>
+                      <span className="text-[11px] text-slate-500 font-medium">Sales accepted</span>
+                    </div>
+                    <div className="mt-3 pt-2 border-t border-indigo-100 dark:border-slate-800 text-[11px] font-bold text-indigo-600 dark:text-indigo-400 flex items-center justify-between">
+                      <span>Opp. Conv.</span>
+                      <span>{metrics.conversionRateQualToOpp}%</span>
+                    </div>
                   </div>
-                  <span className="text-[11px] text-slate-500 font-medium">Active deals</span>
-                </div>
-                <div className="mt-3 pt-2 border-t border-purple-100 dark:border-slate-800 text-[11px] font-bold text-purple-600 dark:text-purple-400 flex items-center justify-between">
-                  <span>Win Rate</span>
-                  <span>{metrics.conversionRateOppToWon}%</span>
-                </div>
-              </div>
 
-              {/* Stage 4: Won Orders */}
-              <div className="bg-gradient-to-b from-teal-50/80 to-white dark:from-slate-800/90 dark:to-slate-900 border border-teal-200/90 dark:border-teal-900/60 rounded-xl p-4 flex flex-col justify-between shadow-2xs">
-                <div>
-                  <span className="text-[10px] font-black uppercase tracking-wider text-teal-700 dark:text-teal-300">
-                    4. Won Orders
-                  </span>
-                  <div className="text-2xl font-black text-slate-900 dark:text-white mt-1">
-                    {metrics.wonOrdersCount}
+                  {/* Stage 3: Opportunities */}
+                  <div className="bg-gradient-to-b from-purple-50/80 to-white dark:from-slate-800/90 dark:to-slate-900 border border-purple-200/90 dark:border-purple-900/60 rounded-xl p-4 flex flex-col justify-between shadow-2xs">
+                    <div>
+                      <span className="text-[10px] font-black uppercase tracking-wider text-purple-700 dark:text-purple-300">
+                        3. Opportunities
+                      </span>
+                      <div className="text-2xl font-black text-slate-900 dark:text-white mt-1">
+                        {metrics.totalOpportunities}
+                      </div>
+                      <span className="text-[11px] text-slate-500 font-medium">Active deals</span>
+                    </div>
+                    <div className="mt-3 pt-2 border-t border-purple-100 dark:border-slate-800 text-[11px] font-bold text-purple-600 dark:text-purple-400 flex items-center justify-between">
+                      <span>Win Rate</span>
+                      <span>{metrics.conversionRateOppToWon}%</span>
+                    </div>
                   </div>
-                  <span className="text-[11px] text-slate-500 font-medium">({metrics.wonDealsCount} won deals)</span>
-                </div>
-                <div className="mt-3 pt-2 border-t border-teal-100 dark:border-slate-800 text-[11px] font-bold text-teal-600 dark:text-teal-400 flex items-center justify-between">
-                  <span>Closed</span>
-                  <span>100%</span>
-                </div>
-              </div>
 
-              {/* Stage 5: Won Revenue */}
-              <div className="bg-gradient-to-b from-emerald-50/80 to-white dark:from-slate-800/90 dark:to-slate-900 border border-emerald-300/90 dark:border-emerald-800/60 rounded-xl p-4 flex flex-col justify-between shadow-2xs">
-                <div>
-                  <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
-                    5. Total Revenue
-                  </span>
-                  <div className="text-xl font-black text-emerald-600 dark:text-emerald-400 mt-1 truncate">
-                    {formatMoney(metrics.totalRevenue, currency)}
+                  {/* Stage 4: Won Orders */}
+                  <div className="bg-gradient-to-b from-teal-50/80 to-white dark:from-slate-800/90 dark:to-slate-900 border border-teal-200/90 dark:border-teal-900/60 rounded-xl p-4 flex flex-col justify-between shadow-2xs">
+                    <div>
+                      <span className="text-[10px] font-black uppercase tracking-wider text-teal-700 dark:text-teal-300">
+                        4. Won Orders
+                      </span>
+                      <div className="text-2xl font-black text-slate-900 dark:text-white mt-1">
+                        {metrics.wonOrdersCount}
+                      </div>
+                      <span className="text-[11px] text-slate-500 font-medium">({metrics.wonDealsCount} won deals)</span>
+                    </div>
+                    <div className="mt-3 pt-2 border-t border-teal-100 dark:border-slate-800 text-[11px] font-bold text-teal-600 dark:text-teal-400 flex items-center justify-between">
+                      <span>Closed</span>
+                      <span>100%</span>
+                    </div>
                   </div>
-                  <span className="text-[11px] text-slate-500 font-medium">Attributed revenue</span>
-                </div>
-                <div className="mt-3 pt-2 border-t border-emerald-100 dark:border-slate-800 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center justify-between">
-                  <span>ROAS</span>
-                  <span>{metrics.roas !== null && metrics.roas !== undefined ? `${metrics.roas}x` : "—"}</span>
+
+                  {/* Stage 5: Won Revenue */}
+                  <div className="bg-gradient-to-b from-emerald-50/80 to-white dark:from-slate-800/90 dark:to-slate-900 border border-emerald-300/90 dark:border-emerald-800/60 rounded-xl p-4 flex flex-col justify-between shadow-2xs">
+                    <div>
+                      <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+                        5. Total Revenue
+                      </span>
+                      <div className="text-xl font-black text-emerald-600 dark:text-emerald-400 mt-1 truncate">
+                        {formatMoney(metrics.totalRevenue, currency)}
+                      </div>
+                      <span className="text-[11px] text-slate-500 font-medium">Attributed revenue</span>
+                    </div>
+                    <div className="mt-3 pt-2 border-t border-emerald-100 dark:border-slate-800 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center justify-between">
+                      <span>ROAS</span>
+                      <span>{metrics.roas !== null && metrics.roas !== undefined ? `${metrics.roas}x` : "—"}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>
 
-          {/* Unit Economics & Cost Efficiency KPI Grid */}
-          <div className="space-y-3">
-            <h3 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-              <DollarSign className="w-4 h-4 text-emerald-600" /> Unit Economics & Cost Efficiency
-            </h3>
+              {/* Unit Economics & Cost Efficiency KPI Grid */}
+              <div className="space-y-3">
+                <h3 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                  <DollarSign className="w-4 h-4 text-emerald-600" /> Unit Economics & Cost Efficiency
+                </h3>
 
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-              {/* Cost Per Lead */}
-              <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-4 shadow-xs space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Cost / Lead (CPL)</span>
-                <div className="text-lg font-black text-slate-900 dark:text-white">
-                  {formatMoney(metrics.costPerLead, currency)}
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                  {/* Cost Per Lead */}
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-4 shadow-xs space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Cost / Lead (CPL)</span>
+                    <div className="text-lg font-black text-slate-900 dark:text-white">
+                      {formatMoney(metrics.costPerLead, currency)}
+                    </div>
+                    <span className="text-[10px] text-slate-400 block truncate">Per inbound lead</span>
+                  </div>
+
+                  {/* Cost Per Qualified Lead */}
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-4 shadow-xs space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Cost / Qual. Lead (CPQL)</span>
+                    <div className="text-lg font-black text-slate-900 dark:text-white">
+                      {formatMoney(metrics.costPerQualifiedLead, currency)}
+                    </div>
+                    <span className="text-[10px] text-slate-400 block truncate">Per qualified lead</span>
+                  </div>
+
+                  {/* Cost Per Opportunity */}
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-4 shadow-xs space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Cost / Opportunity</span>
+                    <div className="text-lg font-black text-slate-900 dark:text-white">
+                      {formatMoney(metrics.costPerOpportunity, currency)}
+                    </div>
+                    <span className="text-[10px] text-slate-400 block truncate">Per created deal</span>
+                  </div>
+
+                  {/* Cost Per Won Deal */}
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-4 shadow-xs space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Cost / Won Deal</span>
+                    <div className="text-lg font-black text-slate-900 dark:text-white">
+                      {formatMoney(metrics.costPerWonDeal, currency)}
+                    </div>
+                    <span className="text-[10px] text-slate-400 block truncate">Per closed customer</span>
+                  </div>
+
+                  {/* ROAS */}
+                  <div className="bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-900/60 rounded-2xl p-4 shadow-xs space-y-1 bg-blue-50/20">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">ROAS Return</span>
+                    <div className="text-lg font-black text-blue-600 dark:text-blue-400">
+                      {metrics.roas !== null && metrics.roas !== undefined ? `${metrics.roas}x` : "—"}
+                    </div>
+                    <span className="text-[10px] text-slate-400 block truncate">Revenue / Spend</span>
+                  </div>
+
+                  {/* ROI % */}
+                  <div className="bg-white dark:bg-slate-900 border border-emerald-200 dark:border-emerald-900/60 rounded-2xl p-4 shadow-xs space-y-1 bg-emerald-50/20">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">ROI %</span>
+                    <div className="text-lg font-black text-emerald-600 dark:text-emerald-400">
+                      {metrics.roiPct !== null && metrics.roiPct !== undefined ? `${metrics.roiPct > 0 ? "+" : ""}${metrics.roiPct}%` : "—"}
+                    </div>
+                    <span className="text-[10px] text-slate-400 block truncate">Net Profit Return</span>
+                  </div>
                 </div>
-                <span className="text-[10px] text-slate-400 block truncate">Per inbound lead</span>
               </div>
 
-              {/* Cost Per Qualified Lead */}
-              <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-4 shadow-xs space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Cost / Qual. Lead (CPQL)</span>
-                <div className="text-lg font-black text-slate-900 dark:text-white">
-                  {formatMoney(metrics.costPerQualifiedLead, currency)}
-                </div>
-                <span className="text-[10px] text-slate-400 block truncate">Per qualified lead</span>
-              </div>
+              {/* ── CHARTS SECTION (Feature 2) ── */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                {/* Chart (a): Leads & Opportunities Velocity Over Time */}
+                <div className="lg:col-span-7 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+                    <div>
+                      <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                        <Activity className="w-4 h-4 text-blue-600 dark:text-blue-400" /> Velocity Over Time
+                      </h3>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Leads, opportunities, and won orders created per period.
+                      </p>
+                    </div>
 
-              {/* Cost Per Opportunity */}
-              <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-4 shadow-xs space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Cost / Opportunity</span>
-                <div className="text-lg font-black text-slate-900 dark:text-white">
-                  {formatMoney(metrics.costPerOpportunity, currency)}
-                </div>
-                <span className="text-[10px] text-slate-400 block truncate">Per created deal</span>
-              </div>
+                    {/* Day / Week Granularity Toggle */}
+                    <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700 self-start sm:self-auto">
+                      <button
+                        type="button"
+                        onClick={() => setTimeseriesGranularity("day")}
+                        className={`px-2.5 py-1 rounded text-xs font-bold transition-colors cursor-pointer ${
+                          timeseriesGranularity === "day"
+                            ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs"
+                            : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                        }`}
+                      >
+                        Daily
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setTimeseriesGranularity("week")}
+                        className={`px-2.5 py-1 rounded text-xs font-bold transition-colors cursor-pointer ${
+                          timeseriesGranularity === "week"
+                            ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs"
+                            : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                        }`}
+                      >
+                        Weekly
+                      </button>
+                    </div>
+                  </div>
 
-              {/* Cost Per Won Deal */}
-              <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-4 shadow-xs space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Cost / Won Deal</span>
-                <div className="text-lg font-black text-slate-900 dark:text-white">
-                  {formatMoney(metrics.costPerWonDeal, currency)}
+                  {loadingTimeseries ? (
+                    <div className="h-64 flex items-center justify-center text-xs text-slate-400">
+                      Loading velocity timeline...
+                    </div>
+                  ) : (
+                    <div className="h-64 w-full pt-2">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={timeseriesData?.data || []} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" opacity={0.5} />
+                          <XAxis dataKey="label" stroke="#94a3b8" fontSize={10} tickLine={false} />
+                          <YAxis stroke="#94a3b8" fontSize={10} allowDecimals={false} tickLine={false} />
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: "#0f172a",
+                              borderColor: "#334155",
+                              borderRadius: "0.75rem",
+                              color: "#fff",
+                              fontSize: "11px",
+                              boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1)"
+                            }}
+                          />
+                          <Legend wrapperStyle={{ fontSize: "11px", paddingTop: "6px" }} />
+                          <Line
+                            type="monotone"
+                            dataKey="leads"
+                            name="Leads"
+                            stroke="#2563eb"
+                            strokeWidth={2.5}
+                            dot={{ r: 2.5 }}
+                            activeDot={{ r: 4.5 }}
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="opportunities"
+                            name="Opportunities"
+                            stroke="#7c3aed"
+                            strokeWidth={2.5}
+                            dot={{ r: 2.5 }}
+                            activeDot={{ r: 4.5 }}
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="wonOrders"
+                            name="Won Orders"
+                            stroke="#10b981"
+                            strokeWidth={2.5}
+                            dot={{ r: 2.5 }}
+                            activeDot={{ r: 4.5 }}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
                 </div>
-                <span className="text-[10px] text-slate-400 block truncate">Per closed customer</span>
-              </div>
 
-              {/* ROAS */}
-              <div className="bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-900/60 rounded-2xl p-4 shadow-xs space-y-1 bg-blue-50/20">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">ROAS Return</span>
-                <div className="text-lg font-black text-blue-600 dark:text-blue-400">
-                  {metrics.roas !== null && metrics.roas !== undefined ? `${metrics.roas}x` : "—"}
-                </div>
-                <span className="text-[10px] text-slate-400 block truncate">Revenue / Spend</span>
-              </div>
+                {/* Chart (b): Stage Conversion Funnel Bar Chart */}
+                <div className="lg:col-span-5 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
+                  <div className="border-b border-slate-100 dark:border-slate-800 pb-3">
+                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                      <BarChart2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400" /> Stage Conversion Funnel
+                    </h3>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Lifecycle volume & conversion percentages between stages.
+                    </p>
+                  </div>
 
-              {/* ROI % */}
-              <div className="bg-white dark:bg-slate-900 border border-emerald-200 dark:border-emerald-900/60 rounded-2xl p-4 shadow-xs space-y-1 bg-emerald-50/20">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">ROI %</span>
-                <div className="text-lg font-black text-emerald-600 dark:text-emerald-400">
-                  {metrics.roiPct !== null && metrics.roiPct !== undefined ? `${metrics.roiPct > 0 ? "+" : ""}${metrics.roiPct}%` : "—"}
+                  <div className="h-48 w-full pt-1">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        layout="vertical"
+                        data={[
+                          { stage: "Leads", count: metrics.totalLeads, label: "1. Inbound Leads", conv: "100%", fill: "#2563eb" },
+                          { stage: "Qualified", count: metrics.qualifiedLeads, label: "2. Qualified", conv: `${metrics.conversionRateLeadToQual}% of Leads`, fill: "#4f46e5" },
+                          { stage: "Opps", count: metrics.totalOpportunities, label: "3. Opportunities", conv: `${metrics.conversionRateQualToOpp}% of Qualified`, fill: "#7c3aed" },
+                          { stage: "Won", count: metrics.wonOrdersCount, label: "4. Won Orders", conv: `${metrics.conversionRateOppToWon}% of Opps`, fill: "#059669" }
+                        ]}
+                        margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" opacity={0.5} />
+                        <XAxis type="number" stroke="#94a3b8" fontSize={10} allowDecimals={false} tickLine={false} />
+                        <YAxis type="category" dataKey="stage" stroke="#94a3b8" fontSize={10} tickLine={false} width={65} />
+                        <Tooltip
+                          formatter={(val: any, _name: any, item: any) => [`${val} (${item.payload.conv})`, item.payload.label]}
+                          contentStyle={{
+                            backgroundColor: "#0f172a",
+                            borderColor: "#334155",
+                            borderRadius: "0.75rem",
+                            color: "#fff",
+                            fontSize: "11px"
+                          }}
+                        />
+                        <Bar dataKey="count" radius={[0, 6, 6, 0]}>
+                          {[
+                            { fill: "#2563eb" },
+                            { fill: "#4f46e5" },
+                            { fill: "#7c3aed" },
+                            { fill: "#059669" }
+                          ].map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.fill} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  {/* Stage-to-Stage Transition Badges */}
+                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px]">
+                    <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 space-y-0.5">
+                      <span className="text-[10px] font-bold text-slate-400 block">Lead → Qualified</span>
+                      <span className="font-extrabold text-blue-600 dark:text-blue-400">{metrics.conversionRateLeadToQual}%</span>
+                    </div>
+                    <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 space-y-0.5">
+                      <span className="text-[10px] font-bold text-slate-400 block">Qual → Opportunity</span>
+                      <span className="font-extrabold text-indigo-600 dark:text-indigo-400">{metrics.conversionRateQualToOpp}%</span>
+                    </div>
+                    <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 space-y-0.5">
+                      <span className="text-[10px] font-bold text-slate-400 block">Opportunity → Won</span>
+                      <span className="font-extrabold text-purple-600 dark:text-purple-400">{metrics.conversionRateOppToWon}%</span>
+                    </div>
+                    <div className="p-2 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/40 space-y-0.5">
+                      <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 block">Overall Conversion</span>
+                      <span className="font-extrabold text-emerald-700 dark:text-emerald-300">
+                        {metrics.totalLeads > 0 ? Number(((metrics.wonDealsCount / metrics.totalLeads) * 100).toFixed(1)) : 0}%
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <span className="text-[10px] text-slate-400 block truncate">Net Profit Return</span>
               </div>
-            </div>
-          </div>
+            </>
+          )}
         </div>
       )}
 
@@ -783,7 +1002,7 @@ export default function CampaignDetail() {
       {activeTab === "leads" && (
         <div className="space-y-4">
           <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-xs overflow-hidden">
-            <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+            <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">
                   Attributed Leads ({leads.length})
@@ -792,7 +1011,39 @@ export default function CampaignDetail() {
                   Customers who originated or interacted through this marketing campaign.
                 </p>
               </div>
+
+              {/* Export Leads CSV Button */}
+              <button
+                type="button"
+                onClick={handleExportLeadsCsv}
+                disabled={isExportingLeads || leads.length === 0}
+                className="px-3.5 py-1.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 font-bold rounded-xl text-xs flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap disabled:opacity-50 shadow-2xs self-start sm:self-auto"
+                title="Export attributed leads to CSV"
+              >
+                {isExportingLeads ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-slate-500" />
+                ) : (
+                  <Download className="w-3.5 h-3.5 text-slate-500" />
+                )}
+                <span>{isExportingLeads ? "Exporting..." : "Export CSV"}</span>
+              </button>
             </div>
+
+            {/* Leads Export Error Banner */}
+            {exportLeadsError && (
+              <div className="mx-4 mt-3 p-3 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 text-xs flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{exportLeadsError}</span>
+                </div>
+                <button
+                  onClick={() => setExportLeadsError(null)}
+                  className="p-1 hover:bg-rose-100 dark:hover:bg-rose-900 rounded cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
 
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">

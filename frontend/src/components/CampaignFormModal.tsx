@@ -15,7 +15,7 @@ import {
   Globe,
   Tag
 } from "lucide-react";
-import { campaignsApi } from "../api/marketing";
+import { campaignsApi, attributionApi } from "../api/marketing";
 import { Campaign, CampaignStatus } from "../types/marketing";
 import { apiClient } from "../lib/apiClient";
 
@@ -26,7 +26,7 @@ interface CampaignFormModalProps {
   onSuccess?: (savedCampaign: Campaign) => void;
 }
 
-const CHANNELS = [
+const DEFAULT_CHANNELS = [
   "Website",
   "WhatsApp",
   "Email",
@@ -93,6 +93,26 @@ export function CampaignFormModal({
   // Validation & Error states
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [serverError, setServerError] = useState<string | null>(null);
+
+  // Fetch attribution taxonomy channels
+  const { data: taxonomyData } = useQuery({
+    queryKey: ["attribution-taxonomy"],
+    queryFn: async () => {
+      try {
+        const res = await attributionApi.getTaxonomy();
+        return res;
+      } catch (e) {
+        return null;
+      }
+    },
+    enabled: isOpen,
+    staleTime: 5 * 60 * 1000
+  });
+
+  const availableChannels =
+    taxonomyData?.channels && taxonomyData.channels.length > 0
+      ? taxonomyData.channels
+      : DEFAULT_CHANNELS;
 
   // Fetch salespersons/users for owner selection
   const { data: salespersons = [] } = useQuery({
@@ -343,7 +363,7 @@ export function CampaignFormModal({
                 onChange={(e) => setChannel(e.target.value)}
                 className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-2xs focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
               >
-                {CHANNELS.map((ch) => (
+                {availableChannels.map((ch) => (
                   <option key={ch} value={ch}>
                     {ch}
                   </option>
@@ -465,7 +485,10 @@ export function CampaignFormModal({
               <input
                 type="date"
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                onChange={(e) => {
+                  setStartDate(e.target.value);
+                  if (formErrors.endDate) setFormErrors((prev) => ({ ...prev, endDate: "" }));
+                }}
                 className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-2xs focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
               />
             </div>

@@ -17,6 +17,7 @@ import { QualificationDrawer } from "../components/QualificationDrawer";
 import { LeadConversionModal } from "../components/LeadConversionModal";
 import { HandoffChatWidget } from "../components/HandoffChatWidget";
 import { AiRequirementSummaryCard } from "../components/AiRequirementSummaryCard";
+import { LeadAttributionCard } from "../components/LeadAttributionCard";
 
 export default function LeadDetail() {
   const { id } = useParams();
@@ -120,7 +121,7 @@ export default function LeadDetail() {
       return res.json();
     },
     enabled: !!id && !!token,
-    refetchInterval: 15000, // Poll every 15s (was 3s — 5× less server load)
+    refetchInterval: 60000, // Poll every 60s
     refetchOnWindowFocus: true,
   });
 
@@ -630,6 +631,37 @@ export default function LeadDetail() {
   const stages = pipelineStages?.map(s => s.stage) || [];
   const currentStageIndex = stages.indexOf(lead.status);
 
+  // ─── Contact Activities & Risk Computation ───────────────────────────
+  const contactActivities = activities.filter((a: any) => {
+    const t = (a.type || "").toLowerCase();
+    return (
+      t.includes("call") ||
+      t.includes("whatsapp") ||
+      t.includes("email") ||
+      t.includes("meeting") ||
+      t.includes("sms")
+    );
+  });
+
+  const lastContactActivity = contactActivities.length > 0
+    ? contactActivities.reduce((latest: any, curr: any) => {
+        const tCurr = new Date(curr.createdAt || curr.date || 0).getTime();
+        const tLatest = new Date(latest.createdAt || latest.date || 0).getTime();
+        return tCurr > tLatest ? curr : latest;
+      }, contactActivities[0])
+    : null;
+
+  const lastContactDate = lastContactActivity
+    ? new Date(lastContactActivity.createdAt || lastContactActivity.date)
+    : null;
+
+  const daysSinceLastContact =
+    lastContactDate && !isNaN(lastContactDate.getTime())
+      ? Math.floor((Date.now() - lastContactDate.getTime()) / (1000 * 60 * 60 * 24))
+      : null;
+
+  const hasActivities = activities.length > 0;
+
   return (
     <div className="w-full px-6 md:px-8 py-6 space-y-6">
       
@@ -830,10 +862,19 @@ export default function LeadDetail() {
             </div>
             <div className="space-y-2.5 text-xs">
               <div className="flex justify-between items-center">
-                <span className="text-slate-500 font-medium">Win Probability:</span>
-                <span className="font-extrabold text-emerald-600 bg-emerald-50 dark:bg-emerald-950 px-2.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
-                  {Math.min(95, Math.max(30, Math.round((lead.leadScore || 50) * 1.3)))}%
-                </span>
+                <div className="flex flex-col">
+                  <span className="text-slate-500 font-medium">Win Probability:</span>
+                  <span className="text-[10px] text-slate-400 font-normal">Score-based estimate</span>
+                </div>
+                {hasActivities ? (
+                  <span className="font-extrabold text-emerald-600 bg-emerald-50 dark:bg-emerald-950 px-2.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
+                    {Math.min(95, Math.max(30, Math.round((lead.leadScore || 50) * 1.3)))}%
+                  </span>
+                ) : (
+                  <span className="font-medium text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 rounded-full border border-slate-200 dark:border-slate-700 text-[11px]">
+                    Pending interaction
+                  </span>
+                )}
               </div>
               <div>
                 <span className="text-slate-500 font-semibold block mb-1">Recommended Action:</span>
@@ -841,12 +882,20 @@ export default function LeadDetail() {
                   Schedule product demo & confirm quote parameters with {lead.firstName || "customer"}.
                 </p>
               </div>
-              <div>
-                <span className="text-slate-500 font-semibold block mb-1">Risk Indicator:</span>
-                <p className="text-[11px] text-amber-700 dark:text-amber-300 font-medium bg-amber-50 dark:bg-amber-950/40 p-2.5 rounded-xl border border-amber-200 dark:border-amber-900/60">
-                  No direct phone contact in 7 days. High upsell potential on standard service items.
-                </p>
-              </div>
+              {(!hasActivities || !lastContactDate || (daysSinceLastContact !== null && daysSinceLastContact > 7)) && (
+                <div>
+                  <span className="text-slate-500 font-semibold block mb-1">Risk Indicator:</span>
+                  {!hasActivities || !lastContactDate ? (
+                    <p className="text-[11px] text-slate-600 dark:text-slate-400 font-medium bg-slate-50 dark:bg-slate-800/80 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-700">
+                      No contact logged yet
+                    </p>
+                  ) : (
+                    <p className="text-[11px] text-amber-700 dark:text-amber-300 font-medium bg-amber-50 dark:bg-amber-950/40 p-2.5 rounded-xl border border-amber-200 dark:border-amber-900/60">
+                      No direct contact in {daysSinceLastContact} days. Follow up required.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -956,7 +1005,38 @@ export default function LeadDetail() {
                   </div>
                   <div>
                     <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Estimated Value</span>
-                    <span className="font-bold text-emerald-600">{formatCurrency((lead.leadScore || 50) * 1000)}</span>
+                    {(() => {
+                      const realVal =
+                        lead.estimatedValue ??
+                        lead.expectedValue ??
+                        lead.opportunity?.amount ??
+                        lead.deal?.amount;
+                      if (
+                        realVal !== undefined &&
+                        realVal !== null &&
+                        realVal !== "" &&
+                        !isNaN(Number(realVal)) &&
+                        Number(realVal) > 0
+                      ) {
+                        return (
+                          <span className="font-bold text-emerald-600">
+                            {formatCurrency(Number(realVal))}
+                          </span>
+                        );
+                      }
+                      if (lead.budgetRange) {
+                        return (
+                          <span className="font-semibold text-slate-700 dark:text-slate-300">
+                            {lead.budgetRange}
+                          </span>
+                        );
+                      }
+                      return (
+                        <span className="text-slate-400 dark:text-slate-500 font-medium">
+                          Not estimated
+                        </span>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>
@@ -1011,12 +1091,47 @@ export default function LeadDetail() {
             </div>
           </div>
 
+          {/* Marketing & Attribution Card */}
+          <LeadAttributionCard leadId={id!} />
+
           {/* ── Company Intelligence Card (Hunter.io enrichment) ─────────────── */}
-          {lead.enrichmentStatus && lead.enrichmentStatus !== null && (() => {
+          {(() => {
             const status = lead.enrichmentStatus as string;
+            if (!status || status === "skipped" || status === "not_found" || status === "failed") {
+              return null;
+            }
+
+            if (status === "pending") {
+              return (
+                <div className="bg-white dark:bg-slate-900 border border-violet-200/80 dark:border-violet-900/40 rounded-2xl p-5 shadow-xs space-y-3 relative overflow-hidden">
+                  <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-2.5">
+                    <h3 className="text-xs font-black uppercase tracking-wider text-violet-600 dark:text-violet-400 flex items-center gap-1.5">
+                      <Building2 className="w-4 h-4" /> Company Intelligence
+                    </h3>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950 dark:text-violet-300 dark:border-violet-800">
+                      Enriching…
+                    </span>
+                  </div>
+                  <div className="space-y-2.5 animate-pulse">
+                    {[85, 60, 75, 50, 90].map((w, i) => (
+                      <div key={i} className="h-3 bg-slate-200 dark:bg-slate-700 rounded-full" style={{ width: `${w}%` }} />
+                    ))}
+                    <p className="text-[10px] text-slate-400 text-center pt-1">Fetching company data from Hunter.io…</p>
+                  </div>
+                </div>
+              );
+            }
+
             const enriched = lead.enrichmentData ? (() => { try { return JSON.parse(lead.enrichmentData); } catch { return null; } })() : null;
 
-            // reEnrichMutation is defined as a top-level hook above (rules-of-hooks compliant)
+            const hasMeaningfulData = Boolean(
+              enriched &&
+              (enriched.industry || enriched.sector || enriched.sizeRange || enriched.employeeCount || enriched.foundedYear || enriched.country || enriched.city || enriched.companyType || enriched.description || enriched.linkedinHandle)
+            );
+
+            if (!hasMeaningfulData || status !== "enriched") {
+              return null;
+            }
 
             return (
               <div className="bg-white dark:bg-slate-900 border border-violet-200/80 dark:border-violet-900/40 rounded-2xl p-5 shadow-xs space-y-3 relative overflow-hidden">
@@ -1025,316 +1140,96 @@ export default function LeadDetail() {
                   <h3 className="text-xs font-black uppercase tracking-wider text-violet-600 dark:text-violet-400 flex items-center gap-1.5">
                     <Building2 className="w-4 h-4" /> Company Intelligence
                   </h3>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                    status === "enriched"     ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800" :
-                    status === "pending"      ? "bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950 dark:text-violet-300 dark:border-violet-800" :
-                    status === "skipped"      ? "bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-800" :
-                    status === "not_found"    ? "bg-slate-50 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700" :
-                    /* failed/rate_limited */   "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800"
-                  }`}>
-                    {status === "enriched" ? "Enriched" : status === "pending" ? "Enriching…" : status === "skipped" ? "Personal Email" : status === "not_found" ? "No Data" : "Failed"}
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800">
+                    Enriched
                   </span>
                 </div>
 
-                {/* PENDING — shimmer skeleton */}
-                {status === "pending" && (
-                  <div className="space-y-2.5 animate-pulse">
-                    {[85, 60, 75, 50, 90].map((w, i) => (
-                      <div key={i} className={`h-3 bg-slate-200 dark:bg-slate-700 rounded-full`} style={{ width: `${w}%` }} />
-                    ))}
-                    <p className="text-[10px] text-slate-400 text-center pt-1">Fetching company data from Hunter.io…</p>
-                  </div>
-                )}
-
                 {/* ENRICHED — populated grid */}
-                {status === "enriched" && enriched && (
-                  <div className="space-y-3 text-xs">
-                    {enriched.industry && (
-                      <div className="flex justify-between items-start gap-2">
-                        <span className="text-slate-400 font-medium shrink-0">Industry</span>
-                        <span className="font-semibold text-slate-800 dark:text-slate-200 text-right">{enriched.industry}</span>
-                      </div>
-                    )}
-                    {enriched.sector && enriched.sector !== enriched.industry && (
-                      <div className="flex justify-between items-start gap-2">
-                        <span className="text-slate-400 font-medium shrink-0">Sector</span>
-                        <span className="font-semibold text-slate-800 dark:text-slate-200 text-right">{enriched.sector}</span>
-                      </div>
-                    )}
-                    {(enriched.sizeRange || enriched.employeeCount) && (
-                      <div className="flex justify-between items-start gap-2">
-                        <span className="text-slate-400 font-medium shrink-0">Headcount</span>
-                        <span className="font-semibold text-slate-800 dark:text-slate-200 text-right">
-                          {enriched.employeeCount ? enriched.employeeCount.toLocaleString() : enriched.sizeRange}
-                          {enriched.sizeRange && enriched.employeeCount && <span className="text-slate-400 ml-1">({enriched.sizeRange})</span>}
-                        </span>
-                      </div>
-                    )}
-                    {enriched.foundedYear && (
-                      <div className="flex justify-between items-start gap-2">
-                        <span className="text-slate-400 font-medium shrink-0">Founded</span>
-                        <span className="font-semibold text-slate-800 dark:text-slate-200">{enriched.foundedYear}</span>
-                      </div>
-                    )}
-                    {enriched.country && (
-                      <div className="flex justify-between items-start gap-2">
-                        <span className="text-slate-400 font-medium shrink-0">HQ</span>
-                        <span className="font-semibold text-slate-800 dark:text-slate-200 text-right">
-                          {[enriched.city, enriched.country].filter(Boolean).join(", ")}
-                        </span>
-                      </div>
-                    )}
-                    {enriched.companyType && (
-                      <div className="flex justify-between items-start gap-2">
-                        <span className="text-slate-400 font-medium shrink-0">Type</span>
-                        <span className="font-semibold text-slate-800 dark:text-slate-200 capitalize text-right">{enriched.companyType}</span>
-                      </div>
-                    )}
-                    {enriched.linkedinHandle && (
-                      <div className="flex justify-between items-center gap-2">
-                        <span className="text-slate-400 font-medium shrink-0">LinkedIn</span>
-                        <a
-                          href={`https://linkedin.com/${enriched.linkedinHandle}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1 text-right"
-                        >
-                          View profile <ExternalLink className="w-3 h-3" />
-                        </a>
-                      </div>
-                    )}
-                    {enriched.description && (
-                      <div className="pt-1 border-t border-slate-100 dark:border-slate-800">
-                        <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed line-clamp-3">{enriched.description}</p>
-                      </div>
-                    )}
-                    {enriched.tags && enriched.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1 pt-1">
-                        {enriched.tags.slice(0, 5).map((tag: string) => (
-                          <span key={tag} className="text-[10px] bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800 px-2 py-0.5 rounded-full font-medium">
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                    {/* Re-enrich stale data */}
-                    <div className="pt-1 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                      <span className="text-[10px] text-slate-400">
-                        {lead.enrichedAt ? `Updated ${new Date(lead.enrichedAt).toLocaleDateString()}` : "via Hunter.io"}
+                <div className="space-y-3 text-xs">
+                  {enriched.industry && (
+                    <div className="flex justify-between items-start gap-2">
+                      <span className="text-slate-400 font-medium shrink-0">Industry</span>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200 text-right">{enriched.industry}</span>
+                    </div>
+                  )}
+                  {enriched.sector && enriched.sector !== enriched.industry && (
+                    <div className="flex justify-between items-start gap-2">
+                      <span className="text-slate-400 font-medium shrink-0">Sector</span>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200 text-right">{enriched.sector}</span>
+                    </div>
+                  )}
+                  {(enriched.sizeRange || enriched.employeeCount) && (
+                    <div className="flex justify-between items-start gap-2">
+                      <span className="text-slate-400 font-medium shrink-0">Headcount</span>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200 text-right">
+                        {enriched.employeeCount ? enriched.employeeCount.toLocaleString() : enriched.sizeRange}
+                        {enriched.sizeRange && enriched.employeeCount && <span className="text-slate-400 ml-1">({enriched.sizeRange})</span>}
                       </span>
-                      <button
-                        id="btn-reenrich-lead"
-                        onClick={() => reEnrichMutation.mutate()}
-                        disabled={reEnrichMutation.isPending}
-                        className="text-[10px] text-violet-600 hover:text-violet-700 font-bold hover:underline flex items-center gap-1 disabled:opacity-50"
+                    </div>
+                  )}
+                  {enriched.foundedYear && (
+                    <div className="flex justify-between items-start gap-2">
+                      <span className="text-slate-400 font-medium shrink-0">Founded</span>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200">{enriched.foundedYear}</span>
+                    </div>
+                  )}
+                  {enriched.country && (
+                    <div className="flex justify-between items-start gap-2">
+                      <span className="text-slate-400 font-medium shrink-0">HQ</span>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200 text-right">
+                        {[enriched.city, enriched.country].filter(Boolean).join(", ")}
+                      </span>
+                    </div>
+                  )}
+                  {enriched.companyType && (
+                    <div className="flex justify-between items-start gap-2">
+                      <span className="text-slate-400 font-medium shrink-0">Type</span>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200 capitalize text-right">{enriched.companyType}</span>
+                    </div>
+                  )}
+                  {enriched.linkedinHandle && (
+                    <div className="flex justify-between items-center gap-2">
+                      <span className="text-slate-400 font-medium shrink-0">LinkedIn</span>
+                      <a
+                        href={`https://linkedin.com/${enriched.linkedinHandle}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1 text-right"
                       >
-                        {reEnrichMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
-                        Re-enrich
-                      </button>
+                        View profile <ExternalLink className="w-3 h-3" />
+                      </a>
                     </div>
-                  </div>
-                )}
-
-                {/* SKIPPED — personal email domain */}
-                {status === "skipped" && (
-                  <div className="flex items-start gap-2 text-xs text-blue-700 dark:text-blue-300 bg-blue-50/60 dark:bg-blue-950/30 p-3 rounded-xl border border-blue-200/70 dark:border-blue-800/60">
-                    <Mail className="w-3.5 h-3.5 shrink-0 mt-0.5 text-blue-500" />
-                    <span>Personal email domain — company enrichment skipped to conserve API quota.</span>
-                  </div>
-                )}
-
-                {/* NOT FOUND — company not in Hunter database */}
-                {status === "not_found" && (
-                  <div className="flex items-start gap-2 text-xs text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
-                    <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-slate-400" />
-                    <span>No company data found in Hunter.io for this domain.</span>
-                  </div>
-                )}
-
-                {/* FAILED / RATE_LIMITED — show re-enrich button */}
-                {(status === "failed" || status === "rate_limited") && (
-                  <div className="space-y-2">
-                    <div className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 p-3 rounded-xl border border-amber-200 dark:border-amber-900/60">
-                      <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                      <span>
-                        {status === "rate_limited"
-                          ? "Hunter.io rate limit hit — try again shortly."
-                          : "Enrichment failed — check API key and domain formatting."}
-                      </span>
+                  )}
+                  {enriched.description && (
+                    <div className="pt-1 border-t border-slate-100 dark:border-slate-800">
+                      <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed line-clamp-3">{enriched.description}</p>
                     </div>
+                  )}
+                  {enriched.tags && enriched.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1 pt-1">
+                      {enriched.tags.slice(0, 5).map((tag: string) => (
+                        <span key={tag} className="text-[10px] bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800 px-2 py-0.5 rounded-full font-medium">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {/* Re-enrich button */}
+                  <div className="pt-1 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                    <span className="text-[10px] text-slate-400">
+                      {lead.enrichedAt ? `Updated ${new Date(lead.enrichedAt).toLocaleDateString()}` : "via Hunter.io"}
+                    </span>
                     <button
-                      id="btn-reenrich-lead-failed"
+                      id="btn-reenrich-lead"
                       onClick={() => reEnrichMutation.mutate()}
                       disabled={reEnrichMutation.isPending}
-                      className="w-full py-1.5 text-xs font-bold text-violet-700 dark:text-violet-300 border border-violet-300 dark:border-violet-700 rounded-xl hover:bg-violet-50 dark:hover:bg-violet-950/40 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
+                      className="text-[11px] font-bold text-violet-600 dark:text-violet-400 hover:underline flex items-center gap-1 cursor-pointer"
                     >
-                      {reEnrichMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Building2 className="w-3.5 h-3.5" />}
-                      {reEnrichMutation.isPending ? "Enriching…" : "Retry Enrichment"}
+                      <RefreshCw className={`w-3 h-3 ${reEnrichMutation.isPending ? "animate-spin" : ""}`} />
+                      <span>{reEnrichMutation.isPending ? "Enriching…" : "Re-enrich"}</span>
                     </button>
                   </div>
-                )}
-
-                {/* ── Domain Contacts & Email Pattern Section (On-Demand Discovery) ── */}
-                <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2.5">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                      <Users className="w-3.5 h-3.5 text-violet-500" />
-                      Key Decision Makers & Contacts
-                    </h4>
-                    {discoveredContactsData && (
-                      <button
-                        id="btn-refresh-discovered-contacts"
-                        onClick={() => findContactsMutation.mutate(true)}
-                        disabled={findContactsMutation.isPending}
-                        title="Re-run Hunter domain search"
-                        className="text-[10px] text-violet-600 hover:text-violet-700 dark:text-violet-400 font-semibold flex items-center gap-1 disabled:opacity-50 hover:underline"
-                      >
-                        <RefreshCw className={`w-3 h-3 ${findContactsMutation.isPending ? "animate-spin" : ""}`} />
-                        Refresh
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Pending state while discovering */}
-                  {findContactsMutation.isPending && (
-                    <div className="p-3 bg-violet-50/50 dark:bg-violet-950/20 border border-violet-100 dark:border-violet-900/40 rounded-xl space-y-2 animate-pulse">
-                      <div className="flex items-center gap-2 text-xs text-violet-700 dark:text-violet-300 font-medium">
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        Searching Hunter.io for verified contacts…
-                      </div>
-                      <div className="h-2.5 bg-violet-200 dark:bg-violet-800 rounded-full w-3/4" />
-                      <div className="h-2.5 bg-violet-200 dark:bg-violet-800 rounded-full w-1/2" />
-                    </div>
-                  )}
-
-                  {/* Error state */}
-                  {findContactsMutation.isError && (
-                    <div className="flex items-start gap-2 text-xs text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/30 p-2.5 rounded-xl border border-rose-200 dark:border-rose-900/50">
-                      <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-rose-500" />
-                      <span>{(findContactsMutation.error as any)?.message || "Failed to discover contacts"}</span>
-                    </div>
-                  )}
-
-                  {/* Discovered Contacts Data View */}
-                  {discoveredContactsData && !findContactsMutation.isPending && (
-                    <div className="space-y-2">
-                      {/* Email Pattern Banner */}
-                      {discoveredContactsData.emailPattern && (
-                        <div className="flex items-center justify-between text-[11px] bg-slate-50 dark:bg-slate-800/80 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700">
-                          <span className="text-slate-500 font-medium flex items-center gap-1">
-                            <Mail className="w-3 h-3 text-slate-400" /> Pattern
-                          </span>
-                          <span className="font-mono text-violet-700 dark:text-violet-300 font-bold text-[10px]">
-                            {discoveredContactsData.emailPattern}@{discoveredContactsData.domain}
-                          </span>
-                        </div>
-                      )}
-
-                      {/* Domain Email Index Count vs Displayed Contacts */}
-                      {discoveredContactsData.totalFound > 0 && (
-                        <div className="text-[10px] text-slate-500 dark:text-slate-400 px-1 font-medium">
-                          {discoveredContactsData.totalFound > (discoveredContactsData.contacts?.length || 0)
-                            ? `${discoveredContactsData.totalFound.toLocaleString()} emails on file, showing top ${discoveredContactsData.contacts?.length || 0}`
-                            : `${discoveredContactsData.contacts?.length || 0} contact${discoveredContactsData.contacts?.length === 1 ? "" : "s"} found`}
-                        </div>
-                      )}
-
-                      {/* Contacts list */}
-                      {discoveredContactsData.contacts && discoveredContactsData.contacts.length > 0 ? (
-                        <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-                          {discoveredContactsData.contacts.map((contact: any, idx: number) => (
-                            <div
-                              key={idx}
-                              className="p-2.5 bg-slate-50/70 dark:bg-slate-800/60 rounded-xl border border-slate-200/80 dark:border-slate-700/80 hover:border-violet-300 dark:hover:border-violet-700 transition-colors space-y-1.5"
-                            >
-                              <div className="flex items-start justify-between gap-1.5">
-                                <div className="min-w-0">
-                                  <div className="font-bold text-slate-900 dark:text-slate-100 text-xs truncate">
-                                    {[contact.firstName, contact.lastName].filter(Boolean).join(" ") || "Verified Contact"}
-                                  </div>
-                                  {contact.position && (
-                                    <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate flex items-center gap-1">
-                                      <Briefcase className="w-2.5 h-2.5 shrink-0 text-slate-400" />
-                                      {contact.position}
-                                    </div>
-                                  )}
-                                </div>
-                                {contact.department && (
-                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-slate-200/80 dark:bg-slate-700 text-slate-700 dark:text-slate-300 uppercase shrink-0">
-                                    {contact.department}
-                                  </span>
-                                )}
-                              </div>
-
-                              <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-200/50 dark:border-slate-700/50">
-                                <span className="font-mono text-[11px] text-slate-700 dark:text-slate-300 truncate max-w-[170px]" title={contact.email}>
-                                  {contact.email}
-                                </span>
-                                <div className="flex items-center gap-1.5 shrink-0">
-                                  {contact.confidence > 0 && (
-                                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
-                                      contact.confidence >= 80
-                                        ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
-                                        : "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
-                                    }`}>
-                                      {contact.confidence}%
-                                    </span>
-                                  )}
-                                  <button
-                                    onClick={() => copyEmailToClipboard(contact.email)}
-                                    title="Copy email address"
-                                    className="p-1 text-slate-400 hover:text-violet-600 hover:bg-violet-50 dark:hover:bg-slate-700 rounded-md transition-colors"
-                                  >
-                                    {copiedEmail === contact.email ? (
-                                      <Check className="w-3 h-3 text-emerald-600" />
-                                    ) : (
-                                      <Copy className="w-3 h-3" />
-                                    )}
-                                  </button>
-                                  {contact.linkedinUrl && (
-                                    <a
-                                      href={contact.linkedinUrl}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="p-1 text-slate-400 hover:text-blue-600 rounded-md"
-                                      title="LinkedIn Profile"
-                                    >
-                                      <ExternalLink className="w-3 h-3" />
-                                    </a>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="text-center py-2.5 text-xs text-slate-400 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
-                          No named contacts found for this domain in Hunter.io.
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Initial state before discovery is triggered */}
-                  {!discoveredContactsData && !findContactsMutation.isPending && (
-                    <div className="pt-1">
-                      {status === "skipped" ? (
-                        <p className="text-[11px] text-slate-400 italic">
-                          Contact discovery is disabled for personal webmail domains.
-                        </p>
-                      ) : (
-                        <button
-                          id="btn-find-contacts"
-                          onClick={() => findContactsMutation.mutate(false)}
-                          disabled={findContactsMutation.isPending}
-                          className="w-full py-2 px-3 text-xs font-bold text-violet-700 dark:text-violet-300 bg-violet-50/80 dark:bg-violet-950/40 border border-violet-200 dark:border-violet-800/80 rounded-xl hover:bg-violet-100 dark:hover:bg-violet-900/40 transition-colors flex items-center justify-center gap-1.5 shadow-2xs"
-                        >
-                          <Search className="w-3.5 h-3.5" />
-                          Find Company Contacts
-                        </button>
-                      )}
-                    </div>
-                  )}
                 </div>
               </div>
             );

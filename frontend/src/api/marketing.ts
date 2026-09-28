@@ -24,6 +24,55 @@ export interface CampaignFilterParams {
   search?: string;
 }
 
+export interface TimeseriesBucket {
+  period: string;
+  label: string;
+  leads: number;
+  opportunities: number;
+  wonOrders: number;
+}
+
+export interface CampaignTimeseriesResponse {
+  campaignId: string;
+  granularity: "day" | "week";
+  totalEvents: number;
+  data: TimeseriesBucket[];
+}
+
+/**
+ * Downloads a CSV blob from an authenticated endpoint
+ */
+export async function downloadCsvBlob(path: string, fallbackFilename: string): Promise<void> {
+  const res = await apiClient(path, { method: "GET" });
+  if (!res.ok) {
+    let errorMsg = `Export failed (${res.status})`;
+    try {
+      const err = await res.json();
+      if (err?.error || err?.message) errorMsg = err.error || err.message;
+    } catch {}
+    throw new Error(errorMsg);
+  }
+
+  const blob = await res.blob();
+  const contentDisposition = res.headers.get("Content-Disposition");
+  let filename = fallbackFilename;
+  if (contentDisposition) {
+    const match = contentDisposition.match(/filename=["']?([^"';]+)["']?/i);
+    if (match && match[1]) {
+      filename = match[1].trim();
+    }
+  }
+
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(url);
+}
+
 export const campaignsApi = {
   getCampaigns: async (params?: CampaignFilterParams): Promise<PaginatedResponse<Campaign>> => {
     const query = new URLSearchParams();
@@ -40,6 +89,29 @@ export const campaignsApi = {
 
   getCampaignById: async (id: string): Promise<{ campaign: Campaign; performance: CampaignPerformance }> => {
     const raw = await apiClient.get(`/api/v1/campaigns/${id}`);
+    return raw;
+  },
+
+  exportCampaignsCsv: async (params?: { status?: string; channel?: string; search?: string }): Promise<void> => {
+    const query = new URLSearchParams();
+    if (params?.status && params.status !== "ALL") query.set("status", params.status);
+    if (params?.channel && params.channel !== "ALL") query.set("channel", params.channel);
+    if (params?.search) query.set("search", params.search);
+    const queryString = query.toString() ? `?${query.toString()}` : "";
+    await downloadCsvBlob(`/api/v1/campaigns/export${queryString}`, `campaigns_export_${Date.now()}.csv`);
+  },
+
+  exportCampaignLeadsCsv: async (campaignId: string, campaignCode?: string): Promise<void> => {
+    const safeCode = (campaignCode || campaignId).replace(/[^a-zA-Z0-9-_]/g, "_");
+    const fallbackName = `campaign_${safeCode}_leads.csv`;
+    await downloadCsvBlob(`/api/v1/campaigns/${campaignId}/leads/export`, fallbackName);
+  },
+
+  getCampaignTimeseries: async (
+    campaignId: string,
+    granularity: "day" | "week" = "day"
+  ): Promise<CampaignTimeseriesResponse> => {
+    const raw = await apiClient.get(`/api/v1/campaigns/${campaignId}/timeseries?granularity=${granularity}`);
     return raw;
   },
 

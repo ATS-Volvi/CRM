@@ -20,11 +20,42 @@ import {
   AlertTriangle,
   X,
   CheckCircle2,
-  RefreshCw
+  RefreshCw,
+  Filter,
+  Download
 } from "lucide-react";
 import { campaignsApi, attributionApi } from "../api/marketing";
 import { Campaign, CampaignPerformance, SourcePerformance } from "../types/marketing";
 import { CampaignFormModal } from "../components/CampaignFormModal";
+import {
+  formatMoney,
+  formatMultiCurrencyTotals,
+  calculateSingleCurrencyRoas
+} from "../lib/formatMoney";
+
+const DEFAULT_CHANNELS = [
+  "Website",
+  "WhatsApp",
+  "Email",
+  "Instagram",
+  "Facebook",
+  "LinkedIn",
+  "Phone",
+  "Manual",
+  "Referral",
+  "Partner",
+  "API",
+  "Other"
+];
+
+const STATUS_OPTIONS = [
+  { value: "", label: "All Statuses" },
+  { value: "DRAFT", label: "Draft" },
+  { value: "ACTIVE", label: "Active" },
+  { value: "PAUSED", label: "Paused" },
+  { value: "COMPLETED", label: "Completed" },
+  { value: "CANCELLED", label: "Cancelled" }
+];
 
 export default function Campaigns() {
   const navigate = useNavigate();
@@ -33,6 +64,8 @@ export default function Campaigns() {
   const [activeTab, setActiveTab] = useState<"campaigns" | "sources">("campaigns");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("");
+  const [channelFilter, setChannelFilter] = useState<string>("");
 
   // Debounce search by 350ms before triggering API fetch
   useEffect(() => {
@@ -46,9 +79,48 @@ export default function Campaigns() {
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
 
+  // CSV Export state
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+
   // Deletion modal states
   const [campaignToDelete, setCampaignToDelete] = useState<any | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const handleExportCsv = async () => {
+    try {
+      setIsExporting(true);
+      setExportError(null);
+      await campaignsApi.exportCampaignsCsv({
+        search: debouncedSearch.trim() || undefined,
+        status: statusFilter || undefined,
+        channel: channelFilter || undefined
+      });
+    } catch (err: any) {
+      setExportError(err.message || "Failed to export campaigns");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  // Fetch attribution taxonomy channels
+  const { data: taxonomyData } = useQuery({
+    queryKey: ["attribution-taxonomy"],
+    queryFn: async () => {
+      try {
+        const res = await attributionApi.getTaxonomy();
+        return res;
+      } catch (e) {
+        return null;
+      }
+    },
+    staleTime: 5 * 60 * 1000
+  });
+
+  const availableChannels =
+    taxonomyData?.channels && taxonomyData.channels.length > 0
+      ? taxonomyData.channels
+      : DEFAULT_CHANNELS;
 
   // Fetch all campaigns with performance data
   const {
@@ -56,12 +128,14 @@ export default function Campaigns() {
     isLoading: loadingCampaigns,
     refetch: refetchCampaigns
   } = useQuery({
-    queryKey: ["campaigns-analytics", debouncedSearch],
+    queryKey: ["campaigns-analytics", debouncedSearch, statusFilter, channelFilter],
     queryFn: async () => {
       try {
         const res = await campaignsApi.getCampaigns({
           limit: 100,
-          search: debouncedSearch.trim() || undefined
+          search: debouncedSearch.trim() || undefined,
+          status: statusFilter || undefined,
+          channel: channelFilter || undefined
         });
         if (res?.data && Array.isArray(res.data)) {
           return res.data;
@@ -100,19 +174,24 @@ export default function Campaigns() {
 
   const campaigns: any[] = Array.isArray(campaignsData) ? campaignsData : [];
 
-  const totalLeads = campaigns.reduce((sum, row: any) => {
-    const m = row.metrics || row;
-    return sum + (m.totalLeads || 0);
-  }, 0);
-  const totalWonRevenue = campaigns.reduce((sum, row: any) => {
-    const m = row.metrics || row;
-    return sum + (m.totalRevenue || 0);
-  }, 0);
-  const totalSpend = campaigns.reduce((sum, row: any) => {
+  // Calculate totals strictly from visible/filtered rows
+  let totalLeads = 0;
+  const spendByCurrency: Record<string, number> = {};
+  const revenueByCurrency: Record<string, number> = {};
+
+  campaigns.forEach((row: any) => {
     const c = row.campaign || row;
-    return sum + (c.actualSpend || 0);
-  }, 0);
-  const overallRoas = totalSpend > 0 ? (totalWonRevenue / totalSpend).toFixed(2) : null;
+    const m = row.metrics || row;
+    const curr = (c.currency || "SAR").toUpperCase();
+
+    totalLeads += Number(m?.totalLeads ?? m?.leads ?? 0);
+    spendByCurrency[curr] = (spendByCurrency[curr] || 0) + (Number(c?.actualSpend) || 0);
+    revenueByCurrency[curr] = (revenueByCurrency[curr] || 0) + (Number(m?.totalRevenue ?? m?.revenue) || 0);
+  });
+
+  const overallRoas = calculateSingleCurrencyRoas(spendByCurrency, revenueByCurrency);
+
+  const hasActiveFilters = Boolean(debouncedSearch.trim() || statusFilter || channelFilter);
 
   const filteredChannels = (sourceData?.byChannel || []).filter((ch) => {
     if (!debouncedSearch.trim()) return true;
@@ -138,28 +217,6 @@ export default function Campaigns() {
         </div>
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
-          {/* Search Input */}
-          <div className="relative w-full sm:w-64">
-            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-            <input
-              type="text"
-              placeholder="Search campaigns..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-8 pr-8 py-1.5 text-xs bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-400 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900 dark:focus:ring-blue-500 focus:bg-white dark:focus:bg-slate-900 transition-all"
-            />
-            {search && (
-              <button
-                type="button"
-                onClick={() => setSearch("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded cursor-pointer"
-                aria-label="Clear search"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-
           {/* Tabs */}
           <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700">
             <button
@@ -184,6 +241,21 @@ export default function Campaigns() {
             </button>
           </div>
 
+          {/* Export CSV Button */}
+          <button
+            onClick={handleExportCsv}
+            disabled={isExporting}
+            className="px-3.5 py-1.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 font-bold rounded-xl text-xs flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap disabled:opacity-50 shadow-xs"
+            title="Export filtered campaigns to CSV"
+          >
+            {isExporting ? (
+              <RefreshCw className="w-4 h-4 animate-spin text-slate-500" />
+            ) : (
+              <Download className="w-4 h-4 text-slate-500" />
+            )}
+            <span>{isExporting ? "Exporting..." : "Export CSV"}</span>
+          </button>
+
           {/* Create Campaign Button */}
           <button
             onClick={() => {
@@ -198,6 +270,100 @@ export default function Campaigns() {
         </div>
       </div>
 
+      {/* Export Error Banner */}
+      {exportError && (
+        <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 text-xs flex items-center justify-between gap-2 animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{exportError}</span>
+          </div>
+          <button
+            onClick={() => setExportError(null)}
+            className="p-1 hover:bg-rose-100 dark:hover:bg-rose-900 rounded cursor-pointer"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
+      {/* Filter & Search Bar */}
+      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 flex-1">
+          {/* Search Input */}
+          <div className="relative w-full sm:w-72">
+            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search by name, code, description..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-8 pr-8 py-1.5 text-xs bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-400 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900 dark:focus:ring-blue-500 focus:bg-white dark:focus:bg-slate-900 transition-all"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded cursor-pointer"
+                aria-label="Clear search"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Channel Dropdown Filter */}
+          <div className="w-full sm:w-44">
+            <select
+              value={channelFilter}
+              onChange={(e) => setChannelFilter(e.target.value)}
+              className="w-full px-2.5 py-1.5 text-xs bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+            >
+              <option value="">All Channels</option>
+              {availableChannels.map((ch) => (
+                <option key={ch} value={ch}>
+                  {ch}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Status Dropdown Filter */}
+          <div className="w-full sm:w-36">
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="w-full px-2.5 py-1.5 text-xs bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+            >
+              {STATUS_OPTIONS.map((st) => (
+                <option key={st.value} value={st.value}>
+                  {st.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Reset Filters */}
+          {hasActiveFilters && (
+            <button
+              onClick={() => {
+                setSearch("");
+                setDebouncedSearch("");
+                setStatusFilter("");
+                setChannelFilter("");
+              }}
+              className="px-2.5 py-1.5 text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-lg transition-colors flex items-center gap-1 font-medium cursor-pointer shrink-0"
+            >
+              <X className="w-3 h-3" />
+              <span>Reset filters</span>
+            </button>
+          )}
+        </div>
+
+        <div className="text-[11px] text-slate-400 font-medium">
+          Showing <span className="font-bold text-slate-700 dark:text-slate-300">{campaigns.length}</span> campaign{campaigns.length === 1 ? "" : "s"}
+        </div>
+      </div>
+
       {/* Top High-Level Metrics Summary */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="enterprise-card p-4 space-y-1">
@@ -205,7 +371,9 @@ export default function Campaigns() {
             Total Inbound Leads
           </div>
           <div className="text-xl font-extrabold text-slate-900 dark:text-white">{totalLeads}</div>
-          <div className="text-[11px] text-slate-500">Across all tracked campaigns</div>
+          <div className="text-[11px] text-slate-500">
+            {hasActiveFilters ? "Filtered campaigns" : "Across all tracked campaigns"}
+          </div>
         </div>
 
         <div className="enterprise-card p-4 space-y-1">
@@ -213,7 +381,7 @@ export default function Campaigns() {
             Total Marketing Spend
           </div>
           <div className="text-xl font-extrabold text-slate-900 dark:text-white">
-            ₹{totalSpend.toLocaleString()}
+            {formatMultiCurrencyTotals(spendByCurrency)}
           </div>
           <div className="text-[11px] text-slate-500">Actual media & campaign costs</div>
         </div>
@@ -223,7 +391,7 @@ export default function Campaigns() {
             Won Revenue Attributed
           </div>
           <div className="text-xl font-extrabold text-emerald-600 dark:text-emerald-400">
-            ₹{totalWonRevenue.toLocaleString()}
+            {formatMultiCurrencyTotals(revenueByCurrency)}
           </div>
           <div className="text-[11px] text-slate-500">Closed orders from campaign leads</div>
         </div>
@@ -233,9 +401,11 @@ export default function Campaigns() {
             Overall ROAS / Return
           </div>
           <div className="text-xl font-extrabold text-blue-600 dark:text-blue-400">
-            {overallRoas ? `${overallRoas}x` : "—"}
+            {overallRoas ? overallRoas : "—"}
           </div>
-          <div className="text-[11px] text-slate-500">Revenue / Actual Media Spend</div>
+          <div className="text-[11px] text-slate-500">
+            {Object.keys(spendByCurrency).length > 1 ? "Multi-currency (uncombined)" : "Revenue / Actual Spend"}
+          </div>
         </div>
       </div>
 
@@ -328,17 +498,19 @@ export default function Campaigns() {
                           </span>
                         </td>
                         <td className="text-slate-700 font-medium">
-                          ₹{Number(c.budget || 0).toLocaleString()}
+                          {formatMoney(c.budget, c.currency)}
                         </td>
                         <td className="text-slate-900 dark:text-white font-bold">
-                          {c.actualSpend !== null && c.actualSpend !== undefined ? `₹${Number(c.actualSpend).toLocaleString()}` : "—"}
+                          {c.actualSpend !== null && c.actualSpend !== undefined
+                            ? formatMoney(c.actualSpend, c.currency)
+                            : "—"}
                         </td>
                         <td className="font-semibold text-slate-800 dark:text-slate-200">{m?.totalLeads || 0}</td>
                         <td className="text-slate-700 dark:text-slate-300">{m?.qualifiedLeads || 0}</td>
                         <td className="text-slate-700 dark:text-slate-300">{m?.totalOpportunities || 0}</td>
                         <td className="text-slate-700 dark:text-slate-300 font-semibold">{m?.wonOrdersCount || 0}</td>
                         <td className="text-emerald-700 dark:text-emerald-400 font-bold">
-                          ₹{Number(m?.totalRevenue || 0).toLocaleString()}
+                          {formatMoney(m?.totalRevenue, c.currency)}
                         </td>
                         <td className="font-bold text-blue-600 dark:text-blue-400">
                           {m?.roas !== null && m?.roas !== undefined ? `${m.roas}x` : "—"}

@@ -8,7 +8,6 @@ import crypto from "crypto";
 const HUNTER_API_BASE = "https://api.hunter.io/v2";
 
 // Free-tier personal email domains — skip enrichment for these.
-// Single shared constant reused across leadIngestion.ts and enrichmentService.ts.
 export const PERSONAL_DOMAINS = new Set([
   "gmail.com", "yahoo.com", "hotmail.com", "outlook.com",
   "hotmail.co.uk", "yahoo.co.uk", "icloud.com", "me.com",
@@ -16,6 +15,28 @@ export const PERSONAL_DOMAINS = new Set([
   "yandex.com", "mail.com", "gmx.com", "zoho.com",
   "googlemail.com", "rediffmail.com"
 ]);
+
+// Reserved, test, and placeholder domains — skip enrichment for these.
+export const RESERVED_TEST_DOMAINS = new Set([
+  "example.com", "example.org", "example.net",
+  "test.com", "localhost", "local", "invalid",
+  "whatsapp.local"
+]);
+
+export function isReservedOrTestDomain(domain: string): boolean {
+  const d = (domain || "").toLowerCase().trim();
+  return (
+    RESERVED_TEST_DOMAINS.has(d) ||
+    d.endsWith(".local") ||
+    d.endsWith(".test") ||
+    d.endsWith(".example") ||
+    d.endsWith(".localhost")
+  );
+}
+
+export function shouldSkipEnrichment(domain: string): boolean {
+  return isPersonalDomain(domain) || isReservedOrTestDomain(domain);
+}
 
 // ─────────────────────────────────────────────────────────────────
 // TYPES
@@ -277,7 +298,7 @@ export async function enrichCompany(
     return null;
   }
 
-  if (isPersonalDomain(domain)) {
+  if (shouldSkipEnrichment(domain)) {
     return null; // Caller should mark as 'skipped'
   }
 
@@ -330,7 +351,7 @@ export async function enrichCompany(
  * Fire-and-forget enrichment for a specific lead.
  *
  * - Extracts domain from the lead's email address
- * - Skips personal domains (marks lead 'skipped' in DB)
+ * - Skips personal & test domains (marks lead 'skipped' in DB)
  * - Calls enrichCompany() and writes result to the Lead record
  * - Logs every API call to EnrichmentUsage for credit tracking
  * - NEVER throws — all errors are caught, logged, and the lead is
@@ -356,15 +377,15 @@ export async function enrichLeadAsync(
 
   const domain = extractDomain(email);
 
-  // ── Skip: no domain or personal domain ─────────────────────────
-  if (!domain || isPersonalDomain(domain)) {
+  // ── Skip: no domain, personal domain, or reserved/test domain ──────
+  if (!domain || shouldSkipEnrichment(domain)) {
     try {
       await Lead.update(
-        { enrichmentStatus: "skipped" },
+        { enrichmentStatus: "skipped", enrichmentData: null },
         { where: { id: leadId } }
       );
       await logEnrichmentUsage(leadId, "hunter", domain, "skipped", null, null);
-      console.log(`[enrichment] Skipped personal/invalid domain for lead ${leadId} (${domain ?? "no domain"})`);
+      console.log(`[enrichment] Skipped personal/test/invalid domain for lead ${leadId} (${domain ?? "no domain"})`);
     } catch (skipErr) {
       console.error("[enrichment] Error marking lead as skipped:", leadId, skipErr);
     }
@@ -380,9 +401,18 @@ export async function enrichLeadAsync(
   try {
     result = await enrichCompany(domain);
 
-    if (result) {
+    const hasMeaningfulData = Boolean(
+      result &&
+      (result.name || result.industry || result.sector || result.sizeRange || result.employeeCount || result.country || result.companyType || result.description)
+    );
+
+    if (result && hasMeaningfulData) {
       callStatus = "enriched";
       httpStatus = 200;
+    } else if (result && !hasMeaningfulData) {
+      callStatus = "not_found";
+      httpStatus = 404;
+      result = null;
     } else if (!process.env.HUNTER_API_KEY || process.env.HUNTER_API_KEY === "your_hunter_api_key_here") {
       callStatus = "failed";
       errorMessage = "HUNTER_API_KEY is not configured on server";
@@ -411,13 +441,13 @@ export async function enrichLeadAsync(
       console.log(`[enrichment] ✓ Lead ${leadId} enriched from Hunter.io (${domain}) — ${result.name ?? "unknown"}, ${result.industry ?? "N/A"}, ${result.sizeRange ?? "N/A"} employees`);
     } else {
       await Lead.update(
-        { enrichmentStatus: callStatus },
+        { enrichmentStatus: callStatus, enrichmentData: null },
         { where: { id: leadId } }
       );
       if (callStatus === "failed") {
         console.warn(`[enrichment] ✗ Lead ${leadId} enrichment failed (${domain}): ${errorMessage}`);
       } else {
-        console.log(`[enrichment] — Lead ${leadId} enrichment skipped (${domain})`);
+        console.log(`[enrichment] — Lead ${leadId} enrichment skipped/not found (${domain})`);
       }
     }
   } catch (persistErr) {

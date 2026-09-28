@@ -3,6 +3,8 @@ import { sequelize } from "@nexus-crm/database";
 import { Op } from "sequelize";
 import crypto from "crypto";
 import { getCampaignPerformance } from "../services/attributionService";
+import { generateCsv } from "../utils/csvHelper";
+import { fillTimeseriesGaps, TimeseriesEvent } from "../utils/timeseriesHelper";
 
 export const getCampaigns = async (req: Request, res: Response) => {
   try {
@@ -84,6 +86,229 @@ export const getCampaigns = async (req: Request, res: Response) => {
       limit: Number(limit),
       total: count,
       totalPages: Math.ceil(count / Number(limit))
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const exportCampaigns = async (req: Request, res: Response) => {
+  try {
+    const { status, channel, search } = req.query;
+
+    const where: any = {};
+    if (status) where.status = status;
+    if (channel) where.channel = channel;
+    if (search) {
+      const likeOp = sequelize.getDialect() === "sqlite" ? Op.like : Op.iLike;
+      where[Op.or] = [
+        { name: { [likeOp]: `%${search}%` } },
+        { code: { [likeOp]: `%${search}%` } },
+        { description: { [likeOp]: `%${search}%` } }
+      ];
+    }
+
+    const campaigns = await sequelize.models.Campaign.findAll({
+      where,
+      order: [["createdAt", "DESC"]]
+    });
+
+    // Reuse getCampaignPerformance for metrics to prevent duplicate funnel math
+    const allPerformance = await getCampaignPerformance();
+    const perfMap = new Map<string, any>();
+    if (Array.isArray(allPerformance)) {
+      for (const p of allPerformance) {
+        if (p.campaign?.id) {
+          perfMap.set(p.campaign.id, p.metrics);
+        }
+      }
+    }
+
+    const headers = [
+      "name",
+      "code",
+      "channel",
+      "platform",
+      "status",
+      "startDate",
+      "endDate",
+      "currency",
+      "budget",
+      "actualSpend",
+      "totalLeads",
+      "qualifiedLeads",
+      "totalOpportunities",
+      "wonOrdersCount",
+      "totalRevenue",
+      "costPerLead",
+      "costPerWonDeal",
+      "roas",
+      "roiPct"
+    ];
+
+    const rows = campaigns.map((c: any) => {
+      const metrics = perfMap.get(c.id) || {};
+      return [
+        c.name || "",
+        c.code || "",
+        c.channel || "",
+        c.platform || "",
+        c.status || "",
+        c.startDate ? new Date(c.startDate).toISOString().slice(0, 10) : "",
+        c.endDate ? new Date(c.endDate).toISOString().slice(0, 10) : "",
+        c.currency || "INR",
+        c.budget !== null && c.budget !== undefined ? Number(c.budget) : 0,
+        c.actualSpend !== null && c.actualSpend !== undefined ? Number(c.actualSpend) : "",
+        metrics.totalLeads ?? 0,
+        metrics.qualifiedLeads ?? 0,
+        metrics.totalOpportunities ?? 0,
+        metrics.wonOrdersCount ?? 0,
+        metrics.totalRevenue ?? 0,
+        metrics.costPerLead !== null && metrics.costPerLead !== undefined ? metrics.costPerLead : "",
+        metrics.costPerWonDeal !== null && metrics.costPerWonDeal !== undefined ? metrics.costPerWonDeal : "",
+        metrics.roas !== null && metrics.roas !== undefined ? metrics.roas : "",
+        metrics.roiPct !== null && metrics.roiPct !== undefined ? metrics.roiPct : ""
+      ];
+    });
+
+    const csvContent = generateCsv(headers, rows);
+
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="campaigns_export_${Date.now()}.csv"`);
+    res.status(200).send(csvContent);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const exportCampaignLeads = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const campaign = await sequelize.models.Campaign.findByPk(String(id));
+    if (!campaign) {
+      return res.status(404).json({ error: "Campaign not found" });
+    }
+
+    const leads = await sequelize.models.Lead.findAll({
+      where: { campaignId: String(id) },
+      order: [["createdAt", "DESC"]],
+      include: [
+        { model: sequelize.models.CampaignAd, as: "ad" },
+        { model: sequelize.models.User, as: "assignedTo", attributes: ["id", "name", "email"] }
+      ]
+    });
+
+    const headers = [
+      "leadNumber",
+      "name",
+      "company",
+      "email",
+      "phone",
+      "status",
+      "assignedTo",
+      "ad",
+      "createdAt"
+    ];
+
+    const rows = leads.map((l: any) => {
+      const fullName = `${l.firstName || ""} ${l.lastName || ""}`.trim();
+      const assigned = l.assignedTo ? `${l.assignedTo.name || ""} (${l.assignedTo.email || ""})`.trim() : "";
+      const adName = l.ad ? (l.ad.name || l.ad.externalId || "") : "";
+      const createdAt = l.createdAt ? new Date(l.createdAt).toISOString() : "";
+
+      return [
+        l.leadNumber || "",
+        fullName,
+        l.company || "",
+        l.email || "",
+        l.phone || "",
+        l.status || "",
+        assigned,
+        adName,
+        createdAt
+      ];
+    });
+
+    const csvContent = generateCsv(headers, rows);
+    const safeCode = ((campaign as any).code || id).replace(/[^a-zA-Z0-9-_]/g, "_");
+
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="campaign_${safeCode}_leads.csv"`);
+    res.status(200).send(csvContent);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const getCampaignTimeseries = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { granularity = "day" } = req.query;
+    const validGranularity = granularity === "week" ? "week" : "day";
+
+    const campaign = await sequelize.models.Campaign.findByPk(String(id));
+    if (!campaign) {
+      return res.status(404).json({ error: "Campaign not found" });
+    }
+
+    const { Lead, Deal, Quote, PurchaseOrder } = sequelize.models;
+
+    // Fetch Leads created for this campaign
+    const leads = await Lead.findAll({
+      where: { campaignId: String(id) },
+      attributes: ["id", "createdAt"]
+    });
+
+    // Fetch Deals / Opportunities created for this campaign
+    const deals = await Deal.findAll({
+      where: { campaignId: String(id) },
+      attributes: ["id", "createdAt"]
+    });
+
+    // Fetch Won Orders for these deals
+    const dealIds = deals.map((d: any) => d.id);
+    let orders: any[] = [];
+    if (dealIds.length > 0) {
+      orders = await PurchaseOrder.findAll({
+        attributes: ["id", "createdAt", "generatedDate"],
+        include: [
+          {
+            model: Quote,
+            as: "quote",
+            where: { dealId: { [Op.in]: dealIds } },
+            attributes: ["id", "dealId"]
+          }
+        ]
+      });
+    }
+
+    const events: TimeseriesEvent[] = [];
+
+    leads.forEach((l: any) => {
+      if (l.createdAt) events.push({ date: l.createdAt, type: "lead" });
+    });
+
+    deals.forEach((d: any) => {
+      if (d.createdAt) events.push({ date: d.createdAt, type: "opportunity" });
+    });
+
+    orders.forEach((o: any) => {
+      const orderDate = o.createdAt || o.generatedDate;
+      if (orderDate) events.push({ date: orderDate, type: "wonOrder" });
+    });
+
+    const timeseries = fillTimeseriesGaps(
+      events,
+      validGranularity,
+      (campaign as any).startDate,
+      (campaign as any).endDate
+    );
+
+    res.json({
+      campaignId: id,
+      granularity: validGranularity,
+      totalEvents: events.length,
+      data: timeseries
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
