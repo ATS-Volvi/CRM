@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -19,6 +19,7 @@ import {
   AlertTriangle,
   Clock,
   ArrowRight,
+  ArrowUpDown,
   ExternalLink,
   ShieldCheck,
   FileText,
@@ -261,6 +262,31 @@ export default function CampaignDetail() {
   const leads = Array.isArray(leadsData?.data) ? leadsData.data : [];
   const opportunities = Array.isArray(oppsData?.data) ? oppsData.data : [];
   const ads: CampaignAd[] = Array.isArray(campaign.ads) ? campaign.ads : [];
+
+  const [adSortField, setAdSortField] = useState<"leads" | null>("leads");
+  const [adSortDirection, setAdSortDirection] = useState<"asc" | "desc">("desc");
+
+  const adMetricsMap = useMemo(() => {
+    const map = new Map<string, any>();
+    (metrics.adMetrics || []).forEach((m: any) => {
+      if (m.adId) map.set(m.adId, m);
+    });
+    return map;
+  }, [metrics.adMetrics]);
+
+  const sortedAds = useMemo(() => {
+    const list = [...ads];
+    if (adSortField === "leads") {
+      list.sort((a, b) => {
+        const ma = adMetricsMap.get(a.id);
+        const mb = adMetricsMap.get(b.id);
+        const aLeads = ma ? ma.totalLeads : leads.filter((l: any) => l.adId === a.id).length;
+        const bLeads = mb ? mb.totalLeads : leads.filter((l: any) => l.adId === b.id).length;
+        return adSortDirection === "asc" ? aLeads - bLeads : bLeads - aLeads;
+      });
+    }
+    return list;
+  }, [ads, adSortField, adSortDirection, adMetricsMap, leads]);
 
   const currency = campaign.currency || "SAR";
   const budget = Number(campaign.budget || 0);
@@ -1259,14 +1285,35 @@ export default function CampaignDetail() {
                     <th className="py-3 px-4">Platform</th>
                     <th className="py-3 px-4">Creative Type</th>
                     <th className="py-3 px-4">Status</th>
+                    <th
+                      className="py-3 px-4 cursor-pointer hover:bg-slate-100/80 dark:hover:bg-slate-800/80 transition-colors select-none"
+                      onClick={() => {
+                        if (adSortField === "leads") {
+                          setAdSortDirection(adSortDirection === "desc" ? "asc" : "desc");
+                        } else {
+                          setAdSortField("leads");
+                          setAdSortDirection("desc");
+                        }
+                      }}
+                      title="Sort by Leads"
+                    >
+                      <div className="flex items-center gap-1 font-bold text-slate-700 dark:text-slate-200">
+                        <span>Leads</span>
+                        <ArrowUpDown className={`w-3 h-3 ${adSortField === "leads" ? "text-blue-600 dark:text-blue-400" : "text-slate-400"}`} />
+                      </div>
+                    </th>
+                    <th className="py-3 px-4">Qualified</th>
+                    <th className="py-3 px-4">Opps</th>
+                    <th className="py-3 px-4">Won</th>
+                    <th className="py-3 px-4">Revenue</th>
                     <th className="py-3 px-4">Created Date</th>
                     <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
-                  {ads.length === 0 ? (
+                  {sortedAds.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="text-center py-10 text-slate-400">
+                      <td colSpan={12} className="text-center py-10 text-slate-400">
                         <Layers className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
                         <div className="font-semibold text-slate-700 dark:text-slate-300">No creative ads registered</div>
                         <div className="text-xs text-slate-400 mt-0.5 mb-3">
@@ -1286,70 +1333,146 @@ export default function CampaignDetail() {
                       </td>
                     </tr>
                   ) : (
-                    ads.map((ad) => (
-                      <tr key={ad.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
-                        <td className="py-3 px-4 font-bold text-slate-900 dark:text-white">
-                          {ad.name}
-                        </td>
-                        <td className="py-3 px-4 font-mono text-slate-600 dark:text-slate-400">
-                          {ad.externalId || "—"}
-                        </td>
-                        <td className="py-3 px-4 text-slate-700 dark:text-slate-300">
-                          {ad.platform || campaign.platform || "Direct"}
-                        </td>
-                        <td className="py-3 px-4 text-slate-600 dark:text-slate-400">
-                          {ad.creativeType || "Standard Ad"}
-                        </td>
-                        <td className="py-3 px-4">
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider border ${
-                              ad.status === "ACTIVE"
-                                ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800"
-                                : ad.status === "PAUSED"
-                                ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800"
-                                : "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
-                            }`}
-                          >
-                            {ad.status || "ACTIVE"}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-slate-500 text-[11px]">
-                          {new Date(ad.createdAt).toLocaleDateString()}
-                        </td>
-                        <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center justify-end gap-1">
-                            {/* Edit Action */}
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedAd(ad);
-                                setIsAdModalOpen(true);
-                              }}
-                              className="p-1.5 text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
-                              title="Edit Creative Ad"
-                            >
-                              <Edit2 className="w-3.5 h-3.5" />
-                            </button>
+                    sortedAds.map((ad) => {
+                      const m = adMetricsMap.get(ad.id);
+                      const adLeads = m ? m.totalLeads : leads.filter((l: any) => l.adId === ad.id).length;
+                      const adQual = m ? m.qualifiedLeads : leads.filter((l: any) => l.adId === ad.id && (l.status === "QUALIFIED" || l.status === "CONVERTED")).length;
+                      const adOpps = m ? m.totalOpportunities : opportunities.filter((o: any) => o.adId === ad.id).length;
+                      const adWon = m ? m.wonOrdersCount : 0;
+                      const adRevenue = m ? m.totalRevenue : 0;
 
-                            {/* Delete Action */}
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setDeleteAdError(null);
-                                setAdToDelete(ad);
-                              }}
-                              className="p-1.5 text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-lg transition-colors cursor-pointer"
-                              title="Delete Creative Ad"
+                      return (
+                        <tr key={ad.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
+                          <td className="py-3 px-4 font-bold text-slate-900 dark:text-white">
+                            {ad.name}
+                          </td>
+                          <td className="py-3 px-4 font-mono text-slate-600 dark:text-slate-400">
+                            {ad.externalId || "—"}
+                          </td>
+                          <td className="py-3 px-4 text-slate-700 dark:text-slate-300">
+                            {ad.platform || campaign.platform || "Direct"}
+                          </td>
+                          <td className="py-3 px-4 text-slate-600 dark:text-slate-400">
+                            {ad.creativeType || "Standard Ad"}
+                          </td>
+                          <td className="py-3 px-4">
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider border ${
+                                ad.status === "ACTIVE"
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800"
+                                  : ad.status === "PAUSED"
+                                  ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800"
+                                  : "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
+                              }`}
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
+                              {ad.status || "ACTIVE"}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 font-bold text-slate-900 dark:text-white">
+                            {adLeads > 0 ? adLeads : "—"}
+                          </td>
+                          <td className="py-3 px-4 text-slate-700 dark:text-slate-300">
+                            {adQual > 0 ? adQual : "—"}
+                          </td>
+                          <td className="py-3 px-4 text-slate-700 dark:text-slate-300">
+                            {adOpps > 0 ? adOpps : "—"}
+                          </td>
+                          <td className="py-3 px-4 font-semibold text-slate-800 dark:text-slate-200">
+                            {adWon > 0 ? adWon : "—"}
+                          </td>
+                          <td className="py-3 px-4 font-bold text-emerald-600 dark:text-emerald-400">
+                            {adRevenue > 0 ? formatMoney(adRevenue, currency) : "—"}
+                          </td>
+                          <td className="py-3 px-4 text-slate-500 text-[11px]">
+                            {new Date(ad.createdAt).toLocaleDateString()}
+                          </td>
+                          <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-end gap-1">
+                              {/* Edit Action */}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedAd(ad);
+                                  setIsAdModalOpen(true);
+                                }}
+                                className="p-1.5 text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                                title="Edit Creative Ad"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+
+                              {/* Delete Action */}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDeleteAdError(null);
+                                  setAdToDelete(ad);
+                                }}
+                                className="p-1.5 text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-lg transition-colors cursor-pointer"
+                                title="Delete Creative Ad"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
+
+                  {/* Final Muted Unattributed Row */}
+                  <tr className="bg-slate-50/70 dark:bg-slate-800/40 text-slate-500 dark:text-slate-400 italic">
+                    <td className="py-3 px-4 font-medium text-slate-600 dark:text-slate-300">
+                      Not attributed to an ad
+                    </td>
+                    <td className="py-3 px-4 font-mono text-slate-400">—</td>
+                    <td className="py-3 px-4 text-slate-400">Direct / General</td>
+                    <td className="py-3 px-4 text-slate-400">—</td>
+                    <td className="py-3 px-4">
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-500 border border-slate-200 dark:border-slate-700">
+                        General
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 font-semibold text-slate-700 dark:text-slate-300 not-italic">
+                      {(() => {
+                        const unattr = (metrics.adMetrics || []).find((m: any) => m.isUnattributed || m.adId === null);
+                        const leadsCount = unattr ? unattr.totalLeads : leads.filter((l: any) => !l.adId).length;
+                        return leadsCount > 0 ? leadsCount : "—";
+                      })()}
+                    </td>
+                    <td className="py-3 px-4 not-italic">
+                      {(() => {
+                        const unattr = (metrics.adMetrics || []).find((m: any) => m.isUnattributed || m.adId === null);
+                        const count = unattr ? unattr.qualifiedLeads : leads.filter((l: any) => !l.adId && (l.status === "QUALIFIED" || l.status === "CONVERTED")).length;
+                        return count > 0 ? count : "—";
+                      })()}
+                    </td>
+                    <td className="py-3 px-4 not-italic">
+                      {(() => {
+                        const unattr = (metrics.adMetrics || []).find((m: any) => m.isUnattributed || m.adId === null);
+                        const count = unattr ? unattr.totalOpportunities : opportunities.filter((o: any) => !o.adId).length;
+                        return count > 0 ? count : "—";
+                      })()}
+                    </td>
+                    <td className="py-3 px-4 not-italic">
+                      {(() => {
+                        const unattr = (metrics.adMetrics || []).find((m: any) => m.isUnattributed || m.adId === null);
+                        const count = unattr ? unattr.wonOrdersCount : 0;
+                        return count > 0 ? count : "—";
+                      })()}
+                    </td>
+                    <td className="py-3 px-4 font-medium text-emerald-600 dark:text-emerald-400 not-italic">
+                      {(() => {
+                        const unattr = (metrics.adMetrics || []).find((m: any) => m.isUnattributed || m.adId === null);
+                        const rev = unattr ? unattr.totalRevenue : 0;
+                        return rev > 0 ? formatMoney(rev, currency) : "—";
+                      })()}
+                    </td>
+                    <td className="py-3 px-4 text-slate-400 text-[11px]">—</td>
+                    <td className="py-3 px-4 text-right text-slate-400">—</td>
+                  </tr>
                 </tbody>
               </table>
             </div>

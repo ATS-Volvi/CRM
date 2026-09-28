@@ -32,6 +32,7 @@ import {
   formatMultiCurrencyTotals,
   calculateSingleCurrencyRoas
 } from "../lib/formatMoney";
+import { getCampaignWarningBadges } from "../lib/campaignPacing";
 
 const DEFAULT_CHANNELS = [
   "Website",
@@ -464,6 +465,7 @@ export default function Campaigns() {
                   campaigns.map((row: any) => {
                     const c = row.campaign || row;
                     const m = row.metrics || row;
+                    const badges = getCampaignWarningBadges(c, m?.totalLeads ?? m?.leads ?? 0);
                     return (
                       <tr
                         key={c.id}
@@ -479,6 +481,25 @@ export default function Campaigns() {
                             {c.name}
                           </Link>
                           <div className="text-[11px] text-slate-400 font-mono">code: {c.code}</div>
+                          {badges.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {badges.map((b) => (
+                                <span
+                                  key={b.type}
+                                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-extrabold border ${
+                                    b.severity === "rose"
+                                      ? "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-900"
+                                      : b.severity === "amber"
+                                      ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800"
+                                      : "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
+                                  }`}
+                                >
+                                  <AlertTriangle className="w-2.5 h-2.5 shrink-0" />
+                                  <span>{b.label}</span>
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </td>
                         <td>
                           <div className="text-xs font-medium text-slate-800 dark:text-slate-200">{c.channel}</div>

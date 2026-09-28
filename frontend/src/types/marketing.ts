@@ -87,6 +87,21 @@ export interface AttributionEvent {
   createdAt: string;
 }
 
+export interface CampaignAdMetric {
+  adId: string | null;
+  adName: string;
+  externalId?: string | null;
+  platform?: string | null;
+  creativeType?: string | null;
+  status: string;
+  totalLeads: number;
+  qualifiedLeads: number;
+  totalOpportunities: number;
+  wonOrdersCount: number;
+  totalRevenue: number;
+  isUnattributed?: boolean;
+}
+
 export interface CampaignMetrics {
   totalLeads: number;
   qualifiedLeads: number;
@@ -103,6 +118,7 @@ export interface CampaignMetrics {
   costPerWonDeal: number | null;
   roas: number | null;
   roiPct: number | null;
+  adMetrics?: CampaignAdMetric[];
 }
 
 export interface CampaignPerformance {
