@@ -38,6 +38,7 @@ export class User extends Model {
   public maxOpenDeals!: number | null;
   public createdByUserId!: string | null;
   public phone!: string | null;
+  public teamType!: string | null; // "PRESALES" | "SALES" | null
   public tier!: string | null;
 }
 
@@ -59,6 +60,7 @@ User.init(
     managerId: { type: DataTypes.UUID, allowNull: true },
     createdByUserId: { type: DataTypes.UUID, allowNull: true },
     phone: { type: DataTypes.STRING, allowNull: true },
+    teamType: { type: DataTypes.STRING, allowNull: true },
     department: { type: DataTypes.STRING, allowNull: true },
     territory: { type: DataTypes.STRING, allowNull: true },
     team: { type: DataTypes.STRING, allowNull: true },
@@ -106,6 +108,7 @@ export class Lead extends Model {
   public categoriesData!: any | null;
   public recipientEmail!: string | null;
   public assignmentMethod!: string | null;
+  public assignmentType!: string | null;
   // WhatsApp tracking fields
   public lastWhatsappAt!: Date | null;
   public unreadWhatsappCount!: number;
@@ -148,6 +151,11 @@ export class Lead extends Model {
   public missingFields!: any | null;
   public lastProcessedEventId!: string | null;
   public extractedRequirement!: any | null;
+
+  // Hunter.io Company Enrichment
+  public enrichmentStatus!: string | null;
+  public enrichmentData!: string | null;
+  public enrichedAt!: Date | null;
 }
 
 Lead.init(
@@ -175,6 +183,7 @@ Lead.init(
     categoriesData: { type: DataTypes.JSON, allowNull: true },
     recipientEmail: { type: DataTypes.STRING, allowNull: true },
     assignmentMethod: { type: DataTypes.STRING, allowNull: true },
+    assignmentType: { type: DataTypes.STRING, allowNull: true, defaultValue: "AUTOMATIC" },
     // WhatsApp tracking
     lastWhatsappAt: { type: DataTypes.DATE, allowNull: true },
     unreadWhatsappCount: { type: DataTypes.INTEGER, defaultValue: 0 },
@@ -211,6 +220,10 @@ Lead.init(
     missingFields: { type: DataTypes.JSON, allowNull: true },
     lastProcessedEventId: { type: DataTypes.STRING, allowNull: true },
     extractedRequirement: { type: DataTypes.JSON, allowNull: true },
+    // Hunter.io Company Enrichment
+    enrichmentStatus: { type: DataTypes.STRING(20), allowNull: true, defaultValue: "pending" },
+    enrichmentData: { type: DataTypes.TEXT, allowNull: true },
+    enrichedAt: { type: DataTypes.DATE, allowNull: true },
   },
   { 
     sequelize, 
@@ -337,11 +350,17 @@ export class Deal extends Model {
   public firstTouchAttribution!: string | null;
   public actualClosedAt!: Date | null;
   public originalOwnerId!: string | null;
+  public currency!: string;
+  public exchangeRateToOrg!: number | null;
+  public amountInOrgCurrency!: number | null;
 }
 
 Deal.init(
   {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    currency: { type: DataTypes.STRING(3), defaultValue: 'SAR' },
+    exchangeRateToOrg: { type: DataTypes.DECIMAL(18, 6), allowNull: true },
+    amountInOrgCurrency: { type: DataTypes.DECIMAL(15, 2), allowNull: true },
     name: { type: DataTypes.STRING, allowNull: false },
     amount: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
     stageId: { type: DataTypes.UUID, allowNull: true },
@@ -415,11 +434,13 @@ export class Quote extends Model {
   public rejectionReason!: string | null;
   public rejectedByUserId!: string | null;
   public rejectedAt!: Date | null;
+  public currency!: string;
 }
 
 Quote.init(
   {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    currency: { type: DataTypes.STRING(3), defaultValue: "SAR" },
     status: { type: DataTypes.STRING, defaultValue: "Draft" },
     totalAmount: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
     expirationDate: { type: DataTypes.DATE, allowNull: true },
@@ -554,11 +575,13 @@ export class PurchaseOrder extends Model {
   public notes!: string | null;
   public deliveryAddress!: string | null;
   public requestedDeliveryDate!: Date | null;
+  public currency!: string;
 }
 
 PurchaseOrder.init(
   {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    currency: { type: DataTypes.STRING(3), defaultValue: "SAR" },
     quoteId: { type: DataTypes.UUID, allowNull: true },
     status: { type: DataTypes.STRING, defaultValue: "Pending" },
     type: { type: DataTypes.ENUM("customer_po", "supply_order"), defaultValue: "customer_po", allowNull: false },
@@ -753,11 +776,13 @@ export class Invoice extends Model {
   public notes!: string;
   public amountPaid!: number;
   public paymentStatus!: string;
+  public currency!: string;
 }
 
 Invoice.init(
   {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    currency: { type: DataTypes.STRING(3), defaultValue: "SAR" },
     status: { type: DataTypes.STRING, defaultValue: "Draft" },
     totalAmount: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
     dueDate: { type: DataTypes.DATE, allowNull: true },
@@ -1199,11 +1224,13 @@ export class Account extends Model {
   public parentAccountId!: string | null;
   public revenue!: number | null;
   public employeeCount!: number | null;
+  public currency!: string;
 }
 
 Account.init(
   {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    currency: { type: DataTypes.STRING(3), defaultValue: "SAR" },
     name: { type: DataTypes.STRING, allowNull: false },
     primaryContactName: { type: DataTypes.STRING, allowNull: true },
     email: { type: DataTypes.STRING, allowNull: true },
@@ -1435,6 +1462,7 @@ export class KpiTarget extends Model {
   public id!: string;
   public salespersonId!: string;
   public kpiName!: string;
+  public kpiMasterId!: string | null;
   public targetValue!: number;
   public currentValue!: number;
   public frequency!: string;
@@ -1453,6 +1481,7 @@ KpiTarget.init(
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
     salespersonId: { type: DataTypes.UUID, allowNull: false },
     kpiName: { type: DataTypes.STRING, allowNull: false },
+    kpiMasterId: { type: DataTypes.UUID, allowNull: true, defaultValue: null },
     targetValue: { type: DataTypes.FLOAT, defaultValue: 0 },
     currentValue: { type: DataTypes.FLOAT, defaultValue: 0 },
     frequency: { type: DataTypes.STRING, defaultValue: "monthly" },
@@ -1529,6 +1558,9 @@ KpiMaster.init(
 KpiMaster.belongsTo(User, { foreignKey: "teamLeadId", as: "teamLead" });
 User.hasMany(KpiMaster, { foreignKey: "teamLeadId", as: "teamKpis" });
 
+// KpiTarget <-> KpiMaster link association
+KpiTarget.belongsTo(KpiMaster, { foreignKey: "kpiMasterId", as: "master" });
+KpiMaster.hasMany(KpiTarget, { foreignKey: "kpiMasterId", as: "targets" });
 export class GmailConfig extends Model {
   public id!: string;
   public connectedEmail!: string;
@@ -2265,6 +2297,12 @@ export class AdminApprovalPolicy extends Model {
   public maximumRepDiscount!: number;
   public maximumTeamLeadDiscount!: number;
   public minimumAllowedMargin!: number;
+  public repSelfApprovalDefault!: number;
+  public teamLeadApprovalDefault!: number;
+  public repTierCutoffExecutive!: number;
+  public repTierCutoffAgent!: number;
+  public repTierCutoffDefault!: number;
+  public currency!: string;
   public updatedById!: string | null;
   public createdAt!: Date;
   public updatedAt!: Date;
@@ -2278,6 +2316,12 @@ AdminApprovalPolicy.init(
     maximumRepDiscount: { type: DataTypes.DECIMAL(5, 4), defaultValue: 0.10 },
     maximumTeamLeadDiscount: { type: DataTypes.DECIMAL(5, 4), defaultValue: 0.20 },
     minimumAllowedMargin: { type: DataTypes.DECIMAL(5, 4), defaultValue: 0.15 },
+    repSelfApprovalDefault: { type: DataTypes.DECIMAL(15, 2), defaultValue: 1000000 },
+    teamLeadApprovalDefault: { type: DataTypes.DECIMAL(15, 2), defaultValue: 5000000 },
+    repTierCutoffExecutive: { type: DataTypes.DECIMAL(15, 2), defaultValue: 250000 },
+    repTierCutoffAgent: { type: DataTypes.DECIMAL(15, 2), defaultValue: 50000 },
+    repTierCutoffDefault: { type: DataTypes.DECIMAL(15, 2), defaultValue: 1000000 },
+    currency: { type: DataTypes.STRING(3), defaultValue: "INR" },
     updatedById: { type: DataTypes.UUID, allowNull: true },
   },
   { sequelize, modelName: "AdminApprovalPolicy", tableName: "AdminApprovalPolicies" }
@@ -2333,6 +2377,8 @@ export class SalesAssignmentPolicy extends Model {
   public bayesianWeight!: number;
   public highValueExperienceTiers!: string; // JSON
   public isPerformanceRoutingEnabled!: boolean;
+  public leadScoreValueMultiplier!: number;
+  public currency!: string;
   public createdAt!: Date;
   public updatedAt!: Date;
 }
@@ -2364,7 +2410,9 @@ SalesAssignmentPolicy.init(
       type: DataTypes.TEXT,
       defaultValue: JSON.stringify(["Senior Sales Representative", "Enterprise AE", "Strategic AE", "senior_ae", "sales_manager"])
     },
-    isPerformanceRoutingEnabled: { type: DataTypes.BOOLEAN, defaultValue: true }
+    isPerformanceRoutingEnabled: { type: DataTypes.BOOLEAN, defaultValue: true },
+    leadScoreValueMultiplier: { type: DataTypes.DECIMAL(15, 2), defaultValue: 10000 },
+    currency: { type: DataTypes.STRING(3), defaultValue: "INR" }
   },
   { sequelize, modelName: "SalesAssignmentPolicy", tableName: "SalesAssignmentPolicies" }
 );
@@ -2537,7 +2585,7 @@ Campaign.init(
     endDate: { type: DataTypes.DATE, allowNull: true },
     budget: { type: DataTypes.DECIMAL(12, 2), defaultValue: 0 },
     actualSpend: { type: DataTypes.DECIMAL(12, 2), allowNull: true },
-    currency: { type: DataTypes.STRING, defaultValue: "INR" },
+    currency: { type: DataTypes.STRING, defaultValue: "SAR" },
     ownerId: { type: DataTypes.UUID, allowNull: true },
     targetAudience: { type: DataTypes.TEXT, allowNull: true },
     objective: { type: DataTypes.STRING, allowNull: true }
@@ -2651,6 +2699,109 @@ AttributionEvent.init(
   { sequelize, modelName: "AttributionEvent", tableName: "AttributionEvents", updatedAt: false }
 );
 
+export class FlaggedLead extends Model {
+  public id!: string;
+  public payload!: any;
+  public source!: string;
+  public ip!: string | null;
+  public reason!: string;
+  public reviewed!: boolean;
+  public createdAt!: Date;
+  public updatedAt!: Date;
+}
+
+FlaggedLead.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    payload: { type: DataTypes.JSON, allowNull: false },
+    source: { type: DataTypes.STRING, allowNull: false, defaultValue: "Website" },
+    ip: { type: DataTypes.STRING, allowNull: true },
+    reason: { type: DataTypes.STRING, allowNull: false },
+    reviewed: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+  },
+  { sequelize, modelName: "FlaggedLead", tableName: "FlaggedLeads" }
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// EnrichmentUsage — Hunter.io credit tracking
+// ─────────────────────────────────────────────────────────────────────────────
+export class EnrichmentUsage extends Model {
+  public id!: string;
+  public leadId!: string | null;
+  public provider!: string;
+  public domain!: string | null;
+  public status!: string; // enriched | skipped | failed | rate_limited
+  public httpStatus!: number | null;
+  public errorMessage!: string | null;
+  public calledAt!: Date;
+}
+
+EnrichmentUsage.init(
+  {
+    id:           { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    leadId:       { type: DataTypes.UUID, allowNull: true },
+    provider:     { type: DataTypes.STRING(50),  allowNull: false, defaultValue: "hunter" },
+    domain:       { type: DataTypes.STRING(255), allowNull: true },
+    status:       { type: DataTypes.STRING(20),  allowNull: false },
+    httpStatus:   { type: DataTypes.INTEGER,     allowNull: true },
+    errorMessage: { type: DataTypes.TEXT,        allowNull: true },
+    calledAt:     { type: DataTypes.DATE,        allowNull: false, defaultValue: DataTypes.NOW }
+  },
+  { sequelize, modelName: "EnrichmentUsage", tableName: "EnrichmentUsages" }
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LeadContactDiscovery — Hunter.io on-demand domain contact discovery
+// ─────────────────────────────────────────────────────────────────────────────
+export class LeadContactDiscovery extends Model {
+  public id!: string;
+  public leadId!: string;
+  public domain!: string;
+  public contactsFound!: string; // JSON string of normalized DiscoveredContact[]
+  public emailPattern!: string | null;
+  public totalFound!: number;
+  public discoveredAt!: Date;
+  public requestedById!: string | null;
+  public readonly createdAt!: Date;
+  public readonly updatedAt!: Date;
+}
+
+LeadContactDiscovery.init(
+  {
+    id:            { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    leadId:        { type: DataTypes.UUID, allowNull: false },
+    domain:        { type: DataTypes.STRING(255), allowNull: false },
+    contactsFound: { type: DataTypes.TEXT, allowNull: false, defaultValue: "[]" },
+    emailPattern:  { type: DataTypes.STRING(100), allowNull: true },
+    totalFound:    { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+    discoveredAt:  { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
+    requestedById: { type: DataTypes.UUID, allowNull: true }
+  },
+  { sequelize, modelName: "LeadContactDiscovery", tableName: "LeadContactDiscoveries" }
+);
+
+export class OrgSettings extends Model {
+  public id!: string;
+  public defaultCurrency!: string;
+  public readonly createdAt!: Date;
+  public readonly updatedAt!: Date;
+}
+
+OrgSettings.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    defaultCurrency: { type: DataTypes.STRING(3), allowNull: false, defaultValue: "SAR" }
+  },
+  { sequelize, modelName: "OrgSettings", tableName: "OrgSettings" }
+);
+
+Lead.hasMany(LeadContactDiscovery, { foreignKey: "leadId", as: "contactDiscoveries" });
+LeadContactDiscovery.belongsTo(Lead, { foreignKey: "leadId", as: "lead" });
+
+User.hasMany(LeadContactDiscovery, { foreignKey: "requestedById", as: "requestedDiscoveries" });
+LeadContactDiscovery.belongsTo(User, { foreignKey: "requestedById", as: "requestedBy" });
+
+
 // ─── Campaign & Attribution Associations ─────────────────────────────────────
 User.hasMany(Campaign, { foreignKey: "ownerId", as: "campaigns" });
 Campaign.belongsTo(User, { foreignKey: "ownerId", as: "owner" });
@@ -2716,5 +2867,30 @@ CampaignMember.belongsTo(Campaign, { foreignKey: "campaignId", as: "campaign" })
 
 Lead.hasMany(CampaignMember, { foreignKey: "leadId", as: "campaignMembers" });
 CampaignMember.belongsTo(Lead, { foreignKey: "leadId", as: "lead" });
+
+export class ExchangeRate extends Model {
+  public id!: string;
+  public fromCurrency!: string;
+  public toCurrency!: string;
+  public rate!: number;
+  public updatedById!: string | null;
+  public needsReview!: boolean;
+  public isPlaceholder!: boolean;
+  public createdAt!: Date;
+  public updatedAt!: Date;
+}
+
+ExchangeRate.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    fromCurrency: { type: DataTypes.STRING(3), allowNull: false },
+    toCurrency: { type: DataTypes.STRING(3), allowNull: false },
+    rate: { type: DataTypes.DECIMAL(18, 6), allowNull: false },
+    updatedById: { type: DataTypes.UUID, allowNull: true },
+    needsReview: { type: DataTypes.BOOLEAN, defaultValue: false },
+    isPlaceholder: { type: DataTypes.BOOLEAN, defaultValue: false }
+  },
+  { sequelize, modelName: "ExchangeRate", tableName: "ExchangeRates" }
+);
 
 export { sequelize };
