@@ -3,6 +3,19 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
+    const dialect = queryInterface.sequelize.getDialect();
+    if (dialect === "sqlite") {
+      const tableInfo = await queryInterface.describeTable("PurchaseOrders");
+      if (!tableInfo.type) {
+        await queryInterface.addColumn("PurchaseOrders", "type", {
+          type: Sequelize.STRING,
+          allowNull: false,
+          defaultValue: "customer_po"
+        });
+      }
+      return;
+    }
+
     await queryInterface.sequelize.transaction(async (t) => {
       // Step 1: Create ENUM type (idempotent)
       await queryInterface.sequelize.query(
@@ -23,14 +36,14 @@ module.exports = {
       const tableInfo = await queryInterface.describeTable("PurchaseOrders");
       if (!tableInfo.type) {
         await queryInterface.sequelize.query(
-          `ALTER TABLE public."PurchaseOrders" ADD COLUMN type enum_PurchaseOrders_type NOT NULL DEFAULT 'customer_po'`,
+          `ALTER TABLE "PurchaseOrders" ADD COLUMN type enum_PurchaseOrders_type NOT NULL DEFAULT 'customer_po'`,
           { transaction: t }
         );
       }
 
       // Step 3: Verify backfill (read-only, informational — does not alter data)
       const [result] = await queryInterface.sequelize.query(
-        `SELECT type, COUNT(*) FROM public."PurchaseOrders" GROUP BY type`,
+        `SELECT type, COUNT(*) FROM "PurchaseOrders" GROUP BY type`,
         { transaction: t }
       );
       console.log("[migration 20260817240000] PurchaseOrders.type counts after migration:", result);
@@ -38,9 +51,15 @@ module.exports = {
   },
 
   async down(queryInterface, Sequelize) {
+    const dialect = queryInterface.sequelize.getDialect();
+    if (dialect === "sqlite") {
+      await queryInterface.removeColumn("PurchaseOrders", "type");
+      return;
+    }
+
     await queryInterface.sequelize.transaction(async (t) => {
       await queryInterface.sequelize.query(
-        `ALTER TABLE public."PurchaseOrders" DROP COLUMN IF EXISTS type`,
+        `ALTER TABLE "PurchaseOrders" DROP COLUMN IF EXISTS type`,
         { transaction: t }
       );
       await queryInterface.sequelize.query(

@@ -4,7 +4,11 @@ module.exports = {
   up: async (queryInterface, Sequelize) => {
     // 1. Create DiscountPolicies table if not exists
     const tables = await queryInterface.showAllTables();
-    if (!tables.includes('DiscountPolicies')) {
+    const tableNames = Array.isArray(tables)
+      ? tables.map((t) => (typeof t === 'object' ? t.tableName || t.name : t))
+      : [];
+
+    if (!tableNames.includes('DiscountPolicies')) {
       await queryInterface.createTable('DiscountPolicies', {
         id: {
           type: Sequelize.UUID,
@@ -39,8 +43,14 @@ module.exports = {
           defaultValue: Sequelize.literal('CURRENT_TIMESTAMP'),
         },
       });
+    }
 
-      // 2. Seed initial default discount policy values
+    // 2. Seed initial default discount policy values if empty
+    const [existing] = await queryInterface.sequelize.query(
+      'SELECT id FROM "DiscountPolicies" LIMIT 1;'
+    ).catch(() => [[]]);
+
+    if (!existing || existing.length === 0) {
       const now = new Date();
       await queryInterface.bulkInsert('DiscountPolicies', [
         {

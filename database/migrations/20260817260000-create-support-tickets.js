@@ -5,9 +5,78 @@ const { DataTypes } = require("sequelize");
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
+    const dialect = queryInterface.sequelize.getDialect();
     await queryInterface.sequelize.transaction(async (t) => {
       const tables = await queryInterface.showAllTables();
+      const tableNames = Array.isArray(tables)
+        ? tables.map((tbl) => (typeof tbl === "object" ? tbl.tableName || tbl.name : tbl))
+        : [];
 
+      if (dialect === "sqlite") {
+        if (!tableNames.includes("SupportTickets")) {
+          await queryInterface.createTable(
+            "SupportTickets",
+            {
+              id: {
+                type: DataTypes.UUID,
+                defaultValue: DataTypes.UUIDV4,
+                primaryKey: true
+              },
+              accountId: {
+                type: DataTypes.UUID,
+                allowNull: false,
+                references: { model: "Accounts", key: "id" },
+                onDelete: "CASCADE",
+                onUpdate: "CASCADE"
+              },
+              assetId: {
+                type: DataTypes.UUID,
+                allowNull: true,
+                references: { model: "Assets", key: "id" },
+                onDelete: "SET NULL",
+                onUpdate: "CASCADE"
+              },
+              raisedBy: {
+                type: DataTypes.UUID,
+                allowNull: true,
+                references: { model: "Users", key: "id" },
+                onDelete: "SET NULL",
+                onUpdate: "CASCADE"
+              },
+              status: {
+                type: DataTypes.STRING,
+                allowNull: false,
+                defaultValue: "open"
+              },
+              category: {
+                type: DataTypes.STRING,
+                allowNull: false,
+                defaultValue: "issue"
+              },
+              description: {
+                type: DataTypes.TEXT,
+                allowNull: true
+              },
+              resolvedAt: {
+                type: DataTypes.DATE,
+                allowNull: true
+              },
+              createdAt: {
+                type: DataTypes.DATE,
+                defaultValue: DataTypes.NOW
+              },
+              updatedAt: {
+                type: DataTypes.DATE,
+                defaultValue: DataTypes.NOW
+              }
+            },
+            { transaction: t }
+          );
+        }
+        return;
+      }
+
+      // Postgres path:
       // Create ENUMs for SupportTickets
       await queryInterface.sequelize.query(
         `
@@ -26,7 +95,7 @@ module.exports = {
       );
 
       // Create SupportTickets table
-      if (!tables.includes("SupportTickets")) {
+      if (!tableNames.includes("SupportTickets")) {
         await queryInterface.createTable(
           "SupportTickets",
           {
@@ -88,29 +157,29 @@ module.exports = {
 
         // Convert status to ENUM
         await queryInterface.sequelize.query(
-          `ALTER TABLE public."SupportTickets" ALTER COLUMN status DROP DEFAULT`,
+          `ALTER TABLE "SupportTickets" ALTER COLUMN status DROP DEFAULT`,
           { transaction: t }
         );
         await queryInterface.sequelize.query(
-          `ALTER TABLE public."SupportTickets" ALTER COLUMN status TYPE "enum_SupportTickets_status" USING status::"enum_SupportTickets_status"`,
+          `ALTER TABLE "SupportTickets" ALTER COLUMN status TYPE "enum_SupportTickets_status" USING status::"enum_SupportTickets_status"`,
           { transaction: t }
         );
         await queryInterface.sequelize.query(
-          `ALTER TABLE public."SupportTickets" ALTER COLUMN status SET DEFAULT 'open'::"enum_SupportTickets_status"`,
+          `ALTER TABLE "SupportTickets" ALTER COLUMN status SET DEFAULT 'open'::"enum_SupportTickets_status"`,
           { transaction: t }
         );
 
         // Convert category to ENUM
         await queryInterface.sequelize.query(
-          `ALTER TABLE public."SupportTickets" ALTER COLUMN category DROP DEFAULT`,
+          `ALTER TABLE "SupportTickets" ALTER COLUMN category DROP DEFAULT`,
           { transaction: t }
         );
         await queryInterface.sequelize.query(
-          `ALTER TABLE public."SupportTickets" ALTER COLUMN category TYPE "enum_SupportTickets_category" USING category::"enum_SupportTickets_category"`,
+          `ALTER TABLE "SupportTickets" ALTER COLUMN category TYPE "enum_SupportTickets_category" USING category::"enum_SupportTickets_category"`,
           { transaction: t }
         );
         await queryInterface.sequelize.query(
-          `ALTER TABLE public."SupportTickets" ALTER COLUMN category SET DEFAULT 'issue'::"enum_SupportTickets_category"`,
+          `ALTER TABLE "SupportTickets" ALTER COLUMN category SET DEFAULT 'issue'::"enum_SupportTickets_category"`,
           { transaction: t }
         );
       }
@@ -118,10 +187,13 @@ module.exports = {
   },
 
   async down(queryInterface, Sequelize) {
+    const dialect = queryInterface.sequelize.getDialect();
     await queryInterface.sequelize.transaction(async (t) => {
       await queryInterface.dropTable("SupportTickets", { transaction: t });
-      await queryInterface.sequelize.query(`DROP TYPE IF EXISTS "enum_SupportTickets_status"`, { transaction: t });
-      await queryInterface.sequelize.query(`DROP TYPE IF EXISTS "enum_SupportTickets_category"`, { transaction: t });
+      if (dialect !== "sqlite") {
+        await queryInterface.sequelize.query(`DROP TYPE IF EXISTS "enum_SupportTickets_status"`, { transaction: t });
+        await queryInterface.sequelize.query(`DROP TYPE IF EXISTS "enum_SupportTickets_category"`, { transaction: t });
+      }
     });
   }
 };
