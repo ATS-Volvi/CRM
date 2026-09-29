@@ -5,6 +5,9 @@ import { evaluateQuoteApproval } from "./approvalEngine";
 import { createNotification } from "./notificationEngine";
 import { autoAssignDeal } from "./dealAssignmentEngine";
 import { processOpportunityEvent } from "./opportunityAutomationEngine";
+import { getOrgCurrency } from "../utils/orgSettings";
+import { formatMoney } from "../utils/formatMoney";
+import { resolveLimit } from "../utils/exchangeRate";
 
 // ─── STEP 1: LEAD LIFECYCLE & STRICT STATE MACHINE CONTRACT ──────────────────
 
@@ -109,16 +112,22 @@ export interface NextActionState {
 export function computeNextActionEngine(
   stage: LeadStage,
   estimatedValue: number = 0,
-  ownerId: string | null = null
+  ownerId: string | null = null,
+  highValueThreshold?: number | null
 ): NextActionState {
   const rules = LIFECYCLE_STAGE_RULES[stage] || LIFECYCLE_STAGE_RULES.New;
   const slaHours = rules.slaHours || 24;
   const dueDate = new Date(Date.now() + slaHours * 3600 * 1000);
 
   let priority: "Low" | "Medium" | "High" | "Urgent" = "Medium";
-  if (estimatedValue >= 5000000) priority = "Urgent"; // >= ₹50L
-  else if (estimatedValue >= 1000000) priority = "High"; // >= ₹10L
-  else if (stage === "New") priority = "High";
+  if (highValueThreshold != null && highValueThreshold > 0) {
+    if (estimatedValue >= highValueThreshold * 0.5) priority = "Urgent"; // >= 0.5x threshold (e.g. ₹50L for 1Cr)
+    else if (estimatedValue >= highValueThreshold * 0.1) priority = "High"; // >= 0.1x threshold (e.g. ₹10L for 1Cr)
+    else if (stage === "New") priority = "High";
+  } else {
+    console.warn("[leadJourneyWorkflowEngine] highValueThreshold is not configured; applying non-escalated priority");
+    if (stage === "New") priority = "High";
+  }
 
   return {
     currentStage: stage,
@@ -138,7 +147,7 @@ export interface QualificationModel {
   timeline?: string;
   decisionMaker?: string;
   productService?: string;
-  probability?: number;
+  probability?: number | null;
   notes?: string;
   accountName?: string;
   dealName?: string;
@@ -168,7 +177,7 @@ export function validateQualificationData(data: Partial<QualificationModel>): Qu
     timeline: data.timeline || "Within 30 Days",
     decisionMaker: data.decisionMaker || "Primary Contact",
     productService: data.productService || "General Solutions",
-    probability: data.probability ?? 50,
+    probability: data.probability !== undefined && data.probability !== null ? data.probability : null,
     notes: data.notes || "",
     accountName: data.accountName,
     dealName: data.dealName
@@ -192,7 +201,16 @@ export async function convertLeadToOpportunity(
   const validQual = validateQualificationData(qualificationData);
 
   // 2. Compute Next Action Engine
-  const nextState = computeNextActionEngine("Qualified", validQual.estimatedValue, l.assignedToId || userId);
+  let highValueThreshold: number | null = null;
+  try {
+    const policy: any = await sequelize.models.SalesAssignmentPolicy?.findOne({ order: [["createdAt", "DESC"]] });
+    if (policy && policy.highValueThreshold != null) {
+      const orgCurrency = await getOrgCurrency();
+      const resolved = await resolveLimit(policy.highValueThreshold, policy.currency || "INR", orgCurrency);
+      highValueThreshold = resolved.orgAmount;
+    }
+  } catch (err) {}
+  const nextState = computeNextActionEngine("Qualified", validQual.estimatedValue, l.assignedToId || userId, highValueThreshold);
 
   // 3. Inherit Customer Account (find-or-create)
   const accountName = validQual.accountName || l.company || `${l.firstName} ${l.lastName}`.trim();
@@ -204,7 +222,8 @@ export async function convertLeadToOpportunity(
       primaryContactName: `${l.firstName} ${l.lastName}`.trim(),
       email: l.email,
       phone: l.phone,
-      industry: l.industry || "General"
+      industry: l.industry || "General",
+      currency: await getOrgCurrency()
     });
   }
 
@@ -258,6 +277,8 @@ export async function convertLeadToOpportunity(
       currentActivity: "Opportunity created from Lead",
       nextAction: "Contact customer / confirm requirements",
       nextActionDue: new Date(Date.now() + 24 * 3600 * 1000),
+      probability: validQual.probability !== null ? validQual.probability : (stage ? (stage as any).defaultProbability || (stage as any).probability || null : null),
+      currency: account.currency || (await getOrgCurrency()),
       stageId: stage ? (stage as any).id : null,
       leadId: l.id,
       accountId: account.id,
@@ -552,7 +573,7 @@ export async function convertLeadToOpportunity(
       userId: finalAssignedToId,
       type: "LEAD_QUALIFIED",
       title: "Lead Qualified & Opportunity Created",
-      message: `Lead '${l.firstName} ${l.lastName}' has been converted. Opportunity created with value ₹${validQual.estimatedValue.toLocaleString()}.`
+      message: `Lead '${l.firstName} ${l.lastName}' has been converted. Opportunity created with value ${formatMoney(validQual.estimatedValue, (deal as any)?.currency || (account as any)?.currency)}.`
     });
   }
 
@@ -623,7 +644,7 @@ export async function submitQuoteForApprovalWorkflow(quoteId: string, userId: st
         userId,
         type: "QUOTE_APPROVED",
         title: "Quote Auto-Approved",
-        message: `Quote #${q.quoteNumber || q.id} (₹${totalAmount.toLocaleString()}) auto-approved within limits.`
+        message: `Quote #${q.quoteNumber || q.id} (${formatMoney(totalAmount, (q as any)?.currency)}) auto-approved within limits.`
       });
     }
 
@@ -646,7 +667,7 @@ export async function submitQuoteForApprovalWorkflow(quoteId: string, userId: st
         status: "Pending",
         requestedById: userId,
         amount: totalAmount,
-        notes: `${evalResult.reason} (Amount: ₹${totalAmount.toLocaleString()})`
+        notes: `${evalResult.reason} (Amount: ${formatMoney(totalAmount, (q as any)?.currency)})`
       });
     } else {
       await appReq.update({ status: "Pending" });
@@ -663,7 +684,7 @@ export async function submitQuoteForApprovalWorkflow(quoteId: string, userId: st
         userId: (appr as any).id,
         type: "APPROVAL_REQUIRED",
         title: "Quote Approval Required",
-        message: `Quote #${q.quoteNumber || q.id} for ₹${totalAmount.toLocaleString()} requires your approval.`,
+        message: `Quote #${q.quoteNumber || q.id} for ${formatMoney(totalAmount, (q as any)?.currency)} requires your approval.`,
         metadata: { quoteId: q.id, approvalRequestId: (appReq as any).id }
       });
     }

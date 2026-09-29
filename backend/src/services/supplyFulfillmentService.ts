@@ -1,6 +1,8 @@
 import { sequelize } from "@nexus-crm/database";
 import crypto from "crypto";
 import { createNotification } from "./notificationService";
+import { getOrgCurrency } from "../utils/orgSettings";
+import { formatMoney } from "../utils/formatMoney";
 
 export const FULFILLMENT_STAGES = [
   "PENDING",
@@ -119,11 +121,13 @@ export async function createOrderFromFinalQuote(
     const salesOwnerId = q.deal?.ownerId || userId || null;
 
     // 5. Create Order (PurchaseOrder)
+    const orderCurrency = q.currency || q.deal?.currency || (await getOrgCurrency());
     const order = await sequelize.models.PurchaseOrder.create(
       {
         id: orderId,
         quoteId: q.id,
         amount: q.totalAmount,
+        currency: orderCurrency,
         status: "Confirmed",
         poNumber: orderNumber,
         generatedDate: new Date(),
@@ -188,7 +192,7 @@ export async function createOrderFromFinalQuote(
         leadId: null,
         customerId: accountId,
         type: "note",
-        outcome: `Order ${orderNumber} created from Quote ${q.quoteNumber || q.id} v${q.version} (Amount: ₹${Number(q.totalAmount).toLocaleString()}). Fulfillment PENDING created.`,
+        outcome: `Order ${orderNumber} created from Quote ${q.quoteNumber || q.id} v${q.version} (Amount: ${formatMoney(q.totalAmount, orderCurrency)}). Fulfillment PENDING created.`,
         mentioned_user_ids: "[]",
         pinned: true,
         createdById: userId || salesOwnerId || null,
@@ -205,7 +209,7 @@ export async function createOrderFromFinalQuote(
         (adminUser as any).id,
         "ORDER_FULFILLMENT_READY",
         `New Order Ready for Fulfillment: ${orderNumber}`,
-        `Order ${orderNumber} (₹${Number(q.totalAmount).toLocaleString()}) has been confirmed and is awaiting supply fulfillment planning.`,
+        `Order ${orderNumber} (${formatMoney(q.totalAmount, orderCurrency)}) has been confirmed and is awaiting supply fulfillment planning.`,
         `/supply/queue`
       ).catch(e => console.error("Supply notification error:", e));
     }

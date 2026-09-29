@@ -2,6 +2,8 @@ import { Request, Response } from "express";
 import { sequelize } from "@nexus-crm/database";
 import { autoAssignDeal, manualReassignDeal, getOpenDealsCount } from "../services/dealAssignmentEngine";
 import { getDealAccessLevel } from "../services/handoffAccessService";
+import { getOrgCurrency } from "../utils/orgSettings";
+import { resolveLimit } from "../utils/exchangeRate";
 
 /**
  * Helper to get caller ID from JWT token payload attached by authMiddleware.
@@ -181,15 +183,19 @@ export async function getDealAssignmentCutoffs(req: Request, res: Response) {
       console.warn("[getDealAssignmentCutoffs] Query warning:", dbErr);
     }
 
+    const orgCurrency = await getOrgCurrency();
     const repsWithLoad = await Promise.all(
       seniorAes.map(async (rep) => {
         const openDealsCount = await getOpenDealsCount(rep.id);
+        const resolved = await resolveLimit(rep.dealValueCutoff, orgCurrency, orgCurrency);
         return {
           id: rep.id,
           name: rep.name,
           email: rep.email,
           role: rep.role,
           dealValueCutoff: rep.dealValueCutoff !== null && rep.dealValueCutoff !== undefined ? Number(rep.dealValueCutoff) : null,
+          dealValueCutoffInOrg: rep.dealValueCutoff !== null && rep.dealValueCutoff !== undefined ? resolved.orgAmount : null,
+          dealValueCutoffDisplay: rep.dealValueCutoff !== null && rep.dealValueCutoff !== undefined ? resolved.display : "Unlimited",
           maxOpenDeals: rep.maxOpenDeals !== null && rep.maxOpenDeals !== undefined ? Number(rep.maxOpenDeals) : null,
           isAvailable: rep.isAvailable,
           department: rep.department,

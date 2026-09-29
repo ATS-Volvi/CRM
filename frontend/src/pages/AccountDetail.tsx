@@ -252,35 +252,7 @@ export default function AccountDetail() {
     ? account.deals
     : [];
 
-  // Default rich fallback data for Acme Corp if empty
-  const defaultDeals = [
-    {
-      id: "deal-1",
-      name: "Enterprise Cloud Migration",
-      amount: 850000,
-      stage: { name: "Negotiation" },
-      status: "OPEN",
-      expectedCloseDate: "2024-10-15"
-    },
-    {
-      id: "deal-2",
-      name: "Q3 Software License Renewal",
-      amount: 120000,
-      stage: { name: "Proposal" },
-      status: "OPEN",
-      expectedCloseDate: "2024-11-01"
-    },
-    {
-      id: "deal-3",
-      name: "Global Infrastructure Optimization",
-      amount: 230000,
-      stage: { name: "Won" },
-      status: "WON",
-      expectedCloseDate: "2024-08-20"
-    }
-  ];
-
-  const deals = rawDeals.length > 0 ? rawDeals : defaultDeals;
+  const deals = rawDeals;
 
   // Filter deals based on tab: Active, Closed, Lost
   const filteredDeals = deals.filter((d: any) => {
@@ -298,26 +270,20 @@ export default function AccountDetail() {
     return true;
   });
 
-  // Calculate Metrics
+  // Calculate Metrics from real data only
   const activeDealsList = deals.filter((d: any) => {
     const s = (d.status || "").toUpperCase();
     return s !== "LOST" && !((d.stage?.name || "").toLowerCase().includes("lost"));
   });
 
-  const totalPipelineValue = activeDealsList.reduce((sum, d) => sum + (Number(d.amount || d.value) || 0), 0) || 1200000;
-  const activeDealsCount = activeDealsList.length || 4;
-  const avgDealSize = activeDealsCount > 0 ? Math.round(totalPipelineValue / activeDealsCount) : 300000;
+  const totalPipelineValue = activeDealsList.reduce((sum, d) => sum + (Number(d.amount || d.value) || 0), 0);
+  const activeDealsCount = activeDealsList.length;
+  const avgDealSize = activeDealsCount > 0 ? Math.round(totalPipelineValue / activeDealsCount) : 0;
 
   // Primary Contact
-  const primaryContact = contacts[0] || {
-    firstName: "Sarah",
-    lastName: "Jenkins",
-    role: "VP of Engineering",
-    email: "sarah.j@acmecorp.com",
-    phone: "+1 (555) 234-5678"
-  };
+  const primaryContact = contacts.length > 0 ? contacts[0] : null;
 
-  const nameInitial = (account?.name || "Acme Corp").trim().charAt(0).toUpperCase();
+  const nameInitial = (account?.name || "A").trim().charAt(0).toUpperCase();
 
   if (isLoading) {
     return (
@@ -397,28 +363,29 @@ export default function AccountDetail() {
             <div className="space-y-1">
               <div className="flex items-center gap-2.5 flex-wrap">
                 <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-                  {account.name || "Acme Corp"}
+                  {account.name || "Unnamed Account"}
                 </h2>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-200/60">
-                  NEW LEAD
-                </span>
               </div>
 
-              <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
-                <Globe className="w-3.5 h-3.5 text-slate-400" />
-                <a
-                  href={`https://${account.website || "acmecorp.com"}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="hover:text-blue-600 hover:underline"
-                >
-                  {account.website || (account.name ? `${account.name.toLowerCase().replace(/[^a-z0-9]/g, "")}.com` : "acmecorp.com")}
-                </a>
-              </div>
+              {account.website && (
+                <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
+                  <Globe className="w-3.5 h-3.5 text-slate-400" />
+                  <a
+                    href={account.website.startsWith("http") ? account.website : `https://${account.website}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="hover:text-blue-600 hover:underline"
+                  >
+                    {account.website}
+                  </a>
+                </div>
+              )}
 
-              <p className="text-xs text-slate-500 font-normal leading-relaxed pt-1 max-w-2xl">
-                {account.description || "Leading provider of enterprise cloud solutions and managed IT services for the modern workforce."}
-              </p>
+              {account.description && (
+                <p className="text-xs text-slate-500 font-normal leading-relaxed pt-1 max-w-2xl">
+                  {account.description}
+                </p>
+              )}
             </div>
           </div>
 
@@ -470,16 +437,15 @@ export default function AccountDetail() {
           <div className="flex items-center justify-between text-slate-400">
             <span className="text-[11px] font-bold uppercase tracking-wider">TOTAL PIPELINE</span>
             <div className="w-7 h-7 rounded-full border border-slate-200 bg-slate-50 text-slate-700 flex items-center justify-center font-bold text-xs">
-              $
+              <DollarSign className="w-3.5 h-3.5 text-slate-600" />
             </div>
           </div>
           <div className="mt-2">
             <div className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-              ${(totalPipelineValue / 1000000).toFixed(1)}M
+              {formatCurrency(totalPipelineValue)}
             </div>
-            <div className="text-xs font-semibold text-blue-600 flex items-center gap-1 mt-1">
-              <TrendingUp className="w-3.5 h-3.5" />
-              <span>+15% vs last quarter</span>
+            <div className="text-xs font-semibold text-slate-500 mt-1">
+              {activeDealsCount} active {activeDealsCount === 1 ? "deal" : "deals"}
             </div>
           </div>
         </div>
@@ -497,7 +463,7 @@ export default function AccountDetail() {
               {activeDealsCount}
             </div>
             <div className="text-xs font-semibold text-slate-500 mt-1">
-              Across 2 divisions
+              {activeDealsCount > 0 ? "In active pipeline" : "No active deals"}
             </div>
           </div>
         </div>
@@ -512,10 +478,10 @@ export default function AccountDetail() {
           </div>
           <div className="mt-2">
             <div className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-              ${Math.round(avgDealSize / 1000)}k
+              {activeDealsCount > 0 ? formatCurrency(avgDealSize) : "—"}
             </div>
             <div className="text-xs font-semibold text-slate-500 mt-1">
-              Enterprise Tier
+              {activeDealsCount > 0 ? "Based on active deals" : "No active deals"}
             </div>
           </div>
         </div>
@@ -529,8 +495,9 @@ export default function AccountDetail() {
           <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 space-y-3">
             <h3 className="text-base font-bold text-slate-900">About</h3>
             <p className="text-xs text-slate-600 leading-relaxed">
-              {account.about ||
-                `${account.name || "Acme Corp"} is a multinational technology conglomerate specializing in enterprise software, cloud infrastructure, and data analytics. Founded in 2010, they have rapidly expanded their footprint in the North American and European markets. They are currently looking to upgrade their legacy systems and migrate core operations to a more robust cloud architecture.`}
+              {account.about || account.description || (
+                <span className="text-slate-400 italic">No description provided for this account.</span>
+              )}
             </p>
           </div>
 
@@ -611,7 +578,7 @@ export default function AccountDetail() {
                             {deal.name}
                           </td>
                           <td className="py-3.5 pr-4 font-semibold text-slate-800">
-                            ${Number(deal.amount || deal.value || 0).toLocaleString()}
+                            {formatCurrency(Number(deal.amount || deal.value || 0))}
                           </td>
                           <td className="py-3.5 pr-4">
                             <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-100 inline-block">
@@ -625,7 +592,7 @@ export default function AccountDetail() {
                                   day: "2-digit",
                                   year: "numeric"
                                 })
-                              : "Nov 01, 2024"}
+                              : "Unscheduled"}
                           </td>
                         </tr>
                       );
@@ -747,7 +714,9 @@ export default function AccountDetail() {
             <div className="space-y-3.5 text-xs">
               <div className="flex items-center justify-between">
                 <span className="text-slate-400 font-medium">Industry</span>
-                <span className="font-bold text-slate-800">{account.industry || "Technology"}</span>
+                <span className={`font-bold ${account.industry ? "text-slate-800" : "text-slate-400 italic"}`}>
+                  {account.industry || "Not set"}
+                </span>
               </div>
 
               <div className="flex items-center justify-between">
@@ -775,9 +744,9 @@ export default function AccountDetail() {
 
               <div className="flex items-center justify-between">
                 <span className="text-slate-400 font-medium">HQ Location</span>
-                <span className="font-bold text-slate-800 flex items-center gap-1">
-                  <span>{account.address || "San Francisco, CA"}</span>
-                  <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                <span className={`font-bold flex items-center gap-1 ${account.address ? "text-slate-800" : "text-slate-400 italic"}`}>
+                  <span>{account.address || "Not set"}</span>
+                  {account.address && <MapPin className="w-3.5 h-3.5 text-slate-400" />}
                 </span>
               </div>
             </div>
@@ -821,66 +790,78 @@ export default function AccountDetail() {
               </button>
             </div>
 
-            <div>
-              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2.5">
-                PRIMARY CONTACT
+            {!primaryContact ? (
+              <div className="py-6 text-center text-xs text-slate-400">
+                <p className="font-medium">No contacts yet</p>
               </div>
-
-              {/* Contact Card */}
-              <div className="p-3.5 bg-slate-50/70 rounded-xl border border-slate-100 space-y-2.5">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-bold text-sm flex items-center justify-center shrink-0 border border-white shadow-2xs">
-                    {(primaryContact.firstName || "S").charAt(0)}{(primaryContact.lastName || "J").charAt(0)}
-                  </div>
-                  <div>
-                    <div className="text-sm font-bold text-slate-900">
-                      {primaryContact.firstName} {primaryContact.lastName}
-                    </div>
-                    <div className="text-xs text-slate-500 font-medium">
-                      {primaryContact.role || "VP of Engineering"}
-                    </div>
-                  </div>
+            ) : (
+              <div>
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2.5">
+                  PRIMARY CONTACT
                 </div>
 
-                <div className="pt-2 border-t border-slate-200/50 space-y-1 text-xs text-slate-600">
-                  <div className="flex items-center gap-2">
-                    <Mail className="w-3.5 h-3.5 text-slate-400" />
-                    <a
-                      href={`mailto:${primaryContact.email || "sarah.j@acmecorp.com"}`}
-                      className="hover:text-blue-600 hover:underline"
-                    >
-                      {primaryContact.email || "sarah.j@acmecorp.com"}
-                    </a>
+                {/* Contact Card */}
+                <div className="p-3.5 bg-slate-50/70 rounded-xl border border-slate-100 space-y-2.5">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-bold text-sm flex items-center justify-center shrink-0 border border-white shadow-2xs">
+                      {(primaryContact.firstName || "C").charAt(0)}{(primaryContact.lastName || "").charAt(0)}
+                    </div>
+                    <div>
+                      <div className="text-sm font-bold text-slate-900">
+                        {primaryContact.firstName} {primaryContact.lastName || ""}
+                      </div>
+                      <div className="text-xs text-slate-500 font-medium">
+                        {primaryContact.role || <span className="text-slate-400 font-normal italic">Role not set</span>}
+                      </div>
+                    </div>
                   </div>
-                  {primaryContact.phone && (
-                    <div className="flex items-center gap-2 text-slate-500">
-                      <Phone className="w-3.5 h-3.5 text-slate-400" />
-                      <span>{primaryContact.phone}</span>
+
+                  {(primaryContact.email || primaryContact.phone) && (
+                    <div className="pt-2 border-t border-slate-200/50 space-y-1 text-xs text-slate-600">
+                      {primaryContact.email && (
+                        <div className="flex items-center gap-2">
+                          <Mail className="w-3.5 h-3.5 text-slate-400" />
+                          <a
+                            href={`mailto:${primaryContact.email}`}
+                            className="hover:text-blue-600 hover:underline"
+                          >
+                            {primaryContact.email}
+                          </a>
+                        </div>
+                      )}
+                      {primaryContact.phone && (
+                        <div className="flex items-center gap-2 text-slate-500">
+                          <Phone className="w-3.5 h-3.5 text-slate-400" />
+                          <span>{primaryContact.phone}</span>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
-              </div>
 
-              {/* Other Contacts if available */}
-              {contacts.length > 1 && (
-                <div className="mt-3 space-y-2">
-                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                    OTHER CONTACTS ({contacts.length - 1})
-                  </div>
-                  {contacts.slice(1).map((c) => (
-                    <div key={c.id} className="p-2.5 bg-white rounded-lg border border-slate-200 text-xs flex items-center justify-between">
-                      <div>
-                        <div className="font-bold text-slate-900">{c.firstName} {c.lastName}</div>
-                        <div className="text-[11px] text-slate-500">{c.role || "Stakeholder"}</div>
-                      </div>
-                      <a href={`mailto:${c.email}`} className="text-slate-400 hover:text-blue-600">
-                        <Mail className="w-3.5 h-3.5" />
-                      </a>
+                {/* Other Contacts if available */}
+                {contacts.length > 1 && (
+                  <div className="mt-3 space-y-2">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                      OTHER CONTACTS ({contacts.length - 1})
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                    {contacts.slice(1).map((c: any) => (
+                      <div key={c.id} className="p-2.5 bg-white rounded-lg border border-slate-200 text-xs flex items-center justify-between">
+                        <div>
+                          <div className="font-bold text-slate-900">{c.firstName} {c.lastName || ""}</div>
+                          <div className="text-[11px] text-slate-500">{c.role || "Stakeholder"}</div>
+                        </div>
+                        {c.email && (
+                          <a href={`mailto:${c.email}`} className="text-slate-400 hover:text-blue-600">
+                            <Mail className="w-3.5 h-3.5" />
+                          </a>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -1130,7 +1111,7 @@ export default function AccountDetail() {
                 <label className="block font-bold text-slate-700 mb-1">Role / Job Title</label>
                 <input
                   type="text"
-                  placeholder="VP of Engineering"
+                  placeholder="e.g. Procurement Manager"
                   value={contactForm.role}
                   onChange={(e) => setContactForm({ ...contactForm, role: e.target.value })}
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold"
@@ -1141,7 +1122,7 @@ export default function AccountDetail() {
                 <label className="block font-bold text-slate-700 mb-1">Email</label>
                 <input
                   type="email"
-                  placeholder="sarah.j@acmecorp.com"
+                  placeholder="contact@company.com"
                   value={contactForm.email}
                   onChange={(e) => setContactForm({ ...contactForm, email: e.target.value })}
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold"
@@ -1152,7 +1133,7 @@ export default function AccountDetail() {
                 <label className="block font-bold text-slate-700 mb-1">Phone</label>
                 <input
                   type="text"
-                  placeholder="+1 (555) 234-5678"
+                  placeholder="e.g. +966 50 123 4567"
                   value={contactForm.phone}
                   onChange={(e) => setContactForm({ ...contactForm, phone: e.target.value })}
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold"

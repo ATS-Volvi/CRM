@@ -1,6 +1,9 @@
 import { sequelize } from "@nexus-crm/database";
 import { Op } from "sequelize";
 import { createNotification } from "./notificationService";
+import { formatMoneyCompact } from "../utils/formatMoney";
+import { getOrgCurrency } from "../utils/orgSettings";
+import { convertToOrgCurrency, resolveLimit } from "../utils/exchangeRate";
 import {
   calculateRepPerformanceProfile,
   calculateLeadPriorityScore,
@@ -406,7 +409,7 @@ export async function assignLead(leadContext: AssignmentContext): Promise<Assign
         await createNotification(
           (mgr as any).id,
           "system",
-          `High-Value Lead Assigned (₹${(priorityDetails.expectedRevenue / 100000).toFixed(1)}L)`,
+          `High-Value Lead Assigned (${formatMoneyCompact(priorityDetails.expectedRevenue, (leadContext as any)?.currency)})`,
           `Intelligent Assignment Engine assigned high-value lead ${leadContext.firstName} ${leadContext.lastName} (${leadContext.company || 'Enterprise Prospect'}) to ${winningCandidate.repName} (Score: ${winningCandidate.finalScore}/100).`,
           leadId ? `/leads/${leadId}` : "/sales/queue"
         );
@@ -628,6 +631,8 @@ export async function assignOpportunityCloser(
 
     const priorityDetails: LeadPriorityDetails = calculateLeadPriorityScore(context);
     const expectedVal = Number(context.expectedValue || priorityDetails.expectedRevenue || 0);
+    const orgCurrency = await getOrgCurrency();
+    const expectedValInOrg = (await convertToOrgCurrency(expectedVal, (context as any)?.currency, orgCurrency)) ?? expectedVal;
 
     // 3. Fetch candidate users (all non-admin reps)
     const allUsers: any[] = await User.findAll({
@@ -664,9 +669,9 @@ export async function assignOpportunityCloser(
       if (rep.onLeave) continue;
       if (rep.status === "On Leave" || rep.status === "Offline" || rep.status === "Suspended") continue;
 
-      // Deal value cutoff check (hard gate before scoring)
+      // Deal value cutoff check (hard gate before scoring, compared in org currency)
       if (rep.dealValueCutoff !== null && rep.dealValueCutoff !== undefined) {
-        if (expectedVal > Number(rep.dealValueCutoff)) continue;
+        if (expectedValInOrg > Number(rep.dealValueCutoff)) continue;
       }
 
       // Open deals capacity check
@@ -705,7 +710,7 @@ export async function assignOpportunityCloser(
       if (fallbackAction === "keep_lead_rep" && options?.excludeRepId) {
         const leadRep: any = await User.findByPk(options.excludeRepId);
         const isEligible = leadRep ? await checkRepEligibility(leadRep.id) : false;
-        const withinCutoff = leadRep && (leadRep.dealValueCutoff === null || leadRep.dealValueCutoff === undefined || expectedVal <= Number(leadRep.dealValueCutoff));
+        const withinCutoff = leadRep && (leadRep.dealValueCutoff === null || leadRep.dealValueCutoff === undefined || expectedValInOrg <= Number(leadRep.dealValueCutoff));
 
         if (leadRep && isEligible && withinCutoff) {
           return {

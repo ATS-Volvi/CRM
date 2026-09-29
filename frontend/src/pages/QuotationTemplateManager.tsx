@@ -79,7 +79,7 @@ export default function QuotationTemplateManager() {
   const current = activeTemplate || (templates && templates[0]) || {
     name: "GREENRIDGE AUTOMATION SOLUTIONS Template",
     version: "1.0",
-    accuracyScore: 98.4,
+    isSamplePreview: true,
     companyName: "GREENRIDGE AUTOMATION SOLUTIONS",
     companyTagline: "Industrial Automation • Controls • Engineering",
     companyAddress: "Dammam Industrial City, Kingdom of Saudi Arabia",
@@ -119,7 +119,7 @@ export default function QuotationTemplateManager() {
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-white">Source-of-Truth AI Quotation Engine</h1>
             <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300 border border-purple-200">
-              AI Vision & Side-by-Side Verification
+              AI Vision &amp; Side-by-Side Verification
             </span>
           </div>
           <p className="text-xs text-slate-500 font-medium mt-1">
@@ -128,10 +128,12 @@ export default function QuotationTemplateManager() {
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 rounded-xl text-xs font-bold border border-emerald-200">
-            <ShieldCheck className="w-4 h-4 text-emerald-600" />
-            <span>Accuracy Score: {current.accuracyScore || 96.5}%</span>
-          </div>
+          {current?.accuracyScore != null && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 rounded-xl text-xs font-bold border border-emerald-200">
+              <ShieldCheck className="w-4 h-4 text-emerald-600" />
+              <span>Accuracy Score: {current.accuracyScore}%</span>
+            </div>
+          )}
           <button
             onClick={() => createTemplateMutation.mutate(current)}
             className="px-4 py-2 bg-slate-900 text-white dark:bg-white dark:text-slate-900 rounded-xl text-xs font-bold shadow-xs hover:bg-slate-800 transition-all flex items-center gap-1.5"
@@ -176,64 +178,65 @@ export default function QuotationTemplateManager() {
                     <Layout className="w-3.5 h-3.5 text-purple-600" />
                     <span>{t.companyName || t.name}</span>
                   </div>
-                  <span className="text-[9px] font-black uppercase px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded">v{t.version || "1.0"}</span>
+                  <span className="text-[9px] font-black uppercase px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded">
+                    {t.isSamplePreview ? "Sample" : `v${t.version || "1.0"}`}
+                  </span>
                 </div>
               ))}
             </div>
           </div>
         </div>
 
-        {/* Extraction Debugger & 5-Point Fidelity Audit Box */}
+        {/* Extraction Debugger Box */}
         <div className="md:col-span-4 bg-slate-900 text-slate-100 rounded-2xl p-5 border border-slate-800 space-y-4">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-emerald-400 flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-emerald-400" /> Extracted Document AI Schema Debugger & Fidelity Audit
+              <Sparkles className="w-4 h-4 text-emerald-400" /> Document Schema &amp; Extraction
             </span>
             <span className="text-[10px] font-mono bg-slate-800 text-slate-300 px-2 py-0.5 rounded">
-              Doc ID: {current.id || "live-upload"}
+              {current.isSamplePreview ? "Sample Preview" : `Doc ID: ${current.id || "live-upload"}`}
             </span>
           </div>
 
-          {/* 5-Point Granular Fidelity Metrics */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-center text-[10px] font-mono border-y border-slate-800 py-2.5">
-            <div className="p-2 bg-slate-950 rounded-lg border border-slate-800">
-              <span className="text-slate-500 block text-[9px] uppercase">Data Fidelity</span>
-              <span className="text-emerald-400 text-xs font-bold">100%</span>
+          {current.isSamplePreview && (
+            <div className="p-2.5 bg-purple-950/60 border border-purple-800 rounded-xl text-xs text-purple-300 font-medium flex items-center justify-between">
+              <span className="flex items-center gap-1.5 text-[11px]">
+                <Sparkles className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                Sample preview. Upload a quotation PDF above to extract live schema.
+              </span>
+              <span className="px-1.5 py-0.5 rounded text-[9px] bg-purple-800 text-purple-200 font-bold uppercase tracking-wider shrink-0">
+                Sample
+              </span>
             </div>
-            <div className="p-2 bg-slate-950 rounded-lg border border-slate-800">
-              <span className="text-slate-500 block text-[9px] uppercase">Layout Fidelity</span>
-              <span className="text-emerald-400 text-xs font-bold">96%</span>
+          )}
+
+          {current?.fidelityMetrics && (
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-center text-[10px] font-mono border-y border-slate-800 py-2.5">
+              {Object.entries(current.fidelityMetrics).map(([k, v]: [string, any]) => (
+                <div key={k} className="p-2 bg-slate-950 rounded-lg border border-slate-800">
+                  <span className="text-slate-500 block text-[9px] uppercase">{k}</span>
+                  <span className="text-emerald-400 text-xs font-bold">{v}%</span>
+                </div>
+              ))}
             </div>
-            <div className="p-2 bg-slate-950 rounded-lg border border-slate-800">
-              <span className="text-slate-500 block text-[9px] uppercase">Branding Fidelity</span>
-              <span className="text-emerald-400 text-xs font-bold">98%</span>
-            </div>
-            <div className="p-2 bg-slate-950 rounded-lg border border-slate-800">
-              <span className="text-slate-500 block text-[9px] uppercase">Table Fidelity</span>
-              <span className="text-emerald-400 text-xs font-bold">98%</span>
-            </div>
-            <div className="p-2 bg-slate-950 rounded-lg border border-slate-800">
-              <span className="text-slate-500 block text-[9px] uppercase">Financial Fidelity</span>
-              <span className="text-emerald-400 text-xs font-bold">100%</span>
-            </div>
-          </div>
+          )}
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-[11px] font-mono bg-slate-950 p-3 rounded-xl border border-slate-800">
             <div>
               <span className="text-slate-500 block text-[9px]">Extracted Company</span>
-              <span className="font-bold text-white">{current.companyName || current.name || "GREENRIDGE AUTOMATION SOLUTIONS"}</span>
+              <span className="font-bold text-white truncate block">{current.companyName || current.name || "—"}</span>
             </div>
             <div>
               <span className="text-slate-500 block text-[9px]">Extracted Customer</span>
-              <span className="font-bold text-white">{current.customerName || "Gulf Manufacturing Co."}</span>
+              <span className="font-bold text-white truncate block">{current.customerName || "—"}</span>
             </div>
             <div>
               <span className="text-slate-500 block text-[9px]">Extracted Quote No.</span>
-              <span className="font-bold text-emerald-400">{current.quotationNumber || "GRS-Q-2026-1042"}</span>
+              <span className="font-bold text-emerald-400 truncate block">{current.quotationNumber || "—"}</span>
             </div>
             <div>
               <span className="text-slate-500 block text-[9px]">Extracted Rep</span>
-              <span className="font-bold text-white">{current.salesExecutive || "Omar Khalid"}</span>
+              <span className="font-bold text-white truncate block">{current.salesExecutive || "—"}</span>
             </div>
           </div>
 
@@ -262,8 +265,8 @@ export default function QuotationTemplateManager() {
           {/* LEFT: ORIGINAL REFERENCE DOCUMENT VIEWER */}
           <div className="bg-slate-200 dark:bg-slate-950 p-6 rounded-2xl border border-slate-300 dark:border-slate-800 flex flex-col items-center min-h-[600px] overflow-hidden">
             <div className="w-full flex items-center justify-between mb-3 pb-2 border-b border-slate-300 dark:border-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300">
-              <span>📄 SOURCE OF TRUTH (Uploaded Reference)</span>
-              <span className="text-[10px] text-slate-400">{selectedFile ? selectedFile.name : "Uploaded Reference Specification"}</span>
+              <span>📄 SOURCE OF TRUTH {current.isSamplePreview ? "(Sample Reference Preview)" : "(Uploaded Reference)"}</span>
+              <span className="text-[10px] text-slate-400">{selectedFile ? selectedFile.name : current.isSamplePreview ? "Sample Specification" : "Uploaded Specification"}</span>
             </div>
 
             {selectedFilePreviewUrl ? (
@@ -317,9 +320,9 @@ export default function QuotationTemplateManager() {
           {/* RIGHT: GENERATED CRM TEMPLATE OUTPUT PREVIEW */}
           <div className="bg-slate-100 dark:bg-slate-900/60 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col items-center min-h-[600px] overflow-x-auto">
             <div className="w-full flex items-center justify-between mb-3 pb-2 border-b border-slate-300 dark:border-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300">
-              <span>🖼️ CRM GENERATED QUOTATION OUTPUT (Pure Layout Engine)</span>
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${current.companyName && current.extractedItems?.length >= 5 ? "text-emerald-600 bg-emerald-50 dark:bg-emerald-950/60" : "text-amber-600 bg-amber-50"}`}>
-                {current.companyName && current.extractedItems?.length >= 5 ? "EXTRACTION COMPLETE ✓" : "EXTRACTION PARTIAL ⚠"}
+              <span>🖼️ CRM GENERATED QUOTATION OUTPUT {current.isSamplePreview ? "(Sample Layout Engine Preview)" : "(Pure Layout Engine)"}</span>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${current.isSamplePreview ? "text-purple-700 bg-purple-100 dark:bg-purple-950 dark:text-purple-300" : current.companyName && current.extractedItems?.length >= 5 ? "text-emerald-600 bg-emerald-50 dark:bg-emerald-950/60" : "text-amber-600 bg-amber-50"}`}>
+                {current.isSamplePreview ? "SAMPLE PREVIEW" : current.companyName && current.extractedItems?.length >= 5 ? "EXTRACTION COMPLETE ✓" : "EXTRACTION PARTIAL ⚠"}
               </span>
             </div>
 

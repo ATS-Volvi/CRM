@@ -2,6 +2,7 @@ import { sequelize } from "@nexus-crm/database";
 import crypto from "crypto";
 import { createNotification } from "./notificationEngine";
 import { createOrderFromFinalQuote } from "./supplyFulfillmentService";
+import { formatMoney } from "../utils/formatMoney";
 
 export type OpportunityStatus = "OPEN" | "WON" | "LOST";
 export type OpportunityHealth = "HEALTHY" | "AT_RISK" | "STALE";
@@ -281,7 +282,7 @@ export async function processOpportunityEvent(event: OpportunityEvent): Promise<
         leadId: d.leadId || null,
         customerId: d.accountId || null,
         type: "note",
-        outcome: `Opportunity created: ${d.name} (Value: ₹${Number(d.amount || 0).toLocaleString()})`,
+        outcome: `Opportunity created: ${d.name} (Value: ${formatMoney(d.amount || 0, d.currency)})`,
         mentioned_user_ids: "[]",
         pinned: true,
         createdById: toValidUuid(actorId) || toValidUuid(d.ownerId) || null,
@@ -312,7 +313,7 @@ export async function processOpportunityEvent(event: OpportunityEvent): Promise<
         leadId: d.leadId || null,
         customerId: d.accountId || null,
         type: "note",
-        outcome: `Commercial Quote #${qNumber} (v${version}) prepared for ₹${Number(payload.totalAmount || d.amount || 0).toLocaleString()}`,
+        outcome: `Commercial Quote #${qNumber} (v${version}) prepared for ${formatMoney(payload.totalAmount || d.amount || 0, d.currency)}`,
         mentioned_user_ids: "[]",
         pinned: false,
         createdById: toValidUuid(actorId) || toValidUuid(d.ownerId) || null,
@@ -536,7 +537,7 @@ export async function processOpportunityEvent(event: OpportunityEvent): Promise<
           userId: (mgr as any).id,
           type: "OPPORTUNITY_WON",
           title: "Opportunity Closed Won",
-          message: `Opportunity '${d.name}' (₹${Number(d.amount || 0).toLocaleString()}) won by ${d.owner?.name || "Rep"}.`
+          message: `Opportunity '${d.name}' (${formatMoney(d.amount || 0, d.currency)}) won by ${d.owner?.name || "Rep"}.`
         });
       }
       break;

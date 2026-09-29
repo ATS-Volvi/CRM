@@ -122,6 +122,8 @@ import {
   getStaleDeal, getQuoteExpiry, getTopAccounts, getCustomerBirthdays, getWinCelebrations
 } from "../controllers/coachingNotesController";
 import { getDealOwners, updateDealOwners, getWorkspaceSetting, updateWorkspaceSetting } from "../controllers/dealOwnerController";
+import { getOrgSettings, updateOrgSettings } from "../controllers/orgSettingsController";
+import { getExchangeRates, updateExchangeRate } from "../controllers/exchangeRateController";
 import {
   autoAssignDealHandler,
   reassignDeal,
@@ -857,6 +859,10 @@ router.put("/deals/:dealId/owners", authMiddleware, updateDealOwners);
 // ==========================================
 // WORKSPACE SETTINGS (admin-only writes)
 // ==========================================
+router.get("/settings/org", authMiddleware, getOrgSettings);
+router.put("/settings/org", authMiddleware, requireAdmin, updateOrgSettings);
+router.get("/settings/exchange-rates", authMiddleware, getExchangeRates);
+router.put("/settings/exchange-rates", authMiddleware, requireAdmin, updateExchangeRate);
 router.get("/workspace/settings/:key", authMiddleware, getWorkspaceSetting);
 router.put("/workspace/settings/:key", authMiddleware, updateWorkspaceSetting);
 

@@ -4,8 +4,7 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { 
   ClipboardList, Shield, Users, History, Check, X, Bell, Save, AlertTriangle, Info, Sliders, CheckCircle2, XCircle, RotateCcw, Search, Zap, Loader2
-} from "lucide-react";
-import { formatCurrency } from "../utils/currency";
+import { formatCurrency, getGlobalOrgCurrency } from "../utils/currency";
 
 import { useSearchParams } from "react-router-dom";
 
@@ -515,7 +514,7 @@ export default function ApprovalQueue() {
                           <td className="p-4 font-semibold text-amber-700">
                             {isDeal ? (
                               <span className="text-[11px] text-amber-800 font-bold bg-amber-100 px-2 py-0.5 rounded">
-                                +₹{evalData?.exceededBy ? evalData.exceededBy.toLocaleString() : "0"}
+                                +{formatCurrency(evalData?.exceededBy || 0)}
                               </span>
                             ) : isPO ? (
                               <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${
@@ -534,7 +533,7 @@ export default function ApprovalQueue() {
                           <td className="p-4 font-semibold text-green-700">
                             {isDeal ? (
                               <span className="text-[11px] text-slate-500 font-semibold">
-                                Rep Limit: ₹{evalData?.repLimit ? evalData.repLimit.toLocaleString() : "10,00,000"}
+                                Rep Limit: {evalData?.repLimitDisplay || formatCurrency(evalData?.repLimit || 0)}
                               </span>
                             ) : (
                               marginPct
@@ -602,6 +601,15 @@ export default function ApprovalQueue() {
               Establish organization-wide maximum authority limits. Team Leads cannot assign limits to representatives higher than these ceilings.
             </p>
 
+            {(policy as any)?.currency && (policy as any).currency.toUpperCase() !== getGlobalOrgCurrency().toUpperCase() && (
+              <div className="mb-4 p-3 bg-amber-50 border border-amber-300 rounded-lg text-xs font-semibold text-amber-900 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>
+                  These limits are stored in <strong>{(policy as any).currency}</strong> and are being converted at the current rate. Set them in <strong>{getGlobalOrgCurrency()}</strong> to avoid drift.
+                </span>
+              </div>
+            )}
+
             {policySuccess && (
               <div className="mb-4 p-3 bg-green-50 border border-green-200 text-green-800 rounded-lg text-xs font-bold flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-green-600" /> {policySuccess}
@@ -610,7 +618,9 @@ export default function ApprovalQueue() {
 
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-on-surface mb-1">Maximum Sales Rep Self-Approval Ceiling (₹)</label>
+                <label className="block text-xs font-bold text-on-surface mb-1">
+                  Maximum Sales Rep Self-Approval Ceiling ({getGlobalOrgCurrency()})
+                </label>
                 <input
                   type="number"
                   value={policyMaxRep}
@@ -618,11 +628,13 @@ export default function ApprovalQueue() {
                   className="w-full bg-surface border border-outline-variant rounded-lg p-2.5 text-sm font-semibold focus:ring-1 focus:ring-primary outline-none"
                   placeholder="2500000"
                 />
-                <span className="text-[11px] text-on-surface-variant">Default: ₹25,00,000</span>
+                <span className="text-[11px] text-on-surface-variant">Default: {formatCurrency(2500000)}</span>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-on-surface mb-1">Maximum Team Lead Approval Ceiling (₹)</label>
+                <label className="block text-xs font-bold text-on-surface mb-1">
+                  Maximum Team Lead Approval Ceiling ({getGlobalOrgCurrency()})
+                </label>
                 <input
                   type="number"
                   value={policyMaxTL}
@@ -630,7 +642,7 @@ export default function ApprovalQueue() {
                   className="w-full bg-surface border border-outline-variant rounded-lg p-2.5 text-sm font-semibold focus:ring-1 focus:ring-primary outline-none"
                   placeholder="10000000"
                 />
-                <span className="text-[11px] text-on-surface-variant">Default: ₹1,00,00,000</span>
+                <span className="text-[11px] text-on-surface-variant">Default: {formatCurrency(10000000)}</span>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -953,7 +965,7 @@ export default function ApprovalQueue() {
                       </div>
 
                       <div>
-                        <label className="block text-xs font-bold text-on-surface mb-1">Self-Approval Limit (SAR / ₹)</label>
+                        <label className="block text-xs font-bold text-on-surface mb-1">Self-Approval Limit ({getGlobalOrgCurrency()})</label>
                         <input
                           type="number"
                           value={bulkLimit}
@@ -1038,7 +1050,7 @@ export default function ApprovalQueue() {
                     <div className="space-y-4">
                       <div>
                         <label className="block text-xs font-bold text-on-surface mb-1">
-                          {isTL ? 'Team Lead Direct Approval Limit (SAR / ₹)' : 'Sales Rep Self-Approval Limit (SAR / ₹)'}
+                          {isTL ? 'Team Lead Direct Approval Limit' : 'Sales Rep Self-Approval Limit'} ({getGlobalOrgCurrency()})
                         </label>
                         <input
                           type="number"

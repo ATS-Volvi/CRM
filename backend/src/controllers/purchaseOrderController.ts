@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { sequelize } from "@nexus-crm/database";
 import { createNotification } from "../services/notificationService";
 import { triggerTemplatedEmail } from "../services/emailService";
+import { getOrgCurrency, ALLOWED_CURRENCIES } from "../utils/orgSettings";
 
 export const getPurchaseOrders = async (req: Request, res: Response) => {
   try {
@@ -116,11 +117,20 @@ export const createPurchaseOrder = async (req: Request, res: Response) => {
     const receivedAmount = Number(amount);
     const mismatch = quotedTotal !== receivedAmount;
 
+    let poCurrency = req.body.currency;
+    if (!poCurrency || !ALLOWED_CURRENCIES.includes(poCurrency)) {
+      poCurrency = (quote as any).currency || (quote as any).deal?.currency;
+    }
+    if (!poCurrency || !ALLOWED_CURRENCIES.includes(poCurrency)) {
+      poCurrency = await getOrgCurrency();
+    }
+
     // Create PO with Pending Approval status
     const purchaseOrder: any = await sequelize.models.PurchaseOrder.create({
       id: require('crypto').randomUUID(),
       quoteId,
       amount: receivedAmount,
+      currency: poCurrency,
       poNumber,
       status: mismatch ? "Flagged/Mismatch" : "Pending Approval",
       generatedDate: new Date()

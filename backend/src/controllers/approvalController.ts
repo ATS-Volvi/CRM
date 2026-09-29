@@ -5,6 +5,9 @@ import { createNotification } from "../services/notificationService";
 import { evaluateQuoteApproval, createApprovalAuditLog, evaluateDealApproval } from "../services/approvalEngine";
 import { checkRecordAccess } from "../services/handoffAccessService";
 import { deliverQuote, getQuoteContact } from "../services/quoteDeliveryService";
+import { formatMoney } from "../utils/formatMoney";
+import { getOrgCurrency } from "../utils/orgSettings";
+import { resolveLimit } from "../utils/exchangeRate";
 
 // ── ADMIN GLOBAL APPROVAL POLICY ─────────────────────────────
 
@@ -14,10 +17,12 @@ export const getAdminApprovalPolicy = async (req: Request, res: Response) => {
       order: [["createdAt", "DESC"]]
     });
     if (!policy) {
+      const orgCurrency = await getOrgCurrency();
       policy = await sequelize.models.AdminApprovalPolicy.create({
         id: require("crypto").randomUUID(),
-        maximumSalesRepApproval: 2500000,
-        maximumTeamLeadApproval: 10000000,
+        currency: orgCurrency,
+        maximumSalesRepApproval: null,
+        maximumTeamLeadApproval: null,
         maximumRepDiscount: 0.10,
         maximumTeamLeadDiscount: 0.20,
         minimumAllowedMargin: 0.15
@@ -41,16 +46,19 @@ export const updateAdminApprovalPolicy = async (req: Request, res: Response) => 
       maximumTeamLeadApproval,
       maximumRepDiscount,
       maximumTeamLeadDiscount,
-      minimumAllowedMargin
+      minimumAllowedMargin,
+      currency
     } = req.body;
 
     let policy: any = await sequelize.models.AdminApprovalPolicy.findOne({
       order: [["createdAt", "DESC"]]
     });
 
+    const orgCurrency = await getOrgCurrency();
     const updateData = {
-      maximumSalesRepApproval: maximumSalesRepApproval !== undefined ? Number(maximumSalesRepApproval) : 2500000,
-      maximumTeamLeadApproval: maximumTeamLeadApproval !== undefined ? Number(maximumTeamLeadApproval) : 10000000,
+      currency: currency || policy?.currency || orgCurrency,
+      maximumSalesRepApproval: maximumSalesRepApproval !== undefined && maximumSalesRepApproval !== "" ? Number(maximumSalesRepApproval) : null,
+      maximumTeamLeadApproval: maximumTeamLeadApproval !== undefined && maximumTeamLeadApproval !== "" ? Number(maximumTeamLeadApproval) : null,
       maximumRepDiscount: maximumRepDiscount !== undefined ? Number(maximumRepDiscount) : 0.10,
       maximumTeamLeadDiscount: maximumTeamLeadDiscount !== undefined ? Number(maximumTeamLeadDiscount) : 0.20,
       minimumAllowedMargin: minimumAllowedMargin !== undefined ? Number(minimumAllowedMargin) : 0.15,
@@ -210,9 +218,13 @@ export const upsertSalesApprovalProfile = async (req: Request, res: Response) =>
     let adminPolicy: any = await sequelize.models.AdminApprovalPolicy.findOne({
       order: [["createdAt", "DESC"]]
     });
-    const maxSalesRepApproval = Number(adminPolicy?.maximumSalesRepApproval ?? 2500000);
+    const orgCurrency = await getOrgCurrency();
+    const policyCurrency = adminPolicy?.currency || orgCurrency;
+
+    // Resolve stored ceilings into org currency for consistent comparison
+    const maxRepRes = await resolveLimit(adminPolicy?.maximumSalesRepApproval ?? 2500000, policyCurrency, orgCurrency);
+    const maxTLRes = await resolveLimit(adminPolicy?.maximumTeamLeadApproval ?? 10000000, policyCurrency, orgCurrency);
     const maxRepDiscount = Number(adminPolicy?.maximumRepDiscount ?? 0.10);
-    const maxTLApproval = Number(adminPolicy?.maximumTeamLeadApproval ?? 10000000);
     const maxTLDiscount = Number(adminPolicy?.maximumTeamLeadDiscount ?? 0.20);
 
     const requestedLimit = Number(selfApprovalLimit ?? 1000000);
@@ -224,15 +236,15 @@ export const upsertSalesApprovalProfile = async (req: Request, res: Response) =>
       const isTeamLead = targetUser && (targetUser.role === "manager");
 
       if (isTeamLead) {
-        if (requestedLimit > maxTLApproval || requestedDiscount > maxTLDiscount) {
+        if (requestedLimit > maxTLRes.orgAmount || requestedDiscount > maxTLDiscount) {
           return res.status(400).json({
-            error: `Team Lead limit cannot exceed the Admin Team Lead Ceiling (SAR ${maxTLApproval.toLocaleString()}, Max Discount ${(maxTLDiscount * 100).toFixed(1)}%).`
+            error: `Team Lead limit cannot exceed the Admin Team Lead Ceiling (${maxTLRes.display}, Max Discount ${(maxTLDiscount * 100).toFixed(1)}%).`
           });
         }
       } else {
-        if (requestedLimit > maxSalesRepApproval || requestedDiscount > maxRepDiscount) {
+        if (requestedLimit > maxRepRes.orgAmount || requestedDiscount > maxRepDiscount) {
           return res.status(400).json({
-            error: `Sales Rep limit cannot exceed the Admin Sales Rep Ceiling (SAR ${maxSalesRepApproval.toLocaleString()}, Max Discount ${(maxRepDiscount * 100).toFixed(1)}%).`
+            error: `Sales Rep limit cannot exceed the Admin Sales Rep Ceiling (${maxRepRes.display}, Max Discount ${(maxRepDiscount * 100).toFixed(1)}%).`
           });
         }
       }
@@ -870,7 +882,7 @@ export const updateApproval = async (req: Request, res: Response) => {
             deal.ownerId,
             "info",
             "Deal Approval Granted ✅",
-            `Your deal value escalation for "${deal.name}" (₹${Number(deal.amount).toLocaleString()}) was approved by ${approverName}. You can now proceed to close or win this deal.`,
+            `Your deal value escalation for "${deal.name}" (${formatMoney(deal.amount, deal.currency)}) was approved by ${approverName}. You can now proceed to close or win this deal.`,
             `/opportunities/${deal.id}`
           );
         } else if (status === "Rejected") {

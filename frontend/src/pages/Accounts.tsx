@@ -2,6 +2,7 @@ import React, { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { apiClient } from "../lib/apiClient";
+import { useOrgCurrency } from "../context/OrgSettingsContext";
 import {
   Building2,
   Users,
@@ -53,10 +54,11 @@ export default function Accounts() {
   const [viewMode, setViewMode] = useState<"table" | "grid">("table");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
-  // New Account Form state
+  const { defaultCurrency } = useOrgCurrency();
   const [newAccountForm, setNewAccountForm] = useState({
     name: "",
     industry: "Technology",
+    currency: "",
     website: "",
     address: "",
     phone: "",
@@ -65,10 +67,12 @@ export default function Accounts() {
     tier: "Enterprise"
   });
 
-  // ── 3. CREATE ACCOUNT MUTATION ──
   const createAccountMutation = useMutation({
     mutationFn: async (formData: typeof newAccountForm) => {
-      return apiClient.post("/api/v1/accounts", formData);
+      return apiClient.post("/api/v1/accounts", {
+        ...formData,
+        currency: formData.currency || defaultCurrency
+      });
     },
     onSuccess: (newAcc: any) => {
       queryClient.invalidateQueries({ queryKey: ["accounts"] });
@@ -76,6 +80,7 @@ export default function Accounts() {
       setNewAccountForm({
         name: "",
         industry: "Technology",
+        currency: "",
         website: "",
         address: "",
         phone: "",
@@ -736,8 +741,8 @@ export default function Accounts() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="col-span-2">
                   <label className="block text-xs font-bold text-slate-700 mb-1">Industry</label>
                   <select
                     value={newAccountForm.industry}
@@ -756,15 +761,30 @@ export default function Accounts() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Website Domain</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. acmeglobal.com"
-                    value={newAccountForm.website}
-                    onChange={(e) => setNewAccountForm({ ...newAccountForm, website: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:bg-white focus:outline-none focus:border-blue-500"
-                  />
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Currency</label>
+                  <select
+                    value={newAccountForm.currency || defaultCurrency}
+                    onChange={(e) => setNewAccountForm({ ...newAccountForm, currency: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:bg-white focus:outline-none focus:border-blue-500 cursor-pointer"
+                  >
+                    {["SAR", "INR", "USD", "AED", "EUR", "GBP"].map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Website Domain</label>
+                <input
+                  type="text"
+                  placeholder="e.g. acmeglobal.com"
+                  value={newAccountForm.website}
+                  onChange={(e) => setNewAccountForm({ ...newAccountForm, website: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:bg-white focus:outline-none focus:border-blue-500"
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-3">

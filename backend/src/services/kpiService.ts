@@ -1,6 +1,7 @@
 import { sequelize } from "@nexus-crm/database";
 import { Op } from "sequelize";
 import { isWonStage, isClosedStage } from "../utils/pipelineStageHelpers";
+import { aggregateAmountsInOrgCurrency } from "../utils/exchangeRate";
 
 export async function calculateUserKpis(userId: string): Promise<any> {
   try {
@@ -21,7 +22,7 @@ export async function calculateUserKpis(userId: string): Promise<any> {
 
     // 1. Quota Attainment (Won deal values vs Target)
     const wonDeals = deals.filter((d: any) => isWonStage(d.stage?.name));
-    const actualRevenue = wonDeals.reduce((sum: number, d: any) => sum + Number(d.amount), 0);
+    const actualRevenue = wonDeals.reduce((sum: number, d: any) => sum + Number(d.amountInOrgCurrency ?? d.amount ?? 0), 0);
 
     const targetRecord = await sequelize.models.KpiTarget.findOne({
       where: { salespersonId: userId, kpiName: "revenue" }
@@ -116,7 +117,11 @@ export async function calculateTeamKpis(scopedUserIds?: string[]): Promise<any> 
     });
 
     const wonDeals = deals.filter((d: any) => isWonStage(d.stage?.name));
-    const totalWonAmount = wonDeals.reduce((sum: number, d: any) => sum + Number(d.amount), 0);
+    const totalWonAmount = wonDeals.reduce((sum: number, d: any) => sum + Number(d.amountInOrgCurrency ?? d.amount ?? 0), 0);
+
+    const openDeals = deals.filter((d: any) => !isClosedStage(d.stage?.name));
+    const openConverted = await aggregateAmountsInOrgCurrency(openDeals.map((d: any) => ({ amount: Number(d.amount || 0), currency: d.currency })));
+    const totalPipelineValue = openConverted.orgTotal;
 
     const totalClosed = deals.filter((d: any) => isClosedStage(d.stage?.name)).length;
     const teamCloseRate = totalClosed > 0 ? (wonDeals.length / totalClosed) * 100 : 0;
@@ -168,7 +173,7 @@ export async function calculateTeamKpis(scopedUserIds?: string[]): Promise<any> 
     const teamContactRate = leads.length > 0 ? (contactedCount / leads.length) * 100 : 0;
 
     return {
-      totalPipelineValue: deals.reduce((sum: number, d: any) => sum + Number(d.amount), 0),
+      totalPipelineValue,
       totalWonAmount,
       teamCloseRate: Number(teamCloseRate.toFixed(1)),
       activeDealsCount: deals.length,

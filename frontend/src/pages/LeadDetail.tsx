@@ -1250,7 +1250,7 @@ export default function LeadDetail() {
                               <div className="flex items-start justify-between gap-1.5">
                                 <div className="min-w-0">
                                   <div className="font-bold text-slate-900 dark:text-slate-100 text-xs truncate">
-                                    {[contact.firstName, contact.lastName].filter(Boolean).join(" ") || "Verified Contact"}
+                                    {[contact.firstName, contact.lastName].filter(Boolean).join(" ") || "Unnamed contact"}
                                   </div>
                                   {contact.position && (
                                     <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate flex items-center gap-1">

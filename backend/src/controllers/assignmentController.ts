@@ -3,6 +3,7 @@ import { sequelize } from "@nexus-crm/database";
 import { Op } from "sequelize";
 import { calculateRepPerformanceProfile } from "../services/repPerformanceService";
 import { createNotification } from "../services/notificationService";
+import { getOrgCurrency } from "../utils/orgSettings";
 
 export const getAssignmentPolicy = async (req: Request, res: Response) => {
   try {
@@ -12,8 +13,10 @@ export const getAssignmentPolicy = async (req: Request, res: Response) => {
     });
 
     if (!policy) {
+      const orgCurrency = await getOrgCurrency();
       policy = await SalesAssignmentPolicy.create({
-        id: require("crypto").randomUUID()
+        id: require("crypto").randomUUID(),
+        currency: orgCurrency
       });
     }
 
@@ -79,6 +82,7 @@ export const updateAssignmentPolicy = async (req: Request, res: Response) => {
     const activeLeadWeights = leadWeights || weights;
 
     const payload: any = {
+      currency: req.body.currency,
       weights: typeof activeLeadWeights === "object" ? JSON.stringify(activeLeadWeights) : activeLeadWeights,
       highValueThreshold: highValueThreshold !== undefined ? Number(highValueThreshold) : undefined,
       strategicLeadScoreThreshold: strategicLeadScoreThreshold !== undefined ? Number(strategicLeadScoreThreshold) : undefined,
@@ -95,8 +99,10 @@ export const updateAssignmentPolicy = async (req: Request, res: Response) => {
     Object.keys(payload).forEach(key => (payload as any)[key] === undefined && delete (payload as any)[key]);
 
     if (!policy) {
+      const orgCurrency = await getOrgCurrency();
       policy = await SalesAssignmentPolicy.create({
         id: require("crypto").randomUUID(),
+        currency: req.body.currency || orgCurrency,
         ...payload
       });
     } else {

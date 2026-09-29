@@ -6,6 +6,7 @@ import { Search, PlusCircle, Trash2, Lightbulb, ZoomIn, Printer, Maximize, BarCh
 import { formatCurrency, formatCurrencyCompact } from "../utils/currency";
 import QuotationDocumentRenderer from "../components/QuotationDocumentRenderer";
 import { CatalogSearchModal } from "../components/CatalogSearchModal";
+import { useOrgCurrency } from "../context/OrgSettingsContext";
 
 export default function QuotationBuilder() {
   const { token } = useAuth();
@@ -16,7 +17,9 @@ export default function QuotationBuilder() {
   const dealIdParam = searchParams.get("dealId");
   const parentQuoteIdParam = searchParams.get("parentQuoteId");
 
+  const { defaultCurrency } = useOrgCurrency();
   const [selectedDealId, setSelectedDealId] = useState(dealIdParam || "");
+  const [quoteCurrency, setQuoteCurrency] = useState("");
   const [selectedTemplateId, setSelectedTemplateId] = useState("tpl-ftc-standard");
   const [selectedRequirementId, setSelectedRequirementId] = useState("");
   const [focusedIndex, setFocusedIndex] = useState(0);
@@ -207,6 +210,16 @@ export default function QuotationBuilder() {
     || (parentQuote && (parentQuote as any).deal ? (parentQuote as any).deal : null)
     || combinedDeals.find((d: any) => d.id === selectedDealId);
   const leadId = selectedDeal?.leadId;
+
+  useEffect(() => {
+    if (selectedDeal?.currency) {
+      setQuoteCurrency(selectedDeal.currency);
+    } else if (parentQuote?.currency) {
+      setQuoteCurrency(parentQuote.currency);
+    } else if (defaultCurrency && !quoteCurrency) {
+      setQuoteCurrency(defaultCurrency);
+    }
+  }, [selectedDeal, parentQuote, defaultCurrency]);
 
   const { data: clientHistory } = useQuery({
     queryKey: ["clientHistory", leadId],
@@ -567,12 +580,14 @@ export default function QuotationBuilder() {
 
   const saveMutation = useMutation({
     mutationFn: async (status: string) => {
+      const activeCurr = quoteCurrency || selectedDeal?.currency || defaultCurrency || "SAR";
       const res = await fetch("/api/v1/quotes", {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
         body: JSON.stringify({
           dealId: selectedDealId,
           items,
+          currency: activeCurr,
           status,
           ...(parentQuoteIdParam ? { parentQuoteId: parentQuoteIdParam } : {})
         })
@@ -770,6 +785,19 @@ export default function QuotationBuilder() {
                           ))}
                         </select>
                       )}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Currency:</span>
+                      <select
+                        className="bg-surface border border-outline-variant rounded-lg p-2 text-xs font-semibold focus:ring-1 focus:ring-primary"
+                        value={quoteCurrency || defaultCurrency}
+                        onChange={e => setQuoteCurrency(e.target.value)}
+                      >
+                        {["SAR", "INR", "USD", "AED", "EUR", "GBP"].map(c => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -974,7 +1002,7 @@ export default function QuotationBuilder() {
                         <CheckCircle2 className="w-4 h-4 text-green-600" /> ✓ You can approve this quotation
                       </div>
                       <div className="text-xs text-green-700 font-medium mt-0.5">
-                        Quote total {formatCurrency(calculatedGrandTotal)} is within your self-approval limit of ₹{(evaluation.repLimit || 1000000).toLocaleString()}.
+                        Quote total {formatCurrency(calculatedGrandTotal, quoteCurrency)} is within your self-approval limit of {evaluation.repLimitDisplay || formatCurrency(evaluation.repLimit, getGlobalOrgCurrency())}.
                       </div>
                     </div>
                     <button
@@ -996,7 +1024,7 @@ export default function QuotationBuilder() {
                         <AlertTriangle className="w-4 h-4 text-amber-600" /> Team Lead approval required
                       </div>
                       <div className="text-xs text-amber-800 font-medium mt-0.5">
-                        {evaluation.reason || `Quote exceeds your approval limit of ₹${(evaluation.repLimit || 1000000).toLocaleString()}.`}
+                        {evaluation.reason || `Quote exceeds your approval limit of ${evaluation.repLimitDisplay || formatCurrency(evaluation.repLimit, getGlobalOrgCurrency())}.`}
                       </div>
                     </div>
                     <button

@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { sequelize } from "@nexus-crm/database";
+import { getOrgCurrency, ALLOWED_CURRENCIES } from "../utils/orgSettings";
 
 export const getInvoices = async (req: Request, res: Response) => {
   try {
@@ -78,11 +79,20 @@ export const createInvoiceFromQuote = async (req: Request, res: Response) => {
       invoiceTotal = quoteItems.reduce((acc: number, it: any) => acc + Number(it.totalPrice || 0), 0);
     }
 
+    let invCurrency = req.body.currency;
+    if (!invCurrency || !ALLOWED_CURRENCIES.includes(invCurrency)) {
+      invCurrency = (quote as any).currency;
+    }
+    if (!invCurrency || !ALLOWED_CURRENCIES.includes(invCurrency)) {
+      invCurrency = await getOrgCurrency();
+    }
+
     const invoice = await sequelize.models.Invoice.create({
       id: require('crypto').randomUUID(),
       quoteId,
       status: "Draft",
       totalAmount: invoiceTotal,
+      currency: invCurrency,
       dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // +30 days
     });
 

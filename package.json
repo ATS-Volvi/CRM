@@ -15,7 +15,8 @@
     "start": "npm run start:backend",
     "dev:frontend": "npm run dev --workspace=frontend",
     "dev:backend": "npm run dev --workspace=backend",
-    "dev": "npm run dev:backend"
+    "dev": "npm run dev:backend",
+    "check:currency": "npx ts-node --project backend/tsconfig.json -e \"require('./backend/src/scripts/checkCurrency.ts')\" 2>/dev/null || npx ts-node backend/src/scripts/checkCurrency.ts"
   },
   "supportedArchitectures": {
     "os": [

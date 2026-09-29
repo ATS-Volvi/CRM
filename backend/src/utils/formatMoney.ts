@@ -1,26 +1,14 @@
-let globalOrgCurrency = "SAR";
-
-export function setGlobalOrgCurrency(currency: string) {
-  if (currency && typeof currency === "string") {
-    globalOrgCurrency = currency.toUpperCase();
-  }
-}
-
-export function getGlobalOrgCurrency(): string {
-  return globalOrgCurrency;
-}
-
-export function getLocaleForCurrency(currency?: string): string {
-  const code = (currency || globalOrgCurrency).toUpperCase();
+export function getLocaleForCurrency(currency: string = "SAR"): string {
+  const code = (currency || "SAR").toUpperCase();
   if (code === "INR") return "en-IN";
   if (code === "SAR") return "en-SA";
   return "en-US";
 }
 
-export function formatCurrency(amount: number | string | null | undefined, currency?: string): string {
+export function formatMoney(amount: number | string | null | undefined, currency?: string): string {
   const num = typeof amount === "string" ? parseFloat(amount) : (amount ?? 0);
   if (isNaN(num)) return "0.00";
-  const curr = (currency || globalOrgCurrency).toUpperCase();
+  const curr = (currency || "SAR").toUpperCase();
   const locale = getLocaleForCurrency(curr);
   try {
     return new Intl.NumberFormat(locale, {
@@ -34,10 +22,10 @@ export function formatCurrency(amount: number | string | null | undefined, curre
   }
 }
 
-export function formatCurrencyCompact(amount: number | string | null | undefined, currency?: string): string {
+export function formatMoneyCompact(amount: number | string | null | undefined, currency?: string): string {
   const num = typeof amount === "string" ? parseFloat(amount) : (amount ?? 0);
   if (isNaN(num)) return "0";
-  const curr = (currency || globalOrgCurrency).toUpperCase();
+  const curr = (currency || "SAR").toUpperCase();
   const locale = getLocaleForCurrency(curr);
   try {
     return new Intl.NumberFormat(locale, {

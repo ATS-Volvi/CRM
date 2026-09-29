@@ -4,9 +4,9 @@ import { useState } from "react";
 import { 
   GripVertical, Package, Globe, RefreshCw, Award, 
   ArrowRight, Users, Map, Repeat, Delete, Plus, Home,
-  Sliders, CalendarOff, X, Zap, BarChart3, ShieldCheck, History, Sparkles, TrendingUp, CheckCircle2, AlertCircle, Eye, Shield, Save
+  Sliders, CalendarOff, X, Zap, BarChart3, ShieldCheck, History, Sparkles, TrendingUp, CheckCircle2, AlertCircle, AlertTriangle, Eye, Shield, Save
 } from "lucide-react";
-import { formatCurrency } from "../utils/currency";
+import { formatCurrency, getGlobalOrgCurrency } from "../utils/currency";
 
 export default function AssignmentRules() {
   const { token } = useAuth();
@@ -613,6 +613,15 @@ export default function AssignmentRules() {
               </div>
             </div>
 
+            {policyData?.currency && policyData.currency.toUpperCase() !== getGlobalOrgCurrency().toUpperCase() && (
+              <div className="p-4 bg-amber-50 border border-amber-300 rounded-2xl text-xs font-semibold text-amber-900 flex items-center gap-2.5">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>
+                  These limits are stored in <strong>{policyData.currency}</strong> and are being converted at the current rate. Set them in <strong>{getGlobalOrgCurrency()}</strong> to avoid drift.
+                </span>
+              </div>
+            )}
+
             <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-2xs space-y-6">
               <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">Lead Scoring Factor Weights (Total 100%)</h4>
 
@@ -724,7 +733,9 @@ export default function AssignmentRules() {
 
               <div className="pt-4 border-t border-slate-100 flex justify-between items-center">
                 <div>
-                  <span className="text-xs font-bold text-slate-600 block">High-Value Lead Escalation Threshold (₹ / SAR)</span>
+                  <span className="text-xs font-bold text-slate-600 block">
+                    High-Value Lead Escalation Threshold ({getGlobalOrgCurrency()})
+                  </span>
                   <input
                     type="number"
                     value={leadPolicyForm.highValueThreshold}

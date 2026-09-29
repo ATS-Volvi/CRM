@@ -18,6 +18,8 @@ import {
 } from "@nexus-crm/database";
 import crypto from "crypto";
 import { Op } from "sequelize";
+import { formatMoney } from "../utils/formatMoney";
+import { getOrgCurrency } from "../utils/orgSettings";
 
 /**
  * Helper to resolve read-only primary phone number and source label for a Work Order
@@ -588,7 +590,8 @@ export const createWorkOrderLineItem = async (req: Request, res: Response) => {
 
       if (price < catalogFloor) {
         approvalRequired = true;
-        approvalMessage = `Work Order ${(workOrder as any).workOrderNumber || "WO"} line item "${pbe.name}" unit price (₹${price.toLocaleString()}) is below catalog floor price of ₹${catalogFloor.toLocaleString()} (SKU: ${pbe.sku}). Manager approval required.`;
+        const itemCurr = pbe.currency || (await getOrgCurrency());
+        approvalMessage = `Work Order ${(workOrder as any).workOrderNumber || "WO"} line item "${pbe.name}" unit price (${formatMoney(price, itemCurr)}) is below catalog floor price of ${formatMoney(catalogFloor, itemCurr)} (SKU: ${pbe.sku}). Manager approval required.`;
 
         // Invalidate any previous Pending Approval requests for this WO
         await ApprovalRequest.update(

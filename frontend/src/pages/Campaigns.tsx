@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { campaignsApi, attributionApi } from "../api/marketing";
 import { CampaignPerformance, SourcePerformance } from "../types/marketing";
+import { formatCurrency } from "../utils/currency";
 
 export default function Campaigns() {
   const navigate = useNavigate();
@@ -119,7 +120,7 @@ export default function Campaigns() {
             Total Marketing Spend
           </div>
           <div className="text-xl font-extrabold text-slate-900">
-            ₹{totalSpend.toLocaleString()}
+            {formatCurrency(totalSpend)}
           </div>
           <div className="text-[11px] text-slate-500">Actual media & campaign costs</div>
         </div>
@@ -129,7 +130,7 @@ export default function Campaigns() {
             Won Revenue Attributed
           </div>
           <div className="text-xl font-extrabold text-emerald-600">
-            ₹{totalWonRevenue.toLocaleString()}
+            {formatCurrency(totalWonRevenue)}
           </div>
           <div className="text-[11px] text-slate-500">Closed orders from campaign leads</div>
         </div>
@@ -206,17 +207,17 @@ export default function Campaigns() {
                           </span>
                         </td>
                         <td className="text-slate-700 font-medium">
-                          ₹{Number(c.budget || 0).toLocaleString()}
+                          {formatCurrency(c.budget || 0, (c as any).currency)}
                         </td>
                         <td className="text-slate-900 font-bold">
-                          {c.actualSpend !== null && c.actualSpend !== undefined ? `₹${Number(c.actualSpend).toLocaleString()}` : "—"}
+                          {c.actualSpend !== null && c.actualSpend !== undefined ? formatCurrency(c.actualSpend, (c as any).currency) : "—"}
                         </td>
                         <td className="font-semibold text-slate-800">{m?.totalLeads || 0}</td>
                         <td className="text-slate-700">{m?.qualifiedLeads || 0}</td>
                         <td className="text-slate-700">{m?.totalOpportunities || 0}</td>
                         <td className="text-slate-700 font-semibold">{m?.wonOrdersCount || 0}</td>
                         <td className="text-emerald-700 font-bold">
-                          ₹{Number(m?.totalRevenue || 0).toLocaleString()}
+                          {formatCurrency(m?.totalRevenue || 0, (c as any).currency)}
                         </td>
                         <td className="font-bold text-blue-600">
                           {m?.roas !== null && m?.roas !== undefined ? `${m.roas}x` : "—"}
@@ -260,7 +261,7 @@ export default function Campaigns() {
                     <td>{ch.opportunities}</td>
                     <td>{ch.won}</td>
                     <td className="font-bold text-emerald-600">
-                      ₹{Number(ch.revenue || 0).toLocaleString()}
+                      {formatCurrency(ch.revenue || 0)}
                     </td>
                   </tr>
                 ))}
@@ -294,7 +295,7 @@ export default function Campaigns() {
                     <td>{st.opportunities}</td>
                     <td>{st.won}</td>
                     <td className="font-bold text-emerald-600">
-                      ₹{Number(st.revenue || 0).toLocaleString()}
+                      {formatCurrency(st.revenue || 0)}
                     </td>
                   </tr>
                 ))}

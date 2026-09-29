@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { apiClient } from "../lib/apiClient";
 import { LeadStatus } from "../types";
+import { formatCurrency } from "../utils/currency";
 
 export default function Leads() {
   const navigate = useNavigate();
@@ -421,7 +422,7 @@ export default function Leads() {
                         </div>
                       ) : (
                         <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                          {l.budgetRange || (l.leadScore ? `₹${(l.leadScore * 10000).toLocaleString()}` : "—")}
+                          {l.budgetRange || "—"}
                         </span>
                       )}
                     </td>

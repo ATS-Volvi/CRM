@@ -37,6 +37,7 @@ export interface Account {
   } | null;
 
   status?: string;
+  currency?: string;
 
   // Account 360 Aggregation Relations
   contacts?: Contact[];

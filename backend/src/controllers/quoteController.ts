@@ -7,6 +7,7 @@ import { evaluateQuoteApproval, createApprovalAuditLog } from "../services/appro
 import { triggerQuoteApprovalNotifications } from "../services/notificationEngine";
 import { processOpportunityEvent } from "../services/opportunityAutomationEngine";
 import { deliverQuote, resolveDeliveryChannel, getQuoteContact, buildQuotePdfBuffer, recordQuoteDeliveryEvent, markQuoteAsViewed, sendFinalAgreedQuoteEmail } from "../services/quoteDeliveryService";
+import { getOrgCurrency, ALLOWED_CURRENCIES } from "../utils/orgSettings";
 
 export function formatQuoteWithTotals(quoteInput: any) {
   if (!quoteInput) return quoteInput;
@@ -284,12 +285,26 @@ export const createQuote = async (req: Request, res: Response) => {
     // Internal management approval is triggered from Opportunity page after customer acceptance
     const finalStatus = status || "Sent";
 
+    let quoteCurrency = req.body.currency;
+    if (!quoteCurrency || !ALLOWED_CURRENCIES.includes(quoteCurrency)) {
+      if (dealId) {
+        const parentDeal = await sequelize.models.Deal.findByPk(dealId);
+        if (parentDeal && (parentDeal as any).currency && ALLOWED_CURRENCIES.includes((parentDeal as any).currency)) {
+          quoteCurrency = (parentDeal as any).currency;
+        }
+      }
+    }
+    if (!quoteCurrency || !ALLOWED_CURRENCIES.includes(quoteCurrency)) {
+      quoteCurrency = await getOrgCurrency();
+    }
+
     // Create quote
     const quote = await sequelize.models.Quote.create({
       id: require('crypto').randomUUID(),
       dealId,
       status: finalStatus,
       totalAmount,
+      currency: quoteCurrency,
       expirationDate: expirationDate || null,
       quoteNumber: quoteNum,
       version: ver

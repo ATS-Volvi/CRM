@@ -519,7 +519,7 @@ export default function LineItemCatalog() {
                             <td className="px-4 py-2 text-slate-500 font-medium">{row.category || "—"}</td>
                             <td className="px-4 py-2 font-bold text-slate-800">{row.name}</td>
                             <td className="px-4 py-2 text-center text-slate-500">{row.uom || "—"}</td>
-                            <td className="px-4 py-2 text-right font-black text-slate-900">₹{(row.unitPrice || 0).toLocaleString()}</td>
+                            <td className="px-4 py-2 text-right font-black text-slate-900">{formatCurrency(row.unitPrice || 0)}</td>
                             <td className="px-4 py-2">
                               {row.isValid
                                 ? <CheckCircle2 className="w-4 h-4 text-emerald-500 mx-auto" />

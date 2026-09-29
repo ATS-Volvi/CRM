@@ -295,20 +295,20 @@ export default function MyDashboard() {
               <div className="p-3 bg-slate-50 rounded-lg border border-slate-100 space-y-0.5">
                 <div className="text-[10px] font-semibold text-slate-400 uppercase">Closed Revenue</div>
                 <div className="text-base font-extrabold text-emerald-600">
-                  ₹{totalWonRevenue.toLocaleString()}
+                  {formatCurrency(totalWonRevenue)}
                 </div>
               </div>
 
               <div className="p-3 bg-slate-50 rounded-lg border border-slate-100 space-y-0.5">
                 <div className="text-[10px] font-semibold text-slate-400 uppercase">Active Pipeline</div>
                 <div className="text-base font-extrabold text-slate-900">
-                  ₹{totalPipelineValue.toLocaleString()}
+                  {formatCurrency(totalPipelineValue)}
                 </div>
               </div>
 
               <div className="p-3 bg-slate-50 rounded-lg border border-slate-100 space-y-0.5">
                 <div className="text-[10px] font-semibold text-slate-400 uppercase">Quarterly Target</div>
-                <div className="text-base font-extrabold text-slate-800">₹25,00,000</div>
+                <div className="text-base font-extrabold text-slate-800">{formatCurrency(2500000)}</div>
               </div>
 
               <div className="p-3 bg-slate-50 rounded-lg border border-slate-100 space-y-0.5">

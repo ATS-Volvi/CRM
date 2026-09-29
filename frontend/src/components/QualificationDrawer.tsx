@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { X, Target, CheckCircle2, Sparkles, DollarSign, Calendar, UserCheck, FileText, AlertCircle, ArrowRight, User } from "lucide-react";
 import { formatCurrency } from "../utils/currency";
@@ -19,7 +19,32 @@ export function QualificationDrawer({ isOpen, onClose, lead, token, onSuccess }:
   const [budget, setBudget] = useState(existingQual.budget || lead?.budgetRange || "500000");
   const [timeline, setTimeline] = useState(existingQual.timeline || "Within 30 Days");
   const [decisionMaker, setDecisionMaker] = useState(existingQual.decisionMaker || `${lead?.firstName || ''} ${lead?.lastName || ''}`.trim());
-  const [estimatedValue, setEstimatedValue] = useState(existingQual.estimatedValue || lead?.leadScore ? String(lead.leadScore * 10000) : "500000");
+  const [estimatedValue, setEstimatedValue] = useState<string>(
+    existingQual.estimatedValue 
+      ? String(existingQual.estimatedValue) 
+      : "" // Do not guess from leadScore — rep enters the actual value
+  );
+
+  useEffect(() => {
+    if (isOpen && !existingQual.estimatedValue) {
+      fetch("/api/v1/rules/assignment-policy", {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      })
+        .then(res => res.json())
+        .then(policy => {
+          if (policy) {
+            const highVal = Number(policy.highValueThreshold || 10000000);
+            const multiplier = Number(policy.leadScoreValueMultiplier || highVal * 0.001);
+            if (lead?.leadScore) {
+              setEstimatedValue(String(Math.round(lead.leadScore * multiplier)));
+            } else if (!existingQual.budget && !lead?.budgetRange) {
+              setEstimatedValue(String(Math.round(highVal * 0.05)));
+            }
+          }
+        })
+        .catch(() => {});
+    }
+  }, [isOpen, lead, token]);
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);

@@ -57,6 +57,7 @@ import Campaigns from "./pages/Campaigns";
 import SupportTickets from "./pages/SupportTickets";
 import FieldService from "./pages/FieldService";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import { OrgSettingsProvider } from "./context/OrgSettingsContext";
 import { Navigate, Outlet } from "react-router-dom";
 
 import QuoteDetail from "./pages/QuoteDetail";
@@ -83,7 +84,8 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <Routes>
+        <OrgSettingsProvider>
+          <Routes>
           <Route path="/quote" element={<PublicQuoteRequest />} />
           <Route path="/q/:token" element={<PublicQuoteReview />} />
           <Route path="/login" element={<Login />} />
@@ -171,6 +173,7 @@ function App() {
             </Route>
           </Route>
         </Routes>
+        </OrgSettingsProvider>
       </AuthProvider>
     </BrowserRouter>
   );

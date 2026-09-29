@@ -350,11 +350,17 @@ export class Deal extends Model {
   public firstTouchAttribution!: string | null;
   public actualClosedAt!: Date | null;
   public originalOwnerId!: string | null;
+  public currency!: string;
+  public exchangeRateToOrg!: number | null;
+  public amountInOrgCurrency!: number | null;
 }
 
 Deal.init(
   {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    currency: { type: DataTypes.STRING(3), defaultValue: 'SAR' },
+    exchangeRateToOrg: { type: DataTypes.DECIMAL(18, 6), allowNull: true },
+    amountInOrgCurrency: { type: DataTypes.DECIMAL(15, 2), allowNull: true },
     name: { type: DataTypes.STRING, allowNull: false },
     amount: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
     stageId: { type: DataTypes.UUID, allowNull: true },
@@ -428,11 +434,13 @@ export class Quote extends Model {
   public rejectionReason!: string | null;
   public rejectedByUserId!: string | null;
   public rejectedAt!: Date | null;
+  public currency!: string;
 }
 
 Quote.init(
   {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    currency: { type: DataTypes.STRING(3), defaultValue: "SAR" },
     status: { type: DataTypes.STRING, defaultValue: "Draft" },
     totalAmount: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
     expirationDate: { type: DataTypes.DATE, allowNull: true },
@@ -567,11 +575,13 @@ export class PurchaseOrder extends Model {
   public notes!: string | null;
   public deliveryAddress!: string | null;
   public requestedDeliveryDate!: Date | null;
+  public currency!: string;
 }
 
 PurchaseOrder.init(
   {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    currency: { type: DataTypes.STRING(3), defaultValue: "SAR" },
     quoteId: { type: DataTypes.UUID, allowNull: true },
     status: { type: DataTypes.STRING, defaultValue: "Pending" },
     type: { type: DataTypes.ENUM("customer_po", "supply_order"), defaultValue: "customer_po", allowNull: false },
@@ -766,11 +776,13 @@ export class Invoice extends Model {
   public notes!: string;
   public amountPaid!: number;
   public paymentStatus!: string;
+  public currency!: string;
 }
 
 Invoice.init(
   {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    currency: { type: DataTypes.STRING(3), defaultValue: "SAR" },
     status: { type: DataTypes.STRING, defaultValue: "Draft" },
     totalAmount: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
     dueDate: { type: DataTypes.DATE, allowNull: true },
@@ -1212,11 +1224,13 @@ export class Account extends Model {
   public parentAccountId!: string | null;
   public revenue!: number | null;
   public employeeCount!: number | null;
+  public currency!: string;
 }
 
 Account.init(
   {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    currency: { type: DataTypes.STRING(3), defaultValue: "SAR" },
     name: { type: DataTypes.STRING, allowNull: false },
     primaryContactName: { type: DataTypes.STRING, allowNull: true },
     email: { type: DataTypes.STRING, allowNull: true },
@@ -2283,6 +2297,12 @@ export class AdminApprovalPolicy extends Model {
   public maximumRepDiscount!: number;
   public maximumTeamLeadDiscount!: number;
   public minimumAllowedMargin!: number;
+  public repSelfApprovalDefault!: number;
+  public teamLeadApprovalDefault!: number;
+  public repTierCutoffExecutive!: number;
+  public repTierCutoffAgent!: number;
+  public repTierCutoffDefault!: number;
+  public currency!: string;
   public updatedById!: string | null;
   public createdAt!: Date;
   public updatedAt!: Date;
@@ -2296,6 +2316,12 @@ AdminApprovalPolicy.init(
     maximumRepDiscount: { type: DataTypes.DECIMAL(5, 4), defaultValue: 0.10 },
     maximumTeamLeadDiscount: { type: DataTypes.DECIMAL(5, 4), defaultValue: 0.20 },
     minimumAllowedMargin: { type: DataTypes.DECIMAL(5, 4), defaultValue: 0.15 },
+    repSelfApprovalDefault: { type: DataTypes.DECIMAL(15, 2), defaultValue: 1000000 },
+    teamLeadApprovalDefault: { type: DataTypes.DECIMAL(15, 2), defaultValue: 5000000 },
+    repTierCutoffExecutive: { type: DataTypes.DECIMAL(15, 2), defaultValue: 250000 },
+    repTierCutoffAgent: { type: DataTypes.DECIMAL(15, 2), defaultValue: 50000 },
+    repTierCutoffDefault: { type: DataTypes.DECIMAL(15, 2), defaultValue: 1000000 },
+    currency: { type: DataTypes.STRING(3), defaultValue: "INR" },
     updatedById: { type: DataTypes.UUID, allowNull: true },
   },
   { sequelize, modelName: "AdminApprovalPolicy", tableName: "AdminApprovalPolicies" }
@@ -2351,6 +2377,8 @@ export class SalesAssignmentPolicy extends Model {
   public bayesianWeight!: number;
   public highValueExperienceTiers!: string; // JSON
   public isPerformanceRoutingEnabled!: boolean;
+  public leadScoreValueMultiplier!: number;
+  public currency!: string;
   public createdAt!: Date;
   public updatedAt!: Date;
 }
@@ -2382,7 +2410,9 @@ SalesAssignmentPolicy.init(
       type: DataTypes.TEXT,
       defaultValue: JSON.stringify(["Senior Sales Representative", "Enterprise AE", "Strategic AE", "senior_ae", "sales_manager"])
     },
-    isPerformanceRoutingEnabled: { type: DataTypes.BOOLEAN, defaultValue: true }
+    isPerformanceRoutingEnabled: { type: DataTypes.BOOLEAN, defaultValue: true },
+    leadScoreValueMultiplier: { type: DataTypes.DECIMAL(15, 2), defaultValue: 10000 },
+    currency: { type: DataTypes.STRING(3), defaultValue: "INR" }
   },
   { sequelize, modelName: "SalesAssignmentPolicy", tableName: "SalesAssignmentPolicies" }
 );
@@ -2555,7 +2585,7 @@ Campaign.init(
     endDate: { type: DataTypes.DATE, allowNull: true },
     budget: { type: DataTypes.DECIMAL(12, 2), defaultValue: 0 },
     actualSpend: { type: DataTypes.DECIMAL(12, 2), allowNull: true },
-    currency: { type: DataTypes.STRING, defaultValue: "INR" },
+    currency: { type: DataTypes.STRING, defaultValue: "SAR" },
     ownerId: { type: DataTypes.UUID, allowNull: true },
     targetAudience: { type: DataTypes.TEXT, allowNull: true },
     objective: { type: DataTypes.STRING, allowNull: true }
@@ -2750,6 +2780,21 @@ LeadContactDiscovery.init(
   { sequelize, modelName: "LeadContactDiscovery", tableName: "LeadContactDiscoveries" }
 );
 
+export class OrgSettings extends Model {
+  public id!: string;
+  public defaultCurrency!: string;
+  public readonly createdAt!: Date;
+  public readonly updatedAt!: Date;
+}
+
+OrgSettings.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    defaultCurrency: { type: DataTypes.STRING(3), allowNull: false, defaultValue: "SAR" }
+  },
+  { sequelize, modelName: "OrgSettings", tableName: "OrgSettings" }
+);
+
 Lead.hasMany(LeadContactDiscovery, { foreignKey: "leadId", as: "contactDiscoveries" });
 LeadContactDiscovery.belongsTo(Lead, { foreignKey: "leadId", as: "lead" });
 
@@ -2822,5 +2867,30 @@ CampaignMember.belongsTo(Campaign, { foreignKey: "campaignId", as: "campaign" })
 
 Lead.hasMany(CampaignMember, { foreignKey: "leadId", as: "campaignMembers" });
 CampaignMember.belongsTo(Lead, { foreignKey: "leadId", as: "lead" });
+
+export class ExchangeRate extends Model {
+  public id!: string;
+  public fromCurrency!: string;
+  public toCurrency!: string;
+  public rate!: number;
+  public updatedById!: string | null;
+  public needsReview!: boolean;
+  public isPlaceholder!: boolean;
+  public createdAt!: Date;
+  public updatedAt!: Date;
+}
+
+ExchangeRate.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    fromCurrency: { type: DataTypes.STRING(3), allowNull: false },
+    toCurrency: { type: DataTypes.STRING(3), allowNull: false },
+    rate: { type: DataTypes.DECIMAL(18, 6), allowNull: false },
+    updatedById: { type: DataTypes.UUID, allowNull: true },
+    needsReview: { type: DataTypes.BOOLEAN, defaultValue: false },
+    isPlaceholder: { type: DataTypes.BOOLEAN, defaultValue: false }
+  },
+  { sequelize, modelName: "ExchangeRate", tableName: "ExchangeRates" }
+);
 
 export { sequelize };

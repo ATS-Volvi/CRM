@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { formatCurrency } from "../utils/currency";
 import {
   Wrench,
   Search,
@@ -898,7 +899,7 @@ export default function FieldService() {
                       )}
                     </td>
                     <td className="text-xs font-semibold text-slate-800">
-                      {wo.grandTotal ? `₹${Number(wo.grandTotal).toLocaleString()}` : "₹0"}
+                      {wo.grandTotal ? formatCurrency(wo.grandTotal) : formatCurrency(0)}
                     </td>
                     <td className="text-right">
                       <button
@@ -1385,7 +1386,7 @@ export default function FieldService() {
                       </h3>
                       <div className="flex items-center gap-3">
                         <div className="text-xs font-bold text-slate-800">
-                          Total: ₹{Number(activeWorkOrder.grandTotal || 0).toLocaleString()}
+                          Total: {formatCurrency(activeWorkOrder.grandTotal || 0)}
                         </div>
                         <button
                           onClick={() => setIsLineItemModalOpen(true)}
@@ -1430,10 +1431,10 @@ export default function FieldService() {
                                 </td>
                                 <td className="text-right text-xs">{li.quantity}</td>
                                 <td className="text-right text-xs">
-                                  ₹{Number(li.unitPrice).toLocaleString()}
+                                  {formatCurrency(li.unitPrice)}
                                 </td>
                                 <td className="text-right text-xs font-bold text-slate-900">
-                                  ₹{Number(li.totalPrice).toLocaleString()}
+                                  {formatCurrency(li.totalPrice)}
                                 </td>
                                 <td className="text-center text-xs">
                                   <button
@@ -2065,7 +2066,7 @@ export default function FieldService() {
                           .slice(0, 100)
                           .map((p: any) => (
                             <option key={p.id} value={p.id}>
-                              {p.sku ? `[${p.sku}] ` : ""}{p.name} — ₹{Number(p.unitPrice).toLocaleString()}
+                              {p.sku ? `[${p.sku}] ` : ""}{p.name} — {formatCurrency(p.unitPrice)}
                             </option>
                           ))}
                       </select>
@@ -2079,10 +2080,10 @@ export default function FieldService() {
                         <span className="text-slate-500">{selectedCatalogItem.category || "General"}</span>
                       </div>
                       <div className="text-slate-600 flex justify-between">
-                        <span>Catalog Standard: ₹{Number(selectedCatalogItem.unitPrice || 0).toLocaleString()}</span>
+                        <span>Catalog Standard: {formatCurrency(selectedCatalogItem.unitPrice || 0, selectedCatalogItem.currency || orgCurrency)}</span>
                         <span className="font-semibold text-slate-800">
-                          Floor: ₹{Number(selectedCatalogItem.minPrice || selectedCatalogItem.unitPrice * 0.9).toLocaleString()}
-                          {selectedCatalogItem.maxPrice && ` — Max: ₹${Number(selectedCatalogItem.maxPrice).toLocaleString()}`}
+                          Floor: {formatCurrency(selectedCatalogItem.minPrice || selectedCatalogItem.unitPrice * 0.9, selectedCatalogItem.currency || orgCurrency)}
+                          {selectedCatalogItem.maxPrice && ` — Max: ${formatCurrency(selectedCatalogItem.maxPrice, selectedCatalogItem.currency || orgCurrency)}`}
                         </span>
                       </div>
                     </div>
@@ -2143,7 +2144,7 @@ export default function FieldService() {
                 </div>
 
                 <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Unit Price (₹)</label>
+                  <label className="block text-slate-700 font-semibold mb-1">Unit Price</label>
                   <input
                     type="number"
                     min="0"
@@ -2171,8 +2172,7 @@ export default function FieldService() {
                       <div>
                         <span className="font-bold">Discount Below Catalog Floor!</span>
                         <p className="font-normal text-[10px] text-amber-800 mt-0.5">
-                          Unit price ₹{lineItemFormData.unitPrice.toLocaleString()} is below the approved floor of ₹
-                          {Number(selectedCatalogItem.minPrice || selectedCatalogItem.unitPrice * 0.9).toLocaleString()}.
+                          Unit price {formatCurrency(lineItemFormData.unitPrice, selectedCatalogItem.currency || orgCurrency)} is below the approved floor of {formatCurrency(selectedCatalogItem.minPrice || selectedCatalogItem.unitPrice * 0.9, selectedCatalogItem.currency || orgCurrency)}.
                           Saving will automatically route this Work Order to Manager Approvals and set its status to <strong>"Pending Approval"</strong>.
                         </p>
                       </div>
@@ -2181,7 +2181,7 @@ export default function FieldService() {
                     lineItemFormData.unitPrice > Number(selectedCatalogItem.maxPrice) ? (
                     <div className="p-2 rounded-lg bg-blue-50 border border-blue-200 text-blue-900 text-[11px] flex items-center gap-1.5">
                       <Info className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                      <span>Unit price exceeds standard catalog ceiling (₹{Number(selectedCatalogItem.maxPrice).toLocaleString()}).</span>
+                      <span>Unit price exceeds standard catalog ceiling ({formatCurrency(selectedCatalogItem.maxPrice, selectedCatalogItem.currency || orgCurrency)}).</span>
                     </div>
                   ) : (
                     <div className="p-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-semibold flex items-center gap-1.5">
@@ -2210,7 +2210,7 @@ export default function FieldService() {
               <div className="p-2.5 bg-slate-50 rounded-lg text-slate-600 flex justify-between font-semibold">
                 <span>Calculated Item Total:</span>
                 <span className="text-slate-900 font-bold">
-                  ₹{(lineItemFormData.quantity * lineItemFormData.unitPrice).toLocaleString()}
+                  {formatCurrency(lineItemFormData.quantity * lineItemFormData.unitPrice)}
                 </span>
               </div>
 

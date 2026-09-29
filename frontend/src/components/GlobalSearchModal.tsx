@@ -14,6 +14,7 @@ import {
   Sparkles
 } from "lucide-react";
 import { apiClient } from "../lib/apiClient";
+import { formatCurrency } from "../utils/currency";
 
 interface GlobalSearchModalProps {
   isOpen: boolean;
@@ -258,7 +259,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
                         {o.name}
                       </div>
                       <div className="text-[11px] text-slate-400">
-                        Value: ₹{Number(o.amount || 0).toLocaleString()} • Stage: {o.stageId || "Active"}
+                        Value: {formatCurrency(o.amount || 0, (o as any).currency)} • Stage: {o.stageId || "Active"}
                       </div>
                     </div>
                     <ArrowRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-emerald-600 shrink-0" />
@@ -287,7 +288,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
                         Quote #{q.quoteNumber} (v{q.version || 1})
                       </div>
                       <div className="text-[11px] text-slate-400">
-                        Total: ₹{Number(q.totalAmount || 0).toLocaleString()} • Status: {q.status}
+                        Total: {formatCurrency(q.totalAmount || 0, (q as any).currency)} • Status: {q.status}
                       </div>
                     </div>
                     <ArrowRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-amber-600 shrink-0" />
@@ -316,7 +317,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
                         Order #{ord.poNumber || ord.orderNumber || ord.id.slice(0, 8)}
                       </div>
                       <div className="text-[11px] text-slate-400">
-                        Amount: ₹{Number(ord.amount || ord.grandTotal || 0).toLocaleString()} • Status: {ord.status}
+                        Amount: {formatCurrency(ord.amount || ord.grandTotal || 0, (ord as any).currency)} • Status: {ord.status}
                       </div>
                     </div>
                     <ArrowRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-purple-600 shrink-0" />

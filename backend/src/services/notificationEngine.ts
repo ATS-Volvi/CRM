@@ -1,6 +1,9 @@
 import { sequelize } from "@nexus-crm/database";
 import * as crypto from "crypto";
 import { Op } from "sequelize";
+import { formatMoney } from "../utils/formatMoney";
+import { convertToOrgCurrency, resolveLimit } from "../utils/exchangeRate";
+import { getOrgCurrency } from "../utils/orgSettings";
 
 export type Role = "SALES_REP" | "TEAM_LEAD" | "ADMIN";
 export type Severity = "INFO" | "ACTION_REQUIRED" | "WARNING" | "CRITICAL";
@@ -160,7 +163,20 @@ export async function getAdminUserIds(): Promise<string[]> {
  */
 export async function triggerLeadAssignedNotifications(lead: any, assignedUser: any) {
   if (!lead || !assignedUser) return;
-  const isHighValue = (lead.leadScore || 50) >= 80 || (lead.leadScore ? lead.leadScore * 10000 : 0) >= 5000000;
+
+  let multiplier = 10000;
+  let highValThresholdOrg = 449440; // Default ~10M INR in SAR
+
+  try {
+    const policy: any = await sequelize.models.SalesAssignmentPolicy?.findOne({ order: [["createdAt", "DESC"]] });
+    if (policy) {
+      if (policy.leadScoreValueMultiplier) multiplier = Number(policy.leadScoreValueMultiplier);
+      const highValRes = await resolveLimit(policy.highValueThreshold ?? 10000000, policy.currency || "INR");
+      highValThresholdOrg = highValRes.orgAmount;
+    }
+  } catch (e) {}
+
+  const isHighValue = (lead.leadScore || 50) >= 80 || (lead.leadScore ? lead.leadScore * multiplier : 0) >= highValThresholdOrg;
   const isHighPriority = lead.temperature === "Hot" || lead.isStrategic;
 
   // 1. Notify Sales Rep (Operational)
@@ -199,18 +215,35 @@ export async function triggerLeadAssignedNotifications(lead: any, assignedUser: 
 
 /**
  * EVENT 2: Quote Approval Required (Hierarchical Routing)
- * - Amount <= ₹10L: Rep Authority (auto-approved)
- * - ₹10L < Amount <= ₹50L: Team Lead Limit ➔ Notify Team Lead ONLY
- * - Amount > ₹50L: Admin Limit ➔ Notify Admin ONLY
+ * - Amount <= Rep Authority: Auto-approved
+ * - Rep Limit < Amount <= Team Lead Limit: Notify Team Lead ONLY
+ * - Amount > Team Lead Limit: Admin Limit ➔ Notify Admin ONLY
  */
 export async function triggerQuoteApprovalNotifications(quote: any, deal: any, repUser: any) {
   if (!quote) return;
   const amount = Number(quote.totalAmount || deal?.amount || 0);
 
-  const repLimit = Number(process.env.APPROVAL_LIMIT_REP || 1000000);        // ₹10 Lakhs
-  const tlLimit = Number(process.env.APPROVAL_LIMIT_TEAM_LEAD || 5000000);   // ₹50 Lakhs
+  const adminPolicy: any = await sequelize.models.AdminApprovalPolicy.findOne({
+    order: [["createdAt", "DESC"]]
+  });
 
-  if (amount <= repLimit) {
+  if (!adminPolicy || adminPolicy.repSelfApprovalDefault == null || adminPolicy.teamLeadApprovalDefault == null) {
+    console.warn("[notificationEngine] AdminApprovalPolicy limits not configured in database. Blocking auto-approval and requiring approval.");
+  }
+
+  const orgCurrency = await getOrgCurrency();
+  const policyCurrency = (adminPolicy?.currency || "INR").toUpperCase();
+
+  const repLimitRes = await resolveLimit(adminPolicy?.repSelfApprovalDefault ?? 1000000, policyCurrency, orgCurrency);
+  const tlLimitRes = await resolveLimit(adminPolicy?.teamLeadApprovalDefault ?? 5000000, policyCurrency, orgCurrency);
+
+  const repLimit = repLimitRes.orgAmount;
+  const tlLimit = tlLimitRes.orgAmount;
+
+  // Convert quote amount to org currency for comparison against policy limits
+  const convertedAmount = (await convertToOrgCurrency(amount, quote.currency, orgCurrency)) ?? amount;
+
+  if (repLimit > 0 && convertedAmount <= repLimit && !repLimitRes.missingRate) {
     // Within rep limit — auto-approve
     await quote.update({ status: "Approved" });
     await createNotification({
@@ -219,7 +252,7 @@ export async function triggerQuoteApprovalNotifications(quote: any, deal: any, r
       type: "QUOTE_AUTO_APPROVED",
       severity: "INFO",
       title: "Quote Auto-Approved",
-      message: `Quote ${quote.quoteNumber || quote.id.slice(0, 8)} (${formatCurrencyInr(amount)}) is within your limit & ready to send.`,
+      message: `Quote ${quote.quoteNumber || quote.id.slice(0, 8)} (${formatMoney(amount, quote.currency)}) is within your limit (${repLimitRes.display}) & ready to send.`,
       entityType: "QUOTE",
       entityId: quote.id,
       source: "approval_engine",
@@ -228,7 +261,7 @@ export async function triggerQuoteApprovalNotifications(quote: any, deal: any, r
     return;
   }
 
-  if (amount > repLimit && amount <= tlLimit) {
+  if (tlLimit > 0 && convertedAmount <= tlLimit && !tlLimitRes.missingRate) {
     // Requires Team Lead Approval
     await quote.update({ status: "Pending Approval" });
     const teamLeadId = repUser ? await getTeamLeadIdForUser(repUser.id) : null;
@@ -240,7 +273,7 @@ export async function triggerQuoteApprovalNotifications(quote: any, deal: any, r
         type: "QUOTE_APPROVAL_REQUIRED",
         severity: "ACTION_REQUIRED",
         title: "Quote Awaiting Your Approval",
-        message: `Quote ${quote.quoteNumber || 'QT-360'} (${formatCurrencyInr(amount)}) from ${repUser?.name || 'Rep'} exceeds rep limit and requires approval.`,
+        message: `Quote ${quote.quoteNumber || 'QT-360'} (${formatMoney(amount, quote.currency)}) from ${repUser?.name || 'Rep'} exceeds rep limit (${repLimitRes.display}) and requires approval.`,
         entityType: "APPROVAL",
         entityId: quote.id,
         source: "approval_workflow",
@@ -266,7 +299,7 @@ export async function triggerQuoteApprovalNotifications(quote: any, deal: any, r
     return;
   }
 
-  // Amount > ₹50L ➔ Requires Admin Approval
+  // Amount > tlLimit ➔ Requires Admin Approval
   await quote.update({ status: "Pending Admin Approval" });
   const adminIds = await getAdminUserIds();
 
@@ -276,8 +309,8 @@ export async function triggerQuoteApprovalNotifications(quote: any, deal: any, r
       role: "ADMIN",
       type: "ADMIN_APPROVAL_REQUIRED",
       severity: "ACTION_REQUIRED",
-      title: "Enterprise Deal Approval Required (>₹50L)",
-      message: `Quote ${quote.quoteNumber || 'QT-360'} (${formatCurrencyInr(amount)}) exceeds Team Lead limits and requires Admin approval.`,
+      title: `Enterprise Deal Approval Required (>${tlLimitRes.display})`,
+      message: `Quote ${quote.quoteNumber || 'QT-360'} (${formatMoney(amount, quote.currency)}) exceeds Team Lead limits (${tlLimitRes.display}) and requires Admin approval.`,
       entityType: "APPROVAL",
       entityId: quote.id,
       source: "approval_workflow",
@@ -292,7 +325,7 @@ export async function triggerQuoteApprovalNotifications(quote: any, deal: any, r
       type: "QUOTE_SUBMITTED_FOR_ADMIN",
       severity: "INFO",
       title: "Quote Submitted for Admin Review",
-      message: `Quote ${quote.quoteNumber || 'QT-360'} exceeds ₹50L and has been routed to Admin.`,
+      message: `Quote ${quote.quoteNumber || 'QT-360'} exceeds ${tlLimitRes.display} and has been routed to Admin.`,
       entityType: "QUOTE",
       entityId: quote.id,
       source: "approval_workflow",
@@ -300,6 +333,7 @@ export async function triggerQuoteApprovalNotifications(quote: any, deal: any, r
     });
   }
 }
+
 
 /**
  * EVENT 3: Lead SLA Breach
@@ -368,8 +402,7 @@ export async function triggerSystemFailureNotification(source: string, title: st
   }
 }
 
-function formatCurrencyInr(val: number): string {
-  if (val >= 10000000) return `₹${(val / 10000000).toFixed(1)} Cr`;
-  if (val >= 100000) return `₹${(val / 100000).toFixed(1)} Lakhs`;
-  return `₹${val.toLocaleString('en-IN')}`;
+function formatCurrencyValue(val: number, currency?: string): string {
+  const code = (currency || "SAR").toUpperCase();
+  return formatMoney(val, code);
 }

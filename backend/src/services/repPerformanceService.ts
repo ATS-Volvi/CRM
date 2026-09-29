@@ -1,6 +1,7 @@
 import { sequelize } from "@nexus-crm/database";
 import { Op } from "sequelize";
 import { isWonStage, isClosedStage } from "../utils/pipelineStageHelpers";
+import { formatMoneyCompact } from "../utils/formatMoney";
 
 export interface RepPerformanceProfile {
   userId: string;
@@ -11,6 +12,7 @@ export interface RepPerformanceProfile {
   experienceTier: string;
   skills: string[];
   territory: string | null;
+  targetRevenue?: number | null;
   maxOpenLeads: number;
   openLeadCount: number;
   openOpportunityCount: number;
@@ -121,7 +123,7 @@ export async function calculateRepPerformanceProfile(userId: string): Promise<Re
 
   const totalRevenueWon = deals
     .filter(d => isWonStage(d.stage?.name))
-    .reduce((sum, d) => sum + Number(d.amount || 0), 0);
+    .reduce((sum, d: any) => sum + Number(d.amountInOrgCurrency ?? d.amount ?? 0), 0);
 
   const totalAssignedPipeline = deals.reduce((sum, d) => sum + Number(d.amount || 0), 0);
   const revenueConversionRate = totalAssignedPipeline > 0 ? totalRevenueWon / totalAssignedPipeline : 0;
@@ -182,6 +184,7 @@ export async function calculateRepPerformanceProfile(userId: string): Promise<Re
     managerPerformanceRating: Number(user.managerPerformanceRating ?? 4.0),
     recentHighValueLeadCount: Number(user.recentHighValueLeadCount ?? 0),
     recentLeadValueAssigned: Number(user.recentLeadValueAssigned ?? 0),
+    targetRevenue: user.targetRevenue != null ? Number(user.targetRevenue) : null,
     performanceScore
   };
 }
@@ -189,28 +192,43 @@ export async function calculateRepPerformanceProfile(userId: string): Promise<Re
 /**
  * Calculates Lead Priority Score and High-Value classification
  */
-export function calculateLeadPriorityScore(leadContext: any): LeadPriorityDetails {
+export function calculateLeadPriorityScore(leadContext: any, highValueThresholdParam?: number): LeadPriorityDetails {
   const {
-    budgetRange, expectedValue, leadScore = 50, isStrategic, source, urgency
-  } = leadContext;
+    budgetRange, expectedValue, leadScore = 50, isStrategic, source, urgency, highValueThreshold: contextThreshold
+  } = leadContext || {};
 
   let expectedRevenue = Number(expectedValue || 0);
 
   if (!expectedRevenue && budgetRange) {
-    const cleanStr = String(budgetRange).toLowerCase();
-    if (cleanStr.includes("2cr") || cleanStr.includes("20000000")) expectedRevenue = 20000000;
-    else if (cleanStr.includes("1cr") || cleanStr.includes("10000000")) expectedRevenue = 10000000;
-    else if (cleanStr.includes("50l") || cleanStr.includes("5000000")) expectedRevenue = 5000000;
-    else if (cleanStr.includes("25l") || cleanStr.includes("2500000")) expectedRevenue = 2500000;
-    else if (cleanStr.includes("100k") || cleanStr.includes("10l")) expectedRevenue = 1000000;
-    else if (cleanStr.includes("enterprise") || cleanStr.includes("vip")) expectedRevenue = 15000000;
+    const cleanStr = String(budgetRange).toLowerCase().replace(/,/g, "");
+    // Only parse currency-neutral suffixes (M = million, K = thousand).
+    // INR-specific Cr/Lakh suffixes are intentionally excluded — callers must
+    // supply a numeric expectedValue instead of relying on locale abbreviations.
+    const mMatch = cleanStr.match(/(\d+(?:\.\d+)?)\s*m(?:illion)?/);
+    const kMatch = cleanStr.match(/(\d+(?:\.\d+)?)\s*k/);
+
+    if (mMatch) {
+      expectedRevenue = parseFloat(mMatch[1]) * 1000000;
+    } else if (kMatch) {
+      expectedRevenue = parseFloat(kMatch[1]) * 1000;
+    } else {
+      const numMatch = cleanStr.match(/(?:(?:sar|usd|aed|eur|gbp|inr|\$|₹|€|£)\s*)?(\d+(?:\.\d+)?)(?:\s*(?:sar|usd|aed|eur|gbp|inr))?/);
+      if (numMatch && numMatch[1]) {
+        const val = parseFloat(numMatch[1]);
+        if (!isNaN(val) && val > 0) expectedRevenue = val;
+      }
+    }
   }
+
+  const baseThreshold = Number(highValueThresholdParam || contextThreshold || 0);
+  const tier1Threshold = baseThreshold; // 1.0x of configured high-value threshold
+  const tier2Threshold = baseThreshold * 0.25; // 0.25x sub-tier
 
   let score = Math.min(100, Math.max(10, Number(leadScore || 50)));
 
   // Value Bonus
-  if (expectedRevenue >= 10000000) score += 25; // >= ₹1Cr
-  else if (expectedRevenue >= 2500000) score += 15; // >= ₹25L
+  if (expectedRevenue >= tier1Threshold) score += 25;
+  else if (expectedRevenue >= tier2Threshold) score += 15;
 
   // Strategic Account Bonus
   if (isStrategic) score += 20;
@@ -225,14 +243,14 @@ export function calculateLeadPriorityScore(leadContext: any): LeadPriorityDetail
 
   score = Math.min(100, Math.max(10, score));
 
-  const isHighValueLead = expectedRevenue >= 10000000 || score >= 80 || Boolean(isStrategic);
+  const isHighValueLead = expectedRevenue >= tier1Threshold || score >= 80 || Boolean(isStrategic);
 
   let priorityTier: "CRITICAL" | "HIGH" | "MEDIUM" | "NORMAL" = "NORMAL";
-  if (score >= 85 || expectedRevenue >= 10000000) priorityTier = "CRITICAL";
-  else if (score >= 70 || expectedRevenue >= 2500000) priorityTier = "HIGH";
+  if (score >= 85 || expectedRevenue >= tier1Threshold) priorityTier = "CRITICAL";
+  else if (score >= 70 || expectedRevenue >= tier2Threshold) priorityTier = "HIGH";
   else if (score >= 50) priorityTier = "MEDIUM";
 
-  const reasonSummary = `Priority Score ${score}/100 (${priorityTier}) — Expected Value: ₹${(expectedRevenue / 100000).toFixed(1)}L${isStrategic ? ', Strategic Account' : ''}`;
+  const reasonSummary = `Priority Score ${score}/100 (${priorityTier}) — Expected Value: ${formatMoneyCompact(expectedRevenue)}${isStrategic ? ', Strategic Account' : ''}`;
 
   return {
     priorityScore: score,
@@ -254,7 +272,8 @@ export function calculateRepSuitabilityScore(
 ): CandidateEvaluationResult {
   const { industry, territory } = leadContext;
 
-  const priorityScore = leadPriorityDetails?.priorityScore ?? 50;
+  const DEFAULT_PRIORITY_SCORE = 50; // Neutral midpoint when no priority score is available
+  const priorityScore = leadPriorityDetails?.priorityScore ?? DEFAULT_PRIORITY_SCORE;
   const isHighValue = leadPriorityDetails?.isHighValueLead ?? false;
 
   // 1. Conversion Score (0-100)
@@ -289,7 +308,11 @@ export function calculateRepSuitabilityScore(
   }
 
   // 4. Revenue Performance Score (0-100)
-  const revScore = Math.min(100, Math.round((profile.totalRevenueWon / 5000000) * 50 + (profile.revenueConversionRate * 50)));
+  const quotaTarget = profile.targetRevenue || leadContext?.orgAverageTarget || null;
+  const quotaRatio = quotaTarget && quotaTarget > 0 ? (profile.totalRevenueWon / quotaTarget) : null;
+  const revScore = quotaRatio != null 
+    ? Math.min(100, Math.round(quotaRatio * 50 + profile.revenueConversionRate * 50))
+    : Math.min(100, Math.round(profile.revenueConversionRate * 100));
 
   // 5. Experience Tier Score (0-100)
   const tierMap: Record<string, number> = {
@@ -316,7 +339,11 @@ export function calculateRepSuitabilityScore(
   const workloadScore = Math.max(0, Math.round((1 - capRatio) * 100));
 
   // 9. Fairness / Recent Distribution Score (0-100)
-  const fairnessPenalty = (profile.recentHighValueLeadCount * 20) + ((profile.recentLeadValueAssigned / 10000000) * 15);
+  // Use rep's targetRevenue or org average target; if neither exists, skip the term
+  const fairnessPenaltyTerm = quotaTarget && quotaTarget > 0
+    ? (profile.recentLeadValueAssigned / quotaTarget) * 15
+    : 0;
+  const fairnessPenalty = (profile.recentHighValueLeadCount * 20) + fairnessPenaltyTerm;
   const fairnessScore = Math.max(10, Math.min(100, Math.round(100 - fairnessPenalty)));
 
   // 10. Manager Performance Rating Score (0-100)
@@ -419,7 +446,11 @@ export function calculateOpportunityCloserScore(
   }
 
   // 3. Revenue Won Score (0-100)
-  const revScore = Math.min(100, Math.round((profile.totalRevenueWon / 10000000) * 60 + (profile.opportunityWinRate * 40)));
+  const oppQuotaTarget = profile.targetRevenue || oppContext?.orgAverageTarget || null;
+  const oppQuotaRatio = oppQuotaTarget && oppQuotaTarget > 0 ? (profile.totalRevenueWon / oppQuotaTarget) : null;
+  const revScore = oppQuotaRatio != null 
+    ? Math.min(100, Math.round(oppQuotaRatio * 60 + profile.opportunityWinRate * 40))
+    : Math.min(100, Math.round(profile.opportunityWinRate * 100));
 
   // 4. Industry Specialization Score (0-100)
   let industrySkillScore = 30;
@@ -466,7 +497,11 @@ export function calculateOpportunityCloserScore(
   const workloadScore = Math.max(0, Math.round((1 - (openDeals / maxDeals)) * 100));
 
   // 8. Fairness / Recent High-Value Distribution Score (0-100)
-  const fairnessPenalty = (profile.recentHighValueLeadCount * 15) + ((profile.recentLeadValueAssigned / 10000000) * 10);
+  // Use rep's targetRevenue or org average target; if neither exists, skip the term
+  const oppFairnessPenaltyTerm = oppQuotaTarget && oppQuotaTarget > 0
+    ? (profile.recentLeadValueAssigned / oppQuotaTarget) * 10
+    : 0;
+  const fairnessPenalty = (profile.recentHighValueLeadCount * 15) + oppFairnessPenaltyTerm;
   const fairnessScore = Math.max(10, Math.min(100, Math.round(100 - fairnessPenalty)));
 
   // Weights for Opportunity Closer
@@ -505,7 +540,7 @@ export function calculateOpportunityCloserScore(
     managerRatingScore: Math.round((profile.managerPerformanceRating / 5.0) * 100)
   };
 
-  const explanationText = `Closer Match Score: ${finalScore}/100 (${(profile.opportunityWinRate * 100).toFixed(0)}% Win Rate, ₹${(profile.totalRevenueWon / 100000).toFixed(1)}L Revenue, ${industrySkillScore}% Industry, ${profile.experienceTier || profile.role})`;
+  const explanationText = `Closer Match Score: ${finalScore}/100 (${(profile.opportunityWinRate * 100).toFixed(0)}% Win Rate, ${formatMoneyCompact(profile.totalRevenueWon)} Revenue, ${industrySkillScore}% Industry, ${profile.experienceTier || profile.role})`;
 
   return {
     repId: profile.userId,
