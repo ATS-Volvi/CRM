@@ -65,7 +65,7 @@ export const LeadConversionModal: React.FC<LeadConversionModalProps> = ({
     `${lead.company || lead.firstName} — Commercial Requirement`
   );
   const [estimatedValue, setEstimatedValue] = useState<number>(
-    lead.estimatedValue || (lead.leadScore ? lead.leadScore * 10000 : 500000)
+    lead.estimatedValue || 0 // Do not guess from leadScore — rep enters the actual value
   );
   const [expectedCloseDate, setExpectedCloseDate] = useState<string>(
     new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
@@ -74,7 +74,7 @@ export const LeadConversionModal: React.FC<LeadConversionModalProps> = ({
     "Turnkey requirement qualified from pre-sales lead conversation."
   );
 
-  // Fetch candidate existing accounts
+  // Fetch candidate existing accounts & policy
   useEffect(() => {
     if (isOpen) {
       setError(null);
@@ -96,6 +96,24 @@ export const LeadConversionModal: React.FC<LeadConversionModalProps> = ({
           }
         })
         .catch((err) => console.error("Error loading accounts:", err));
+
+      if (!lead.estimatedValue) {
+        apiClient
+          .get("/api/v1/rules/assignment-policy")
+          .then((res: any) => {
+            const policy = res?.data || res;
+            if (policy) {
+              const highVal = Number(policy.highValueThreshold || 10000000);
+              const multiplier = Number(policy.leadScoreValueMultiplier || highVal * 0.001);
+              if (lead.leadScore) {
+                setEstimatedValue(Math.round(lead.leadScore * multiplier));
+              } else {
+                setEstimatedValue(Math.round(highVal * 0.05));
+              }
+            }
+          })
+          .catch(() => {});
+      }
     }
   }, [isOpen, lead]);
 

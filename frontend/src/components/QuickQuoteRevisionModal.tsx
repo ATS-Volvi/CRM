@@ -209,9 +209,9 @@ export function QuickQuoteRevisionModal({
                   <tr>
                     <th className="py-2.5 px-3">Item / Service</th>
                     <th className="py-2.5 px-2 w-20 text-center">Qty</th>
-                    <th className="py-2.5 px-2 w-28 text-right">Unit Price (₹)</th>
+                    <th className="py-2.5 px-2 w-28 text-right">Unit Price</th>
                     <th className="py-2.5 px-2 w-20 text-center">Disc %</th>
-                    <th className="py-2.5 px-3 w-28 text-right">Total (₹)</th>
+                    <th className="py-2.5 px-3 w-28 text-right">Total</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">

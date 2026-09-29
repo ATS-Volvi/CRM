@@ -186,19 +186,25 @@ export default function ManagementDashboard() {
                 <Link to="/salespersons" className="text-primary font-semibold text-xs hover:underline">View All</Link>
               </div>
               <div className="space-y-6">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-primary/20 text-primary rounded-full flex items-center justify-center font-bold text-lg">
-                    {(kpi?.topPerformer || "Sarah Jenkins").charAt(0)}
+                {kpi?.topPerformer ? (
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-primary/20 text-primary rounded-full flex items-center justify-center font-bold text-lg">
+                      {kpi.topPerformer.charAt(0)}
+                    </div>
+                    <div className="flex-grow">
+                      <p className="font-bold text-sm text-on-surface">{kpi.topPerformer}</p>
+                      <p className="text-[10px] text-on-surface-variant uppercase font-bold tracking-tighter">Enterprise Accounts</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-primary">124%</p>
+                      <p className="text-[10px] text-on-surface-variant font-medium">Quota Att.</p>
+                    </div>
                   </div>
-                  <div className="flex-grow">
-                    <p className="font-bold text-sm text-on-surface">{kpi?.topPerformer || "Sarah Jenkins"}</p>
-                    <p className="text-[10px] text-on-surface-variant uppercase font-bold tracking-tighter">Enterprise Accounts</p>
+                ) : (
+                  <div className="text-center py-6 text-xs text-slate-400">
+                    <p>No data yet</p>
                   </div>
-                  <div className="text-right">
-                    <p className="font-bold text-primary">124%</p>
-                    <p className="text-[10px] text-on-surface-variant font-medium">Quota Att.</p>
-                  </div>
-                </div>
+                )}
               </div>
             </div>
 

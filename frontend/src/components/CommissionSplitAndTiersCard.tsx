@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { formatCurrency } from "../utils/currency";
 import {
   Percent,
   Layers,
@@ -405,15 +406,15 @@ export function CommissionSplitAndTiersCard() {
             <div className="p-3 bg-surface-container-lowest rounded-xl border border-outline-variant/80 text-xs space-y-1">
               <p className="font-bold text-on-surface flex items-center gap-1">
                 <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                Example Commission Credit (₹10,00,000 Opportunity)
+                Example Commission Credit ({formatCurrency(1000000)} Opportunity)
               </p>
               <div className="flex justify-between text-[11px] pt-1">
                 <span className="text-on-surface-variant">SDR Credit:</span>
-                <span className="font-mono font-bold text-indigo-700">₹{((1000000 * splitNum) / 100).toLocaleString("en-IN")}</span>
+                <span className="font-mono font-bold text-indigo-700">{formatCurrency((1000000 * splitNum) / 100)}</span>
               </div>
               <div className="flex justify-between text-[11px]">
                 <span className="text-on-surface-variant">Closing AE Credit:</span>
-                <span className="font-mono font-bold text-emerald-700">₹{((1000000 * closerSplitNum) / 100).toLocaleString("en-IN")}</span>
+                <span className="font-mono font-bold text-emerald-700">{formatCurrency((1000000 * closerSplitNum) / 100)}</span>
               </div>
             </div>
           </div>

@@ -30,6 +30,7 @@ import {
   Check,
   Percent,
   Shield,
+  ShieldCheck,
   Briefcase,
   TrendingUp,
   Tag,
@@ -37,6 +38,7 @@ import {
   CheckSquare
 } from "lucide-react";
 
+import { useMarkQuoteFinal } from "../hooks/useMarkQuoteFinal";
 import { apiClient } from "../lib/apiClient";
 import { formatCurrency } from "../utils/currency";
 import { useAuth } from "../context/AuthContext";
@@ -222,6 +224,17 @@ export default function OpportunityDetail() {
     message: string;
   } | null>(null);
 
+  // Mark Quote as Final Hook
+  const {
+    markFinal,
+    isPending: isMarkingFinal,
+    approvalFeedback,
+    setApprovalFeedback,
+    statusMessage
+  } = useMarkQuoteFinal();
+
+  const [copiedSummary, setCopiedSummary] = useState(false);
+
   // Fetch Opportunity Detail
   const { data: opp, isLoading, error } = useQuery({
     queryKey: ["opportunity-detail", id],
@@ -230,6 +243,17 @@ export default function OpportunityDetail() {
       return res;
     },
     enabled: !!id
+  });
+
+  // Fetch Account for Corporate Hierarchy & Details
+  const { data: accountDetails } = useQuery<any>({
+    queryKey: ["account-hierarchy", opp?.account?.id],
+    queryFn: async () => {
+      const res = await apiClient.get<any>(`/api/v1/accounts/${opp.account.id}`);
+      return res;
+    },
+    enabled: !!opp?.account?.id,
+    staleTime: 5 * 60 * 1000
   });
 
   // Fetch Pipeline Stages for Stepper
@@ -313,6 +337,9 @@ export default function OpportunityDetail() {
       queryClient.invalidateQueries({ queryKey: ["opportunity-quotes", id] });
       queryClient.invalidateQueries({ queryKey: ["opportunity-approvals", id] });
       queryClient.invalidateQueries({ queryKey: ["opportunity-timeline", id] });
+    },
+    onError: (err: any) => {
+      alert("Failed to accept quote: " + (err?.response?.data?.error || err?.message || "Unknown error"));
     }
   });
 
@@ -462,71 +489,178 @@ export default function OpportunityDetail() {
   // Active stage determination
   const currentStageIndex = pipelineStages.findIndex((s) => s.id === opp.stageId || s.name === opp.stage?.name);
 
+  const clientDisplayName =
+    (opp.primaryContact?.firstName
+      ? `${opp.primaryContact.firstName} ${opp.primaryContact.lastName || ""}`.trim()
+      : opp.lead?.firstName
+      ? `${opp.lead.firstName} ${opp.lead.lastName || ""}`.trim()
+      : opp.contact?.name || opp.name) || "Client Lead";
+
+  const companyDisplayName = opp.account?.name || opp.lead?.company || "Enterprise Client";
+  const currentRepName = opp.owner?.name || "Sophia Martinez";
+  const currentRepRole = opp.owner?.role || "Sales Rep";
+  const ingestionDate = opp.createdAt
+    ? new Date(opp.createdAt).toLocaleDateString([], {
+        month: "short",
+        day: "numeric",
+        year: "numeric"
+      })
+    : "Sep 10, 2026";
+  const ingestionChannel = opp.sourceChannel || opp.lead?.sourceChannel || opp.source || opp.lead?.source || "Website Form";
+
   return (
-    <div className="p-4 sm:p-6 max-w-[1440px] mx-auto space-y-5">
+    <div className="p-4 sm:p-6 max-w-[1440px] mx-auto space-y-4">
       {/* ── 1. TOP BREADCRUMB & ACTION TOOLBAR (Stitch Header Style) ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-200 dark:border-slate-800">
-        <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
-          <Link
-            to="/opportunities"
-            className="hover:text-blue-600 transition-colors flex items-center gap-1"
-          >
-            <span>Opportunities</span>
-          </Link>
-          <ChevronRight className="w-3 h-3 text-slate-400" />
-          <span className="font-bold text-slate-900 dark:text-white truncate max-w-xs sm:max-w-md">
-            {opp.name}
-          </span>
-        </div>
-
-        {!opp?.isViewOnly && (
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              onClick={() => setIsReassignModalOpen(true)}
-              className="px-3 py-1.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
+      <div className="space-y-3 pb-3 border-b border-slate-200 dark:border-slate-800">
+        {/* Top Main Row: Breadcrumb + Search + Quick Actions */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          {/* Left: Breadcrumbs + ID + Client Name + Converted Badge */}
+          <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 flex-wrap">
+            <Link
+              to="/opportunities"
+              className="hover:text-indigo-600 transition-colors font-semibold"
             >
-              <UserCheck className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
-              <span>Reassign</span>
-            </button>
+              Leads
+            </Link>
+            <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono text-[11px] font-bold border border-slate-200 dark:border-slate-700">
+              LD-{opp.id.slice(0, 8).toUpperCase()}
+            </span>
+            <span className="font-extrabold text-sm text-slate-900 dark:text-white truncate max-w-[260px]" title={clientDisplayName}>
+              {clientDisplayName}
+            </span>
+            <span className="text-slate-400">•</span>
+            <span className="font-medium text-slate-600 dark:text-slate-400 truncate max-w-[220px]" title={companyDisplayName}>
+              {companyDisplayName}
+            </span>
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 uppercase tracking-wider">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+              {status === "WON" ? "Won" : status === "LOST" ? "Lost" : "Converted"}
+            </span>
+          </div>
 
-            <button
-              onClick={() => autoAssignMutation.mutate()}
-              disabled={autoAssignMutation.isPending}
-              className="px-3 py-1.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
-              title="Auto-Assign Rep"
-            >
-              <Sparkles className={`w-3.5 h-3.5 text-amber-500 ${autoAssignMutation.isPending ? "animate-spin" : ""}`} />
-              <span>Auto-Assign</span>
-            </button>
+          {/* Center: Search Insights Bar */}
+          <div className="relative w-full lg:w-72">
+            <input
+              type="text"
+              placeholder="Search insights, notes... (Ctrl+K)"
+              className="w-full px-3.5 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-900 dark:text-white placeholder:text-slate-400 shadow-2xs"
+            />
+          </div>
 
-            {status === "OPEN" && (
-              <>
-                <button
-                  onClick={() => setShowWonModal(true)}
-                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
-                >
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>Mark Won</span>
-                </button>
+          {/* Right: Actions Toolbar */}
+          {!opp?.isViewOnly && (
+            <div className="flex items-center gap-2 flex-wrap shrink-0">
+              {status === "OPEN" && (
                 <button
                   onClick={() => setShowLossModal(true)}
                   className="px-3 py-1.5 bg-white dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
                 >
-                  <XCircle className="w-3.5 h-3.5" />
-                  <span>Mark Lost</span>
+                  <X className="w-3.5 h-3.5" />
+                  <span>Close as Lost</span>
                 </button>
-              </>
-            )}
+              )}
 
-            <button
-              onClick={() => navigate(`/quotes/new?dealId=${opp.id}`)}
-              className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>New Quote</span>
-            </button>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(window.location.href);
+                  setCopiedSummary(true);
+                  setTimeout(() => setCopiedSummary(false), 2500);
+                }}
+                className="px-3 py-1.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
+              >
+                {copiedSummary ? (
+                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                ) : (
+                  <Share2 className="w-3.5 h-3.5 text-slate-400" />
+                )}
+                <span>{copiedSummary ? "Copied!" : "Export Summary"}</span>
+              </button>
+
+              <button
+                onClick={() => navigate(`/quotes/new?dealId=${opp.id}`)}
+                className="px-3.5 py-1.5 bg-[#5842eb] hover:bg-[#4833dd] text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Generate Proposal</span>
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Sub-Row: High-Density Context Metadata Strip (Client, Current Sales Rep Handling It, Ingestion Date, Deal Value) */}
+        <div className="bg-slate-50/80 dark:bg-slate-800/40 rounded-xl px-3.5 py-2 border border-slate-200/80 dark:border-slate-800 flex flex-wrap items-center justify-between gap-y-2 gap-x-4 text-xs">
+          <div className="flex flex-wrap items-center gap-4 text-slate-600 dark:text-slate-300">
+            {/* Client / Account */}
+            <div className="flex items-center gap-1.5 font-medium">
+              <Building2 className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+              <span className="text-slate-400 font-normal">Client:</span>
+              <strong className="text-slate-900 dark:text-white font-bold">
+                {companyDisplayName}
+              </strong>
+              {clientDisplayName && clientDisplayName !== companyDisplayName && (
+                <span className="text-slate-500 dark:text-slate-400 text-[11px]">
+                  ({clientDisplayName})
+                </span>
+              )}
+            </div>
+
+            {/* Current Sales Rep Handling It */}
+            <div className="flex items-center gap-1.5 font-medium">
+              <User className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+              <span className="text-slate-400 font-normal">Current Rep:</span>
+              <strong className="text-slate-900 dark:text-white font-bold">
+                {currentRepName}
+              </strong>
+              {!opp?.isViewOnly && (
+                <button
+                  onClick={() => setIsReassignModalOpen(true)}
+                  className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline ml-0.5 cursor-pointer bg-indigo-50 dark:bg-indigo-950/50 px-1.5 py-0.5 rounded border border-indigo-200 dark:border-indigo-800/60"
+                >
+                  Reassign
+                </button>
+              )}
+            </div>
+
+            {/* Ingestion Date & Inbound Channel */}
+            <div className="flex items-center gap-1.5 font-medium">
+              <Calendar className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+              <span className="text-slate-400 font-normal">Date Received:</span>
+              <strong className="text-slate-900 dark:text-white font-bold">
+                {ingestionDate}
+              </strong>
+              <span className="text-slate-500 dark:text-slate-400 text-[11px] bg-slate-200/60 dark:bg-slate-700/60 px-1.5 py-0.5 rounded font-medium">
+                {ingestionChannel}
+              </span>
+            </div>
           </div>
-        )}
+
+          <div className="flex flex-wrap items-center gap-4 text-slate-600 dark:text-slate-300">
+            {/* Commercial Deal Value */}
+            <div className="flex items-center gap-1.5 font-medium">
+              <DollarSign className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+              <span className="text-slate-400 font-normal">Deal Value:</span>
+              <strong className="text-slate-900 dark:text-white font-bold">
+                {formatCurrency(opp.amount || 0, opp.currency)}
+              </strong>
+            </div>
+
+            {/* Target Close Date */}
+            <div className="flex items-center gap-1.5 font-medium">
+              <Clock className="w-3.5 h-3.5 text-purple-500 shrink-0" />
+              <span className="text-slate-400 font-normal">Expected Close:</span>
+              <strong className="text-slate-900 dark:text-white font-bold">
+                {opp.expectedCloseDate
+                  ? new Date(opp.expectedCloseDate).toLocaleDateString([], {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric"
+                    })
+                  : "21 Nov 2026"}
+              </strong>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* ── 2. SPECIAL STATE NOTIFICATIONS / BANNERS ── */}
@@ -587,7 +721,7 @@ export default function OpportunityDetail() {
                 </div>
                 <div>
                   <div className="font-bold text-amber-900 dark:text-amber-200">
-                    Customer Accepted Quote #{acceptedQuote.quoteNumber || acceptedQuote.id.slice(0, 8)} ({formatCurrency(acceptedQuote.totalAmount || 0)})
+                    Customer Accepted Quote #{acceptedQuote.quoteNumber || acceptedQuote.id.slice(0, 8)} ({formatCurrency(acceptedQuote.totalAmount || 0, acceptedQuote.currency || opp.currency)})
                   </div>
                   <div className="text-amber-700 dark:text-amber-300/80 mt-0.5">
                     Proposal accepted by client. Submit for management approval before generating purchase order and closing deal.
@@ -635,144 +769,200 @@ export default function OpportunityDetail() {
         return null;
       })()}
 
-      {/* ── 3. HERO OVERVIEW & INTERACTIVE STAGE STEPPER ── */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-5">
-        {/* Deal Header Info & Financials */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="space-y-1.5">
-            <div className="flex flex-wrap items-center gap-2.5">
-              <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-                {opp.name}
-              </h1>
-
-              {/* Status Badge */}
-              {status === "WON" ? (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Closed Won
-                </span>
-              ) : status === "LOST" ? (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
-                  <XCircle className="w-3.5 h-3.5 text-rose-600" /> Closed Lost
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                  <Clock className="w-3.5 h-3.5 text-blue-600" /> Open Opportunity
-                </span>
-              )}
-
-              {/* Phase Badge */}
-              {status === "OPEN" && (
-                <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold border ${phaseInfo.badgeClass}`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${phaseInfo.dotClass} animate-pulse`} />
-                  {phaseInfo.label}
-                </span>
-              )}
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
-              <span className="font-bold text-slate-800 dark:text-slate-200">
-                {opp.account?.name || opp.lead?.company || "Direct Account"}
-              </span>
-              <span>•</span>
-              <span>
-                Owner: <strong className="text-slate-800 dark:text-slate-200">{opp.owner?.name || "Assigned Rep"}</strong>
-              </span>
-              <span>•</span>
-              <span>
-                Expected Close:{" "}
-                <strong className="text-slate-700 dark:text-slate-300">
-                  {opp.expectedCloseDate
-                    ? new Date(opp.expectedCloseDate).toLocaleDateString([], {
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric"
-                      })
-                    : "Unscheduled"}
-                </strong>
+      {/* ── 3. THIN 1:1 STITCH PROCESS PROGRESSION CARDS (New Enquiry, Contacted, Qualified, Converted) ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+        {/* Card 1: New Enquiry */}
+        <div
+          onClick={() => {
+            if (status === "OPEN" && pipelineStages[0]?.id) {
+              moveStageMutation.mutate(pipelineStages[0].id);
+            }
+          }}
+          className={`rounded-xl py-2 px-3 sm:px-3.5 border transition-all flex flex-col justify-between cursor-pointer ${
+            currentStageIndex === 0
+              ? "bg-[#5842eb] dark:bg-[#5842eb] text-white border-[#4833dd] shadow-sm shadow-indigo-500/25"
+              : currentStageIndex > 0
+              ? "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-emerald-300"
+              : "bg-slate-50/80 dark:bg-slate-800/40 border-slate-200/70 dark:border-slate-800 opacity-65"
+          }`}
+        >
+          <div className="flex items-center justify-between gap-2 mb-0.5">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 ${
+                currentStageIndex === 0
+                  ? "bg-white/20 text-white"
+                  : currentStageIndex > 0
+                  ? "bg-emerald-500 text-white"
+                  : "bg-slate-200 dark:bg-slate-700 text-slate-400"
+              }`}>
+                {currentStageIndex === 0 ? (
+                  <Sparkles className="w-2.5 h-2.5" />
+                ) : (
+                  <Check className="w-2.5 h-2.5 stroke-[3]" />
+                )}
+              </div>
+              <span className={`text-xs font-bold truncate ${currentStageIndex === 0 ? "text-white font-extrabold" : "text-slate-900 dark:text-white"}`}>
+                New Enquiry
               </span>
             </div>
+            {currentStageIndex === 0 ? (
+              <span className="text-[9px] font-black uppercase tracking-wider bg-white/20 text-white border border-white/30 px-1.5 py-0.5 rounded shrink-0">
+                ACTIVE
+              </span>
+            ) : (
+              <span className="text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/70 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 px-1.5 py-0.5 rounded shrink-0">
+                {opp.createdAt ? new Date(opp.createdAt).toLocaleDateString([], { month: "short", day: "numeric" }) : "Sep 10"}
+              </span>
+            )}
           </div>
-
-          {/* Right Metrics Hero (Deal Value & Win Probability) */}
-          <div className="flex items-center gap-6 border-t md:border-t-0 md:border-l border-slate-100 dark:border-slate-800 pt-3 md:pt-0 md:pl-6 shrink-0">
-            <div>
-              <div className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">
-                Deal Value
-              </div>
-              <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
-                {formatCurrency(opp.amount || 0)}
-              </div>
-            </div>
-            <div>
-              <div className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">
-                Win Probability
-              </div>
-              <div className="text-xl sm:text-2xl font-black text-blue-600 dark:text-blue-400">
-                {opp.probability !== null && opp.probability !== undefined
-                  ? `${opp.probability}%`
-                  : status === "WON"
-                  ? "100%"
-                  : status === "LOST"
-                  ? "0%"
-                  : "60%"}
-              </div>
-            </div>
-          </div>
+          <p className={`text-[10px] font-medium pl-6 truncate ${currentStageIndex === 0 ? "text-indigo-100" : "text-slate-400 dark:text-slate-500"}`}>
+            Source: {opp.sourceChannel || "Website Form"}
+          </p>
         </div>
 
-        {/* Stage Stepper Progress Bar */}
-        <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
-          <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
-            <span>Pipeline Progression</span>
-            <span>
-              Stage {currentStageIndex >= 0 ? currentStageIndex + 1 : 1} of {pipelineStages.length || 7}
-            </span>
+        {/* Card 2: Contacted */}
+        <div
+          onClick={() => {
+            if (status === "OPEN" && pipelineStages[1]?.id) {
+              moveStageMutation.mutate(pipelineStages[1].id);
+            }
+          }}
+          className={`rounded-xl py-2 px-3 sm:px-3.5 border transition-all flex flex-col justify-between cursor-pointer ${
+            currentStageIndex === 1
+              ? "bg-[#5842eb] dark:bg-[#5842eb] text-white border-[#4833dd] shadow-sm shadow-indigo-500/25"
+              : currentStageIndex > 1
+              ? "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-emerald-300"
+              : "bg-slate-50/80 dark:bg-slate-800/40 border-slate-200/70 dark:border-slate-800 opacity-65"
+          }`}
+        >
+          <div className="flex items-center justify-between gap-2 mb-0.5">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 ${
+                currentStageIndex === 1
+                  ? "bg-white/20 text-white"
+                  : currentStageIndex > 1
+                  ? "bg-emerald-500 text-white"
+                  : "bg-emerald-500 text-white"
+              }`}>
+                {currentStageIndex === 1 ? (
+                  <Sparkles className="w-2.5 h-2.5" />
+                ) : (
+                  <Check className="w-2.5 h-2.5 stroke-[3]" />
+                )}
+              </div>
+              <span className={`text-xs font-bold truncate ${currentStageIndex === 1 ? "text-white font-extrabold" : "text-slate-900 dark:text-white"}`}>
+                Contacted
+              </span>
+            </div>
+            {currentStageIndex === 1 ? (
+              <span className="text-[9px] font-black uppercase tracking-wider bg-white/20 text-white border border-white/30 px-1.5 py-0.5 rounded shrink-0">
+                ACTIVE
+              </span>
+            ) : (
+              <span className="text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/70 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 px-1.5 py-0.5 rounded shrink-0">
+                Sep 14
+              </span>
+            )}
           </div>
+          <p className={`text-[10px] font-medium pl-6 truncate ${currentStageIndex === 1 ? "text-indigo-100" : "text-slate-400 dark:text-slate-500"}`}>
+            Outbound call &amp; email pitch
+          </p>
+        </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
-            {pipelineStages.map((stage: any, index: number) => {
-              const isCurrent = stage.id === opp.stageId || stage.name === opp.stage?.name;
-              const isPast = currentStageIndex > -1 && index < currentStageIndex;
-              const isFuture = currentStageIndex > -1 && index > currentStageIndex;
-
-              return (
-                <button
-                  key={stage.id || stage.name}
-                  onClick={() => {
-                    if (status === "OPEN" && !isCurrent) {
-                      moveStageMutation.mutate(stage.id);
-                    }
-                  }}
-                  disabled={status !== "OPEN" || isCurrent || moveStageMutation.isPending}
-                  className={`p-2.5 rounded-xl border text-left transition-all relative flex flex-col justify-between ${
-                    isCurrent
-                      ? "bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/20"
-                      : isPast
-                      ? "bg-emerald-50/70 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800 hover:border-emerald-400 cursor-pointer"
-                      : "bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 border-slate-200/80 dark:border-slate-700/80 hover:bg-slate-100 cursor-pointer"
-                  } ${status !== "OPEN" ? "cursor-default" : ""}`}
-                >
-                  <div className="flex items-center justify-between w-full mb-1">
-                    <span className="text-[10px] font-extrabold uppercase opacity-80">
-                      Step {index + 1}
-                    </span>
-                    {isPast && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />}
-                    {isCurrent && <div className="w-2 h-2 rounded-full bg-white animate-pulse" />}
-                  </div>
-                  <div className="font-bold text-xs truncate w-full" title={stage.name}>
-                    {stage.name}
-                  </div>
-                  <div className={`text-[10px] mt-0.5 ${isCurrent ? "text-blue-100" : "text-slate-400 dark:text-slate-500"}`}>
-                    {stage.probability}% win target
-                  </div>
-                </button>
-              );
-            })}
+        {/* Card 3: Qualified */}
+        <div
+          onClick={() => {
+            if (status === "OPEN" && pipelineStages[2]?.id) {
+              moveStageMutation.mutate(pipelineStages[2].id);
+            }
+          }}
+          className={`rounded-xl py-2 px-3 sm:px-3.5 border transition-all flex flex-col justify-between cursor-pointer ${
+            currentStageIndex === 2
+              ? "bg-[#5842eb] dark:bg-[#5842eb] text-white border-[#4833dd] shadow-sm shadow-indigo-500/25"
+              : currentStageIndex > 2
+              ? "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-emerald-300"
+              : "bg-slate-50/80 dark:bg-slate-800/40 border-slate-200/70 dark:border-slate-800 opacity-65"
+          }`}
+        >
+          <div className="flex items-center justify-between gap-2 mb-0.5">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 ${
+                currentStageIndex === 2
+                  ? "bg-white/20 text-white"
+                  : "bg-emerald-500 text-white"
+              }`}>
+                {currentStageIndex === 2 ? (
+                  <Sparkles className="w-2.5 h-2.5" />
+                ) : (
+                  <Check className="w-2.5 h-2.5 stroke-[3]" />
+                )}
+              </div>
+              <span className={`text-xs font-bold truncate ${currentStageIndex === 2 ? "text-white font-extrabold" : "text-slate-900 dark:text-white"}`}>
+                Qualified
+              </span>
+            </div>
+            {currentStageIndex === 2 ? (
+              <span className="text-[9px] font-black uppercase tracking-wider bg-white/20 text-white border border-white/30 px-1.5 py-0.5 rounded shrink-0">
+                ACTIVE
+              </span>
+            ) : (
+              <span className="text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/70 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 px-1.5 py-0.5 rounded shrink-0">
+                Sep 22
+              </span>
+            )}
           </div>
+          <p className={`text-[10px] font-medium pl-6 truncate ${currentStageIndex === 2 ? "text-indigo-100" : "text-slate-400 dark:text-slate-500"}`}>
+            Scope verified by Rep
+          </p>
+        </div>
+
+        {/* Card 4: Converted (Quote Sent) */}
+        <div
+          onClick={() => {
+            if (status === "OPEN" && pipelineStages[3]?.id) {
+              moveStageMutation.mutate(pipelineStages[3].id);
+            }
+          }}
+          className={`rounded-xl py-2 px-3 sm:px-3.5 border transition-all flex flex-col justify-between cursor-pointer ${
+            currentStageIndex >= 3
+              ? "bg-[#5842eb] dark:bg-[#5842eb] text-white border-[#4833dd] shadow-sm shadow-indigo-500/25"
+              : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800"
+          }`}
+        >
+          <div className="flex items-center justify-between gap-2 mb-0.5">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 ${
+                currentStageIndex >= 3
+                  ? "bg-white/20 text-white"
+                  : "bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400"
+              }`}>
+                {currentStageIndex >= 3 ? (
+                  <Sparkles className="w-2.5 h-2.5" />
+                ) : (
+                  <FileText className="w-2.5 h-2.5" />
+                )}
+              </div>
+              <span className={`text-xs font-bold truncate ${currentStageIndex >= 3 ? "text-white font-extrabold" : "text-slate-900 dark:text-white"}`}>
+                Converted (Quote Sent)
+              </span>
+            </div>
+            {currentStageIndex >= 3 ? (
+              <span className="text-[9px] font-black uppercase tracking-wider bg-white/20 text-white border border-white/30 px-1.5 py-0.5 rounded shrink-0">
+                ACTIVE
+              </span>
+            ) : (
+              <span className="text-[10px] font-bold text-slate-400 shrink-0">
+                Next Stage
+              </span>
+            )}
+          </div>
+          <p className={`text-[10px] font-medium pl-6 truncate ${currentStageIndex >= 3 ? "text-indigo-100" : "text-slate-400 dark:text-slate-500"}`}>
+            Ready for Negotiation
+          </p>
         </div>
       </div>
 
-      {/* ── 4. AI CUSTOMER SCOPE & REQUIREMENTS INSIGHT CARD ── */}
+      {/* ── 4. FULL-WIDTH CUSTOMER SCOPE & REQUIREMENTS INSIGHT (AI Extraction Hero) ── */}
       <AiRequirementSummaryCard
         type="opportunity"
         id={id!}
@@ -783,13 +973,13 @@ export default function OpportunityDetail() {
 
       {/* ── 5. MAIN 2-COLUMN BENTO WORKSPACE (Stitch Layout) ── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-        {/* ── LEFT / SIDEBAR COLUMN (4 Cols): AI Copilot, Customer Details, Company Intelligence ── */}
+        {/* ── LEFT / SIDEBAR COLUMN (4.5 / 12 Cols): Copilot Insights, Customer Details, Company Intelligence, Ownership ── */}
         <div className="lg:col-span-4 space-y-5">
-          {/* Sales Copilot & Smart Insights Card */}
+          {/* Card 1: AI Sales Copilot & Smart Insights */}
           <div className="bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-900/60 rounded-2xl p-5 shadow-xs space-y-3.5 relative overflow-hidden">
             <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-2.5">
               <h3 className="text-xs font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400" /> Sales Copilot & Smart Insights
+                <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400" /> Sales Copilot &amp; Smart Insights
               </h3>
               <span className="text-[10px] font-bold bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 px-2 py-0.5 rounded-full">
                 Live Insights
@@ -797,24 +987,24 @@ export default function OpportunityDetail() {
             </div>
 
             <div className="space-y-3 text-xs">
-              {/* Win Probability metric */}
-              <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-xl border border-slate-200/70 dark:border-slate-700">
-                <span className="text-slate-500 dark:text-slate-400 font-semibold">Deal Win Probability:</span>
-                <span className="font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950 px-2.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
+              {/* Win Probability Pill */}
+              <div className="flex items-center justify-between p-2.5 bg-blue-50/50 dark:bg-blue-950/30 rounded-xl border border-blue-100 dark:border-blue-900/40">
+                <span className="text-slate-600 dark:text-slate-300 font-bold">Win Probability:</span>
+                <span className="font-extrabold text-blue-700 dark:text-blue-300 text-xs">
                   {opp.probability !== null && opp.probability !== undefined
                     ? `${opp.probability}%`
                     : status === "WON"
                     ? "100%"
                     : status === "LOST"
                     ? "0%"
-                    : "60%"}
+                    : "—"}
                 </span>
               </div>
 
               {/* Smart Recommendation */}
               <div>
                 <span className="text-slate-500 dark:text-slate-400 font-bold block mb-1 text-[11px] uppercase tracking-wider">
-                  Smart Recommendation:
+                  Recommended Action:
                 </span>
                 <p className="font-medium text-slate-800 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/80 p-3 rounded-xl border border-slate-200/80 dark:border-slate-700 leading-relaxed">
                   {recommendedAction}
@@ -829,11 +1019,11 @@ export default function OpportunityDetail() {
                 <div className={`p-3 rounded-xl border text-[11px] font-medium leading-relaxed ${dealRisk.bgClass}`}>
                   <div className="flex items-center gap-1.5 font-bold mb-1">
                     {dealRisk.level === "HIGH" ? (
-                      <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                      <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
                     ) : dealRisk.level === "MEDIUM" ? (
-                      <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+                      <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                     ) : (
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                     )}
                     <span>{dealRisk.label}</span>
                   </div>
@@ -843,152 +1033,272 @@ export default function OpportunityDetail() {
             </div>
           </div>
 
-          {/* Customer Details Card */}
+          {/* Card 2: Main Customer Details & Financials */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
-            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
-              <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">
-                Customer Details
-              </h3>
-              {opp.account?.id && (
-                <Link
-                  to={`/accounts/${opp.account.id}`}
-                  className="text-blue-600 dark:text-blue-400 hover:underline font-bold text-xs inline-flex items-center gap-1"
-                >
-                  <span>View 360</span>
-                  <ExternalLink className="w-3 h-3" />
-                </Link>
-              )}
-            </div>
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-12 h-12 rounded-2xl bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 flex items-center justify-center font-black text-base shrink-0 shadow-2xs">
+                  {opp.account?.name
+                    ? opp.account.name.substring(0, 2).toUpperCase()
+                    : opp.name
+                    ? opp.name.substring(0, 2).toUpperCase()
+                    : "OP"}
+                </div>
+                <div className="min-w-0">
+                  <h2 className="text-base font-black text-slate-900 dark:text-white truncate tracking-tight" title={opp.name}>
+                    {opp.account?.name || opp.lead?.company || opp.name}
+                  </h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium truncate">
+                    {opp.primaryContact?.firstName
+                      ? `${opp.primaryContact.firstName} ${opp.primaryContact.lastName || ""}`
+                      : opp.lead?.firstName
+                      ? `${opp.lead.firstName} ${opp.lead.lastName || ""}`
+                      : "Direct Representative Account"}
+                  </p>
+                  <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                    {status === "WON" ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 uppercase tracking-wider">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Won
+                      </span>
+                    ) : status === "LOST" ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 uppercase tracking-wider">
+                        <XCircle className="w-3 h-3 text-rose-600" /> Lost
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 uppercase tracking-wider">
+                        <Clock className="w-3 h-3 text-blue-600" /> Open
+                      </span>
+                    )}
 
-            <div className="space-y-3 text-xs">
-              <div>
-                <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Company</span>
-                <span className="font-bold text-slate-900 dark:text-white text-sm">
-                  {opp.account?.name || opp.lead?.company || "Direct Account"}
-                </span>
-              </div>
-
-              <div>
-                <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Primary Contact</span>
-                <span className="font-semibold text-slate-800 dark:text-slate-200">
-                  {opp.primaryContact?.firstName
-                    ? `${opp.primaryContact.firstName} ${opp.primaryContact.lastName || ""}`
-                    : opp.lead?.firstName
-                    ? `${opp.lead.firstName} ${opp.lead.lastName || ""}`
-                    : "Unassigned Contact"}
-                </span>
-                {(opp.primaryContact?.email || opp.lead?.email) && (
-                  <div className="text-slate-500 dark:text-slate-400 truncate mt-0.5 flex items-center gap-1">
-                    <Mail className="w-3 h-3 text-slate-400 shrink-0" />
-                    <span className="truncate">{opp.primaryContact?.email || opp.lead?.email}</span>
-                  </div>
-                )}
-                {(opp.primaryContact?.phone || opp.lead?.phone) && (
-                  <div className="text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-1">
-                    <Phone className="w-3 h-3 text-slate-400 shrink-0" />
-                    <span>{opp.primaryContact?.phone || opp.lead?.phone}</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Assigned Representative */}
-              <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
-                <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                  Assigned Closer
-                </span>
-                <div className="flex items-center gap-2.5 bg-slate-50 dark:bg-slate-800 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-700">
-                  <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-xs shrink-0">
-                    {opp.owner?.name ? opp.owner.name.substring(0, 2).toUpperCase() : "REP"}
-                  </div>
-                  <div className="truncate">
-                    <span className="font-bold text-slate-800 dark:text-slate-200 block truncate">
-                      {opp.owner?.name || "Assigned Rep"}
-                    </span>
-                    <span className="text-[10px] text-slate-400 dark:text-slate-500 block truncate">
-                      {opp.owner?.role || "Account Executive"}
-                    </span>
+                    {status === "OPEN" && (
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold border uppercase tracking-wider ${phaseInfo.badgeClass}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${phaseInfo.dotClass} animate-pulse`} />
+                        {phaseInfo.label}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* Company Intelligence Card (Option A: Genuine Account Metadata Only) */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3 relative overflow-hidden">
-            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-2.5">
-              <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                <Building2 className="w-4 h-4 text-blue-600 dark:text-blue-400" /> Company Intelligence
-              </h3>
-              <span className="text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 px-2 py-0.5 rounded-full">
-                Account Data
-              </span>
+            {/* Deal Value & Win Probability Box */}
+            <div className="grid grid-cols-2 gap-2 p-3 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-slate-200/80 dark:border-slate-700">
+              <div>
+                <span className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                  Deal Value
+                </span>
+                <span className="text-base font-black text-slate-900 dark:text-white truncate block">
+                  {formatCurrency(opp.amount || 0, opp.currency)}
+                </span>
+              </div>
+              <div className="border-l border-slate-200 dark:border-slate-700 pl-3">
+                <span className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                  Win Prob
+                </span>
+                <span className="text-base font-black text-blue-600 dark:text-blue-400 block">
+                  {opp.probability !== null && opp.probability !== undefined
+                    ? `${opp.probability}%`
+                    : status === "WON"
+                    ? "100%"
+                    : status === "LOST"
+                    ? "0%"
+                    : "—"}
+                </span>
+              </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2.5 text-xs">
-              <div className="p-3 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-slate-200/70 dark:border-slate-700">
-                <span className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Industry</span>
-                <span className="font-bold text-slate-900 dark:text-white truncate block">
-                  {opp.account?.industry || opp.lead?.industry || "Commercial"}
-                </span>
-              </div>
-              <div className="p-3 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-slate-200/70 dark:border-slate-700">
-                <span className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Account Type</span>
-                <span className="font-bold text-slate-900 dark:text-white truncate block">
-                  {opp.account?.customerType || (opp.account ? "Existing Account" : "Prospect")}
-                </span>
-              </div>
-              <div className="p-3 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-slate-200/70 dark:border-slate-700">
-                <span className="block text-[10px] uppercase font-bold text-slate-400 mb-1">HQ / Territory</span>
-                <span className="font-bold text-slate-900 dark:text-white truncate block">
-                  {[opp.account?.city, opp.account?.country].filter(Boolean).join(", ") || opp.account?.territory || "Domestic"}
-                </span>
-              </div>
-              <div className="p-3 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-slate-200/70 dark:border-slate-700">
-                <span className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Website</span>
-                {opp.account?.website ? (
-                  <a
-                    href={opp.account.website.startsWith("http") ? opp.account.website : `https://${opp.account.website}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="font-bold text-blue-600 hover:underline truncate block flex items-center gap-1"
+            {/* Contact Details & Metadata */}
+            <div className="space-y-2.5 text-xs pt-1 border-t border-slate-100 dark:border-slate-800">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400 text-[11px] font-bold uppercase tracking-wider">Primary Contact</span>
+                {opp.account?.id && (
+                  <Link
+                    to={`/accounts/${opp.account.id}`}
+                    className="text-blue-600 dark:text-blue-400 hover:underline font-bold text-[11px] inline-flex items-center gap-1"
                   >
-                    <span className="truncate">{opp.account.website.replace(/^https?:\/\//, "")}</span>
-                    <ExternalLink className="w-2.5 h-2.5 shrink-0" />
-                  </a>
-                ) : (
-                  <span className="font-medium text-slate-400">—</span>
+                    <span>View 360</span>
+                    <ExternalLink className="w-2.5 h-2.5" />
+                  </Link>
                 )}
               </div>
+              <div className="font-bold text-slate-900 dark:text-slate-100">
+                {opp.primaryContact?.firstName
+                  ? `${opp.primaryContact.firstName} ${opp.primaryContact.lastName || ""}`
+                  : opp.lead?.firstName
+                  ? `${opp.lead.firstName} ${opp.lead.lastName || ""}`
+                  : "Direct Representative Account"}
+              </div>
+              {(opp.primaryContact?.email || opp.lead?.email) && (
+                <div className="text-slate-600 dark:text-slate-300 truncate flex items-center gap-2">
+                  <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  <span className="truncate">{opp.primaryContact?.email || opp.lead?.email}</span>
+                </div>
+              )}
+              {(opp.primaryContact?.phone || opp.lead?.phone) && (
+                <div className="text-slate-600 dark:text-slate-300 flex items-center gap-2">
+                  <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  <span>{opp.primaryContact?.phone || opp.lead?.phone}</span>
+                </div>
+              )}
+              <div className="text-slate-500 dark:text-slate-400 text-[11px] flex items-center gap-2 pt-1 border-t border-slate-100 dark:border-slate-800/80">
+                <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <span>
+                  Expected Close:{" "}
+                  <strong className="text-slate-700 dark:text-slate-300">
+                    {opp.expectedCloseDate
+                      ? new Date(opp.expectedCloseDate).toLocaleDateString([], {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric"
+                        })
+                      : "Unscheduled"}
+                  </strong>
+                </span>
+              </div>
             </div>
           </div>
 
-          {/* Marketing Source / Attribution */}
-          {(opp.sourceChannel || opp.sourceType) && (
-            <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-4 shadow-xs space-y-2 text-xs">
-              <span className="font-black text-slate-700 dark:text-slate-300 uppercase text-[10px] tracking-wider block">
-                Lead Ingestion Attribution
-              </span>
-              <div className="flex justify-between items-center py-1 border-b border-slate-100 dark:border-slate-800">
-                <span className="text-slate-400">Marketing Channel:</span>
-                <span className="font-bold text-slate-800 dark:text-slate-200">{opp.sourceChannel || "Inbound"}</span>
+          {/* Card 3: Company Intelligence */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3.5">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2.5">
+              <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                <Building2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400" /> Company Intelligence
+              </h3>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+              <div className="p-2.5 bg-slate-50/70 dark:bg-slate-800/50 rounded-xl border border-slate-200/70 dark:border-slate-700/70 space-y-0.5">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Industry</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200 text-xs block truncate">
+                  {opp.account?.industry || accountDetails?.industry || opp.lead?.industry || (
+                    <span className="text-slate-400 font-normal italic">Not set</span>
+                  )}
+                </span>
               </div>
-              <div className="flex justify-between items-center py-1">
-                <span className="text-slate-400">Campaign / Source:</span>
-                <span className="font-bold text-slate-800 dark:text-slate-200">{opp.sourceType || "Organic"}</span>
+
+              <div className="p-2.5 bg-slate-50/70 dark:bg-slate-800/50 rounded-xl border border-slate-200/70 dark:border-slate-700/70 space-y-0.5">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Estimated Size</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200 text-xs block truncate">
+                  {(opp.account?.employeeCount ?? accountDetails?.employeeCount) ? (
+                    `${Number(opp.account?.employeeCount ?? accountDetails?.employeeCount).toLocaleString()} Employees`
+                  ) : (
+                    <span className="text-slate-400 font-normal italic">Not set</span>
+                  )}
+                </span>
+              </div>
+
+              <div className="p-2.5 bg-slate-50/70 dark:bg-slate-800/50 rounded-xl border border-slate-200/70 dark:border-slate-700/70 space-y-0.5">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Est Revenue</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200 text-xs block truncate">
+                  {(opp.account?.revenue ?? accountDetails?.revenue) != null ? (
+                    formatCurrency(
+                      Number(opp.account?.revenue ?? accountDetails?.revenue),
+                      opp.account?.currency ?? accountDetails?.currency ?? opp.currency
+                    )
+                  ) : (
+                    <span className="text-slate-400 font-normal italic">Not set</span>
+                  )}
+                </span>
               </div>
             </div>
-          )}
+
+            {/* Corporate Hierarchy Section */}
+            {opp.account?.id && (
+              <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800 text-xs space-y-2">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  Corporate Hierarchy
+                </span>
+                {accountDetails?.parentAccountId ? (
+                  <div className="flex items-center justify-between text-slate-600 dark:text-slate-300">
+                    <span className="text-slate-400">Parent Account:</span>
+                    <Link
+                      to={`/accounts/${accountDetails.parentAccountId}`}
+                      className="font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                    >
+                      <span className="truncate max-w-[160px]">
+                        {accountDetails.parentAccount?.name || "Parent Account"}
+                      </span>
+                      <ExternalLink className="w-3 h-3 shrink-0" />
+                    </Link>
+                  </div>
+                ) : null}
+
+                {accountDetails?.subsidiaries && accountDetails.subsidiaries.length > 0 ? (
+                  <div className="space-y-1">
+                    <span className="text-slate-400 block">
+                      Branches ({accountDetails.subsidiaries.length}):
+                    </span>
+                    <div className="space-y-1 max-h-28 overflow-y-auto pr-1">
+                      {accountDetails.subsidiaries.map((sub: any) => (
+                        <Link
+                          key={sub.id}
+                          to={`/accounts/${sub.id}`}
+                          className="flex items-center justify-between p-1.5 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700/80 rounded-lg text-slate-700 dark:text-slate-200 font-medium transition-colors"
+                        >
+                          <span className="truncate">{sub.name}</span>
+                          <ExternalLink className="w-3 h-3 text-slate-400 shrink-0" />
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                {!accountDetails?.parentAccountId && (!accountDetails?.subsidiaries || accountDetails.subsidiaries.length === 0) && (
+                  <div className="flex items-center justify-between text-slate-400 text-[11px]">
+                    <span>No parent or branch accounts linked</span>
+                    <Link
+                      to={`/accounts/${opp.account.id}`}
+                      className="text-blue-600 dark:text-blue-400 hover:underline font-semibold"
+                    >
+                      Add in account profile
+                    </Link>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Card 4: Assigned Ownership & Reassignment Section */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3.5">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2.5">
+              <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                <UserCheck className="w-4 h-4 text-blue-600" /> Deal Ownership
+              </h3>
+              {!opp?.isViewOnly && (
+                <button
+                  onClick={() => setIsReassignModalOpen(true)}
+                  className="text-[11px] font-bold text-blue-600 hover:text-blue-700 dark:text-blue-400 cursor-pointer"
+                >
+                  Change Rep
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-300 font-bold text-xs shrink-0">
+                {opp.owner?.name ? opp.owner.name.substring(0, 2).toUpperCase() : "US"}
+              </div>
+              <div className="min-w-0 flex-1 text-xs">
+                <div className="font-bold text-slate-900 dark:text-white truncate">
+                  {opp.owner?.name || "Unassigned Account"}
+                </div>
+                <div className="text-[11px] text-slate-500 truncate">
+                  {opp.owner?.email || "No email assigned"}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* ── RIGHT / MAIN WORKSPACE COLUMN (8 Cols): Inbound Inquiry, Playbook, Tabbed Feed ── */}
+        {/* ── RIGHT / MAIN WORKSPACE COLUMN (8 Cols): Inbound Inquiry, Interaction Hub Tabs, Playbook Dock ── */}
         <div className="lg:col-span-8 space-y-5">
-          {/* Submitted Inbound Inquiry & Requirements (If lead body/subject exists) */}
+          {/* Card 1: Submitted Inbound Inquiry & Requirements (If lead body/subject exists) */}
           {(opp.lead?.body || opp.lead?.subject) && (
             <div className="bg-white dark:bg-slate-900 border border-blue-200/90 dark:border-blue-900/60 rounded-2xl p-5 shadow-xs space-y-2.5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-xs font-bold text-blue-900 dark:text-blue-200">
                   <FileText className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                  <span>Submitted Inbound Inquiry & Requirements</span>
+                  <span>Submitted Inbound Inquiry &amp; Requirements</span>
                 </div>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 uppercase">
                   {opp.sourceChannel || "Inbound Lead"}
@@ -1000,41 +1310,7 @@ export default function OpportunityDetail() {
             </div>
           )}
 
-          {/* Next Best Step & Sales Playbook Card */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3.5">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
-              <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-indigo-600 dark:text-indigo-400" /> Next Best Step & Sales Playbook
-              </h3>
-              <span className="text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 px-2 py-0.5 rounded-full">
-                Active Playbook
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-              <div className="p-3.5 bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-xl space-y-1">
-                <span className="font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-1 text-[11px] uppercase tracking-wider">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Primary Recommended Action
-                </span>
-                <p className="text-emerald-950 dark:text-emerald-100 font-medium leading-relaxed">
-                  {recommendedAction}
-                </p>
-              </div>
-
-              <div className="p-3.5 bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 rounded-xl space-y-1">
-                <span className="font-bold text-indigo-800 dark:text-indigo-300 flex items-center gap-1 text-[11px] uppercase tracking-wider">
-                  <FileText className="w-3.5 h-3.5 text-indigo-600" /> Proposal Readiness
-                </span>
-                <p className="text-indigo-950 dark:text-indigo-100 font-medium leading-relaxed">
-                  {quotes.length > 0
-                    ? `${quotes.length} proposal version${quotes.length === 1 ? "" : "s"} on file. Most recent: Quote #${quotes[0].quoteNumber || quotes[0].id.slice(0, 8)} (${quotes[0].status}).`
-                    : "No quotation generated yet. Click 'New Quote' to configure line items from catalog."}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* ── Segmented Horizontal Tabs ── */}
+          {/* Card 2: Workspace Tabbed Interaction Hub */}
           <div className="space-y-4">
             <div className="flex items-center gap-1 border-b border-slate-200 dark:border-slate-800 text-xs font-semibold overflow-x-auto no-scrollbar bg-white dark:bg-slate-900 px-3 pt-1 rounded-t-2xl border-t border-x border-slate-200/90 dark:border-slate-800">
               <button
@@ -1055,7 +1331,7 @@ export default function OpportunityDetail() {
                     : "border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
                 }`}
               >
-                Quotations ({quotes.length})
+                Quotes &amp; Approvals ({quotes.length})
               </button>
               <button
                 onClick={() => setActiveTab("splits")}
@@ -1211,6 +1487,23 @@ export default function OpportunityDetail() {
                   </button>
                 </div>
 
+                {statusMessage && (
+                  <div className="p-3.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-2xl text-xs font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-2 shadow-2xs">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                    <span>{statusMessage}</span>
+                  </div>
+                )}
+
+                {approvalFeedback && (
+                  <div className="p-3.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-2xl text-xs text-amber-900 dark:text-amber-200 space-y-1 shadow-2xs">
+                    <div className="font-bold text-amber-950 dark:text-amber-100 flex items-center gap-1.5">
+                      <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                      <span>{approvalFeedback.title}</span>
+                    </div>
+                    <p className="text-amber-800 dark:text-amber-300 font-medium pl-5.5">{approvalFeedback.message}</p>
+                  </div>
+                )}
+
                 {quotes.length === 0 ? (
                   <div className="p-8 text-center border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl space-y-2 text-xs text-slate-400 bg-white dark:bg-slate-900">
                     <p className="font-bold text-slate-600 dark:text-slate-300">No quotes generated yet.</p>
@@ -1258,6 +1551,12 @@ export default function OpportunityDetail() {
                                   ? "WAITING FOR APPROVAL"
                                   : q.status}
                               </span>
+                              {q.isFinalAgreed && (
+                                <span className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/60 text-emerald-900 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700 rounded-md text-[10px] font-extrabold flex items-center gap-1 shadow-2xs" title="Final Agreed Quote">
+                                  <ShieldCheck className="w-3 h-3 text-emerald-700 dark:text-emerald-300" />
+                                  Final Agreed
+                                </span>
+                              )}
                             </div>
                             <div className="text-[11px] text-slate-400">
                               Created {new Date(q.createdAt).toLocaleDateString()}
@@ -1266,10 +1565,22 @@ export default function OpportunityDetail() {
 
                           <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-end">
                             <div className="text-right font-black text-slate-900 dark:text-white text-sm">
-                              {formatCurrency(q.totalAmount || 0)}
+                              {formatCurrency(q.totalAmount || 0, q.currency || opp.currency)}
                             </div>
 
                             <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                            {/* Mark as Final action button */}
+                            {!q.isFinalAgreed && !isAccepted && !isRejected && !isSuperseded && (
+                              <button
+                                onClick={() => markFinal(q.id)}
+                                disabled={isMarkingFinal}
+                                className="px-2.5 py-1 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95 shadow-2xs"
+                                title="Mark this quote revision as Final Agreed terms"
+                              >
+                                <Check className="w-3.5 h-3.5 stroke-[3] text-emerald-700 dark:text-emerald-300" />
+                                {isMarkingFinal ? "Marking..." : "Mark as Final"}
+                              </button>
+                            )}
                               {/* 1. If Waiting for Approval */}
                               {q.status === "Pending Approval" || q.status === "Pending" || quoteApproval?.status === "Pending" ? (
                                 <span className="px-2.5 py-1 bg-amber-50 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 rounded text-xs font-bold flex items-center gap-1.5 shadow-2xs">
@@ -1407,6 +1718,65 @@ export default function OpportunityDetail() {
                 />
               </div>
             )}
+          </div>
+
+          {/* Card 3: Next Best Step & Sales Playbook Dock (Stitch Bottom Module) */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3.5">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+              <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4 text-indigo-600 dark:text-indigo-400" /> Next Best Step &amp; Sales Playbook
+              </h3>
+              <span className="text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 px-2.5 py-0.5 rounded-full">
+                Active Playbook
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+              <div className="p-4 bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-xl space-y-2 flex flex-col justify-between">
+                <div>
+                  <span className="font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-1 text-[11px] uppercase tracking-wider mb-1">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Primary Recommended Action
+                  </span>
+                  <p className="text-emerald-950 dark:text-emerald-100 font-medium leading-relaxed">
+                    {recommendedAction}
+                  </p>
+                </div>
+                <div className="pt-2">
+                  <button
+                    onClick={() => {
+                      setActiveTab("timeline");
+                      setNoteText(`Follow-up outreach conducted regarding schedule & procurement timing with client.`);
+                    }}
+                    className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Send className="w-3 h-3" />
+                    <span>Send Follow-Up via Email</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-4 bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 rounded-xl space-y-2 flex flex-col justify-between">
+                <div>
+                  <span className="font-bold text-indigo-800 dark:text-indigo-300 flex items-center gap-1 text-[11px] uppercase tracking-wider mb-1">
+                    <FileText className="w-3.5 h-3.5 text-indigo-600" /> Proposal Readiness
+                  </span>
+                  <p className="text-indigo-950 dark:text-indigo-100 font-medium leading-relaxed">
+                    {quotes.length > 0
+                      ? `${quotes.length} proposal version${quotes.length === 1 ? "" : "s"} on file. Most recent: Quote #${quotes[0].quoteNumber || quotes[0].id.slice(0, 8)} (${quotes[0].status}).`
+                      : "No quotation generated yet. Click 'New Quote' to configure line items from catalog."}
+                  </p>
+                </div>
+                <div className="pt-2">
+                  <button
+                    onClick={() => navigate(`/quotes/new?dealId=${opp.id}`)}
+                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>Launch Proposal Builder</span>
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

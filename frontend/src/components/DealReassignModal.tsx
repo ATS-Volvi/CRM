@@ -147,11 +147,11 @@ export function DealReassignModal({
   };
 
   const selectedRep = reps.find((r) => r.id === selectedRepId);
+  const repCutoffOrg = selectedRep?.dealValueCutoffInOrg ?? (selectedRep?.dealValueCutoff !== null && selectedRep?.dealValueCutoff !== undefined ? Number(selectedRep.dealValueCutoff) : null);
   const isSelectedRepOverCutoff =
     selectedRep &&
-    selectedRep.dealValueCutoff !== null &&
-    selectedRep.dealValueCutoff !== undefined &&
-    dealAmount > Number(selectedRep.dealValueCutoff);
+    repCutoffOrg !== null &&
+    dealAmount > repCutoffOrg;
   const isSelectedRepOverCapacity =
     selectedRep &&
     selectedRep.maxOpenDeals !== null &&
@@ -259,7 +259,7 @@ export function DealReassignModal({
                 {reps.map((r) => {
                   const isCurrent = r.id === currentOwnerId;
                   const cutoffText =
-                    r.dealValueCutoff !== null ? `Cap: ${formatCurrency(r.dealValueCutoff)}` : "Uncapped";
+                    r.dealValueCutoffDisplay || (r.dealValueCutoff !== null ? `Cap: ${formatCurrency(r.dealValueCutoff)}` : "Uncapped");
                   const capacityText =
                     r.maxOpenDeals !== null ? `Load: ${r.currentOpenDeals}/${r.maxOpenDeals}` : `Load: ${r.currentOpenDeals}`;
 
@@ -283,7 +283,7 @@ export function DealReassignModal({
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-[11px]">
                   <div className={`p-1.5 rounded border ${isSelectedRepOverCutoff ? "bg-amber-50 text-amber-800 border-amber-200 font-semibold" : "bg-slate-50 text-slate-700 border-slate-100"}`}>
-                    Cutoff: {selectedRep.dealValueCutoff !== null ? formatCurrency(selectedRep.dealValueCutoff) : "Uncapped"}
+                    Cutoff: {selectedRep.dealValueCutoffDisplay || (selectedRep.dealValueCutoff !== null ? formatCurrency(selectedRep.dealValueCutoff) : "Uncapped")}
                     {isSelectedRepOverCutoff && " ⚠️ Exceeded"}
                   </div>
                   <div className={`p-1.5 rounded border ${isSelectedRepOverCapacity ? "bg-amber-50 text-amber-800 border-amber-200 font-semibold" : "bg-slate-50 text-slate-700 border-slate-100"}`}>

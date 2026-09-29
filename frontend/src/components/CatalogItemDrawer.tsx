@@ -196,7 +196,7 @@ export function CatalogItemDrawer({ item, isOpen, onClose, userRole }: CatalogIt
             <div className="space-y-3">
               {/* Internal Cost — role-gated */}
               {canSeeCost ? (
-                <Field label="Internal Cost (₹)" sublabel="Hidden from Sales Reps">
+                <Field label="Internal Cost" sublabel="Hidden from Sales Reps">
                   <div className="relative">
                     <input
                       type="number"
@@ -216,7 +216,7 @@ export function CatalogItemDrawer({ item, isOpen, onClose, userRole }: CatalogIt
                 </div>
               )}
 
-              <Field label="Default Selling Price (₹)" required>
+              <Field label="Default Selling Price" required>
                 <input
                   type="number"
                   step="0.01"
@@ -227,7 +227,7 @@ export function CatalogItemDrawer({ item, isOpen, onClose, userRole }: CatalogIt
                 />
               </Field>
 
-              <Field label="Minimum Selling Price (₹)" sublabel="Floor price — approval required below this">
+              <Field label="Minimum Selling Price" sublabel="Floor price — approval required below this">
                 <input
                   type="number"
                   step="0.01"

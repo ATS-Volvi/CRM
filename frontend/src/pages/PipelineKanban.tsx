@@ -6,6 +6,7 @@ import { formatCurrency, formatCurrencyCompact } from "../utils/currency";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { StageEvidenceModal } from "../components/StageEvidenceModal";
 import { usePipelineStages, getStageBadgeClass, getStageHeaderColor, normalizeStageName } from "../utils/pipelineStages";
+import { useOrgCurrency } from "../context/OrgSettingsContext";
 
 function DealMilestonesWidget({ dealId, token }: { dealId: string; token: string }) {
   const queryClient = useQueryClient();
@@ -108,9 +109,10 @@ export default function PipelineKanban() {
     }
   });
 
+  const { defaultCurrency } = useOrgCurrency();
   const [transitionModal, setTransitionModal] = useState<{ dealId: string, toStageId: string, toStageName: string } | null>(null);
   const [showAddDealModal, setShowAddDealModal] = useState(false);
-  const [newDeal, setNewDeal] = useState({ name: "", amount: "", competitors: "", probability: "", stageId: "" });
+  const [newDeal, setNewDeal] = useState({ name: "", amount: "", currency: "", competitors: "", probability: "", stageId: "" });
   const [activeDealDetail, setActiveDealDetail] = useState<any | null>(null);
   const [reason, setReason] = useState("");
   const [recontactDate, setRecontactDate] = useState("");
@@ -152,7 +154,7 @@ export default function PipelineKanban() {
       const res = await fetch("/api/v1/pipeline/deals", {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-        body: JSON.stringify(deal),
+        body: JSON.stringify({ ...deal, currency: deal.currency || defaultCurrency }),
       });
       if (!res.ok) throw new Error(await res.text());
       return res.json();
@@ -161,7 +163,7 @@ export default function PipelineKanban() {
       queryClient.invalidateQueries({ queryKey: ["pipeline"] });
       queryClient.invalidateQueries({ queryKey: ["opportunities-list"] });
       setShowAddDealModal(false);
-      setNewDeal({ name: "", amount: "", competitors: "", probability: "", stageId: "" });
+      setNewDeal({ name: "", amount: "", currency: "", competitors: "", probability: "", stageId: "" });
     },
   });
 
@@ -513,7 +515,11 @@ export default function PipelineKanban() {
                                 {deal.name}
                               </h4>
                               <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded shrink-0">
-                                {deal.probability || stage.probability || 50}%
+                                {deal.probability !== null && deal.probability !== undefined
+                                  ? `${deal.probability}%`
+                                  : stage?.probability !== null && stage?.probability !== undefined
+                                  ? `${stage.probability}%`
+                                  : "—"}
                               </span>
                             </div>
 
@@ -580,7 +586,13 @@ export default function PipelineKanban() {
                       </td>
                       <td className="p-3.5">{d.owner?.name || "Assigned Rep"}</td>
                       <td className="p-3.5 font-bold text-slate-900">{formatCurrency(d.value || d.amount || 0)}</td>
-                      <td className="p-3.5 font-bold text-emerald-600">{d.probability || 50}%</td>
+                      <td className="p-3.5 font-bold text-emerald-600">
+                        {d.probability !== null && d.probability !== undefined
+                          ? `${d.probability}%`
+                          : d.stage?.probability !== null && d.stage?.probability !== undefined
+                          ? `${d.stage.probability}%`
+                          : "—"}
+                      </td>
                       <td className="p-3.5 text-right">
                         <button 
                           onClick={(e) => {
@@ -623,15 +635,29 @@ export default function PipelineKanban() {
                 />
               </div>
 
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Expected Amount (₹) *</label>
-                <input 
-                  type="number"
-                  placeholder="e.g. 1500000"
-                  value={newDeal.amount}
-                  onChange={(e) => setNewDeal({ ...newDeal, amount: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 font-semibold text-slate-900 focus:outline-none focus:border-emerald-500"
-                />
+              <div className="grid grid-cols-3 gap-3">
+                <div className="col-span-2">
+                  <label className="block font-bold text-slate-700 mb-1">Expected Amount *</label>
+                  <input 
+                    type="number"
+                    placeholder="e.g. 1500000"
+                    value={newDeal.amount}
+                    onChange={(e) => setNewDeal({ ...newDeal, amount: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 font-semibold text-slate-900 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Currency</label>
+                  <select
+                    value={newDeal.currency || defaultCurrency}
+                    onChange={(e) => setNewDeal({ ...newDeal, currency: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 font-semibold text-slate-900 focus:outline-none focus:border-emerald-500 cursor-pointer"
+                  >
+                    {["SAR", "INR", "USD", "AED", "EUR", "GBP"].map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div>

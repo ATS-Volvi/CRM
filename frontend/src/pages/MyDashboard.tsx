@@ -56,8 +56,18 @@ export default function MyDashboard() {
     }
   });
 
+  // Fetch Rep's Notifications
+  const { data: notificationsData } = useQuery({
+    queryKey: ["notifications"],
+    queryFn: async () => {
+      const res = await apiClient.get("/api/v1/notifications");
+      return Array.isArray(res) ? res : res?.data || [];
+    }
+  });
+
   const leads: any[] = Array.isArray(leadsData) ? leadsData : [];
   const opportunities: any[] = Array.isArray(oppsData) ? oppsData : [];
+  const notifications: any[] = Array.isArray(notificationsData) ? notificationsData : [];
 
   // Metrics Calculation
   const newLeads = leads.filter((l) => (l.status || "").toUpperCase() === "NEW");
@@ -97,6 +107,22 @@ export default function MyDashboard() {
     badgeColor: string;
     url: string;
   }[] = [];
+
+  // 0. Customer Interest & Auto-Escalation Notifications
+  notifications
+    .filter((n) => !n.isRead && (n.title?.includes("Customer") || n.title?.includes("Interest") || n.title?.includes("Approval")))
+    .slice(0, 3)
+    .forEach((n) => {
+      focusItems.push({
+        id: `notif-${n.id}`,
+        type: "opportunity",
+        title: n.title,
+        subtitle: n.message,
+        badge: n.type === "alert" ? "Approval Escalation" : "Customer Engagement",
+        badgeColor: n.type === "alert" ? "bg-purple-50 text-purple-700 border-purple-200 font-bold" : "bg-emerald-50 text-emerald-700 border-emerald-200 font-bold",
+        url: n.link || "/opportunities"
+      });
+    });
 
   // 1. High priority/new leads
   newLeads.slice(0, 3).forEach((l) => {
@@ -269,20 +295,20 @@ export default function MyDashboard() {
               <div className="p-3 bg-slate-50 rounded-lg border border-slate-100 space-y-0.5">
                 <div className="text-[10px] font-semibold text-slate-400 uppercase">Closed Revenue</div>
                 <div className="text-base font-extrabold text-emerald-600">
-                  ₹{totalWonRevenue.toLocaleString()}
+                  {formatCurrency(totalWonRevenue)}
                 </div>
               </div>
 
               <div className="p-3 bg-slate-50 rounded-lg border border-slate-100 space-y-0.5">
                 <div className="text-[10px] font-semibold text-slate-400 uppercase">Active Pipeline</div>
                 <div className="text-base font-extrabold text-slate-900">
-                  ₹{totalPipelineValue.toLocaleString()}
+                  {formatCurrency(totalPipelineValue)}
                 </div>
               </div>
 
               <div className="p-3 bg-slate-50 rounded-lg border border-slate-100 space-y-0.5">
                 <div className="text-[10px] font-semibold text-slate-400 uppercase">Quarterly Target</div>
-                <div className="text-base font-extrabold text-slate-800">₹25,00,000</div>
+                <div className="text-base font-extrabold text-slate-800">{formatCurrency(2500000)}</div>
               </div>
 
               <div className="p-3 bg-slate-50 rounded-lg border border-slate-100 space-y-0.5">

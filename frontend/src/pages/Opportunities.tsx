@@ -583,7 +583,7 @@ export default function Opportunities() {
                           ? "100%"
                           : isLost
                           ? "0%"
-                          : "60%"}
+                          : "—"}
                       </td>
 
                       {/* Expected Close */}

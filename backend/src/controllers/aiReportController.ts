@@ -3,6 +3,9 @@ import { sequelize } from "@nexus-crm/database";
 import { getScopedUserIds } from "../services/scopeHelper";
 import { calculateTeamKpis } from "../services/kpiService";
 import { Op } from "sequelize";
+import { getOrgCurrency } from "../utils/orgSettings";
+import { formatMoney } from "../utils/formatMoney";
+import { resolveLimit } from "../utils/exchangeRate";
 
 export interface ChartSpec {
   id?: string;
@@ -91,6 +94,21 @@ export async function getScopedAnalyticsContext(scopedUserIds: string[]) {
     : [];
   const quoteDeliveries = rawDeliveries as any[];
 
+  let highValueThreshold = 0; // 0 = not configured; resolved from policy if available
+  let leadScoreValueMultiplier = 10000;
+  try {
+    const policy: any = await sequelize.models.SalesAssignmentPolicy?.findOne({ order: [["createdAt", "DESC"]] });
+    if (policy) {
+      if (policy.highValueThreshold) {
+        const orgCurrency = await getOrgCurrency();
+        const res = await resolveLimit(policy.highValueThreshold, policy.currency || "INR", orgCurrency);
+        highValueThreshold = res.orgAmount;
+      }
+      if (policy.leadScoreValueMultiplier) leadScoreValueMultiplier = Number(policy.leadScoreValueMultiplier);
+      else leadScoreValueMultiplier = highValueThreshold * 0.001;
+    }
+  } catch (err) {}
+
   // 1. Opportunity Status Breakdown (Open / Won / Lost)
   const statusCounts: Record<string, { count: number; value: number }> = {
     Open: { count: 0, value: 0 },
@@ -100,7 +118,7 @@ export async function getScopedAnalyticsContext(scopedUserIds: string[]) {
 
   deals.forEach(d => {
     const st = String(d.status || "OPEN").toUpperCase();
-    const val = Number(d.amount || d.value || 0);
+    const val = Number(st.includes("WON") ? (d.amountInOrgCurrency ?? d.amount ?? d.value ?? 0) : (d.amount ?? d.value ?? 0));
     if (st.includes("WON")) {
       statusCounts.Won.count += 1;
       statusCounts.Won.value += val;
@@ -223,7 +241,7 @@ export async function getScopedAnalyticsContext(scopedUserIds: string[]) {
   const repPerformanceData = reps.map(r => {
     const repDeals = deals.filter(d => d.ownerId === r.id);
     const repWonDeals = repDeals.filter(d => String(d.status).toUpperCase().includes("WON"));
-    const revenueClosed = repWonDeals.reduce((acc, d) => acc + Number(d.amount || d.value || 0), 0);
+    const revenueClosed = repWonDeals.reduce((acc, d) => acc + Number(d.amountInOrgCurrency ?? d.amount ?? d.value ?? 0), 0);
     const target = Number(r.targetRevenue || 500000);
     const achievementPct = target > 0 ? Math.min(200, Math.round((revenueClosed / target) * 100)) : 0;
     const winRate = repDeals.length > 0 ? Math.round((repWonDeals.length / repDeals.length) * 100) : 0;
@@ -256,7 +274,7 @@ export async function getScopedAnalyticsContext(scopedUserIds: string[]) {
       const dDate = new Date(d.createdAt);
       const mName = monthNames[dDate.getMonth()];
       if (monthlyBucket[mName]) {
-        monthlyBucket[mName].revenue += Number(d.amount || d.value || 0);
+        monthlyBucket[mName].revenue += Number(d.amountInOrgCurrency ?? d.amount ?? d.value ?? 0);
         monthlyBucket[mName].dealsWon += 1;
       }
     }
@@ -303,7 +321,9 @@ export async function getScopedAnalyticsContext(scopedUserIds: string[]) {
     leadSourceData,
     repPerformanceData,
     monthlyTrendData,
-    activityMetrics: activityMap
+    activityMetrics: activityMap,
+    highValueThreshold,
+    leadScoreValueMultiplier
   };
 }
 
@@ -375,7 +395,10 @@ export const queryAiReport = async (req: Request, res: Response) => {
     
     // MANDATORY SECURITY SCOPING: Broadened data-fetch ALWAYS calls getScopedUserIds(user)
     const scopedUserIds = await getScopedUserIds(user);
-    const ctx = await getScopedAnalyticsContext(scopedUserIds);
+    const [ctx, orgCurrency] = await Promise.all([
+      getScopedAnalyticsContext(scopedUserIds),
+      getOrgCurrency()
+    ]);
 
     const openRouterKey = process.env.OPENROUTER_API_KEY;
     const groqKey = process.env.GROQ_API_KEY;
@@ -385,6 +408,7 @@ export const queryAiReport = async (req: Request, res: Response) => {
 
     const systemPrompt = `You are the Nexus CRM AI Visual Intelligence Executive Assistant.
 You have real-time access to the user's strictly scoped CRM database.
+Organization Default Currency: ${orgCurrency}
 
 CRITICAL INSTRUCTIONS:
 1. You MUST generate charts, KPIs, tables, and narrative that SPECIFICALLY and DIRECTLY answer the user's current question.
@@ -398,6 +422,7 @@ CRITICAL INSTRUCTIONS:
    - If the user asks about "pipeline", "deals", or "funnel", your charts MUST visualize active stages and deal status breakdown.
 3. Every chart must specify valid chart properties: { id, type ("bar"|"line"|"pie"|"area"), title, subtitle, data: [...], dataKey, secondaryKey, categoryKey, xLabel, yLabel, unit, description }.
 4. Ensure data arrays have real numbers and categories derived from the provided database context.
+5. Always format currency figures and units using the organization currency (${orgCurrency}).
 
 CRM Scoped Database Context:
 ${JSON.stringify(ctx, null, 2)}
@@ -492,7 +517,7 @@ Respond ONLY with a valid JSON object matching the schema inside a \`\`\`json ma
 
     // 4. Deterministic Multi-Domain Visual Intelligence Engine (Instant fallback for specific questions)
     if (!visualReport) {
-      visualReport = generateDeterministicVisualReport(lastUserMessage, ctx);
+      visualReport = generateDeterministicVisualReport(lastUserMessage, ctx, orgCurrency);
     }
 
     // Ensure chart specs are sanitized and valid
@@ -537,9 +562,11 @@ function parseAndValidateReportJson(rawText: string): AIReportPayload | null {
  * Deterministic multi-graph intelligence generator covering all broadened CRM analytics domains.
  * Provides custom, query-specific graphs tailored to whatever topic the user inquires about.
  */
-function generateDeterministicVisualReport(query: string, ctx: any): AIReportPayload {
+function generateDeterministicVisualReport(query: string, ctx: any, currency: string = "SAR"): AIReportPayload {
   const q = query.toLowerCase();
-  const formatCur = (num: number) => `₹${Number(num || 0).toLocaleString()}`;
+  const formatCur = (num: number) => formatMoney(Number(num || 0), currency);
+  const highValThreshold = Number(ctx.highValueThreshold || 0);
+  const reviewThreshold = highValThreshold * 0.1;
 
   const isRiskQuery = q.includes("risk") || q.includes("stall") || q.includes("inactiv") || q.includes("danger") || q.includes("delay") || q.includes("aging");
   const isLossQuery = q.includes("loss") || q.includes("lost") || q.includes("churn") || q.includes("reject") || q.includes("why did we lose");
@@ -573,17 +600,17 @@ Comprehensive productivity analysis across **${reps.length} active sales represe
         {
           id: "rep_revenue_vs_target",
           type: "bar",
-          title: "Sales Rep Closed Revenue vs. Target (₹)",
+          title: `Sales Rep Closed Revenue vs. Target (${currency})`,
           subtitle: "Individual booked revenue compared against assigned quarterly quota",
           data: reps.map((r: any) => ({ name: r.name, revenue: r.revenue, target: r.target })),
           dataKey: "revenue",
           secondaryKey: "target",
           categoryKey: "name",
           xLabel: "Sales Representative",
-          yLabel: "Revenue (₹)",
+          yLabel: `Revenue (${currency})`,
           color: "#4F46E5",
           secondaryColor: "#94A3B8",
-          unit: "₹",
+          unit: currency,
           description: "Compares closed-won revenue against individual quota targets per salesperson."
         },
         {
@@ -693,15 +720,15 @@ Performance analysis of **${totalLeads} captured leads** across multi-channel ac
         {
           id: "lead_source_pipeline_value",
           type: "bar",
-          title: "Pipeline Value Generated by Channel (₹)",
+          title: `Pipeline Value Generated by Channel (${currency})`,
           subtitle: "Total monetary deal value created per acquisition source",
           data: pieSources.map((s: any) => ({ name: s.name, value: Number(s.value || 10000) })),
           dataKey: "value",
           categoryKey: "name",
           xLabel: "Source Channel",
-          yLabel: "Pipeline Value (₹)",
+          yLabel: `Pipeline Value (${currency})`,
           color: "#10B981",
-          unit: "₹",
+          unit: currency,
           description: "Monetary commercial pipeline resulting from each lead source."
         },
         {
@@ -772,17 +799,17 @@ Financial pacing analysis across recent billing cycles with projected growth mod
         {
           id: "monthly_revenue_vs_target_area",
           type: "area",
-          title: "Monthly Booked Revenue vs. Quota Target (₹)",
+          title: `Monthly Booked Revenue vs. Quota Target (${currency})`,
           subtitle: "Revenue trajectory compared against milestone targets",
           data: monthlyData,
           dataKey: "revenue",
           secondaryKey: "target",
           categoryKey: "name",
           xLabel: "Month",
-          yLabel: "Revenue (₹)",
+          yLabel: `Revenue (${currency})`,
           color: "#10B981",
           secondaryColor: "#64748B",
-          unit: "₹",
+          unit: currency,
           description: "Demonstrates closed-won revenue progression against budgeted targets."
         },
         {
@@ -814,7 +841,7 @@ Financial pacing analysis across recent billing cycles with projected growth mod
       recommendations: [
         "Maintain current acceleration by expediting quote turnaround times under 24 hours.",
         "Offer early-payment milestone terms to secure remaining late-stage pipeline.",
-        "Conduct weekly pipeline review on all deals with values exceeding ₹1,00,000."
+        `Conduct weekly pipeline review on all deals with values exceeding ${formatCur(reviewThreshold)}.`
       ],
       followUps: [
         "Which sales representatives contributed the most to this month's revenue?",
@@ -885,7 +912,7 @@ Analysis of **${ctx.totalQuotesCount || 241} quotations** across digital deliver
         ])
       },
       recommendations: [
-        "Default high-value proposals (>₹1,00,000) to WhatsApp delivery for immediate notifications.",
+        `Default high-value proposals (>${formatCur(reviewThreshold)}) to WhatsApp delivery for immediate notifications.`,
         "Implement automated 48-hour follow-up triggers for viewed quotations without response.",
         "Include digital signature portal links inside email delivery templates to eliminate friction."
       ],
@@ -926,15 +953,15 @@ Analysis of **${formatCur(totalLost)}** in lost pipeline opportunities across **
         {
           id: "loss_reason_bar",
           type: "bar",
-          title: "Lost Pipeline Value by Loss Reason (₹)",
+          title: `Lost Pipeline Value by Loss Reason (${currency})`,
           subtitle: "Revenue exposure attributed to each rejection reason",
           data: lossData,
           dataKey: "value",
           categoryKey: "name",
           xLabel: "Loss Reason",
-          yLabel: "Lost Value (₹)",
+          yLabel: `Lost Value (${currency})`,
           color: "#EF4444",
-          unit: "₹",
+          unit: currency,
           description: "Quantifies commercial impact per deal loss category."
         },
         {
@@ -1006,15 +1033,15 @@ Your scoped workspace currently commands **${formatCur(ctx.totalPipelineValue ||
       {
         id: "pipeline_stage_bar",
         type: "bar",
-        title: "Active Pipeline Value by Milestone Stage (₹)",
+        title: `Active Pipeline Value by Milestone Stage (${currency})`,
         subtitle: "Commercial opportunity value per pipeline milestone",
         data: stageData,
         dataKey: "value",
         categoryKey: "name",
         xLabel: "Pipeline Stage",
-        yLabel: "Stage Value (₹)",
+        yLabel: `Stage Value (${currency})`,
         color: "#2563EB",
-        unit: "₹",
+        unit: currency,
         description: "Distribution of active opportunity value across sales milestones."
       },
       {
@@ -1025,7 +1052,7 @@ Your scoped workspace currently commands **${formatCur(ctx.totalPipelineValue ||
         data: statusData,
         dataKey: "value",
         categoryKey: "name",
-        unit: "₹",
+        unit: currency,
         description: "Total commercial value categorized by outcome status."
       }
     ],

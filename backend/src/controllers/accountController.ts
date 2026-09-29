@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { sequelize, Account, Contact, Deal, Quote, PurchaseOrder, Activity } from "@nexus-crm/database";
+import { getOrgCurrency, ALLOWED_CURRENCIES } from "../utils/orgSettings";
 
 export const getAccounts = async (req: Request, res: Response) => {
   try {
@@ -124,10 +125,12 @@ export const getAccountById = async (req: Request, res: Response) => {
 
 export const createAccount = async (req: Request, res: Response) => {
   try {
-    const { name, email, phone, address, industry, primaryContactName } = req.body;
+    const { name, email, phone, address, industry, primaryContactName, currency } = req.body;
     if (!name) {
       return res.status(400).json({ error: "Customer name is required" });
     }
+
+    const targetCurrency = (currency && ALLOWED_CURRENCIES.includes(currency)) ? currency : await getOrgCurrency();
 
     const newAccount = await Account.create({
       id: require("crypto").randomUUID(),
@@ -136,7 +139,8 @@ export const createAccount = async (req: Request, res: Response) => {
       phone: phone || null,
       address: address || null,
       industry: industry || "General",
-      primaryContactName: primaryContactName || null
+      primaryContactName: primaryContactName || null,
+      currency: targetCurrency
     });
 
     return res.status(201).json(newAccount);

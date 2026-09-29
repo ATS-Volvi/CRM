@@ -3,6 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ordersApi, fulfillmentsApi, queryKeys } from "../api";
 import { ArrowLeft, Package, Clock, Building, DollarSign, FileText, CheckCircle, ShieldCheck } from "lucide-react";
+import { formatCurrency } from "../utils/currency";
 
 export default function OrderDetail() {
   const { id } = useParams<{ id: string }>();
@@ -101,7 +102,7 @@ export default function OrderDetail() {
             <h2 className="text-sm font-medium text-slate-400">Commercial Amount</h2>
           </div>
           <p className="text-lg font-bold text-white">
-            ₹{Number(order.amount || order.grandTotal || 0).toLocaleString()}
+            {formatCurrency(order.amount || order.grandTotal || 0, order.currency)}
           </p>
           <p className="text-xs text-slate-400 mt-1">Source Quote: {quote?.quoteNumber || quote?.id || "N/A"} v{quote?.version || 1}</p>
         </div>
@@ -141,9 +142,9 @@ export default function OrderDetail() {
                     {item.customDescription || item.product?.name || "Commercial Deliverable"}
                   </td>
                   <td className="py-3 px-4">{Number(item.quantity)}</td>
-                  <td className="py-3 px-4">₹{Number(item.unitPrice).toLocaleString()}</td>
+                  <td className="py-3 px-4">{formatCurrency(item.unitPrice, order.currency)}</td>
                   <td className="py-3 px-4 font-semibold text-emerald-400">
-                    ₹{Number(item.totalPrice || item.quantity * item.unitPrice).toLocaleString()}
+                    {formatCurrency(item.totalPrice || item.quantity * item.unitPrice, order.currency)}
                   </td>
                 </tr>
               ))}
