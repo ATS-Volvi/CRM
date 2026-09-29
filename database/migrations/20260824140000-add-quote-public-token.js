@@ -10,8 +10,7 @@ module.exports = {
     if (!tableInfo.publicAccessToken) {
       await queryInterface.addColumn("Quotes", "publicAccessToken", {
         type: DataTypes.STRING,
-        allowNull: true,
-        unique: true
+        allowNull: true
       });
     }
 
