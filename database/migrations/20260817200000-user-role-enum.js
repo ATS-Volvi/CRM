@@ -5,11 +5,19 @@ const { DataTypes } = require("sequelize");
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
+    const dialect = queryInterface.sequelize.getDialect();
+    if (dialect === "sqlite") {
+      await queryInterface.sequelize.query(
+        `UPDATE "Users" SET role = 'manager' WHERE role = 'sales_manager'`
+      );
+      return;
+    }
+
     await queryInterface.sequelize.transaction(async (t) => {
       // Step 1: Rename existing 'sales_manager' rows to 'manager' BEFORE creating ENUM
       // Idempotent: WHERE clause is a no-op if already renamed
       await queryInterface.sequelize.query(
-        `UPDATE public."Users" SET role = 'manager' WHERE role = 'sales_manager'`,
+        `UPDATE "Users" SET role = 'manager' WHERE role = 'sales_manager'`,
         { transaction: t }
       );
 
@@ -32,23 +40,23 @@ module.exports = {
       // Must: drop default → alter type → set new default.
       // Idempotent: only run if column is still varchar
       const [rows] = await queryInterface.sequelize.query(
-        `SELECT udt_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'Users' AND column_name = 'role'`,
+        `SELECT udt_name FROM information_schema.columns WHERE table_name = 'Users' AND column_name = 'role'`,
         { transaction: t }
       );
       if (rows[0]?.udt_name !== "enum_users_role") {
         // 3a. Drop existing varchar default first
         await queryInterface.sequelize.query(
-          `ALTER TABLE public."Users" ALTER COLUMN role DROP DEFAULT`,
+          `ALTER TABLE "Users" ALTER COLUMN role DROP DEFAULT`,
           { transaction: t }
         );
         // 3b. Change column type to ENUM
         await queryInterface.sequelize.query(
-          `ALTER TABLE public."Users" ALTER COLUMN role TYPE enum_users_role USING role::enum_users_role`,
+          `ALTER TABLE "Users" ALTER COLUMN role TYPE enum_users_role USING role::enum_users_role`,
           { transaction: t }
         );
         // 3c. Set new enum default
         await queryInterface.sequelize.query(
-          `ALTER TABLE public."Users" ALTER COLUMN role SET DEFAULT 'sales_rep'::enum_users_role`,
+          `ALTER TABLE "Users" ALTER COLUMN role SET DEFAULT 'sales_rep'::enum_users_role`,
           { transaction: t }
         );
       }
@@ -56,19 +64,27 @@ module.exports = {
   },
 
   async down(queryInterface, Sequelize) {
+    const dialect = queryInterface.sequelize.getDialect();
+    if (dialect === "sqlite") {
+      await queryInterface.sequelize.query(
+        `UPDATE "Users" SET role = 'sales_manager' WHERE role = 'manager'`
+      );
+      return;
+    }
+
     await queryInterface.sequelize.transaction(async (t) => {
       // Revert ENUM back to VARCHAR
       await queryInterface.sequelize.query(
-        `ALTER TABLE public."Users" ALTER COLUMN role TYPE character varying USING role::character varying`,
+        `ALTER TABLE "Users" ALTER COLUMN role TYPE character varying USING role::character varying`,
         { transaction: t }
       );
       await queryInterface.sequelize.query(
-        `ALTER TABLE public."Users" ALTER COLUMN role SET DEFAULT 'sales_rep'`,
+        `ALTER TABLE "Users" ALTER COLUMN role SET DEFAULT 'sales_rep'`,
         { transaction: t }
       );
       // Restore old role name (best-effort — cannot perfectly undo rename)
       await queryInterface.sequelize.query(
-        `UPDATE public."Users" SET role = 'sales_manager' WHERE role = 'manager'`,
+        `UPDATE "Users" SET role = 'sales_manager' WHERE role = 'manager'`,
         { transaction: t }
       );
       await queryInterface.sequelize.query(

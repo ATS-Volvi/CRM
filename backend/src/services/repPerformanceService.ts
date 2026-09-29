@@ -66,6 +66,7 @@ export interface LeadPriorityDetails {
   isHighValueLead: boolean;
   priorityTier: "CRITICAL" | "HIGH" | "MEDIUM" | "NORMAL";
   reasonSummary: string;
+  budgetCurrencyToken?: string;
 }
 
 /**

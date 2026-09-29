@@ -9,7 +9,10 @@ module.exports = {
     let defaultCurrency = 'SAR';
     try {
       const allTables = await queryInterface.showAllTables();
-      if (allTables.includes('OrgSettings')) {
+      const tableNames = Array.isArray(allTables)
+        ? allTables.map((t) => (typeof t === 'object' ? t.tableName || t.name : t))
+        : [];
+      if (tableNames.includes('OrgSettings')) {
         const [orgRows] = await queryInterface.sequelize.query(
           'SELECT "defaultCurrency" FROM "OrgSettings" LIMIT 1;'
         );

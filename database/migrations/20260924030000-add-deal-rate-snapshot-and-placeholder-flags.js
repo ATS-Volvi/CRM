@@ -4,9 +4,12 @@
 module.exports = {
   async up(queryInterface, Sequelize) {
     const tables = await queryInterface.showAllTables();
+    const tableNames = Array.isArray(tables)
+      ? tables.map((t) => (typeof t === 'object' ? t.tableName || t.name : t))
+      : [];
 
     // 1. Add exchangeRateToOrg and amountInOrgCurrency to Deals
-    if (tables.includes('Deals')) {
+    if (tableNames.includes('Deals')) {
       const dealCols = await queryInterface.describeTable('Deals');
       if (!dealCols.exchangeRateToOrg) {
         await queryInterface.addColumn('Deals', 'exchangeRateToOrg', {
@@ -23,7 +26,7 @@ module.exports = {
     }
 
     // 2. Add needsReview and isPlaceholder to ExchangeRates
-    if (tables.includes('ExchangeRates')) {
+    if (tableNames.includes('ExchangeRates')) {
       const rateCols = await queryInterface.describeTable('ExchangeRates');
       if (!rateCols.needsReview) {
         await queryInterface.addColumn('ExchangeRates', 'needsReview', {
@@ -55,7 +58,10 @@ module.exports = {
 
   async down(queryInterface, Sequelize) {
     const tables = await queryInterface.showAllTables();
-    if (tables.includes('Deals')) {
+    const tableNames = Array.isArray(tables)
+      ? tables.map((t) => (typeof t === 'object' ? t.tableName || t.name : t))
+      : [];
+    if (tableNames.includes('Deals')) {
       const dealCols = await queryInterface.describeTable('Deals');
       if (dealCols.exchangeRateToOrg) {
         await queryInterface.removeColumn('Deals', 'exchangeRateToOrg');
@@ -64,7 +70,7 @@ module.exports = {
         await queryInterface.removeColumn('Deals', 'amountInOrgCurrency');
       }
     }
-    if (tables.includes('ExchangeRates')) {
+    if (tableNames.includes('ExchangeRates')) {
       const rateCols = await queryInterface.describeTable('ExchangeRates');
       if (rateCols.needsReview) {
         await queryInterface.removeColumn('ExchangeRates', 'needsReview');

@@ -3,9 +3,12 @@
 module.exports = {
   up: async (queryInterface, Sequelize) => {
     const tables = await queryInterface.showAllTables();
+    const tableNames = Array.isArray(tables)
+      ? tables.map((t) => (typeof t === 'object' ? t.tableName || t.name : t))
+      : [];
 
     // 1. AdminApprovalPolicies extensions
-    if (tables.includes('AdminApprovalPolicies')) {
+    if (tableNames.includes('AdminApprovalPolicies')) {
       const tableInfo = await queryInterface.describeTable('AdminApprovalPolicies');
       
       if (!tableInfo.repSelfApprovalDefault) {
@@ -46,7 +49,7 @@ module.exports = {
       }
 
       // Seed initial row if table is empty
-      const [existingRows] = await queryInterface.sequelize.query('SELECT id FROM AdminApprovalPolicies LIMIT 1;');
+      const [existingRows] = await queryInterface.sequelize.query('SELECT id FROM "AdminApprovalPolicies" LIMIT 1;');
       if (!existingRows || existingRows.length === 0) {
         const now = new Date();
         await queryInterface.bulkInsert('AdminApprovalPolicies', [
@@ -71,7 +74,7 @@ module.exports = {
     }
 
     // 2. SalesAssignmentPolicies extensions
-    if (tables.includes('SalesAssignmentPolicies')) {
+    if (tableNames.includes('SalesAssignmentPolicies')) {
       const tableInfo = await queryInterface.describeTable('SalesAssignmentPolicies');
       if (!tableInfo.leadScoreValueMultiplier) {
         await queryInterface.addColumn('SalesAssignmentPolicies', 'leadScoreValueMultiplier', {
@@ -87,7 +90,7 @@ module.exports = {
       }
 
       // Seed initial row if table is empty
-      const [existingRows] = await queryInterface.sequelize.query('SELECT id FROM SalesAssignmentPolicies LIMIT 1;');
+      const [existingRows] = await queryInterface.sequelize.query('SELECT id FROM "SalesAssignmentPolicies" LIMIT 1;');
       if (!existingRows || existingRows.length === 0) {
         const now = new Date();
         await queryInterface.bulkInsert('SalesAssignmentPolicies', [
@@ -128,7 +131,7 @@ module.exports = {
     }
 
     // 3. ExchangeRates table
-    if (!tables.includes('ExchangeRates')) {
+    if (!tableNames.includes('ExchangeRates')) {
       await queryInterface.createTable('ExchangeRates', {
         id: {
           type: Sequelize.UUID,
@@ -162,7 +165,14 @@ module.exports = {
           defaultValue: Sequelize.literal('CURRENT_TIMESTAMP'),
         },
       });
+    }
 
+    // Seed initial rates if table is empty
+    const [existingRates] = await queryInterface.sequelize.query(
+      'SELECT id FROM "ExchangeRates" LIMIT 1;'
+    ).catch(() => [[]]);
+
+    if (!existingRates || existingRates.length === 0) {
       const now = new Date();
       const initialRates = [
         // Identities
