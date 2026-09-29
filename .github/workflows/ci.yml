@@ -1,0 +1,148 @@
+name: CI — Type Check, Currency & Boundary Tests
+
+on:
+  pull_request:
+    branches: [ dev, master ]
+  workflow_dispatch:
+
+jobs:
+  # ─── Job 1: Type Check + Currency Hygiene (SQLite fast path) ───────────────
+  check:
+    name: Type Check & Currency Hygiene
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build database workspace
+        run: npm run build --workspace=database
+
+      - name: TypeScript — frontend (noEmit)
+        run: npx tsc --noEmit -p frontend/tsconfig.json
+
+      - name: TypeScript — backend (noEmit)
+        run: npx tsc --noEmit -p backend/tsconfig.json
+
+      - name: Currency hygiene check
+        run: npm run check:currency
+
+  # ─── Job 2: Currency Boundary Tests (SQLite) ───────────────────────────────
+  currency-sqlite:
+    name: Currency Boundary Tests (SQLite)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: check
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build database workspace
+        run: npm run build --workspace=database
+
+      - name: Run migrations (SQLite)
+        env:
+          USE_SQLITE: "true"
+        run: npx sequelize-cli db:migrate --config database/config/config.js
+
+      - name: Run currency boundary test suite (SQLite)
+        env:
+          USE_SQLITE: "true"
+        run: |
+          npx ts-node --project backend/tsconfig.json \
+            backend/src/scripts/testCurrencyEnginePhase6.ts 2>&1 | tee currency_sqlite.log
+          echo "### Currency Boundary Tests (SQLite)" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat currency_sqlite.log >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+  # ─── Job 3: Currency Migrations + Boundary Tests (Postgres 16) ─────────────
+  currency-postgres:
+    name: Currency Boundary Tests (Postgres 16)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: check
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: nexus_ci
+          POSTGRES_PASSWORD: nexus_ci_pass
+          POSTGRES_DB: nexus_crm_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build database workspace
+        run: npm run build --workspace=database
+
+      - name: Run all migrations (Postgres 16)
+        env:
+          DATABASE_URL: postgresql://nexus_ci:nexus_ci_pass@localhost:5432/nexus_crm_ci
+          USE_SQLITE: "false"
+        run: npx sequelize-cli db:migrate --config database/config/config.js
+
+      - name: Verify migration DOWN paths (Postgres 16)
+        env:
+          DATABASE_URL: postgresql://nexus_ci:nexus_ci_pass@localhost:5432/nexus_crm_ci
+          USE_SQLITE: "false"
+        run: |
+          # Roll back the 4 currency migrations one at a time then re-apply
+          for i in 1 2 3 4; do
+            npx sequelize-cli db:migrate:undo --config database/config/config.js
+          done
+          npx sequelize-cli db:migrate --config database/config/config.js
+
+      - name: Run currency boundary test suite (Postgres 16)
+        env:
+          DATABASE_URL: postgresql://nexus_ci:nexus_ci_pass@localhost:5432/nexus_crm_ci
+          USE_SQLITE: "false"
+        run: |
+          npx ts-node --project backend/tsconfig.json \
+            backend/src/scripts/testCurrencyEnginePhase6.ts 2>&1 | tee currency_pg.log
+          echo "### Currency Boundary Tests (Postgres 16)" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat currency_pg.log >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: currency-test-logs-pg16
+          path: currency_pg.log
