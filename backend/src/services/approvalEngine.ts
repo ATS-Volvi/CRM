@@ -1,4 +1,7 @@
 import { sequelize } from "@nexus-crm/database";
+import { formatMoney } from "../utils/formatMoney";
+import { convertToOrgCurrency, resolveLimit } from "../utils/exchangeRate";
+import { getOrgCurrency } from "../utils/orgSettings";
 
 export interface QuoteApprovalEvaluationResult {
   approvalRequired: boolean;
@@ -8,6 +11,8 @@ export interface QuoteApprovalEvaluationResult {
   quoteValue: number;
   repLimit: number;
   teamLeadLimit: number;
+  repLimitDisplay?: string;
+  teamLeadLimitDisplay?: string;
   discount: number; // e.g. 0.08 for 8%
   margin: number | null; // null if cost unavailable
   repDiscountLimit: number;
@@ -25,6 +30,7 @@ export const evaluateQuoteApproval = async (
   let quote: any = null;
   let lineItems: any[] = [];
   let salesRepId: string = "system";
+  let salesRep: any = null;
 
   if (quoteId) {
     quote = await sequelize.models.Quote.findByPk(quoteId, {
@@ -58,14 +64,18 @@ export const evaluateQuoteApproval = async (
     if (quoteOverrideData.salesRepId) {
       salesRepId = quoteOverrideData.salesRepId;
     }
+    if (quoteOverrideData.user || quoteOverrideData.salesRep) {
+      salesRep = quoteOverrideData.user || quoteOverrideData.salesRep;
+    }
   }
 
-  // Fetch Sales Rep details
-  let salesRep: any = null;
-  if (salesRepId && salesRepId !== "system") {
-    salesRep = await sequelize.models.User.findByPk(salesRepId, {
-      attributes: ["id", "name", "email", "role", "tier", "dealValueCutoff", "managerId", "isAvailable"]
-    });
+  // Fetch Sales Rep details if not provided directly
+  if (!salesRep && salesRepId && salesRepId !== "system") {
+    try {
+      salesRep = await sequelize.models.User.findByPk(salesRepId, {
+        attributes: ["id", "name", "email", "role", "tier", "dealValueCutoff", "managerId", "isAvailable"]
+      });
+    } catch (e) {}
   }
 
   // Edge case: Sales Rep inactive
@@ -79,42 +89,53 @@ export const evaluateQuoteApproval = async (
     });
   }
 
-  // Load Admin Global Policy (fallback to defaults if not created)
+  // Load Admin Global Policy (fallback to strictest 0 if not created)
   let adminPolicy: any = await sequelize.models.AdminApprovalPolicy.findOne({
     order: [["createdAt", "DESC"]]
   });
 
-  // Load Configurable Discount Policy Master Data (fallback to adminPolicy or defaults)
-  let repDiscountPolicy: any = null;
-  let tlDiscountPolicy: any = null;
-  if (sequelize.models.DiscountPolicy) {
-    repDiscountPolicy = await sequelize.models.DiscountPolicy.findOne({
-      where: { role: "Sales Rep", isActive: true }
-    });
-    tlDiscountPolicy = await sequelize.models.DiscountPolicy.findOne({
-      where: { role: "Team Lead", isActive: true }
-    });
+  if (!adminPolicy) {
+    console.warn("[approvalEngine] AdminApprovalPolicy not found in database. Applying strictest approval rule.");
   }
 
-  const maxSalesRepApproval = Number(adminPolicy?.maximumSalesRepApproval ?? 2500000);
-  const maxTeamLeadApproval = Number(adminPolicy?.maximumTeamLeadApproval ?? 10000000);
-  const maxRepDiscount = repDiscountPolicy
-    ? Number(repDiscountPolicy.maxDiscountPercent) / 100
-    : Number(adminPolicy?.maximumRepDiscount ?? 0.10);
-  const maxTeamLeadDiscount = tlDiscountPolicy
-    ? Number(tlDiscountPolicy.maxDiscountPercent) / 100
-    : Number(adminPolicy?.maximumTeamLeadDiscount ?? 0.20);
-  const minAllowedMargin = Number(adminPolicy?.minimumAllowedMargin ?? 0.15);
+  const orgCurrency = await getOrgCurrency();
+  const policyCurrency = (adminPolicy?.currency || "INR").toUpperCase();
 
-  const repDefaultCutoff = salesRep?.dealValueCutoff !== null && salesRep?.dealValueCutoff !== undefined
-    ? Number(salesRep.dealValueCutoff)
-    : (salesRep?.tier === "executive" ? 250000 : salesRep?.tier === "agent" ? 50000 : 1000000);
+  // Resolve Admin Policy limits to Organization currency
+  const maxSalesRepRes = await resolveLimit(adminPolicy?.maximumSalesRepApproval ?? 2500000, policyCurrency, orgCurrency);
+  const maxTeamLeadRes = await resolveLimit(adminPolicy?.maximumTeamLeadApproval ?? 10000000, policyCurrency, orgCurrency);
+  const repDefaultRes = await resolveLimit(adminPolicy?.repTierCutoffDefault ?? adminPolicy?.repSelfApprovalDefault ?? 1000000, policyCurrency, orgCurrency);
+  const tierExecRes = await resolveLimit(adminPolicy?.repTierCutoffExecutive ?? 250000, policyCurrency, orgCurrency);
+  const tierAgentRes = await resolveLimit(adminPolicy?.repTierCutoffAgent ?? 50000, policyCurrency, orgCurrency);
+  const teamLeadDefaultRes = await resolveLimit(adminPolicy?.teamLeadApprovalDefault ?? 5000000, policyCurrency, orgCurrency);
 
-  // Authority limits for Rep (capped by Admin Policy)
-  const repLimit = Math.min(
-    Number(repProfile?.selfApprovalLimit ?? repDefaultCutoff),
-    maxSalesRepApproval
-  );
+  const maxRepDiscount = adminPolicy?.maximumRepDiscount != null ? Number(adminPolicy.maximumRepDiscount) : 0.05;
+  const maxTeamLeadDiscount = adminPolicy?.maximumTeamLeadDiscount != null ? Number(adminPolicy.maximumTeamLeadDiscount) : 0.10;
+  const minAllowedMargin = adminPolicy?.minimumAllowedMargin != null ? Number(adminPolicy.minimumAllowedMargin) : 0.20;
+
+  // Determine Rep base cutoff
+  let repResolved = repDefaultRes;
+  if (salesRep?.dealValueCutoff !== null && salesRep?.dealValueCutoff !== undefined) {
+    // dealValueCutoff on user is in org currency
+    repResolved = await resolveLimit(salesRep.dealValueCutoff, orgCurrency, orgCurrency);
+  } else if (salesRep?.tier === "executive") {
+    repResolved = tierExecRes;
+  } else if (salesRep?.tier === "agent") {
+    repResolved = tierAgentRes;
+  }
+
+  // If rep profile configured, profile limit is in org currency
+  if (repProfile?.selfApprovalLimit !== null && repProfile?.selfApprovalLimit !== undefined) {
+    repResolved = await resolveLimit(repProfile.selfApprovalLimit, orgCurrency, orgCurrency);
+  }
+
+  let repLimit = repResolved.orgAmount;
+  let repLimitDisplay = repResolved.display;
+  if (maxSalesRepRes.orgAmount > 0 && repLimit > maxSalesRepRes.orgAmount) {
+    repLimit = maxSalesRepRes.orgAmount;
+    repLimitDisplay = maxSalesRepRes.display;
+  }
+
   const repDiscountLimit = Math.min(
     Number(repProfile?.discountApprovalLimit ?? 0.10),
     maxRepDiscount
@@ -134,10 +155,18 @@ export const evaluateQuoteApproval = async (
     });
   }
 
-  const teamLeadLimit = Math.min(
-    Number(teamLeadProfile?.selfApprovalLimit ?? maxTeamLeadApproval),
-    maxTeamLeadApproval
-  );
+  let teamLeadResolved = teamLeadDefaultRes;
+  if (teamLeadProfile?.selfApprovalLimit !== null && teamLeadProfile?.selfApprovalLimit !== undefined) {
+    teamLeadResolved = await resolveLimit(teamLeadProfile.selfApprovalLimit, orgCurrency, orgCurrency);
+  }
+
+  let teamLeadLimit = teamLeadResolved.orgAmount;
+  let teamLeadLimitDisplay = teamLeadResolved.display;
+  if (maxTeamLeadRes.orgAmount > 0 && teamLeadLimit > maxTeamLeadRes.orgAmount) {
+    teamLeadLimit = maxTeamLeadRes.orgAmount;
+    teamLeadLimitDisplay = maxTeamLeadRes.display;
+  }
+
   const teamLeadDiscountLimit = Math.min(
     Number(teamLeadProfile?.discountApprovalLimit ?? maxTeamLeadDiscount),
     maxTeamLeadDiscount
@@ -146,6 +175,7 @@ export const evaluateQuoteApproval = async (
     Number(teamLeadProfile?.minimumMargin ?? minAllowedMargin),
     minAllowedMargin
   );
+
 
   // Calculate Quote Metrics
   let quoteValue = quoteOverrideData?.totalAmount ?? Number(quote?.totalAmount ?? 0);
@@ -242,6 +272,25 @@ export const evaluateQuoteApproval = async (
     }
   };
 
+  const quoteCurrency = quoteOverrideData?.currency || quote?.currency || orgCurrency;
+  let convertedQuoteValue = quoteValue;
+
+  if (quoteCurrency.toUpperCase() !== orgCurrency.toUpperCase()) {
+    const rateResult = await convertToOrgCurrency(quoteValue, quoteCurrency, orgCurrency);
+    if (rateResult === null) {
+      updateLevel("ADMIN");
+      triggerReasons.push(`Exchange rate for ${quoteCurrency} is missing; ask an admin`);
+    } else {
+      convertedQuoteValue = rateResult;
+    }
+  }
+
+  // Check for missing rates in limits
+  if (repResolved.missingRate || teamLeadResolved.missingRate) {
+    updateLevel("ADMIN");
+    triggerReasons.push(`Exchange rate for ${policyCurrency} is missing; ask an admin`);
+  }
+
   // Edge case: Inactive rep
   if (isInactive) {
     updateLevel("TEAM_LEAD");
@@ -250,19 +299,22 @@ export const evaluateQuoteApproval = async (
 
   // Edge case: Rep missing limit profile -> default Team Lead
   if (!repProfile && !isInactive) {
-    if (quoteValue > repLimit) {
+    if (repLimit <= 0 || convertedQuoteValue > repLimit) {
       updateLevel("TEAM_LEAD");
-      triggerReasons.push(`Quote value exceeds default sales representative self-approval limit of ₹${repLimit.toLocaleString()}`);
+      triggerReasons.push(`Quote value exceeds default sales representative self-approval limit of ${repLimitDisplay}`);
     }
   }
 
   // 1. Quote Value Rule
-  if (quoteValue > teamLeadLimit) {
+  if (teamLeadLimit > 0 && convertedQuoteValue > teamLeadLimit) {
     updateLevel("ADMIN");
-    triggerReasons.push(`Quote value of ₹${quoteValue.toLocaleString()} exceeds Team Lead approval threshold of ₹${teamLeadLimit.toLocaleString()}`);
-  } else if (quoteValue > repLimit) {
+    triggerReasons.push(`Quote value of ${formatMoney(quoteValue, quoteCurrency)} exceeds Team Lead approval threshold of ${teamLeadLimitDisplay}`);
+  } else if (repLimit > 0 && convertedQuoteValue > repLimit) {
     updateLevel("TEAM_LEAD");
-    triggerReasons.push(`Quote value exceeds sales representative approval limit of ₹${repLimit.toLocaleString()}`);
+    triggerReasons.push(`Quote value exceeds sales representative approval limit of ${repLimitDisplay}`);
+  } else if (repLimit <= 0) {
+    updateLevel("TEAM_LEAD");
+    triggerReasons.push(`Sales representative self-approval is not configured or disabled`);
   }
 
   // 2. Discount Limit Rule
@@ -314,6 +366,8 @@ export const evaluateQuoteApproval = async (
     quoteValue,
     repLimit,
     teamLeadLimit,
+    repLimitDisplay,
+    teamLeadLimitDisplay,
     discount: Number(discount.toFixed(4)),
     margin: margin !== null ? Number(margin.toFixed(4)) : null,
     repDiscountLimit,
@@ -324,6 +378,7 @@ export const evaluateQuoteApproval = async (
     teamLeadId
   };
 };
+
 
 export const createApprovalAuditLog = async (data: {
   quoteId: string;
@@ -339,7 +394,7 @@ export const createApprovalAuditLog = async (data: {
   previousStatus?: string | null;
   newStatus?: string | null;
   reason: string;
-}) => {
+}, options?: { transaction?: any }) => {
   try {
     await sequelize.models.ApprovalAuditLog.create({
       id: require("crypto").randomUUID(),
@@ -356,8 +411,156 @@ export const createApprovalAuditLog = async (data: {
       previousStatus: data.previousStatus || null,
       newStatus: data.newStatus || null,
       reason: data.reason
-    });
+    }, options?.transaction ? { transaction: options.transaction } : undefined);
   } catch (err) {
     console.error("[ApprovalAuditLog] Failed to log audit record:", err);
   }
 };
+
+export interface DealApprovalEvaluationResult {
+  approvalRequired: boolean;
+  approvalLevel: "NONE" | "TEAM_LEAD" | "ADMIN";
+  requiredApproverId: string | null;
+  reason: string;
+  dealValue: number;
+  repLimit: number;
+  managerLimit: number;
+  repLimitDisplay?: string;
+  managerLimitDisplay?: string;
+  salesRepId: string;
+  managerId: string | null;
+  exceededBy: number;
+}
+
+export const evaluateDealApproval = async (
+  dealId: string,
+  amountOverride?: number,
+  currencyOverride?: string
+): Promise<DealApprovalEvaluationResult> => {
+  let deal: any = null;
+  if (dealId) {
+    deal = await sequelize.models.Deal.findByPk(dealId, {
+      include: [
+        { model: sequelize.models.User, as: "owner", attributes: ["id", "name", "email", "role", "managerId", "dealValueCutoff", "isAvailable"] }
+      ]
+    });
+  }
+
+  const dealValue = amountOverride !== undefined ? Number(amountOverride) : Number(deal?.amount || 0);
+  const salesRepId = deal?.ownerId || "system";
+  const salesRep = deal?.owner;
+
+  // Rep profile
+  let repProfile: any = null;
+  if (salesRepId && salesRepId !== "system") {
+    repProfile = await sequelize.models.SalesApprovalProfile.findOne({
+      where: { salesRepId }
+    });
+  }
+
+  // Global admin policy
+  let adminPolicy: any = await sequelize.models.AdminApprovalPolicy.findOne({
+    order: [["createdAt", "DESC"]]
+  });
+
+  if (!adminPolicy) {
+    console.warn("[approvalEngine] AdminApprovalPolicy not found in database for deal approval. Applying strictest rule.");
+  }
+
+  const orgCurrency = await getOrgCurrency();
+  const policyCurrency = (adminPolicy?.currency || "INR").toUpperCase();
+  const dealCurrency = currencyOverride || deal?.currency || orgCurrency;
+  let convertedDealValue = dealValue;
+  let missingExchangeRate = false;
+
+  if (dealCurrency.toUpperCase() !== orgCurrency.toUpperCase()) {
+    const rateResult = await convertToOrgCurrency(dealValue, dealCurrency, orgCurrency);
+    if (rateResult === null) {
+      missingExchangeRate = true;
+    } else {
+      convertedDealValue = rateResult;
+    }
+  }
+
+  // Resolve Policy limits
+  const maxSalesRepRes = await resolveLimit(adminPolicy?.maximumSalesRepApproval ?? 2500000, policyCurrency, orgCurrency);
+  const maxTeamLeadRes = await resolveLimit(adminPolicy?.maximumTeamLeadApproval ?? 10000000, policyCurrency, orgCurrency);
+  const repDefaultRes = await resolveLimit(adminPolicy?.repTierCutoffDefault ?? adminPolicy?.repSelfApprovalDefault ?? 1000000, policyCurrency, orgCurrency);
+
+  let repResolved = repDefaultRes;
+  if (salesRep?.dealValueCutoff !== null && salesRep?.dealValueCutoff !== undefined) {
+    repResolved = await resolveLimit(salesRep.dealValueCutoff, orgCurrency, orgCurrency);
+  }
+  if (repProfile?.selfApprovalLimit !== null && repProfile?.selfApprovalLimit !== undefined) {
+    repResolved = await resolveLimit(repProfile.selfApprovalLimit, orgCurrency, orgCurrency);
+  }
+
+  let repLimit = repResolved.orgAmount;
+  let repLimitDisplay = repResolved.display;
+  if (maxSalesRepRes.orgAmount > 0 && repLimit > maxSalesRepRes.orgAmount) {
+    repLimit = maxSalesRepRes.orgAmount;
+    repLimitDisplay = maxSalesRepRes.display;
+  }
+
+  const managerLimit = maxTeamLeadRes.orgAmount;
+  const managerLimitDisplay = maxTeamLeadRes.display;
+
+  if (repResolved.missingRate || maxTeamLeadRes.missingRate) {
+    missingExchangeRate = true;
+  }
+
+  const managerId = repProfile?.teamLeadId || salesRep?.managerId || null;
+
+  let approvalRequired = false;
+  let approvalLevel: "NONE" | "TEAM_LEAD" | "ADMIN" = "NONE";
+  let requiredApproverId: string | null = null;
+  let reason = "Deal within representative authority limits";
+  let exceededBy = 0;
+
+  if (missingExchangeRate) {
+    return {
+      approvalRequired: true,
+      approvalLevel: "ADMIN",
+      requiredApproverId: null,
+      reason: `Exchange rate for ${dealCurrency} is missing; ask an admin`,
+      dealValue,
+      repLimit: 0,
+      managerLimit: 0,
+      repLimitDisplay,
+      managerLimitDisplay,
+      salesRepId,
+      managerId,
+      exceededBy: dealValue
+    };
+  }
+
+  if (repLimit <= 0 || convertedDealValue > repLimit) {
+    approvalRequired = true;
+    exceededBy = Math.max(0, dealValue - repLimit);
+    if (managerLimit > 0 && convertedDealValue > managerLimit) {
+      approvalLevel = "ADMIN";
+      reason = `Deal value of ${formatMoney(dealValue, dealCurrency)} exceeds Team Lead authority limit (${managerLimitDisplay}). Admin approval required.`;
+    } else {
+      approvalLevel = "TEAM_LEAD";
+      requiredApproverId = managerId;
+      reason = `Deal value of ${formatMoney(dealValue, dealCurrency)} exceeds representative authority limit (${repLimitDisplay}). Manager approval required.`;
+    }
+  }
+
+  return {
+    approvalRequired,
+    approvalLevel,
+    requiredApproverId,
+    reason,
+    dealValue,
+    repLimit,
+    managerLimit,
+    repLimitDisplay,
+    managerLimitDisplay,
+    salesRepId,
+    managerId,
+    exceededBy
+  };
+};
+
+

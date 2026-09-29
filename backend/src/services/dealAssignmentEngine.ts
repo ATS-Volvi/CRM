@@ -2,6 +2,8 @@ import { sequelize } from "@nexus-crm/database";
 import { Op } from "sequelize";
 import crypto from "crypto";
 import { createNotification } from "./notificationEngine";
+import { getOrgCurrency } from "../utils/orgSettings";
+import { convertToOrgCurrency } from "../utils/exchangeRate";
 
 /**
  * Returns the count of open (non-Won/Lost) deals currently assigned to a user.
@@ -123,7 +125,8 @@ export async function autoAssignDeal(
       newOwnerId: winnerId,
       deal,
       oldOwnerId,
-      assignee: assignResult.assignee
+      assignee: assignResult.assignee,
+      subTeamRoutingMethod: assignResult.subTeamRoutingMethod
     };
   };
 
@@ -174,12 +177,14 @@ export async function manualReassignDeal(
   }
 
   const dealAmount = Number(deal.amount || 0);
+  const orgCurrency = await getOrgCurrency();
+  const dealAmountInOrg = (await convertToOrgCurrency(dealAmount, deal.currency, orgCurrency)) ?? dealAmount;
 
-  // Compute exceededCutoff
+  // Compute exceededCutoff (compared in org currency)
   const exceededCutoff =
     newOwner.dealValueCutoff !== null &&
     newOwner.dealValueCutoff !== undefined &&
-    dealAmount > Number(newOwner.dealValueCutoff);
+    dealAmountInOrg > Number(newOwner.dealValueCutoff);
 
   // Compute exceededCapacity (current open deals >= maxOpenDeals)
   const currentOpenDeals = await getOpenDealsCount(newOwner.id);
