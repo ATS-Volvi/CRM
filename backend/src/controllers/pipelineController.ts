@@ -612,7 +612,8 @@ export const getOpportunityById = async (req: Request, res: Response) => {
         { model: PipelineStage, as: "stage" },
         { model: sequelize.models.Account, as: "account" },
         { model: sequelize.models.User, as: "owner", attributes: ["id", "name", "email", "role"] },
-        { model: sequelize.models.Quote, as: "quotes" }
+        { model: sequelize.models.Quote, as: "quotes" },
+        { model: sequelize.models.Lead, as: "lead", required: false }
       ]
     });
     if (!deal) return res.status(404).json({ error: "Opportunity not found" });
