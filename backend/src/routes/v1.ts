@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { register, login } from "../controllers/auth";
 import { createPublicLead } from "../controllers/publicLeads";
-import { authMiddleware, requireAdminOrManager } from "../middleware/auth";
+import { authMiddleware, requireAdminOrManager, requireAdmin } from "../middleware/auth";
 import {
   getPipeline, moveDealStage, createDeal, getDeals, validateTransition,
   getOpportunities, getOpportunityById, createOpportunity, updateOpportunity, moveOpportunityStage,
@@ -15,6 +15,7 @@ import {
   getLead,
   updateLead,
   convertLead,
+  handoffLead,
   qualifyLeadEndpoint,
   markLeadNotConverted,
   deleteLead,
@@ -30,19 +31,26 @@ import {
   updateTemperature,
   unlockTemperature,
   getLeadMissingInfo,
-  requestMissingDetails
+  requestMissingDetails,
+  triggerLeadEnrichment,
+  findLeadContacts,
+  getLeadDiscoveredContacts
 } from "../controllers/leadController";
 import { getPriceBookEntries, createPriceBookEntry, updatePriceBookEntry, deletePriceBookEntry, importPriceBookEntries, getPriceSuggestion, importPriceBookEntriesPreview, getCatalogCategories, getCatalogUoms } from '../controllers/priceBookController';
 import {
   getQuotes, getQuoteById, createQuote, updateQuote, getQuoteRecommendations, sendQuote, acceptQuote, rejectQuote, createQuoteRevision,
   getOpportunityQuotes, createOpportunityQuote, getPublicQuote, generateQuotePdf, signQuote, getQuoteHistoryByClient,
   getSimilarQuotesStats, getSimilarClientQuotes, markQuoteFinalAgreed, getQuoteDeliveryPreview, getQuoteDeliveries, recordDeliveryStatus,
-  getPublicQuoteByToken, acceptPublicQuoteByToken, requestPublicQuoteChanges
+  getPublicQuoteByToken, acceptPublicQuoteByToken, requestPublicQuoteChanges, expressPublicQuoteInterest
 } from '../controllers/quoteController';
 import { getInvoices, createInvoiceFromQuote, updateInvoiceStatus, generateInvoicePdf } from '../controllers/invoiceController';
 import { getPurchaseOrders, getOrderById, createPurchaseOrder, updatePurchaseOrder, createOrderFromQuote, resolvePurchaseOrder } from '../controllers/purchaseOrderController';
-import { getApprovals, updateApproval, getApprovalTiers, createApprovalTier, deleteApprovalTier, submitQuoteForApproval, getAdminApprovalPolicy, updateAdminApprovalPolicy } from '../controllers/approvalController';
-import { getDiscountPolicies, createDiscountPolicy, updateDiscountPolicy, deleteDiscountPolicy } from '../controllers/discountPolicyController';
+import {
+  getApprovals, updateApproval, getApprovalTiers, createApprovalTier, deleteApprovalTier, submitQuoteForApproval,
+  getAdminApprovalPolicy, updateAdminApprovalPolicy, getSalesApprovalProfiles, upsertSalesApprovalProfile,
+  getApprovalAuditLogs, evaluateQuote, approveQuoteDirectly
+} from "../controllers/approvalController";
+import { getDiscountPolicies, createDiscountPolicy, updateDiscountPolicy, deleteDiscountPolicy } from "../controllers/discountPolicyController";
 import { getKpiDashboard, getManagementDashboard, getMyTodayDashboard, getMyHomeDashboard, getKpiTarget, updateKpiTarget, getActivitiesReports, getHomeDashboard } from '../controllers/dashboardController';
 import { getAssignmentRules, createAssignmentRule, updateAssignmentRule, deleteAssignmentRule, getSalespersonsCapacities, balanceSalespersonsCapacities } from '../controllers/assignmentRuleController';
 import { getAssignmentPolicy, updateAssignmentPolicy, getRepPerformanceProfiles, getAssignmentAudits, reassignLeadManually } from '../controllers/assignmentController';
@@ -50,8 +58,8 @@ import { getBundleTemplates, createBundleTemplate, deleteBundleTemplate } from '
 import { exportLeads, exportQuotes, exportPurchaseOrders } from '../controllers/exportController';
 import {
   getSalespersonsPerformance, createSalesperson, getSalespersonPerformanceDetails, getAllSalespersons, updateSalespersonCapacity,
-  getSalespersonKpis, editKpiTarget, getKpiHistory, restoreKpiHistory, bulkAssignTargets, lockKpiTargets, approveKpiTargetChange,
-  getOrgChartEmployees
+  getSalespersonKpis, getTeamKpis, editKpiTarget, getKpiHistory, restoreKpiHistory, bulkAssignTargets, lockKpiTargets, approveKpiTargetChange,
+  getOrgChartEmployees, updateRepTeamType, getManagerDirectTeam, getManagerStuckDeals
 } from '../controllers/salespersonController';
 import {
   getRequirements, createRequirement, updateRequirement, deleteRequirement,
@@ -239,7 +247,17 @@ import express from "express";
 import multer from "multer";
 const upload = multer();
 
-router.post("/public/leads", createPublicLead);
+const { leadSecurityPipeline } = require("../lead-security-layer");
+
+router.post(
+  "/public/leads",
+  (req, res, next) => {
+    (req as any).leadSource = req.body?.source || "Website";
+    next();
+  },
+  ...leadSecurityPipeline(),
+  createPublicLead
+);
 router.post(
   "/emails/inbound",
   express.urlencoded({ extended: true }),
@@ -274,6 +292,7 @@ router.post("/public/quotes/:id/sign", signQuote);
 router.get("/public/quotes/by-token/:token", getPublicQuoteByToken);
 router.post("/public/quotes/by-token/:token/accept", acceptPublicQuoteByToken);
 router.post("/public/quotes/by-token/:token/request-changes", requestPublicQuoteChanges);
+router.post("/public/quotes/by-token/:token/express-interest", expressPublicQuoteInterest);
 
 // ==========================================
 // QUOTE TEMPLATES & AI VISION PARSER
@@ -395,6 +414,7 @@ router.put("/leads/:id", authMiddleware, updateLead);
 router.patch("/leads/:id", authMiddleware, updateLead);
 router.post("/leads/:id/qualify", authMiddleware, qualifyLeadEndpoint);
 router.post("/leads/:id/convert", authMiddleware, convertLead);
+router.post("/leads/:id/handoff", authMiddleware, handoffLead);
 router.post("/leads/:id/not-converted", authMiddleware, markLeadNotConverted);
 router.post("/leads/:id/temperature", authMiddleware, updateTemperature);
 router.post("/leads/:id/temperature/unlock", authMiddleware, unlockTemperature);
@@ -408,6 +428,9 @@ router.get("/leads/:id/contacts", authMiddleware, getLeadContacts);
 router.put("/leads/:id/clear-unread", authMiddleware, clearUnreadCount);
 router.get("/leads/:id/missing-info", authMiddleware, getLeadMissingInfo);
 router.post("/leads/:id/request-details", authMiddleware, requestMissingDetails);
+router.post("/leads/:id/enrich", authMiddleware, triggerLeadEnrichment);
+router.post("/leads/:id/find-contacts", authMiddleware, findLeadContacts);
+router.get("/leads/:id/discovered-contacts", authMiddleware, getLeadDiscoveredContacts);
 
 // ==========================================
 // OPPORTUNITIES / DEALS
@@ -539,6 +562,25 @@ router.put("/approvals/:id", authMiddleware, updateApproval);
 router.get("/approval-policy", authMiddleware, getAdminApprovalPolicy);
 router.put("/approval-policy", authMiddleware, updateAdminApprovalPolicy);
 
+// ADMIN APPROVAL POLICY — strictly restricted to role: admin (UI and API)
+router.get("/approval-policy", authMiddleware, requireAdmin, getAdminApprovalPolicy);
+router.put("/approval-policy", authMiddleware, requireAdmin, updateAdminApprovalPolicy);
+
+// SALES APPROVAL PROFILES
+router.get("/sales-approval-profiles", authMiddleware, requireAdminOrManager, getSalesApprovalProfiles);
+router.post("/sales-approval-profiles", authMiddleware, requireAdminOrManager, upsertSalesApprovalProfile);
+router.post("/approvals/profiles", authMiddleware, requireAdminOrManager, upsertSalesApprovalProfile);
+
+// APPROVAL AUDIT LOGS — all roles allowed; controller scopes reps to own records
+router.get("/approval-audit-logs", authMiddleware, getApprovalAuditLogs);
+
+// QUOTE EVALUATION & DIRECT APPROVALS
+router.post("/quotes/preview/evaluate-approval", authMiddleware, evaluateQuote);
+router.get("/quotes/:id/evaluate-approval", authMiddleware, evaluateQuote);
+router.post("/quotes/:id/evaluate-approval", authMiddleware, evaluateQuote);
+router.post("/quotes/:id/approve-direct", authMiddleware, approveQuoteDirectly);
+router.post("/approvals/quotes/:id/approve", authMiddleware, approveQuoteDirectly);
+
 // ==========================================
 // APPROVAL TIERS
 // ==========================================
@@ -562,8 +604,15 @@ router.get("/salespersons/org-chart", authMiddleware, getOrgChartEmployees);
 router.get("/salespersons/:id/performance", authMiddleware, getSalespersonPerformanceDetails);
 router.post("/salespersons", authMiddleware, createSalesperson);
 router.put("/salespersons/:id/capacity", authMiddleware, updateSalespersonCapacity);
+router.patch("/users/:id/team-type", authMiddleware, updateRepTeamType);
+router.put("/users/:id/team-type", authMiddleware, updateRepTeamType);
+router.patch("/salespersons/:id/team-type", authMiddleware, updateRepTeamType);
+router.put("/salespersons/:id/team-type", authMiddleware, updateRepTeamType);
+router.get("/manager/team", authMiddleware, getManagerDirectTeam);
+router.get("/manager/stuck-deals", authMiddleware, getManagerStuckDeals);
 
 // KPI Target Management
+router.get("/salespersons/kpis", authMiddleware, getTeamKpis);
 router.get("/salespersons/:id/kpis", authMiddleware, getSalespersonKpis);
 router.put("/kpis/target/:kpiId", authMiddleware, editKpiTarget);
 router.get("/kpis/target/:kpiId/history", authMiddleware, getKpiHistory);
@@ -896,3 +945,4 @@ router.get("/cron/daily", runDailyCron);
 router.post("/cron/daily", runDailyCron);
 
 export default router;
+

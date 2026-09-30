@@ -8,4 +8,17 @@ module.exports = {
   },
   setupFilesAfterEnv: ['<rootDir>/tests/setup.ts'],
   testTimeout: 60000,
+  transform: {
+    '^.+\\.[tj]sx?$': [
+      'ts-jest',
+      {
+        tsconfig: {
+          allowJs: true,
+        },
+      },
+    ],
+  },
+  transformIgnorePatterns: [
+    'node_modules/(?!(sanitize-html|htmlparser2|dom-serializer|domhandler|domutils|domelementtype|entities)/)',
+  ],
 };

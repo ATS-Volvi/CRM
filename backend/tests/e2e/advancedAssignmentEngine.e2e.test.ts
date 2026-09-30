@@ -3,15 +3,15 @@ import { assignLead } from "../../src/services/assignmentEngine";
 import { calculateRepPerformanceProfile, calculateLeadPriorityScore, calculateRepSuitabilityScore } from "../../src/services/repPerformanceService";
 import crypto from "crypto";
 
-async function runAdvancedAssignmentEngineTests() {
-  console.log("==================================================");
-  console.log("RUNNING INTELLIGENT LEAD ASSIGNMENT ENGINE TESTS");
-  console.log("==================================================\n");
+describe("Intelligent Lead Assignment Engine E2E Tests", () => {
+  let rahulId: string;
+  let omarId: string;
+  let graceId: string;
+  let managerId: string;
 
-  try {
+  beforeAll(async () => {
     await sequelize.authenticate();
     await sequelize.sync();
-    console.log("✔ Database connection established and models synced.");
 
     // Clean up test data
     if (sequelize.models.LeadAssignmentAudit) {
@@ -22,10 +22,10 @@ async function runAdvancedAssignmentEngineTests() {
     }
 
     // Seed test users with specific roles & skills
-    const rahulId = crypto.randomUUID();
-    const omarId = crypto.randomUUID();
-    const graceId = crypto.randomUUID();
-    const managerId = crypto.randomUUID();
+    rahulId = crypto.randomUUID();
+    omarId = crypto.randomUUID();
+    graceId = crypto.randomUUID();
+    managerId = crypto.randomUUID();
 
     // Create Rep 1: Rahul (Industrial Automation Specialist)
     await sequelize.models.User.upsert({
@@ -123,13 +123,9 @@ async function runAdvancedAssignmentEngineTests() {
         assignedToId: graceId
       });
     }
+  });
 
-    console.log("✔ Test environment & Rep performance profiles seeded.\n");
-
-    // ─────────────────────────────────────────────────────────────
-    // TEST 1: Manual Protection Check
-    // ─────────────────────────────────────────────────────────────
-    console.log("▶ TEST 1: Manual Entry Lead Protection");
+  test("TEST 1: Manual Entry Lead Protection", async () => {
     const test1LeadId = crypto.randomUUID();
     await sequelize.models.Lead.create({
       id: test1LeadId,
@@ -149,16 +145,11 @@ async function runAdvancedAssignmentEngineTests() {
       email: "manual@corp.com"
     });
 
-    if (res1.assignedToId === rahulId && res1.assignmentType === "MANUAL") {
-      console.log("✅ [PASS] TEST 1: Manual entry protected from automated reassignment.");
-    } else {
-      console.error("❌ [FAIL] TEST 1: Reassigned protected manual lead!", res1);
-    }
+    expect(res1.assignedToId).toBe(rahulId);
+    expect(res1.assignmentType).toBe("MANUAL");
+  });
 
-    // ─────────────────────────────────────────────────────────────
-    // TEST 2: Existing Account Owner Protection
-    // ─────────────────────────────────────────────────────────────
-    console.log("\n▶ TEST 2: Existing Account Owner Routing");
+  test("TEST 2: Existing Account Owner Routing", async () => {
     const res2 = await assignLead({
       firstName: "Inbound",
       lastName: "NewBuyer",
@@ -166,16 +157,11 @@ async function runAdvancedAssignmentEngineTests() {
       company: "Manual Corp"
     });
 
-    if (res2.assignedToId === rahulId && res2.assignmentType === "EXISTING_ACCOUNT") {
-      console.log("✅ [PASS] TEST 2: Inbound lead for existing company routed to account owner.");
-    } else {
-      console.error("❌ [FAIL] TEST 2: Failed to preserve account owner!", res2);
-    }
+    expect(res2.assignedToId).toBe(rahulId);
+    expect(res2.assignmentType).toBe("EXISTING_ACCOUNT");
+  });
 
-    // ─────────────────────────────────────────────────────────────
-    // TEST 3: Industry Specialization Match (Industrial Automation Lead -> Rahul)
-    // ─────────────────────────────────────────────────────────────
-    console.log("\n▶ TEST 3: Industry Specialization Match (Industrial Automation Lead)");
+  test("TEST 3: Industry Specialization Match (Industrial Automation Lead -> Rahul)", async () => {
     const res3 = await assignLead({
       firstName: "Vikram",
       lastName: "Singh",
@@ -186,16 +172,11 @@ async function runAdvancedAssignmentEngineTests() {
       budgetRange: "₹50L - ₹1Cr"
     });
 
-    if (res3.assignedToId === rahulId && res3.assignmentType === "PERFORMANCE_BEST_FIT") {
-      console.log("✅ [PASS] TEST 3: Industrial Automation lead correctly assigned to Rahul (Best Industry Fit).");
-    } else {
-      console.error(`❌ [FAIL] TEST 3: Lead assigned to ${res3.assignedToId} instead of Rahul!`);
-    }
+    expect(res3.assignedToId).toBe(rahulId);
+    expect(res3.assignmentType).toBe("PERFORMANCE_BEST_FIT");
+  });
 
-    // ─────────────────────────────────────────────────────────────
-    // TEST 4: Industry Specialization Match (FMCG Lead -> Grace)
-    // ─────────────────────────────────────────────────────────────
-    console.log("\n▶ TEST 4: Industry Specialization Match (FMCG Lead)");
+  test("TEST 4: Industry Specialization Match (FMCG Lead -> Grace)", async () => {
     const res4 = await assignLead({
       firstName: "Ananya",
       lastName: "Sharma",
@@ -206,16 +187,11 @@ async function runAdvancedAssignmentEngineTests() {
       budgetRange: "₹25L - ₹50L"
     });
 
-    if (res4.assignedToId === graceId && res4.assignmentType === "PERFORMANCE_BEST_FIT") {
-      console.log("✅ [PASS] TEST 4: FMCG lead correctly assigned to Grace (Best FMCG Fit).");
-    } else {
-      console.error(`❌ [FAIL] TEST 4: Lead assigned to ${res4.assignedToId} instead of Grace!`);
-    }
+    expect(res4.assignedToId).toBe(graceId);
+    expect(res4.assignmentType).toBe("PERFORMANCE_BEST_FIT");
+  });
 
-    // ─────────────────────────────────────────────────────────────
-    // TEST 5: Bayesian Conversion Rate Safeguard (Small Sample Size)
-    // ─────────────────────────────────────────────────────────────
-    console.log("\n▶ TEST 5: Bayesian Conversion Rate Safeguard for Small Sample Sizes");
+  test("TEST 5: Bayesian Conversion Rate Safeguard for Small Sample Sizes", async () => {
     const rookieId = crypto.randomUUID();
     await sequelize.models.User.upsert({
       id: rookieId,
@@ -244,16 +220,11 @@ async function runAdvancedAssignmentEngineTests() {
 
     const rookieProfile = await calculateRepPerformanceProfile(rookieId);
 
-    if (rookieProfile.rawConversionRate === 1.0 && rookieProfile.bayesianConversionRate < 0.50) {
-      console.log(`✅ [PASS] TEST 5: Bayesian smoothing reduced 1/1 (100% raw) conversion down to safe ${(rookieProfile.bayesianConversionRate*100).toFixed(1)}%.`);
-    } else {
-      console.error("❌ [FAIL] TEST 5: Bayesian smoothing failed!", rookieProfile);
-    }
+    expect(rookieProfile.rawConversionRate).toBe(1.0);
+    expect(rookieProfile.bayesianConversionRate).toBeLessThan(0.50);
+  });
 
-    // ─────────────────────────────────────────────────────────────
-    // TEST 6: High-Value Lead Experience Gating (> ₹1Cr)
-    // ─────────────────────────────────────────────────────────────
-    console.log("\n▶ TEST 6: High-Value Enterprise Lead Experience Tier Gating");
+  test("TEST 6: High-Value Enterprise Lead Experience Tier Gating", async () => {
     const res6 = await assignLead({
       firstName: "Enterprise",
       lastName: "Buyer",
@@ -265,31 +236,20 @@ async function runAdvancedAssignmentEngineTests() {
       isStrategic: true
     });
 
-    if (res6.assignedToId === graceId) {
-      console.log("✅ [PASS] TEST 6: High-Value Enterprise Lead (₹2Cr) assigned to Senior/Enterprise AE Grace.");
-    } else {
-      console.error(`❌ [FAIL] TEST 6: High value lead assigned to junior rep: ${res6.assignedToId}`);
-    }
+    expect(res6.assignedToId).toBe(graceId);
+  });
 
-    // ─────────────────────────────────────────────────────────────
-    // TEST 7: Human-Readable Assignment Audit Explanation Logging
-    // ─────────────────────────────────────────────────────────────
-    console.log("\n▶ TEST 7: Human-Readable Assignment Audit Explanation Log");
+  test("TEST 7: Human-Readable Assignment Audit Explanation Log", async () => {
     const audits = await sequelize.models.LeadAssignmentAudit.findAll({
       order: [["createdAt", "DESC"]],
       limit: 1
     });
 
-    if (audits.length > 0 && (audits[0] as any).reason.includes("Match Score")) {
-      console.log(`✅ [PASS] TEST 7: Audit log verified. Explanation: "${(audits[0] as any).reason}"`);
-    } else {
-      console.error("❌ [FAIL] TEST 7: Missing human readable explanation in audit log!", audits);
-    }
+    expect(audits.length).toBeGreaterThan(0);
+    expect((audits[0] as any).reason).toContain("Match Score");
+  });
 
-    // ─────────────────────────────────────────────────────────────
-    // TEST 8: Manager Manual Reassignment Protection
-    // ─────────────────────────────────────────────────────────────
-    console.log("\n▶ TEST 8: Manager Manual Reassignment Override");
+  test("TEST 8: Manager Manual Reassignment Override", async () => {
     const overrideLeadId = crypto.randomUUID();
     await sequelize.models.Lead.create({
       id: overrideLeadId,
@@ -305,20 +265,7 @@ async function runAdvancedAssignmentEngineTests() {
     );
 
     const updatedLead: any = await sequelize.models.Lead.findByPk(overrideLeadId);
-    if (updatedLead.assignedToId === rahulId && updatedLead.assignmentType === "MANUAL") {
-      console.log("✅ [PASS] TEST 8: Manager manual override successfully updated lead owner and set MANUAL protection tag.");
-    } else {
-      console.error("❌ [FAIL] TEST 8: Manual override failed!", updatedLead);
-    }
-
-    console.log("\n==================================================");
-    console.log("SUMMARY: ALL 8 ADVANCED ASSIGNMENT ENGINE TESTS PASSED!");
-    console.log("==================================================");
-    process.exit(0);
-  } catch (err) {
-    console.error("Test execution error:", err);
-    process.exit(1);
-  }
-}
-
-runAdvancedAssignmentEngineTests();
+    expect(updatedLead.assignedToId).toBe(rahulId);
+    expect(updatedLead.assignmentType).toBe("MANUAL");
+  });
+});

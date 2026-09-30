@@ -8,8 +8,8 @@ async function testLoginAccounts() {
     "admin@nexus.com",
     "salesperson1@nexus.com",
     "salesperson2@nexus.com",
-    "salesperson@nexus.com",
-    "manager@nexus.com"
+    "marcus@nexus.com",
+    "helena@nexus.com"
   ];
 
   console.log("Testing user logins with password 'password123':\n");

@@ -17,10 +17,11 @@ export const getFulfillments = async (req: Request, res: Response) => {
     if (assignedUserId) where.assignedUserId = assignedUserId;
 
     const orderWhere: any = {};
+    const likeOp = sequelize.getDialect() === "sqlite" ? Op.like : Op.iLike;
     if (search) {
       orderWhere[Op.or] = [
-        { poNumber: { [Op.iLike]: `%${search}%` } },
-        { notes: { [Op.iLike]: `%${search}%` } }
+        { poNumber: { [likeOp]: `%${search}%` } },
+        { notes: { [likeOp]: `%${search}%` } }
       ];
     }
 
@@ -49,15 +50,15 @@ export const getFulfillments = async (req: Request, res: Response) => {
                   as: "deal",
                   include: [
                     { model: sequelize.models.Account, as: "account" },
-                    { model: sequelize.models.User, as: "owner" }
+                    { model: sequelize.models.User, as: "owner", attributes: ["id", "name", "email", "role"] }
                   ]
                 }
               ]
             },
-            { model: sequelize.models.User, as: "salesOwner" }
+            { model: sequelize.models.User, as: "salesOwner", attributes: ["id", "name", "email", "role"] }
           ]
         },
-        { model: sequelize.models.User, as: "assignedUser" }
+        { model: sequelize.models.User, as: "assignedUser", attributes: ["id", "name", "email", "role"] }
       ]
     });
 
@@ -98,15 +99,15 @@ export const getFulfillmentById = async (req: Request, res: Response) => {
                   as: "deal",
                   include: [
                     { model: sequelize.models.Account, as: "account" },
-                    { model: sequelize.models.User, as: "owner" }
+                    { model: sequelize.models.User, as: "owner", attributes: ["id", "name", "email", "role"] }
                   ]
                 }
               ]
             },
-            { model: sequelize.models.User, as: "salesOwner" }
+            { model: sequelize.models.User, as: "salesOwner", attributes: ["id", "name", "email", "role"] }
           ]
         },
-        { model: sequelize.models.User, as: "assignedUser" }
+        { model: sequelize.models.User, as: "assignedUser", attributes: ["id", "name", "email", "role"] }
       ]
     });
 
@@ -128,7 +129,7 @@ export const getFulfillmentByOrderId = async (req: Request, res: Response) => {
           as: "items",
           include: [{ model: sequelize.models.PriceBookEntry, as: "product" }]
         },
-        { model: sequelize.models.User, as: "assignedUser" }
+        { model: sequelize.models.User, as: "assignedUser", attributes: ["id", "name", "email", "role"] }
       ]
     });
 

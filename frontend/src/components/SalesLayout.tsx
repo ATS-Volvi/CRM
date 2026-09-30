@@ -31,6 +31,7 @@ export function SalesLayout() {
     { label: "My Leads", path: "/leads-table", icon: Users },
     { label: "My Customers", path: "/customers", icon: Users },
     { label: "My Pipeline", path: "/pipeline", icon: Trello },
+    { label: "Approvals", path: "/approvals", icon: Shield },
     { label: "Activities", path: "/activities", icon: Activity },
     { label: "Calendar", path: "/activities?tab=calendar", icon: Calendar },
     { label: "Quotes", path: "/quotes", icon: FileText },
@@ -53,6 +54,7 @@ export function SalesLayout() {
     navItems = [
       { label: "Lead Intake", path: "/leads", icon: Inbox },
       { label: "All Leads", path: "/leads-table", icon: Users },
+      { label: "Approvals", path: "/approvals", icon: Shield },
       { label: "Assignment Rules", path: "/rules", icon: BarChart2 },
       { label: "Automation", path: "/automation", icon: LayoutDashboard },
       { label: "Team Management", path: "/salespersons", icon: Users },

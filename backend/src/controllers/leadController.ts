@@ -232,6 +232,10 @@ export const createLead = async (req: Request, res: Response) => {
       rawPayload: req.body
     });
 
+    if (!leadId) {
+      return res.status(202).json({ status: "held_for_review" });
+    }
+
     const lead = await sequelize.models.Lead.findByPk(leadId);
     if (email) {
       const slaHours = process.env.LEAD_RESPONSE_SLA_HOURS || "24";
@@ -378,7 +382,11 @@ export const convertLead = async (req: Request, res: Response) => {
     const result = await convertLeadToOpportunity(
       id,
       req.body?.qualificationData || req.body,
-      (req as any).user?.id
+      (req as any).user?.id,
+      {
+        targetRepId: req.body?.targetRepId,
+        handoffNotes: req.body?.handoffNotes || req.body?.notes
+      }
     );
 
     res.json({
@@ -390,7 +398,56 @@ export const convertLead = async (req: Request, res: Response) => {
       lead: result.lead,
       // Surfaced so the frontend can show "needs manual assignment" if desired
       autoAssigned: result.autoAssigned ?? false,
-      autoAssignReason: result.autoAssignReason
+      autoAssignReason: result.autoAssignReason,
+      autoAssignResult: result.autoAssignResult
+    });
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+};
+
+export const handoffLead = async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const user = (req as any).user;
+    const { targetRepId, handoffNotes, estimatedValue, dealName } = req.body;
+
+    const lead = await sequelize.models.Lead.findByPk(id);
+    if (!lead) return res.status(404).json({ error: "Lead not found" });
+
+    const access = await getLeadAccessLevel(user?.id, user?.role, lead);
+    if (!access.canWrite) {
+      return res.status(403).json({
+        error: access.reason || "Handed off — view only. This lead has been reassigned to another representative.",
+        isViewOnly: true
+      });
+    }
+
+    const { convertLeadToOpportunity } = require("../services/leadJourneyWorkflowEngine");
+    const l = lead as any;
+    const qualData = {
+      estimatedValue: estimatedValue || Number(l.budgetRange) || 50000,
+      dealName: dealName || (l.company ? `${l.company} Opportunity` : `${l.firstName} ${l.lastName} Opportunity`),
+      accountName: l.company || `${l.firstName} ${l.lastName}`.trim(),
+      ...req.body?.qualificationData
+    };
+
+    const result = await convertLeadToOpportunity(
+      id,
+      qualData,
+      user?.id,
+      {
+        targetRepId,
+        handoffNotes: handoffNotes || req.body?.notes
+      }
+    );
+
+    res.json({
+      message: "Lead handed off to closer successfully",
+      deal: result.deal,
+      lead: result.lead,
+      targetRepId: result.deal?.ownerId,
+      autoAssignResult: result.autoAssignResult
     });
   } catch (error: any) {
     res.status(400).json({ error: error.message });
@@ -865,3 +922,187 @@ export const requestMissingDetails = async (req: Request, res: Response) => {
     return res.status(500).json({ error: error.message });
   }
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /leads/:id/enrich — Manually trigger / re-trigger enrichment for a lead
+// Returns 202 Accepted immediately; enrichment runs in the background
+// ─────────────────────────────────────────────────────────────────────────────
+export const triggerLeadEnrichment = async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const { Lead } = sequelize.models;
+
+    const lead = await Lead.findByPk(id, { attributes: ["id", "email", "company"] });
+    if (!lead) return res.status(404).json({ error: "Lead not found" });
+
+    // Import lazily to keep the controller boot time unchanged
+    const { enrichLeadAsync } = await import("../services/enrichmentService");
+
+    // Fire-and-forget — return 202 before enrichment completes
+    enrichLeadAsync(
+      (lead as any).id,
+      (lead as any).email ?? "",
+      (lead as any).company ?? ""
+    ).catch((e: any) =>
+      console.error(`[enrichment] Manual re-enrich failed for lead ${id}:`, e)
+    );
+
+    return res.status(202).json({
+      success: true,
+      message: "Enrichment triggered — status will update momentarily"
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /leads/:id/find-contacts — On-demand domain contacts search via Hunter
+// Synchronous (reps wait for the result after clicking the button)
+// ─────────────────────────────────────────────────────────────────────────────
+export const findLeadContacts = async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const refresh = req.query.refresh === "true";
+    const requestedById = (req as any).user?.id || null;
+    const { Lead, LeadContactDiscovery } = sequelize.models;
+
+    const lead = await Lead.findByPk(id, { attributes: ["id", "email", "company"] });
+    if (!lead) return res.status(404).json({ error: "Lead not found" });
+
+    const leadData = lead.toJSON() as any;
+    const { extractDomain, isPersonalDomain, findContactsForDomain, logEnrichmentUsage } = await import("../services/enrichmentService");
+
+    const email = leadData.email || "";
+    let domain = extractDomain(email);
+
+    // If email doesn't yield a domain, try deriving from company name if it contains a dot
+    if (!domain && leadData.company && leadData.company.includes(".")) {
+      domain = leadData.company.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+    }
+
+    if (!domain) {
+      return res.status(400).json({ error: "Cannot discover contacts: No valid company domain found on this lead." });
+    }
+
+    if (isPersonalDomain(domain)) {
+      return res.status(400).json({ error: "Cannot search contacts for personal email domains." });
+    }
+
+    // Check if discovery already exists for this lead
+    const existing = await LeadContactDiscovery.findOne({
+      where: { leadId: id },
+      order: [["createdAt", "DESC"]]
+    });
+
+    // If already discovered and refresh not requested, return cached discovery immediately
+    if (!refresh && existing) {
+      const existingData = existing.toJSON() as any;
+      return res.status(200).json({
+        fromCache: true,
+        discovery: {
+          id: existingData.id,
+          domain: existingData.domain,
+          emailPattern: existingData.emailPattern,
+          totalFound: existingData.totalFound,
+          discoveredAt: existingData.discoveredAt,
+          contacts: JSON.parse(existingData.contactsFound || "[]")
+        }
+      });
+    }
+
+    // Call Hunter domain search
+    let discoveryResult;
+    try {
+      discoveryResult = await findContactsForDomain(domain);
+    } catch (hunterErr: any) {
+      await logEnrichmentUsage(id, "hunter", domain, "failed", null, hunterErr.message || String(hunterErr));
+      return res.status(hunterErr.message?.includes("429") ? 429 : 502).json({
+        error: hunterErr.message || "Failed to retrieve contacts from Hunter.io"
+      });
+    }
+
+    // Log unified credit usage
+    const callStatus = discoveryResult.contacts.length > 0 ? "contacts_discovered" : "not_found";
+    await logEnrichmentUsage(id, "hunter", domain, callStatus, 200, null);
+
+    // Save or update in LeadContactDiscoveries table
+    let savedDiscovery;
+    const now = new Date();
+    if (existing) {
+      await existing.update({
+        domain,
+        contactsFound: JSON.stringify(discoveryResult.contacts),
+        emailPattern: discoveryResult.pattern,
+        totalFound: discoveryResult.totalFound,
+        discoveredAt: now,
+        requestedById
+      });
+      savedDiscovery = existing;
+    } else {
+      savedDiscovery = await LeadContactDiscovery.create({
+        id: crypto.randomUUID(),
+        leadId: id,
+        domain,
+        contactsFound: JSON.stringify(discoveryResult.contacts),
+        emailPattern: discoveryResult.pattern,
+        totalFound: discoveryResult.totalFound,
+        discoveredAt: now,
+        requestedById
+      });
+    }
+
+    const savedData = savedDiscovery.toJSON() as any;
+
+    return res.status(200).json({
+      fromCache: false,
+      discovery: {
+        id: savedData.id,
+        domain,
+        organization: discoveryResult.organization,
+        emailPattern: discoveryResult.pattern,
+        totalFound: discoveryResult.totalFound,
+        discoveredAt: savedData.discoveredAt,
+        contacts: discoveryResult.contacts
+      }
+    });
+  } catch (error: any) {
+    console.error("[findLeadContacts] Error discovering contacts:", error);
+    return res.status(500).json({ error: error.message || "Internal server error discovering contacts" });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /leads/:id/discovered-contacts — Fetch cached contact discovery if available
+// ─────────────────────────────────────────────────────────────────────────────
+export const getLeadDiscoveredContacts = async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const { LeadContactDiscovery } = sequelize.models;
+
+    const existing = await LeadContactDiscovery.findOne({
+      where: { leadId: id },
+      order: [["createdAt", "DESC"]]
+    });
+
+    if (!existing) {
+      return res.status(200).json({ discovery: null });
+    }
+
+    const existingData = existing.toJSON() as any;
+    return res.status(200).json({
+      discovery: {
+        id: existingData.id,
+        domain: existingData.domain,
+        emailPattern: existingData.emailPattern,
+        totalFound: existingData.totalFound,
+        discoveredAt: existingData.discoveredAt,
+        contacts: JSON.parse(existingData.contactsFound || "[]")
+      }
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+

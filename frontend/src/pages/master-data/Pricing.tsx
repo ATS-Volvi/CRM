@@ -1,7 +1,8 @@
 import { useAuth } from "../../context/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Search, Save, Edit3, DollarSign, Check, X } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Search, Save, Edit3, DollarSign, Check, X, Plus } from "lucide-react";
 import { formatCurrency } from "../../utils/currency";
 import { MasterDataNav } from "../../components/MasterDataNav";
 
@@ -26,6 +27,23 @@ export default function Pricing() {
       return res.json();
     }
   });
+
+  // Fetch line items to identify sub-components under each requirement
+  const { data: allLineItems } = useQuery<any[]>({
+    queryKey: ["lineItemsPricingDropdown"],
+    queryFn: async () => {
+      const res = await fetch("/api/v1/master-data/line-items", {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error("Failed to fetch line items");
+      return res.json();
+    }
+  });
+
+  const selectedReq = requirements?.find((r: any) => r.id === filterReqId);
+  const relevantLineItems = (allLineItems || selectedReq?.lineItems || [])
+    .filter((li: any) => filterReqId === "All" || li.requirementId === filterReqId);
+  const targetLineItemId = relevantLineItems[0]?.id;
 
   // Fetch flat pricing grid list
   const { data: pricingGrid, isLoading } = useQuery<any[]>({
@@ -56,6 +74,7 @@ export default function Pricing() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pricingGrid"] });
+      queryClient.invalidateQueries({ queryKey: ["lineItemsAll"] });
     }
   });
 
@@ -95,16 +114,30 @@ export default function Pricing() {
           </div>
         </div>
 
-        {/* Search */}
-        <div className="relative w-full md:max-w-xs">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant w-4 h-4" />
-          <input 
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search construction items..."
-            className="w-full bg-surface border border-outline rounded-xl pl-10 pr-4 py-2.5 text-xs font-semibold focus:outline-none"
-          />
+        {/* Search & Actions */}
+        <div className="flex items-center gap-2.5 w-full md:w-auto">
+          <div className="relative w-full md:max-w-xs">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant w-4 h-4" />
+            <input 
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search construction items..."
+              className="w-full bg-surface border border-outline rounded-xl pl-10 pr-4 py-2.5 text-xs font-semibold focus:outline-none"
+            />
+          </div>
+          <Link
+            to={
+              filterReqId !== "All" && targetLineItemId
+                ? `/master-data/construction-items?lineItemId=${targetLineItemId}`
+                : "/master-data/construction-items"
+            }
+            className="flex items-center gap-1.5 px-3.5 py-2.5 bg-primary text-white text-xs font-bold rounded-xl hover:opacity-90 transition-all shadow-sm shrink-0 whitespace-nowrap"
+            title="Add or manage construction items"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Add Pricing</span>
+          </Link>
         </div>
       </div>
 
@@ -118,7 +151,7 @@ export default function Pricing() {
               : "text-on-surface-variant hover:bg-surface-container"
           }`}
         >
-          All Categories
+          All Service Types
         </button>
         {requirements?.map(req => (
           <button
@@ -141,7 +174,7 @@ export default function Pricing() {
           <thead>
             <tr className="border-b border-outline-variant bg-surface-container-low text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">
               <th className="px-6 py-3.5">Component / Item</th>
-              <th className="px-6 py-3.5">Category</th>
+              <th className="px-6 py-3.5">Cost Type</th>
               <th className="px-6 py-3.5">Unit</th>
               <th className="px-6 py-3.5 text-right">Procurement Cost</th>
               <th className="px-6 py-3.5 text-right">Target Sell Price</th>
@@ -154,7 +187,71 @@ export default function Pricing() {
               </tr>
             ) : pricingGrid?.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-6 py-8 text-center text-xs font-bold text-on-surface-variant italic">No pricing records matched search filters.</td>
+                <td colSpan={5} className="px-6 py-12 text-center">
+                  <div className="max-w-md mx-auto space-y-3">
+                    <div className="w-10 h-10 mx-auto rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant">
+                      <DollarSign className="w-5 h-5 text-on-surface-variant/60" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-on-surface">No pricing records matched search filters.</p>
+                      <p className="text-[11px] text-on-surface-variant mt-1">
+                        {filterReqId !== "All" && selectedReq
+                          ? `No pricing records configured for "${selectedReq.name}". Add construction items to define procurement costs and sell prices.`
+                          : search
+                          ? `No items matched "${search}". Clear search or add new items to the catalogue.`
+                          : "No construction items or pricing records found. Create construction items to populate the pricing grid."}
+                      </p>
+                    </div>
+
+                    <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-2">
+                      {filterReqId !== "All" && targetLineItemId ? (
+                        <Link
+                          to={`/master-data/construction-items?lineItemId=${targetLineItemId}`}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary text-white text-xs font-bold rounded-lg hover:opacity-90 transition-all shadow-sm"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          Add Pricing {relevantLineItems.length === 1 ? `for ${relevantLineItems[0].name}` : ""}
+                        </Link>
+                      ) : filterReqId !== "All" && relevantLineItems.length === 0 ? (
+                        <Link
+                          to={`/master-data/line-items?requirementId=${filterReqId}`}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary text-white text-xs font-bold rounded-lg hover:opacity-90 transition-all shadow-sm"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          Add Service Item First
+                        </Link>
+                      ) : (
+                        <Link
+                          to="/master-data/construction-items"
+                          className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary text-white text-xs font-bold rounded-lg hover:opacity-90 transition-all shadow-sm"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          Add Construction Item
+                        </Link>
+                      )}
+                    </div>
+
+                    {filterReqId !== "All" && relevantLineItems.length > 1 && (
+                      <div className="pt-1">
+                        <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">
+                          Or add to specific component:
+                        </p>
+                        <div className="flex flex-wrap items-center justify-center gap-1.5">
+                          {relevantLineItems.map((li: any) => (
+                            <Link
+                              key={li.id}
+                              to={`/master-data/construction-items?lineItemId=${li.id}`}
+                              className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline bg-primary/5 px-2.5 py-1 rounded-md border border-primary/20"
+                            >
+                              <Plus className="w-3 h-3" />
+                              {li.name}
+                            </Link>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </td>
               </tr>
             ) : (
               pricingGrid?.map((item: any) => (
