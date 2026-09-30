@@ -53,11 +53,11 @@ export const AiRequirementSummaryCard: React.FC<AiRequirementSummaryCardProps> =
 
   const deliverables: string[] = data.primaryDeliverables || [];
   const specs: string[] = data.technicalSpecs || [];
-  const intentScore: number = data.intentScore || 85;
-  const budgetBenchmark = data.budgetBenchmark || "Target ~SAR 120,000 (Within optimal tier threshold)";
-  const deliveryTimeline = data.deliveryTimeline || "30-Day Express Delivery (Expedited timeline)";
-  const specTier = specs[0] || "Standard Commercial Fleet (Heavy-Duty Grade)";
-  const scopeVolume = deliverables[0] || "5 Automotive Fleet Units (Heavy-duty chassis with refrigeration)";
+  const intentScore: number | null = typeof data.intentScore === "number" ? data.intentScore : null;
+  const budgetBenchmark = data.budgetAndCommercials || data.budgetBenchmark || "Budget not specified";
+  const deliveryTimeline = data.timelineAndConstraints || data.deliveryTimeline || "Timeline not specified";
+  const specTier = specs[0] || "Standard Commercial Specifications";
+  const scopeVolume = deliverables[0] || "Scope pending specification";
 
   return (
     <div className={`bg-white dark:bg-slate-900 border border-indigo-200/90 dark:border-indigo-900/60 rounded-2xl p-5 sm:p-6 shadow-xs text-slate-900 dark:text-slate-100 relative overflow-hidden transition-all ${className}`}>
@@ -78,7 +78,16 @@ export const AiRequirementSummaryCard: React.FC<AiRequirementSummaryCardProps> =
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/70 border border-indigo-200 dark:border-indigo-800 text-xs font-bold text-indigo-700 dark:text-indigo-300">
             <TrendingUp className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-            <span>Buying Intent: <strong className="font-extrabold">{intentScore}% (High Intent)</strong></span>
+            {intentScore !== null ? (
+              <span>
+                Buying Intent:{" "}
+                <strong className="font-extrabold">
+                  {intentScore}% {intentScore >= 75 ? "(High Intent)" : intentScore >= 50 ? "(Moderate)" : "(Evaluating)"}
+                </strong>
+              </span>
+            ) : (
+              <span>Scope Synthesis: <strong className="font-extrabold">Extracted</strong></span>
+            )}
           </div>
         </div>
       </div>
@@ -86,7 +95,7 @@ export const AiRequirementSummaryCard: React.FC<AiRequirementSummaryCardProps> =
       {/* Main Quote Callout */}
       <div className="bg-indigo-50/40 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/40 rounded-xl p-4 mb-4">
         <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 italic font-medium leading-relaxed">
-          &ldquo;{data.coreRequest || "Client is requesting official pricing for 5 automotive fleet units with integrated cold storage and GPS telemetry package for Riyadh & Dammam corridors."}&rdquo;
+          &ldquo;{data.coreRequest || data.rawSummaryText || "Client requirement summary extracted from communications and recorded notes."}&rdquo;
         </p>
       </div>
 
@@ -101,7 +110,7 @@ export const AiRequirementSummaryCard: React.FC<AiRequirementSummaryCardProps> =
             {scopeVolume}
           </div>
           <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1">
-            {deliverables[1] || "Integrated telemetry & cold storage"}
+            {deliverables[1] || (deliverables.length > 0 ? "Standard deliverables apply" : "No additional deliverables listed")}
           </p>
         </div>
 
@@ -114,7 +123,7 @@ export const AiRequirementSummaryCard: React.FC<AiRequirementSummaryCardProps> =
             {specTier}
           </div>
           <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1">
-            {specs[1] || "Telemetry integration required"}
+            {specs[1] || (specs.length > 0 ? "Standard grade requirements" : "No custom technical constraints")}
           </p>
         </div>
 
@@ -127,7 +136,7 @@ export const AiRequirementSummaryCard: React.FC<AiRequirementSummaryCardProps> =
             {deliveryTimeline}
           </div>
           <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1">
-            Installation timeline: expedited next month
+            {data.projectContext || (data.timelineAndConstraints ? "Extracted from client communications" : "Standard fulfillment timeline")}
           </p>
         </div>
 
@@ -140,7 +149,7 @@ export const AiRequirementSummaryCard: React.FC<AiRequirementSummaryCardProps> =
             {budgetBenchmark}
           </div>
           <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1">
-            Target is within optimal tier threshold
+            {data.budgetAndCommercials ? "Extracted from opportunity details" : "Awaiting budget benchmark confirmation"}
           </p>
         </div>
       </div>
@@ -151,7 +160,7 @@ export const AiRequirementSummaryCard: React.FC<AiRequirementSummaryCardProps> =
           <Sparkles className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
           <span>
             <strong className="text-slate-800 dark:text-slate-200">Recommended Action:</strong>{" "}
-            {data.recommendedAction || "Dispatch formal quotations with standard vendor discount structure applied."}
+            {data.recommendedAction || "Review client requirements and prepare quotation proposal."}
           </span>
         </div>
 

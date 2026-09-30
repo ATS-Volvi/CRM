@@ -245,6 +245,17 @@ export default function OpportunityDetail() {
     enabled: !!id
   });
 
+  // Fetch Account for Corporate Hierarchy & Details
+  const { data: accountDetails } = useQuery<any>({
+    queryKey: ["account-hierarchy", opp?.account?.id],
+    queryFn: async () => {
+      const res = await apiClient.get<any>(`/api/v1/accounts/${opp.account.id}`);
+      return res;
+    },
+    enabled: !!opp?.account?.id,
+    staleTime: 5 * 60 * 1000
+  });
+
   // Fetch Pipeline Stages for Stepper
   const { data: pipelineStages = [] } = usePipelineStages();
 
@@ -486,7 +497,7 @@ export default function OpportunityDetail() {
       : opp.contact?.name || opp.name) || "Client Lead";
 
   const companyDisplayName = opp.account?.name || opp.lead?.company || "Enterprise Client";
-  const currentRepName = opp.owner?.name || "Sophia Martinez";
+  const currentRepName = opp.owner?.name || "Unassigned";
   const currentRepRole = opp.owner?.role || "Sales Rep";
   const ingestionDate = opp.createdAt
     ? new Date(opp.createdAt).toLocaleDateString([], {
@@ -494,8 +505,8 @@ export default function OpportunityDetail() {
         day: "numeric",
         year: "numeric"
       })
-    : "Sep 10, 2026";
-  const ingestionChannel = opp.sourceChannel || opp.lead?.sourceChannel || opp.source || opp.lead?.source || "Website Form";
+    : "—";
+  const ingestionChannel = opp.sourceChannel || opp.lead?.sourceChannel || opp.source || opp.lead?.source || "Direct / Unspecified";
 
   return (
     <div className="p-4 sm:p-6 max-w-[1440px] mx-auto space-y-4">
@@ -645,7 +656,7 @@ export default function OpportunityDetail() {
                       day: "numeric",
                       year: "numeric"
                     })
-                  : "21 Nov 2026"}
+                  : "Not set"}
               </strong>
             </div>
           </div>
@@ -800,12 +811,12 @@ export default function OpportunityDetail() {
               </span>
             ) : (
               <span className="text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/70 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 px-1.5 py-0.5 rounded shrink-0">
-                {opp.createdAt ? new Date(opp.createdAt).toLocaleDateString([], { month: "short", day: "numeric" }) : "Sep 10"}
+                {opp.createdAt ? new Date(opp.createdAt).toLocaleDateString([], { month: "short", day: "numeric" }) : "Done"}
               </span>
             )}
           </div>
           <p className={`text-[10px] font-medium pl-6 truncate ${currentStageIndex === 0 ? "text-indigo-100" : "text-slate-400 dark:text-slate-500"}`}>
-            Source: {opp.sourceChannel || "Website Form"}
+            Source: {ingestionChannel}
           </p>
         </div>
 
@@ -848,13 +859,17 @@ export default function OpportunityDetail() {
                 ACTIVE
               </span>
             ) : (
-              <span className="text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/70 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 px-1.5 py-0.5 rounded shrink-0">
-                Sep 14
+              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
+                currentStageIndex > 1
+                  ? "bg-emerald-50 dark:bg-emerald-950/70 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800"
+                  : "text-slate-400"
+              }`}>
+                {currentStageIndex > 1 ? "Done" : "Pending"}
               </span>
             )}
           </div>
           <p className={`text-[10px] font-medium pl-6 truncate ${currentStageIndex === 1 ? "text-indigo-100" : "text-slate-400 dark:text-slate-500"}`}>
-            Outbound call &amp; email pitch
+            Initial client outreach & contact
           </p>
         </div>
 
@@ -895,13 +910,17 @@ export default function OpportunityDetail() {
                 ACTIVE
               </span>
             ) : (
-              <span className="text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/70 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 px-1.5 py-0.5 rounded shrink-0">
-                Sep 22
+              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
+                currentStageIndex > 2
+                  ? "bg-emerald-50 dark:bg-emerald-950/70 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800"
+                  : "text-slate-400"
+              }`}>
+                {currentStageIndex > 2 ? "Done" : "Pending"}
               </span>
             )}
           </div>
           <p className={`text-[10px] font-medium pl-6 truncate ${currentStageIndex === 2 ? "text-indigo-100" : "text-slate-400 dark:text-slate-500"}`}>
-            Scope verified by Rep
+            Scope & requirement qualification
           </p>
         </div>
 
@@ -946,7 +965,7 @@ export default function OpportunityDetail() {
             )}
           </div>
           <p className={`text-[10px] font-medium pl-6 truncate ${currentStageIndex >= 3 ? "text-indigo-100" : "text-slate-400 dark:text-slate-500"}`}>
-            Ready for Negotiation
+            Proposal generation & closing
           </p>
         </div>
       </div>
@@ -986,7 +1005,7 @@ export default function OpportunityDetail() {
                     ? "100%"
                     : status === "LOST"
                     ? "0%"
-                    : "85% (High)"}
+                    : "—"}
                 </span>
               </div>
 
@@ -1091,7 +1110,7 @@ export default function OpportunityDetail() {
                     ? "100%"
                     : status === "LOST"
                     ? "0%"
-                    : "60%"}
+                    : "—"}
                 </span>
               </div>
             </div>
@@ -1147,59 +1166,101 @@ export default function OpportunityDetail() {
             </div>
           </div>
 
-          {/* Card 3: Company Intelligence (Stitch 2x2 Grid) */}
+          {/* Card 3: Company Intelligence */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3.5">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2.5">
               <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
                 <Building2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400" /> Company Intelligence
               </h3>
-              <span className="text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 rounded-full flex items-center gap-1">
-                <Check className="w-3 h-3" /> Verified
-              </span>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
               <div className="p-2.5 bg-slate-50/70 dark:bg-slate-800/50 rounded-xl border border-slate-200/70 dark:border-slate-700/70 space-y-0.5">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Industry</span>
-                <span className="font-bold text-slate-800 dark:text-slate-200 text-xs block truncate" title={opp.account?.industry || opp.lead?.industry || "Automotive Enterprise Logistics"}>
-                  {opp.account?.industry || opp.lead?.industry || "Enterprise Logistics"}
+                <span className="font-bold text-slate-800 dark:text-slate-200 text-xs block truncate">
+                  {opp.account?.industry || accountDetails?.industry || opp.lead?.industry || (
+                    <span className="text-slate-400 font-normal italic">Not set</span>
+                  )}
                 </span>
               </div>
 
               <div className="p-2.5 bg-slate-50/70 dark:bg-slate-800/50 rounded-xl border border-slate-200/70 dark:border-slate-700/70 space-y-0.5">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Estimated Size</span>
                 <span className="font-bold text-slate-800 dark:text-slate-200 text-xs block truncate">
-                  {opp.account?.employeeCount ? `${opp.account.employeeCount} Employees` : "250 - 500 Employees"}
+                  {(opp.account?.employeeCount ?? accountDetails?.employeeCount) ? (
+                    `${Number(opp.account?.employeeCount ?? accountDetails?.employeeCount).toLocaleString()} Employees`
+                  ) : (
+                    <span className="text-slate-400 font-normal italic">Not set</span>
+                  )}
                 </span>
               </div>
 
               <div className="p-2.5 bg-slate-50/70 dark:bg-slate-800/50 rounded-xl border border-slate-200/70 dark:border-slate-700/70 space-y-0.5">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Est Revenue</span>
                 <span className="font-bold text-slate-800 dark:text-slate-200 text-xs block truncate">
-                  {opp.account?.annualRevenue ? formatCurrency(opp.account.annualRevenue) : "SAR 50M - 100M"}
-                </span>
-              </div>
-
-              <div className="p-2.5 bg-slate-50/70 dark:bg-slate-800/50 rounded-xl border border-slate-200/70 dark:border-slate-700/70 space-y-0.5">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Data Confidence</span>
-                <span className="font-bold text-emerald-600 dark:text-emerald-400 text-xs block flex items-center gap-1">
-                  <ShieldCheck className="w-3.5 h-3.5" /> 98% Verified
+                  {(opp.account?.revenue ?? accountDetails?.revenue) != null ? (
+                    formatCurrency(
+                      Number(opp.account?.revenue ?? accountDetails?.revenue)
+                    )
+                  ) : (
+                    <span className="text-slate-400 font-normal italic">Not set</span>
+                  )}
                 </span>
               </div>
             </div>
 
-            {opp.account?.id ? (
-              <Link
-                to={`/accounts/${opp.account.id}`}
-                className="w-full py-2 px-3 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center justify-center gap-1.5 transition-all text-center block"
-              >
-                <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
-                <span>Find corporate accounts &amp; branch links</span>
-              </Link>
-            ) : (
-              <div className="w-full py-2 px-3 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center gap-1.5 text-center">
-                <Building2 className="w-3.5 h-3.5 text-slate-400" />
-                <span>Corporate account profile linked</span>
+            {/* Corporate Hierarchy Section */}
+            {opp.account?.id && (
+              <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800 text-xs space-y-2">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  Corporate Hierarchy
+                </span>
+                {accountDetails?.parentAccountId ? (
+                  <div className="flex items-center justify-between text-slate-600 dark:text-slate-300">
+                    <span className="text-slate-400">Parent Account:</span>
+                    <Link
+                      to={`/accounts/${accountDetails.parentAccountId}`}
+                      className="font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                    >
+                      <span className="truncate max-w-[160px]">
+                        {accountDetails.parentAccount?.name || "Parent Account"}
+                      </span>
+                      <ExternalLink className="w-3 h-3 shrink-0" />
+                    </Link>
+                  </div>
+                ) : null}
+
+                {accountDetails?.subsidiaries && accountDetails.subsidiaries.length > 0 ? (
+                  <div className="space-y-1">
+                    <span className="text-slate-400 block">
+                      Branches ({accountDetails.subsidiaries.length}):
+                    </span>
+                    <div className="space-y-1 max-h-28 overflow-y-auto pr-1">
+                      {accountDetails.subsidiaries.map((sub: any) => (
+                        <Link
+                          key={sub.id}
+                          to={`/accounts/${sub.id}`}
+                          className="flex items-center justify-between p-1.5 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700/80 rounded-lg text-slate-700 dark:text-slate-200 font-medium transition-colors"
+                        >
+                          <span className="truncate">{sub.name}</span>
+                          <ExternalLink className="w-3 h-3 text-slate-400 shrink-0" />
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                {!accountDetails?.parentAccountId && (!accountDetails?.subsidiaries || accountDetails.subsidiaries.length === 0) && (
+                  <div className="flex items-center justify-between text-slate-400 text-[11px]">
+                    <span>No parent or branch accounts linked</span>
+                    <Link
+                      to={`/accounts/${opp.account.id}`}
+                      className="text-blue-600 dark:text-blue-400 hover:underline font-semibold"
+                    >
+                      Add in account profile
+                    </Link>
+                  </div>
+                )}
               </div>
             )}
           </div>
