@@ -7,6 +7,9 @@ import { validateStageTransition } from "../services/stageValidationService";
 import { isWonStage, isLostStage } from "../utils/pipelineStageHelpers";
 import { getDealAccessLevel } from "../services/handoffAccessService";
 import { evaluateDealApproval } from "../services/approvalEngine";
+import { getOrgCurrency, ALLOWED_CURRENCIES } from "../utils/orgSettings";
+import { formatMoney } from "../utils/formatMoney";
+import { snapshotDealWonAmount } from "../utils/exchangeRate";
 
 export const validateTransition = async (req: Request, res: Response) => {
   try {
@@ -150,8 +153,9 @@ export const moveDealStage = async (req: Request, res: Response) => {
           }
         });
         if (!approvedReq) {
+          const orgCurr = await getOrgCurrency();
           return res.status(403).json({
-            error: `Approval required: Deal value (₹${Number(deal.amount).toLocaleString()}) exceeds your authority limit (₹${Number(evaluation.repLimit).toLocaleString()}). Manager approval must be obtained before closing this deal.`,
+            error: `Approval required: Deal value (${formatMoney(deal.amount, deal.currency)}) exceeds your authority limit (${formatMoney(evaluation.repLimit, orgCurr)}). Manager approval must be obtained before closing this deal.`,
             requiresApproval: true,
             evaluation
           });
@@ -189,16 +193,38 @@ export const moveDealStage = async (req: Request, res: Response) => {
     deal.stageVerificationStatus = validation.verificationStatus;
     deal.stageEvidence = JSON.stringify(validation.evidence);
 
+    const wasWon = String(deal.status || "").toUpperCase() === "WON";
+    const isWon = toStageObj && isWonStage(toStageObj.name);
     const isLost = toStageObj && isLostStage(toStageObj.name);
-    if (isLost) {
+
+    if (isWon) {
+      deal.status = "WON";
+      deal.wonAt = deal.wonAt || new Date();
+      deal.actualClosedAt = deal.actualClosedAt || new Date();
+      const snapshot = await snapshotDealWonAmount(deal);
+      deal.exchangeRateToOrg = snapshot.exchangeRateToOrg;
+      deal.amountInOrgCurrency = snapshot.amountInOrgCurrency;
+    } else if (isLost) {
+      deal.status = "LOST";
+      deal.lostAt = deal.lostAt || new Date();
+      deal.actualClosedAt = deal.actualClosedAt || new Date();
       deal.lossReasonCategory = lossReasonCategory;
       if (reason !== undefined) deal.lossReason = reason;
+      if (wasWon) {
+        deal.exchangeRateToOrg = null;
+        deal.amountInOrgCurrency = null;
+        deal.wonAt = null;
+      }
+    } else {
+      deal.status = "OPEN";
+      if (wasWon) {
+        deal.exchangeRateToOrg = null;
+        deal.amountInOrgCurrency = null;
+        deal.wonAt = null;
+        deal.actualClosedAt = null;
+      }
     }
-    if (toStageObj && toStageObj.name === "On Hold") deal.recontactDate = recontactDate;
-    if (req.body.competitors !== undefined) deal.competitors = req.body.competitors;
-    if (req.body.probability !== undefined) deal.probability = req.body.probability;
 
-    await deal.save();
     if (toStageObj && toStageObj.name === "On Hold") deal.recontactDate = recontactDate;
     if (req.body.competitors !== undefined) deal.competitors = req.body.competitors;
     if (req.body.probability !== undefined) deal.probability = req.body.probability;
@@ -325,7 +351,7 @@ export const moveDealStage = async (req: Request, res: Response) => {
 
 export const createDeal = async (req: Request, res: Response) => {
   try {
-    const { name, amount, stageId, leadId, competitors, probability } = req.body;
+    const { name, amount, stageId, leadId, competitors, probability, accountId, customerId: reqCustomerId, currency } = req.body;
     const adminUser = await sequelize.models.User.findOne({ where: { role: 'admin' } });
     const userId = (req as any).user?.id || (adminUser ? (adminUser as any).id : null);
 
@@ -339,10 +365,34 @@ export const createDeal = async (req: Request, res: Response) => {
     }
 
     let customerId: string | null = null;
+    let accountCurrency: string | null = null;
+    const targetAccountId = accountId || reqCustomerId;
+    if (targetAccountId) {
+      const acc = await sequelize.models.Account.findByPk(targetAccountId);
+      if (acc) {
+        accountCurrency = (acc as any).currency || null;
+      }
+    }
+
     if (leadId) {
       const lead = await sequelize.models.Lead.findByPk(leadId);
       if (lead) {
         customerId = (lead as any).customerId;
+        if (!accountCurrency && (lead as any).customerId) {
+          const acc = await sequelize.models.Account.findByPk((lead as any).customerId);
+          if (acc) {
+            accountCurrency = (acc as any).currency || null;
+          }
+        }
+      }
+    }
+
+    let targetCurrency = currency;
+    if (!targetCurrency || !ALLOWED_CURRENCIES.includes(targetCurrency as any)) {
+      if (accountCurrency && ALLOWED_CURRENCIES.includes(accountCurrency as any)) {
+        targetCurrency = accountCurrency;
+      } else {
+        targetCurrency = await getOrgCurrency();
       }
     }
 
@@ -355,7 +405,9 @@ export const createDeal = async (req: Request, res: Response) => {
       competitors: competitors || null,
       probability: probability !== undefined ? probability : null,
       ownerId: userId,
-      customerId
+      customerId: customerId || targetAccountId || null,
+      accountId: targetAccountId || customerId || null,
+      currency: targetCurrency
     });
 
     res.status(201).json(deal);
@@ -684,7 +736,7 @@ export const updateOpportunity = async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id);
     const user = (req as any).user;
-    const { name, amount, stageId, ownerId, competitors, probability, status, lossReason, lossNotes } = req.body;
+    const { name, amount, stageId, ownerId, competitors, probability, status, lossReason, lossNotes, currency } = req.body;
     const deal = await Deal.findByPk(id);
     if (!deal) return res.status(404).json({ error: "Opportunity not found" });
 
@@ -705,7 +757,8 @@ export const updateOpportunity = async (req: Request, res: Response) => {
       probability: probability !== undefined ? probability : (deal as any).probability,
       status: status !== undefined ? status : (deal as any).status,
       lossReason: lossReason !== undefined ? lossReason : (deal as any).lossReason,
-      lossNotes: lossNotes !== undefined ? lossNotes : (deal as any).lossNotes
+      lossNotes: lossNotes !== undefined ? lossNotes : (deal as any).lossNotes,
+      currency: (currency && ALLOWED_CURRENCIES.includes(currency as any)) ? currency : (deal as any).currency
     });
 
     if (amount !== undefined && Number(amount) > 0) {
@@ -731,11 +784,13 @@ export const updateOpportunity = async (req: Request, res: Response) => {
           });
 
           if (evaluation.requiredApproverId) {
+            const orgCurr = await getOrgCurrency();
+            const dealCurr = (deal as any).currency || orgCurr;
             await createNotification(
               evaluation.requiredApproverId,
               "alert",
               "Deal Approval Required 💼",
-              `Deal "${(deal as any).name}" (₹${Number(amount).toLocaleString()}) exceeds representative authority limit (₹${evaluation.repLimit.toLocaleString()}). Manager approval requested.`,
+              `Deal "${(deal as any).name}" (${formatMoney(Number(amount), dealCurr)}) exceeds representative authority limit (${formatMoney(evaluation.repLimit, orgCurr)}). Manager approval requested.`,
               `/approvals`
             );
           }
@@ -790,8 +845,10 @@ export const markOpportunityWon = async (req: Request, res: Response) => {
         }
       });
       if (!approvedReq) {
+        const orgCurr = await getOrgCurrency();
+        const dealCurr = (deal as any).currency || orgCurr;
         return res.status(403).json({
-          error: `Approval required: Deal value (₹${Number(deal.amount).toLocaleString()}) exceeds your authority limit (₹${Number(evaluation.repLimit).toLocaleString()}). Manager approval must be obtained before closing this deal.`,
+          error: `Approval required: Deal value (${formatMoney(Number(deal.amount), dealCurr)}) exceeds your authority limit (${formatMoney(Number(evaluation.repLimit), orgCurr)}). Manager approval must be obtained before closing this deal.`,
           requiresApproval: true,
           evaluation
         });
