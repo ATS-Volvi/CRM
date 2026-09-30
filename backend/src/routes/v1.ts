@@ -70,7 +70,7 @@ import {
 import { getQuoteTemplates, createQuoteTemplate, parseReferenceDocument } from '../controllers/quoteTemplateController';
 import { receiveInboundEmail } from "../controllers/emailController";
 import { verifyInstagramWebhook, receiveInstagramMessage } from "../controllers/instagramController";
-import { getAccounts, getAccountById, createAccount, updateAccount } from "../controllers/accountController";
+import { getAccounts, getAccountById, createAccount, updateAccount, getAccountEnrichment, enrichAccount } from "../controllers/accountController";
 import { createSubscription, updateSubscription } from "../controllers/subscriptionController";
 import { getContacts, getContactById, createContact, updateContact } from "../controllers/contactController";
 import { getAssets, getAssetById, createAsset, updateAsset, deleteAsset } from "../controllers/assetController";
@@ -715,8 +715,10 @@ router.delete("/master-data/discount-rules/:id", authMiddleware, deleteDiscountP
 // ==========================================
 router.get("/accounts", authMiddleware, getAccounts);
 router.post("/accounts", authMiddleware, createAccount);
+router.get("/accounts/:id/enrichment", authMiddleware, getAccountEnrichment);
+router.post("/accounts/:id/enrichment", authMiddleware, enrichAccount);
+router.post("/accounts/:id/enrich", authMiddleware, enrichAccount);
 router.get("/accounts/:id", authMiddleware, getAccountById);
-router.post("/accounts", authMiddleware, createAccount);
 router.put("/accounts/:id", authMiddleware, updateAccount);
 
 // Subscriptions
