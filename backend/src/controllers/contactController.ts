@@ -4,7 +4,14 @@ import crypto from "crypto";
 
 export const getContacts = async (req: Request, res: Response) => {
   try {
+    const { accountId } = req.query;
+    const where: any = {};
+    if (accountId) {
+      where.accountId = accountId;
+    }
+
     const contacts = await Contact.findAll({
+      where,
       include: [
         { model: Account, as: "account" },
         { 

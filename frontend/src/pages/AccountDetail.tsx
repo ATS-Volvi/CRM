@@ -28,7 +28,10 @@ import {
   Layers,
   BarChart3,
   MessageSquare,
-  CreditCard
+  CreditCard,
+  Sparkles,
+  RefreshCw,
+  Linkedin
 } from "lucide-react";
 import { apiClient } from "../lib/apiClient";
 import { formatCurrency } from "../utils/currency";
@@ -117,6 +120,29 @@ export default function AccountDetail() {
       return Array.isArray(res) ? res : res?.data || [];
     },
     enabled: !!id
+  });
+
+  // Fetch account enrichment data from Hunter.io
+  const { data: enrichmentData, isLoading: isLoadingEnrichment } = useQuery({
+    queryKey: ["account-enrichment", id],
+    queryFn: async () => {
+      const res = await apiClient.get<any>(`/api/v1/accounts/${id}/enrichment`);
+      return res;
+    },
+    enabled: !!id
+  });
+
+  // Enrich Account mutation
+  const enrichAccountMutation = useMutation({
+    mutationFn: async () => {
+      return apiClient.post(`/api/v1/accounts/${id}/enrichment`, {});
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(["account-enrichment", id], data);
+      queryClient.invalidateQueries({ queryKey: ["account-enrichment", id] });
+      queryClient.invalidateQueries({ queryKey: ["account-detail-360", id] });
+      queryClient.invalidateQueries({ queryKey: ["account-contacts", id] });
+    }
   });
 
   // Fetch related opportunities
@@ -240,11 +266,21 @@ export default function AccountDetail() {
     }
   });
 
-  const contacts: any[] = Array.isArray(contactsData) && contactsData.length > 0
+  // Regex for filtering out junk test artefacts
+  const JUNK_CONTACT_REGEX = /rate limit|sqli|sql injection|test|dummy|xss|<script/i;
+
+  const rawContactsList: any[] = Array.isArray(contactsData) && contactsData.length > 0
     ? contactsData
     : Array.isArray(account?.contacts) && account.contacts.length > 0
     ? account.contacts
     : [];
+
+  // Filter CRM contacts: strictly current account and excluding test artefacts
+  const crmContacts = rawContactsList.filter((c: any) => {
+    if (c.accountId && c.accountId !== id) return false;
+    const searchableText = `${c.firstName || ""} ${c.lastName || ""} ${c.email || ""} ${c.role || ""}`;
+    return !JUNK_CONTACT_REGEX.test(searchableText);
+  });
 
   const rawDeals: any[] = Array.isArray(oppsData) && oppsData.length > 0
     ? oppsData
@@ -252,35 +288,7 @@ export default function AccountDetail() {
     ? account.deals
     : [];
 
-  // Default rich fallback data for Acme Corp if empty
-  const defaultDeals = [
-    {
-      id: "deal-1",
-      name: "Enterprise Cloud Migration",
-      amount: 850000,
-      stage: { name: "Negotiation" },
-      status: "OPEN",
-      expectedCloseDate: "2024-10-15"
-    },
-    {
-      id: "deal-2",
-      name: "Q3 Software License Renewal",
-      amount: 120000,
-      stage: { name: "Proposal" },
-      status: "OPEN",
-      expectedCloseDate: "2024-11-01"
-    },
-    {
-      id: "deal-3",
-      name: "Global Infrastructure Optimization",
-      amount: 230000,
-      stage: { name: "Won" },
-      status: "WON",
-      expectedCloseDate: "2024-08-20"
-    }
-  ];
-
-  const deals = rawDeals.length > 0 ? rawDeals : defaultDeals;
+  const deals = rawDeals;
 
   // Filter deals based on tab: Active, Closed, Lost
   const filteredDeals = deals.filter((d: any) => {
@@ -298,26 +306,21 @@ export default function AccountDetail() {
     return true;
   });
 
-  // Calculate Metrics
+  // Calculate Metrics from real data
   const activeDealsList = deals.filter((d: any) => {
     const s = (d.status || "").toUpperCase();
     return s !== "LOST" && !((d.stage?.name || "").toLowerCase().includes("lost"));
   });
 
-  const totalPipelineValue = activeDealsList.reduce((sum, d) => sum + (Number(d.amount || d.value) || 0), 0) || 1200000;
-  const activeDealsCount = activeDealsList.length || 4;
-  const avgDealSize = activeDealsCount > 0 ? Math.round(totalPipelineValue / activeDealsCount) : 300000;
+  const totalPipelineValue = activeDealsList.reduce((sum, d) => sum + (Number(d.amount || d.value) || 0), 0);
+  const activeDealsCount = activeDealsList.length;
+  const avgDealSize = activeDealsCount > 0 ? Math.round(totalPipelineValue / activeDealsCount) : 0;
 
-  // Primary Contact
-  const primaryContact = contacts[0] || {
-    firstName: "Sarah",
-    lastName: "Jenkins",
-    role: "VP of Engineering",
-    email: "sarah.j@acmecorp.com",
-    phone: "+1 (555) 234-5678"
-  };
+  // Enrichment payload from Hunter.io
+  const enrichmentProfile = enrichmentData?.data || enrichmentData || {};
+  const discoveredContacts: any[] = enrichmentData?.discoveredContacts || enrichmentData?.data?.discoveredContacts || [];
 
-  const nameInitial = (account?.name || "Acme Corp").trim().charAt(0).toUpperCase();
+  const nameInitial = (account?.name || "C").trim().charAt(0).toUpperCase();
 
   if (isLoading) {
     return (
@@ -397,28 +400,38 @@ export default function AccountDetail() {
             <div className="space-y-1">
               <div className="flex items-center gap-2.5 flex-wrap">
                 <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-                  {account.name || "Acme Corp"}
+                  {account.name || <span className="italic text-slate-400">Company</span>}
                 </h2>
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-200/60">
-                  NEW LEAD
+                  ACCOUNT
                 </span>
               </div>
 
-              <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
+              <div className="flex items-center gap-1.5 text-xs">
                 <Globe className="w-3.5 h-3.5 text-slate-400" />
-                <a
-                  href={`https://${account.website || "acmecorp.com"}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="hover:text-blue-600 hover:underline"
-                >
-                  {account.website || (account.name ? `${account.name.toLowerCase().replace(/[^a-z0-9]/g, "")}.com` : "acmecorp.com")}
-                </a>
+                {account.website || enrichmentProfile.websiteUrl ? (
+                  <a
+                    href={
+                      (account.website || enrichmentProfile.websiteUrl).startsWith("http")
+                        ? account.website || enrichmentProfile.websiteUrl
+                        : `https://${account.website || enrichmentProfile.websiteUrl}`
+                    }
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-slate-600 hover:text-blue-600 hover:underline font-medium"
+                  >
+                    {account.website || enrichmentProfile.websiteUrl}
+                  </a>
+                ) : (
+                  <span className="text-slate-400 italic">Not available</span>
+                )}
               </div>
 
-              <p className="text-xs text-slate-500 font-normal leading-relaxed pt-1 max-w-2xl">
-                {account.description || "Leading provider of enterprise cloud solutions and managed IT services for the modern workforce."}
-              </p>
+              {(account.description || enrichmentProfile.description) && (
+                <p className="text-xs text-slate-500 font-normal leading-relaxed pt-1 max-w-2xl">
+                  {account.description || enrichmentProfile.description}
+                </p>
+              )}
             </div>
           </div>
 
@@ -528,10 +541,13 @@ export default function AccountDetail() {
           {/* About Card */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 space-y-3">
             <h3 className="text-base font-bold text-slate-900">About</h3>
-            <p className="text-xs text-slate-600 leading-relaxed">
-              {account.about ||
-                `${account.name || "Acme Corp"} is a multinational technology conglomerate specializing in enterprise software, cloud infrastructure, and data analytics. Founded in 2010, they have rapidly expanded their footprint in the North American and European markets. They are currently looking to upgrade their legacy systems and migrate core operations to a more robust cloud architecture.`}
-            </p>
+            {account.about || account.description || enrichmentProfile.description ? (
+              <p className="text-xs text-slate-600 leading-relaxed">
+                {account.about || account.description || enrichmentProfile.description}
+              </p>
+            ) : (
+              <p className="text-xs text-slate-400 italic">Not available</p>
+            )}
           </div>
 
           {/* Deals Card */}
@@ -747,21 +763,35 @@ export default function AccountDetail() {
             <div className="space-y-3.5 text-xs">
               <div className="flex items-center justify-between">
                 <span className="text-slate-400 font-medium">Industry</span>
-                <span className="font-bold text-slate-800">{account.industry || "Technology"}</span>
+                {account.industry || enrichmentProfile.industry ? (
+                  <span className="font-bold text-slate-800">{account.industry || enrichmentProfile.industry}</span>
+                ) : (
+                  <span className="text-slate-400 italic">Not available</span>
+                )}
               </div>
 
               <div className="flex items-center justify-between">
                 <span className="text-slate-400 font-medium">Size</span>
-                <span className={`font-bold ${account.employeeCount ? "text-slate-800" : "text-slate-400 italic"}`}>
-                  {account.employeeCount ? `${Number(account.employeeCount).toLocaleString()} Employees` : "Not set"}
-                </span>
+                {account.employeeCount || enrichmentProfile.employeeCount || enrichmentProfile.sizeRange ? (
+                  <span className="font-bold text-slate-800">
+                    {account.employeeCount
+                      ? `${Number(account.employeeCount).toLocaleString()} Employees`
+                      : enrichmentProfile.employeeCount
+                      ? `${Number(enrichmentProfile.employeeCount).toLocaleString()} Employees`
+                      : `${enrichmentProfile.sizeRange} Employees`}
+                  </span>
+                ) : (
+                  <span className="text-slate-400 italic">Not available</span>
+                )}
               </div>
 
               <div className="flex items-center justify-between">
                 <span className="text-slate-400 font-medium">Revenue</span>
-                <span className={`font-bold ${account.revenue ? "text-slate-800" : "text-slate-400 italic"}`}>
-                  {account.revenue ? formatCurrency(account.revenue) : "Not set"}
-                </span>
+                {account.revenue ? (
+                  <span className="font-bold text-slate-800">{formatCurrency(account.revenue)}</span>
+                ) : (
+                  <span className="text-slate-400 italic">Not available</span>
+                )}
               </div>
 
               {account.parentAccountId && (
@@ -775,10 +805,16 @@ export default function AccountDetail() {
 
               <div className="flex items-center justify-between">
                 <span className="text-slate-400 font-medium">HQ Location</span>
-                <span className="font-bold text-slate-800 flex items-center gap-1">
-                  <span>{account.address || "San Francisco, CA"}</span>
-                  <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                </span>
+                {account.address || (enrichmentProfile.city || enrichmentProfile.country) ? (
+                  <span className="font-bold text-slate-800 flex items-center gap-1">
+                    <span>
+                      {account.address || [enrichmentProfile.city, enrichmentProfile.country].filter(Boolean).join(", ")}
+                    </span>
+                    <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                  </span>
+                ) : (
+                  <span className="text-slate-400 italic">Not available</span>
+                )}
               </div>
             </div>
           </div>
@@ -808,10 +844,213 @@ export default function AccountDetail() {
             </div>
           )}
 
-          {/* Contacts Card */}
+          {/* ── Company Intelligence Card (Hunter.io Enrichment) ── */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold text-slate-900">Contacts</h3>
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-indigo-600" />
+                <h3 className="text-base font-bold text-slate-900">Company Intelligence</h3>
+              </div>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                Hunter.io
+              </span>
+            </div>
+
+            {isLoadingEnrichment ? (
+              <div className="py-8 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
+                <span className="w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+                Loading company intelligence...
+              </div>
+            ) : !enrichmentData?.enriched ? (
+              /* Empty state */
+              <div className="py-6 text-center space-y-3">
+                <p className="text-xs text-slate-400 italic">No enrichment data yet</p>
+                <button
+                  onClick={() => enrichAccountMutation.mutate()}
+                  disabled={enrichAccountMutation.isPending}
+                  className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-xs inline-flex items-center gap-1.5 transition-all cursor-pointer"
+                >
+                  {enrichAccountMutation.isPending ? (
+                    <>
+                      <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Enriching...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Enrich now</span>
+                    </>
+                  )}
+                </button>
+                {enrichAccountMutation.isError && (
+                  <p className="text-[11px] text-rose-500 font-medium pt-1">
+                    {(enrichAccountMutation.error as any)?.message || "Enrichment request failed"}
+                  </p>
+                )}
+              </div>
+            ) : (
+              /* Enriched Profile & Discovered Contacts */
+              <div className="space-y-4 text-xs">
+                {/* Company Profile */}
+                <div className="space-y-2.5 bg-slate-50/60 p-3.5 rounded-xl border border-slate-100">
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    COMPANY PROFILE
+                  </div>
+
+                  {enrichmentProfile.description && (
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      {enrichmentProfile.description}
+                    </p>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-2 pt-1 text-[11px]">
+                    <div>
+                      <span className="text-slate-400 block font-medium">Industry</span>
+                      <span className="font-bold text-slate-800">
+                        {enrichmentProfile.industry || <span className="text-slate-400 font-normal italic">Not available</span>}
+                      </span>
+                    </div>
+
+                    <div>
+                      <span className="text-slate-400 block font-medium">Company Size</span>
+                      <span className="font-bold text-slate-800">
+                        {enrichmentProfile.sizeRange || (enrichmentProfile.employeeCount ? `${enrichmentProfile.employeeCount} employees` : <span className="text-slate-400 font-normal italic">Not available</span>)}
+                      </span>
+                    </div>
+
+                    <div>
+                      <span className="text-slate-400 block font-medium">Founded</span>
+                      <span className="font-bold text-slate-800">
+                        {enrichmentProfile.foundedYear || <span className="text-slate-400 font-normal italic">Not available</span>}
+                      </span>
+                    </div>
+
+                    <div>
+                      <span className="text-slate-400 block font-medium">HQ Location</span>
+                      <span className="font-bold text-slate-800">
+                        {[enrichmentProfile.city, enrichmentProfile.country].filter(Boolean).join(", ") || <span className="text-slate-400 font-normal italic">Not available</span>}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Links: Website, LinkedIn, Email Pattern */}
+                  <div className="pt-2 border-t border-slate-200/60 space-y-1.5 text-[11px]">
+                    {enrichmentProfile.websiteUrl && (
+                      <div className="flex items-center gap-1.5">
+                        <Globe className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <a
+                          href={enrichmentProfile.websiteUrl.startsWith("http") ? enrichmentProfile.websiteUrl : `https://${enrichmentProfile.websiteUrl}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-blue-600 hover:underline truncate"
+                        >
+                          {enrichmentProfile.websiteUrl}
+                        </a>
+                      </div>
+                    )}
+
+                    {enrichmentProfile.linkedinHandle && (
+                      <div className="flex items-center gap-1.5">
+                        <Linkedin className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                        <a
+                          href={`https://linkedin.com/${enrichmentProfile.linkedinHandle.replace(/^@/, "")}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-blue-600 hover:underline truncate"
+                        >
+                          {enrichmentProfile.linkedinHandle}
+                        </a>
+                      </div>
+                    )}
+
+                    {enrichmentProfile.emailPattern && (
+                      <div className="flex items-center gap-1.5 text-slate-500">
+                        <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span>Pattern: <code className="bg-slate-200/60 px-1 py-0.5 rounded text-[10px] font-mono text-slate-700">{enrichmentProfile.emailPattern}</code></span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Discovered Contacts */}
+                <div className="space-y-2 pt-1">
+                  <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    <span>DISCOVERED CONTACTS ({discoveredContacts.length})</span>
+                    <button
+                      onClick={() => enrichAccountMutation.mutate()}
+                      disabled={enrichAccountMutation.isPending}
+                      className="text-indigo-600 hover:underline flex items-center gap-1 normal-case font-semibold cursor-pointer"
+                      title="Refresh from Hunter.io"
+                    >
+                      <RefreshCw className={`w-3 h-3 ${enrichAccountMutation.isPending ? "animate-spin" : ""}`} />
+                      Refresh
+                    </button>
+                  </div>
+
+                  {discoveredContacts.length === 0 ? (
+                    <p className="text-xs text-slate-400 italic py-2">No contacts discovered yet for this domain.</p>
+                  ) : (
+                    <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                      {discoveredContacts.map((contact: any, idx: number) => (
+                        <div
+                          key={contact.email || idx}
+                          className="p-3 bg-slate-50/70 hover:bg-slate-50 rounded-xl border border-slate-100 space-y-1.5 transition-colors"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <div className="font-bold text-slate-900 text-xs">{contact.name || "Contact"}</div>
+                              <div className="text-[11px] text-slate-500 font-medium">
+                                {contact.position || <span className="italic text-slate-400">Position unknown</span>}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-100">
+                                {contact.source || "Hunter.io"}
+                              </span>
+                              {typeof contact.confidence === "number" && (
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-100">
+                                  {contact.confidence}%
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between pt-1 border-t border-slate-200/50 text-[11px]">
+                            <a
+                              href={`mailto:${contact.email}`}
+                              className="text-slate-600 hover:text-blue-600 truncate flex items-center gap-1"
+                            >
+                              <Mail className="w-3 h-3 text-slate-400 shrink-0" />
+                              <span>{contact.email}</span>
+                            </a>
+                            {contact.linkedinUrl && (
+                              <a
+                                href={contact.linkedinUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-blue-600 hover:text-blue-800 p-0.5"
+                                title="LinkedIn Profile"
+                              >
+                                <Linkedin className="w-3 h-3" />
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* ── CRM Contacts Card (Real contacts only) ── */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <Users className="w-4 h-4 text-slate-600" />
+                <h3 className="text-base font-bold text-slate-900">CRM Contacts</h3>
+              </div>
               <button
                 onClick={() => setIsContactModalOpen(true)}
                 className="w-6 h-6 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center text-xs font-bold transition-colors cursor-pointer"
@@ -821,66 +1060,67 @@ export default function AccountDetail() {
               </button>
             </div>
 
-            <div>
-              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2.5">
-                PRIMARY CONTACT
+            {crmContacts.length === 0 ? (
+              <div className="text-center py-4">
+                <p className="text-xs text-slate-400 italic">No CRM contacts added yet.</p>
               </div>
-
-              {/* Contact Card */}
-              <div className="p-3.5 bg-slate-50/70 rounded-xl border border-slate-100 space-y-2.5">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-bold text-sm flex items-center justify-center shrink-0 border border-white shadow-2xs">
-                    {(primaryContact.firstName || "S").charAt(0)}{(primaryContact.lastName || "J").charAt(0)}
-                  </div>
-                  <div>
-                    <div className="text-sm font-bold text-slate-900">
-                      {primaryContact.firstName} {primaryContact.lastName}
-                    </div>
-                    <div className="text-xs text-slate-500 font-medium">
-                      {primaryContact.role || "VP of Engineering"}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="pt-2 border-t border-slate-200/50 space-y-1 text-xs text-slate-600">
-                  <div className="flex items-center gap-2">
-                    <Mail className="w-3.5 h-3.5 text-slate-400" />
-                    <a
-                      href={`mailto:${primaryContact.email || "sarah.j@acmecorp.com"}`}
-                      className="hover:text-blue-600 hover:underline"
+            ) : (
+              <div className="space-y-3">
+                {crmContacts.map((c: any, index: number) => {
+                  const initials = `${(c.firstName || "").charAt(0)}${(c.lastName || "").charAt(0)}` || "C";
+                  return (
+                    <div
+                      key={c.id || index}
+                      className="p-3 bg-slate-50/70 rounded-xl border border-slate-100 space-y-2"
                     >
-                      {primaryContact.email || "sarah.j@acmecorp.com"}
-                    </a>
-                  </div>
-                  {primaryContact.phone && (
-                    <div className="flex items-center gap-2 text-slate-500">
-                      <Phone className="w-3.5 h-3.5 text-slate-400" />
-                      <span>{primaryContact.phone}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Other Contacts if available */}
-              {contacts.length > 1 && (
-                <div className="mt-3 space-y-2">
-                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                    OTHER CONTACTS ({contacts.length - 1})
-                  </div>
-                  {contacts.slice(1).map((c) => (
-                    <div key={c.id} className="p-2.5 bg-white rounded-lg border border-slate-200 text-xs flex items-center justify-between">
-                      <div>
-                        <div className="font-bold text-slate-900">{c.firstName} {c.lastName}</div>
-                        <div className="text-[11px] text-slate-500">{c.role || "Stakeholder"}</div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-bold text-xs flex items-center justify-center shrink-0">
+                            {initials}
+                          </div>
+                          <div>
+                            <div className="text-xs font-bold text-slate-900">
+                              {c.firstName} {c.lastName}
+                            </div>
+                            <div className="text-[11px] text-slate-500 font-medium">
+                              {c.role || <span className="italic text-slate-400">Not specified</span>}
+                            </div>
+                          </div>
+                        </div>
+                        {index === 0 && (
+                          <span className="text-[9px] font-black uppercase tracking-wider bg-slate-200/70 text-slate-700 px-1.5 py-0.5 rounded">
+                            Primary
+                          </span>
+                        )}
                       </div>
-                      <a href={`mailto:${c.email}`} className="text-slate-400 hover:text-blue-600">
-                        <Mail className="w-3.5 h-3.5" />
-                      </a>
+
+                      <div className="pt-1.5 border-t border-slate-200/50 space-y-1 text-[11px] text-slate-600">
+                        {c.email ? (
+                          <div className="flex items-center gap-1.5">
+                            <Mail className="w-3 h-3 text-slate-400 shrink-0" />
+                            <a href={`mailto:${c.email}`} className="hover:text-blue-600 hover:underline truncate">
+                              {c.email}
+                            </a>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5 text-slate-400 italic">
+                            <Mail className="w-3 h-3 text-slate-300 shrink-0" />
+                            <span>Not available</span>
+                          </div>
+                        )}
+
+                        {c.phone && (
+                          <div className="flex items-center gap-1.5 text-slate-500">
+                            <Phone className="w-3 h-3 text-slate-400 shrink-0" />
+                            <span>{c.phone}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -1108,7 +1348,7 @@ export default function AccountDetail() {
                   <label className="block font-bold text-slate-700 mb-1">First Name *</label>
                   <input
                     type="text"
-                    placeholder="Sarah"
+                    placeholder="First name"
                     value={contactForm.firstName}
                     onChange={(e) => setContactForm({ ...contactForm, firstName: e.target.value })}
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold"
@@ -1118,7 +1358,7 @@ export default function AccountDetail() {
                   <label className="block font-bold text-slate-700 mb-1">Last Name</label>
                   <input
                     type="text"
-                    placeholder="Jenkins"
+                    placeholder="Last name"
                     value={contactForm.lastName}
                     onChange={(e) => setContactForm({ ...contactForm, lastName: e.target.value })}
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold"
@@ -1130,7 +1370,7 @@ export default function AccountDetail() {
                 <label className="block font-bold text-slate-700 mb-1">Role / Job Title</label>
                 <input
                   type="text"
-                  placeholder="VP of Engineering"
+                  placeholder="e.g. Director, Manager"
                   value={contactForm.role}
                   onChange={(e) => setContactForm({ ...contactForm, role: e.target.value })}
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold"
@@ -1141,7 +1381,7 @@ export default function AccountDetail() {
                 <label className="block font-bold text-slate-700 mb-1">Email</label>
                 <input
                   type="email"
-                  placeholder="sarah.j@acmecorp.com"
+                  placeholder="contact@company.com"
                   value={contactForm.email}
                   onChange={(e) => setContactForm({ ...contactForm, email: e.target.value })}
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold"
@@ -1152,7 +1392,7 @@ export default function AccountDetail() {
                 <label className="block font-bold text-slate-700 mb-1">Phone</label>
                 <input
                   type="text"
-                  placeholder="+1 (555) 234-5678"
+                  placeholder="e.g. +1 555-0100"
                   value={contactForm.phone}
                   onChange={(e) => setContactForm({ ...contactForm, phone: e.target.value })}
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold"
