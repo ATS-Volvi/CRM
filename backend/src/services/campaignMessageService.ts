@@ -312,7 +312,7 @@ export const getMessageStats = async (messageId: string) => {
 export const executeMessageSend = async (
   campaignId: string,
   messageId: string,
-  options?: { confirm?: boolean }
+  options?: { confirm?: boolean; isAlreadyClaimed?: boolean }
 ) => {
   // CHECK 1: Require explicit confirm
   if (options?.confirm !== true) {
@@ -381,6 +381,72 @@ export const executeMessageSend = async (
       console.error("[CampaignMessageService] Error during async delivery:", err);
     }
   });
+
+  return {
+    recipientCount: audience.eligibleLeads.length,
+    status: "SENDING"
+  };
+};
+
+/**
+ * Executes a previously claimed message (status SENDING).
+ * Called by the scheduler after an atomic claim (SCHEDULED -> SENDING),
+ * skipping the DRAFT/SCHEDULED validation while retaining audience computation, cap enforcement, and delivery.
+ */
+export const runClaimedMessage = async (
+  campaignId: string,
+  messageId: string
+) => {
+  const message = (await sequelize.models.CampaignMessage.findOne({
+    where: { id: messageId, campaignId }
+  })) as any;
+
+  if (!message) {
+    throw new Error("Message not found");
+  }
+
+  const campaign = (await sequelize.models.Campaign.findByPk(campaignId)) as any;
+  if (!campaign) {
+    throw new Error("Campaign not found");
+  }
+
+  const config = getCampaignMessageConfig();
+
+  // Fresh send: compute audience at send time
+  const audience = await computeAudience(campaignId, message.audienceFilter);
+
+  if (audience.eligibleLeads.length > config.maxRecipients) {
+    throw new Error(
+      `Eligible audience (${audience.eligibleLeads.length}) exceeds maximum allowable recipients (${config.maxRecipients})`
+    );
+  }
+
+  if (audience.eligibleLeads.length === 0) {
+    throw new Error("No eligible recipients found for this message");
+  }
+
+  // Clear any existing recipient records for this message before re-populating
+  await sequelize.models.CampaignRecipient.destroy({
+    where: { campaignMessageId: messageId }
+  });
+
+  // Create recipients in bulk with status QUEUED
+  const recipientsData = audience.eligibleLeads.map((lead: any) => ({
+    id: crypto.randomUUID(),
+    campaignMessageId: messageId,
+    leadId: lead.id,
+    email: lead.email,
+    status: "QUEUED",
+    createdAt: new Date()
+  }));
+
+  await sequelize.models.CampaignRecipient.bulkCreate(recipientsData);
+
+  message.status = "SENDING";
+  await message.save();
+
+  // Process delivery
+  await processAsyncDelivery(campaignId, messageId, campaign.name);
 
   return {
     recipientCount: audience.eligibleLeads.length,
@@ -511,9 +577,28 @@ export const processAsyncDelivery = async (
           return;
         }
 
-        const lead = leadMap.get(recipient.leadId);
-        const emailLower = (recipient.email || "").toLowerCase().trim();
+        // Re-check at delivery time: reload lead from DB immediately before sending
+        const lead = recipient.leadId
+          ? ((await sequelize.models.Lead.findByPk(recipient.leadId)) as any)
+          : null;
 
+        // Skip if lead does not exist or has opted out
+        if (!lead || lead.optedOutEmail) {
+          recipient.status = "SKIPPED";
+          recipient.skipReason = "unsubscribed";
+          await recipient.save();
+          return;
+        }
+
+        const email = (recipient.email || lead.email || "").trim();
+        if (!isValidEmail(email)) {
+          recipient.status = "SKIPPED";
+          recipient.skipReason = "invalid email";
+          await recipient.save();
+          return;
+        }
+
+        const emailLower = email.toLowerCase();
         // Check test allowlist
         if (allowlist.length > 0 && !allowlist.includes(emailLower)) {
           recipient.status = "SKIPPED";
@@ -640,3 +725,28 @@ export const cancelMessage = async (campaignId: string, messageId: string) => {
 
   return message;
 };
+
+export const unscheduleMessage = async (campaignId: string, messageId: string) => {
+  const message = (await sequelize.models.CampaignMessage.findOne({
+    where: { id: messageId, campaignId }
+  })) as any;
+
+  if (!message) {
+    throw new Error("Message not found in this campaign");
+  }
+
+  if (message.status !== "SCHEDULED") {
+    throw new Error(`Only SCHEDULED messages can be unscheduled (current: ${message.status})`);
+  }
+
+  message.status = "DRAFT";
+  message.scheduledAt = null;
+  await message.save();
+
+  const stats = await getMessageStats(message.id);
+  return {
+    ...message.toJSON(),
+    stats
+  };
+};
+

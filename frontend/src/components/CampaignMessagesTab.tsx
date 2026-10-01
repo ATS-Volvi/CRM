@@ -32,6 +32,7 @@ import {
   CampaignMessageConfig
 } from "../types/marketing";
 import { useAuth } from "../context/AuthContext";
+import { localDateTimeToUtcIso, utcIsoToLocalDisplay } from "../utils/campaignDateHelper";
 
 interface CampaignMessagesTabProps {
   campaignId: string;
@@ -76,6 +77,8 @@ export function CampaignMessagesTab({ campaignId, campaignName }: CampaignMessag
   const [isSendConfirmOpen, setIsSendConfirmOpen] = useState(false);
   const [messageToSend, setMessageToSend] = useState<CampaignMessage | null>(null);
   const [confirmInput, setConfirmInput] = useState("");
+  const [isScheduling, setIsScheduling] = useState(false);
+  const [scheduleDateTime, setScheduleDateTime] = useState("");
   const [sendError, setSendError] = useState<string | null>(null);
 
   const [messageToDelete, setMessageToDelete] = useState<CampaignMessage | null>(null);
@@ -276,17 +279,35 @@ export function CampaignMessagesTab({ campaignId, campaignName }: CampaignMessag
   // Send Mutation
   const sendMutation = useMutation({
     mutationFn: async (msgId: string) => {
-      return campaignsApi.sendCampaignMessage(campaignId, msgId, true);
+      return campaignsApi.sendCampaignMessage(
+        campaignId,
+        msgId,
+        true,
+        isScheduling && scheduleDateTime ? localDateTimeToUtcIso(scheduleDateTime) : undefined
+      );
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["campaign-messages", campaignId] });
       setIsSendConfirmOpen(false);
       setMessageToSend(null);
       setConfirmInput("");
+      setIsScheduling(false);
+      setScheduleDateTime("");
       setSendError(null);
     },
     onError: (err: any) => {
       setSendError(err.message || "Failed to initiate sending");
+    }
+  });
+
+  // Unschedule Mutation
+  const unscheduleMutation = useMutation({
+    mutationFn: (msgId: string) => campaignsApi.unscheduleCampaignMessage(campaignId, msgId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["campaign-messages", campaignId] });
+    },
+    onError: (err: any) => {
+      alert(err.message || "Failed to unschedule message");
     }
   });
 
@@ -484,6 +505,11 @@ export function CampaignMessagesTab({ campaignId, campaignName }: CampaignMessag
                   <div className="text-[11px] text-slate-400 dark:text-slate-500 sm:text-right">
                     {msg.sentAt ? (
                       <span>Sent {new Date(msg.sentAt).toLocaleString()}</span>
+                    ) : msg.scheduledAt && msg.status === "SCHEDULED" ? (
+                      <span className="text-blue-600 dark:text-blue-400 font-semibold flex items-center gap-1 sm:justify-end">
+                        <Clock className="w-3.5 h-3.5" />
+                        Scheduled for {utcIsoToLocalDisplay(msg.scheduledAt)}
+                      </span>
                     ) : (
                       <span>Created {new Date(msg.createdAt).toLocaleDateString()}</span>
                     )}
@@ -559,18 +585,31 @@ export function CampaignMessagesTab({ campaignId, campaignName }: CampaignMessag
                             <span>Edit</span>
                           </button>
 
-                          <button
-                            onClick={() => {
-                              setMessageToSend(msg);
-                              setConfirmInput("");
-                              setSendError(null);
-                              setIsSendConfirmOpen(true);
-                            }}
-                            className="inline-flex items-center gap-1 px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs cursor-pointer"
-                          >
-                            <Send className="w-3.5 h-3.5" />
-                            <span>Send Broadcast</span>
-                          </button>
+                          {msg.status === "SCHEDULED" ? (
+                            <button
+                              onClick={() => unscheduleMutation.mutate(msg.id)}
+                              disabled={unscheduleMutation.isPending}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/50 text-xs font-semibold text-amber-800 dark:text-amber-200 hover:bg-amber-100 cursor-pointer"
+                            >
+                              <Clock className="w-3.5 h-3.5 text-amber-600" />
+                              <span>Unschedule</span>
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                setMessageToSend(msg);
+                                setConfirmInput("");
+                                setIsScheduling(false);
+                                setScheduleDateTime("");
+                                setSendError(null);
+                                setIsSendConfirmOpen(true);
+                              }}
+                              className="inline-flex items-center gap-1 px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs cursor-pointer"
+                            >
+                              <Send className="w-3.5 h-3.5" />
+                              <span>Send Broadcast</span>
+                            </button>
+                          )}
                         </>
                       )}
 
@@ -887,8 +926,41 @@ export function CampaignMessagesTab({ campaignId, campaignName }: CampaignMessag
               </div>
             )}
 
+            {/* Schedule Option */}
+            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-2">
+              <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-semibold text-slate-700 dark:text-slate-200">
+                <input
+                  type="checkbox"
+                  checked={isScheduling}
+                  onChange={(e) => {
+                    setIsScheduling(e.target.checked);
+                    if (!e.target.checked) setScheduleDateTime("");
+                  }}
+                  className="rounded text-blue-600 focus:ring-blue-500"
+                />
+                <span>Schedule for later</span>
+              </label>
+
+              {isScheduling && (
+                <div className="pt-2 space-y-1">
+                  <label className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                    Send at (Date & Time):
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={scheduleDateTime}
+                    min={new Date(Date.now() + 60000).toISOString().slice(0, 16)}
+                    onChange={(e) => setScheduleDateTime(e.target.value)}
+                    className="w-full px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs bg-white dark:bg-slate-900"
+                  />
+                </div>
+              )}
+            </div>
+
             <p className="text-xs text-slate-600 dark:text-slate-300">
-              This action will queue emails for all matching audience leads. Please type <strong>SEND</strong> below to authorize delivery:
+              {isScheduling
+                ? "This will schedule the broadcast to automatically execute at the specified time. Please type SEND below to confirm:"
+                : "This action will queue emails for all matching audience leads. Please type SEND below to authorize delivery:"}
             </p>
 
             <input
@@ -904,17 +976,21 @@ export function CampaignMessagesTab({ campaignId, campaignName }: CampaignMessag
                 onClick={() => {
                   setIsSendConfirmOpen(false);
                   setMessageToSend(null);
+                  setIsScheduling(false);
+                  setScheduleDateTime("");
                 }}
                 className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-600 dark:text-slate-300"
               >
                 Cancel
               </button>
               <button
-                disabled={confirmInput !== "SEND" || sendMutation.isPending}
+                disabled={confirmInput !== "SEND" || sendMutation.isPending || (isScheduling && !scheduleDateTime)}
                 onClick={() => sendMutation.mutate(messageToSend.id)}
                 className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold shadow-xs cursor-pointer"
               >
-                {sendMutation.isPending ? "Starting Delivery..." : "Authorize & Send"}
+                {sendMutation.isPending
+                  ? isScheduling ? "Scheduling..." : "Starting Delivery..."
+                  : isScheduling ? "Schedule Broadcast" : "Authorize & Send"}
               </button>
             </div>
           </div>

@@ -53,6 +53,7 @@ export interface NormalizedAttribution {
  */
 export const CHANNELS = [
   "Website",
+  "Google",
   "WhatsApp",
   "Email",
   "Instagram",
@@ -97,6 +98,8 @@ export function normalizeSourceData(input: RawTouchPayload): NormalizedAttributi
   const lowerCh = rawChannel.toLowerCase();
   if (lowerCh.includes("web") || lowerCh.includes("site") || lowerCh.includes("form")) {
     channel = "Website";
+  } else if (lowerCh.includes("google") || lowerCh.includes("adwords") || lowerCh.includes("gads")) {
+    channel = "Google";
   } else if (lowerCh.includes("whatsapp") || lowerCh.includes("wa")) {
     channel = "WhatsApp";
   } else if (lowerCh.includes("instagram") || lowerCh.includes("ig") || lowerCh.includes("insta")) {

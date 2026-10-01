@@ -11,7 +11,8 @@ const mockModels = {
     findOne: jest.fn(),
     findByPk: jest.fn(),
     findAll: jest.fn(),
-    create: jest.fn()
+    create: jest.fn(),
+    update: jest.fn()
   },
   CampaignRecipient: {
     findOne: jest.fn(),
@@ -27,7 +28,14 @@ const mockModels = {
     findByPk: jest.fn(),
     findAll: jest.fn()
   },
+  LeadAttribution: {
+    findAll: jest.fn()
+  },
   Activity: {
+    create: jest.fn()
+  },
+  Notification: {
+    findOne: jest.fn(),
     create: jest.fn()
   }
 };
@@ -49,16 +57,28 @@ import {
   filterLeadsForAudience,
   getCampaignMessageConfig,
   executeMessageSend,
-  resumeMessageSend
+  runClaimedMessage,
+  resumeMessageSend,
+  processAsyncDelivery,
+  unscheduleMessage
 } from "../../../backend/src/services/campaignMessageService";
 import {
+  processScheduledCampaignMessages,
+  getCampaignScheduleGraceMinutes
+} from "../../../backend/src/services/campaignMessageScheduler";
+import {
   sendCampaignMessage,
-  resumeCampaignMessage
+  resumeCampaignMessage,
+  unscheduleCampaignMessageHandler
 } from "../../../backend/src/controllers/campaignMessageController";
 import {
   renderUnsubscribePage,
   handleUnsubscribe
 } from "../../../backend/src/controllers/leadController";
+import {
+  localDateTimeToUtcIso,
+  utcIsoToLocalDisplay
+} from "../utils/campaignDateHelper";
 import { sequelize } from "@nexus-crm/database";
 
 describe("Phase B: Campaign Email Execution & Safety Engine (Real Service Implementation)", () => {
@@ -459,6 +479,469 @@ describe("Phase B: Campaign Email Execution & Safety Engine (Real Service Implem
 
       // Verification 4: Renders success page
       expect(responseHtml).toContain("Unsubscribed Successfully");
+    });
+
+    test("GET /leads/unsubscribe/:id returns generic page for unknown lead ID without leaking data", async () => {
+      (sequelize.models.Lead.findByPk as jest.Mock).mockResolvedValueOnce(null);
+
+      const mockReq: any = { params: { id: "unknown-lead-uuid" } };
+      let responseHtml = "";
+      const mockRes: any = {
+        send: (html: string) => {
+          responseHtml = html;
+        }
+      };
+
+      await renderUnsubscribePage(mockReq, mockRes);
+
+      expect(responseHtml).toContain("Unsubscribe from Emails");
+      expect(responseHtml).toContain("If you have an active email subscription");
+      expect(responseHtml).not.toContain("unknown-lead-uuid");
+      expect(responseHtml).not.toContain("subscriber@");
+    });
+  });
+
+  describe("9. Delivery-Time Re-checks (Opt-out, existence, and allowlist)", () => {
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    test("a recipient queued before an unsubscribe is skipped at delivery time in processAsyncDelivery", async () => {
+      const mockRecipient = {
+        id: "rec-queued-1",
+        campaignMessageId: "msg-1",
+        leadId: "lead-opted-out-recently",
+        email: "optout@example.com",
+        status: "QUEUED",
+        save: jest.fn().mockResolvedValue(true)
+      };
+
+      const mockMessage = {
+        id: "msg-1",
+        campaignId: "camp-1",
+        subject: "Hello",
+        bodyHtml: "<p>Hello</p>",
+        status: "SENDING",
+        save: jest.fn().mockResolvedValue(true)
+      };
+
+      (sequelize.models.CampaignMessage.findByPk as jest.Mock).mockResolvedValue(mockMessage);
+      (sequelize.models.CampaignRecipient.findAll as jest.Mock).mockResolvedValueOnce([mockRecipient]);
+      (sequelize.models.CampaignRecipient.update as jest.Mock).mockResolvedValueOnce([1]);
+      (sequelize.models.Lead.findAll as jest.Mock).mockResolvedValueOnce([]);
+      (sequelize.models.CampaignRecipient.count as jest.Mock).mockResolvedValue(0);
+
+      // Reload lead at delivery time: lead has opted out
+      (sequelize.models.Lead.findByPk as jest.Mock).mockResolvedValueOnce({
+        id: "lead-opted-out-recently",
+        email: "optout@example.com",
+        optedOutEmail: true
+      });
+
+      await processAsyncDelivery("camp-1", "msg-1", "Campaign Alpha");
+
+      // Verify recipient was skipped with skipReason 'unsubscribed'
+      expect(mockRecipient.status).toBe("SKIPPED");
+      expect((mockRecipient as any).skipReason).toBe("unsubscribed");
+      expect(mockRecipient.save).toHaveBeenCalled();
+    });
+
+    test("resume delivery also skips opted-out leads at delivery time", async () => {
+      const mockRecipient = {
+        id: "rec-resume-1",
+        campaignMessageId: "msg-resume-1",
+        leadId: "lead-unsub-resume",
+        email: "unsub-resume@example.com",
+        status: "QUEUED",
+        save: jest.fn().mockResolvedValue(true)
+      };
+
+      const mockMessage = {
+        id: "msg-resume-1",
+        campaignId: "camp-1",
+        subject: "Follow Up",
+        bodyHtml: "<p>Follow Up</p>",
+        status: "SENDING",
+        save: jest.fn().mockResolvedValue(true)
+      };
+
+      (sequelize.models.CampaignMessage.findByPk as jest.Mock).mockResolvedValue(mockMessage);
+      (sequelize.models.CampaignRecipient.findAll as jest.Mock).mockResolvedValueOnce([mockRecipient]);
+      (sequelize.models.CampaignRecipient.update as jest.Mock).mockResolvedValueOnce([1]);
+      (sequelize.models.Lead.findAll as jest.Mock).mockResolvedValueOnce([]);
+      (sequelize.models.CampaignRecipient.count as jest.Mock).mockResolvedValue(0);
+
+      // Lead reloaded at delivery time is now opted out
+      (sequelize.models.Lead.findByPk as jest.Mock).mockResolvedValueOnce({
+        id: "lead-unsub-resume",
+        email: "unsub-resume@example.com",
+        optedOutEmail: true
+      });
+
+      await processAsyncDelivery("camp-1", "msg-resume-1", "Campaign Alpha");
+
+      expect(mockRecipient.status).toBe("SKIPPED");
+      expect((mockRecipient as any).skipReason).toBe("unsubscribed");
+      expect(mockRecipient.save).toHaveBeenCalled();
+    });
+  });
+
+  describe("10. Phase A: Scheduled Sends, Timezones & Safety Engine (Real Functions & Atomicity)", () => {
+    beforeEach(() => {
+      jest.clearAllMocks();
+      (sequelize.models.CampaignRecipient.findAll as jest.Mock).mockResolvedValue([]);
+      (sequelize.models.LeadAttribution.findAll as jest.Mock).mockResolvedValue([]);
+      (sequelize.models.Lead.findAll as jest.Mock).mockResolvedValue([]);
+    });
+
+    test("localDateTimeToUtcIso and utcIsoToLocalDisplay handle timezone conversions correctly", () => {
+      const localStr = "2026-10-15T14:30";
+      const utcIso = localDateTimeToUtcIso(localStr);
+      expect(utcIso).toContain("2026-10-15T");
+      expect(new Date(utcIso).toISOString()).toBe(utcIso);
+
+      const localDisplay = utcIsoToLocalDisplay(utcIso);
+      expect(localDisplay).toBeTruthy();
+      expect(typeof localDisplay).toBe("string");
+
+      // Empty string handling
+      expect(localDateTimeToUtcIso("")).toBe("");
+      expect(utcIsoToLocalDisplay("")).toBe("");
+    });
+
+    test("runs the scheduler tick against a due SCHEDULED message end-to-end (dry run) and asserts recipients created once and message ends SENT", async () => {
+      const now = new Date();
+      const mockScheduledMsg = {
+        id: "msg-sched-e2e",
+        campaignId: "camp-e2e",
+        status: "SCHEDULED",
+        scheduledAt: new Date(now.getTime() - 15000), // 15 seconds ago (due)
+        subject: "Welcome Diana",
+        bodyHtml: "<p>Welcome to our platform, {{firstName}}!</p>",
+        audienceFilter: JSON.stringify({ leadStatus: ["QUALIFIED"] }),
+        createdBy: "user-admin-1",
+        save: jest.fn().mockResolvedValue(true)
+      };
+
+      const mockLead = {
+        id: "lead-e2e-1",
+        firstName: "Diana",
+        lastName: "Prince",
+        email: "diana@themyscira.com",
+        status: "QUALIFIED",
+        optedOutEmail: false
+      };
+
+      const mockCreatedRecipient = {
+        id: "rec-e2e-1",
+        campaignMessageId: "msg-sched-e2e",
+        leadId: "lead-e2e-1",
+        email: "diana@themyscira.com",
+        status: "QUEUED",
+        save: jest.fn().mockResolvedValue(true)
+      };
+
+      // 1. findAll scheduled messages
+      (sequelize.models.CampaignMessage.findAll as jest.Mock).mockResolvedValueOnce([mockScheduledMsg]);
+      // 2. Atomic claim update
+      (sequelize.models.CampaignMessage.update as jest.Mock).mockResolvedValueOnce([1]);
+      // 3. runClaimedMessage -> findOne CampaignMessage
+      (sequelize.models.CampaignMessage.findOne as jest.Mock).mockResolvedValueOnce(mockScheduledMsg);
+      // 4. findByPk Campaign
+      (sequelize.models.Campaign.findByPk as jest.Mock).mockResolvedValueOnce({
+        id: "camp-e2e",
+        name: "Enterprise Launch"
+      });
+      // 5. computeAudience -> LeadAttribution & Lead findAll
+      (sequelize.models.LeadAttribution.findAll as jest.Mock).mockResolvedValueOnce([]);
+      (sequelize.models.Lead.findAll as jest.Mock).mockResolvedValue([mockLead]);
+      // 6. destroy old recipients & bulkCreate new ones
+      (sequelize.models.CampaignRecipient.destroy as jest.Mock).mockResolvedValueOnce(0);
+      (sequelize.models.CampaignRecipient.bulkCreate as jest.Mock).mockResolvedValueOnce([mockCreatedRecipient]);
+      // 7. processAsyncDelivery -> findByPk message
+      (sequelize.models.CampaignMessage.findByPk as jest.Mock).mockResolvedValue(mockScheduledMsg);
+      // 8. processAsyncDelivery -> findAll pending recipients
+      (sequelize.models.CampaignRecipient.findAll as jest.Mock).mockResolvedValueOnce([mockCreatedRecipient]);
+      // 9. processAsyncDelivery -> update claim recipient QUEUED -> SENDING
+      (sequelize.models.CampaignRecipient.update as jest.Mock).mockResolvedValueOnce([1]);
+      // 10. processAsyncDelivery -> Lead.findByPk for delivery-time recheck
+      (sequelize.models.Lead.findByPk as jest.Mock).mockResolvedValueOnce(mockLead);
+      // 11. Final count check for unsent
+      (sequelize.models.CampaignRecipient.count as jest.Mock).mockResolvedValueOnce(0);
+
+      // Execute scheduler tick
+      await processScheduledCampaignMessages();
+
+      // Assertions:
+      // 1. Atomic claim performed
+      expect(sequelize.models.CampaignMessage.update).toHaveBeenCalledWith(
+        { status: "SENDING" },
+        { where: { id: "msg-sched-e2e", status: "SCHEDULED" } }
+      );
+      // 2. Recipients created in bulk
+      expect(sequelize.models.CampaignRecipient.bulkCreate).toHaveBeenCalledWith([
+        expect.objectContaining({
+          campaignMessageId: "msg-sched-e2e",
+          leadId: "lead-e2e-1",
+          email: "diana@themyscira.com",
+          status: "QUEUED"
+        })
+      ]);
+      // 3. Recipient was marked SENT during delivery
+      expect(mockCreatedRecipient.status).toBe("SENT");
+      expect(mockCreatedRecipient.save).toHaveBeenCalled();
+      // 4. Message ended in SENT
+      expect(mockScheduledMsg.status).toBe("SENT");
+      expect(mockScheduledMsg.save).toHaveBeenCalled();
+    });
+
+    test("inside-grace case: scheduled message within grace window (e.g. 10m overdue) is claimed and sent", async () => {
+      const now = new Date();
+      const mockScheduledMsg = {
+        id: "msg-inside-grace",
+        campaignId: "camp-1",
+        status: "SCHEDULED",
+        scheduledAt: new Date(now.getTime() - 10 * 60 * 1000), // 10 minutes ago (< 60m grace)
+        audienceFilter: null,
+        save: jest.fn().mockResolvedValue(true)
+      };
+
+      (sequelize.models.CampaignMessage.findAll as jest.Mock).mockResolvedValueOnce([mockScheduledMsg]);
+      (sequelize.models.CampaignMessage.update as jest.Mock).mockResolvedValueOnce([1]);
+      (sequelize.models.CampaignMessage.findOne as jest.Mock).mockResolvedValueOnce(mockScheduledMsg);
+      (sequelize.models.Campaign.findByPk as jest.Mock).mockResolvedValueOnce({ id: "camp-1", name: "Campaign 1" });
+      (sequelize.models.Lead.findAll as jest.Mock).mockResolvedValueOnce([]);
+
+      await processScheduledCampaignMessages();
+
+      // Verified: Message claimed and attempted to send
+      expect(sequelize.models.CampaignMessage.update).toHaveBeenCalledWith(
+        { status: "SENDING" },
+        { where: { id: "msg-inside-grace", status: "SCHEDULED" } }
+      );
+      expect(mockScheduledMsg.status).not.toBe("DRAFT");
+    });
+
+    test("outside-grace case: overdue by more than CAMPAIGN_SCHEDULE_GRACE_MINUTES is reset to DRAFT and notifies creator", async () => {
+      const now = new Date();
+      const mockOverdueMsg = {
+        id: "msg-overdue",
+        campaignId: "camp-1",
+        status: "SCHEDULED",
+        scheduledAt: new Date(now.getTime() - 120 * 60 * 1000), // 120 minutes ago (> 60m grace)
+        createdBy: "creator-user-id",
+        save: jest.fn().mockResolvedValue(true)
+      };
+
+      (sequelize.models.CampaignMessage.findAll as jest.Mock).mockResolvedValueOnce([mockOverdueMsg]);
+      (sequelize.models.Notification.findOne as jest.Mock).mockResolvedValueOnce(null);
+      (sequelize.models.Notification.create as jest.Mock).mockResolvedValueOnce({});
+
+      await processScheduledCampaignMessages();
+
+      // Verified: Message was NOT claimed as SENDING; reset to DRAFT with scheduledAt cleared
+      expect(mockOverdueMsg.status).toBe("DRAFT");
+      expect(mockOverdueMsg.scheduledAt).toBeNull();
+      expect(mockOverdueMsg.save).toHaveBeenCalled();
+      expect(sequelize.models.CampaignMessage.update).not.toHaveBeenCalled();
+
+      // Notification created for creator
+      expect(sequelize.models.Notification.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: "creator-user-id",
+          type: "CAMPAIGN_SCHEDULE_MISSED",
+          severity: "WARNING",
+          message: "Scheduled send was missed while the server was offline; please reschedule."
+        })
+      );
+    });
+
+    test("processScheduledCampaignMessages skips message if already claimed by another instance (0 rows updated)", async () => {
+      const now = new Date();
+      const mockScheduledMsg = {
+        id: "msg-sched-concurrent",
+        campaignId: "camp-1",
+        status: "SCHEDULED",
+        scheduledAt: new Date(now.getTime() - 5000)
+      };
+
+      (sequelize.models.CampaignMessage.findAll as jest.Mock).mockResolvedValueOnce([mockScheduledMsg]);
+      // Another instance claimed it first, returning 0 rows updated
+      (sequelize.models.CampaignMessage.update as jest.Mock).mockResolvedValueOnce([0]);
+
+      await processScheduledCampaignMessages();
+
+      // Verification: Did not proceed to findOne or execute sending
+      expect(sequelize.models.CampaignMessage.findOne).not.toHaveBeenCalled();
+    });
+
+    test("sendCampaignMessage controller with future scheduledAt sets status SCHEDULED and does not send immediately", async () => {
+      const futureDate = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(); // 2 days in future
+      const mockMsg = {
+        id: "msg-future",
+        campaignId: "camp-1",
+        status: "DRAFT",
+        scheduledAt: null,
+        save: jest.fn().mockResolvedValue(true),
+        toJSON: () => ({ id: "msg-future", status: "SCHEDULED", scheduledAt: futureDate })
+      };
+
+      (sequelize.models.CampaignMessage.findOne as jest.Mock).mockResolvedValueOnce(mockMsg);
+      (sequelize.models.CampaignRecipient.findAll as jest.Mock).mockResolvedValue([]);
+      (sequelize.models.CampaignRecipient.count as jest.Mock).mockResolvedValue(0);
+
+      const mockReq: any = {
+        params: { id: "camp-1", messageId: "msg-future" },
+        body: { confirm: true, scheduledAt: futureDate }
+      };
+      let statusCode = 0;
+      let responseBody: any = null;
+      const mockRes: any = {
+        status: (code: number) => {
+          statusCode = code;
+          return { json: (data: any) => { responseBody = data; } };
+        }
+      };
+
+      await sendCampaignMessage(mockReq, mockRes);
+
+      expect(statusCode).toBe(200);
+      expect(mockMsg.status).toBe("SCHEDULED");
+      expect(mockMsg.scheduledAt).toEqual(new Date(futureDate));
+      expect(mockMsg.save).toHaveBeenCalled();
+      expect(responseBody.message).toBe("Message scheduled successfully");
+    });
+
+    test("sendCampaignMessage rejects scheduledAt in the past with 400", async () => {
+      const pastDate = new Date(Date.now() - 3600000).toISOString(); // 1 hour ago
+      const mockMsg = {
+        id: "msg-past",
+        campaignId: "camp-1",
+        status: "DRAFT",
+        save: jest.fn()
+      };
+
+      (sequelize.models.CampaignMessage.findOne as jest.Mock).mockResolvedValueOnce(mockMsg);
+
+      const mockReq: any = {
+        params: { id: "camp-1", messageId: "msg-past" },
+        body: { confirm: true, scheduledAt: pastDate }
+      };
+      let statusCode = 0;
+      let responseBody: any = null;
+      const mockRes: any = {
+        status: (code: number) => {
+          statusCode = code;
+          return { json: (data: any) => { responseBody = data; } };
+        }
+      };
+
+      await sendCampaignMessage(mockReq, mockRes);
+
+      expect(statusCode).toBe(400);
+      expect(responseBody.error).toBe("Scheduled time must be in the future");
+      expect(mockMsg.save).not.toHaveBeenCalled();
+    });
+
+    test("sendCampaignMessage rejects scheduledAt more than 90 days ahead with 400", async () => {
+      const tooFarDate = new Date(Date.now() + 95 * 24 * 60 * 60 * 1000).toISOString(); // 95 days in future
+      const mockMsg = {
+        id: "msg-too-far",
+        campaignId: "camp-1",
+        status: "DRAFT",
+        save: jest.fn()
+      };
+
+      (sequelize.models.CampaignMessage.findOne as jest.Mock).mockResolvedValueOnce(mockMsg);
+
+      const mockReq: any = {
+        params: { id: "camp-1", messageId: "msg-too-far" },
+        body: { confirm: true, scheduledAt: tooFarDate }
+      };
+      let statusCode = 0;
+      let responseBody: any = null;
+      const mockRes: any = {
+        status: (code: number) => {
+          statusCode = code;
+          return { json: (data: any) => { responseBody = data; } };
+        }
+      };
+
+      await sendCampaignMessage(mockReq, mockRes);
+
+      expect(statusCode).toBe(400);
+      expect(responseBody.error).toBe("Scheduled time cannot be more than 90 days in the future");
+      expect(mockMsg.save).not.toHaveBeenCalled();
+    });
+
+    test("unscheduleMessage reverts SCHEDULED message to DRAFT and clears scheduledAt", async () => {
+      const mockMsg = {
+        id: "msg-sched-cancel",
+        campaignId: "camp-1",
+        status: "SCHEDULED",
+        scheduledAt: new Date(Date.now() + 86400000),
+        save: jest.fn().mockResolvedValue(true),
+        toJSON: () => ({ id: "msg-sched-cancel", status: "DRAFT", scheduledAt: null })
+      };
+
+      (sequelize.models.CampaignMessage.findOne as jest.Mock).mockResolvedValueOnce(mockMsg);
+      (sequelize.models.CampaignRecipient.findAll as jest.Mock).mockResolvedValue([]);
+      (sequelize.models.CampaignRecipient.count as jest.Mock).mockResolvedValue(0);
+
+      const result = await unscheduleMessage("camp-1", "msg-sched-cancel");
+
+      expect(mockMsg.status).toBe("DRAFT");
+      expect(mockMsg.scheduledAt).toBeNull();
+      expect(mockMsg.save).toHaveBeenCalled();
+      expect(result.status).toBe("DRAFT");
+    });
+
+    test("unscheduleMessage rejects non-SCHEDULED messages with an error", async () => {
+      const mockDraftMsg = {
+        id: "msg-already-draft",
+        campaignId: "camp-1",
+        status: "DRAFT"
+      };
+
+      (sequelize.models.CampaignMessage.findOne as jest.Mock).mockResolvedValueOnce(mockDraftMsg);
+
+      await expect(unscheduleMessage("camp-1", "msg-already-draft")).rejects.toThrow(
+        "Only SCHEDULED messages can be unscheduled (current: DRAFT)"
+      );
+    });
+
+    test("unscheduleCampaignMessageHandler controller returns 200 and unscheduled message", async () => {
+      const mockMsg = {
+        id: "msg-sched-ctrl",
+        campaignId: "camp-1",
+        status: "SCHEDULED",
+        scheduledAt: new Date(Date.now() + 86400000),
+        save: jest.fn().mockResolvedValue(true),
+        toJSON: () => ({ id: "msg-sched-ctrl", status: "DRAFT", scheduledAt: null })
+      };
+
+      (sequelize.models.CampaignMessage.findOne as jest.Mock).mockResolvedValueOnce(mockMsg);
+      (sequelize.models.CampaignRecipient.findAll as jest.Mock).mockResolvedValue([]);
+      (sequelize.models.CampaignRecipient.count as jest.Mock).mockResolvedValue(0);
+
+      const mockReq: any = {
+        params: { id: "camp-1", messageId: "msg-sched-ctrl" }
+      };
+      let jsonResponse: any = null;
+      let statusCode = 200;
+      const mockRes: any = {
+        json: (data: any) => { jsonResponse = data; },
+        status: (code: number) => {
+          statusCode = code;
+          return { json: (d: any) => { jsonResponse = d; } };
+        }
+      };
+
+      await unscheduleCampaignMessageHandler(mockReq, mockRes);
+
+      expect(statusCode).toBe(200);
+      expect(jsonResponse.message).toBe("Message unscheduled successfully");
+      expect(jsonResponse.campaignMessage.status).toBe("DRAFT");
     });
   });
 });

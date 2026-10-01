@@ -95,6 +95,12 @@ export const campaignsApi = {
 
   getCampaignById: async (id: string): Promise<{ campaign: Campaign; performance: CampaignPerformance }> => {
     const raw = await apiClient.get(`/api/v1/campaigns/${id}`);
+    if (raw && !raw.campaign && raw.id) {
+      return {
+        campaign: raw as Campaign,
+        performance: (raw as any).performance || null
+      };
+    }
     return raw;
   },
 
@@ -287,17 +293,28 @@ export const campaignsApi = {
   sendCampaignMessage: async (
     campaignId: string,
     messageId: string,
-    confirm: boolean = true
-  ): Promise<{ message: string; recipientCount: number; status: string }> => {
+    confirm: boolean = true,
+    scheduledAt?: string | null
+  ): Promise<{ message: string; recipientCount?: number; status?: string }> => {
     const res = await apiClient(`/api/v1/campaigns/${campaignId}/messages/${messageId}/send`, {
       method: "POST",
-      body: JSON.stringify({ confirm })
+      body: JSON.stringify({ confirm, ...(scheduledAt ? { scheduledAt } : {}) })
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || err.message || `Failed to send message (${res.status})`);
     }
     return res.json();
+  },
+
+  unscheduleCampaignMessage: async (campaignId: string, messageId: string): Promise<void> => {
+    const res = await apiClient(`/api/v1/campaigns/${campaignId}/messages/${messageId}/unschedule`, {
+      method: "POST"
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || err.message || `Failed to unschedule message (${res.status})`);
+    }
   },
 
   cancelCampaignMessage: async (campaignId: string, messageId: string): Promise<void> => {

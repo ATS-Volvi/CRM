@@ -22,7 +22,7 @@ const CURRENCY_LOCALES: Record<string, string> = {
  */
 export function formatMoney(
   amount: number | string | null | undefined,
-  currency: string = "SAR",
+  currency: string = "INR",
   options: {
     minimumFractionDigits?: number;
     maximumFractionDigits?: number;
@@ -32,7 +32,7 @@ export function formatMoney(
   const num = Number(amount);
   if (isNaN(num)) return "—";
 
-  const curr = (currency || "SAR").toUpperCase().trim();
+  const curr = (currency || "INR").toUpperCase().trim();
   const locale = CURRENCY_LOCALES[curr] || "en-US";
   const minDigits = options.minimumFractionDigits ?? (num % 1 === 0 ? 0 : 2);
   const maxDigits = options.maximumFractionDigits ?? 2;
@@ -60,7 +60,7 @@ export function formatMoney(
  */
 export function formatMultiCurrencyTotals(
   currencyTotals: Record<string, number>,
-  fallbackCurrency: string = "SAR"
+  fallbackCurrency: string = "INR"
 ): string {
   const currencies = Object.keys(currencyTotals).filter(
     (curr) => curr && typeof currencyTotals[curr] === "number"

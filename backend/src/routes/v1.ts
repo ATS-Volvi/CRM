@@ -117,6 +117,7 @@ import {
   resumeCampaignMessage,
   getCampaignMessageRecipients,
   cancelCampaignMessageHandler,
+  unscheduleCampaignMessageHandler,
   trackPixel
 } from "../controllers/campaignMessageController";
 
@@ -289,9 +290,10 @@ router.get("/instagram/webhook", verifyInstagramWebhook);
 router.post("/instagram/webhook", receiveInstagramMessage);
 router.use("/whatsapp", whatsappRoutes);
 
+import { rateLimiter } from "../lead-security-layer/rateLimit";
 import { renderUnsubscribePage, handleUnsubscribe } from "../controllers/leadController";
-router.get("/leads/unsubscribe/:id", renderUnsubscribePage);
-router.post("/leads/unsubscribe/:id", handleUnsubscribe);
+router.get("/leads/unsubscribe/:id", rateLimiter, renderUnsubscribePage);
+router.post("/leads/unsubscribe/:id", rateLimiter, handleUnsubscribe);
 
 import { trackEmailOpen, getAbTestStats, declareWinner } from "../controllers/messageTemplateController";
 router.get("/message-templates/track/:id", trackEmailOpen);
@@ -931,6 +933,7 @@ router.post("/campaigns/:id/messages/:messageId/send", authMiddleware, requireAd
 router.post("/campaigns/:id/messages/:messageId/resume", authMiddleware, requireAdminOrManager, resumeCampaignMessage);
 router.get("/campaigns/:id/messages/:messageId/recipients", authMiddleware, requireAdminOrManager, getCampaignMessageRecipients);
 router.post("/campaigns/:id/messages/:messageId/cancel", authMiddleware, requireAdminOrManager, cancelCampaignMessageHandler);
+router.post("/campaigns/:id/messages/:messageId/unschedule", authMiddleware, requireAdminOrManager, unscheduleCampaignMessageHandler);
 
 router.get("/leads/:id/attribution", authMiddleware, getLeadAttribution);
 router.get("/leads/:id/attribution-history", authMiddleware, getLeadAttributionHistory);

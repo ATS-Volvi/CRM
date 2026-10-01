@@ -28,6 +28,7 @@ interface CampaignFormModalProps {
 
 const DEFAULT_CHANNELS = [
   "Website",
+  "Google",
   "WhatsApp",
   "Email",
   "Instagram",
@@ -63,7 +64,7 @@ const STATUSES: { value: CampaignStatus; label: string; description: string }[] 
   { value: "CANCELLED", label: "Cancelled", description: "Terminated or abandoned campaign" },
 ];
 
-const CURRENCIES = ["SAR", "INR", "USD", "EUR", "AED"];
+const CURRENCIES = ["INR", "SAR", "USD", "EUR", "AED"];
 
 export function CampaignFormModal({
   isOpen,
@@ -83,7 +84,7 @@ export function CampaignFormModal({
   const [status, setStatus] = useState<CampaignStatus>("DRAFT");
   const [budget, setBudget] = useState<string>("");
   const [actualSpend, setActualSpend] = useState<string>("");
-  const [currency, setCurrency] = useState("SAR");
+  const [currency, setCurrency] = useState("INR");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [targetAudience, setTargetAudience] = useState("");
@@ -114,6 +115,14 @@ export function CampaignFormModal({
       ? taxonomyData.channels
       : DEFAULT_CHANNELS;
 
+  const channelOptions = availableChannels.includes(channel)
+    ? availableChannels
+    : [channel, ...availableChannels];
+
+  const currencyOptions = CURRENCIES.includes(currency)
+    ? CURRENCIES
+    : [currency, ...CURRENCIES];
+
   // Fetch salespersons/users for owner selection
   const { data: salespersons = [] } = useQuery({
     queryKey: ["salespersons-for-campaign-owner"],
@@ -143,7 +152,7 @@ export function CampaignFormModal({
         setStatus(campaign.status || "DRAFT");
         setBudget(campaign.budget !== undefined && campaign.budget !== null ? String(campaign.budget) : "");
         setActualSpend(campaign.actualSpend !== undefined && campaign.actualSpend !== null ? String(campaign.actualSpend) : "");
-        setCurrency(campaign.currency || "SAR");
+        setCurrency(campaign.currency || "INR");
         setStartDate(campaign.startDate ? campaign.startDate.split("T")[0] : "");
         setEndDate(campaign.endDate ? campaign.endDate.split("T")[0] : "");
         setTargetAudience(campaign.targetAudience || "");
@@ -158,7 +167,7 @@ export function CampaignFormModal({
         setStatus("DRAFT");
         setBudget("");
         setActualSpend("");
-        setCurrency("SAR");
+        setCurrency("INR");
         setStartDate("");
         setEndDate("");
         setTargetAudience("");
@@ -363,7 +372,7 @@ export function CampaignFormModal({
                 onChange={(e) => setChannel(e.target.value)}
                 className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-2xs focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
               >
-                {availableChannels.map((ch) => (
+                {channelOptions.map((ch) => (
                   <option key={ch} value={ch}>
                     {ch}
                   </option>
@@ -467,7 +476,7 @@ export function CampaignFormModal({
                 onChange={(e) => setCurrency(e.target.value)}
                 className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-2xs focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
               >
-                {CURRENCIES.map((curr) => (
+                {currencyOptions.map((curr) => (
                   <option key={curr} value={curr}>
                     {curr}
                   </option>

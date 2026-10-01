@@ -36,6 +36,7 @@ import { getCampaignWarningBadges } from "../lib/campaignPacing";
 
 const DEFAULT_CHANNELS = [
   "Website",
+  "Google",
   "WhatsApp",
   "Email",
   "Instagram",
@@ -183,7 +184,7 @@ export default function Campaigns() {
   campaigns.forEach((row: any) => {
     const c = row.campaign || row;
     const m = row.metrics || row;
-    const curr = (c.currency || "SAR").toUpperCase();
+    const curr = (c.currency || "INR").toUpperCase();
 
     totalLeads += Number(m?.totalLeads ?? m?.leads ?? 0);
     spendByCurrency[curr] = (spendByCurrency[curr] || 0) + (Number(c?.actualSpend) || 0);
@@ -384,7 +385,15 @@ export default function Campaigns() {
           <div className="text-xl font-extrabold text-slate-900 dark:text-white">
             {formatMultiCurrencyTotals(spendByCurrency)}
           </div>
-          <div className="text-[11px] text-slate-500">Actual media & campaign costs</div>
+          <div className="text-[11px] text-slate-500">
+            {Object.keys(spendByCurrency).length > 1 ? (
+              <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400 font-semibold">
+                Mixed currencies (uncombined)
+              </span>
+            ) : (
+              "Actual media & campaign costs"
+            )}
+          </div>
         </div>
 
         <div className="enterprise-card p-4 space-y-1">
@@ -394,7 +403,15 @@ export default function Campaigns() {
           <div className="text-xl font-extrabold text-emerald-600 dark:text-emerald-400">
             {formatMultiCurrencyTotals(revenueByCurrency)}
           </div>
-          <div className="text-[11px] text-slate-500">Closed orders from campaign leads</div>
+          <div className="text-[11px] text-slate-500">
+            {Object.keys(revenueByCurrency).length > 1 ? (
+              <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400 font-semibold">
+                Mixed currencies (uncombined)
+              </span>
+            ) : (
+              "Closed orders from campaign leads"
+            )}
+          </div>
         </div>
 
         <div className="enterprise-card p-4 space-y-1">
@@ -405,7 +422,13 @@ export default function Campaigns() {
             {overallRoas ? overallRoas : "—"}
           </div>
           <div className="text-[11px] text-slate-500">
-            {Object.keys(spendByCurrency).length > 1 ? "Multi-currency (uncombined)" : "Revenue / Actual Spend"}
+            {Object.keys(spendByCurrency).length > 1 || Object.keys(revenueByCurrency).length > 1 ? (
+              <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400 font-semibold">
+                Multi-currency (uncombined)
+              </span>
+            ) : (
+              "Revenue / Actual Spend"
+            )}
           </div>
         </div>
       </div>
@@ -629,7 +652,7 @@ export default function Campaigns() {
                       <td>{ch.qualified}</td>
                       <td>{ch.opportunities}</td>
                       <td className="font-semibold text-slate-800 dark:text-slate-200">{ch.won}</td>
-                      <td className="text-emerald-700 dark:text-emerald-400 font-bold">₹{ch.revenue.toLocaleString()}</td>
+                      <td className="text-emerald-700 dark:text-emerald-400 font-bold">{formatMoney(ch.revenue, "INR")}</td>
                     </tr>
                   ))
                 )}
@@ -677,7 +700,7 @@ export default function Campaigns() {
                       <td>{st.qualified}</td>
                       <td>{st.opportunities}</td>
                       <td className="font-semibold text-slate-800 dark:text-slate-200">{st.won}</td>
-                      <td className="text-emerald-700 dark:text-emerald-400 font-bold">₹{st.revenue.toLocaleString()}</td>
+                      <td className="text-emerald-700 dark:text-emerald-400 font-bold">{formatMoney(st.revenue, "INR")}</td>
                     </tr>
                   ))
                 )}

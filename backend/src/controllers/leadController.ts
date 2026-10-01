@@ -560,13 +560,39 @@ export const renderUnsubscribePage = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const lead = await sequelize.models.Lead.findByPk(String(id));
-    if (!lead) return res.status(404).send("Lead not found.");
+    if (!lead) {
+      const genericHtml = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>Unsubscribe</title>
+          <style>
+            body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background-color: #f8fafc; color: #1e293b; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
+            .card { background: #ffffff; max-width: 480px; width: 100%; padding: 40px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); text-align: center; border: 1px solid #e2e8f0; }
+            h2 { margin-top: 0; color: #0f172a; font-size: 22px; }
+            p { color: #64748b; font-size: 14px; line-height: 1.6; margin: 16px 0 0; }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <h2>Unsubscribe from Emails</h2>
+            <p>If you have an active email subscription, you can manage your preferences or unsubscribe by replying directly to any email.</p>
+          </div>
+        </body>
+      </html>
+      `;
+      return res.send(genericHtml);
+    }
 
     const l = lead as any;
     const emailEscaped = (l.email || "")
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;");
+    const idEscaped = encodeURIComponent(String(l.id || id || ""))
+      .replace(/["'<>]/g, "");
 
     if (l.optedOutEmail) {
       const alreadyHtml = `
@@ -574,9 +600,10 @@ export const renderUnsubscribePage = async (req: Request, res: Response) => {
       <html>
         <head>
           <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
           <title>Already Unsubscribed</title>
           <style>
-            body { font-family: 'Inter', -apple-system, sans-serif; background-color: #f8fafc; color: #1e293b; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; }
+            body { font-family: 'Inter', -apple-system, sans-serif; background-color: #f8fafc; color: #1e293b; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
             .card { background: #fff; max-width: 480px; width: 100%; padding: 40px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); text-align: center; border: 1px solid #e2e8f0; }
             h2 { margin-top: 0; color: #0f172a; font-size: 22px; }
             p { color: #64748b; font-size: 14px; line-height: 1.6; }
@@ -613,7 +640,7 @@ export const renderUnsubscribePage = async (req: Request, res: Response) => {
         <div class="card">
           <h2>Unsubscribe from Emails</h2>
           <p>Please confirm that you would like to unsubscribe <strong>${emailEscaped}</strong> from all automated and marketing emails.</p>
-          <form method="POST" action="/api/v1/leads/unsubscribe/${l.id}">
+          <form method="POST" action="/api/v1/leads/unsubscribe/${idEscaped}">
             <button type="submit" class="btn">Unsubscribe</button>
           </form>
         </div>
@@ -630,7 +657,31 @@ export const handleUnsubscribe = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const lead = await sequelize.models.Lead.findByPk(String(id));
-    if (!lead) return res.status(404).send("Lead not found.");
+    if (!lead) {
+      const genericSuccessHtml = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>Unsubscribed Successfully</title>
+          <style>
+            body { font-family: 'Inter', sans-serif; background-color: #f8fafc; color: #1e293b; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
+            .card { background: #fff; max-width: 480px; width: 100%; padding: 40px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); text-align: center; border: 1px solid #e2e8f0; }
+            h2 { margin-top: 0; color: #10b981; font-size: 22px; }
+            p { color: #64748b; font-size: 14px; line-height: 1.6; }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <h2>Unsubscribed Successfully</h2>
+            <p>You have been removed from our mailing list. You will no longer receive automated emails from us.</p>
+          </div>
+        </body>
+      </html>
+      `;
+      return res.send(genericSuccessHtml);
+    }
 
     const l = lead as any;
     if (!l.optedOutEmail) {

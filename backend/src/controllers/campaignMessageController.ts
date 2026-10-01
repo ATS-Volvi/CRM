@@ -285,10 +285,56 @@ export const sendCampaignMessage = async (req: Request, res: Response) => {
       return res.status(400).json({ error: `Only messages in DRAFT or SCHEDULED status can be sent (current: ${message.status})` });
     }
 
+    const { scheduledAt } = req.body;
+    if (scheduledAt !== undefined && scheduledAt !== null && scheduledAt !== "") {
+      const scheduledDate = new Date(scheduledAt);
+      if (isNaN(scheduledDate.getTime())) {
+        return res.status(400).json({ error: "Invalid scheduled date format" });
+      }
+
+      const now = new Date();
+      if (scheduledDate.getTime() <= now.getTime()) {
+        return res.status(400).json({ error: "Scheduled time must be in the future" });
+      }
+
+      const maxFutureDate = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
+      if (scheduledDate.getTime() > maxFutureDate.getTime()) {
+        return res.status(400).json({ error: "Scheduled time cannot be more than 90 days in the future" });
+      }
+
+      message.scheduledAt = scheduledDate;
+      message.status = "SCHEDULED";
+      await message.save();
+
+      const stats = await getMessageStats(message.id);
+      return res.status(200).json({
+        message: "Message scheduled successfully",
+        ...message.toJSON(),
+        stats
+      });
+    }
+
     const result = await executeMessageSend(campaignId, messageId, { confirm: true });
     res.status(202).json({
       message: "Sending started",
       ...result
+    });
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+};
+
+export const unscheduleCampaignMessageHandler = async (req: Request, res: Response) => {
+  try {
+    const campaignId = String(req.params.id);
+    const messageId = String(req.params.messageId);
+
+    const { unscheduleMessage } = require("../services/campaignMessageService");
+    const result = await unscheduleMessage(campaignId, messageId);
+
+    res.json({
+      message: "Message unscheduled successfully",
+      campaignMessage: result
     });
   } catch (error: any) {
     res.status(400).json({ error: error.message });

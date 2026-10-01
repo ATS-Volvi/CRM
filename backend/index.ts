@@ -53,6 +53,10 @@ const startServer = async () => {
       // Start Temperature Scheduler
       const { startTemperatureScheduler } = require("./src/services/temperatureScheduler");
       startTemperatureScheduler();
+
+      // Start Campaign Message Scheduler
+      const { startCampaignMessageScheduler } = require("./src/services/campaignMessageScheduler");
+      startCampaignMessageScheduler();
     });
   } catch (error) {
     console.error("Failed to start server:", error);
