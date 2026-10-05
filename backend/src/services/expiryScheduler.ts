@@ -1,4 +1,5 @@
 import { sequelize } from "@nexus-crm/database";
+import { checkCampaignBudgetPacingAndAlerts } from "./campaignBudgetPacingService";
 
 export function startExpiryScheduler() {
   // Run once immediately on startup
@@ -6,6 +7,7 @@ export function startExpiryScheduler() {
   escalateUnactionedApprovals();
   checkOutstandingPOs();
   checkOverdueTasksAndSendDigests();
+  checkCampaignBudgetPacingAndAlerts().catch(e => console.error("Campaign pacing check failed:", e));
 
   // Then check every 24 hours
   setInterval(() => {
@@ -13,8 +15,9 @@ export function startExpiryScheduler() {
     escalateUnactionedApprovals();
     checkOutstandingPOs();
     checkOverdueTasksAndSendDigests();
+    checkCampaignBudgetPacingAndAlerts().catch(e => console.error("Campaign pacing check failed:", e));
   }, 24 * 60 * 60 * 1000);
-  console.log("Quote Expiry Scheduler service initialized.");
+  console.log("Quote Expiry & Campaign Pacing Scheduler service initialized.");
 }
 
 export async function checkExpiredQuotes() {

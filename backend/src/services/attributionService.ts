@@ -53,6 +53,7 @@ export interface NormalizedAttribution {
  */
 export const CHANNELS = [
   "Website",
+  "Google",
   "WhatsApp",
   "Email",
   "Instagram",
@@ -97,6 +98,8 @@ export function normalizeSourceData(input: RawTouchPayload): NormalizedAttributi
   const lowerCh = rawChannel.toLowerCase();
   if (lowerCh.includes("web") || lowerCh.includes("site") || lowerCh.includes("form")) {
     channel = "Website";
+  } else if (lowerCh.includes("google") || lowerCh.includes("adwords") || lowerCh.includes("gads")) {
+    channel = "Google";
   } else if (lowerCh.includes("whatsapp") || lowerCh.includes("wa")) {
     channel = "WhatsApp";
   } else if (lowerCh.includes("instagram") || lowerCh.includes("ig") || lowerCh.includes("insta")) {
@@ -429,9 +432,10 @@ export async function getCampaignPerformance(campaignId?: string): Promise<any> 
     let wonDealsCount = 0;
     let totalRevenue = 0;
     let wonOrdersCount = 0;
+    let orders: any[] = [];
 
     if (dealIds.length > 0) {
-      const orders = await PurchaseOrder.findAll({
+      orders = await PurchaseOrder.findAll({
         include: [
           {
             model: Quote,
@@ -464,6 +468,63 @@ export async function getCampaignPerformance(campaignId?: string): Promise<any> 
       roiPct = Number((((totalRevenue - actualSpend) / actualSpend) * 100).toFixed(2));
     }
 
+    // Ad-level funnel metrics breakdown
+    const registeredAdIds = new Set(((c as any).ads || []).map((ad: any) => ad.id));
+    const adMetrics = ((c as any).ads || []).map((ad: any) => {
+      const adLeads = leads.filter((l: any) => l.adId === ad.id);
+      const adTotalLeads = adLeads.length;
+      const adQualifiedLeads = adLeads.filter((l: any) => l.status === "QUALIFIED" || l.status === "CONVERTED").length;
+      const adDeals = deals.filter((d: any) => d.adId === ad.id);
+      const adTotalOpps = adDeals.length;
+      const adDealIdSet = new Set(adDeals.map((d: any) => d.id));
+      const adOrders = orders.filter((o: any) => adDealIdSet.has(o.quote?.dealId));
+      const adWonOrdersCount = adOrders.length;
+      const adTotalRevenue = adOrders.reduce((sum: number, o: any) => sum + Number(o.amount || o.grandTotal || 0), 0);
+
+      return {
+        adId: ad.id,
+        adName: ad.name,
+        externalId: ad.externalId,
+        platform: ad.platform,
+        creativeType: ad.creativeType,
+        status: ad.status,
+        totalLeads: adTotalLeads,
+        qualifiedLeads: adQualifiedLeads,
+        totalOpportunities: adTotalOpps,
+        wonOrdersCount: adWonOrdersCount,
+        totalRevenue: adTotalRevenue,
+        isUnattributed: false
+      };
+    });
+
+    // Unattributed ad metric entry (campaign-matched leads/deals/orders with null or unregistered adId)
+    const unattributedLeads = leads.filter((l: any) => !l.adId || !registeredAdIds.has(l.adId));
+    const unattributedTotalLeads = unattributedLeads.length;
+    const unattributedQualifiedLeads = unattributedLeads.filter((l: any) => l.status === "QUALIFIED" || l.status === "CONVERTED").length;
+    const unattributedDeals = deals.filter((d: any) => !d.adId || !registeredAdIds.has(d.adId));
+    const unattributedTotalOpps = unattributedDeals.length;
+    const unattributedDealIdSet = new Set(unattributedDeals.map((d: any) => d.id));
+    const unattributedOrders = orders.filter((o: any) => unattributedDealIdSet.has(o.quote?.dealId));
+    const unattributedWonOrdersCount = unattributedOrders.length;
+    const unattributedTotalRevenue = unattributedOrders.reduce((sum: number, o: any) => sum + Number(o.amount || o.grandTotal || 0), 0);
+
+    const unattributedMetric = {
+      adId: null,
+      adName: "Not attributed to an ad",
+      externalId: null,
+      platform: null,
+      creativeType: null,
+      status: "UNATTRIBUTED",
+      totalLeads: unattributedTotalLeads,
+      qualifiedLeads: unattributedQualifiedLeads,
+      totalOpportunities: unattributedTotalOpps,
+      wonOrdersCount: unattributedWonOrdersCount,
+      totalRevenue: unattributedTotalRevenue,
+      isUnattributed: true
+    };
+
+    adMetrics.push(unattributedMetric);
+
     results.push({
       campaign: {
         id: c.id,
@@ -494,7 +555,8 @@ export async function getCampaignPerformance(campaignId?: string): Promise<any> 
         costPerOpportunity,
         costPerWonDeal,
         roas,
-        roiPct
+        roiPct,
+        adMetrics
       }
     });
   }

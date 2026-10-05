@@ -40,12 +40,15 @@ export const createPublicLead = async (req: Request, res: Response) => {
       click_id,
       industry,
       budgetRange,
-      rawPayload
+      rawPayload,
+      whatsappConsent
     } = payload;
 
     if (!firstName || !lastName || !email) {
       return res.status(400).json({ error: "First name, last name, and email are required" });
     }
+
+    const isConsentGiven = whatsappConsent === true || whatsappConsent === "true" || whatsappConsent === 1 || whatsappConsent === "1";
 
     const leadId = await ingestLead({
       firstName,
@@ -75,7 +78,9 @@ export const createPublicLead = async (req: Request, res: Response) => {
       industry,
       message,
       budgetRange,
-      rawPayload: rawPayload || req.body
+      rawPayload: rawPayload || req.body,
+      whatsappConsent: isConsentGiven,
+      whatsappConsentSource: isConsentGiven ? "public_form" : undefined
     });
 
     if (!leadId) {

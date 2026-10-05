@@ -1,6 +1,6 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate, Link } from "react-router-dom";
 import {
   Megaphone,
   Search,
@@ -13,23 +13,133 @@ import {
   Sparkles,
   ArrowRight,
   BarChart2,
-  Calendar
+  Calendar,
+  Edit2,
+  Trash2,
+  AlertCircle,
+  AlertTriangle,
+  X,
+  CheckCircle2,
+  RefreshCw,
+  Filter,
+  Download
 } from "lucide-react";
 import { campaignsApi, attributionApi } from "../api/marketing";
-import { CampaignPerformance, SourcePerformance } from "../types/marketing";
+import { Campaign, CampaignPerformance, SourcePerformance } from "../types/marketing";
+import { CampaignFormModal } from "../components/CampaignFormModal";
+import {
+  formatMoney,
+  formatMultiCurrencyTotals,
+  calculateSingleCurrencyRoas
+} from "../lib/formatMoney";
+import { getCampaignWarningBadges } from "../lib/campaignPacing";
+
+const DEFAULT_CHANNELS = [
+  "Website",
+  "Google",
+  "WhatsApp",
+  "Email",
+  "Instagram",
+  "Facebook",
+  "LinkedIn",
+  "Phone",
+  "Manual",
+  "Referral",
+  "Partner",
+  "API",
+  "Other"
+];
+
+const STATUS_OPTIONS = [
+  { value: "", label: "All Statuses" },
+  { value: "DRAFT", label: "Draft" },
+  { value: "ACTIVE", label: "Active" },
+  { value: "PAUSED", label: "Paused" },
+  { value: "COMPLETED", label: "Completed" },
+  { value: "CANCELLED", label: "Cancelled" }
+];
 
 export default function Campaigns() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
   const [activeTab, setActiveTab] = useState<"campaigns" | "sources">("campaigns");
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("");
+  const [channelFilter, setChannelFilter] = useState<string>("");
 
-  // Fetch all campaigns with performance data
-  const { data: campaignsData, isLoading: loadingCampaigns } = useQuery({
-    queryKey: ["campaigns-analytics"],
+  // Debounce search by 350ms before triggering API fetch
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // Modal states for Create / Edit
+  const [isFormModalOpen, setIsFormModalOpen] = useState(false);
+  const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
+
+  // CSV Export state
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  // Deletion modal states
+  const [campaignToDelete, setCampaignToDelete] = useState<any | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const handleExportCsv = async () => {
+    try {
+      setIsExporting(true);
+      setExportError(null);
+      await campaignsApi.exportCampaignsCsv({
+        search: debouncedSearch.trim() || undefined,
+        status: statusFilter || undefined,
+        channel: channelFilter || undefined
+      });
+    } catch (err: any) {
+      setExportError(err.message || "Failed to export campaigns");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  // Fetch attribution taxonomy channels
+  const { data: taxonomyData } = useQuery({
+    queryKey: ["attribution-taxonomy"],
     queryFn: async () => {
       try {
-        const res = await campaignsApi.getCampaigns({ limit: 100 });
-        if (res?.data && Array.isArray(res.data) && res.data.length > 0) {
+        const res = await attributionApi.getTaxonomy();
+        return res;
+      } catch (e) {
+        return null;
+      }
+    },
+    staleTime: 5 * 60 * 1000
+  });
+
+  const availableChannels =
+    taxonomyData?.channels && taxonomyData.channels.length > 0
+      ? taxonomyData.channels
+      : DEFAULT_CHANNELS;
+
+  // Fetch all campaigns with performance data
+  const {
+    data: campaignsData,
+    isLoading: loadingCampaigns,
+    refetch: refetchCampaigns
+  } = useQuery({
+    queryKey: ["campaigns-analytics", debouncedSearch, statusFilter, channelFilter],
+    queryFn: async () => {
+      try {
+        const res = await campaignsApi.getCampaigns({
+          limit: 100,
+          search: debouncedSearch.trim() || undefined,
+          status: statusFilter || undefined,
+          channel: channelFilter || undefined
+        });
+        if (res?.data && Array.isArray(res.data)) {
           return res.data;
         }
       } catch (e) {}
@@ -48,59 +158,211 @@ export default function Campaigns() {
     }
   });
 
+  // Delete Campaign Mutation
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return await campaignsApi.deleteCampaign(id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["campaigns-analytics"] });
+      queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+      setCampaignToDelete(null);
+      setDeleteError(null);
+    },
+    onError: (err: any) => {
+      setDeleteError(err.message || "Failed to delete campaign");
+    }
+  });
+
   const campaigns: any[] = Array.isArray(campaignsData) ? campaignsData : [];
 
-  const totalLeads = campaigns.reduce((sum, row: any) => {
-    const m = row.metrics || row;
-    return sum + (m.totalLeads || 0);
-  }, 0);
-  const totalWonRevenue = campaigns.reduce((sum, row: any) => {
-    const m = row.metrics || row;
-    return sum + (m.totalRevenue || 0);
-  }, 0);
-  const totalSpend = campaigns.reduce((sum, row: any) => {
+  // Calculate totals strictly from visible/filtered rows
+  let totalLeads = 0;
+  const spendByCurrency: Record<string, number> = {};
+  const revenueByCurrency: Record<string, number> = {};
+
+  campaigns.forEach((row: any) => {
     const c = row.campaign || row;
-    return sum + (c.actualSpend || 0);
-  }, 0);
-  const overallRoas = totalSpend > 0 ? (totalWonRevenue / totalSpend).toFixed(2) : null;
+    const m = row.metrics || row;
+    const curr = (c.currency || "INR").toUpperCase();
+
+    totalLeads += Number(m?.totalLeads ?? m?.leads ?? 0);
+    spendByCurrency[curr] = (spendByCurrency[curr] || 0) + (Number(c?.actualSpend) || 0);
+    revenueByCurrency[curr] = (revenueByCurrency[curr] || 0) + (Number(m?.totalRevenue ?? m?.revenue) || 0);
+  });
+
+  const overallRoas = calculateSingleCurrencyRoas(spendByCurrency, revenueByCurrency);
+
+  const hasActiveFilters = Boolean(debouncedSearch.trim() || statusFilter || channelFilter);
+
+  const filteredChannels = (sourceData?.byChannel || []).filter((ch) => {
+    if (!debouncedSearch.trim()) return true;
+    return ch.channel?.toLowerCase().includes(debouncedSearch.toLowerCase().trim());
+  });
+
+  const filteredSourceTypes = (sourceData?.bySourceType || []).filter((st) => {
+    if (!debouncedSearch.trim()) return true;
+    return st.sourceType?.toLowerCase().includes(debouncedSearch.toLowerCase().trim());
+  });
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
       {/* Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200/80 pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200/80 dark:border-slate-800 pb-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-            <Megaphone className="w-5 h-5 text-blue-600" /> Campaigns & Attribution
+          <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+            <Megaphone className="w-5 h-5 text-blue-600 dark:text-blue-400" /> Campaigns & Attribution
           </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             Measure full-funnel Marketing-to-Revenue performance, lead acquisition channels, and ROI.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
           {/* Tabs */}
-          <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+          <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700">
             <button
               onClick={() => setActiveTab("campaigns")}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors cursor-pointer ${
                 activeTab === "campaigns"
-                  ? "bg-white text-slate-900 shadow-xs"
-                  : "text-slate-500 hover:text-slate-800"
+                  ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
+                  : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
               }`}
             >
               Campaigns
             </button>
             <button
               onClick={() => setActiveTab("sources")}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors cursor-pointer ${
                 activeTab === "sources"
-                  ? "bg-white text-slate-900 shadow-xs"
-                  : "text-slate-500 hover:text-slate-800"
+                  ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
+                  : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
               }`}
             >
               Source Dimensions
             </button>
           </div>
+
+          {/* Export CSV Button */}
+          <button
+            onClick={handleExportCsv}
+            disabled={isExporting}
+            className="px-3.5 py-1.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 font-bold rounded-xl text-xs flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap disabled:opacity-50 shadow-xs"
+            title="Export filtered campaigns to CSV"
+          >
+            {isExporting ? (
+              <RefreshCw className="w-4 h-4 animate-spin text-slate-500" />
+            ) : (
+              <Download className="w-4 h-4 text-slate-500" />
+            )}
+            <span>{isExporting ? "Exporting..." : "Export CSV"}</span>
+          </button>
+
+          {/* Create Campaign Button */}
+          <button
+            onClick={() => {
+              setSelectedCampaign(null);
+              setIsFormModalOpen(true);
+            }}
+            className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 active:scale-98 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-md shadow-blue-500/20 transition-all cursor-pointer whitespace-nowrap"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Create Campaign</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Export Error Banner */}
+      {exportError && (
+        <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 text-xs flex items-center justify-between gap-2 animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{exportError}</span>
+          </div>
+          <button
+            onClick={() => setExportError(null)}
+            className="p-1 hover:bg-rose-100 dark:hover:bg-rose-900 rounded cursor-pointer"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
+      {/* Filter & Search Bar */}
+      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 flex-1">
+          {/* Search Input */}
+          <div className="relative w-full sm:w-72">
+            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search by name, code, description..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-8 pr-8 py-1.5 text-xs bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-400 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900 dark:focus:ring-blue-500 focus:bg-white dark:focus:bg-slate-900 transition-all"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded cursor-pointer"
+                aria-label="Clear search"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Channel Dropdown Filter */}
+          <div className="w-full sm:w-44">
+            <select
+              value={channelFilter}
+              onChange={(e) => setChannelFilter(e.target.value)}
+              className="w-full px-2.5 py-1.5 text-xs bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+            >
+              <option value="">All Channels</option>
+              {availableChannels.map((ch) => (
+                <option key={ch} value={ch}>
+                  {ch}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Status Dropdown Filter */}
+          <div className="w-full sm:w-36">
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="w-full px-2.5 py-1.5 text-xs bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+            >
+              {STATUS_OPTIONS.map((st) => (
+                <option key={st.value} value={st.value}>
+                  {st.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Reset Filters */}
+          {hasActiveFilters && (
+            <button
+              onClick={() => {
+                setSearch("");
+                setDebouncedSearch("");
+                setStatusFilter("");
+                setChannelFilter("");
+              }}
+              className="px-2.5 py-1.5 text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-lg transition-colors flex items-center gap-1 font-medium cursor-pointer shrink-0"
+            >
+              <X className="w-3 h-3" />
+              <span>Reset filters</span>
+            </button>
+          )}
+        </div>
+
+        <div className="text-[11px] text-slate-400 font-medium">
+          Showing <span className="font-bold text-slate-700 dark:text-slate-300">{campaigns.length}</span> campaign{campaigns.length === 1 ? "" : "s"}
         </div>
       </div>
 
@@ -110,38 +372,64 @@ export default function Campaigns() {
           <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
             Total Inbound Leads
           </div>
-          <div className="text-xl font-extrabold text-slate-900">{totalLeads}</div>
-          <div className="text-[11px] text-slate-500">Across all tracked campaigns</div>
+          <div className="text-xl font-extrabold text-slate-900 dark:text-white">{totalLeads}</div>
+          <div className="text-[11px] text-slate-500">
+            {hasActiveFilters ? "Filtered campaigns" : "Across all tracked campaigns"}
+          </div>
         </div>
 
         <div className="enterprise-card p-4 space-y-1">
           <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
             Total Marketing Spend
           </div>
-          <div className="text-xl font-extrabold text-slate-900">
-            ₹{totalSpend.toLocaleString()}
+          <div className="text-xl font-extrabold text-slate-900 dark:text-white">
+            {formatMultiCurrencyTotals(spendByCurrency)}
           </div>
-          <div className="text-[11px] text-slate-500">Actual media & campaign costs</div>
+          <div className="text-[11px] text-slate-500">
+            {Object.keys(spendByCurrency).length > 1 ? (
+              <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400 font-semibold">
+                Mixed currencies (uncombined)
+              </span>
+            ) : (
+              "Actual media & campaign costs"
+            )}
+          </div>
         </div>
 
         <div className="enterprise-card p-4 space-y-1">
           <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
             Won Revenue Attributed
           </div>
-          <div className="text-xl font-extrabold text-emerald-600">
-            ₹{totalWonRevenue.toLocaleString()}
+          <div className="text-xl font-extrabold text-emerald-600 dark:text-emerald-400">
+            {formatMultiCurrencyTotals(revenueByCurrency)}
           </div>
-          <div className="text-[11px] text-slate-500">Closed orders from campaign leads</div>
+          <div className="text-[11px] text-slate-500">
+            {Object.keys(revenueByCurrency).length > 1 ? (
+              <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400 font-semibold">
+                Mixed currencies (uncombined)
+              </span>
+            ) : (
+              "Closed orders from campaign leads"
+            )}
+          </div>
         </div>
 
         <div className="enterprise-card p-4 space-y-1">
           <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
             Overall ROAS / Return
           </div>
-          <div className="text-xl font-extrabold text-blue-600">
-            {overallRoas ? `${overallRoas}x` : "—"}
+          <div className="text-xl font-extrabold text-blue-600 dark:text-blue-400">
+            {overallRoas ? overallRoas : "—"}
           </div>
-          <div className="text-[11px] text-slate-500">Revenue / Actual Media Spend</div>
+          <div className="text-[11px] text-slate-500">
+            {Object.keys(spendByCurrency).length > 1 || Object.keys(revenueByCurrency).length > 1 ? (
+              <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400 font-semibold">
+                Multi-currency (uncombined)
+              </span>
+            ) : (
+              "Revenue / Actual Spend"
+            )}
+          </div>
         </div>
       </div>
 
@@ -163,63 +451,153 @@ export default function Campaigns() {
                   <th>Won Orders</th>
                   <th>Won Revenue</th>
                   <th>ROAS</th>
+                  <th className="text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {loadingCampaigns ? (
                   <tr>
-                    <td colSpan={11} className="text-center py-8 text-slate-400">
+                    <td colSpan={12} className="text-center py-8 text-slate-400">
                       Loading campaign performance data...
                     </td>
                   </tr>
                 ) : campaigns.length === 0 ? (
                   <tr>
-                    <td colSpan={11} className="text-center py-8 text-slate-400">
-                      No active marketing campaigns found.
+                    <td colSpan={12} className="text-center py-12 text-slate-400">
+                      {debouncedSearch.trim() ? (
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                            No campaigns matching &ldquo;{debouncedSearch}&rdquo;
+                          </p>
+                          <p className="text-xs text-slate-400">
+                            Try adjusting your search terms or clearing the filter.
+                          </p>
+                        </div>
+                      ) : (
+                        <>
+                          <Megaphone className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+                          <div className="font-semibold text-slate-700 dark:text-slate-300">No active marketing campaigns found</div>
+                          <div className="text-xs text-slate-400 mt-1">
+                            Click "Create Campaign" to launch a new campaign and start tracking full-funnel attribution.
+                          </div>
+                        </>
+                      )}
                     </td>
                   </tr>
                 ) : (
                   campaigns.map((row: any) => {
                     const c = row.campaign || row;
                     const m = row.metrics || row;
+                    const badges = getCampaignWarningBadges(c, m?.totalLeads ?? m?.leads ?? 0);
                     return (
-                      <tr key={c.id} className="transition-colors">
+                      <tr
+                        key={c.id}
+                        onClick={() => navigate(`/campaigns/${c.id}`)}
+                        className="transition-colors hover:bg-slate-50/90 dark:hover:bg-slate-800/60 cursor-pointer"
+                      >
                         <td className="font-semibold text-slate-900">
-                          <div className="text-xs font-bold text-slate-900">{c.name}</div>
+                          <Link
+                            to={`/campaigns/${c.id}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-xs font-bold text-slate-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 hover:underline"
+                          >
+                            {c.name}
+                          </Link>
                           <div className="text-[11px] text-slate-400 font-mono">code: {c.code}</div>
+                          {badges.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {badges.map((b) => (
+                                <span
+                                  key={b.type}
+                                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-extrabold border ${
+                                    b.severity === "rose"
+                                      ? "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-900"
+                                      : b.severity === "amber"
+                                      ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800"
+                                      : "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
+                                  }`}
+                                >
+                                  <AlertTriangle className="w-2.5 h-2.5 shrink-0" />
+                                  <span>{b.label}</span>
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </td>
                         <td>
-                          <div className="text-xs font-medium text-slate-800">{c.channel}</div>
+                          <div className="text-xs font-medium text-slate-800 dark:text-slate-200">{c.channel}</div>
                           <div className="text-[10px] text-slate-400">{c.platform || "Direct"}</div>
                         </td>
                         <td>
                           <span
                             className={`enterprise-badge ${
                               c.status === "ACTIVE"
-                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300"
                                 : c.status === "PAUSED"
-                                ? "bg-amber-50 text-amber-700 border-amber-200"
-                                : "bg-slate-100 text-slate-600 border-slate-200"
+                                ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300"
+                                : "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300"
                             }`}
                           >
                             {c.status}
                           </span>
                         </td>
                         <td className="text-slate-700 font-medium">
-                          ₹{Number(c.budget || 0).toLocaleString()}
+                          {formatMoney(c.budget, c.currency)}
                         </td>
-                        <td className="text-slate-900 font-bold">
-                          {c.actualSpend !== null && c.actualSpend !== undefined ? `₹${Number(c.actualSpend).toLocaleString()}` : "—"}
+                        <td className="text-slate-900 dark:text-white font-bold">
+                          {c.actualSpend !== null && c.actualSpend !== undefined
+                            ? formatMoney(c.actualSpend, c.currency)
+                            : "—"}
                         </td>
-                        <td className="font-semibold text-slate-800">{m?.totalLeads || 0}</td>
-                        <td className="text-slate-700">{m?.qualifiedLeads || 0}</td>
-                        <td className="text-slate-700">{m?.totalOpportunities || 0}</td>
-                        <td className="text-slate-700 font-semibold">{m?.wonOrdersCount || 0}</td>
-                        <td className="text-emerald-700 font-bold">
-                          ₹{Number(m?.totalRevenue || 0).toLocaleString()}
+                        <td className="font-semibold text-slate-800 dark:text-slate-200">{m?.totalLeads || 0}</td>
+                        <td className="text-slate-700 dark:text-slate-300">{m?.qualifiedLeads || 0}</td>
+                        <td className="text-slate-700 dark:text-slate-300">{m?.totalOpportunities || 0}</td>
+                        <td className="text-slate-700 dark:text-slate-300 font-semibold">{m?.wonOrdersCount || 0}</td>
+                        <td className="text-emerald-700 dark:text-emerald-400 font-bold">
+                          {formatMoney(m?.totalRevenue, c.currency)}
                         </td>
-                        <td className="font-bold text-blue-600">
+                        <td className="font-bold text-blue-600 dark:text-blue-400">
                           {m?.roas !== null && m?.roas !== undefined ? `${m.roas}x` : "—"}
+                        </td>
+                        <td className="text-right" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-end gap-1">
+                            {/* Edit Action Button */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedCampaign(c);
+                                setIsFormModalOpen(true);
+                              }}
+                              className="p-1.5 text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                              title="Edit Campaign"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+
+                            {/* Delete Action Button */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDeleteError(null);
+                                setCampaignToDelete(c);
+                              }}
+                              className="p-1.5 text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-lg transition-colors cursor-pointer"
+                              title="Delete Campaign"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+
+                            {/* View Detail Link */}
+                            <Link
+                              to={`/campaigns/${c.id}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-800 hover:underline p-1.5"
+                              title="View Campaign Details"
+                            >
+                              <span>View</span>
+                              <ArrowRight className="w-3.5 h-3.5" />
+                            </Link>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -236,7 +614,7 @@ export default function Campaigns() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* By Channel */}
           <div className="enterprise-card p-4 space-y-3">
-            <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-100 pb-2">
+            <h3 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-100 dark:border-slate-800 pb-2">
               <Users className="w-3.5 h-3.5 text-blue-600" /> Performance by Acquisition Channel
             </h3>
 
@@ -252,26 +630,40 @@ export default function Campaigns() {
                 </tr>
               </thead>
               <tbody>
-                {sourceData?.byChannel?.map((ch) => (
-                  <tr key={ch.channel}>
-                    <td className="font-semibold text-slate-800">{ch.channel}</td>
-                    <td>{ch.leads}</td>
-                    <td>{ch.qualified}</td>
-                    <td>{ch.opportunities}</td>
-                    <td>{ch.won}</td>
-                    <td className="font-bold text-emerald-600">
-                      ₹{Number(ch.revenue || 0).toLocaleString()}
+                {loadingSources ? (
+                  <tr>
+                    <td colSpan={6} className="text-center py-4 text-slate-400">
+                      Loading channel metrics...
                     </td>
                   </tr>
-                ))}
+                ) : filteredChannels.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="text-center py-4 text-slate-400">
+                      {debouncedSearch.trim()
+                        ? `No channels matching "${debouncedSearch}"`
+                        : "No channel attribution data."}
+                    </td>
+                  </tr>
+                ) : (
+                  filteredChannels.map((ch) => (
+                    <tr key={ch.channel}>
+                      <td className="font-semibold text-slate-800 dark:text-slate-200">{ch.channel}</td>
+                      <td>{ch.leads}</td>
+                      <td>{ch.qualified}</td>
+                      <td>{ch.opportunities}</td>
+                      <td className="font-semibold text-slate-800 dark:text-slate-200">{ch.won}</td>
+                      <td className="text-emerald-700 dark:text-emerald-400 font-bold">{formatMoney(ch.revenue, "INR")}</td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
 
           {/* By Source Type */}
           <div className="enterprise-card p-4 space-y-3">
-            <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-100 pb-2">
-              <Sparkles className="w-3.5 h-3.5 text-indigo-600" /> Performance by Source Type
+            <h3 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-100 dark:border-slate-800 pb-2">
+              <Target className="w-3.5 h-3.5 text-indigo-600" /> Performance by Source Type
             </h3>
 
             <table className="enterprise-table">
@@ -286,20 +678,113 @@ export default function Campaigns() {
                 </tr>
               </thead>
               <tbody>
-                {sourceData?.bySourceType?.map((st) => (
-                  <tr key={st.sourceType}>
-                    <td className="font-semibold text-slate-800">{st.sourceType}</td>
-                    <td>{st.leads}</td>
-                    <td>{st.qualified}</td>
-                    <td>{st.opportunities}</td>
-                    <td>{st.won}</td>
-                    <td className="font-bold text-emerald-600">
-                      ₹{Number(st.revenue || 0).toLocaleString()}
+                {loadingSources ? (
+                  <tr>
+                    <td colSpan={6} className="text-center py-4 text-slate-400">
+                      Loading source metrics...
                     </td>
                   </tr>
-                ))}
+                ) : filteredSourceTypes.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="text-center py-4 text-slate-400">
+                      {debouncedSearch.trim()
+                        ? `No source types matching "${debouncedSearch}"`
+                        : "No source type attribution data."}
+                    </td>
+                  </tr>
+                ) : (
+                  filteredSourceTypes.map((st) => (
+                    <tr key={st.sourceType}>
+                      <td className="font-semibold text-slate-800 dark:text-slate-200">{st.sourceType}</td>
+                      <td>{st.leads}</td>
+                      <td>{st.qualified}</td>
+                      <td>{st.opportunities}</td>
+                      <td className="font-semibold text-slate-800 dark:text-slate-200">{st.won}</td>
+                      <td className="text-emerald-700 dark:text-emerald-400 font-bold">{formatMoney(st.revenue, "INR")}</td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── CREATE / EDIT CAMPAIGN MODAL ── */}
+      <CampaignFormModal
+        isOpen={isFormModalOpen}
+        onClose={() => {
+          setIsFormModalOpen(false);
+          setSelectedCampaign(null);
+        }}
+        campaign={selectedCampaign}
+        onSuccess={() => {
+          refetchCampaigns();
+        }}
+      />
+
+      {/* ── DELETE CONFIRMATION DIALOG MODAL ── */}
+      {campaignToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="p-6 space-y-4">
+              <div className="w-12 h-12 rounded-2xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center border border-rose-200 dark:border-rose-900 shadow-sm">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+
+              <div className="space-y-1.5">
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                  Delete Campaign "{campaignToDelete.name}"?
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                  Are you sure you want to delete campaign <span className="font-mono font-bold text-slate-700 dark:text-slate-200">({campaignToDelete.code})</span>? This will permanently remove the campaign record.
+                </p>
+              </div>
+
+              {/* Surfaced Backend Rejection Error */}
+              {deleteError && (
+                <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 text-xs flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold block">Deletion Rejected</span>
+                    <span>{deleteError}</span>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCampaignToDelete(null);
+                    setDeleteError(null);
+                  }}
+                  disabled={deleteMutation.isPending}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => deleteMutation.mutate(campaignToDelete.id)}
+                  disabled={deleteMutation.isPending}
+                  className="px-4 py-2 text-xs font-black text-white bg-rose-600 hover:bg-rose-700 active:scale-98 rounded-xl shadow-md shadow-rose-500/20 transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  {deleteMutation.isPending ? (
+                    <>
+                      <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                      <span>Deleting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Delete Campaign</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

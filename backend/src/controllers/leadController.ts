@@ -556,11 +556,132 @@ export const deleteLead = async (req: Request, res: Response) => {
   }
 };
 
+export const renderUnsubscribePage = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const lead = await sequelize.models.Lead.findByPk(String(id));
+    if (!lead) {
+      const genericHtml = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>Unsubscribe</title>
+          <style>
+            body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background-color: #f8fafc; color: #1e293b; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
+            .card { background: #ffffff; max-width: 480px; width: 100%; padding: 40px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); text-align: center; border: 1px solid #e2e8f0; }
+            h2 { margin-top: 0; color: #0f172a; font-size: 22px; }
+            p { color: #64748b; font-size: 14px; line-height: 1.6; margin: 16px 0 0; }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <h2>Unsubscribe from Emails</h2>
+            <p>If you have an active email subscription, you can manage your preferences or unsubscribe by replying directly to any email.</p>
+          </div>
+        </body>
+      </html>
+      `;
+      return res.send(genericHtml);
+    }
+
+    const l = lead as any;
+    const emailEscaped = (l.email || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+    const idEscaped = encodeURIComponent(String(l.id || id || ""))
+      .replace(/["'<>]/g, "");
+
+    if (l.optedOutEmail) {
+      const alreadyHtml = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>Already Unsubscribed</title>
+          <style>
+            body { font-family: 'Inter', -apple-system, sans-serif; background-color: #f8fafc; color: #1e293b; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
+            .card { background: #fff; max-width: 480px; width: 100%; padding: 40px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); text-align: center; border: 1px solid #e2e8f0; }
+            h2 { margin-top: 0; color: #0f172a; font-size: 22px; }
+            p { color: #64748b; font-size: 14px; line-height: 1.6; }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <h2>Already Unsubscribed</h2>
+            <p><strong>${emailEscaped}</strong> is already unsubscribed from our mailing list.</p>
+          </div>
+        </body>
+      </html>
+      `;
+      return res.send(alreadyHtml);
+    }
+
+    const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Unsubscribe Confirmation</title>
+        <style>
+          body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background-color: #f8fafc; color: #1e293b; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
+          .card { background: #ffffff; max-width: 480px; width: 100%; padding: 40px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); text-align: center; border: 1px solid #e2e8f0; }
+          h2 { margin-top: 0; color: #0f172a; font-size: 22px; }
+          p { color: #64748b; font-size: 14px; line-height: 1.6; margin: 16px 0 24px; }
+          .btn { background-color: #ef4444; color: #ffffff; border: none; padding: 12px 28px; font-size: 14px; font-weight: 600; border-radius: 8px; cursor: pointer; transition: background-color 0.2s; }
+          .btn:hover { background-color: #dc2626; }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <h2>Unsubscribe from Emails</h2>
+          <p>Please confirm that you would like to unsubscribe <strong>${emailEscaped}</strong> from all automated and marketing emails.</p>
+          <form method="POST" action="/api/v1/leads/unsubscribe/${idEscaped}">
+            <button type="submit" class="btn">Unsubscribe</button>
+          </form>
+        </div>
+      </body>
+    </html>
+    `;
+    res.send(html);
+  } catch (error: any) {
+    res.status(500).send("An error occurred loading the page.");
+  }
+};
+
 export const handleUnsubscribe = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const lead = await sequelize.models.Lead.findByPk(String(id));
-    if (!lead) return res.status(404).send("Lead not found.");
+    if (!lead) {
+      const genericSuccessHtml = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>Unsubscribed Successfully</title>
+          <style>
+            body { font-family: 'Inter', sans-serif; background-color: #f8fafc; color: #1e293b; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
+            .card { background: #fff; max-width: 480px; width: 100%; padding: 40px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); text-align: center; border: 1px solid #e2e8f0; }
+            h2 { margin-top: 0; color: #10b981; font-size: 22px; }
+            p { color: #64748b; font-size: 14px; line-height: 1.6; }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <h2>Unsubscribed Successfully</h2>
+            <p>You have been removed from our mailing list. You will no longer receive automated emails from us.</p>
+          </div>
+        </body>
+      </html>
+      `;
+      return res.send(genericSuccessHtml);
+    }
 
     const l = lead as any;
     if (!l.optedOutEmail) {
@@ -573,16 +694,37 @@ export const handleUnsubscribe = async (req: Request, res: Response) => {
         type: "Email",
         status: "Completed",
         assignedToId: l.assignedToId,
-        notes: "Client clicked Unsubscribe. All future marketing/templated emails are now blocked.",
-      direction: "internal"
+        notes: "Client confirmed Unsubscribe. All future marketing/templated emails are now blocked.",
+        direction: "internal"
       });
     }
 
+    // Update any CampaignRecipients for this lead with unsubscribedAt timestamp
+    if (sequelize.models.CampaignRecipient) {
+      await sequelize.models.CampaignRecipient.update(
+        { unsubscribedAt: new Date() },
+        { where: { leadId: l.id, unsubscribedAt: null } }
+      ).catch((err: any) => console.error("Error updating campaign recipients unsubscribe:", err));
+    }
+
     const html = `
+    <!DOCTYPE html>
     <html>
-      <body style="font-family: sans-serif; text-align: center; margin-top: 50px;">
-        <h2>Unsubscribed Successfully</h2>
-        <p>You have been removed from our mailing list. You will no longer receive automated emails from us.</p>
+      <head>
+        <meta charset="utf-8">
+        <title>Unsubscribed Successfully</title>
+        <style>
+          body { font-family: 'Inter', sans-serif; background-color: #f8fafc; color: #1e293b; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; }
+          .card { background: #fff; max-width: 480px; width: 100%; padding: 40px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); text-align: center; border: 1px solid #e2e8f0; }
+          h2 { margin-top: 0; color: #10b981; font-size: 22px; }
+          p { color: #64748b; font-size: 14px; line-height: 1.6; }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <h2>Unsubscribed Successfully</h2>
+          <p>You have been removed from our mailing list. You will no longer receive automated emails from us.</p>
+        </div>
       </body>
     </html>
     `;
@@ -591,6 +733,7 @@ export const handleUnsubscribe = async (req: Request, res: Response) => {
     res.status(500).send("An error occurred processing your request.");
   }
 };
+
 
 export const reassignLead = async (req: Request, res: Response) => {
   try {
@@ -1102,6 +1245,85 @@ export const getLeadDiscoveredContacts = async (req: Request, res: Response) => 
     });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /leads/:id/whatsapp-consent — Record manual WhatsApp consent by sales rep
+// ─────────────────────────────────────────────────────────────────────────────
+export const recordWhatsAppConsent = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { source } = req.body;
+
+    const validSources = ["verbal", "written", "form", "other"];
+    const normalizedSource = String(source || "verbal").toLowerCase().trim();
+    if (!validSources.includes(normalizedSource)) {
+      return res.status(400).json({
+        error: `Invalid consent source. Must be one of: ${validSources.join(", ")}`
+      });
+    }
+
+    const lead = await sequelize.models.Lead.findByPk(String(id));
+    if (!lead) {
+      return res.status(404).json({ error: "Lead not found" });
+    }
+
+    const l = lead as any;
+    const caller = (req as any).user;
+    const repName = caller?.name || caller?.email || "Sales Representative";
+    const repId = caller?.id || l.assignedToId || null;
+
+    l.whatsappConsentStatus = "OPTED_IN";
+    l.optedOutWhatsapp = false;
+    l.whatsappOptInAt = new Date();
+    l.whatsappConsentSource = normalizedSource;
+    await l.save();
+
+    // Also update any matching contact if exists
+    if (sequelize.models.Contact && (l.phone || l.whatsappPhone)) {
+      const phoneDigits = (l.whatsappPhone || l.phone || "").replace(/\D/g, "").slice(-10);
+      if (phoneDigits.length >= 7) {
+        await Promise.resolve(sequelize.models.Contact.update(
+          {
+            whatsappConsentStatus: "OPTED_IN",
+            optedOutWhatsapp: false,
+            whatsappOptInAt: new Date(),
+            whatsappConsentSource: normalizedSource
+          },
+          {
+            where: {
+              [Op.or]: [
+                { phone: { [Op.like]: `%${phoneDigits}%` } },
+                { whatsappNumber: { [Op.like]: `%${phoneDigits}%` } }
+              ]
+            }
+          }
+        )).catch(() => {});
+      }
+    }
+
+    // Log Activity noting which rep recorded it and the source
+    await sequelize.models.Activity.create({
+      id: crypto.randomUUID(),
+      leadId: l.id,
+      customerId: l.customerId || l.accountId || null,
+      type: "note",
+      notes: `Manual WhatsApp consent recorded by ${repName}. Source: ${normalizedSource.toUpperCase()}`,
+      outcome: `WhatsApp Consent Recorded (${normalizedSource})`,
+      direction: "internal",
+      pinned: true,
+      isCompleted: true,
+      createdById: repId
+    } as any);
+
+    return res.status(200).json({
+      success: true,
+      lead: l
+    });
+  } catch (error: any) {
+    console.error("[recordWhatsAppConsent] Error recording consent:", error);
+    return res.status(500).json({ error: error.message || "Failed to record WhatsApp consent" });
   }
 };
 

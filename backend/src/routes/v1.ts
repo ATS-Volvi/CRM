@@ -34,7 +34,8 @@ import {
   requestMissingDetails,
   triggerLeadEnrichment,
   findLeadContacts,
-  getLeadDiscoveredContacts
+  getLeadDiscoveredContacts,
+  recordWhatsAppConsent
 } from "../controllers/leadController";
 import { getPriceBookEntries, createPriceBookEntry, updatePriceBookEntry, deletePriceBookEntry, importPriceBookEntries, getPriceSuggestion, importPriceBookEntriesPreview, getCatalogCategories, getCatalogUoms } from '../controllers/priceBookController';
 import {
@@ -83,11 +84,16 @@ import {
 } from "../controllers/fulfillmentController";
 import {
   getCampaigns,
+  exportCampaigns,
+  exportCampaignLeads,
+  getCampaignTimeseries,
   getCampaignById,
   createCampaign,
   updateCampaign,
   deleteCampaign,
   createCampaignAd,
+  updateCampaignAd,
+  deleteCampaignAd,
   getCampaignLeads,
   getCampaignOpportunities,
   getCampaignPerformanceReport
@@ -100,6 +106,22 @@ import {
   getCampaignsAnalytics,
   getAttributionTaxonomy
 } from "../controllers/attributionController";
+import {
+  getCampaignMessageConfigHandler,
+  getCampaignMessages,
+  getCampaignMessageById,
+  getCampaignMessageStatsHandler,
+  createCampaignMessage,
+  updateCampaignMessage,
+  deleteCampaignMessage,
+  previewAudience,
+  sendCampaignMessage,
+  resumeCampaignMessage,
+  getCampaignMessageRecipients,
+  cancelCampaignMessageHandler,
+  unscheduleCampaignMessageHandler,
+  trackPixel
+} from "../controllers/campaignMessageController";
 
 import { getLeadSources, createLeadSource, updateLeadSource, deleteLeadSource } from "../controllers/leadSourceController";
 import { queryAiReport } from "../controllers/aiReportController";
@@ -270,11 +292,14 @@ router.get("/instagram/webhook", verifyInstagramWebhook);
 router.post("/instagram/webhook", receiveInstagramMessage);
 router.use("/whatsapp", whatsappRoutes);
 
-import { handleUnsubscribe } from "../controllers/leadController";
-router.get("/leads/unsubscribe/:id", handleUnsubscribe);
+import { rateLimiter } from "../lead-security-layer/rateLimit";
+import { renderUnsubscribePage, handleUnsubscribe } from "../controllers/leadController";
+router.get("/leads/unsubscribe/:id", rateLimiter, renderUnsubscribePage);
+router.post("/leads/unsubscribe/:id", rateLimiter, handleUnsubscribe);
 
 import { trackEmailOpen, getAbTestStats, declareWinner } from "../controllers/messageTemplateController";
 router.get("/message-templates/track/:id", trackEmailOpen);
+router.get("/campaign-messages/track/:recipientId", trackPixel);
 
 // Special KPI endpoints for dashboard mock (Public for preview)
 router.get("/kpis/salesperson", async (req, res) => {
@@ -431,6 +456,7 @@ router.post("/leads/:id/request-details", authMiddleware, requestMissingDetails)
 router.post("/leads/:id/enrich", authMiddleware, triggerLeadEnrichment);
 router.post("/leads/:id/find-contacts", authMiddleware, findLeadContacts);
 router.get("/leads/:id/discovered-contacts", authMiddleware, getLeadDiscoveredContacts);
+router.post("/leads/:id/whatsapp-consent", authMiddleware, recordWhatsAppConsent);
 
 // ==========================================
 // OPPORTUNITIES / DEALS
@@ -891,14 +917,35 @@ router.get("/dashboard/win-celebrations", authMiddleware, getWinCelebrations);
 // PHASE 5: CAMPAIGNS & ATTRIBUTION
 // ==========================================
 router.get("/campaigns", authMiddleware, getCampaigns);
+router.get("/campaigns/export", authMiddleware, exportCampaigns);
+router.get("/campaigns/:id/leads/export", authMiddleware, exportCampaignLeads);
+router.get("/campaigns/:id/timeseries", authMiddleware, getCampaignTimeseries);
 router.get("/campaigns/:id", authMiddleware, getCampaignById);
 router.post("/campaigns", authMiddleware, createCampaign);
 router.patch("/campaigns/:id", authMiddleware, updateCampaign);
 router.delete("/campaigns/:id", authMiddleware, deleteCampaign);
 router.post("/campaigns/:id/ads", authMiddleware, createCampaignAd);
+router.patch("/campaigns/:id/ads/:adId", authMiddleware, updateCampaignAd);
+router.delete("/campaigns/:id/ads/:adId", authMiddleware, deleteCampaignAd);
 router.get("/campaigns/:id/leads", authMiddleware, getCampaignLeads);
 router.get("/campaigns/:id/opportunities", authMiddleware, getCampaignOpportunities);
 router.get("/campaigns/:id/performance", authMiddleware, getCampaignPerformanceReport);
+
+// Campaign Messages & Email Execution
+router.get("/campaigns/:id/messages/config", authMiddleware, requireAdminOrManager, getCampaignMessageConfigHandler);
+router.get("/campaigns/:id/messages", authMiddleware, requireAdminOrManager, getCampaignMessages);
+router.post("/campaigns/:id/messages", authMiddleware, requireAdminOrManager, createCampaignMessage);
+router.post("/campaigns/:id/messages/preview-audience", authMiddleware, requireAdminOrManager, previewAudience);
+router.get("/campaigns/:id/messages/:messageId", authMiddleware, requireAdminOrManager, getCampaignMessageById);
+router.get("/campaigns/:id/messages/:messageId/stats", authMiddleware, requireAdminOrManager, getCampaignMessageStatsHandler);
+router.patch("/campaigns/:id/messages/:messageId", authMiddleware, requireAdminOrManager, updateCampaignMessage);
+router.delete("/campaigns/:id/messages/:messageId", authMiddleware, requireAdminOrManager, deleteCampaignMessage);
+router.post("/campaigns/:id/messages/:messageId/preview-audience", authMiddleware, requireAdminOrManager, previewAudience);
+router.post("/campaigns/:id/messages/:messageId/send", authMiddleware, requireAdminOrManager, sendCampaignMessage);
+router.post("/campaigns/:id/messages/:messageId/resume", authMiddleware, requireAdminOrManager, resumeCampaignMessage);
+router.get("/campaigns/:id/messages/:messageId/recipients", authMiddleware, requireAdminOrManager, getCampaignMessageRecipients);
+router.post("/campaigns/:id/messages/:messageId/cancel", authMiddleware, requireAdminOrManager, cancelCampaignMessageHandler);
+router.post("/campaigns/:id/messages/:messageId/unschedule", authMiddleware, requireAdminOrManager, unscheduleCampaignMessageHandler);
 
 router.get("/leads/:id/attribution", authMiddleware, getLeadAttribution);
 router.get("/leads/:id/attribution-history", authMiddleware, getLeadAttributionHistory);

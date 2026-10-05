@@ -12,7 +12,13 @@ import {
   CampaignPerformance,
   SourcePerformance,
   AttributionTaxonomy,
-  PaginatedResponse
+  PaginatedResponse,
+  CampaignMessage,
+  CampaignRecipient,
+  CampaignAudienceFilter,
+  AudiencePreviewResponse,
+  CampaignMessageConfig,
+  CampaignMessageStats
 } from "../types";
 import { normalizePaginatedResponse } from "./adapters";
 
@@ -22,6 +28,55 @@ export interface CampaignFilterParams {
   status?: string;
   channel?: string;
   search?: string;
+}
+
+export interface TimeseriesBucket {
+  period: string;
+  label: string;
+  leads: number;
+  opportunities: number;
+  wonOrders: number;
+}
+
+export interface CampaignTimeseriesResponse {
+  campaignId: string;
+  granularity: "day" | "week";
+  totalEvents: number;
+  data: TimeseriesBucket[];
+}
+
+/**
+ * Downloads a CSV blob from an authenticated endpoint
+ */
+export async function downloadCsvBlob(path: string, fallbackFilename: string): Promise<void> {
+  const res = await apiClient(path, { method: "GET" });
+  if (!res.ok) {
+    let errorMsg = `Export failed (${res.status})`;
+    try {
+      const err = await res.json();
+      if (err?.error || err?.message) errorMsg = err.error || err.message;
+    } catch {}
+    throw new Error(errorMsg);
+  }
+
+  const blob = await res.blob();
+  const contentDisposition = res.headers.get("Content-Disposition");
+  let filename = fallbackFilename;
+  if (contentDisposition) {
+    const match = contentDisposition.match(/filename=["']?([^"';]+)["']?/i);
+    if (match && match[1]) {
+      filename = match[1].trim();
+    }
+  }
+
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(url);
 }
 
 export const campaignsApi = {
@@ -40,6 +95,35 @@ export const campaignsApi = {
 
   getCampaignById: async (id: string): Promise<{ campaign: Campaign; performance: CampaignPerformance }> => {
     const raw = await apiClient.get(`/api/v1/campaigns/${id}`);
+    if (raw && !raw.campaign && raw.id) {
+      return {
+        campaign: raw as Campaign,
+        performance: (raw as any).performance || null
+      };
+    }
+    return raw;
+  },
+
+  exportCampaignsCsv: async (params?: { status?: string; channel?: string; search?: string }): Promise<void> => {
+    const query = new URLSearchParams();
+    if (params?.status && params.status !== "ALL") query.set("status", params.status);
+    if (params?.channel && params.channel !== "ALL") query.set("channel", params.channel);
+    if (params?.search) query.set("search", params.search);
+    const queryString = query.toString() ? `?${query.toString()}` : "";
+    await downloadCsvBlob(`/api/v1/campaigns/export${queryString}`, `campaigns_export_${Date.now()}.csv`);
+  },
+
+  exportCampaignLeadsCsv: async (campaignId: string, campaignCode?: string): Promise<void> => {
+    const safeCode = (campaignCode || campaignId).replace(/[^a-zA-Z0-9-_]/g, "_");
+    const fallbackName = `campaign_${safeCode}_leads.csv`;
+    await downloadCsvBlob(`/api/v1/campaigns/${campaignId}/leads/export`, fallbackName);
+  },
+
+  getCampaignTimeseries: async (
+    campaignId: string,
+    granularity: "day" | "week" = "day"
+  ): Promise<CampaignTimeseriesResponse> => {
+    const raw = await apiClient.get(`/api/v1/campaigns/${campaignId}/timeseries?granularity=${granularity}`);
     return raw;
   },
 
@@ -48,6 +132,10 @@ export const campaignsApi = {
       method: "POST",
       body: JSON.stringify(data)
     });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || err.message || `Failed to create campaign (${res.status})`);
+    }
     return res.json();
   },
 
@@ -56,6 +144,10 @@ export const campaignsApi = {
       method: "PATCH",
       body: JSON.stringify(data)
     });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || err.message || `Failed to update campaign (${res.status})`);
+    }
     return res.json();
   },
 
@@ -63,6 +155,10 @@ export const campaignsApi = {
     const res = await apiClient(`/api/v1/campaigns/${id}`, {
       method: "DELETE"
     });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || err.message || `Failed to delete campaign (${res.status})`);
+    }
     return res.json();
   },
 
@@ -71,6 +167,33 @@ export const campaignsApi = {
       method: "POST",
       body: JSON.stringify(data)
     });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || err.message || `Failed to create campaign ad (${res.status})`);
+    }
+    return res.json();
+  },
+
+  updateCampaignAd: async (campaignId: string, adId: string, data: Partial<CampaignAd>): Promise<CampaignAd> => {
+    const res = await apiClient(`/api/v1/campaigns/${campaignId}/ads/${adId}`, {
+      method: "PATCH",
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || err.message || `Failed to update campaign ad (${res.status})`);
+    }
+    return res.json();
+  },
+
+  deleteCampaignAd: async (campaignId: string, adId: string): Promise<{ message: string }> => {
+    const res = await apiClient(`/api/v1/campaigns/${campaignId}/ads/${adId}`, {
+      method: "DELETE"
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || err.message || `Failed to delete campaign ad (${res.status})`);
+    }
     return res.json();
   },
 
@@ -92,7 +215,155 @@ export const campaignsApi = {
   getCampaignPerformance: async (campaignId: string): Promise<CampaignPerformance> => {
     const raw = await apiClient.get(`/api/v1/campaigns/${campaignId}/performance`);
     return raw;
+  },
+
+  getCampaignMessageConfig: async (campaignId: string): Promise<CampaignMessageConfig> => {
+    const raw = await apiClient.get(`/api/v1/campaigns/${campaignId}/messages/config`);
+    return raw;
+  },
+
+  getCampaignMessages: async (campaignId: string): Promise<CampaignMessage[]> => {
+    const raw = await apiClient.get(`/api/v1/campaigns/${campaignId}/messages`);
+    return Array.isArray(raw) ? raw : [];
+  },
+
+  getCampaignMessageById: async (campaignId: string, messageId: string): Promise<CampaignMessage> => {
+    const raw = await apiClient.get(`/api/v1/campaigns/${campaignId}/messages/${messageId}`);
+    return raw;
+  },
+
+  createCampaignMessage: async (campaignId: string, data: Partial<CampaignMessage>): Promise<CampaignMessage> => {
+    const res = await apiClient(`/api/v1/campaigns/${campaignId}/messages`, {
+      method: "POST",
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || err.message || `Failed to create message (${res.status})`);
+    }
+    return res.json();
+  },
+
+  updateCampaignMessage: async (
+    campaignId: string,
+    messageId: string,
+    data: Partial<CampaignMessage>
+  ): Promise<CampaignMessage> => {
+    const res = await apiClient(`/api/v1/campaigns/${campaignId}/messages/${messageId}`, {
+      method: "PATCH",
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || err.message || `Failed to update message (${res.status})`);
+    }
+    return res.json();
+  },
+
+  deleteCampaignMessage: async (campaignId: string, messageId: string): Promise<void> => {
+    const res = await apiClient(`/api/v1/campaigns/${campaignId}/messages/${messageId}`, {
+      method: "DELETE"
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || err.message || `Failed to delete message (${res.status})`);
+    }
+  },
+
+  previewAudience: async (
+    campaignId: string,
+    messageId?: string,
+    audienceFilter?: CampaignAudienceFilter,
+    channel?: "EMAIL" | "WHATSAPP"
+  ): Promise<AudiencePreviewResponse> => {
+    const endpoint = messageId && messageId !== "draft"
+      ? `/api/v1/campaigns/${campaignId}/messages/${messageId}/preview-audience`
+      : `/api/v1/campaigns/${campaignId}/messages/preview-audience`;
+
+    const res = await apiClient(endpoint, {
+      method: "POST",
+      body: JSON.stringify({ audienceFilter, channel })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || err.message || `Failed to preview audience (${res.status})`);
+    }
+    return res.json();
+  },
+
+  sendCampaignMessage: async (
+    campaignId: string,
+    messageId: string,
+    confirm: boolean = true,
+    scheduledAt?: string | null
+  ): Promise<{ message: string; recipientCount?: number; status?: string }> => {
+    const res = await apiClient(`/api/v1/campaigns/${campaignId}/messages/${messageId}/send`, {
+      method: "POST",
+      body: JSON.stringify({ confirm, ...(scheduledAt ? { scheduledAt } : {}) })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || err.message || `Failed to send message (${res.status})`);
+    }
+    return res.json();
+  },
+
+  unscheduleCampaignMessage: async (campaignId: string, messageId: string): Promise<void> => {
+    const res = await apiClient(`/api/v1/campaigns/${campaignId}/messages/${messageId}/unschedule`, {
+      method: "POST"
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || err.message || `Failed to unschedule message (${res.status})`);
+    }
+  },
+
+  cancelCampaignMessage: async (campaignId: string, messageId: string): Promise<void> => {
+    const res = await apiClient(`/api/v1/campaigns/${campaignId}/messages/${messageId}/cancel`, {
+      method: "POST"
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || err.message || `Failed to cancel message (${res.status})`);
+    }
+  },
+
+  getCampaignMessageStats: async (campaignId: string, messageId: string): Promise<CampaignMessageStats> => {
+    const raw = await apiClient.get(`/api/v1/campaigns/${campaignId}/messages/${messageId}/stats`);
+    return raw;
+  },
+
+  resumeCampaignMessage: async (
+    campaignId: string,
+    messageId: string,
+    confirm: boolean = true
+  ): Promise<{ message: string; recipientCount: number; status: string }> => {
+    const res = await apiClient(`/api/v1/campaigns/${campaignId}/messages/${messageId}/resume`, {
+      method: "POST",
+      body: JSON.stringify({ confirm })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || err.message || `Failed to resume message (${res.status})`);
+    }
+    return res.json();
+  },
+
+  getCampaignMessageRecipients: async (
+    campaignId: string,
+    messageId: string,
+    params?: { page?: number; limit?: number; status?: string }
+  ): Promise<{ total: number; page: number; limit: number; recipients: CampaignRecipient[] }> => {
+    const query = new URLSearchParams();
+    if (params?.page) query.set("page", String(params.page));
+    if (params?.limit) query.set("limit", String(params.limit));
+    if (params?.status && params.status !== "ALL") query.set("status", params.status);
+    const queryString = query.toString() ? `?${query.toString()}` : "";
+
+    const raw = await apiClient.get(`/api/v1/campaigns/${campaignId}/messages/${messageId}/recipients${queryString}`);
+    return raw;
   }
+
 };
 
 export const attributionApi = {

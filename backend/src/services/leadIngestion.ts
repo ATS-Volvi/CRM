@@ -50,6 +50,9 @@ export interface LeadPayload {
   rawPayload?: any;
   budgetRange?: string;
   categoriesData?: any;
+  whatsappConsent?: boolean;
+  whatsappConsentStatus?: string;
+  whatsappConsentSource?: string;
 }
 
 const { runPipeline } = require("../lead-security-layer");
@@ -167,7 +170,11 @@ export async function ingestLead(rawPayload: LeadPayload) {
           budgetRange: payload.budgetRange || null,
           nextAction: "Reply to Lead",
           nextActionDue: new Date(Date.now() + 2 * 60 * 60 * 1000), // 2h SLA
-          rawPayload: payload.rawPayload ? JSON.stringify(payload.rawPayload) : null
+          rawPayload: payload.rawPayload ? JSON.stringify(payload.rawPayload) : null,
+          optedOutWhatsapp: false,
+          whatsappConsentStatus: payload.whatsappConsent === true ? "OPTED_IN" : (payload.whatsappConsentStatus || "UNSPECIFIED"),
+          whatsappOptInAt: payload.whatsappConsent === true ? new Date() : null,
+          whatsappConsentSource: payload.whatsappConsent === true ? (payload.whatsappConsentSource || "public_form") : (payload.whatsappConsentSource || null)
         });
       } catch (err: any) {
         if (err.name === 'SequelizeUniqueConstraintError' && attempts < maxAttempts) {

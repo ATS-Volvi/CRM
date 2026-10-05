@@ -79,10 +79,12 @@ export async function runDailyCron(req: Request, res: Response): Promise<void> {
     // 2. Expirations, Escalations, POs & Reports
     await checkExpiredQuotes().catch((err: any) => { results.checkExpiredQuotes = { error: err.message }; });
     await escalateUnactionedApprovals().catch((err: any) => { results.escalateUnactionedApprovals = { error: err.message }; });
-    await checkOutstandingPOs().catch((err: any) => { results.checkOutstandingPOs = { error: err.message }; });
     await checkOverdueTasksAndSendDigests().catch((err: any) => { results.checkOverdueTasksAndSendDigests = { error: err.message }; });
     await runTemperatureSweep().catch((err: any) => { results.runTemperatureSweep = { error: err.message }; });
     await checkAndSendWeeklyReport().catch((err: any) => { results.checkAndSendWeeklyReport = { error: err.message }; });
+    
+    const { checkCampaignBudgetPacingAndAlerts } = require("../services/campaignBudgetPacingService");
+    await checkCampaignBudgetPacingAndAlerts().then((res: any) => { results.checkCampaignBudgetPacingAndAlerts = res; }).catch((err: any) => { results.checkCampaignBudgetPacingAndAlerts = { error: err.message }; });
 
     res.json({
       status: "success",

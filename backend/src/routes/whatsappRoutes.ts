@@ -11,14 +11,16 @@ import {
   runTestWebhookSimulation,
   resolveLogEntry,
   clearLogHistory,
+  handleWhatsAppStatusCallback,
 } from "../controllers/whatsappController";
 import { authMiddleware } from "../middleware/auth";
 
 const router = Router();
 
-// Public Webhooks for Meta WhatsApp Cloud API
+// Public Webhooks for Meta WhatsApp Cloud API & Twilio Status Callbacks
 router.get("/webhook", verifyWebhook);
 router.post("/webhook", handleIncomingWebhook);
+router.post("/status-callback", handleWhatsAppStatusCallback);
 
 // Authenticated CRM Endpoints
 router.post("/send", authMiddleware, sendMessage);

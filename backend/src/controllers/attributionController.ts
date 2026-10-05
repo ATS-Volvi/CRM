@@ -67,11 +67,49 @@ export const getLeadAttributionHistory = async (req: Request, res: Response) => 
   }
 };
 
+export function isSalesContactTouch(channel?: string, sourceType?: string): boolean {
+  const ch = (channel || "").toLowerCase().trim();
+  const st = (sourceType || "").toLowerCase().trim();
+
+  // If source type is explicit sales rep / outbound outreach
+  if (st === "sales rep" || st === "sales outbound") {
+    return true;
+  }
+
+  // Real 1-on-1 sales contact types: call/phone, meeting
+  if (ch === "phone" || ch === "call" || ch === "phone call" || ch === "meeting" || ch === "in-person meeting") {
+    return true;
+  }
+
+  // WhatsApp 1-on-1 conversation (not advertisement or broadcast)
+  if (ch.includes("whatsapp") && !st.includes("ad") && !st.includes("campaign") && !st.includes("marketing") && !st.includes("social")) {
+    return true;
+  }
+
+  // Direct 1-on-1 email conversation (not newsletter / marketing blast)
+  if (ch === "email" && (st === "sales outbound" || st === "sales rep" || st === "direct")) {
+    return true;
+  }
+
+  return false;
+}
+
+export function getSalesActivityType(channel?: string): string {
+  const ch = (channel || "").toLowerCase().trim();
+  if (ch.includes("call") || ch.includes("phone")) return "call";
+  if (ch.includes("meeting")) return "meeting";
+  if (ch.includes("whatsapp")) return "whatsapp_sms";
+  if (ch.includes("email")) return "email";
+  return "call";
+}
+
 export const recordManualTouch = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { channel, sourceType, sourceName, campaignId, adId, utmSource, utmMedium, utmCampaign, notes } = req.body;
+    const userId = (req as any).user?.id;
 
+    // 1. Record Attribution Touch & Multi-Touch History (pure attribution tracking)
     const result = await recordLeadTouch({
       leadId: String(id),
       channel,
@@ -82,8 +120,30 @@ export const recordManualTouch = async (req: Request, res: Response) => {
       utmSource,
       utmMedium,
       utmCampaign,
-      metadata: { notes, recordedBy: (req as any).user?.id }
+      metadata: { notes, recordedBy: userId }
     });
+
+    // 2. Only write sales contact activity & advance lead stage if this touch represents
+    // a genuine 1-on-1 sales interaction (call, meeting, WhatsApp/email conversation).
+    // Marketing touches (Meta Ads, Google Ads, LinkedIn, Event, Direct, Organic, etc.)
+    // strictly preserve the current lead status without advancing stages.
+    const isSalesContact = isSalesContactTouch(channel, sourceType);
+    if (isSalesContact) {
+      const activityType = getSalesActivityType(channel);
+      const cryptoModule = require("crypto");
+      await sequelize.models.Activity.create({
+        id: cryptoModule.randomUUID(),
+        leadId: String(id),
+        type: activityType,
+        outcome: notes || `Direct sales contact logged via ${channel || "Outbound"}`,
+        notes: notes || null,
+        createdById: userId || null,
+        direction: "outbound"
+      });
+
+      const { checkAndAutoAdvanceLead } = require("../services/leadStageAutomationService");
+      await checkAndAutoAdvanceLead(String(id), { userId });
+    }
 
     res.status(201).json(result);
   } catch (error: any) {
