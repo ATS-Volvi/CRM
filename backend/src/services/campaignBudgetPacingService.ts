@@ -87,7 +87,7 @@ export async function checkCampaignBudgetPacingAndAlerts(): Promise<{
     } else {
       const adminUsers: any = await User.findAll({
         where: {
-          role: { [Op.in]: ["admin", "ADMIN"] }
+          role: "admin"
         }
       });
       targetUserIds = adminUsers.map((u: any) => u.id);

@@ -175,14 +175,14 @@ describe("TASK 3: Budget Pacing Alerts & Warning Badges", () => {
     const campaignWithoutOwner = { id: "c-2", ownerId: null };
     const allUsers = [
       { id: "admin-1", role: "admin" },
-      { id: "admin-2", role: "ADMIN" },
+      { id: "admin-2", role: "admin" },
       { id: "rep-1", role: "sales_rep" }
     ];
 
     // Helper logic from campaignBudgetPacingService
     const resolveRecipients = (campaign: any, users: any[]) => {
       if (campaign.ownerId) return [campaign.ownerId];
-      return users.filter(u => ["admin", "ADMIN"].includes(u.role)).map(u => u.id);
+      return users.filter(u => u.role === "admin").map(u => u.id);
     };
 
     expect(resolveRecipients(campaignWithOwner, allUsers)).toEqual(["user-rep-101"]);

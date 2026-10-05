@@ -174,7 +174,7 @@ export const createPurchaseOrder = async (req: Request, res: Response) => {
 
       if (!managerNotified) {
         const managers: any = await sequelize.models.User.findAll({
-          where: { role: "MANAGER", isAvailable: true },
+          where: { role: "manager", isAvailable: true },
           limit: 3
         });
         for (const mgr of managers) {
