@@ -1,4 +1,4 @@
-import "dotenv/config"; // trigger restart again
+import "dotenv/config";
 import { createServer } from "./server";
 import { Database, sequelize } from "@nexus-crm/database";
 import { checkOverdueTasks } from "./src/services/notificationService";
@@ -25,8 +25,14 @@ const startServer = async () => {
     await seedDefaultMessageTemplates();
 
     // Recover any campaign sends interrupted during previous server shutdown
-    const { recoverStuckCampaignSends } = require("./src/services/campaignMessageService");
+    const { recoverStuckCampaignSends, getCampaignWhatsAppConfig } = require("./src/services/campaignMessageService");
     await recoverStuckCampaignSends();
+
+    // Log resolved WhatsApp campaign safety config at WARN level on startup
+    const waConfig = getCampaignWhatsAppConfig();
+    console.warn(
+      `[WhatsApp Campaign Config] DRY_RUN=${waConfig.dryRun} | MAX_RECIPIENTS=${waConfig.maxRecipients} | ALLOWLIST_ACTIVE=${waConfig.allowlistActive} (${waConfig.allowlist.length} numbers) | BATCH_SIZE=${waConfig.batchSize} | BATCH_DELAY_MS=${waConfig.batchDelayMs}`
+    );
 
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`Nexus CRM backend running on port ${PORT}`);

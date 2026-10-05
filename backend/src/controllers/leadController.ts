@@ -1248,4 +1248,83 @@ export const getLeadDiscoveredContacts = async (req: Request, res: Response) => 
   }
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /leads/:id/whatsapp-consent — Record manual WhatsApp consent by sales rep
+// ─────────────────────────────────────────────────────────────────────────────
+export const recordWhatsAppConsent = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { source } = req.body;
+
+    const validSources = ["verbal", "written", "form", "other"];
+    const normalizedSource = String(source || "verbal").toLowerCase().trim();
+    if (!validSources.includes(normalizedSource)) {
+      return res.status(400).json({
+        error: `Invalid consent source. Must be one of: ${validSources.join(", ")}`
+      });
+    }
+
+    const lead = await sequelize.models.Lead.findByPk(String(id));
+    if (!lead) {
+      return res.status(404).json({ error: "Lead not found" });
+    }
+
+    const l = lead as any;
+    const caller = (req as any).user;
+    const repName = caller?.name || caller?.email || "Sales Representative";
+    const repId = caller?.id || l.assignedToId || null;
+
+    l.whatsappConsentStatus = "OPTED_IN";
+    l.optedOutWhatsapp = false;
+    l.whatsappOptInAt = new Date();
+    l.whatsappConsentSource = normalizedSource;
+    await l.save();
+
+    // Also update any matching contact if exists
+    if (sequelize.models.Contact && (l.phone || l.whatsappPhone)) {
+      const phoneDigits = (l.whatsappPhone || l.phone || "").replace(/\D/g, "").slice(-10);
+      if (phoneDigits.length >= 7) {
+        await Promise.resolve(sequelize.models.Contact.update(
+          {
+            whatsappConsentStatus: "OPTED_IN",
+            optedOutWhatsapp: false,
+            whatsappOptInAt: new Date(),
+            whatsappConsentSource: normalizedSource
+          },
+          {
+            where: {
+              [Op.or]: [
+                { phone: { [Op.like]: `%${phoneDigits}%` } },
+                { whatsappNumber: { [Op.like]: `%${phoneDigits}%` } }
+              ]
+            }
+          }
+        )).catch(() => {});
+      }
+    }
+
+    // Log Activity noting which rep recorded it and the source
+    await sequelize.models.Activity.create({
+      id: crypto.randomUUID(),
+      leadId: l.id,
+      customerId: l.customerId || l.accountId || null,
+      type: "note",
+      notes: `Manual WhatsApp consent recorded by ${repName}. Source: ${normalizedSource.toUpperCase()}`,
+      outcome: `WhatsApp Consent Recorded (${normalizedSource})`,
+      direction: "internal",
+      pinned: true,
+      isCompleted: true,
+      createdById: repId
+    } as any);
+
+    return res.status(200).json({
+      success: true,
+      lead: l
+    });
+  } catch (error: any) {
+    console.error("[recordWhatsAppConsent] Error recording consent:", error);
+    return res.status(500).json({ error: error.message || "Failed to record WhatsApp consent" });
+  }
+};
+
 

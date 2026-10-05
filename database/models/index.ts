@@ -113,6 +113,12 @@ export class Lead extends Model {
   public unreadWhatsappCount!: number;
   public whatsappPhone!: string | null;
   public communicationChannel!: string | null;
+  public optedOutWhatsapp!: boolean;
+  public whatsappConsentStatus!: string;
+  public whatsappOptOutAt!: Date | null;
+  public whatsappOptInAt!: Date | null;
+  public whatsappOptOutSource!: string | null;
+  public whatsappConsentSource!: string | null;
 
   // Temperature tracking
   public temperature!: string;
@@ -187,6 +193,12 @@ Lead.init(
     unreadWhatsappCount: { type: DataTypes.INTEGER, defaultValue: 0 },
     whatsappPhone: { type: DataTypes.STRING, allowNull: true },
     communicationChannel: { type: DataTypes.STRING, allowNull: true, defaultValue: "email" },
+    optedOutWhatsapp: { type: DataTypes.BOOLEAN, defaultValue: false, allowNull: false },
+    whatsappConsentStatus: { type: DataTypes.STRING, defaultValue: "UNSPECIFIED", allowNull: false },
+    whatsappOptOutAt: { type: DataTypes.DATE, allowNull: true },
+    whatsappOptInAt: { type: DataTypes.DATE, allowNull: true },
+    whatsappOptOutSource: { type: DataTypes.STRING, allowNull: true },
+    whatsappConsentSource: { type: DataTypes.STRING, allowNull: true },
     temperature: { type: DataTypes.STRING, defaultValue: "Warm" },
     temperatureOverride: { type: DataTypes.BOOLEAN, defaultValue: false },
     lastInboundAt: { type: DataTypes.DATE, allowNull: true },
@@ -1773,6 +1785,11 @@ export class Contact extends Model {
   public whatsappVerified!: boolean;
   public role!: string | null;
   public sourceChannel!: string | null;
+  public optedOutWhatsapp!: boolean;
+  public whatsappConsentStatus!: string;
+  public whatsappOptOutAt!: Date | null;
+  public whatsappOptInAt!: Date | null;
+  public whatsappConsentSource!: string | null;
   public createdAt!: Date;
 }
 Contact.init({
@@ -1788,6 +1805,11 @@ Contact.init({
   whatsappVerified: { type: DataTypes.BOOLEAN, defaultValue: false },
   role: { type: DataTypes.STRING, allowNull: true },
   sourceChannel: { type: DataTypes.STRING, allowNull: true },
+  optedOutWhatsapp: { type: DataTypes.BOOLEAN, defaultValue: false, allowNull: false },
+  whatsappConsentStatus: { type: DataTypes.STRING, defaultValue: "UNSPECIFIED", allowNull: false },
+  whatsappOptOutAt: { type: DataTypes.DATE, allowNull: true },
+  whatsappOptInAt: { type: DataTypes.DATE, allowNull: true },
+  whatsappConsentSource: { type: DataTypes.STRING, allowNull: true },
   createdAt: { type: DataTypes.DATE, defaultValue: DataTypes.NOW }
 }, { sequelize, modelName: "Contact", tableName: "Contacts", updatedAt: false });
 
@@ -2568,10 +2590,13 @@ export class CampaignMessage extends Model {
   public id!: string;
   public campaignId!: string;
   public name!: string;
-  public subject!: string;
-  public bodyHtml!: string;
+  public channel!: 'EMAIL' | 'WHATSAPP';
+  public templateSid!: string | null;
+  public templateVariables!: string | null;
+  public subject!: string | null;
+  public bodyHtml!: string | null;
   public audienceFilter!: string | null;
-  public status!: string; // 'DRAFT' | 'SCHEDULED' | 'SENDING' | 'SENT' | 'CANCELLED'
+  public status!: string; // 'DRAFT' | 'SCHEDULED' | 'SENDING' | 'SENT' | 'PARTIAL' | 'FAILED' | 'CANCELLED'
   public scheduledAt!: Date | null;
   public sentAt!: Date | null;
   public createdBy!: string | null;
@@ -2584,8 +2609,11 @@ CampaignMessage.init(
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
     campaignId: { type: DataTypes.UUID, allowNull: false },
     name: { type: DataTypes.STRING, allowNull: false },
-    subject: { type: DataTypes.STRING, allowNull: false },
-    bodyHtml: { type: DataTypes.TEXT, allowNull: false },
+    channel: { type: DataTypes.STRING, allowNull: false, defaultValue: "EMAIL" },
+    templateSid: { type: DataTypes.STRING, allowNull: true },
+    templateVariables: { type: DataTypes.TEXT, allowNull: true },
+    subject: { type: DataTypes.STRING, allowNull: true },
+    bodyHtml: { type: DataTypes.TEXT, allowNull: true },
     audienceFilter: { type: DataTypes.TEXT, allowNull: true },
     status: { type: DataTypes.STRING, allowNull: false, defaultValue: "DRAFT" },
     scheduledAt: { type: DataTypes.DATE, allowNull: true },
@@ -2599,10 +2627,14 @@ export class CampaignRecipient extends Model {
   public id!: string;
   public campaignMessageId!: string;
   public leadId!: string | null;
-  public email!: string;
-  public status!: string; // 'QUEUED' | 'SENT' | 'FAILED' | 'SKIPPED'
+  public email!: string | null;
+  public phone!: string | null;
+  public providerMessageId!: string | null;
+  public status!: string; // 'QUEUED' | 'SENDING' | 'SENT' | 'FAILED' | 'SKIPPED'
   public skipReason!: string | null;
   public sentAt!: Date | null;
+  public deliveredAt!: Date | null;
+  public readAt!: Date | null;
   public openedAt!: Date | null;
   public unsubscribedAt!: Date | null;
   public error!: string | null;
@@ -2614,10 +2646,14 @@ CampaignRecipient.init(
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
     campaignMessageId: { type: DataTypes.UUID, allowNull: false },
     leadId: { type: DataTypes.UUID, allowNull: true },
-    email: { type: DataTypes.STRING, allowNull: false },
+    email: { type: DataTypes.STRING, allowNull: true },
+    phone: { type: DataTypes.STRING, allowNull: true },
+    providerMessageId: { type: DataTypes.STRING, allowNull: true },
     status: { type: DataTypes.STRING, allowNull: false, defaultValue: "QUEUED" },
     skipReason: { type: DataTypes.STRING, allowNull: true },
     sentAt: { type: DataTypes.DATE, allowNull: true },
+    deliveredAt: { type: DataTypes.DATE, allowNull: true },
+    readAt: { type: DataTypes.DATE, allowNull: true },
     openedAt: { type: DataTypes.DATE, allowNull: true },
     unsubscribedAt: { type: DataTypes.DATE, allowNull: true },
     error: { type: DataTypes.TEXT, allowNull: true }

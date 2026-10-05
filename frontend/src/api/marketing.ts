@@ -273,7 +273,8 @@ export const campaignsApi = {
   previewAudience: async (
     campaignId: string,
     messageId?: string,
-    audienceFilter?: CampaignAudienceFilter
+    audienceFilter?: CampaignAudienceFilter,
+    channel?: "EMAIL" | "WHATSAPP"
   ): Promise<AudiencePreviewResponse> => {
     const endpoint = messageId && messageId !== "draft"
       ? `/api/v1/campaigns/${campaignId}/messages/${messageId}/preview-audience`
@@ -281,7 +282,7 @@ export const campaignsApi = {
 
     const res = await apiClient(endpoint, {
       method: "POST",
-      body: JSON.stringify({ audienceFilter })
+      body: JSON.stringify({ audienceFilter, channel })
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));

@@ -21,6 +21,20 @@ import crypto from "crypto";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+// ─── WhatsApp Compliance & Consent Keywords ─────────────────────────────────
+export const WHATSAPP_OPTOUT_KEYWORDS = new Set(["STOP", "UNSUBSCRIBE", "CANCEL", "QUIT", "END"]);
+export const WHATSAPP_OPTIN_KEYWORDS = new Set(["START", "UNSTOP", "YES"]);
+
+export function isWhatsAppOptOutKeyword(text: string | null | undefined): boolean {
+  if (!text) return false;
+  return WHATSAPP_OPTOUT_KEYWORDS.has(text.trim().toUpperCase());
+}
+
+export function isWhatsAppOptInKeyword(text: string | null | undefined): boolean {
+  if (!text) return false;
+  return WHATSAPP_OPTIN_KEYWORDS.has(text.trim().toUpperCase());
+}
+
 /** Strip everything except digits from a phone number for loose matching */
 function extractDigits(phone: string): string {
   return phone ? phone.replace(/\D/g, "") : "";
@@ -128,6 +142,53 @@ export const sendMessage = async (req: Request, res: Response) => {
 
     if (!targetPhone) {
       return res.status(400).json({ error: "Phone number or valid leadId/customerId with a phone number is required" });
+    }
+
+    // ── OUTBOUND WHATSAPP OPT-OUT GUARD ──────────────────────────────────────
+    if (leadObj && (leadObj.optedOutWhatsapp === true || leadObj.whatsappConsentStatus === "OPTED_OUT")) {
+      return res.status(400).json({
+        error: "Cannot send WhatsApp message: recipient has opted out of WhatsApp communications",
+        optedOut: true
+      });
+    }
+
+    if (targetPhone) {
+      const cleanDigits = phoneKey(targetPhone, 10);
+      if (cleanDigits.length >= 7) {
+        if (!leadObj) {
+          const matchingOptOutLead = await sequelize.models.Lead.findOne({
+            where: {
+              [Op.or]: [
+                { phone: { [Op.like]: `%${cleanDigits}%` } },
+                { whatsappPhone: { [Op.like]: `%${cleanDigits}%` } }
+              ]
+            }
+          }) as any;
+          if (matchingOptOutLead && (matchingOptOutLead.optedOutWhatsapp === true || matchingOptOutLead.whatsappConsentStatus === "OPTED_OUT")) {
+            return res.status(400).json({
+              error: "Cannot send WhatsApp message: recipient has opted out of WhatsApp communications",
+              optedOut: true
+            });
+          }
+        }
+
+        if (sequelize.models.Contact) {
+          const matchingOptOutContact = await sequelize.models.Contact.findOne({
+            where: {
+              [Op.or]: [
+                { phone: { [Op.like]: `%${cleanDigits}%` } },
+                { whatsappNumber: { [Op.like]: `%${cleanDigits}%` } }
+              ]
+            }
+          }) as any;
+          if (matchingOptOutContact && (matchingOptOutContact.optedOutWhatsapp === true || matchingOptOutContact.whatsappConsentStatus === "OPTED_OUT")) {
+            return res.status(400).json({
+              error: "Cannot send WhatsApp message: recipient has opted out of WhatsApp communications",
+              optedOut: true
+            });
+          }
+        }
+      }
     }
 
     const caller = (req as any).user;
@@ -377,7 +438,7 @@ export const handleIncomingWebhook = async (req: Request, res: Response) => {
 
   // ── TWILIO REQUEST SIGNATURE VALIDATION ────────────────────────────────────
   const twilioAuthToken = (process.env.TWILIO_AUTH_TOKEN || "").trim();
-  const twilioSignature = (req.headers["x-twilio-signature"] as string) || "";
+  const twilioSignature = (req.headers?.["x-twilio-signature"] as string) || "";
 
   const isPlaceholderToken = !twilioAuthToken || twilioAuthToken.includes("your_twilio_auth_token");
 
@@ -505,24 +566,18 @@ export const handleIncomingWebhook = async (req: Request, res: Response) => {
       return;
     }
 
-    // Run AI Requirement Extraction on inbound message
-    const extractedAI = await extractLeadDetailsFromText(msgBody);
-
-    const nameParts = senderName ? senderName.trim().split(" ") : [];
-    const firstName = extractedAI.firstName && extractedAI.firstName !== "Voice" ? extractedAI.firstName : (nameParts[0] || "WhatsApp");
-    const lastName = extractedAI.lastName && extractedAI.lastName !== "Lead" ? extractedAI.lastName : (nameParts.slice(1).join(" ") || `User ${from.slice(-4)}`);
-    const uniqueEmail = extractedAI.email && !extractedAI.email.includes("voice.lead") ? extractedAI.email : `inbound-${from}@whatsapp.local`;
-
     // ── MATCH EXISTING LEAD / CONTACT / CUSTOMER BY PHONE ───────────────────
     const cleanDigits = phoneKey(from, 10);
     let targetLeadId: string | null = null;
     let targetCustomerId: string | null = null;
     let targetDealId: string | null = null;
+    let matchingLead: any = null;
+    let matchingContact: any = null;
 
     if (cleanDigits.length >= 7) {
       // 1. Search existing Lead by phone or whatsappPhone
       if (sequelize.models.Lead) {
-        const matchingLead = await sequelize.models.Lead.findOne({
+        matchingLead = await sequelize.models.Lead.findOne({
           where: {
             [Op.or]: [
               { phone: { [Op.like]: `%${cleanDigits}%` } },
@@ -540,8 +595,13 @@ export const handleIncomingWebhook = async (req: Request, res: Response) => {
 
       // 2. Search existing Contact / Account
       if (sequelize.models.Contact) {
-        const matchingContact = await sequelize.models.Contact.findOne({
-          where: { phone: { [Op.like]: `%${cleanDigits}%` } }
+        matchingContact = await sequelize.models.Contact.findOne({
+          where: {
+            [Op.or]: [
+              { phone: { [Op.like]: `%${cleanDigits}%` } },
+              { whatsappNumber: { [Op.like]: `%${cleanDigits}%` } }
+            ]
+          }
         }) as any;
         if (matchingContact && !targetCustomerId) {
           targetCustomerId = matchingContact.accountId;
@@ -558,6 +618,202 @@ export const handleIncomingWebhook = async (req: Request, res: Response) => {
         }
       }
     }
+
+    // ── WHATSAPP COMPLIANCE / OPT-OUT HANDLING (STOP / START KEYWORDS) ────────
+    if (isWhatsAppOptOutKeyword(msgBody)) {
+      console.log(`[WhatsApp Inbound] 🛑 Opt-out keyword "${msgBody.trim()}" received from ${from}`);
+
+      // 1. Update matching Lead(s)
+      if (sequelize.models.Lead && cleanDigits.length >= 7) {
+        await sequelize.models.Lead.update(
+          {
+            optedOutWhatsapp: true,
+            whatsappConsentStatus: "OPTED_OUT",
+            whatsappOptOutAt: new Date(),
+            whatsappOptOutSource: "INBOUND_KEYWORD"
+          },
+          {
+            where: {
+              [Op.or]: [
+                { phone: { [Op.like]: `%${cleanDigits}%` } },
+                { whatsappPhone: { [Op.like]: `%${cleanDigits}%` } }
+              ]
+            }
+          }
+        ).catch((err: any) => console.error("[WhatsApp OptOut] Error updating Leads:", err));
+      }
+
+      // 2. Update matching Contact(s)
+      if (sequelize.models.Contact && cleanDigits.length >= 7) {
+        await sequelize.models.Contact.update(
+          {
+            optedOutWhatsapp: true,
+            whatsappConsentStatus: "OPTED_OUT",
+            whatsappOptOutAt: new Date()
+          },
+          {
+            where: {
+              [Op.or]: [
+                { phone: { [Op.like]: `%${cleanDigits}%` } },
+                { whatsappNumber: { [Op.like]: `%${cleanDigits}%` } }
+              ]
+            }
+          }
+        ).catch((err: any) => console.error("[WhatsApp OptOut] Error updating Contacts:", err));
+      }
+
+      // 3. Update CampaignRecipient unsubscribedAt if matching lead
+      if (targetLeadId && sequelize.models.CampaignRecipient) {
+        await sequelize.models.CampaignRecipient.update(
+          { unsubscribedAt: new Date() },
+          { where: { leadId: targetLeadId, unsubscribedAt: null } }
+        ).catch(() => {});
+      }
+
+      // 4. Log Opt-Out Activity (Timeline Audit)
+      const adminId = await getFirstAdminId();
+      await sequelize.models.Activity.create({
+        id: crypto.randomUUID(),
+        leadId: targetLeadId || null,
+        customerId: targetCustomerId || null,
+        dealId: targetDealId || null,
+        type: "whatsapp_sms",
+        notes: `WhatsApp Opt-Out received: "${msgBody.trim()}"`,
+        outcome: "opted_out",
+        messageId: metaMessageId,
+        mentioned_user_ids: "[]",
+        pinned: true,
+        isCompleted: true,
+        createdById: adminId,
+        direction: "inbound"
+      } as any).catch((err: any) => console.error("[WhatsApp OptOut] Error logging Activity:", err));
+
+      // 5. Notify assigned representative or admin
+      const repId = matchingLead?.assignedToId || adminId;
+      if (repId) {
+        const leadLabel = matchingLead?.name || (matchingLead?.firstName ? `${matchingLead.firstName} ${matchingLead.lastName || ''}`.trim() : senderName || from);
+        await sequelize.models.Notification.create({
+          id: crypto.randomUUID(),
+          userId: repId,
+          type: "whatsapp_inbound",
+          title: `🛑 WhatsApp Opt-Out: ${leadLabel}`,
+          message: `Recipient opted out of WhatsApp messages via keyword "${msgBody.trim()}". Outbound WhatsApp messaging has been disabled.`,
+          link: matchingLead ? `/leads/${matchingLead.id}` : "/leads",
+          isRead: false,
+        } as any).catch((err: any) => console.error("[WhatsApp OptOut] Error creating Notification:", err));
+      }
+
+      // 6. Mark WebhookEvent processed & return (NO automated outbound message!)
+      if (webhookEventId) {
+        await sequelize.models.WebhookEvent.update(
+          { status: "processed" },
+          { where: { id: webhookEventId } }
+        ).catch(() => {});
+      }
+
+      if (!res.headersSent) {
+        return res.status(200).type("text/xml").send("<Response></Response>");
+      }
+      return;
+    }
+
+    if (isWhatsAppOptInKeyword(msgBody)) {
+      console.log(`[WhatsApp Inbound] 🟢 Opt-in keyword "${msgBody.trim()}" received from ${from}`);
+
+      // 1. Update matching Lead(s)
+      if (sequelize.models.Lead && cleanDigits.length >= 7) {
+        await sequelize.models.Lead.update(
+          {
+            optedOutWhatsapp: false,
+            whatsappConsentStatus: "OPTED_IN",
+            whatsappOptInAt: new Date(),
+            whatsappConsentSource: "inbound_keyword"
+          },
+          {
+            where: {
+              [Op.or]: [
+                { phone: { [Op.like]: `%${cleanDigits}%` } },
+                { whatsappPhone: { [Op.like]: `%${cleanDigits}%` } }
+              ]
+            }
+          }
+        ).catch((err: any) => console.error("[WhatsApp OptIn] Error updating Leads:", err));
+      }
+
+      // 2. Update matching Contact(s)
+      if (sequelize.models.Contact && cleanDigits.length >= 7) {
+        await sequelize.models.Contact.update(
+          {
+            optedOutWhatsapp: false,
+            whatsappConsentStatus: "OPTED_IN",
+            whatsappOptInAt: new Date(),
+            whatsappConsentSource: "inbound_keyword"
+          },
+          {
+            where: {
+              [Op.or]: [
+                { phone: { [Op.like]: `%${cleanDigits}%` } },
+                { whatsappNumber: { [Op.like]: `%${cleanDigits}%` } }
+              ]
+            }
+          }
+        ).catch((err: any) => console.error("[WhatsApp OptIn] Error updating Contacts:", err));
+      }
+
+      // 3. Log Opt-In Activity
+      const adminId = await getFirstAdminId();
+      await sequelize.models.Activity.create({
+        id: crypto.randomUUID(),
+        leadId: targetLeadId || null,
+        customerId: targetCustomerId || null,
+        dealId: targetDealId || null,
+        type: "whatsapp_sms",
+        notes: `WhatsApp Opt-In received: "${msgBody.trim()}"`,
+        outcome: "opted_in",
+        messageId: metaMessageId,
+        mentioned_user_ids: "[]",
+        pinned: false,
+        isCompleted: true,
+        createdById: adminId,
+        direction: "inbound"
+      } as any).catch((err: any) => console.error("[WhatsApp OptIn] Error logging Activity:", err));
+
+      // 4. Notify assigned representative or admin
+      const repId = matchingLead?.assignedToId || adminId;
+      if (repId) {
+        const leadLabel = matchingLead?.name || (matchingLead?.firstName ? `${matchingLead.firstName} ${matchingLead.lastName || ''}`.trim() : senderName || from);
+        await sequelize.models.Notification.create({
+          id: crypto.randomUUID(),
+          userId: repId,
+          type: "whatsapp_inbound",
+          title: `🟢 WhatsApp Opt-In: ${leadLabel}`,
+          message: `Recipient opted back into WhatsApp messages via keyword "${msgBody.trim()}". Outbound WhatsApp messaging has been re-enabled.`,
+          link: matchingLead ? `/leads/${matchingLead.id}` : "/leads",
+          isRead: false,
+        } as any).catch((err: any) => console.error("[WhatsApp OptIn] Error creating Notification:", err));
+      }
+
+      // 5. Mark WebhookEvent processed & return
+      if (webhookEventId) {
+        await sequelize.models.WebhookEvent.update(
+          { status: "processed" },
+          { where: { id: webhookEventId } }
+        ).catch(() => {});
+      }
+
+      if (!res.headersSent) {
+        return res.status(200).type("text/xml").send("<Response></Response>");
+      }
+      return;
+    }
+
+    // Run AI Requirement Extraction on inbound message
+    const extractedAI = await extractLeadDetailsFromText(msgBody);
+
+    const nameParts = senderName ? senderName.trim().split(" ") : [];
+    const firstName = extractedAI.firstName && extractedAI.firstName !== "Voice" ? extractedAI.firstName : (nameParts[0] || "WhatsApp");
+    const lastName = extractedAI.lastName && extractedAI.lastName !== "Lead" ? extractedAI.lastName : (nameParts.slice(1).join(" ") || `User ${from.slice(-4)}`);
+    const uniqueEmail = extractedAI.email && !extractedAI.email.includes("voice.lead") ? extractedAI.email : `inbound-${from}@whatsapp.local`;
 
     // Process inbound WhatsApp intake event (Missing Info Engine & Conversational Collection)
     try {
@@ -732,5 +988,73 @@ export const clearLogHistory = async (req: Request, res: Response) => {
     return res.status(500).json({ error: error.message });
   }
 };
+
+export const handleWhatsAppStatusCallback = async (req: Request, res: Response) => {
+  // ── TWILIO REQUEST SIGNATURE VALIDATION ────────────────────────────────────
+  const twilioAuthToken = (process.env.TWILIO_AUTH_TOKEN || "").trim();
+  const twilioSignature = (req.headers?.["x-twilio-signature"] as string) || "";
+
+  const isPlaceholderToken = !twilioAuthToken || twilioAuthToken.includes("your_twilio_auth_token");
+
+  if (twilioSignature && !isPlaceholderToken) {
+    const host = (req.headers?.["x-forwarded-host"] as string) || req.headers?.host;
+    const path = req.originalUrl || req.url;
+
+    const candidateUrls: string[] = [
+      `https://${host}${path}`,
+      `http://${host}${path}`,
+    ];
+    const baseUrl = (process.env.BASE_URL || process.env.RENDER_EXTERNAL_URL || "").replace(/\/$/, "");
+    if (baseUrl && !candidateUrls.includes(`${baseUrl}${path}`)) {
+      candidateUrls.push(`${baseUrl}${path}`);
+    }
+
+    const isValid = candidateUrls.some(url =>
+      twilio.validateRequest(twilioAuthToken, twilioSignature, url, req.body || {})
+    );
+
+    if (!isValid) {
+      console.warn(`[Twilio Status Callback] Signature validation failed.`);
+      if (process.env.NODE_ENV === "production") {
+        return res.status(403).send("Express HTTP 403: Invalid Twilio Signature");
+      }
+    }
+  }
+
+  try {
+    const body = req.body || {};
+    const messageSid = body.MessageSid || body.SmsSid;
+    const rawStatus = (body.MessageStatus || body.SmsStatus || "").toLowerCase();
+    const errorCode = body.ErrorCode;
+    const errorMessage = body.ErrorMessage;
+
+    if (messageSid && sequelize.models.CampaignRecipient) {
+      const recipient = (await sequelize.models.CampaignRecipient.findOne({
+        where: { providerMessageId: messageSid }
+      })) as any;
+
+      if (recipient) {
+        if (rawStatus === "delivered") {
+          recipient.deliveredAt = recipient.deliveredAt || new Date();
+          await recipient.save();
+        } else if (rawStatus === "read") {
+          recipient.deliveredAt = recipient.deliveredAt || new Date();
+          recipient.readAt = recipient.readAt || new Date();
+          await recipient.save();
+        } else if (rawStatus === "failed" || rawStatus === "undelivered") {
+          recipient.status = "FAILED";
+          recipient.error = `Twilio delivery status: ${rawStatus} (ErrorCode: ${errorCode || "N/A"}${errorMessage ? ` - ${errorMessage}` : ""})`;
+          await recipient.save();
+        }
+      }
+    }
+
+    res.status(200).json({ received: true });
+  } catch (error: any) {
+    console.error("[WhatsApp Status Callback] Error:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
 
 

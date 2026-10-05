@@ -189,15 +189,22 @@ export interface CampaignMessageStats {
   skipped: number;
   opened: number;
   unsubscribed: number;
+  delivered?: number;
+  read?: number;
   openRatePct: number;
+  deliveryRatePct?: number;
+  readRatePct?: number;
 }
 
 export interface CampaignMessage {
   id: string;
   campaignId: string;
   name: string;
-  subject: string;
-  bodyHtml: string;
+  channel?: "EMAIL" | "WHATSAPP";
+  templateSid?: string | null;
+  templateVariables?: string | null;
+  subject?: string | null;
+  bodyHtml?: string | null;
   audienceFilter?: string | null;
   status: CampaignMessageStatus;
   scheduledAt?: string | null;
@@ -212,10 +219,14 @@ export interface CampaignRecipient {
   id: string;
   campaignMessageId: string;
   leadId?: string | null;
-  email: string;
+  email?: string | null;
+  phone?: string | null;
+  providerMessageId?: string | null;
   status: CampaignRecipientStatus;
   skipReason?: string | null;
   sentAt?: string | null;
+  deliveredAt?: string | null;
+  readAt?: string | null;
   openedAt?: string | null;
   unsubscribedAt?: string | null;
   error?: string | null;
@@ -223,19 +234,26 @@ export interface CampaignRecipient {
 }
 
 export interface AudiencePreviewResponse {
+  channel?: "EMAIL" | "WHATSAPP";
   eligibleCount: number;
   excludedCount: number;
   excludedByReason: {
-    optedOut: number;
-    invalidEmail: number;
-    duplicate: number;
-    closedStatus: number;
+    optedOut?: number;
+    invalidEmail?: number;
+    noPhone?: number;
+    invalidPhone?: number;
+    noConsent?: number;
+    duplicate?: number;
+    closedStatus?: number;
+    [key: string]: number | undefined;
   };
   sample: Array<{
     id: string;
     firstName?: string;
     lastName?: string;
-    email: string;
+    email?: string;
+    phone?: string;
+    maskedPhone?: string;
     company?: string;
     leadScore?: number;
     status?: string;
@@ -244,8 +262,19 @@ export interface AudiencePreviewResponse {
   }>;
 }
 
+export interface ChannelMessageConfig {
+  dryRun: boolean;
+  maxRecipients: number;
+  allowlistActive: boolean;
+  batchSize?: number;
+  batchDelayMs?: number;
+}
+
 export interface CampaignMessageConfig {
   dryRun: boolean;
   maxRecipients: number;
   allowlistActive: boolean;
+  email?: ChannelMessageConfig;
+  whatsapp?: ChannelMessageConfig;
 }
+

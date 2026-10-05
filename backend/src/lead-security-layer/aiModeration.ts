@@ -161,6 +161,9 @@ export async function aiContentModeration(lead: Record<string, any>): Promise<Mo
   }
 
   const provider = (process.env.AI_MODERATION_PROVIDER || 'openrouter').toLowerCase();
+  if (provider === 'disabled' || provider === 'none' || provider === 'off') {
+    return { flagged: false, category: 'none' };
+  }
 
   try {
     let verdict: any;

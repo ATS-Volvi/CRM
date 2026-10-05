@@ -2,6 +2,7 @@ import { sequelize } from "@nexus-crm/database";
 import { Op } from "sequelize";
 import crypto from "crypto";
 import { sendEmail, getBaseHtmlTemplate } from "./emailService";
+import { sendWhatsAppTemplateMessage } from "./whatsappService";
 
 export interface AudienceFilter {
   leadStatus?: string[];
@@ -25,10 +26,34 @@ export interface AudiencePreviewResult {
   excludedByReason: ExcludedBreakdown;
 }
 
+export interface WhatsAppExcludedBreakdown {
+  noPhone: number;
+  invalidPhone: number;
+  noConsent: number;
+  optedOut: number;
+  duplicate: number;
+  closedStatus: number;
+}
+
+export interface WhatsAppAudiencePreviewResult {
+  eligibleLeads: any[];
+  excludedCount: number;
+  excludedByReason: WhatsAppExcludedBreakdown;
+}
+
 export interface MessageConfigResult {
   dryRun: boolean;
   maxRecipients: number;
   allowlistActive: boolean;
+}
+
+export interface WhatsAppConfigResult {
+  dryRun: boolean;
+  maxRecipients: number;
+  allowlistActive: boolean;
+  allowlist: string[];
+  batchSize: number;
+  batchDelayMs: number;
 }
 
 export const getCampaignMessageConfig = (): MessageConfigResult => {
@@ -42,6 +67,87 @@ export const getCampaignMessageConfig = (): MessageConfigResult => {
   const allowlistActive = allowlist.length > 0;
 
   return { dryRun, maxRecipients, allowlistActive };
+};
+
+export const normalizePhone = (phone: string | null | undefined): string => {
+  if (!phone || typeof phone !== "string") return "";
+  return phone.replace(/\D/g, "");
+};
+
+export const isValidPhone = (phone: string | null | undefined): boolean => {
+  const digits = normalizePhone(phone);
+  return digits.length >= 8 && digits.length <= 15;
+};
+
+export const maskPhone = (phone: string | null | undefined): string => {
+  const digits = normalizePhone(phone);
+  if (!digits) return "";
+  if (digits.length <= 4) return digits;
+  const last4 = digits.slice(-4);
+  return `${"•".repeat(Math.max(digits.length - 4, 4))}${last4}`;
+};
+
+export const getCampaignWhatsAppConfig = (): WhatsAppConfigResult => {
+  const dryRunEnv = process.env.CAMPAIGN_WHATSAPP_DRY_RUN;
+  // Default is "true". Only if explicitly set to "false" (case-insensitive) is it false.
+  const dryRun =
+    dryRunEnv === undefined || dryRunEnv === null || dryRunEnv.trim() === ""
+      ? true
+      : dryRunEnv.trim().toLowerCase() !== "false";
+
+  const maxRecipients = parseInt(process.env.CAMPAIGN_WHATSAPP_MAX_RECIPIENTS || "200", 10) || 200;
+  const allowlist = (process.env.CAMPAIGN_WHATSAPP_TEST_ALLOWLIST || "")
+    .split(",")
+    .map(normalizePhone)
+    .filter(Boolean);
+  const allowlistActive = allowlist.length > 0;
+  const batchSize = parseInt(process.env.CAMPAIGN_WHATSAPP_BATCH_SIZE || "10", 10) || 10;
+  const batchDelayMs = parseInt(process.env.CAMPAIGN_WHATSAPP_BATCH_DELAY_MS || "3000", 10) || 3000;
+
+  return { dryRun, maxRecipients, allowlistActive, allowlist, batchSize, batchDelayMs };
+};
+
+export const renderWhatsAppTemplateVariables = (
+  templateVariables: Record<string, string> | string | null | undefined,
+  lead: any,
+  campaignName: string
+): Record<string, string> => {
+  let parsed: Record<string, any> = {};
+  if (typeof templateVariables === "string") {
+    try {
+      parsed = JSON.parse(templateVariables);
+    } catch {
+      parsed = {};
+    }
+  } else if (templateVariables && typeof templateVariables === "object") {
+    parsed = templateVariables;
+  }
+
+  const dataObj: Record<string, string> = {
+    firstName: String(lead?.firstName || "").trim(),
+    lastName: String(lead?.lastName || "").trim(),
+    company: String(lead?.company || "").trim(),
+    campaignName: String(campaignName || "").trim()
+  };
+
+  const rendered: Record<string, string> = {};
+  const MAX_VAR_LENGTH = 1024;
+
+  for (const [key, rawVal] of Object.entries(parsed)) {
+    if (rawVal === undefined || rawVal === null) continue;
+    let valStr = String(rawVal);
+    for (const [phKey, phVal] of Object.entries(dataObj)) {
+      const regex = new RegExp(`{{${phKey}}}`, "g");
+      valStr = valStr.replace(regex, phVal);
+    }
+    valStr = valStr.trim();
+    if (valStr.length > MAX_VAR_LENGTH) {
+      valStr = valStr.slice(0, MAX_VAR_LENGTH);
+    }
+    rendered[key] = valStr;
+  }
+
+  return rendered;
 };
 
 export const isValidEmail = (email: string | null | undefined): boolean => {
@@ -239,6 +345,161 @@ export const computeAudience = async (
   return filterLeadsForAudience(allLeads, filter);
 };
 
+export const filterLeadsForWhatsAppAudience = (
+  allLeads: any[],
+  filter?: AudienceFilter | string | null
+): WhatsAppAudiencePreviewResult => {
+  let parsedFilter: AudienceFilter = {};
+  if (typeof filter === "string") {
+    try {
+      parsedFilter = JSON.parse(filter);
+    } catch {
+      parsedFilter = {};
+    }
+  } else if (filter && typeof filter === "object") {
+    parsedFilter = filter;
+  }
+
+  const excludedByReason: WhatsAppExcludedBreakdown = {
+    noPhone: 0,
+    invalidPhone: 0,
+    noConsent: 0,
+    optedOut: 0,
+    duplicate: 0,
+    closedStatus: 0
+  };
+
+  const eligibleLeads: any[] = [];
+  const seenPhones = new Set<string>();
+
+  const filterStatuses = parsedFilter.leadStatus && Array.isArray(parsedFilter.leadStatus)
+    ? parsedFilter.leadStatus.map((s) => s.toUpperCase())
+    : [];
+
+  const explicitlyIncludesClosed =
+    filterStatuses.includes("CONVERTED") || filterStatuses.includes("CLOSED_LOST");
+
+  for (const lead of allLeads) {
+    const l = lead as any;
+    const rawPhone = l.phone ? String(l.phone).trim() : "";
+    const statusUpper = (l.status || "").toUpperCase();
+
+    // 1. Audience Filter Criteria (status, score, industry, territory)
+    if (filterStatuses.length > 0 && !filterStatuses.includes(statusUpper)) {
+      continue;
+    }
+
+    if (parsedFilter.minScore !== undefined && parsedFilter.minScore !== null) {
+      if ((l.leadScore ?? 0) < Number(parsedFilter.minScore)) {
+        continue;
+      }
+    }
+
+    if (parsedFilter.maxScore !== undefined && parsedFilter.maxScore !== null) {
+      if ((l.leadScore ?? 0) > Number(parsedFilter.maxScore)) {
+        continue;
+      }
+    }
+
+    if (parsedFilter.industry) {
+      const targetIndustries = Array.isArray(parsedFilter.industry)
+        ? parsedFilter.industry.map((i) => i.toLowerCase().trim())
+        : [parsedFilter.industry.toLowerCase().trim()];
+      const leadInd = (l.industry || "").toLowerCase().trim();
+      if (!targetIndustries.includes(leadInd)) {
+        continue;
+      }
+    }
+
+    if (parsedFilter.country || parsedFilter.territory) {
+      const targetLocations = [
+        ...(Array.isArray(parsedFilter.country) ? parsedFilter.country : [parsedFilter.country].filter(Boolean)),
+        ...(Array.isArray(parsedFilter.territory) ? parsedFilter.territory : [parsedFilter.territory].filter(Boolean))
+      ].map((loc) => String(loc).toLowerCase().trim());
+
+      const leadCountry = (l.country || "").toLowerCase().trim();
+      const leadTerritory = (l.territory || "").toLowerCase().trim();
+      if (!targetLocations.includes(leadCountry) && !targetLocations.includes(leadTerritory)) {
+        continue;
+      }
+    }
+
+    // 2. Closed Status Exclusion
+    if (!explicitlyIncludesClosed && (statusUpper === "CONVERTED" || statusUpper === "CLOSED_LOST")) {
+      excludedByReason.closedStatus++;
+      continue;
+    }
+
+    // 3. MANDATORY EXCLUSION: No phone
+    if (!rawPhone) {
+      excludedByReason.noPhone++;
+      continue;
+    }
+
+    // 4. MANDATORY EXCLUSION: Invalid phone (must normalize to digits, minimum 8 digits)
+    const digits = normalizePhone(rawPhone);
+    if (digits.length < 8) {
+      excludedByReason.invalidPhone++;
+      continue;
+    }
+
+    // 5. MANDATORY EXCLUSION: Opted out (optedOutWhatsapp === true or status OPTED_OUT)
+    if (l.optedOutWhatsapp === true || l.whatsappConsentStatus === "OPTED_OUT") {
+      excludedByReason.optedOut++;
+      continue;
+    }
+
+    // 6. MANDATORY EXCLUSION: No WhatsApp Consent (must be OPTED_IN, covers UNSPECIFIED)
+    if (l.whatsappConsentStatus !== "OPTED_IN") {
+      excludedByReason.noConsent++;
+      continue;
+    }
+
+    // 7. MANDATORY EXCLUSION: Duplicate phone in audience
+    if (seenPhones.has(digits)) {
+      excludedByReason.duplicate++;
+      continue;
+    }
+
+    seenPhones.add(digits);
+    eligibleLeads.push(l);
+  }
+
+  const excludedCount =
+    excludedByReason.noPhone +
+    excludedByReason.invalidPhone +
+    excludedByReason.noConsent +
+    excludedByReason.optedOut +
+    excludedByReason.duplicate +
+    excludedByReason.closedStatus;
+
+  return { eligibleLeads, excludedCount, excludedByReason };
+};
+
+export const computeWhatsAppAudience = async (
+  campaignId: string,
+  filter?: AudienceFilter | string | null
+): Promise<WhatsAppAudiencePreviewResult> => {
+  const attributions = await sequelize.models.LeadAttribution.findAll({
+    where: { campaignId },
+    attributes: ["leadId"]
+  });
+  const attributedLeadIds = attributions.map((a: any) => a.leadId).filter(Boolean);
+
+  const orConditions: any[] = [{ campaignId }];
+  if (attributedLeadIds.length > 0) {
+    orConditions.push({ id: { [Op.in]: attributedLeadIds } });
+  }
+
+  const allLeads = await sequelize.models.Lead.findAll({
+    where: { [Op.or]: orConditions },
+    order: [["createdAt", "ASC"]]
+  });
+
+  return filterLeadsForWhatsAppAudience(allLeads, filter);
+};
+
+
 export const handleTrackingPixel = async (recipientId: string): Promise<boolean> => {
   const recipient = (await sequelize.models.CampaignRecipient.findByPk(recipientId, {
     include: [{ model: sequelize.models.CampaignMessage, as: "message" }]
@@ -284,6 +545,8 @@ export const getMessageStats = async (messageId: string) => {
   let skipped = 0;
   let opened = 0;
   let unsubscribed = 0;
+  let delivered = 0;
+  let read = 0;
 
   for (const r of recipients) {
     if (r.status === "QUEUED" || r.status === "SENDING") queued++;
@@ -292,10 +555,14 @@ export const getMessageStats = async (messageId: string) => {
     if (r.status === "SKIPPED") skipped++;
     if (r.openedAt) opened++;
     if (r.unsubscribedAt) unsubscribed++;
+    if (r.deliveredAt) delivered++;
+    if (r.readAt) read++;
   }
 
   const total = recipients.length;
   const openRatePct = sent > 0 ? Number(((opened / sent) * 100).toFixed(1)) : 0;
+  const deliveryRatePct = sent > 0 ? Number(((delivered / sent) * 100).toFixed(1)) : 0;
+  const readRatePct = sent > 0 ? Number(((read / sent) * 100).toFixed(1)) : 0;
 
   return {
     total,
@@ -305,7 +572,11 @@ export const getMessageStats = async (messageId: string) => {
     skipped,
     opened,
     unsubscribed,
-    openRatePct
+    delivered,
+    read,
+    openRatePct,
+    deliveryRatePct,
+    readRatePct
   };
 };
 
@@ -316,7 +587,7 @@ export const executeMessageSend = async (
 ) => {
   // CHECK 1: Require explicit confirm
   if (options?.confirm !== true) {
-    throw new Error("Explicit confirmation (confirm: true) is required to send campaign emails");
+    throw new Error("Explicit confirmation (confirm: true) is required to send campaign messages");
   }
 
   const message = (await sequelize.models.CampaignMessage.findOne({
@@ -337,6 +608,62 @@ export const executeMessageSend = async (
     throw new Error("Campaign not found");
   }
 
+  const channel = (message.channel || "EMAIL").toUpperCase();
+
+  if (channel === "WHATSAPP") {
+    if (!message.templateSid) {
+      throw new Error("WhatsApp campaign messages require an approved templateSid");
+    }
+
+    const waConfig = getCampaignWhatsAppConfig();
+    const audience = await computeWhatsAppAudience(campaignId, message.audienceFilter);
+
+    // CHECK 2: Cap enforcement
+    if (audience.eligibleLeads.length > waConfig.maxRecipients) {
+      throw new Error(
+        `Eligible audience (${audience.eligibleLeads.length}) exceeds maximum allowable recipients (${waConfig.maxRecipients})`
+      );
+    }
+
+    if (audience.eligibleLeads.length === 0) {
+      throw new Error("No eligible recipients found for this message");
+    }
+
+    // Clear any existing recipient records for this message before re-populating
+    await sequelize.models.CampaignRecipient.destroy({
+      where: { campaignMessageId: messageId }
+    });
+
+    const recipientsData = audience.eligibleLeads.map((lead: any) => ({
+      id: crypto.randomUUID(),
+      campaignMessageId: messageId,
+      leadId: lead.id,
+      email: lead.email || null,
+      phone: normalizePhone(lead.phone),
+      status: "QUEUED",
+      createdAt: new Date()
+    }));
+
+    await sequelize.models.CampaignRecipient.bulkCreate(recipientsData);
+
+    message.status = "SENDING";
+    await message.save();
+
+    setImmediate(async () => {
+      try {
+        await processAsyncWhatsAppDelivery(campaignId, messageId, campaign.name);
+      } catch (err) {
+        console.error("[CampaignMessageService] Error during async WhatsApp delivery:", err);
+      }
+    });
+
+    return {
+      recipientCount: audience.eligibleLeads.length,
+      status: "SENDING"
+    };
+  }
+
+  // Channel: EMAIL
   const config = getCampaignMessageConfig();
 
   // Fresh send: compute audience
@@ -410,6 +737,54 @@ export const runClaimedMessage = async (
     throw new Error("Campaign not found");
   }
 
+  const channel = (message.channel || "EMAIL").toUpperCase();
+
+  if (channel === "WHATSAPP") {
+    if (!message.templateSid) {
+      throw new Error("WhatsApp campaign messages require an approved templateSid");
+    }
+
+    const waConfig = getCampaignWhatsAppConfig();
+    const audience = await computeWhatsAppAudience(campaignId, message.audienceFilter);
+
+    if (audience.eligibleLeads.length > waConfig.maxRecipients) {
+      throw new Error(
+        `Eligible audience (${audience.eligibleLeads.length}) exceeds maximum allowable recipients (${waConfig.maxRecipients})`
+      );
+    }
+
+    if (audience.eligibleLeads.length === 0) {
+      throw new Error("No eligible recipients found for this message");
+    }
+
+    await sequelize.models.CampaignRecipient.destroy({
+      where: { campaignMessageId: messageId }
+    });
+
+    const recipientsData = audience.eligibleLeads.map((lead: any) => ({
+      id: crypto.randomUUID(),
+      campaignMessageId: messageId,
+      leadId: lead.id,
+      email: lead.email || null,
+      phone: normalizePhone(lead.phone),
+      status: "QUEUED",
+      createdAt: new Date()
+    }));
+
+    await sequelize.models.CampaignRecipient.bulkCreate(recipientsData);
+
+    message.status = "SENDING";
+    await message.save();
+
+    await processAsyncWhatsAppDelivery(campaignId, messageId, campaign.name);
+
+    return {
+      recipientCount: audience.eligibleLeads.length,
+      status: "SENDING"
+    };
+  }
+
+  // EMAIL
   const config = getCampaignMessageConfig();
 
   // Fresh send: compute audience at send time
@@ -460,7 +835,7 @@ export const resumeMessageSend = async (
   options?: { confirm?: boolean }
 ) => {
   if (options?.confirm !== true) {
-    throw new Error("Explicit confirmation (confirm: true) is required to resume campaign emails");
+    throw new Error("Explicit confirmation (confirm: true) is required to resume campaign messages");
   }
 
   const message = (await sequelize.models.CampaignMessage.findOne({
@@ -502,9 +877,15 @@ export const resumeMessageSend = async (
   message.status = "SENDING";
   await message.save();
 
+  const channel = (message.channel || "EMAIL").toUpperCase();
+
   setImmediate(async () => {
     try {
-      await processAsyncDelivery(campaignId, messageId, campaign.name);
+      if (channel === "WHATSAPP") {
+        await processAsyncWhatsAppDelivery(campaignId, messageId, campaign.name);
+      } else {
+        await processAsyncDelivery(campaignId, messageId, campaign.name);
+      }
     } catch (err) {
       console.error("[CampaignMessageService] Error during async delivery resume:", err);
     }
@@ -634,6 +1015,153 @@ export const processAsyncDelivery = async (
 
     if (i + BATCH_SIZE < pendingRecipients.length) {
       await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+  }
+
+  // Update final status if not cancelled
+  const finalMsg = (await sequelize.models.CampaignMessage.findByPk(messageId)) as any;
+  if (finalMsg && finalMsg.status === "SENDING") {
+    // Check if any recipients remain in QUEUED/SENDING
+    const remainingUnsent = await sequelize.models.CampaignRecipient.count({
+      where: {
+        campaignMessageId: messageId,
+        status: { [Op.in]: ["QUEUED", "SENDING"] }
+      }
+    });
+
+    finalMsg.status = remainingUnsent === 0 ? "SENT" : "PARTIAL";
+    finalMsg.sentAt = new Date();
+    await finalMsg.save();
+  }
+};
+
+export const processAsyncWhatsAppDelivery = async (
+  campaignId: string,
+  messageId: string,
+  campaignName: string
+) => {
+  const config = getCampaignWhatsAppConfig();
+
+  const message = (await sequelize.models.CampaignMessage.findByPk(messageId)) as any;
+  if (!message) return;
+
+  const pendingRecipients = (await sequelize.models.CampaignRecipient.findAll({
+    where: { campaignMessageId: messageId, status: "QUEUED" },
+    order: [["createdAt", "ASC"]]
+  })) as any[];
+
+  if (pendingRecipients.length === 0) {
+    message.status = "SENT";
+    message.sentAt = new Date();
+    await message.save();
+    return;
+  }
+
+  const batchSize = config.batchSize || 10;
+  const batchDelayMs = config.batchDelayMs || 3000;
+
+  for (let i = 0; i < pendingRecipients.length; i += batchSize) {
+    // Check if message was cancelled or paused
+    const currentMsg = (await sequelize.models.CampaignMessage.findByPk(messageId)) as any;
+    if (currentMsg && currentMsg.status === "CANCELLED") {
+      console.log(`[CampaignMessageService] WhatsApp message ${messageId} was cancelled during delivery`);
+      break;
+    }
+
+    const batch = pendingRecipients.slice(i, i + batchSize);
+
+    await Promise.all(
+      batch.map(async (recipient) => {
+        // DOUBLE-SENDING PREVENTION: Claim row atomically from QUEUED -> SENDING
+        const [claimedRows] = await sequelize.models.CampaignRecipient.update(
+          { status: "SENDING" },
+          { where: { id: recipient.id, status: "QUEUED" } }
+        );
+
+        if (claimedRows === 0) {
+          // Already claimed or sent by another process
+          return;
+        }
+
+        // Re-check at delivery time: reload lead from DB immediately before sending
+        const lead = recipient.leadId
+          ? ((await sequelize.models.Lead.findByPk(recipient.leadId)) as any)
+          : null;
+
+        // Skip if lead does not exist
+        if (!lead) {
+          recipient.status = "SKIPPED";
+          recipient.skipReason = "lead not found";
+          await recipient.save();
+          return;
+        }
+
+        // RE-CHECK CONSENT AND OPT-OUT
+        if (lead.whatsappConsentStatus !== "OPTED_IN" || lead.optedOutWhatsapp === true) {
+          recipient.status = "SKIPPED";
+          recipient.skipReason = lead.optedOutWhatsapp ? "opted out" : "no WhatsApp consent";
+          await recipient.save();
+          return;
+        }
+
+        const phone = normalizePhone(recipient.phone || lead.phone || "");
+        if (!isValidPhone(phone)) {
+          recipient.status = "SKIPPED";
+          recipient.skipReason = "invalid phone";
+          await recipient.save();
+          return;
+        }
+
+        // Check test allowlist
+        if (config.allowlist.length > 0 && !config.allowlist.includes(phone)) {
+          recipient.status = "SKIPPED";
+          recipient.skipReason = "not in test allowlist";
+          await recipient.save();
+          return;
+        }
+
+        const renderedVars = renderWhatsAppTemplateVariables(
+          message.templateVariables,
+          lead,
+          campaignName
+        );
+
+        if (config.dryRun) {
+          // Logging ONLY when dry run is active, masking phone for safety
+          const masked = maskPhone(phone);
+          console.log(`[CAMPAIGN WHATSAPP DRY RUN] Rendered template variables for recipient ${recipient.id} (phone: ${masked}):`, JSON.stringify(renderedVars));
+          recipient.status = "SENT";
+          recipient.sentAt = new Date();
+          recipient.skipReason = "dry run (not delivered)";
+          await recipient.save();
+          return;
+        }
+
+        // Absolute safety guard: ensure no real send if dryRun is true
+        if (config.dryRun) {
+          throw new Error("SAFETY VIOLATION: sendWhatsAppTemplateMessage attempted while dryRun is true");
+        }
+
+        try {
+          const apiResult = await sendWhatsAppTemplateMessage(
+            phone,
+            message.templateSid,
+            renderedVars
+          );
+          recipient.status = "SENT";
+          recipient.sentAt = new Date();
+          recipient.providerMessageId = apiResult.sid || apiResult.messages?.[0]?.id || null;
+          await recipient.save();
+        } catch (err: any) {
+          recipient.status = "FAILED";
+          recipient.error = err.message || "WhatsApp send failed";
+          await recipient.save();
+        }
+      })
+    );
+
+    if (i + batchSize < pendingRecipients.length) {
+      await new Promise((resolve) => setTimeout(resolve, batchDelayMs));
     }
   }
 

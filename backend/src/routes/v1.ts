@@ -34,7 +34,8 @@ import {
   requestMissingDetails,
   triggerLeadEnrichment,
   findLeadContacts,
-  getLeadDiscoveredContacts
+  getLeadDiscoveredContacts,
+  recordWhatsAppConsent
 } from "../controllers/leadController";
 import { getPriceBookEntries, createPriceBookEntry, updatePriceBookEntry, deletePriceBookEntry, importPriceBookEntries, getPriceSuggestion, importPriceBookEntriesPreview, getCatalogCategories, getCatalogUoms } from '../controllers/priceBookController';
 import {
@@ -454,6 +455,7 @@ router.post("/leads/:id/request-details", authMiddleware, requestMissingDetails)
 router.post("/leads/:id/enrich", authMiddleware, triggerLeadEnrichment);
 router.post("/leads/:id/find-contacts", authMiddleware, findLeadContacts);
 router.get("/leads/:id/discovered-contacts", authMiddleware, getLeadDiscoveredContacts);
+router.post("/leads/:id/whatsapp-consent", authMiddleware, recordWhatsAppConsent);
 
 // ==========================================
 // OPPORTUNITIES / DEALS

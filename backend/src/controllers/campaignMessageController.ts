@@ -3,7 +3,10 @@ import { sequelize } from "@nexus-crm/database";
 import crypto from "crypto";
 import {
   computeAudience,
+  computeWhatsAppAudience,
   getCampaignMessageConfig,
+  getCampaignWhatsAppConfig,
+  maskPhone,
   handleTrackingPixel,
   getMessageStats,
   executeMessageSend,
@@ -17,8 +20,25 @@ const TRANSPARENT_GIF_BUFFER = Buffer.from(
 
 export const getCampaignMessageConfigHandler = async (req: Request, res: Response) => {
   try {
-    const config = getCampaignMessageConfig();
-    res.json(config);
+    const emailConfig = getCampaignMessageConfig();
+    const whatsappConfig = getCampaignWhatsAppConfig();
+    res.json({
+      dryRun: emailConfig.dryRun,
+      maxRecipients: emailConfig.maxRecipients,
+      allowlistActive: emailConfig.allowlistActive,
+      email: {
+        dryRun: emailConfig.dryRun,
+        maxRecipients: emailConfig.maxRecipients,
+        allowlistActive: emailConfig.allowlistActive
+      },
+      whatsapp: {
+        dryRun: whatsappConfig.dryRun,
+        maxRecipients: whatsappConfig.maxRecipients,
+        allowlistActive: whatsappConfig.allowlistActive,
+        batchSize: whatsappConfig.batchSize,
+        batchDelayMs: whatsappConfig.batchDelayMs
+      }
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -101,11 +121,35 @@ export const getCampaignMessageStatsHandler = async (req: Request, res: Response
 export const createCampaignMessage = async (req: Request, res: Response) => {
   try {
     const campaignId = String(req.params.id);
-    const { name, subject, bodyHtml, audienceFilter, scheduledAt } = req.body;
+    const {
+      name,
+      subject,
+      bodyHtml,
+      audienceFilter,
+      scheduledAt,
+      channel = "EMAIL",
+      templateSid,
+      templateVariables
+    } = req.body;
     const caller = (req as any).user;
 
-    if (!name || !subject || !bodyHtml) {
-      return res.status(400).json({ error: "Name, subject, and body HTML are required" });
+    const normalizedChannel = String(channel).toUpperCase();
+    if (normalizedChannel !== "EMAIL" && normalizedChannel !== "WHATSAPP") {
+      return res.status(400).json({ error: "Channel must be EMAIL or WHATSAPP" });
+    }
+
+    if (!name) {
+      return res.status(400).json({ error: "Message name is required" });
+    }
+
+    if (normalizedChannel === "WHATSAPP") {
+      if (!templateSid) {
+        return res.status(400).json({ error: "WhatsApp campaign messages require an approved templateSid" });
+      }
+    } else {
+      if (!subject || !bodyHtml) {
+        return res.status(400).json({ error: "Name, subject, and body HTML are required for Email messages" });
+      }
     }
 
     const campaign = await sequelize.models.Campaign.findByPk(campaignId);
@@ -116,12 +160,20 @@ export const createCampaignMessage = async (req: Request, res: Response) => {
     const filterString =
       typeof audienceFilter === "object" ? JSON.stringify(audienceFilter) : audienceFilter || null;
 
+    const templateVarsString =
+      typeof templateVariables === "object"
+        ? JSON.stringify(templateVariables)
+        : templateVariables || null;
+
     const message: any = await sequelize.models.CampaignMessage.create({
       id: crypto.randomUUID(),
       campaignId,
       name,
-      subject,
-      bodyHtml,
+      channel: normalizedChannel,
+      templateSid: normalizedChannel === "WHATSAPP" ? templateSid : null,
+      templateVariables: normalizedChannel === "WHATSAPP" ? templateVarsString : null,
+      subject: subject || (normalizedChannel === "WHATSAPP" ? templateSid : ""),
+      bodyHtml: bodyHtml || "",
       audienceFilter: filterString,
       status: scheduledAt ? "SCHEDULED" : "DRAFT",
       scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
@@ -142,7 +194,7 @@ export const updateCampaignMessage = async (req: Request, res: Response) => {
   try {
     const campaignId = String(req.params.id);
     const messageId = String(req.params.messageId);
-    const { name, subject, bodyHtml, audienceFilter, scheduledAt } = req.body;
+    const { name, subject, bodyHtml, audienceFilter, scheduledAt, templateSid, templateVariables } = req.body;
 
     const message = (await sequelize.models.CampaignMessage.findOne({
       where: { id: messageId, campaignId }
@@ -160,6 +212,11 @@ export const updateCampaignMessage = async (req: Request, res: Response) => {
     if (name !== undefined) message.name = name;
     if (subject !== undefined) message.subject = subject;
     if (bodyHtml !== undefined) message.bodyHtml = bodyHtml;
+    if (templateSid !== undefined) message.templateSid = templateSid;
+    if (templateVariables !== undefined) {
+      message.templateVariables =
+        typeof templateVariables === "object" ? JSON.stringify(templateVariables) : templateVariables;
+    }
     if (audienceFilter !== undefined) {
       message.audienceFilter =
         typeof audienceFilter === "object" ? JSON.stringify(audienceFilter) : audienceFilter;
@@ -210,6 +267,7 @@ export const previewAudience = async (req: Request, res: Response) => {
     const campaignId = String(req.params.id);
     const messageId = req.params.messageId ? String(req.params.messageId) : undefined;
     let filter = req.body?.audienceFilter;
+    let channel = req.body?.channel ? String(req.body.channel).toUpperCase() : undefined;
 
     // Validate campaign exists
     const campaign = await sequelize.models.Campaign.findByPk(campaignId);
@@ -217,14 +275,17 @@ export const previewAudience = async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Campaign not found" });
     }
 
-    if (messageId && messageId !== "draft" && !filter) {
+    if (messageId && messageId !== "draft") {
       const message = (await sequelize.models.CampaignMessage.findOne({
         where: { id: messageId, campaignId }
       })) as any;
       if (!message) {
         return res.status(404).json({ error: "Message not found in this campaign" });
       }
-      if (message.audienceFilter) {
+      if (!channel) {
+        channel = (message.channel || "EMAIL").toUpperCase();
+      }
+      if (!filter && message.audienceFilter) {
         try {
           filter = JSON.parse(message.audienceFilter);
         } catch {
@@ -233,6 +294,37 @@ export const previewAudience = async (req: Request, res: Response) => {
       }
     }
 
+    channel = channel || "EMAIL";
+
+    if (channel === "WHATSAPP") {
+      const { eligibleLeads, excludedCount, excludedByReason } = await computeWhatsAppAudience(
+        campaignId,
+        filter
+      );
+
+      const sample = eligibleLeads.slice(0, 10).map((l: any) => ({
+        id: l.id,
+        firstName: l.firstName,
+        lastName: l.lastName,
+        email: l.email,
+        phone: maskPhone(l.phone),
+        company: l.company,
+        leadScore: l.leadScore,
+        status: l.status,
+        country: l.country || l.territory || null,
+        industry: l.industry || null
+      }));
+
+      return res.json({
+        channel: "WHATSAPP",
+        eligibleCount: eligibleLeads.length,
+        excludedCount,
+        excludedByReason,
+        sample
+      });
+    }
+
+    // Default: EMAIL
     const { eligibleLeads, excludedCount, excludedByReason } = await computeAudience(
       campaignId,
       filter
@@ -250,7 +342,8 @@ export const previewAudience = async (req: Request, res: Response) => {
       industry: l.industry || null
     }));
 
-    res.json({
+    return res.json({
+      channel: "EMAIL",
       eligibleCount: eligibleLeads.length,
       excludedCount,
       excludedByReason,
