@@ -433,7 +433,7 @@ describe("Phase B: Campaign Email Execution & Safety Engine (Real Service Implem
       expect(responseHtml).toContain("subscriber@example.com");
     });
 
-    test("POST /leads/unsubscribe/:id sets optedOutEmail=true, logs Activity, and updates CampaignRecipient unsubscribedAt", async () => {
+    test("POST /leads/unsubscribe/:id sets optedOutEmail=true, logs Activity with type 'email', and updates CampaignRecipient unsubscribedAt", async () => {
       const mockLead = {
         id: "lead-test-02",
         email: "confirm-unsub@example.com",
@@ -460,16 +460,18 @@ describe("Phase B: Campaign Email Execution & Safety Engine (Real Service Implem
       expect(mockLead.optedOutEmail).toBe(true);
       expect(mockLead.save).toHaveBeenCalled();
 
-      // Verification 2: Activity logged
+      // Verification 2: Activity logged with lowercase "email" and no extra fields
       expect(sequelize.models.Activity.create).toHaveBeenCalledWith(
         expect.objectContaining({
           leadId: "lead-test-02",
-          type: "Email",
-          status: "Completed",
-          assignedToId: "rep-99",
+          type: "email",
+          direction: "internal",
           notes: expect.stringContaining("Client confirmed Unsubscribe")
         })
       );
+      const activityCall = (sequelize.models.Activity.create as jest.Mock).mock.calls[0][0];
+      expect(activityCall).not.toHaveProperty("status");
+      expect(activityCall).not.toHaveProperty("assignedToId");
 
       // Verification 3: CampaignRecipient timestamp updated
       expect(sequelize.models.CampaignRecipient.update).toHaveBeenCalledWith(
@@ -478,6 +480,89 @@ describe("Phase B: Campaign Email Execution & Safety Engine (Real Service Implem
       );
 
       // Verification 4: Renders success page
+      expect(responseHtml).toContain("Unsubscribed Successfully");
+    });
+
+    test("POST /leads/unsubscribe/:id second POST for already opted-out lead returns success and does not create duplicate Activity", async () => {
+      const mockLead = {
+        id: "lead-test-02",
+        email: "confirm-unsub@example.com",
+        optedOutEmail: true,
+        assignedToId: "rep-99",
+        save: jest.fn().mockResolvedValue(true)
+      };
+
+      (sequelize.models.Lead.findByPk as jest.Mock).mockResolvedValueOnce(mockLead);
+      (sequelize.models.Activity.create as jest.Mock).mockClear();
+      (sequelize.models.CampaignRecipient.update as jest.Mock).mockResolvedValueOnce([0]);
+
+      const mockReq: any = { params: { id: "lead-test-02" } };
+      let responseHtml = "";
+      const mockRes: any = {
+        send: (html: string) => {
+          responseHtml = html;
+        }
+      };
+
+      await handleUnsubscribe(mockReq, mockRes);
+
+      // Does not save lead again or create duplicate Activity
+      expect(mockLead.save).not.toHaveBeenCalled();
+      expect(sequelize.models.Activity.create).not.toHaveBeenCalled();
+
+      // Still stamps any unstamped recipients
+      expect(sequelize.models.CampaignRecipient.update).toHaveBeenCalledWith(
+        expect.objectContaining({ unsubscribedAt: expect.any(Date) }),
+        expect.objectContaining({ where: { leadId: "lead-test-02", unsubscribedAt: null } })
+      );
+
+      expect(responseHtml).toContain("Unsubscribed Successfully");
+    });
+
+    test("POST /leads/unsubscribe/:id still returns success HTML and keeps optedOutEmail true when Activity.create throws", async () => {
+      const mockLead = {
+        id: "lead-test-03",
+        email: "throw-act@example.com",
+        optedOutEmail: false,
+        assignedToId: "rep-99",
+        save: jest.fn().mockResolvedValue(true)
+      };
+
+      (sequelize.models.Lead.findByPk as jest.Mock).mockResolvedValueOnce(mockLead);
+      (sequelize.models.Activity.create as jest.Mock).mockRejectedValueOnce(
+        new Error("SequelizeDatabaseError: invalid input value for enum enum_Activities_type: \"Email\"")
+      );
+      (sequelize.models.CampaignRecipient.update as jest.Mock).mockResolvedValueOnce([1]);
+
+      const mockReq: any = { params: { id: "lead-test-03" } };
+      let responseHtml = "";
+      const mockRes: any = {
+        send: (html: string) => {
+          responseHtml = html;
+        }
+      };
+
+      await handleUnsubscribe(mockReq, mockRes);
+
+      expect(mockLead.optedOutEmail).toBe(true);
+      expect(mockLead.save).toHaveBeenCalled();
+      expect(sequelize.models.CampaignRecipient.update).toHaveBeenCalled();
+      expect(responseHtml).toContain("Unsubscribed Successfully");
+    });
+
+    test("POST /leads/unsubscribe/:id returns generic success page for unknown lead ID", async () => {
+      (sequelize.models.Lead.findByPk as jest.Mock).mockResolvedValueOnce(null);
+
+      const mockReq: any = { params: { id: "unknown-lead-id" } };
+      let responseHtml = "";
+      const mockRes: any = {
+        send: (html: string) => {
+          responseHtml = html;
+        }
+      };
+
+      await handleUnsubscribe(mockReq, mockRes);
+
       expect(responseHtml).toContain("Unsubscribed Successfully");
     });
 

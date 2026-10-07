@@ -688,15 +688,17 @@ export const handleUnsubscribe = async (req: Request, res: Response) => {
       l.optedOutEmail = true;
       await l.save();
 
-      await sequelize.models.Activity.create({
-        id: crypto.randomUUID(),
-        leadId: l.id,
-        type: "Email",
-        status: "Completed",
-        assignedToId: l.assignedToId,
-        notes: "Client confirmed Unsubscribe. All future marketing/templated emails are now blocked.",
-        direction: "internal"
-      });
+      try {
+        await sequelize.models.Activity.create({
+          id: crypto.randomUUID(),
+          leadId: l.id,
+          type: "email",
+          notes: "Client confirmed Unsubscribe. All future marketing/templated emails are now blocked.",
+          direction: "internal"
+        });
+      } catch (actErr: any) {
+        console.error("Error logging unsubscribe activity:", actErr);
+      }
     }
 
     // Update any CampaignRecipients for this lead with unsubscribedAt timestamp
@@ -730,6 +732,7 @@ export const handleUnsubscribe = async (req: Request, res: Response) => {
     `;
     res.send(html);
   } catch (error: any) {
+    console.error("Error handling unsubscribe:", error);
     res.status(500).send("An error occurred processing your request.");
   }
 };
