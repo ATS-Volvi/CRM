@@ -1,16 +1,33 @@
+import { describe, it, beforeEach, afterEach } from "node:test";
+import assert from "node:assert";
 import { computeAudience, computeWhatsAppAudience } from "../../src/services/campaignMessageService";
 import { previewAudience } from "../../src/controllers/campaignMessageController";
 import { sequelize } from "@nexus-crm/database";
 
 describe("Campaign Audience Union & Controller Validation Unit Tests", () => {
+  let origLeadAttribFindAll: any;
+  let origLeadFindAll: any;
+  let origCampaignFindByPk: any;
+  let origCampaignFindAll: any;
+
   beforeEach(() => {
-    jest.clearAllMocks();
+    origLeadAttribFindAll = sequelize.models.LeadAttribution.findAll;
+    origLeadFindAll = sequelize.models.Lead.findAll;
+    origCampaignFindByPk = sequelize.models.Campaign.findByPk;
+    origCampaignFindAll = sequelize.models.Campaign.findAll;
+  });
+
+  afterEach(() => {
+    sequelize.models.LeadAttribution.findAll = origLeadAttribFindAll;
+    sequelize.models.Lead.findAll = origLeadFindAll;
+    sequelize.models.Campaign.findByPk = origCampaignFindByPk;
+    sequelize.models.Campaign.findAll = origCampaignFindAll;
   });
 
   it("1. computeWhatsAppAudience unions leads from primary and included campaigns, strictly excluding widened leads without consent", async () => {
-    jest.spyOn(sequelize.models.LeadAttribution, "findAll").mockResolvedValueOnce([
+    (sequelize.models.LeadAttribution as any).findAll = async () => [
       { leadId: "lead-attrib-1" }
-    ] as any);
+    ];
 
     const testLeads = [
       // Primary campaign lead with consent -> ELIGIBLE
@@ -42,22 +59,27 @@ describe("Campaign Audience Union & Controller Validation Unit Tests", () => {
       }
     ];
 
-    jest.spyOn(sequelize.models.Lead, "findAll").mockResolvedValueOnce(testLeads as any);
+    (sequelize.models.Lead as any).findAll = async () => testLeads;
 
     const result = await computeWhatsAppAudience("camp-primary", {
       includeFromCampaignIds: ["camp-secondary"]
     });
 
-    expect(result.eligibleLeads.map((l: any) => l.id)).toEqual([
-      "lead-primary-1",
-      "lead-widened-consented"
-    ]);
-    expect(result.excludedByReason.noConsent).toBe(1);
+    assert.deepStrictEqual(
+      result.eligibleLeads.map((l: any) => l.id),
+      ["lead-primary-1", "lead-widened-consented"]
+    );
+    assert.strictEqual(result.excludedByReason.noConsent, 1);
   });
 
   it("2. Regression check: empty or missing includeFromCampaignIds behaves exactly as single-campaign query", async () => {
-    const attribSpy = jest.spyOn(sequelize.models.LeadAttribution, "findAll").mockResolvedValueOnce([] as any);
-    const leadSpy = jest.spyOn(sequelize.models.Lead, "findAll").mockResolvedValueOnce([
+    let capturedAttribQuery: any = null;
+    (sequelize.models.LeadAttribution as any).findAll = async (options: any) => {
+      capturedAttribQuery = options;
+      return [];
+    };
+
+    (sequelize.models.Lead as any).findAll = async () => [
       {
         id: "lead-single-1",
         campaignId: "camp-solo",
@@ -65,22 +87,20 @@ describe("Campaign Audience Union & Controller Validation Unit Tests", () => {
         optedOutEmail: false,
         status: "NEW"
       }
-    ] as any);
+    ];
 
     // Call without includeFromCampaignIds
     const result = await computeAudience("camp-solo", {});
 
-    expect(attribSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { campaignId: { [Symbol.for("in")]: ["camp-solo"] } }
-      })
-    );
-    expect(result.eligibleLeads.map((l: any) => l.id)).toEqual(["lead-single-1"]);
+    assert.ok(capturedAttribQuery);
+    const inSymbol = Object.getOwnPropertySymbols(capturedAttribQuery.where.campaignId)[0];
+    assert.deepStrictEqual(capturedAttribQuery.where.campaignId[inSymbol], ["camp-solo"]);
+    assert.deepStrictEqual(result.eligibleLeads.map((l: any) => l.id), ["lead-single-1"]);
   });
 
   it("3. previewAudience returns 400 when includeFromCampaignIds contains an unknown campaign ID", async () => {
-    jest.spyOn(sequelize.models.Campaign, "findByPk").mockResolvedValueOnce({ id: "camp-1", name: "Main Campaign" } as any);
-    jest.spyOn(sequelize.models.Campaign, "findAll").mockResolvedValueOnce([{ id: "camp-valid" }] as any);
+    (sequelize.models.Campaign as any).findByPk = async () => ({ id: "camp-1", name: "Main Campaign" });
+    (sequelize.models.Campaign as any).findAll = async () => [{ id: "camp-valid" }];
 
     const req: any = {
       params: { id: "camp-1" },
@@ -92,23 +112,31 @@ describe("Campaign Audience Union & Controller Validation Unit Tests", () => {
       }
     };
 
+    let statusCode = 200;
+    let responseBody: any = null;
     const res: any = {
-      status: jest.fn().mockReturnThis(),
-      json: jest.fn()
+      status: (code: number) => {
+        statusCode = code;
+        return res;
+      },
+      json: (body: any) => {
+        responseBody = body;
+        return res;
+      }
     };
 
     await previewAudience(req, res);
 
-    expect(res.status).toHaveBeenCalledWith(400);
-    expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({
-        error: expect.stringContaining("camp-nonexistent-999")
-      })
+    assert.strictEqual(statusCode, 400);
+    assert.ok(
+      typeof responseBody?.error === "string" &&
+      responseBody.error.includes("camp-nonexistent-999"),
+      `Expected error message to mention camp-nonexistent-999, got: ${responseBody?.error}`
     );
   });
 
   it("4. previewAudience returns 400 when includeFromCampaignIds is not an array", async () => {
-    jest.spyOn(sequelize.models.Campaign, "findByPk").mockResolvedValueOnce({ id: "camp-1", name: "Main Campaign" } as any);
+    (sequelize.models.Campaign as any).findByPk = async () => ({ id: "camp-1", name: "Main Campaign" });
 
     const req: any = {
       params: { id: "camp-1" },
@@ -120,18 +148,26 @@ describe("Campaign Audience Union & Controller Validation Unit Tests", () => {
       }
     };
 
+    let statusCode = 200;
+    let responseBody: any = null;
     const res: any = {
-      status: jest.fn().mockReturnThis(),
-      json: jest.fn()
+      status: (code: number) => {
+        statusCode = code;
+        return res;
+      },
+      json: (body: any) => {
+        responseBody = body;
+        return res;
+      }
     };
 
     await previewAudience(req, res);
 
-    expect(res.status).toHaveBeenCalledWith(400);
-    expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({
-        error: expect.stringContaining("includeFromCampaignIds must be an array")
-      })
+    assert.strictEqual(statusCode, 400);
+    assert.ok(
+      typeof responseBody?.error === "string" &&
+      responseBody.error.includes("includeFromCampaignIds must be an array"),
+      `Expected error message to mention array requirement, got: ${responseBody?.error}`
     );
   });
 });
