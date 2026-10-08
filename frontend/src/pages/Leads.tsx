@@ -24,6 +24,8 @@ import {
 } from "lucide-react";
 import { apiClient } from "../lib/apiClient";
 import { LeadStatus } from "../types";
+import { LeadCampaignBadge } from "../components/LeadCampaignBadge";
+import { CampaignFilterDropdown } from "../components/CampaignFilterDropdown";
 
 export default function Leads() {
   const navigate = useNavigate();
@@ -31,13 +33,14 @@ export default function Leads() {
   const [search, setSearch] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<string>("ALL");
   const [selectedChannel, setSelectedChannel] = useState<string>("ALL");
+  const [selectedCampaigns, setSelectedCampaigns] = useState<string[]>([]);
   const [statusFilterTab, setStatusFilterTab] = useState<"all" | "active" | "converted" | "not_converted">("all");
   const [page, setPage] = useState(1);
   const pageSize = 25;
 
   // Fetch Leads with Query Params
   const { data: leadsData, isLoading } = useQuery({
-    queryKey: ["leads-workspace", selectedStatus, selectedChannel, search, page],
+    queryKey: ["leads-workspace", selectedStatus, selectedChannel, search, selectedCampaigns, page],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (selectedStatus !== "ALL") params.set("status", selectedStatus);
@@ -46,6 +49,9 @@ export default function Leads() {
         params.set("source", selectedChannel);
       }
       if (search.trim()) params.set("search", search.trim());
+      if (selectedCampaigns.length > 0) {
+        params.set("campaignIds", selectedCampaigns.join(","));
+      }
       params.set("page", String(page));
       params.set("limit", String(pageSize));
 
@@ -236,15 +242,24 @@ export default function Leads() {
             </button>
           </div>
 
-          {/* Search Box */}
-          <div className="relative flex-1 max-w-md">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              type="text"
-              placeholder="Search company, name, email, phone..."
-              value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-              className="w-full !pl-10 pr-4 py-2 text-xs font-medium text-slate-800 dark:text-slate-200 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400"
+          {/* Search Box & Campaign Multi-Select Filter */}
+          <div className="flex items-center gap-2 flex-1 max-w-lg">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Search company, name, email, phone..."
+                value={search}
+                onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+                className="w-full !pl-10 pr-4 py-2 text-xs font-medium text-slate-800 dark:text-slate-200 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400"
+              />
+            </div>
+            <CampaignFilterDropdown
+              selectedCampaignIds={selectedCampaigns}
+              onChange={(ids) => {
+                setSelectedCampaigns(ids);
+                setPage(1);
+              }}
             />
           </div>
         </div>
@@ -360,7 +375,7 @@ export default function Leads() {
                     </td>
                     <td className="py-3.5 px-4">{getStatusBadge(l.status)}</td>
                     <td className="py-3.5 px-4">
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         {(() => {
                           const src = (l.source || l.sourceChannel || l.sourceType || "Website").toLowerCase();
                           if (src.includes("whatsapp")) {
@@ -394,6 +409,7 @@ export default function Leads() {
                             </span>
                           );
                         })()}
+                        <LeadCampaignBadge attribution={l.campaignAttribution} />
                       </div>
                     </td>
                     <td className="py-3.5 px-4">
@@ -526,8 +542,11 @@ export default function Leads() {
                             <span>Linked Opportunity →</span>
                           </div>
                         ) : (
-                          <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-100">
-                            <span>{l.sourceChannel || l.source || "Website"}</span>
+                          <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-100 gap-1 flex-wrap">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span>{l.sourceChannel || l.source || "Website"}</span>
+                              <LeadCampaignBadge attribution={l.campaignAttribution} />
+                            </div>
                             <span className="font-semibold text-slate-600">{l.assignedTo?.name || "Unassigned"}</span>
                           </div>
                         )}

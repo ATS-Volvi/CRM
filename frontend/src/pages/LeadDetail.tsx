@@ -18,6 +18,7 @@ import { LeadConversionModal } from "../components/LeadConversionModal";
 import { HandoffChatWidget } from "../components/HandoffChatWidget";
 import { AiRequirementSummaryCard } from "../components/AiRequirementSummaryCard";
 import { LeadAttributionCard } from "../components/LeadAttributionCard";
+import { LeadCampaignBadge } from "../components/LeadCampaignBadge";
 
 export default function LeadDetail() {
   const { id } = useParams();
@@ -701,6 +702,7 @@ export default function LeadDetail() {
             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
               {lead.status || "NEW"}
             </span>
+            <LeadCampaignBadge attribution={lead.campaignAttribution} />
           </div>
 
           <div className="flex flex-wrap items-center gap-3">

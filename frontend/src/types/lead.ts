@@ -20,8 +20,8 @@ export type LeadSourceChannel =
   | "Direct"
   | "Other";
 
-import type { LeadAttribution } from "./marketing";
-export type { LeadAttribution };
+import type { LeadAttribution, CampaignAttributionSummary } from "./marketing";
+export type { LeadAttribution, CampaignAttributionSummary };
 
 export type LeadSourceType = "INBOUND_ORGANIC" | "INBOUND_PAID" | "OUTBOUND" | "REFERRAL" | "PARTNER" | string;
 
@@ -75,6 +75,7 @@ export interface Lead {
   campaignId?: string | null;
   campaign?: string | null;
   attribution?: LeadAttribution | null;
+  campaignAttribution?: CampaignAttributionSummary | null;
 
   industry?: string | null;
   estimatedValue?: number | null;
