@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { campaignsApi } from "../api/marketing";
 import {
+  Campaign,
   CampaignMessage,
   CampaignRecipient,
   CampaignAudienceFilter,
@@ -99,11 +100,23 @@ export function CampaignMessagesTab({ campaignId, campaignName }: CampaignMessag
   const [formMaxScore, setFormMaxScore] = useState<string>("");
   const [formIndustry, setFormIndustry] = useState<string>("");
   const [formCountry, setFormCountry] = useState<string>("");
+  const [formIncludeCampaignIds, setFormIncludeCampaignIds] = useState<string[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
 
   // Modal live preview state
   const [modalAudiencePreview, setModalAudiencePreview] = useState<AudiencePreviewResponse | null>(null);
   const [isModalPreviewLoading, setIsModalPreviewLoading] = useState(false);
+
+  // Query: All campaigns for audience union selection
+  const { data: allCampaignsData } = useQuery({
+    queryKey: ["campaigns-list-for-audience"],
+    queryFn: () => campaignsApi.getCampaigns({ limit: 100 }),
+    staleTime: 60000
+  });
+  const otherCampaigns = useMemo(() => {
+    const list = allCampaignsData?.data || [];
+    return list.filter((c: Campaign) => c.id !== campaignId);
+  }, [allCampaignsData, campaignId]);
 
   // Query: Safety config
   const { data: config } = useQuery<CampaignMessageConfig>({
@@ -188,6 +201,7 @@ export function CampaignMessagesTab({ campaignId, campaignName }: CampaignMessag
     setFormMaxScore("");
     setFormIndustry("");
     setFormCountry("");
+    setFormIncludeCampaignIds([]);
     setFormError(null);
     setModalAudiencePreview(null);
     setIsModalOpen(true);
@@ -226,6 +240,7 @@ export function CampaignMessagesTab({ campaignId, campaignName }: CampaignMessag
     setFormMaxScore(parsedFilter.maxScore !== undefined ? String(parsedFilter.maxScore) : "");
     setFormIndustry(typeof parsedFilter.industry === "string" ? parsedFilter.industry : (parsedFilter.industry || []).join(", "));
     setFormCountry(typeof parsedFilter.country === "string" ? parsedFilter.country : (parsedFilter.country || []).join(", "));
+    setFormIncludeCampaignIds(parsedFilter.includeFromCampaignIds || []);
     setFormError(null);
     setModalAudiencePreview(null);
     setIsModalOpen(true);
@@ -260,7 +275,8 @@ export function CampaignMessagesTab({ campaignId, campaignName }: CampaignMessag
         minScore: formMinScore ? Number(formMinScore) : undefined,
         maxScore: formMaxScore ? Number(formMaxScore) : undefined,
         industry: formIndustry ? formIndustry.split(",").map((s) => s.trim()).filter(Boolean) : undefined,
-        country: formCountry ? formCountry.split(",").map((s) => s.trim()).filter(Boolean) : undefined
+        country: formCountry ? formCountry.split(",").map((s) => s.trim()).filter(Boolean) : undefined,
+        includeFromCampaignIds: formIncludeCampaignIds.length > 0 ? formIncludeCampaignIds : undefined
       };
 
       const res = await campaignsApi.previewAudience(
@@ -285,7 +301,8 @@ export function CampaignMessagesTab({ campaignId, campaignName }: CampaignMessag
         minScore: formMinScore ? Number(formMinScore) : undefined,
         maxScore: formMaxScore ? Number(formMaxScore) : undefined,
         industry: formIndustry ? formIndustry.split(",").map((s) => s.trim()).filter(Boolean) : undefined,
-        country: formCountry ? formCountry.split(",").map((s) => s.trim()).filter(Boolean) : undefined
+        country: formCountry ? formCountry.split(",").map((s) => s.trim()).filter(Boolean) : undefined,
+        includeFromCampaignIds: formIncludeCampaignIds.length > 0 ? formIncludeCampaignIds : undefined
       };
 
       const varsObj: Record<string, string> = {};
@@ -1156,6 +1173,44 @@ export function CampaignMessagesTab({ campaignId, campaignName }: CampaignMessag
                     />
                   </div>
                 </div>
+
+                {/* Also include leads from campaigns */}
+                {otherCampaigns.length > 0 && (
+                  <div className="space-y-1.5 pt-2 border-t border-slate-200/60 dark:border-slate-700/60">
+                    <span className="font-semibold text-slate-600 dark:text-slate-400 text-[11px] block">
+                      Also include leads from campaigns:
+                    </span>
+                    <div className="flex items-center gap-2 flex-wrap max-h-36 overflow-y-auto p-0.5">
+                      {otherCampaigns.map((c) => {
+                        const isChecked = formIncludeCampaignIds.includes(c.id);
+                        return (
+                          <label
+                            key={c.id}
+                            className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold cursor-pointer transition-all flex items-center gap-1.5 ${
+                              isChecked
+                                ? "bg-purple-50 border-purple-300 text-purple-700 dark:bg-purple-950 dark:border-purple-700 dark:text-purple-300"
+                                : "bg-white border-slate-200 text-slate-600 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400"
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              className="hidden"
+                              checked={isChecked}
+                              onChange={() => {
+                                if (isChecked) {
+                                  setFormIncludeCampaignIds(formIncludeCampaignIds.filter((id) => id !== c.id));
+                                } else {
+                                  setFormIncludeCampaignIds([...formIncludeCampaignIds, c.id]);
+                                }
+                              }}
+                            />
+                            <span>{c.name} {c.code ? `(${c.code})` : ""}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {/* Audience Live Preview Result inside modal */}
                 {modalAudiencePreview && (

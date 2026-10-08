@@ -10,7 +10,8 @@ jest.mock("../../../backend/src/services/whatsappService", () => ({
 
 const mockModels = {
   Campaign: {
-    findByPk: jest.fn()
+    findByPk: jest.fn(),
+    findAll: jest.fn()
   },
   CampaignMessage: {
     findOne: jest.fn(),
@@ -62,11 +63,15 @@ import {
   renderWhatsAppTemplateVariables,
   filterLeadsForWhatsAppAudience,
   resumeMessageSend,
-  processAsyncWhatsAppDelivery
+  processAsyncWhatsAppDelivery,
+  computeWhatsAppAudience,
+  computeAudience
 } from "../../../backend/src/services/campaignMessageService";
 import {
   sendCampaignMessage,
-  resumeCampaignMessage
+  resumeCampaignMessage,
+  previewAudience,
+  createCampaignMessage
 } from "../../../backend/src/controllers/campaignMessageController";
 
 describe("Phase C: WhatsApp Campaign Messaging & Safety Engine", () => {
@@ -596,6 +601,138 @@ describe("Phase C: WhatsApp Campaign Messaging & Safety Engine", () => {
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
           error: expect.stringContaining("Explicit confirmation (confirm: true) is required")
+        })
+      );
+    });
+  });
+
+  describe("7. Multi-Campaign Audience Union & Controller Validation", () => {
+    test("computeWhatsAppAudience unions leads from target campaigns while mandatory consent exclusion still applies", async () => {
+      mockModels.LeadAttribution.findAll.mockResolvedValueOnce([
+        { leadId: "lead-attrib-1" }
+      ]);
+
+      const testLeads = [
+        // Lead 1: Primary campaign, consented -> ELIGIBLE
+        {
+          id: "lead-primary-1",
+          campaignId: "camp-primary",
+          phone: "+15551111111",
+          whatsappConsentStatus: "OPTED_IN",
+          optedOutWhatsapp: false,
+          status: "NEW"
+        },
+        // Lead 2: Secondary campaign, consented -> ELIGIBLE
+        {
+          id: "lead-secondary-consented",
+          campaignId: "camp-secondary",
+          phone: "+15552222222",
+          whatsappConsentStatus: "OPTED_IN",
+          optedOutWhatsapp: false,
+          status: "NEW"
+        },
+        // Lead 3: Secondary campaign, NO consent (UNSPECIFIED) -> EXCLUDED (mandatory exclusion)
+        {
+          id: "lead-secondary-no-consent",
+          campaignId: "camp-secondary",
+          phone: "+15553333333",
+          whatsappConsentStatus: "UNSPECIFIED",
+          optedOutWhatsapp: false,
+          status: "NEW"
+        },
+        // Lead 4: Secondary campaign, duplicate phone -> EXCLUDED (mandatory duplicate exclusion)
+        {
+          id: "lead-secondary-dup-phone",
+          campaignId: "camp-secondary",
+          phone: "+15551111111",
+          whatsappConsentStatus: "OPTED_IN",
+          optedOutWhatsapp: false,
+          status: "NEW"
+        }
+      ];
+
+      mockModels.Lead.findAll.mockResolvedValueOnce(testLeads);
+
+      const result = await computeWhatsAppAudience("camp-primary", {
+        includeFromCampaignIds: ["camp-secondary"]
+      });
+
+      // Eligible: lead-primary-1 and lead-secondary-consented
+      expect(result.eligibleLeads.map((l: any) => l.id)).toEqual([
+        "lead-primary-1",
+        "lead-secondary-consented"
+      ]);
+      expect(result.excludedByReason.noConsent).toBe(1);
+      expect(result.excludedByReason.duplicate).toBe(1);
+    });
+
+    test("computeAudience (Email) unions leads from included campaigns and enforces mandatory exclusions", async () => {
+      mockModels.LeadAttribution.findAll.mockResolvedValueOnce([]);
+
+      const testLeads = [
+        {
+          id: "lead-email-1",
+          campaignId: "camp-1",
+          email: "user1@example.com",
+          optedOutEmail: false,
+          status: "NEW"
+        },
+        {
+          id: "lead-email-widened",
+          campaignId: "camp-2",
+          email: "user2@example.com",
+          optedOutEmail: false,
+          status: "NEW"
+        },
+        {
+          id: "lead-email-invalid",
+          campaignId: "camp-2",
+          email: "",
+          optedOutEmail: false,
+          status: "NEW"
+        }
+      ];
+
+      mockModels.Lead.findAll.mockResolvedValueOnce(testLeads);
+
+      const result = await computeAudience("camp-1", {
+        includeFromCampaignIds: ["camp-2"]
+      });
+
+      expect(result.eligibleLeads.map((l: any) => l.id)).toEqual([
+        "lead-email-1",
+        "lead-email-widened"
+      ]);
+      expect(result.excludedByReason.invalidEmail).toBe(1);
+    });
+
+    test("controller validates campaign IDs in includeFromCampaignIds and returns 400 for unknown IDs", async () => {
+      // Setup Campaign.findByPk for campaign existence check
+      mockModels.Campaign.findByPk.mockResolvedValueOnce({ id: "camp-1", name: "Main Campaign" });
+      // Setup Campaign.findAll to simulate unknown campaign ID
+      mockModels.Campaign.findAll.mockResolvedValueOnce([{ id: "camp-valid" }]);
+
+      const req: any = {
+        params: { id: "camp-1" },
+        body: {
+          channel: "WHATSAPP",
+          audienceFilter: {
+            includeFromCampaignIds: ["camp-valid", "camp-unknown-999"]
+          }
+        }
+      };
+
+      const res: any = {
+        status: jest.fn().mockReturnThis(),
+        json: jest.fn()
+      };
+
+      await previewAudience(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: expect.stringContaining("camp-unknown-999")
         })
       );
     });

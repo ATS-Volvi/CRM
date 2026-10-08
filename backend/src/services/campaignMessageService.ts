@@ -11,6 +11,7 @@ export interface AudienceFilter {
   country?: string[] | string;
   territory?: string[] | string;
   industry?: string[] | string;
+  includeFromCampaignIds?: string[];
 }
 
 export interface ExcludedBreakdown {
@@ -325,14 +326,34 @@ export const computeAudience = async (
   campaignId: string,
   filter?: AudienceFilter | string | null
 ): Promise<AudiencePreviewResult> => {
-  // 1. Find leads matching the campaign directly or through LeadAttribution
+  let parsedFilter: AudienceFilter = {};
+  if (typeof filter === "string") {
+    try {
+      parsedFilter = JSON.parse(filter);
+    } catch {
+      parsedFilter = {};
+    }
+  } else if (filter && typeof filter === "object") {
+    parsedFilter = filter;
+  }
+
+  const targetCampaignIds = [campaignId];
+  if (Array.isArray(parsedFilter.includeFromCampaignIds)) {
+    for (const cId of parsedFilter.includeFromCampaignIds) {
+      if (cId && typeof cId === "string" && !targetCampaignIds.includes(cId)) {
+        targetCampaignIds.push(cId);
+      }
+    }
+  }
+
+  // 1. Find leads matching the campaigns directly or through LeadAttribution
   const attributions = await sequelize.models.LeadAttribution.findAll({
-    where: { campaignId },
+    where: { campaignId: { [Op.in]: targetCampaignIds } },
     attributes: ["leadId"]
   });
   const attributedLeadIds = attributions.map((a: any) => a.leadId).filter(Boolean);
 
-  const orConditions: any[] = [{ campaignId }];
+  const orConditions: any[] = [{ campaignId: { [Op.in]: targetCampaignIds } }];
   if (attributedLeadIds.length > 0) {
     orConditions.push({ id: { [Op.in]: attributedLeadIds } });
   }
@@ -480,13 +501,33 @@ export const computeWhatsAppAudience = async (
   campaignId: string,
   filter?: AudienceFilter | string | null
 ): Promise<WhatsAppAudiencePreviewResult> => {
+  let parsedFilter: AudienceFilter = {};
+  if (typeof filter === "string") {
+    try {
+      parsedFilter = JSON.parse(filter);
+    } catch {
+      parsedFilter = {};
+    }
+  } else if (filter && typeof filter === "object") {
+    parsedFilter = filter;
+  }
+
+  const targetCampaignIds = [campaignId];
+  if (Array.isArray(parsedFilter.includeFromCampaignIds)) {
+    for (const cId of parsedFilter.includeFromCampaignIds) {
+      if (cId && typeof cId === "string" && !targetCampaignIds.includes(cId)) {
+        targetCampaignIds.push(cId);
+      }
+    }
+  }
+
   const attributions = await sequelize.models.LeadAttribution.findAll({
-    where: { campaignId },
+    where: { campaignId: { [Op.in]: targetCampaignIds } },
     attributes: ["leadId"]
   });
   const attributedLeadIds = attributions.map((a: any) => a.leadId).filter(Boolean);
 
-  const orConditions: any[] = [{ campaignId }];
+  const orConditions: any[] = [{ campaignId: { [Op.in]: targetCampaignIds } }];
   if (attributedLeadIds.length > 0) {
     orConditions.push({ id: { [Op.in]: attributedLeadIds } });
   }

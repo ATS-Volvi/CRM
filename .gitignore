@@ -3,12 +3,14 @@ dist/
 build/
 .env
 .env.*
+!.env.example
 *.log
 *.tsbuildinfo
 .DS_Store
 .vercel
 *.sqlite
 *.sqlite.backup*
+nexus_crm.sqlite.backup-*
 dev.sqlite
 quote-flow-pro-18/
 frontend/tsconfig.app.tsbuildinfo

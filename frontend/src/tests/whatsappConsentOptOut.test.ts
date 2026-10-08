@@ -537,6 +537,91 @@ describe("Phase B: WhatsApp Compliance & Opt-Out Handling", () => {
       expect(createdLeadData.whatsappOptInAt).toBeNull();
       expect(createdLeadData.optedOutWhatsapp).toBe(false);
     });
+
+    test("sets whatsappPhone from payload.phone when utmSource is 'whatsapp' (case-insensitive) but source is Website", async () => {
+      let createdLeadData: any = null;
+      (mockModels.Lead.create as jest.Mock).mockImplementationOnce((data: any) => {
+        createdLeadData = data;
+        return Promise.resolve({ id: "lead-utm-wa-1", ...data });
+      });
+
+      const req: any = {
+        body: {
+          firstName: "Zaid",
+          lastName: "Khoury",
+          email: "zaid@khoury.ae",
+          phone: "+971501239876",
+          company: "Khoury Logistics",
+          source: "Website",
+          utm_source: "WhatsApp"
+          // whatsappConsent omitted
+        }
+      };
+
+      const res: any = {
+        status: () => ({
+          json: () => {}
+        })
+      };
+
+      await createPublicLead(req, res);
+
+      expect(createdLeadData).not.toBeNull();
+      expect(createdLeadData.whatsappPhone).toBe("+971501239876");
+      expect(createdLeadData.whatsappConsentStatus).toBe("UNSPECIFIED");
+    });
+
+    test("flags phone-based duplicate, logs Activity referencing older lead leadNumber, and does not merge", async () => {
+      const existingOlderLead = {
+        id: "lead-older-100",
+        leadNumber: "LD-2026-00042",
+        phone: "+971509998877",
+        createdAt: new Date("2026-01-01")
+      };
+
+      // Mock finding the older lead by phone
+      (mockModels.Lead.findAll as jest.Mock).mockResolvedValueOnce([existingOlderLead]);
+
+      let createdNewLeadData: any = null;
+      (mockModels.Lead.create as jest.Mock).mockImplementationOnce((data: any) => {
+        createdNewLeadData = data;
+        return Promise.resolve({ id: "lead-new-dup-101", ...data });
+      });
+
+      const req: any = {
+        body: {
+          firstName: "Tariq",
+          lastName: "Duplicate",
+          email: "tariq.dup@example.com",
+          phone: "+971 50 999 8877", // same normalized digits
+          company: "Second Submissions Co"
+        }
+      };
+
+      const res: any = {
+        status: () => ({
+          json: () => {}
+        })
+      };
+
+      await createPublicLead(req, res);
+
+      // Verify new lead was created (not merged) and duplicate marker set in rawPayload without polluting sourceDetail
+      expect(createdNewLeadData).not.toBeNull();
+      const parsedRawPayload = JSON.parse(createdNewLeadData.rawPayload);
+      expect(parsedRawPayload.isPossibleDuplicate).toBe(true);
+      expect(parsedRawPayload.duplicateOfLeadNumber).toBe("LD-2026-00042");
+
+      // Verify Activity logged on new lead referencing older lead's leadNumber
+      expect(mockModels.Activity.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "note",
+          outcome: "Possible Duplicate Lead Detected",
+          notes: expect.stringContaining("LD-2026-00042"),
+          direction: "internal"
+        })
+      );
+    });
   });
 
   describe("Manual Rep Consent Recording (recordWhatsAppConsent)", () => {

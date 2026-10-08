@@ -90,6 +90,7 @@ export async function ingestLead(rawPayload: LeadPayload) {
     }
 
     const { Lead, Account, Contact, Activity } = sequelize.models;
+    const leadId = crypto.randomUUID();
 
     // 1. Account Lookup or Link (if existing company found)
     let account = await Account.findOne({
@@ -100,6 +101,52 @@ export async function ingestLead(rawPayload: LeadPayload) {
     let contact = await Contact.findOne({
       where: { email: { [Op.like]: email } }
     });
+
+    // 2b. Phone-based duplicate lookup (flag, don't merge)
+    let duplicateLead: any = null;
+    try {
+      const phoneDigits = payload.phone ? payload.phone.replace(/\D/g, "") : "";
+      if (phoneDigits.length >= 7) {
+        const last4 = phoneDigits.slice(-4);
+        const candidates = (await Lead.findAll({
+          where: {
+            phone: { [Op.like]: `%${last4}%` }
+          },
+          attributes: ["id", "leadNumber", "phone", "createdAt"],
+          order: [["createdAt", "ASC"]]
+        })) as any[];
+
+        if (Array.isArray(candidates)) {
+          for (const c of candidates) {
+            if (c.id === leadId) continue;
+            const cDigits = (c.phone || "").replace(/\D/g, "");
+            if (
+              cDigits &&
+              (cDigits === phoneDigits ||
+                (cDigits.length >= 7 && (cDigits.endsWith(phoneDigits) || phoneDigits.endsWith(cDigits))))
+            ) {
+              duplicateLead = c;
+              break;
+            }
+          }
+        }
+
+        if (!duplicateLead && payload.phone) {
+          // Fallback for cases where punctuation might be in last 4 digits
+          const exactPhoneMatch = (await Lead.findOne({
+            where: { phone: payload.phone },
+            attributes: ["id", "leadNumber", "phone", "createdAt"],
+            order: [["createdAt", "ASC"]]
+          })) as any;
+          if (exactPhoneMatch && exactPhoneMatch.id !== leadId) {
+            duplicateLead = exactPhoneMatch;
+          }
+        }
+      }
+    } catch (dupCheckErr) {
+      console.warn("Non-blocking duplicate phone check error:", dupCheckErr);
+      duplicateLead = null;
+    }
 
     // 3. Lead Scoring
     let leadScore = 50; // base score
@@ -130,7 +177,29 @@ export async function ingestLead(rawPayload: LeadPayload) {
 
     // 5. Generate Collision-Proof Unique Lead Number with Concurrent Retry Protection
     const year = new Date().getFullYear();
-    const leadId = crypto.randomUUID();
+
+    const isWhatsappSource =
+      payload.source?.toLowerCase() === "whatsapp" ||
+      payload.utmSource?.toLowerCase() === "whatsapp";
+
+    let rawPayloadData: any = null;
+    if (payload.rawPayload) {
+      if (typeof payload.rawPayload === "object") {
+        rawPayloadData = { ...payload.rawPayload };
+      } else if (typeof payload.rawPayload === "string") {
+        try {
+          rawPayloadData = JSON.parse(payload.rawPayload);
+        } catch {
+          rawPayloadData = { original: payload.rawPayload };
+        }
+      }
+    }
+    if (duplicateLead) {
+      if (!rawPayloadData) rawPayloadData = {};
+      rawPayloadData.isPossibleDuplicate = true;
+      rawPayloadData.duplicateOfLeadNumber = duplicateLead.leadNumber;
+      rawPayloadData.duplicateOfLeadId = duplicateLead.id;
+    }
 
     let newLead: any = null;
     let attempts = 0;
@@ -154,7 +223,7 @@ export async function ingestLead(rawPayload: LeadPayload) {
           lastName: payload.lastName,
           email: email,
           phone: payload.phone || null,
-          whatsappPhone: payload.whatsappPhone || (payload.source?.toLowerCase() === 'whatsapp' ? payload.phone : null),
+          whatsappPhone: payload.whatsappPhone || (isWhatsappSource ? payload.phone : null),
           recipientEmail: payload.recipientEmail || null,
           assignmentMethod: payload.assignmentMethod || null,
           company: companyName,
@@ -170,7 +239,7 @@ export async function ingestLead(rawPayload: LeadPayload) {
           budgetRange: payload.budgetRange || null,
           nextAction: "Reply to Lead",
           nextActionDue: new Date(Date.now() + 2 * 60 * 60 * 1000), // 2h SLA
-          rawPayload: payload.rawPayload ? JSON.stringify(payload.rawPayload) : null,
+          rawPayload: rawPayloadData ? JSON.stringify(rawPayloadData) : null,
           optedOutWhatsapp: false,
           whatsappConsentStatus: payload.whatsappConsent === true ? "OPTED_IN" : (payload.whatsappConsentStatus || "UNSPECIFIED"),
           whatsappOptInAt: payload.whatsappConsent === true ? new Date() : null,
@@ -240,6 +309,26 @@ export async function ingestLead(rawPayload: LeadPayload) {
       createdById: assignedToId,
       direction: "inbound"
     });
+
+    if (duplicateLead) {
+      try {
+        await Activity.create({
+          id: crypto.randomUUID(),
+          type: "note",
+          leadId: leadId,
+          customerId: account ? (account as any).id : null,
+          outcome: "Possible Duplicate Lead Detected",
+          notes: `Possible duplicate of lead ${duplicateLead.leadNumber} (matched by phone: ${payload.phone})`,
+          mentioned_user_ids: "[]",
+          pinned: true,
+          isCompleted: true,
+          createdById: assignedToId,
+          direction: "internal"
+        });
+      } catch (dupActErr) {
+        console.warn("Non-blocking duplicate activity log warning:", dupActErr);
+      }
+    }
 
     if (assignedToId) {
       await createNotification(

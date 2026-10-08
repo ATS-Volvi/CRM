@@ -1,1 +1,6 @@
 _shelved/
+.env
+.env.*
+!.env.example
+*.sqlite
+nexus_crm.sqlite.backup-*

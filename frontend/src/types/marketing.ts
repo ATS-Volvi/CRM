@@ -179,6 +179,7 @@ export interface CampaignAudienceFilter {
   country?: string[] | string;
   territory?: string[] | string;
   industry?: string[] | string;
+  includeFromCampaignIds?: string[];
 }
 
 export interface CampaignMessageStats {
