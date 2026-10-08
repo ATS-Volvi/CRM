@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { sequelize } from "@nexus-crm/database";
+import { Op } from "sequelize";
 import crypto from "crypto";
 import {
   computeAudience,
@@ -12,6 +13,54 @@ import {
   executeMessageSend,
   cancelMessage
 } from "../services/campaignMessageService";
+
+const validateAudienceFilterCampaigns = async (
+  filterInput: any,
+  currentCampaignId?: string
+): Promise<{ valid: boolean; error?: string }> => {
+  if (!filterInput) return { valid: true };
+
+  let filter: any = filterInput;
+  if (typeof filter === "string") {
+    try {
+      filter = JSON.parse(filter);
+    } catch {
+      return { valid: true };
+    }
+  }
+
+  if (filter && typeof filter === "object" && "includeFromCampaignIds" in filter) {
+    if (!Array.isArray(filter.includeFromCampaignIds)) {
+      return { valid: false, error: "includeFromCampaignIds must be an array of campaign IDs" };
+    }
+    const ids: string[] = filter.includeFromCampaignIds;
+    for (const id of ids) {
+      if (typeof id !== "string" || !id.trim()) {
+        return { valid: false, error: "All campaign IDs in includeFromCampaignIds must be non-empty strings" };
+      }
+    }
+    const uniqueIds = Array.from(new Set(ids.map((id) => id.trim())));
+    if (uniqueIds.length > 0) {
+      const existingCampaigns = await sequelize.models.Campaign.findAll({
+        where: { id: { [Op.in]: uniqueIds } },
+        attributes: ["id"]
+      });
+      const foundIds = new Set(existingCampaigns.map((c: any) => c.id));
+      if (currentCampaignId) {
+        foundIds.add(currentCampaignId);
+      }
+      const missingIds = uniqueIds.filter((id) => !foundIds.has(id));
+      if (missingIds.length > 0) {
+        return {
+          valid: false,
+          error: `Campaign not found in includeFromCampaignIds: ${missingIds.join(", ")}`
+        };
+      }
+    }
+  }
+
+  return { valid: true };
+};
 
 const TRANSPARENT_GIF_BUFFER = Buffer.from(
   "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
@@ -157,6 +206,11 @@ export const createCampaignMessage = async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Campaign not found" });
     }
 
+    const validation = await validateAudienceFilterCampaigns(audienceFilter, campaignId);
+    if (!validation.valid) {
+      return res.status(400).json({ error: validation.error });
+    }
+
     const filterString =
       typeof audienceFilter === "object" ? JSON.stringify(audienceFilter) : audienceFilter || null;
 
@@ -218,6 +272,10 @@ export const updateCampaignMessage = async (req: Request, res: Response) => {
         typeof templateVariables === "object" ? JSON.stringify(templateVariables) : templateVariables;
     }
     if (audienceFilter !== undefined) {
+      const validation = await validateAudienceFilterCampaigns(audienceFilter, campaignId);
+      if (!validation.valid) {
+        return res.status(400).json({ error: validation.error });
+      }
       message.audienceFilter =
         typeof audienceFilter === "object" ? JSON.stringify(audienceFilter) : audienceFilter;
     }
@@ -292,6 +350,11 @@ export const previewAudience = async (req: Request, res: Response) => {
           filter = message.audienceFilter;
         }
       }
+    }
+
+    const validation = await validateAudienceFilterCampaigns(filter, campaignId);
+    if (!validation.valid) {
+      return res.status(400).json({ error: validation.error });
     }
 
     channel = channel || "EMAIL";

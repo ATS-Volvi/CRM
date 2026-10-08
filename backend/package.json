@@ -10,6 +10,7 @@
     "migrate": "npx sequelize-cli db:migrate",
     "migrate-undo": "npx sequelize-cli db:migrate:undo",
     "test:e2e": "jest tests/e2e/ --detectOpenHandles --forceExit",
+    "test": "tsx --test tests/unit/campaignAudienceUnion.test.ts && tsx src/scripts/test_audience_union.ts",
     "smoke:whatsapp-template": "ts-node scripts/one-off/smokeTestWhatsAppTemplate.ts"
   },
   "keywords": [],
@@ -28,6 +29,7 @@
     "@types/node": "^20.17.0",
     "@types/nodemailer": "^8.0.1",
     "@types/pdfkit": "^0.17.6",
+    "@types/sanitize-html": "^2.16.1",
     "@types/sequelize": "^4.28.20",
     "@types/supertest": "^7.2.0",
     "@types/swagger-jsdoc": "^6.0.4",
@@ -47,7 +49,6 @@
     "mailgun.js": "^13.3.0",
     "multer": "^2.2.0",
     "nodemailer": "^6.9.16",
-    "@types/sanitize-html": "^2.16.1",
     "pdf-parse": "^2.4.5",
     "pdfkit": "^0.19.1",
     "pg": "^8.13.1",
@@ -73,6 +74,7 @@
     "eslint": "^9.15.0",
     "jest": "^30.4.2",
     "supertest": "^7.2.2",
-    "ts-jest": "^29.4.11"
+    "ts-jest": "^29.4.11",
+    "tsx": "^4.23.15"
   }
 }
