@@ -183,6 +183,54 @@ export const renderTemplatePlaceholders = (
   return rendered;
 };
 
+export const MAX_SUBJECT_LENGTH = 255;
+
+/**
+ * Renders and sanitizes campaign email subject line for a given recipient lead:
+ * - Applies placeholder substitution for {{firstName}}, {{lastName}}, {{company}}, {{campaignName}}
+ * - Replaces missing values gracefully with empty strings (no "undefined", no leftover braces)
+ * - Cleans up unknown/unsupported placeholders (no leftover braces)
+ * - Strips CR/LF characters (\r, \n) to prevent header injection
+ * - Caps total length to MAX_SUBJECT_LENGTH (255 chars)
+ */
+export const renderEmailSubjectForLead = (
+  rawSubject: string | null | undefined,
+  lead: any,
+  campaignName: string,
+  maxLength: number = MAX_SUBJECT_LENGTH
+): string => {
+  if (!rawSubject) return "";
+
+  const dataObj: Record<string, string> = {
+    firstName: lead?.firstName ? String(lead.firstName).trim() : "",
+    lastName: lead?.lastName ? String(lead.lastName).trim() : "",
+    company: lead?.company ? String(lead.company).trim() : "",
+    campaignName: campaignName ? String(campaignName).trim() : ""
+  };
+
+  let rendered = String(rawSubject);
+  for (const [key, value] of Object.entries(dataObj)) {
+    const regex = new RegExp(`{{\\s*${key}\\s*}}`, "gi");
+    rendered = rendered.replace(regex, value);
+  }
+
+  // Graceful fallback for unknown/unmatched placeholders: strip {{...}} so no braces remain
+  rendered = rendered.replace(/{{\s*[^}]*\s*}}/g, "");
+
+  // Strip CR/LF characters (header injection protection)
+  rendered = rendered.replace(/[\r\n]+/g, " ");
+
+  // Normalize duplicate spaces and trim
+  rendered = rendered.replace(/\s+/g, " ").trim();
+
+  // Cap length
+  if (rendered.length > maxLength) {
+    rendered = rendered.slice(0, maxLength).trim();
+  }
+
+  return rendered;
+};
+
 export const renderEmailForLead = (
   bodyHtml: string,
   lead: any,
@@ -196,7 +244,9 @@ export const renderEmailForLead = (
     campaignName: escapeHtml(campaignName || "")
   };
 
-  const renderedBody = renderTemplatePlaceholders(bodyHtml, dataObj);
+  let renderedBody = renderTemplatePlaceholders(bodyHtml, dataObj);
+  // Clean up unknown placeholders in body as well to ensure no leftover braces
+  renderedBody = renderedBody.replace(/{{\s*[^}]*\s*}}/g, "");
   const baseHtml = getBaseHtmlTemplate(renderedBody, lead?.id);
 
   const rawBaseUrl = process.env.BASE_URL || "http://localhost:5506";
@@ -1032,10 +1082,11 @@ export const processAsyncDelivery = async (
         }
 
         const renderedHtml = renderEmailForLead(message.bodyHtml, lead, campaignName, recipient.id);
+        const renderedSubject = renderEmailSubjectForLead(message.subject, lead, campaignName);
 
         if (config.dryRun) {
           // Logging ONLY when dry run is active
-          console.log(`[CAMPAIGN EMAIL DRY RUN] Rendered email for ${recipient.email}:\n${renderedHtml}`);
+          console.log(`[CAMPAIGN EMAIL DRY RUN] Rendered email for ${recipient.email} (Subject: "${renderedSubject}"):\n${renderedHtml}`);
           recipient.status = "SENT";
           recipient.sentAt = new Date();
           recipient.skipReason = "dry run (not delivered)";
@@ -1044,7 +1095,7 @@ export const processAsyncDelivery = async (
         }
 
         try {
-          await sendEmail(recipient.email, message.subject, renderedHtml);
+          await sendEmail(recipient.email, renderedSubject, renderedHtml);
           recipient.status = "SENT";
           recipient.sentAt = new Date();
           await recipient.save();
