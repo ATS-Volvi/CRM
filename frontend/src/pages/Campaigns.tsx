@@ -193,6 +193,17 @@ export default function Campaigns() {
 
   const overallRoas = calculateSingleCurrencyRoas(spendByCurrency, revenueByCurrency);
 
+  const campaignsList: any[] = Array.isArray(campaignsData)
+    ? campaignsData
+    : (campaignsData as any)?.campaigns || (campaignsData as any)?.data || [];
+
+  const filterChannelOptions = Array.from(
+    new Set([
+      ...availableChannels,
+      ...campaignsList.map((c: any) => c?.channel).filter(Boolean)
+    ])
+  );
+
   const hasActiveFilters = Boolean(debouncedSearch.trim() || statusFilter || channelFilter);
 
   const filteredChannels = (sourceData?.byChannel || []).filter((ch) => {
@@ -321,7 +332,7 @@ export default function Campaigns() {
               className="w-full px-2.5 py-1.5 text-xs bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
             >
               <option value="">All Channels</option>
-              {availableChannels.map((ch) => (
+              {filterChannelOptions.map((ch) => (
                 <option key={ch} value={ch}>
                   {ch}
                 </option>

@@ -42,6 +42,43 @@ const DEFAULT_CHANNELS = [
   "Other"
 ];
 
+export const NEW_CAMPAIGN_CHANNELS = ["WhatsApp", "Instagram", "Email"] as const;
+
+export interface ChannelOption {
+  value: string;
+  label: string;
+  isLegacy?: boolean;
+}
+
+export function getCampaignChannelOptions(
+  currentChannel?: string | null,
+  isEdit = false
+): ChannelOption[] {
+  const standardOptions: ChannelOption[] = NEW_CAMPAIGN_CHANNELS.map((ch) => ({
+    value: ch,
+    label: ch,
+    isLegacy: false
+  }));
+
+  if (isEdit && currentChannel) {
+    const isStandard = NEW_CAMPAIGN_CHANNELS.some(
+      (ch) => ch.toLowerCase() === currentChannel.toLowerCase()
+    );
+    if (!isStandard) {
+      return [
+        ...standardOptions,
+        {
+          value: currentChannel,
+          label: `${currentChannel} (Legacy)`,
+          isLegacy: true
+        }
+      ];
+    }
+  }
+
+  return standardOptions;
+}
+
 const PLATFORMS = [
   "Direct",
   "Google Ads",
@@ -79,7 +116,7 @@ export function CampaignFormModal({
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [description, setDescription] = useState("");
-  const [channel, setChannel] = useState("Website");
+  const [channel, setChannel] = useState("WhatsApp");
   const [platform, setPlatform] = useState("Direct");
   const [status, setStatus] = useState<CampaignStatus>("DRAFT");
   const [budget, setBudget] = useState<string>("");
@@ -95,29 +132,8 @@ export function CampaignFormModal({
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [serverError, setServerError] = useState<string | null>(null);
 
-  // Fetch attribution taxonomy channels
-  const { data: taxonomyData } = useQuery({
-    queryKey: ["attribution-taxonomy"],
-    queryFn: async () => {
-      try {
-        const res = await attributionApi.getTaxonomy();
-        return res;
-      } catch (e) {
-        return null;
-      }
-    },
-    enabled: isOpen,
-    staleTime: 5 * 60 * 1000
-  });
-
-  const availableChannels =
-    taxonomyData?.channels && taxonomyData.channels.length > 0
-      ? taxonomyData.channels
-      : DEFAULT_CHANNELS;
-
-  const channelOptions = availableChannels.includes(channel)
-    ? availableChannels
-    : [channel, ...availableChannels];
+  // Channel options: WhatsApp, Instagram, Email for new campaigns; legacy preserved on edit
+  const channelOptions = getCampaignChannelOptions(campaign?.channel, isEdit);
 
   const currencyOptions = CURRENCIES.includes(currency)
     ? CURRENCIES
@@ -147,7 +163,7 @@ export function CampaignFormModal({
         setName(campaign.name || "");
         setCode(campaign.code || "");
         setDescription(campaign.description || "");
-        setChannel(campaign.channel || "Website");
+        setChannel(campaign.channel || "WhatsApp");
         setPlatform(campaign.platform || "Direct");
         setStatus(campaign.status || "DRAFT");
         setBudget(campaign.budget !== undefined && campaign.budget !== null ? String(campaign.budget) : "");
@@ -162,7 +178,7 @@ export function CampaignFormModal({
         setName("");
         setCode("");
         setDescription("");
-        setChannel("Website");
+        setChannel("WhatsApp");
         setPlatform("Direct");
         setStatus("DRAFT");
         setBudget("");
@@ -372,9 +388,9 @@ export function CampaignFormModal({
                 onChange={(e) => setChannel(e.target.value)}
                 className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-2xs focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
               >
-                {channelOptions.map((ch) => (
-                  <option key={ch} value={ch}>
-                    {ch}
+                {channelOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
                   </option>
                 ))}
               </select>
