@@ -46,6 +46,7 @@ export interface MessageConfigResult {
   dryRun: boolean;
   maxRecipients: number;
   allowlistActive: boolean;
+  allowlistCount: number;
 }
 
 export interface WhatsAppConfigResult {
@@ -66,8 +67,9 @@ export const getCampaignMessageConfig = (): MessageConfigResult => {
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
   const allowlistActive = allowlist.length > 0;
+  const allowlistCount = allowlist.length;
 
-  return { dryRun, maxRecipients, allowlistActive };
+  return { dryRun, maxRecipients, allowlistActive, allowlistCount };
 };
 
 export const normalizePhone = (phone: string | null | undefined): string => {

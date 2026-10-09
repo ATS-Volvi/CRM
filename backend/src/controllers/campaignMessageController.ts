@@ -75,21 +75,53 @@ export const getCampaignMessageConfigHandler = async (req: Request, res: Respons
       dryRun: emailConfig.dryRun,
       maxRecipients: emailConfig.maxRecipients,
       allowlistActive: emailConfig.allowlistActive,
+      allowlistCount: emailConfig.allowlistCount ?? 0,
       email: {
         dryRun: emailConfig.dryRun,
         maxRecipients: emailConfig.maxRecipients,
-        allowlistActive: emailConfig.allowlistActive
+        allowlistActive: emailConfig.allowlistActive,
+        allowlistCount: emailConfig.allowlistCount ?? 0
       },
       whatsapp: {
         dryRun: whatsappConfig.dryRun,
         maxRecipients: whatsappConfig.maxRecipients,
         allowlistActive: whatsappConfig.allowlistActive,
+        allowlistCount: whatsappConfig.allowlist?.length || 0,
         batchSize: whatsappConfig.batchSize,
         batchDelayMs: whatsappConfig.batchDelayMs
       }
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * Read-only authenticated endpoint returning strictly send-mode visibility per channel:
+ * { dryRun: boolean, allowlistActive: boolean, allowlistCount: number, maxRecipients: number }
+ * Never exposes allowlist entries, secrets, or tokens.
+ */
+export const getCampaignSendModeHandler = async (req: Request, res: Response) => {
+  try {
+    const emailConfig = getCampaignMessageConfig();
+    const whatsappConfig = getCampaignWhatsAppConfig();
+
+    res.json({
+      whatsapp: {
+        dryRun: Boolean(whatsappConfig.dryRun),
+        allowlistActive: Boolean(whatsappConfig.allowlistActive),
+        allowlistCount: Number(whatsappConfig.allowlist?.length || 0),
+        maxRecipients: Number(whatsappConfig.maxRecipients)
+      },
+      email: {
+        dryRun: Boolean(emailConfig.dryRun),
+        allowlistActive: Boolean(emailConfig.allowlistActive),
+        allowlistCount: Number(emailConfig.allowlistCount ?? 0),
+        maxRecipients: Number(emailConfig.maxRecipients)
+      }
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || "Failed to retrieve campaign send mode" });
   }
 };
 

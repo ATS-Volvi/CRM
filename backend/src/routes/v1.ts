@@ -108,6 +108,7 @@ import {
 } from "../controllers/attributionController";
 import {
   getCampaignMessageConfigHandler,
+  getCampaignSendModeHandler,
   getCampaignMessages,
   getCampaignMessageById,
   getCampaignMessageStatsHandler,
@@ -918,6 +919,7 @@ router.get("/dashboard/win-celebrations", authMiddleware, getWinCelebrations);
 // ==========================================
 router.get("/campaigns", authMiddleware, getCampaigns);
 router.get("/campaigns/export", authMiddleware, exportCampaigns);
+router.get("/campaigns/send-mode", authMiddleware, getCampaignSendModeHandler);
 router.get("/campaigns/:id/leads/export", authMiddleware, exportCampaignLeads);
 router.get("/campaigns/:id/timeseries", authMiddleware, getCampaignTimeseries);
 router.get("/campaigns/:id", authMiddleware, getCampaignById);

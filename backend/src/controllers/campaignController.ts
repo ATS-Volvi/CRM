@@ -359,7 +359,20 @@ export const createCampaign = async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Campaign name and unique code are required" });
     }
 
-    const existing = await sequelize.models.Campaign.findOne({ where: { code } });
+    const trimmedCode = String(code).trim().toUpperCase();
+    if (!/^[A-Za-z0-9-]+$/.test(trimmedCode)) {
+      return res.status(400).json({ error: "Campaign code may only contain uppercase letters, numbers, and hyphens." });
+    }
+    if (trimmedCode.length < 2 || trimmedCode.length > 50) {
+      return res.status(400).json({ error: "Campaign code must be between 2 and 50 characters." });
+    }
+
+    const existing = await sequelize.models.Campaign.findOne({
+      where: sequelize.where(
+        sequelize.fn("LOWER", sequelize.col("code")),
+        trimmedCode.toLowerCase()
+      )
+    });
     if (existing) {
       return res.status(409).json({ error: `Campaign with code '${code}' already exists.` });
     }
@@ -367,7 +380,7 @@ export const createCampaign = async (req: Request, res: Response) => {
     const campaign = await sequelize.models.Campaign.create({
       id: crypto.randomUUID(),
       name,
-      code,
+      code: trimmedCode,
       description,
       channel: channel || "Other",
       platform,
@@ -397,10 +410,29 @@ export const updateCampaign = async (req: Request, res: Response) => {
     }
 
     if (req.body.code && req.body.code !== (campaign as any).code) {
-      const duplicate = await sequelize.models.Campaign.findOne({ where: { code: req.body.code } });
+      const trimmedCode = String(req.body.code).trim().toUpperCase();
+      if (!/^[A-Za-z0-9-]+$/.test(trimmedCode)) {
+        return res.status(400).json({ error: "Campaign code may only contain uppercase letters, numbers, and hyphens." });
+      }
+      if (trimmedCode.length < 2 || trimmedCode.length > 50) {
+        return res.status(400).json({ error: "Campaign code must be between 2 and 50 characters." });
+      }
+
+      const duplicate = await sequelize.models.Campaign.findOne({
+        where: {
+          [Op.and]: [
+            sequelize.where(
+              sequelize.fn("LOWER", sequelize.col("code")),
+              trimmedCode.toLowerCase()
+            ),
+            { id: { [Op.ne]: String(id) } }
+          ]
+        }
+      });
       if (duplicate) {
         return res.status(409).json({ error: `Campaign code '${req.body.code}' is already in use.` });
       }
+      req.body.code = trimmedCode;
     }
 
     await campaign.update(req.body);

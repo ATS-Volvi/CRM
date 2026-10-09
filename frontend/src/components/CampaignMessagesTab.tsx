@@ -31,10 +31,15 @@ import {
   CampaignRecipient,
   CampaignAudienceFilter,
   AudiencePreviewResponse,
-  CampaignMessageConfig
+  CampaignMessageConfig,
+  CampaignSendModeResponse
 } from "../types/marketing";
 import { useAuth } from "../context/AuthContext";
 import { localDateTimeToUtcIso, utcIsoToLocalDisplay } from "../utils/campaignDateHelper";
+import {
+  CampaignSendModeBanner,
+  computeChannelSendMode
+} from "./CampaignSendModeBanner";
 
 interface CampaignMessagesTabProps {
   campaignId: string;
@@ -81,6 +86,7 @@ export function CampaignMessagesTab({ campaignId, campaignName }: CampaignMessag
   const [confirmInput, setConfirmInput] = useState("");
   const [isScheduling, setIsScheduling] = useState(false);
   const [scheduleDateTime, setScheduleDateTime] = useState("");
+  const [liveConfirmed, setLiveConfirmed] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
 
   const [messageToDelete, setMessageToDelete] = useState<CampaignMessage | null>(null);
@@ -118,11 +124,19 @@ export function CampaignMessagesTab({ campaignId, campaignName }: CampaignMessag
     return list.filter((c: Campaign) => c.id !== campaignId);
   }, [allCampaignsData, campaignId]);
 
-  // Query: Safety config
+  // Query: Safety config (legacy endpoint)
   const { data: config } = useQuery<CampaignMessageConfig>({
     queryKey: ["campaign-message-config", campaignId],
     queryFn: () => campaignsApi.getCampaignMessageConfig(campaignId),
     staleTime: 60000
+  });
+
+  // Query: Send-mode visibility (Feature 3 endpoint)
+  const { data: sendModeData } = useQuery<CampaignSendModeResponse>({
+    queryKey: ["campaigns-send-mode"],
+    queryFn: () => campaignsApi.getCampaignSendMode(),
+    staleTime: 30000,
+    retry: 1
   });
 
   // Query: Messages list with auto-polling when SENDING
@@ -497,21 +511,12 @@ export function CampaignMessagesTab({ campaignId, campaignName }: CampaignMessag
   return (
     <div className="space-y-6">
       {/* ── SAFETY / DRY RUN BANNER ── */}
-      {(config?.dryRun || config?.whatsapp?.dryRun || config?.email?.dryRun) && (
-        <div className="p-4 rounded-xl border border-amber-300/80 dark:border-amber-700/80 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/40 dark:to-orange-950/30 flex items-start gap-3 shadow-xs">
-          <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-          <div className="text-xs space-y-1">
-            <span className="font-bold text-amber-900 dark:text-amber-200 block text-sm">
-              Dry Run Simulation Mode Active
-            </span>
-            <p className="text-amber-800/90 dark:text-amber-300/90">
-              Campaign messages will be rendered and logged to recipient history but will <strong>not</strong> be delivered to real mailboxes or WhatsApp devices.
-              Max email cap: <strong>{config?.email?.maxRecipients ?? config.maxRecipients}</strong> | Max WhatsApp cap: <strong>{config?.whatsapp?.maxRecipients ?? 200}</strong>.
-              {(config?.allowlistActive || config?.whatsapp?.allowlistActive) && " Test allowlist is active."}
-            </p>
-          </div>
-        </div>
-      )}
+      {/* ── VISIBLE SEND-MODE BANNER (TAB LEVEL) ── */}
+      <CampaignSendModeBanner
+        channel={channelFilter}
+        config={sendModeData}
+        className="mb-1"
+      />
 
       {/* ── HEADER & ACTIONS ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-xs">
@@ -792,6 +797,7 @@ export function CampaignMessagesTab({ campaignId, campaignName }: CampaignMessag
                                 setIsScheduling(false);
                                 setScheduleDateTime("");
                                 setSendError(null);
+                                setLiveConfirmed(false);
                                 setIsSendConfirmOpen(true);
                               }}
                               className="inline-flex items-center gap-1 px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs cursor-pointer"
@@ -869,6 +875,13 @@ export function CampaignMessagesTab({ campaignId, campaignName }: CampaignMessag
                 <span>{formError}</span>
               </div>
             )}
+
+            {/* Send Mode Banner inside Modal (updates reactively with formChannel) */}
+            <CampaignSendModeBanner
+              channel={formChannel}
+              config={sendModeData}
+              className="mb-1"
+            />
 
             <div className="space-y-4 text-xs">
               {/* Channel Selector */}
@@ -1334,50 +1347,31 @@ export function CampaignMessagesTab({ campaignId, campaignName }: CampaignMessag
               </div>
             </div>
 
-            {/* Channel-aware DRY RUN Badge / Notice */}
+            {/* Visible Send Mode Banner inside Send Broadcast Confirmation */}
             {(() => {
-              const isWa = messageToSend.channel === "WHATSAPP";
-              const chCfg = isWa ? config?.whatsapp : config?.email;
-              const isDryRun = chCfg !== undefined ? chCfg.dryRun : config?.dryRun;
-              const isAllowlist = chCfg !== undefined ? chCfg.allowlistActive : config?.allowlistActive;
-              const maxRecips = chCfg !== undefined ? chCfg.maxRecipients : config?.maxRecipients;
+              const channelKey = messageToSend.channel === "WHATSAPP" ? "whatsapp" : "email";
+              const targetMode = computeChannelSendMode(sendModeData?.[channelKey]);
+              const isLive = targetMode.mode === "LIVE";
 
               return (
-                <div className="space-y-2">
-                  {isDryRun ? (
-                    <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-200 flex items-start gap-2">
-                      <span className="px-1.5 py-0.5 rounded bg-amber-200 dark:bg-amber-800 text-amber-900 dark:text-amber-100 font-black text-[10px] uppercase tracking-wider shrink-0 mt-0.5">
-                        DRY RUN
-                      </span>
-                      <span>
-                        {isWa
-                          ? "WhatsApp DRY RUN is active. Messages will be recorded as SENT with note 'dry run (not delivered)'. Twilio will not be called."
-                          : "Email DRY RUN is active. Emails will be recorded as SENT with note 'dry run (not delivered)'. SendGrid will not be called."}
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-800 dark:text-emerald-200 flex items-start gap-2">
-                      <span className="px-1.5 py-0.5 rounded bg-emerald-200 dark:bg-emerald-800 text-emerald-900 dark:text-emerald-100 font-black text-[10px] uppercase tracking-wider shrink-0 mt-0.5">
-                        LIVE SEND
-                      </span>
-                      <span>
-                        {isWa
-                          ? "LIVE WHATSAPP SEND: Messages will be dispatched to real phone numbers via Twilio Content API."
-                          : "LIVE EMAIL SEND: Real emails will be sent via SendGrid."}
-                      </span>
-                    </div>
-                  )}
+                <div className="space-y-3">
+                  <CampaignSendModeBanner
+                    channel={messageToSend.channel || "EMAIL"}
+                    config={sendModeData}
+                  />
 
-                  {isAllowlist && (
-                    <div className="p-2.5 rounded-lg bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 text-[11px] text-blue-700 dark:text-blue-300">
-                      <strong>Test Allowlist Active:</strong> Only allowlisted {isWa ? "phone numbers" : "emails"} will receive messages; all other recipients will be skipped.
-                    </div>
-                  )}
-
-                  {maxRecips !== undefined && (
-                    <div className="text-[11px] text-slate-500">
-                      Maximum recipient safety cap: <strong>{maxRecips}</strong> leads.
-                    </div>
+                  {isLive && (
+                    <label className="flex items-start gap-2.5 p-3 rounded-xl border border-rose-300 dark:border-rose-800 bg-rose-50/80 dark:bg-rose-950/50 text-rose-900 dark:text-rose-100 text-xs font-bold cursor-pointer transition-all shadow-xs">
+                      <input
+                        type="checkbox"
+                        checked={liveConfirmed}
+                        onChange={(e) => setLiveConfirmed(e.target.checked)}
+                        className="mt-0.5 rounded border-rose-400 text-rose-600 focus:ring-rose-500 cursor-pointer"
+                      />
+                      <span>
+                        I understand this broadcast is LIVE and will be sent to ALL eligible recipients.
+                      </span>
+                    </label>
                   )}
                 </div>
               );
@@ -1441,13 +1435,24 @@ export function CampaignMessagesTab({ campaignId, campaignName }: CampaignMessag
                   setMessageToSend(null);
                   setIsScheduling(false);
                   setScheduleDateTime("");
+                  setLiveConfirmed(false);
                 }}
                 className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-600 dark:text-slate-300"
               >
                 Cancel
               </button>
               <button
-                disabled={confirmInput !== "SEND" || sendMutation.isPending || (isScheduling && !scheduleDateTime)}
+                disabled={
+                  confirmInput !== "SEND" ||
+                  sendMutation.isPending ||
+                  (isScheduling && !scheduleDateTime) ||
+                  (computeChannelSendMode(
+                    messageToSend.channel === "WHATSAPP"
+                      ? sendModeData?.whatsapp
+                      : sendModeData?.email
+                  ).mode === "LIVE" &&
+                    !liveConfirmed)
+                }
                 onClick={() => sendMutation.mutate(messageToSend.id)}
                 className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold shadow-xs cursor-pointer"
               >

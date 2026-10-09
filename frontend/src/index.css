@@ -111,4 +111,13 @@
   .enterprise-table tr:hover td {
     @apply bg-slate-50/60;
   }
+
+  /* Campaign Code Monospace Font with Distinct Slashed/Dotted Zero */
+  .font-campaign-code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-feature-settings: "zero" 1;
+    font-variant-numeric: slashed-zero;
+    letter-spacing: 0.04em;
+  }
 }
+

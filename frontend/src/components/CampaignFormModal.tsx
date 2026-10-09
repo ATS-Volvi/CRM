@@ -10,14 +10,21 @@ import {
   Target,
   FileText,
   AlertCircle,
+  AlertTriangle,
   CheckCircle2,
   Share2,
   Globe,
-  Tag
+  Tag,
+  Sparkles
 } from "lucide-react";
 import { campaignsApi, attributionApi } from "../api/marketing";
 import { Campaign, CampaignStatus } from "../types/marketing";
 import { apiClient } from "../lib/apiClient";
+import {
+  generateCampaignCodeSuggestion,
+  validateCampaignCode,
+  checkAmbiguousCodeCharacters
+} from "../utils/campaignCodeHelper";
 
 interface CampaignFormModalProps {
   isOpen: boolean;
@@ -115,6 +122,7 @@ export function CampaignFormModal({
   // Form states
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
+  const [isCodeManuallyEdited, setIsCodeManuallyEdited] = useState(false);
   const [description, setDescription] = useState("");
   const [channel, setChannel] = useState("WhatsApp");
   const [platform, setPlatform] = useState("Direct");
@@ -131,6 +139,16 @@ export function CampaignFormModal({
   // Validation & Error states
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [serverError, setServerError] = useState<string | null>(null);
+
+  // Fetch campaigns for code uniqueness validation & suggestions
+  const { data: allCampaignsData } = useQuery({
+    queryKey: ["campaigns-for-code-validation"],
+    queryFn: () => campaignsApi.getCampaigns({ limit: 150 }),
+    enabled: isOpen
+  });
+
+  const existingCampaignList = (allCampaignsData?.data || []) as Campaign[];
+  const existingCampaignCodes = existingCampaignList.map((c) => c.code).filter(Boolean);
 
   // Channel options: WhatsApp, Instagram, Email for new campaigns; legacy preserved on edit
   const channelOptions = getCampaignChannelOptions(campaign?.channel, isEdit);
@@ -162,6 +180,7 @@ export function CampaignFormModal({
       if (campaign) {
         setName(campaign.name || "");
         setCode(campaign.code || "");
+        setIsCodeManuallyEdited(true);
         setDescription(campaign.description || "");
         setChannel(campaign.channel || "WhatsApp");
         setPlatform(campaign.platform || "Direct");
@@ -176,7 +195,9 @@ export function CampaignFormModal({
         setOwnerId(campaign.ownerId || (campaign as any).owner?.id || "");
       } else {
         setName("");
-        setCode("");
+        setIsCodeManuallyEdited(false);
+        const initialSuggestion = generateCampaignCodeSuggestion("", "WhatsApp", existingCampaignCodes);
+        setCode(initialSuggestion);
         setDescription("");
         setChannel("WhatsApp");
         setPlatform("Direct");
@@ -193,6 +214,35 @@ export function CampaignFormModal({
     }
   }, [isOpen, campaign]);
 
+  // Auto-suggest code on name or channel change for new campaigns (if not manually edited)
+  const handleNameChange = (newName: string) => {
+    setName(newName);
+    if (formErrors.name) setFormErrors((prev) => ({ ...prev, name: "" }));
+    if (!isEdit && !isCodeManuallyEdited) {
+      const suggestion = generateCampaignCodeSuggestion(newName, channel, existingCampaignCodes);
+      setCode(suggestion);
+      if (formErrors.code) setFormErrors((prev) => ({ ...prev, code: "" }));
+    }
+  };
+
+  const handleChannelChange = (newChannel: string) => {
+    setChannel(newChannel);
+    if (!isEdit && !isCodeManuallyEdited) {
+      const suggestion = generateCampaignCodeSuggestion(name, newChannel, existingCampaignCodes);
+      setCode(suggestion);
+      if (formErrors.code) setFormErrors((prev) => ({ ...prev, code: "" }));
+    }
+  };
+
+  const handleRegenerateCode = () => {
+    const suggestion = generateCampaignCodeSuggestion(name, channel, existingCampaignCodes);
+    setCode(suggestion);
+    setIsCodeManuallyEdited(false);
+    if (formErrors.code) setFormErrors((prev) => ({ ...prev, code: "" }));
+  };
+
+  const ambiguousCodeWarning = checkAmbiguousCodeCharacters(code);
+
   // Client-side validation
   const validateForm = () => {
     const errors: Record<string, string> = {};
@@ -201,10 +251,9 @@ export function CampaignFormModal({
       errors.name = "Campaign name is required.";
     }
 
-    if (!code.trim()) {
-      errors.code = "Campaign unique code is required.";
-    } else if (!/^[A-Za-z0-9_-]+$/.test(code.trim())) {
-      errors.code = "Campaign code must contain only letters, numbers, hyphens, and underscores.";
+    const codeValidation = validateCampaignCode(code, existingCampaignList, campaign?.id);
+    if (!codeValidation.isValid && codeValidation.error) {
+      errors.code = codeValidation.error;
     }
 
     if (budget && isNaN(Number(budget))) {
@@ -339,10 +388,7 @@ export function CampaignFormModal({
               <input
                 type="text"
                 value={name}
-                onChange={(e) => {
-                  setName(e.target.value);
-                  if (formErrors.name) setFormErrors((prev) => ({ ...prev, name: "" }));
-                }}
+                onChange={(e) => handleNameChange(e.target.value)}
                 placeholder="e.g. Q4 Google Search Industrial Surge"
                 className={`w-full px-3 py-2 text-xs rounded-xl border bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-2xs focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all ${
                   formErrors.name ? "border-rose-300 ring-1 ring-rose-300" : "border-slate-200 dark:border-slate-700"
@@ -354,23 +400,42 @@ export function CampaignFormModal({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                Campaign Code (Unique) <span className="text-rose-500">*</span>
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Campaign Code (Unique) <span className="text-rose-500">*</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={handleRegenerateCode}
+                  className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 hover:underline cursor-pointer"
+                  title="Auto-suggest code from name and channel avoiding ambiguous characters"
+                >
+                  <Sparkles className="w-3 h-3 text-blue-500" />
+                  <span>Auto-suggest</span>
+                </button>
+              </div>
+
               <input
                 type="text"
                 value={code}
                 onChange={(e) => {
                   setCode(e.target.value.toUpperCase());
+                  setIsCodeManuallyEdited(true);
                   if (formErrors.code) setFormErrors((prev) => ({ ...prev, code: "" }));
                 }}
-                placeholder="e.g. GOOGLE-SEARCH-Q4"
-                className={`w-full px-3 py-2 text-xs font-mono rounded-xl border bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-2xs focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all ${
+                placeholder="e.g. WA-OCT26"
+                className={`w-full px-3 py-2 text-xs font-campaign-code rounded-xl border bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-2xs focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all ${
                   formErrors.code ? "border-rose-300 ring-1 ring-rose-300" : "border-slate-200 dark:border-slate-700"
                 }`}
               />
+
               {formErrors.code ? (
                 <span className="text-[11px] text-rose-500 font-semibold mt-1 block">{formErrors.code}</span>
+              ) : ambiguousCodeWarning.hasWarning ? (
+                <div className="flex items-center gap-1.5 text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800/60 px-2 py-1 rounded-lg text-[11px] font-medium mt-1">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-500" />
+                  <span>{ambiguousCodeWarning.warning}</span>
+                </div>
               ) : (
                 <span className="text-[10px] text-slate-400 mt-1 block">Used in UTM parameters and lead matching</span>
               )}
@@ -385,7 +450,7 @@ export function CampaignFormModal({
               </label>
               <select
                 value={channel}
-                onChange={(e) => setChannel(e.target.value)}
+                onChange={(e) => handleChannelChange(e.target.value)}
                 className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-2xs focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
               >
                 {channelOptions.map((opt) => (
