@@ -2,9 +2,68 @@ import FormData from "form-data";
 import Mailgun from "mailgun.js";
 import { sequelize } from "@nexus-crm/database";
 
-const cleanEnv = (key: string, defaultVal: string) => {
-  const val = process.env[key] || defaultVal;
-  return val.replace(/^["']|["']$/g, "").trim();
+export const cleanEnv = (key: string, defaultVal: string): string => {
+  const raw = process.env[key] || defaultVal;
+  const val = raw.trim();
+  if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+    return val.slice(1, -1).trim();
+  }
+  return val;
+};
+
+/**
+ * Safely constructs an RFC 5322 From header: `display-name <addr-spec>` or `<addr-spec>`
+ * - Defensively trims stray surrounding quotes from display name
+ * - Quotes display name only when needed (e.g. contains special chars, quotes, commas, non-ASCII)
+ * - Escapes internal quotes
+ */
+export const buildFromHeader = (
+  rawFromOrName: string,
+  explicitAddress?: string
+): string => {
+  let name = "";
+  let address = "";
+
+  if (explicitAddress !== undefined) {
+    name = rawFromOrName || "";
+    address = explicitAddress || "";
+  } else {
+    const raw = (rawFromOrName || "").trim();
+    // Parse "Display Name" <email@example.com> or Display Name <email@example.com>
+    const match = raw.match(/^(.*?)\s*<([^>]+)>\s*$/);
+    if (match) {
+      name = match[1];
+      address = match[2];
+    } else if (raw.includes("@")) {
+      address = raw;
+    } else {
+      name = raw;
+    }
+  }
+
+  let cleanName = (name || "").trim();
+  // Defensively trim stray surrounding quotes from display name (e.g. Volvitech", "Volvitech", ""Volvitech"")
+  cleanName = cleanName.replace(/^["'\s]+|["'\s]+$/g, "").trim();
+
+  const cleanAddress = (address || "").replace(/[<>]/g, "").trim();
+  if (!cleanName) {
+    return cleanAddress ? `<${cleanAddress}>` : "";
+  }
+
+  // Normalize internal quotes: unescape existing backslash-quotes first, then escape properly
+  cleanName = cleanName.replace(/\\"/g, '"');
+  const hasInternalQuotes = cleanName.includes('"');
+  // RFC 5322 specials requiring quotes in display name: specials are ()<>[]:;@\,."
+  // Non-ASCII / unicode characters also benefit from quoting in standard headers
+  const hasSpecials = /[",;:<>@\[\]\(\)\\]/.test(cleanName) || /[^\x20-\x7E]/.test(cleanName);
+  const needsQuotes = hasInternalQuotes || hasSpecials;
+
+  if (needsQuotes) {
+    cleanName = cleanName.replace(/"/g, '\\"');
+    return cleanAddress ? `"${cleanName}" <${cleanAddress}>` : `"${cleanName}"`;
+  }
+
+  return cleanAddress ? `${cleanName} <${cleanAddress}>` : cleanName;
 };
 
 const mailgun = new Mailgun(FormData);
@@ -25,6 +84,8 @@ export const renderTemplate = (templateString: string, dataObj: Record<string, s
 export const getBaseHtmlTemplate = (bodyContent: string, leadId?: string): string => {
   const rawBaseUrl = process.env.BASE_URL || "http://localhost:5506";
   const baseUrl = rawBaseUrl.replace(/\/+$/, "");
+  const companyName = (process.env.COMPANY_NAME || "Nexus CRM").replace(/^["']|["']$/g, "").trim();
+  const brandingHeader = (process.env.COMPANY_NAME ? companyName : "NEXUS CRM").toUpperCase();
   const unsubscribeHtml = leadId 
     ? `<p style="margin-top: 10px;">Don't want to receive these emails? <a href="${baseUrl}/api/v1/leads/unsubscribe/${leadId}">Unsubscribe here</a></p>`
     : '';
@@ -47,13 +108,13 @@ export const getBaseHtmlTemplate = (bodyContent: string, leadId?: string): strin
 <body>
   <div class="container">
     <div class="header">
-      <h1>NEXUS CRM</h1>
+      <h1>${brandingHeader}</h1>
     </div>
     <div class="content">
       ${bodyContent}
     </div>
     <div class="footer">
-      <p>&copy; ${new Date().getFullYear()} Nexus Enterprises LLC. All rights reserved.</p>
+      <p>&copy; ${new Date().getFullYear()} ${companyName}. All rights reserved.</p>
       <p>123 Tech Corridor, Internet City, Dubai</p>
       ${unsubscribeHtml}
     </div>
@@ -70,7 +131,9 @@ export const sendEmail = async (to: string, subject: string, htmlContent: string
   const ccSuffix = cc && cc.length > 0 ? `, cc: [${cc.join(", ")}]` : "";
 
   if (isDummyKey) {
-    console.log(`[Email Service - Simulated] Dispatching email to: ${to}${ccSuffix}, subject: "${subject}"`);
+    const rawFrom = process.env.MAILGUN_FROM || '"Nexus CRM" <no-reply@inbound.volvitech.com>';
+    const from = buildFromHeader(rawFrom);
+    console.log(`[Email Service - Simulated] Dispatching email to: ${to}${ccSuffix}, from: "${from}", subject: "${subject}"`);
     return {
       id: `<simulated_${Date.now()}@nexus-crm.local>`,
       message: "Queued (simulated/dev mode)",
@@ -81,8 +144,10 @@ export const sendEmail = async (to: string, subject: string, htmlContent: string
 
   try {
     const domain = cleanEnv("MAILGUN_DOMAIN", "inbound.volvitech.com");
+    const rawFrom = process.env.MAILGUN_FROM || '"Nexus CRM" <no-reply@inbound.volvitech.com>';
+    const from = buildFromHeader(rawFrom);
     const payload: any = {
-      from: cleanEnv("MAILGUN_FROM", '"Nexus CRM" <no-reply@inbound.volvitech.com>'),
+      from,
       to: [to],
       subject,
       html: htmlContent,
