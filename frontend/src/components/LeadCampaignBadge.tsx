@@ -153,7 +153,7 @@ export const LeadCampaignBadge: React.FC<LeadCampaignBadgeProps> = ({
         className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-semibold bg-purple-50 dark:bg-purple-950/70 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 hover:bg-purple-100 dark:hover:bg-purple-900/50 hover:border-purple-300 transition-all cursor-pointer select-none focus:outline-none focus:ring-2 focus:ring-purple-500/30 ${className}`}
       >
         {showIcon && <Target className="w-3 h-3 text-purple-600 dark:text-purple-400 shrink-0" />}
-        <span className="max-w-[120px] truncate font-mono tracking-tight">{campaignCode}</span>
+        <span className="max-w-[120px] truncate font-campaign-code tracking-tight">{campaignCode}</span>
       </div>
 
       {/* Hover Card Popover using position: fixed to escape table clipping */}
@@ -177,7 +177,7 @@ export const LeadCampaignBadge: React.FC<LeadCampaignBadgeProps> = ({
           <div className="flex items-start justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-2.5">
             <div className="space-y-1 min-w-0">
               <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-purple-100 dark:bg-purple-900/60 text-purple-800 dark:text-purple-200 border border-purple-200 dark:border-purple-800">
+                <span className="font-campaign-code text-xs font-bold px-2 py-0.5 rounded bg-purple-100 dark:bg-purple-900/60 text-purple-800 dark:text-purple-200 border border-purple-200 dark:border-purple-800">
                   {campaignCode}
                 </span>
                 <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">

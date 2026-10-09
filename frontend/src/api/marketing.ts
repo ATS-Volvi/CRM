@@ -18,6 +18,7 @@ import {
   CampaignAudienceFilter,
   AudiencePreviewResponse,
   CampaignMessageConfig,
+  CampaignSendModeResponse,
   CampaignMessageStats
 } from "../types";
 import { normalizePaginatedResponse } from "./adapters";
@@ -219,6 +220,11 @@ export const campaignsApi = {
 
   getCampaignMessageConfig: async (campaignId: string): Promise<CampaignMessageConfig> => {
     const raw = await apiClient.get(`/api/v1/campaigns/${campaignId}/messages/config`);
+    return raw;
+  },
+
+  getCampaignSendMode: async (): Promise<CampaignSendModeResponse> => {
+    const raw = await apiClient.get(`/api/v1/campaigns/send-mode`);
     return raw;
   },
 

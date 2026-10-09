@@ -514,7 +514,7 @@ export default function Campaigns() {
                           >
                             {c.name}
                           </Link>
-                          <div className="text-[11px] text-slate-400 font-mono">code: {c.code}</div>
+                          <div className="text-[11px] text-slate-400 font-campaign-code">code: {c.code}</div>
                           {badges.length > 0 && (
                             <div className="flex flex-wrap gap-1 mt-1">
                               {badges.map((b) => (

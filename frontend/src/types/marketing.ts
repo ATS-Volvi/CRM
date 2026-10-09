@@ -303,7 +303,21 @@ export interface CampaignMessageConfig {
   dryRun: boolean;
   maxRecipients: number;
   allowlistActive: boolean;
-  email?: ChannelMessageConfig;
-  whatsapp?: ChannelMessageConfig;
+  allowlistCount?: number;
+  email?: ChannelMessageConfig & { allowlistCount?: number };
+  whatsapp?: ChannelMessageConfig & { allowlistCount?: number };
 }
+
+export interface CampaignSendModeChannelConfig {
+  dryRun: boolean;
+  allowlistActive: boolean;
+  allowlistCount: number;
+  maxRecipients: number;
+}
+
+export interface CampaignSendModeResponse {
+  whatsapp: CampaignSendModeChannelConfig;
+  email: CampaignSendModeChannelConfig;
+}
+
 

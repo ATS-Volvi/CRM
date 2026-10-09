@@ -57,6 +57,7 @@ import { campaignsApi } from "../api/marketing";
 import { Campaign, CampaignPerformance, CampaignMetrics, CampaignAd } from "../types/marketing";
 import { CampaignAdFormModal } from "../components/CampaignAdFormModal";
 import { CampaignMessagesTab } from "../components/CampaignMessagesTab";
+import { CopyTrackedLinkMenu } from "../components/CopyTrackedLinkMenu";
 
 import { formatMoney } from "../lib/formatMoney";
 
@@ -313,10 +314,15 @@ export default function CampaignDetail() {
               <ArrowLeft className="w-3.5 h-3.5" /> Campaigns
             </button>
             <span>/</span>
-            <span className="font-mono text-slate-800 dark:text-slate-200">{campaign.code}</span>
+            <span className="font-campaign-code text-slate-800 dark:text-slate-200">{campaign.code}</span>
           </div>
 
           <div className="flex items-center gap-2">
+            <CopyTrackedLinkMenu
+              campaignCode={campaign.code}
+              campaignName={campaign.name}
+              defaultChannel={campaign.channel}
+            />
             <button
               onClick={() => {
                 refetchCampaign();
@@ -350,7 +356,7 @@ export default function CampaignDetail() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 dark:text-slate-400 font-medium">
-                  <span className="font-mono bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300">
+                  <span className="font-campaign-code bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300">
                     code: {campaign.code}
                   </span>
                   <span className="flex items-center gap-1 text-slate-700 dark:text-slate-300 font-semibold">
