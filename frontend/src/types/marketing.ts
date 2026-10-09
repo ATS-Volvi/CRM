@@ -73,6 +73,34 @@ export interface LeadAttribution {
   updatedAt: string;
 }
 
+export interface CampaignAttributionTouch {
+  id: string;
+  campaignId: string;
+  campaignName: string;
+  campaignCode: string;
+  channel: string;
+  status: string;
+  startDate?: string | null;
+  endDate?: string | null;
+  utmSource?: string | null;
+  utmMedium?: string | null;
+  utmCampaign?: string | null;
+  touchDate: string;
+  firstTouchAt?: string | null;
+  lastTouchAt?: string | null;
+  touchType?: string;
+  isFirstTouch: boolean;
+  isLastTouch: boolean;
+}
+
+export interface CampaignAttributionSummary {
+  lastTouch: CampaignAttributionTouch;
+  firstTouch: CampaignAttributionTouch;
+  totalTouches: number;
+  totalCampaigns: number;
+  touches: CampaignAttributionTouch[];
+}
+
 export interface AttributionEvent {
   id: string;
   leadId?: string | null;

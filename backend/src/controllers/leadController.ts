@@ -9,9 +9,91 @@ import { autoAssignDeal } from "../services/dealAssignmentEngine";
 import { getLeadAccessLevel } from "../services/handoffAccessService";
 import crypto from "crypto";
 
+export function buildCampaignAttributionSummary(
+  leadId: string,
+  attributions: any[],
+  directCampaign?: any
+): any | null {
+  const validTouches = (attributions || [])
+    .filter((a: any) => a && a.campaign)
+    .sort((a: any, b: any) => {
+      const dateA = new Date(a.createdAt || a.firstTouchAt || 0).getTime();
+      const dateB = new Date(b.createdAt || b.firstTouchAt || 0).getTime();
+      if (dateA !== dateB) return dateA - dateB;
+      return String(a.id || "").localeCompare(String(b.id || ""));
+    });
+
+  if (validTouches.length === 0) {
+    if (directCampaign) {
+      const singleTouch = {
+        id: `direct-${directCampaign.id}`,
+        campaignId: directCampaign.id,
+        campaignName: directCampaign.name || "Untitled Campaign",
+        campaignCode: directCampaign.code || directCampaign.name || "NO-CODE",
+        channel: directCampaign.channel || "Other",
+        status: directCampaign.status || "UNKNOWN",
+        startDate: directCampaign.startDate || null,
+        endDate: directCampaign.endDate || null,
+        utmSource: null,
+        utmMedium: null,
+        utmCampaign: directCampaign.code || null,
+        touchDate: directCampaign.createdAt ? new Date(directCampaign.createdAt).toISOString() : new Date().toISOString(),
+        firstTouchAt: null,
+        lastTouchAt: null,
+        touchType: "DIRECT",
+        isFirstTouch: true,
+        isLastTouch: true
+      };
+      return {
+        lastTouch: singleTouch,
+        firstTouch: singleTouch,
+        totalTouches: 1,
+        totalCampaigns: 1,
+        touches: [singleTouch]
+      };
+    }
+    return null;
+  }
+
+  const touches = validTouches.map((a: any, idx: number) => {
+    const camp = a.campaign;
+    const isFirst = idx === 0;
+    const isLast = idx === validTouches.length - 1;
+    return {
+      id: a.id,
+      campaignId: camp.id,
+      campaignName: camp.name || "Untitled Campaign",
+      campaignCode: camp.code || camp.name || "NO-CODE",
+      channel: a.channel || camp.channel || "Other",
+      status: camp.status || "UNKNOWN",
+      startDate: camp.startDate || null,
+      endDate: camp.endDate || null,
+      utmSource: a.utmSource || null,
+      utmMedium: a.utmMedium || null,
+      utmCampaign: a.utmCampaign || camp.code || null,
+      touchDate: a.createdAt ? new Date(a.createdAt).toISOString() : (a.firstTouchAt ? new Date(a.firstTouchAt).toISOString() : new Date().toISOString()),
+      firstTouchAt: a.firstTouchAt || null,
+      lastTouchAt: a.lastTouchAt || null,
+      touchType: a.touchType || (isFirst ? "FIRST_TOUCH" : isLast ? "LAST_TOUCH" : "INTERMEDIATE"),
+      isFirstTouch: isFirst,
+      isLastTouch: isLast
+    };
+  });
+
+  const distinctCampaignIds = new Set(touches.map((t: any) => t.campaignId));
+
+  return {
+    lastTouch: touches[touches.length - 1],
+    firstTouch: touches[0],
+    totalTouches: touches.length,
+    totalCampaigns: distinctCampaignIds.size,
+    touches
+  };
+}
+
 export const getLeads = async (req: Request, res: Response) => {
   try {
-    const { source, channel, status, search, page, limit } = req.query;
+    const { source, channel, status, search, page, limit, campaignId, campaignIds, campaign } = req.query;
     const user = (req as any).user;
     const where: any = {};
 
@@ -58,14 +140,7 @@ export const getLeads = async (req: Request, res: Response) => {
       ];
     }
 
-    // Server-side pagination: ?page=1&limit=50 (default 50, max 200)
-    const pageNum = Math.max(1, parseInt(page as string) || 1);
-    const limitNum = Math.min(200, Math.max(1, parseInt(limit as string) || 50));
-    const offset = (pageNum - 1) * limitNum;
-
-    const isPaginated = !!(page || limit);
-
-    // Compute live channel counts for quick-filter tabs
+    // Campaign filter (multi-select / comma-separated / single)
     const countsWhere: any = {};
     if (user && (user.role === "sales_rep" || user.role === "salesperson")) {
       countsWhere.assignedToId = user.id;
@@ -73,6 +148,46 @@ export const getLeads = async (req: Request, res: Response) => {
     if (status && status !== "All Statuses" && status !== "ALL") {
       countsWhere.status = status;
     }
+
+    const rawCampaign = campaignId || campaignIds || campaign;
+    let filterCampaignIds: string[] = [];
+    if (Array.isArray(rawCampaign)) {
+      filterCampaignIds = rawCampaign.flatMap((c: any) => String(c).split(",")).map((s: string) => s.trim()).filter(Boolean);
+    } else if (typeof rawCampaign === "string") {
+      filterCampaignIds = rawCampaign.split(",").map((s: string) => s.trim()).filter(Boolean);
+    }
+
+    if (filterCampaignIds.length > 0) {
+      const matchingAttributions = await sequelize.models.LeadAttribution.findAll({
+        where: { campaignId: { [Op.in]: filterCampaignIds } },
+        attributes: ["leadId"],
+        raw: true
+      });
+      const attributedLeadIds = matchingAttributions.map((a: any) => a.leadId).filter(Boolean);
+
+      const campaignOrConditions: any[] = [
+        { campaignId: { [Op.in]: filterCampaignIds } }
+      ];
+      if (attributedLeadIds.length > 0) {
+        campaignOrConditions.push({ id: { [Op.in]: attributedLeadIds } });
+      }
+
+      where[Op.and] = [
+        ...(where[Op.and] || []),
+        { [Op.or]: campaignOrConditions }
+      ];
+      countsWhere[Op.and] = [
+        ...(countsWhere[Op.and] || []),
+        { [Op.or]: campaignOrConditions }
+      ];
+    }
+
+    // Server-side pagination: ?page=1&limit=50 (default 50, max 200)
+    const pageNum = Math.max(1, parseInt(page as string) || 1);
+    const limitNum = Math.min(200, Math.max(1, parseInt(limit as string) || 50));
+    const offset = (pageNum - 1) * limitNum;
+
+    const isPaginated = !!(page || limit);
 
     const sourceCountsRaw: any[] = await sequelize.models.Lead.findAll({
       attributes: [
@@ -108,9 +223,13 @@ export const getLeads = async (req: Request, res: Response) => {
       else if (s.includes("referral")) channelCounts.Referral += c;
     }
 
+    let rows: any[] = [];
+    let count = 0;
+    let leads: any[] = [];
+
     if (isPaginated) {
       // Paginated response: return envelope with metadata
-      const { count, rows } = await sequelize.models.Lead.findAndCountAll({
+      const resData = await sequelize.models.Lead.findAndCountAll({
         where,
         include: [
           {
@@ -132,9 +251,92 @@ export const getLeads = async (req: Request, res: Response) => {
         offset,
         distinct: true // avoid inflated count due to hasMany include
       });
+      rows = resData.rows;
+      count = resData.count;
+    } else {
+      // Non-paginated (legacy)
+      leads = await sequelize.models.Lead.findAll({
+        where,
+        include: [
+          {
+            model: sequelize.models.User,
+            as: "assignedTo",
+            attributes: ["id", "name", "email"]
+          },
+          {
+            model: sequelize.models.LeadContact,
+            as: "contacts",
+            attributes: ["id", "firstName", "lastName", "email", "phone", "role", "message", "sourceChannel", "createdAt"]
+          }
+        ],
+        order: [
+          ["lastWhatsappAt", "DESC NULLS LAST"],
+          ["createdAt", "DESC"]
+        ]
+      });
+    }
 
+    // Batched query for Campaign Attribution to avoid N+1 queries
+    const targetRows = isPaginated ? rows : leads;
+    const targetIds = targetRows.map((l: any) => l.id).filter(Boolean);
+
+    const attributionsByLeadId = new Map<string, any[]>();
+    const directCampaignsById = new Map<string, any>();
+
+    if (targetIds.length > 0) {
+      const attributions = await sequelize.models.LeadAttribution.findAll({
+        where: { leadId: { [Op.in]: targetIds } },
+        include: [
+          {
+            model: sequelize.models.Campaign,
+            as: "campaign",
+            required: false
+          }
+        ],
+        order: [
+          ["createdAt", "ASC"],
+          ["id", "ASC"]
+        ]
+      });
+
+      for (const attr of attributions) {
+        const lId = (attr as any).leadId;
+        if (!attributionsByLeadId.has(lId)) {
+          attributionsByLeadId.set(lId, []);
+        }
+        attributionsByLeadId.get(lId)!.push(attr);
+      }
+
+      const missingLeadCampaignIds = targetRows
+        .filter((l: any) => {
+          const attrs = attributionsByLeadId.get(l.id) || [];
+          const hasValidAttrCamp = attrs.some((a: any) => !!a.campaign);
+          return !hasValidAttrCamp && l.campaignId;
+        })
+        .map((l: any) => l.campaignId)
+        .filter(Boolean);
+
+      if (missingLeadCampaignIds.length > 0) {
+        const directCamps = await sequelize.models.Campaign.findAll({
+          where: { id: { [Op.in]: Array.from(new Set(missingLeadCampaignIds)) } }
+        });
+        for (const c of directCamps) {
+          directCampaignsById.set((c as any).id, c);
+        }
+      }
+    }
+
+    const attachAttribution = (l: any) => {
+      const leadObj = typeof l.toJSON === "function" ? l.toJSON() : { ...l };
+      const attrs = attributionsByLeadId.get(leadObj.id) || [];
+      const directCamp = leadObj.campaignId ? directCampaignsById.get(leadObj.campaignId) : undefined;
+      leadObj.campaignAttribution = buildCampaignAttributionSummary(leadObj.id, attrs, directCamp);
+      return leadObj;
+    };
+
+    if (isPaginated) {
       return res.json({
-        data: rows,
+        data: rows.map(attachAttribution),
         total: count,
         page: pageNum,
         totalPages: Math.ceil(count / limitNum),
@@ -143,31 +345,7 @@ export const getLeads = async (req: Request, res: Response) => {
       });
     }
 
-    // Non-paginated (legacy) — keep backward compatibility for pages that
-    // haven't been updated yet; returns plain array
-    const leads = await sequelize.models.Lead.findAll({
-      where,
-      include: [
-        {
-          model: sequelize.models.User,
-          as: "assignedTo",
-          attributes: ["id", "name", "email"]
-        },
-        {
-          model: sequelize.models.LeadContact,
-          as: "contacts",
-          attributes: ["id", "firstName", "lastName", "email", "phone", "role", "message", "sourceChannel", "createdAt"]
-        }
-      ],
-      // WhatsApp leads with recent messages bubble to the top;
-      // everything else sorted by creation date descending
-      order: [
-        ["lastWhatsappAt", "DESC NULLS LAST"],
-        ["createdAt", "DESC"]
-      ]
-    });
-
-    res.json(leads);
+    res.json(leads.map(attachAttribution));
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -206,8 +384,23 @@ export const getLeadById = async (req: Request, res: Response) => {
     }
 
     const leadJson = typeof lead.toJSON === "function" ? lead.toJSON() : lead;
+    const leadAny = lead as any;
+
+    const attrs = await sequelize.models.LeadAttribution.findAll({
+      where: { leadId: leadAny.id },
+      include: [{ model: sequelize.models.Campaign, as: "campaign", required: false }],
+      order: [["createdAt", "ASC"], ["id", "ASC"]]
+    });
+    let directCamp = null;
+    const hasValidAttrCamp = attrs.some((a: any) => !!a.campaign);
+    if (!hasValidAttrCamp && leadAny.campaignId) {
+      directCamp = await sequelize.models.Campaign.findByPk(leadAny.campaignId);
+    }
+    const campaignAttribution = buildCampaignAttributionSummary(leadAny.id, attrs, directCamp);
+
     res.json({
       ...leadJson,
+      campaignAttribution,
       isViewOnly: access.isViewOnly,
       userPermission: access.accessLevel
     });
