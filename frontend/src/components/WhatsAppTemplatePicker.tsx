@@ -97,7 +97,7 @@ export const WhatsAppTemplatePicker: React.FC<WhatsAppTemplatePickerProps> = ({
 
   // Handle template selection
   const handleSelectTemplate = (template: WhatsAppTemplate) => {
-    if (!template.usable) return;
+    if (template.approvalStatus === "disabled") return;
 
     onTemplateSidChange(template.sid);
 
@@ -401,17 +401,11 @@ export const WhatsAppTemplatePicker: React.FC<WhatsAppTemplatePickerProps> = ({
                 return (
                   <div
                     key={template.sid}
-                    onClick={() => {
-                      if (template.usable) {
-                        handleSelectTemplate(template);
-                      }
-                    }}
-                    className={`relative p-3.5 rounded-xl border text-left transition-all ${
+                    onClick={() => handleSelectTemplate(template)}
+                    className={`relative p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
                       isSelected
                         ? "border-blue-600 dark:border-blue-500 bg-blue-50/50 dark:bg-blue-900/20 ring-2 ring-blue-500/30"
-                        : template.usable
-                        ? "border-slate-200 dark:border-slate-700/80 bg-white dark:bg-slate-800/80 hover:border-slate-300 dark:hover:border-slate-600 hover:shadow-sm cursor-pointer"
-                        : "border-slate-200/60 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/30 opacity-60 cursor-not-allowed border-dashed"
+                        : "border-slate-200 dark:border-slate-700/80 bg-white dark:bg-slate-800/80 hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-sm"
                     }`}
                   >
                     {/* Card Header */}
@@ -439,10 +433,15 @@ export const WhatsAppTemplatePicker: React.FC<WhatsAppTemplatePickerProps> = ({
                             <CheckCircle2 className="w-3 h-3" />
                             <span>Approved</span>
                           </span>
+                        ) : template.approvalStatus === "unsubmitted" ? (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300">
+                            <CheckCircle2 className="w-3 h-3" />
+                            <span>Ready</span>
+                          </span>
                         ) : template.approvalStatus === "pending" || template.approvalStatus === "received" ? (
                           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300">
                             <Clock className="w-3 h-3" />
-                            <span>Pending</span>
+                            <span>Pending Review</span>
                           </span>
                         ) : (
                           <span
@@ -469,15 +468,13 @@ export const WhatsAppTemplatePicker: React.FC<WhatsAppTemplatePickerProps> = ({
                           : "No blanks"}
                       </span>
 
-                      {!template.usable && (
-                        <span className="font-semibold text-amber-600 dark:text-amber-400">
-                          {template.rejectionReason ? `Reason: ${template.rejectionReason}` : "Waiting for approval"}
-                        </span>
-                      )}
-
-                      {isSelected && (
+                      {isSelected ? (
                         <span className="inline-flex items-center gap-0.5 text-blue-600 dark:text-blue-400 font-bold">
                           <Check className="w-3 h-3" /> Selected
+                        </span>
+                      ) : (
+                        <span className="text-blue-600 dark:text-blue-400 font-semibold opacity-0 group-hover:opacity-100">
+                          Click to select →
                         </span>
                       )}
                     </div>
@@ -490,6 +487,16 @@ export const WhatsAppTemplatePicker: React.FC<WhatsAppTemplatePickerProps> = ({
           {/* ─── STEP 2: FILL IN THE BLANKS ─────────────────────────────────── */}
           {selectedTemplate && (
             <div className="space-y-4 pt-3 border-t border-slate-200 dark:border-slate-800">
+              {/* Auto-linked Content SID Notification Banner */}
+              <div className="flex items-center justify-between p-3 rounded-xl bg-blue-50/90 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 text-xs text-blue-900 dark:text-blue-200">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                  <span>
+                    Template <strong>{selectedTemplate.friendlyName}</strong> selected. Content SID <code className="px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900 font-mono text-[11px] font-bold text-blue-800 dark:text-blue-200">{selectedTemplate.sid}</code> is automatically linked.
+                  </span>
+                </div>
+              </div>
+
               <div className="flex items-center justify-between">
                 <div>
                   <h4 className="font-bold text-slate-800 dark:text-slate-200 text-xs">

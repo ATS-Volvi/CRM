@@ -329,7 +329,8 @@ export const listWhatsAppTemplates = async (
 
     const category = String(waApproval.category || item.category || "").trim();
     const rejectionReason = waApproval.rejection_reason || waApproval.rejectionReason || null;
-    const usable = approvalStatus === "approved";
+    // Twilio Content Templates can be used directly in Sandbox or live messaging unless explicitly rejected/disabled
+    const usable = approvalStatus !== "rejected" && approvalStatus !== "disabled";
     const dateUpdated =
       item.dateUpdated instanceof Date
         ? item.dateUpdated.toISOString()
