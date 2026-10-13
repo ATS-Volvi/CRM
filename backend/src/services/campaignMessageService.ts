@@ -110,52 +110,10 @@ export const getCampaignWhatsAppConfig = (): WhatsAppConfigResult => {
   return { dryRun, maxRecipients, allowlistActive, allowlist, batchSize, batchDelayMs };
 };
 
-export const getUseCustomerNamesSetting = async (): Promise<boolean> => {
-  try {
-    const { WorkspaceSetting } = sequelize.models;
-    if (!WorkspaceSetting) return false;
-    const setting: any = await WorkspaceSetting.findOne({
-      where: { key: "use_customer_names_in_campaigns" }
-    });
-    if (!setting) return false;
-    const val = String(setting.value || "").trim().toLowerCase();
-    return val === "true" || val === "1" || val === "yes";
-  } catch (err) {
-    console.error("[getUseCustomerNamesSetting] Error reading setting, defaulting to false:", err);
-    return false;
-  }
-};
-
-export const cleanFieldValue = (val: any): string => {
-  if (val === null || val === undefined) return "";
-  const s = String(val).trim();
-  if (s.toLowerCase() === "undefined" || s.toLowerCase() === "null") return "";
-  return s;
-};
-
-export const tidyPunctuationAndWhitespace = (text: string): string => {
-  if (!text) return "";
-  let s = text;
-  // Strip any leftover {{...}} placeholders first
-  s = s.replace(/{{\s*[^}]*\s*}}/g, "");
-  // Strip any raw curly braces
-  s = s.replace(/[{}]/g, "");
-  // Remove space before punctuation marks (, . : ; ! ?)
-  s = s.replace(/\s+([,.:;!?])/g, "$1");
-  // Collapse duplicate commas
-  s = s.replace(/,\s*,+/g, ",");
-  // Remove leading dangling punctuation
-  s = s.replace(/^[,\s;:]+/, "");
-  // Normalize internal whitespace
-  s = s.replace(/[ \t]+/g, " ").trim();
-  return s;
-};
-
 export const renderWhatsAppTemplateVariables = (
   templateVariables: Record<string, string> | string | null | undefined,
   lead: any,
-  campaignName: string,
-  useCustomerNames: boolean = false
+  campaignName: string
 ): Record<string, string> => {
   let parsed: Record<string, any> = {};
   if (typeof templateVariables === "string") {
@@ -168,16 +126,11 @@ export const renderWhatsAppTemplateVariables = (
     parsed = templateVariables;
   }
 
-  const firstName = useCustomerNames ? cleanFieldValue(lead?.firstName) : "Customer";
-  const lastName = useCustomerNames ? cleanFieldValue(lead?.lastName) : "";
-  const company = cleanFieldValue(lead?.company);
-  const campaign = cleanFieldValue(campaignName);
-
   const dataObj: Record<string, string> = {
-    firstName,
-    lastName,
-    company,
-    campaignName: campaign
+    firstName: String(lead?.firstName || "").trim(),
+    lastName: String(lead?.lastName || "").trim(),
+    company: String(lead?.company || "").trim(),
+    campaignName: String(campaignName || "").trim()
   };
 
   const rendered: Record<string, string> = {};
@@ -187,19 +140,10 @@ export const renderWhatsAppTemplateVariables = (
     if (rawVal === undefined || rawVal === null) continue;
     let valStr = String(rawVal);
     for (const [phKey, phVal] of Object.entries(dataObj)) {
-      const regex = new RegExp(`{{\\s*${phKey}\\s*}}`, "gi");
+      const regex = new RegExp(`{{${phKey}}}`, "g");
       valStr = valStr.replace(regex, phVal);
     }
-    // Strip CR/LF
-    valStr = valStr.replace(/[\r\n]+/g, " ");
-    // Tidy whitespace and punctuation, strip unknown tokens and raw braces
-    valStr = tidyPunctuationAndWhitespace(valStr);
-
-    // WhatsApp variables must NEVER be empty (default "Customer")
-    if (!valStr || valStr.trim() === "") {
-      valStr = "Customer";
-    }
-
+    valStr = valStr.trim();
     if (valStr.length > MAX_VAR_LENGTH) {
       valStr = valStr.slice(0, MAX_VAR_LENGTH);
     }
@@ -233,7 +177,7 @@ export const renderTemplatePlaceholders = (
 ): string => {
   let rendered = templateString;
   for (const [key, value] of Object.entries(dataObj)) {
-    const regex = new RegExp(`{{\\s*${key}\\s*}}`, "gi");
+    const regex = new RegExp(`{{${key}}}`, "g");
     rendered = rendered.replace(regex, value);
   }
   return rendered;
@@ -244,8 +188,8 @@ export const MAX_SUBJECT_LENGTH = 255;
 /**
  * Renders and sanitizes campaign email subject line for a given recipient lead:
  * - Applies placeholder substitution for {{firstName}}, {{lastName}}, {{company}}, {{campaignName}}
- * - When useCustomerNames is false (default OFF), {{firstName}} renders as "Customer" and {{lastName}} as ""
- * - Cleans up dangling punctuation, unknown/unsupported placeholders, and raw braces
+ * - Replaces missing values gracefully with empty strings (no "undefined", no leftover braces)
+ * - Cleans up unknown/unsupported placeholders (no leftover braces)
  * - Strips CR/LF characters (\r, \n) to prevent header injection
  * - Caps total length to MAX_SUBJECT_LENGTH (255 chars)
  */
@@ -253,21 +197,15 @@ export const renderEmailSubjectForLead = (
   rawSubject: string | null | undefined,
   lead: any,
   campaignName: string,
-  maxLength: number = MAX_SUBJECT_LENGTH,
-  useCustomerNames: boolean = false
+  maxLength: number = MAX_SUBJECT_LENGTH
 ): string => {
   if (!rawSubject) return "";
 
-  const firstName = useCustomerNames ? cleanFieldValue(lead?.firstName) : "Customer";
-  const lastName = useCustomerNames ? cleanFieldValue(lead?.lastName) : "";
-  const company = cleanFieldValue(lead?.company);
-  const campaign = cleanFieldValue(campaignName);
-
   const dataObj: Record<string, string> = {
-    firstName,
-    lastName,
-    company,
-    campaignName: campaign
+    firstName: lead?.firstName ? String(lead.firstName).trim() : "",
+    lastName: lead?.lastName ? String(lead.lastName).trim() : "",
+    company: lead?.company ? String(lead.company).trim() : "",
+    campaignName: campaignName ? String(campaignName).trim() : ""
   };
 
   let rendered = String(rawSubject);
@@ -276,11 +214,14 @@ export const renderEmailSubjectForLead = (
     rendered = rendered.replace(regex, value);
   }
 
+  // Graceful fallback for unknown/unmatched placeholders: strip {{...}} so no braces remain
+  rendered = rendered.replace(/{{\s*[^}]*\s*}}/g, "");
+
   // Strip CR/LF characters (header injection protection)
   rendered = rendered.replace(/[\r\n]+/g, " ");
 
-  // Tidy punctuation, whitespace, and strip leftover unknown tokens and raw braces
-  rendered = tidyPunctuationAndWhitespace(rendered);
+  // Normalize duplicate spaces and trim
+  rendered = rendered.replace(/\s+/g, " ").trim();
 
   // Cap length
   if (rendered.length > maxLength) {
@@ -294,35 +235,18 @@ export const renderEmailForLead = (
   bodyHtml: string,
   lead: any,
   campaignName: string,
-  recipientId: string,
-  useCustomerNames: boolean = false
+  recipientId: string
 ): string => {
-  const firstName = useCustomerNames ? cleanFieldValue(lead?.firstName) : "Customer";
-  const lastName = useCustomerNames ? cleanFieldValue(lead?.lastName) : "";
-  const company = cleanFieldValue(lead?.company);
-  const campaign = cleanFieldValue(campaignName);
-
   const dataObj = {
-    firstName: escapeHtml(firstName),
-    lastName: escapeHtml(lastName),
-    company: escapeHtml(company),
-    campaignName: escapeHtml(campaign)
+    firstName: escapeHtml(lead?.firstName || ""),
+    lastName: escapeHtml(lead?.lastName || ""),
+    company: escapeHtml(lead?.company || ""),
+    campaignName: escapeHtml(campaignName || "")
   };
 
   let renderedBody = renderTemplatePlaceholders(bodyHtml, dataObj);
   // Clean up unknown placeholders in body as well to ensure no leftover braces
   renderedBody = renderedBody.replace(/{{\s*[^}]*\s*}}/g, "");
-  // Clean up any raw curly braces
-  renderedBody = renderedBody.replace(/[{}]/g, "");
-
-  // Tidy whitespace before punctuation in HTML body (e.g. "Customer ," -> "Customer,")
-  renderedBody = renderedBody.replace(/([^\s>])\s+([,.:;!?])/g, "$1$2");
-  renderedBody = renderedBody.replace(/&nbsp;\s*([,.:;!?])/g, "$1");
-  // Remove dangling leading comma/colon/semicolon inside HTML tags (e.g. "<p>, welcome</p>" -> "<p>welcome</p>")
-  renderedBody = renderedBody.replace(/(>)\s*([,;:]\s*)/g, "$1");
-  // Collapse duplicate commas
-  renderedBody = renderedBody.replace(/,\s*,+/g, ",");
-
   const baseHtml = getBaseHtmlTemplate(renderedBody, lead?.id);
 
   const rawBaseUrl = process.env.BASE_URL || "http://localhost:5506";
@@ -1072,7 +996,6 @@ export const processAsyncDelivery = async (
   campaignName: string
 ) => {
   const config = getCampaignMessageConfig();
-  const useCustomerNames = await getUseCustomerNamesSetting();
   const allowlist = (process.env.CAMPAIGN_EMAIL_TEST_ALLOWLIST || "")
     .split(",")
     .map((e) => e.trim().toLowerCase())
@@ -1158,8 +1081,8 @@ export const processAsyncDelivery = async (
           return;
         }
 
-        const renderedHtml = renderEmailForLead(message.bodyHtml, lead, campaignName, recipient.id, useCustomerNames);
-        const renderedSubject = renderEmailSubjectForLead(message.subject, lead, campaignName, MAX_SUBJECT_LENGTH, useCustomerNames);
+        const renderedHtml = renderEmailForLead(message.bodyHtml, lead, campaignName, recipient.id);
+        const renderedSubject = renderEmailSubjectForLead(message.subject, lead, campaignName);
 
         if (config.dryRun) {
           // Logging ONLY when dry run is active
@@ -1212,7 +1135,6 @@ export const processAsyncWhatsAppDelivery = async (
   campaignName: string
 ) => {
   const config = getCampaignWhatsAppConfig();
-  const useCustomerNames = await getUseCustomerNamesSetting();
 
   const message = (await sequelize.models.CampaignMessage.findByPk(messageId)) as any;
   if (!message) return;
@@ -1295,8 +1217,7 @@ export const processAsyncWhatsAppDelivery = async (
         const renderedVars = renderWhatsAppTemplateVariables(
           message.templateVariables,
           lead,
-          campaignName,
-          useCustomerNames
+          campaignName
         );
 
         if (config.dryRun) {
