@@ -320,4 +320,35 @@ export interface CampaignSendModeResponse {
   email: CampaignSendModeChannelConfig;
 }
 
+export type WhatsAppApprovalStatus =
+  | "approved"
+  | "pending"
+  | "received"
+  | "rejected"
+  | "paused"
+  | "disabled"
+  | "unsubmitted";
+
+export interface WhatsAppTemplate {
+  sid: string;
+  friendlyName: string;
+  language: string;
+  body: string;
+  contentType: string;
+  variables: string[];
+  sampleValues: Record<string, string>;
+  approvalStatus: WhatsAppApprovalStatus;
+  category?: string;
+  rejectionReason?: string | null;
+  usable: boolean;
+  dateUpdated: string;
+  simulated?: boolean;
+}
+
+export interface WhatsAppTemplateListResponse {
+  templates: WhatsAppTemplate[];
+  simulated: boolean;
+  cached?: boolean;
+}
+
 

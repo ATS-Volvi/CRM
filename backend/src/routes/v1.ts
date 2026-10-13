@@ -121,7 +121,8 @@ import {
   getCampaignMessageRecipients,
   cancelCampaignMessageHandler,
   unscheduleCampaignMessageHandler,
-  trackPixel
+  trackPixel,
+  getWhatsAppTemplatesHandler
 } from "../controllers/campaignMessageController";
 
 import { getLeadSources, createLeadSource, updateLeadSource, deleteLeadSource } from "../controllers/leadSourceController";
@@ -938,6 +939,7 @@ router.get("/campaigns/:id/messages/config", authMiddleware, requireAdminOrManag
 router.get("/campaigns/:id/messages", authMiddleware, requireAdminOrManager, getCampaignMessages);
 router.post("/campaigns/:id/messages", authMiddleware, requireAdminOrManager, createCampaignMessage);
 router.post("/campaigns/:id/messages/preview-audience", authMiddleware, requireAdminOrManager, previewAudience);
+router.get("/campaigns/:id/messages/whatsapp-templates", authMiddleware, requireAdminOrManager, getWhatsAppTemplatesHandler);
 router.get("/campaigns/:id/messages/:messageId", authMiddleware, requireAdminOrManager, getCampaignMessageById);
 router.get("/campaigns/:id/messages/:messageId/stats", authMiddleware, requireAdminOrManager, getCampaignMessageStatsHandler);
 router.patch("/campaigns/:id/messages/:messageId", authMiddleware, requireAdminOrManager, updateCampaignMessage);

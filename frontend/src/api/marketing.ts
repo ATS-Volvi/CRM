@@ -19,7 +19,8 @@ import {
   AudiencePreviewResponse,
   CampaignMessageConfig,
   CampaignSendModeResponse,
-  CampaignMessageStats
+  CampaignMessageStats,
+  WhatsAppTemplateListResponse
 } from "../types";
 import { normalizePaginatedResponse } from "./adapters";
 
@@ -368,8 +369,27 @@ export const campaignsApi = {
 
     const raw = await apiClient.get(`/api/v1/campaigns/${campaignId}/messages/${messageId}/recipients${queryString}`);
     return raw;
-  }
+  },
 
+  getWhatsAppTemplates: async (
+    campaignId: string,
+    refresh?: boolean
+  ): Promise<WhatsAppTemplateListResponse> => {
+    const query = refresh ? "?refresh=1" : "";
+    const res = await apiClient(
+      `/api/v1/campaigns/${campaignId}/messages/whatsapp-templates${query}`,
+      { method: "GET" }
+    );
+    if (!res.ok) {
+      let errorText = `Failed to fetch WhatsApp templates (${res.status})`;
+      try {
+        const err = await res.json();
+        if (err?.error || err?.message) errorText = err.error || err.message;
+      } catch {}
+      throw new Error(errorText);
+    }
+    return res.json();
+  }
 };
 
 export const attributionApi = {

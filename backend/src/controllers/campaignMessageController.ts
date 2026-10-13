@@ -13,6 +13,7 @@ import {
   executeMessageSend,
   cancelMessage
 } from "../services/campaignMessageService";
+import { listWhatsAppTemplates } from "../services/whatsappTemplateService";
 
 const validateAudienceFilterCampaigns = async (
   filterInput: any,
@@ -630,5 +631,19 @@ export const trackPixel = async (req: Request, res: Response) => {
     res.setHeader("Pragma", "no-cache");
     res.setHeader("Expires", "0");
     res.status(200).send(TRANSPARENT_GIF_BUFFER);
+  }
+};
+
+export const getWhatsAppTemplatesHandler = async (req: Request, res: Response) => {
+  try {
+    const forceRefresh = req.query.refresh === "1" || req.query.refresh === "true";
+    const result = await listWhatsAppTemplates(forceRefresh);
+    res.json(result);
+  } catch (error: any) {
+    console.error("[getWhatsAppTemplatesHandler] Error fetching WhatsApp templates:", error?.message || error);
+    res.status(502).json({
+      error: "Unable to retrieve WhatsApp templates from Twilio. You can still enter your Content Template SID manually.",
+      details: error?.message || String(error)
+    });
   }
 };
