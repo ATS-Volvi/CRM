@@ -40,6 +40,7 @@ import {
   CampaignSendModeBanner,
   computeChannelSendMode
 } from "./CampaignSendModeBanner";
+import { WhatsAppTemplatePicker } from "./WhatsAppTemplatePicker";
 
 interface CampaignMessagesTabProps {
   campaignId: string;
@@ -65,9 +66,28 @@ const PLACEHOLDERS = [
 
 export function CampaignMessagesTab({ campaignId, campaignName }: CampaignMessagesTabProps) {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const userRole = (user?.role || "").toLowerCase();
   const canManage = ["admin", "director", "manager", "sales_manager"].includes(userRole);
+
+  // Fetch workspace setting for campaign customer name personalization
+  const { data: nameSettingData } = useQuery({
+    queryKey: ["workspaceSetting", "use_customer_names_in_campaigns"],
+    queryFn: async () => {
+      try {
+        const res = await fetch("/api/v1/workspace/settings/use_customer_names_in_campaigns", {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (!res.ok) return { value: "false" };
+        return res.json();
+      } catch {
+        return { value: "false" };
+      }
+    },
+    enabled: !!token
+  });
+
+  const useCustomerNames = nameSettingData?.value === "true";
 
   // Modals / Drawers state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -947,99 +967,15 @@ export function CampaignMessagesTab({ campaignId, campaignName }: CampaignMessag
 
               {/* Channel-Specific Fields */}
               {formChannel === "WHATSAPP" ? (
-                <div className="space-y-3">
-                  <div className="space-y-1">
-                    <label className="font-bold text-slate-700 dark:text-slate-300">Twilio Content Template SID *</label>
-                    <input
-                      type="text"
-                      value={formTemplateSid}
-                      onChange={(e) => setFormTemplateSid(e.target.value.trim())}
-                      placeholder="e.g. HXb5b6284949743428bdced15205d49610"
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono text-xs"
-                    />
-                    <span className="text-[11px] text-slate-400 block">
-                      Must match an approved Content Template SID created in Twilio Console.
-                    </span>
-                  </div>
-
-                  {/* Template Variables Mapping */}
-                  <div className="space-y-2.5 p-3.5 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200/80 dark:border-slate-700/80">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-slate-700 dark:text-slate-300 text-xs">
-                        Template Variables (Key → Value Mapping)
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setFormTemplateVariables((prev) => [
-                            ...prev,
-                            { key: String(prev.length + 1), value: "" }
-                          ])
-                        }
-                        className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 font-bold flex items-center gap-1 cursor-pointer"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>Add Variable</span>
-                      </button>
-                    </div>
-
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-[10px] text-slate-500">Insert tag into value:</span>
-                      {PLACEHOLDERS.map((p) => (
-                        <button
-                          key={p.tag}
-                          type="button"
-                          onClick={() => handleInsertTag(p.tag)}
-                          className="px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 font-mono text-[10px] text-slate-700 dark:text-slate-300 cursor-pointer"
-                        >
-                          {p.tag}
-                        </button>
-                      ))}
-                    </div>
-
-                    {formTemplateVariables.map((v, idx) => (
-                      <div key={idx} className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          value={v.key}
-                          onChange={(e) => {
-                            const updated = [...formTemplateVariables];
-                            updated[idx].key = e.target.value;
-                            setFormTemplateVariables(updated);
-                          }}
-                          placeholder="Key (e.g. 1)"
-                          className="w-24 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs bg-white dark:bg-slate-800 font-mono"
-                        />
-                        <input
-                          type="text"
-                          value={v.value}
-                          onChange={(e) => {
-                            const updated = [...formTemplateVariables];
-                            updated[idx].value = e.target.value;
-                            setFormTemplateVariables(updated);
-                          }}
-                          placeholder="Value or placeholder (e.g. {{firstName}})"
-                          maxLength={1024}
-                          className="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs bg-white dark:bg-slate-800 font-mono"
-                        />
-                        {formTemplateVariables.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setFormTemplateVariables(formTemplateVariables.filter((_, i) => i !== idx))
-                            }
-                            className="p-1 text-slate-400 hover:text-rose-500 cursor-pointer"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                    <span className="text-[10px] text-slate-400 block">
-                      Twilio Content variables are trimmed and capped at 1,024 characters each.
-                    </span>
-                  </div>
-                </div>
+                <WhatsAppTemplatePicker
+                  campaignId={campaignId}
+                  campaignName={campaignName}
+                  templateSid={formTemplateSid}
+                  onTemplateSidChange={setFormTemplateSid}
+                  variables={formTemplateVariables}
+                  onVariablesChange={setFormTemplateVariables}
+                  useCustomerNames={useCustomerNames}
+                />
               ) : (
                 <div className="space-y-4">
                   {/* Email Subject Line */}
