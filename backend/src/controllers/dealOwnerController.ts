@@ -104,13 +104,6 @@ export const getWorkspaceSetting = async (req: Request, res: Response) => {
           description: "Comma-separated list of experience tiers and roles eligible as Opportunity Closers"
         });
       }
-      if (key === "use_customer_names_in_campaigns") {
-        return res.json({
-          key: "use_customer_names_in_campaigns",
-          value: "false",
-          description: "Use customer names in campaigns (default OFF)"
-        });
-      }
       res.status(404).json({ error: `Workspace setting '${key}' not found` });
       return;
     }

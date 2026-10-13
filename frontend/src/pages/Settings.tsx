@@ -5,7 +5,6 @@ import { Settings as SettingsIcon, Shield, CheckCircle, RefreshCw, UserCheck, To
 import { WhatsAppDiagnosticsModal } from "../components/WhatsAppDiagnosticsModal";
 import { DealAssignmentSettingsCard } from "../components/DealAssignmentSettingsCard";
 import { CommissionSplitAndTiersCard } from "../components/CommissionSplitAndTiersCard";
-import { CampaignPersonalizationSettingsCard } from "../components/CampaignPersonalizationSettingsCard";
 
 export default function Settings() {
   const { token, user } = useAuth();
@@ -257,7 +256,6 @@ export default function Settings() {
         {/* Senior AE Deal Assignment & Capacity Settings */}
         {["admin", "director", "manager"].includes(mySettings?.role || user?.role || "") && (
           <>
-            <CampaignPersonalizationSettingsCard />
             <CommissionSplitAndTiersCard />
             <DealAssignmentSettingsCard />
           </>
