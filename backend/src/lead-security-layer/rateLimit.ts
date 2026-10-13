@@ -12,7 +12,7 @@ export const rateLimiter = rateLimit({
   max: 20,                  // 20 submissions per IP per window
   standardHeaders: true,
   legacyHeaders: false,
-  message: { status: 'held_for_review', reason: 'rate_limited' },
+  message: { success: true, status: 'held_for_review', reason: 'rate_limited' },
 });
 
 /**

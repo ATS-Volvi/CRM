@@ -53,6 +53,7 @@ export function leadSecurityPipeline() {
       } catch (err: any) {
         if (err.blocked) {
           return res.status(202).json({
+            success: true,
             status: 'held_for_review',
             reason: err.reason,
           }); // 202, not 4xx — don't tip off attackers to what tripped the filter

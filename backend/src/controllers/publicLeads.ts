@@ -84,7 +84,7 @@ export const createPublicLead = async (req: Request, res: Response) => {
     });
 
     if (!leadId) {
-      return res.status(202).json({ status: "held_for_review" });
+      return res.status(202).json({ success: true, status: "held_for_review" });
     }
 
     // Run Automated Lead Intake & Missing Information Collection Engine
