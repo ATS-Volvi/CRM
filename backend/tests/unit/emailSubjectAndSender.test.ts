@@ -21,14 +21,22 @@ describe("Email Subject & Sender Display Name Unit Tests", () => {
       const campaignName = "October Innovation Drive";
       const rawSubject = "{{firstName}} {{lastName}}, exclusive offer for {{company}} via {{campaignName}}!";
 
-      const rendered = renderEmailSubjectForLead(rawSubject, lead, campaignName);
+      // When useCustomerNames is true, personal names are rendered
+      const renderedOn = renderEmailSubjectForLead(rawSubject, lead, campaignName, MAX_SUBJECT_LENGTH, true);
       assert.strictEqual(
-        rendered,
+        renderedOn,
         "Ada Lovelace, exclusive offer for Babbage Engines Ltd via October Innovation Drive!"
+      );
+
+      // When useCustomerNames is false (default OFF), customer name is safe
+      const renderedOff = renderEmailSubjectForLead(rawSubject, lead, campaignName);
+      assert.strictEqual(
+        renderedOff,
+        "Customer, exclusive offer for Babbage Engines Ltd via October Innovation Drive!"
       );
     });
 
-    it("handles missing firstName gracefully without undefined or leftover braces", () => {
+    it("handles missing firstName gracefully without undefined, leftover braces, or dangling punctuation", () => {
       const lead = {
         firstName: null,
         lastName: "Lovelace",
@@ -37,11 +45,16 @@ describe("Email Subject & Sender Display Name Unit Tests", () => {
       const campaignName = "October Innovation Drive";
       const rawSubject = "{{firstName}}, your October offer for {{company}}";
 
-      const rendered = renderEmailSubjectForLead(rawSubject, lead, campaignName);
-      assert.strictEqual(rendered, ", your October offer for Babbage Engines Ltd");
-      assert.ok(!rendered.includes("undefined"));
-      assert.ok(!rendered.includes("{{"));
-      assert.ok(!rendered.includes("}}"));
+      // When ON: missing firstName leaves no dangling leading comma
+      const renderedOn = renderEmailSubjectForLead(rawSubject, lead, campaignName, MAX_SUBJECT_LENGTH, true);
+      assert.strictEqual(renderedOn, "your October offer for Babbage Engines Ltd");
+      assert.ok(!renderedOn.includes("undefined"));
+      assert.ok(!renderedOn.includes("{{"));
+      assert.ok(!renderedOn.includes("}}"));
+
+      // When OFF: firstName renders as "Customer"
+      const renderedOff = renderEmailSubjectForLead(rawSubject, lead, campaignName);
+      assert.strictEqual(renderedOff, "Customer, your October offer for Babbage Engines Ltd");
     });
 
     it("handles missing company gracefully without undefined or leftover braces", () => {
@@ -53,7 +66,7 @@ describe("Email Subject & Sender Display Name Unit Tests", () => {
       const campaignName = "October Innovation Drive";
       const rawSubject = "Hello {{firstName}}, partner update for {{company}} ({{campaignName}})";
 
-      const rendered = renderEmailSubjectForLead(rawSubject, lead, campaignName);
+      const rendered = renderEmailSubjectForLead(rawSubject, lead, campaignName, MAX_SUBJECT_LENGTH, true);
       assert.strictEqual(rendered, "Hello Ada, partner update for (October Innovation Drive)");
       assert.ok(!rendered.includes("undefined"));
       assert.ok(!rendered.includes("{{"));
@@ -86,7 +99,7 @@ describe("Email Subject & Sender Display Name Unit Tests", () => {
       const campaignName = "October Drive";
       const rawSubject = "Hello {{firstName}}! Use code {{promoCode}} for discount {{unknown_tag}}";
 
-      const rendered = renderEmailSubjectForLead(rawSubject, lead, campaignName);
+      const rendered = renderEmailSubjectForLead(rawSubject, lead, campaignName, MAX_SUBJECT_LENGTH, true);
       assert.strictEqual(rendered, "Hello Ada! Use code for discount");
       assert.ok(!rendered.includes("{{"));
       assert.ok(!rendered.includes("}}"));
@@ -141,6 +154,11 @@ describe("Email Subject & Sender Display Name Unit Tests", () => {
       const resultWithSurroundingQuotes = buildFromHeader('"Volvitech" <no-reply@inbound.volvitech.com>');
       assert.strictEqual(resultWithSurroundingQuotes, 'Volvitech <no-reply@inbound.volvitech.com>');
     });
+
+    it("regression test: display name with multiple outer quotes has no stray quotes in output", () => {
+      const resultMultipleQuotes = buildFromHeader('"""FACE Contracting Co.""" <no-reply@face.com>');
+      assert.strictEqual(resultMultipleQuotes, 'FACE Contracting Co. <no-reply@face.com>');
+    });
   });
 
   describe("Base HTML Template Unsubscribe Link & Configurable Branding", () => {
@@ -160,8 +178,8 @@ describe("Email Subject & Sender Display Name Unit Tests", () => {
 
         delete process.env.COMPANY_NAME;
         const defaultHtml = getBaseHtmlTemplate("<p>Hello</p>");
-        assert.ok(defaultHtml.includes("<h1>NEXUS CRM</h1>"));
-        assert.ok(defaultHtml.includes("Nexus CRM. All rights reserved."));
+        assert.ok(defaultHtml.includes("<h1>FACE CONTRACTING CO.</h1>"));
+        assert.ok(defaultHtml.includes("FACE Contracting Co. All rights reserved."));
       } finally {
         process.env.COMPANY_NAME = origCompany;
       }

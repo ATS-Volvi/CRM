@@ -126,11 +126,16 @@ describe("Phase C: WhatsApp Campaign Messaging & Safety Engine", () => {
         lastName: "Lovelace",
         company: "Babbage Engines"
       };
-      const rendered = renderWhatsAppTemplateVariables(vars, lead, "Q4 Launch");
+      // When useCustomerNames is true, substitutes personal names
+      const rendered = renderWhatsAppTemplateVariables(vars, lead, "Q4 Launch", true);
 
       expect(rendered.name).toBe("Ada Lovelace");
       expect(rendered.org).toBe("Babbage Engines");
       expect(rendered.event).toBe("Welcome to Q4 Launch");
+
+      // When useCustomerNames is false (default), safely addresses Customer
+      const renderedDefault = renderWhatsAppTemplateVariables(vars, lead, "Q4 Launch", false);
+      expect(renderedDefault.name).toBe("Customer");
     });
 
     test("handles missing or null lead fields gracefully with empty string", () => {
@@ -138,9 +143,9 @@ describe("Phase C: WhatsApp Campaign Messaging & Safety Engine", () => {
         intro: "Hello {{firstName}} from {{company}}"
       };
       const lead = {};
-      const rendered = renderWhatsAppTemplateVariables(vars, lead, "Outreach");
+      const rendered = renderWhatsAppTemplateVariables(vars, lead, "Outreach", true);
 
-      expect(rendered.intro).toBe("Hello  from");
+      expect(rendered.intro).toBe("Hello from");
     });
 
     test("trims values and caps length to 1024 characters per variable", () => {
@@ -148,7 +153,7 @@ describe("Phase C: WhatsApp Campaign Messaging & Safety Engine", () => {
       const vars = {
         msg: hugeValue
       };
-      const rendered = renderWhatsAppTemplateVariables(vars, {}, "Test");
+      const rendered = renderWhatsAppTemplateVariables(vars, {}, "Test", true);
 
       expect(rendered.msg.length).toBe(1024);
       expect(rendered.msg).toBe("A".repeat(1024));
@@ -156,7 +161,7 @@ describe("Phase C: WhatsApp Campaign Messaging & Safety Engine", () => {
 
     test("parses JSON string templateVariables if provided as text", () => {
       const jsonStr = JSON.stringify({ 1: "{{firstName}}", 2: "{{campaignName}}" });
-      const rendered = renderWhatsAppTemplateVariables(jsonStr, { firstName: "Grace" }, "Winter Sale");
+      const rendered = renderWhatsAppTemplateVariables(jsonStr, { firstName: "Grace" }, "Winter Sale", true);
 
       expect(rendered["1"]).toBe("Grace");
       expect(rendered["2"]).toBe("Winter Sale");
