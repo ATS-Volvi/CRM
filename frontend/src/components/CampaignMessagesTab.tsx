@@ -65,9 +65,27 @@ const PLACEHOLDERS = [
 
 export function CampaignMessagesTab({ campaignId, campaignName }: CampaignMessagesTabProps) {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const userRole = (user?.role || "").toLowerCase();
   const canManage = ["admin", "director", "manager", "sales_manager"].includes(userRole);
+
+  // Fetch workspace setting for campaign customer name personalization
+  const { data: nameSettingData } = useQuery({
+    queryKey: ["workspaceSetting", "use_customer_names_in_campaigns"],
+    queryFn: async () => {
+      const res = await fetch("/api/v1/workspace/settings/use_customer_names_in_campaigns", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) return { value: "false" };
+      return res.json();
+    },
+    enabled: !!token
+  });
+
+  const useCustomerNames = nameSettingData?.value === "true";
+  const availablePlaceholders = useCustomerNames
+    ? PLACEHOLDERS
+    : PLACEHOLDERS.filter((p) => p.tag !== "{{firstName}}" && p.tag !== "{{lastName}}");
 
   // Modals / Drawers state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -208,7 +226,7 @@ export function CampaignMessagesTab({ campaignId, campaignName }: CampaignMessag
     setFormTemplateVariables([{ key: "1", value: "" }]);
     setFormSubject("");
     setFormBodyHtml(
-      `<p>Hi {{firstName}},</p>\n<p>We're excited to reach out regarding our latest offerings for {{company}}.</p>\n<p>Let us know if you have a few minutes for a quick chat.</p>\n<p>Best regards,<br/>The Team</p>`
+      `<p>Dear Customer,</p>\n<p>We're excited to reach out regarding our latest offerings for {{company}}.</p>\n<p>Let us know if you have a few minutes for a quick chat.</p>\n<p>Best regards,<br/>The Team</p>`
     );
     setFormStatuses(["NEW", "CONTACTED", "QUALIFIED"]);
     setFormMinScore("");
@@ -1018,7 +1036,7 @@ export function CampaignMessagesTab({ campaignId, campaignName }: CampaignMessag
                             updated[idx].value = e.target.value;
                             setFormTemplateVariables(updated);
                           }}
-                          placeholder="Value or placeholder (e.g. {{firstName}})"
+                          placeholder="Value or placeholder (e.g. {{company}})"
                           maxLength={1024}
                           className="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs bg-white dark:bg-slate-800 font-mono"
                         />
@@ -1060,7 +1078,7 @@ export function CampaignMessagesTab({ campaignId, campaignName }: CampaignMessag
                       Click to insert dynamic placeholder:
                     </span>
                     <div className="flex items-center gap-2 flex-wrap">
-                      {PLACEHOLDERS.map((p) => (
+                      {availablePlaceholders.map((p) => (
                         <button
                           key={p.tag}
                           type="button"

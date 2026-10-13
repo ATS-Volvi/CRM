@@ -55,10 +55,13 @@ describe("Email Subject & Sender Display Name Safety Test Suite", () => {
       const campaignName = "October Innovation Drive";
       const rawSubject = "{{firstName}} {{lastName}}, special offer for {{company}} in {{campaignName}}!";
 
-      const subject = renderEmailSubjectForLead(rawSubject, lead, campaignName);
+      const subject = renderEmailSubjectForLead(rawSubject, lead, campaignName, MAX_SUBJECT_LENGTH, true);
       expect(subject).toBe("Ada Lovelace, special offer for Babbage Engines Ltd in October Innovation Drive!");
       expect(subject).not.toContain("{{");
       expect(subject).not.toContain("}}");
+
+      const defaultSubject = renderEmailSubjectForLead(rawSubject, lead, campaignName);
+      expect(defaultSubject).toBe("Customer, special offer for Babbage Engines Ltd in October Innovation Drive!");
     });
 
     test("subject renders gracefully when missing firstName (no undefined, no leftover braces)", () => {
@@ -70,8 +73,8 @@ describe("Email Subject & Sender Display Name Safety Test Suite", () => {
       const campaignName = "October Innovation Drive";
       const rawSubject = "{{firstName}}, your October offer for {{company}}";
 
-      const subject = renderEmailSubjectForLead(rawSubject, lead, campaignName);
-      expect(subject).toBe(", your October offer for Babbage Engines Ltd");
+      const subject = renderEmailSubjectForLead(rawSubject, lead, campaignName, MAX_SUBJECT_LENGTH, true);
+      expect(subject).toBe("your October offer for Babbage Engines Ltd");
       expect(subject).not.toContain("undefined");
       expect(subject).not.toContain("null");
       expect(subject).not.toContain("{{");
@@ -87,7 +90,7 @@ describe("Email Subject & Sender Display Name Safety Test Suite", () => {
       const campaignName = "October Innovation Drive";
       const rawSubject = "Hi {{firstName}}, partner update for {{company}} ({{campaignName}})";
 
-      const subject = renderEmailSubjectForLead(rawSubject, lead, campaignName);
+      const subject = renderEmailSubjectForLead(rawSubject, lead, campaignName, MAX_SUBJECT_LENGTH, true);
       expect(subject).toBe("Hi Ada, partner update for (October Innovation Drive)");
       expect(subject).not.toContain("undefined");
       expect(subject).not.toContain("{{company}}");
@@ -114,7 +117,7 @@ describe("Email Subject & Sender Display Name Safety Test Suite", () => {
       const campaignName = "October Drive";
       const rawSubject = "Hello {{firstName}}! Use coupon {{discountCode}} with tag {{unknownTag}}";
 
-      const subject = renderEmailSubjectForLead(rawSubject, lead, campaignName);
+      const subject = renderEmailSubjectForLead(rawSubject, lead, campaignName, MAX_SUBJECT_LENGTH, true);
       expect(subject).toBe("Hello Ada! Use coupon with tag");
       expect(subject).not.toContain("{{");
       expect(subject).not.toContain("}}");
@@ -188,8 +191,8 @@ describe("Email Subject & Sender Display Name Safety Test Suite", () => {
 
         delete process.env.COMPANY_NAME;
         const defaultHtml = getBaseHtmlTemplate("<p>Body</p>");
-        expect(defaultHtml).toContain("<h1>NEXUS CRM</h1>");
-        expect(defaultHtml).toContain("Nexus CRM. All rights reserved.");
+        expect(defaultHtml).toContain("<h1>FACE CONTRACTING CO.</h1>");
+        expect(defaultHtml).toContain("FACE Contracting Co. All rights reserved.");
       } finally {
         process.env.COMPANY_NAME = originalCompany;
       }
@@ -249,8 +252,8 @@ describe("Email Subject & Sender Display Name Safety Test Suite", () => {
       expect(mockSendEmail).toHaveBeenCalledTimes(1);
       const [calledTo, calledSubject, calledHtml] = mockSendEmail.mock.calls[0];
       expect(calledTo).toBe("grace.hopper@navy.mil");
-      expect(calledSubject).toBe("Hello Grace, special offer for US Navy Computing!");
-      expect(calledHtml).toContain("Welcome Grace");
+      expect(calledSubject).toBe("Hello Customer, special offer for US Navy Computing!");
+      expect(calledHtml).toContain("Welcome Customer");
       expect(mockRecipient.status).toBe("SENT");
     });
   });
