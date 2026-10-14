@@ -326,7 +326,24 @@ describe("Full Commercial Lifecycle: Lead to Quote E2E", () => {
     expect(rawRevisedTotal).toBe(authRevisedTotal);
     expect(authRevisedTotal).toBe(publicRevisedTotal);
 
-    // Step 11: Customer Accepts Quote (POST /api/v1/public/quotes/by-token/:token/accept)
+    // Step 11: Guardrail & Customer Accepts Quote (POST /api/v1/public/quotes/by-token/:token/accept)
+    // Commit b706c87: preliminary draft guardrail requires quote to be marked final before acceptance
+    const prematureAcceptRes = await request(app)
+      .post(`/api/v1/public/quotes/by-token/${revisedPublicToken}/accept`)
+      .send({ acceptedByName: "Procurement VP", acceptedByEmail: "procurement@acme.com" });
+
+    expect(prematureAcceptRes.status).toBe(400);
+    expect(prematureAcceptRes.body.error).toBe(
+      "This quotation is preliminary and not yet valid for formal acceptance. Please wait for the confirmed final quotation."
+    );
+
+    // Commit b706c87: closer rep marks quote as final agreed commercial terms
+    const markFinalRes = await request(app)
+      .post(`/api/v1/quotes/${revisedQuoteId}/mark-final`)
+      .set("Authorization", `Bearer ${winningToken}`);
+
+    expect(markFinalRes.status).toBe(200);
+
     const acceptRes = await request(app)
       .post(`/api/v1/public/quotes/by-token/${revisedPublicToken}/accept`)
       .send({ acceptedByName: "Procurement VP", acceptedByEmail: "procurement@acme.com" });
