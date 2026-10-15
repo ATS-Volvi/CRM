@@ -34,6 +34,10 @@ const startServer = async () => {
       `[WhatsApp Campaign Config] DRY_RUN=${waConfig.dryRun} | MAX_RECIPIENTS=${waConfig.maxRecipients} | ALLOWLIST_ACTIVE=${waConfig.allowlistActive} (${waConfig.allowlist.length} numbers) | BATCH_SIZE=${waConfig.batchSize} | BATCH_DELAY_MS=${waConfig.batchDelayMs}`
     );
 
+    // Check and log inbound email webhook security config warning if unconfigured
+    const { logInboundAuthStartupWarning } = require("./src/controllers/emailController");
+    logInboundAuthStartupWarning();
+
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`Nexus CRM backend running on port ${PORT}`);
       // Setup simple cron job for checking overdue tasks every hour
