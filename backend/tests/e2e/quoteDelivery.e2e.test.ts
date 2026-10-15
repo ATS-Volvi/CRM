@@ -164,10 +164,12 @@ describe("Quote Delivery System & Contact Communication E2E", () => {
 
       // Verify emailService was actually invoked
       expect(sendEmailSpy).toHaveBeenCalledTimes(1);
+      // Commit 4b8d00b: sendEmail includes optional cc recipient list as 4th parameter
       expect(sendEmailSpy).toHaveBeenCalledWith(
         "tariq@saudipetro.com",
         expect.stringContaining("QT-2026-001"),
-        expect.any(String)
+        expect.any(String),
+        undefined
       );
 
       // Verify Quote in DB

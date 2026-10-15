@@ -46,10 +46,16 @@ describe("E2E: Unsubscribe Compliance", () => {
   });
 
   it("should mark lead as opted out via public API", async () => {
-    const res = await request(app).get(`/api/v1/leads/unsubscribe/${leadId}`);
-    
-    expect(res.status).toBe(200);
-    expect(res.text).toContain("Unsubscribed Successfully");
+    // Commit cba67d68a8 & 86a4e64089: Two-step unsubscribe flow where GET returns confirmation form
+    const getRes = await request(app).get(`/api/v1/leads/unsubscribe/${leadId}`);
+    expect(getRes.status).toBe(200);
+    expect(getRes.text).toContain("Unsubscribe Confirmation");
+    expect(getRes.text).toContain("Unsubscribe from Emails");
+
+    // Commit cba67d68a8 & 86a4e64089: POST confirms unsubscribe and sets optedOutEmail to true
+    const postRes = await request(app).post(`/api/v1/leads/unsubscribe/${leadId}`);
+    expect(postRes.status).toBe(200);
+    expect(postRes.text).toContain("Unsubscribed Successfully");
 
     const updatedLead = await sequelize.models.Lead.findByPk(leadId);
     expect((updatedLead as any).optedOutEmail).toBe(true);

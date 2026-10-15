@@ -43,7 +43,7 @@ describe("Automated Lead Intake & Missing Information Collection Engine E2E Test
   });
 
   describe("1. Field Completeness & Conversational Prompt Generation", () => {
-    it("should identify missing name, company, and email when only WhatsApp number and requirement are provided", async () => {
+    it("should identify missing email when only WhatsApp number and requirement are provided", async () => {
       const mockLead = {
         phone: "+971501234567",
         whatsappPhone: "+971501234567",
@@ -52,13 +52,15 @@ describe("Automated Lead Intake & Missing Information Collection Engine E2E Test
 
       const result = await getMissingLeadInformation(mockLead);
       expect(result.isComplete).toBe(false);
-      expect(result.missing).toEqual(expect.arrayContaining(["name", "company", "email"]));
+      // Commit e5f152f048: mandatory intake fields updated to email/phone/requirement
+      expect(result.missing).toEqual(["email"]);
       expect(result.missing).not.toContain("phone");
       expect(result.missing).not.toContain("requirement");
 
       const prompt = generateCollectionMessage(result.missing, "whatsapp");
-      expect(prompt).toContain("full name, company name and email address");
-      expect(prompt).not.toContain("phone");
+      // Commit e5f152f048: collection message requests email address and phone number
+      expect(prompt).toContain("email address");
+      expect(prompt).not.toContain("phone/WhatsApp number");
     });
 
     it("should identify missing phone when email, name, and company are provided", async () => {
@@ -76,7 +78,8 @@ describe("Automated Lead Intake & Missing Information Collection Engine E2E Test
       expect(result.known.email).toBe("faisal@gulfmfg.com");
 
       const prompt = generateCollectionMessage(result.missing, "email", "Faisal");
-      expect(prompt).toContain("phone/WhatsApp number");
+      // Commit e5f152f048: updated collection message phrasing for missing phone
+      expect(prompt).toContain("phone number and contact details");
       expect(prompt).not.toContain("email address");
     });
 
@@ -134,9 +137,10 @@ describe("Automated Lead Intake & Missing Information Collection Engine E2E Test
       expect(firstEvent.leadId).toBeDefined();
       expect(firstEvent.isComplete).toBe(false);
       expect(firstEvent.intakeStatus).toBe("COLLECTING_DETAILS");
+      // Commit e5f152f048: mandatory fields updated to email/phone/requirement, email required for quote delivery
       expect(whatsappService.sendWhatsAppMessage).toHaveBeenCalledWith(
         whatsappFrom,
-        expect.stringContaining("full name, company name and email address")
+        expect.stringContaining("email address and phone number")
       );
 
       // Verify Lead created with missing fields
@@ -144,7 +148,8 @@ describe("Automated Lead Intake & Missing Information Collection Engine E2E Test
       const lead1 = await Lead.findByPk(firstEvent.leadId) as any;
       expect(lead1.intakeStatus).toBe("COLLECTING_DETAILS");
       expect(lead1.intakeMessageCount).toBe(1);
-      expect(lead1.missingFields).toEqual(expect.arrayContaining(["name", "company", "email"]));
+      // Commit e5f152f048: only email is mandatory and missing
+      expect(lead1.missingFields).toEqual(["email"]);
 
       // Step 2: Customer replies with missing details
       const secondEvent = await processInboundIntakeEvent({
@@ -202,10 +207,11 @@ describe("Automated Lead Intake & Missing Information Collection Engine E2E Test
 
       expect(emailEvent1.isComplete).toBe(false);
       expect(emailEvent1.intakeStatus).toBe("COLLECTING_DETAILS");
+      // Commit e5f152f048: updated collection message phrasing for missing phone
       expect(emailService.sendCustomEmail).toHaveBeenCalledWith(
         email,
         expect.stringContaining("enquiry"),
-        expect.stringContaining("phone/WhatsApp number"),
+        expect.stringContaining("phone number and contact details"),
         emailEvent1.leadId
       );
 
@@ -324,7 +330,8 @@ describe("Automated Lead Intake & Missing Information Collection Engine E2E Test
 
       expect(res.status).toBe(200);
       expect(res.body.isComplete).toBe(false);
-      expect(res.body.missing).toEqual(expect.arrayContaining(["email", "company", "requirement"]));
+      // Commit e5f152f048: mandatory missing fields are email, phone, requirement
+      expect(res.body.missing).toEqual(expect.arrayContaining(["email", "requirement"]));
     });
 
     it("should allow sales rep to trigger manual details request via POST /api/v1/leads/:id/request-details", async () => {

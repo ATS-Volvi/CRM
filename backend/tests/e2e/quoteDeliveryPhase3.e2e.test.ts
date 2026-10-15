@@ -199,12 +199,42 @@ describe("Phase 3: Quote Delivery System — Expiring Tokens, Customer Portal & 
   // 2. CUSTOMER SELF-SERVICE ACCEPTANCE & WON AUTOMATION
   // ─────────────────────────────────────────────────────────────────────────────
   describe("2. Unauthenticated Customer Acceptance (/by-token/:token/accept)", () => {
+    it("should reject customer acceptance of non-final quote with preliminary guardrail error", async () => {
+      // 1. Send quote (still preliminary, isFinalAgreed = false)
+      await request(app)
+        .post(`/api/v1/quotes/${quoteId}/send`)
+        .set("Authorization", `Bearer ${authToken}`)
+        .send({ channel: "EMAIL" });
+
+      const quoteBefore: any = await sequelize.models.Quote.findByPk(quoteId);
+      const token = quoteBefore.publicAccessToken;
+
+      // Commit b706c87: preliminary draft guardrail rejects acceptance with HTTP 400
+      const acceptRes = await request(app)
+        .post(`/api/v1/public/quotes/by-token/${token}/accept`)
+        .send({
+          acceptedByName: "Faisal Al-Otaibi",
+          acceptedByEmail: "faisal@otaibi.com"
+        });
+
+      expect(acceptRes.status).toBe(400);
+      expect(acceptRes.body.error).toBe(
+        "This quotation is preliminary and not yet valid for formal acceptance. Please wait for the confirmed final quotation."
+      );
+    });
+
     it("should allow unauthenticated customer to accept quote, log CUSTOMER_SELF_SERVICE delivery, and trigger Won stage", async () => {
       // 1. Send quote
       await request(app)
         .post(`/api/v1/quotes/${quoteId}/send`)
         .set("Authorization", `Bearer ${authToken}`)
         .send({ channel: "EMAIL" });
+
+      // Commit b706c87: sales rep marks quote as final agreed commercial terms
+      const markFinalRes = await request(app)
+        .post(`/api/v1/quotes/${quoteId}/mark-final`)
+        .set("Authorization", `Bearer ${authToken}`);
+      expect(markFinalRes.status).toBe(200);
 
       const quoteBefore: any = await sequelize.models.Quote.findByPk(quoteId);
       const token = quoteBefore.publicAccessToken;
