@@ -70,24 +70,119 @@ function normalizeInboundPayload(rawBody: any) {
   return { from, to, subject, text };
 }
 
+import crypto from "crypto";
+
+/**
+ * Validates Mailgun webhook signature:
+ * HMAC-SHA256 of timestamp + token with MAILGUN_WEBHOOK_SIGNING_KEY.
+ * Verifies timestamp is within 300 seconds (5 minutes).
+ * Uses constant-time comparison via crypto.timingSafeEqual on equal-length buffers.
+ */
+export function verifyMailgunWebhookSignature(body: any, signingKey?: string): boolean {
+  const key = (signingKey ?? process.env.MAILGUN_WEBHOOK_SIGNING_KEY)?.replace(/^["']|["']$/g, "").trim();
+  if (!key || !body) {
+    return false;
+  }
+
+  const timestamp = body.timestamp ?? body.signature?.timestamp;
+  const token = body.token ?? body.signature?.token;
+  const signature = typeof body.signature === "string" ? body.signature : body.signature?.signature;
+
+  if (!timestamp || !token || !signature || typeof signature !== "string") {
+    return false;
+  }
+
+  const numericTimestamp = Number(timestamp);
+  if (isNaN(numericTimestamp) || numericTimestamp <= 0) {
+    return false;
+  }
+
+  const timestampSec = numericTimestamp > 1e11 ? Math.floor(numericTimestamp / 1000) : Math.floor(numericTimestamp);
+  const currentSec = Math.floor(Date.now() / 1000);
+  if (Math.abs(currentSec - timestampSec) > 300) {
+    return false;
+  }
+
+  const hmac = crypto.createHmac("sha256", key);
+  hmac.update(`${timestamp}${token}`);
+  const expectedSignatureHex = hmac.digest("hex");
+
+  const sigBuf = Buffer.from(signature.toLowerCase(), "utf8");
+  const expBuf = Buffer.from(expectedSignatureHex.toLowerCase(), "utf8");
+
+  if (sigBuf.length !== expBuf.length) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(sigBuf, expBuf);
+}
+
+/**
+ * Validates shared inbound email secret against INBOUND_EMAIL_SECRET using crypto.timingSafeEqual.
+ */
+export function verifyInboundSharedSecret(providedSecret?: string, expectedSecret?: string): boolean {
+  const expected = (expectedSecret ?? process.env.INBOUND_EMAIL_SECRET)?.replace(/^["']|["']$/g, "").trim();
+  if (!expected || !providedSecret) {
+    return false;
+  }
+
+  const provBuf = Buffer.from(providedSecret, "utf8");
+  const expBuf = Buffer.from(expected, "utf8");
+
+  if (provBuf.length !== expBuf.length) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(provBuf, expBuf);
+}
+
+/**
+ * Extracts secret from query param auth_token, x-inbound-secret header, or authorization bearer header.
+ */
+export function extractProvidedSecret(req: Request): string | undefined {
+  const tokenHeader = req.headers["x-inbound-secret"];
+  if (typeof tokenHeader === "string" && tokenHeader.trim()) {
+    return tokenHeader.trim();
+  }
+
+  const authHeader = req.headers["authorization"];
+  if (typeof authHeader === "string" && authHeader.trim()) {
+    return authHeader.replace(/^Bearer\s+/i, "").trim();
+  }
+
+  const tokenQuery = req.query.auth_token;
+  if (typeof tokenQuery === "string" && tokenQuery.trim()) {
+    return tokenQuery.trim();
+  }
+
+  return undefined;
+}
+
+let inboundAuthWarned = false;
+export function logInboundAuthStartupWarning(): void {
+  if (inboundAuthWarned) return;
+  if (process.env.NODE_ENV === "test") return;
+
+  const hasSecret = !!(process.env.INBOUND_EMAIL_SECRET?.replace(/^["']|["']$/g, "").trim());
+  const hasMailgunKey = !!(process.env.MAILGUN_WEBHOOK_SIGNING_KEY?.replace(/^["']|["']$/g, "").trim());
+
+  if (!hasSecret && !hasMailgunKey) {
+    inboundAuthWarned = true;
+    console.warn(
+      "[Inbound Email Auth] WARNING: Neither INBOUND_EMAIL_SECRET nor MAILGUN_WEBHOOK_SIGNING_KEY is configured. All inbound email webhook requests will be rejected (fail closed)."
+    );
+  }
+}
+logInboundAuthStartupWarning();
+
 export const receiveInboundEmail = async (req: Request, res: Response) => {
   try {
-    // Security verification check
-    let envSecret = process.env.INBOUND_EMAIL_SECRET;
-    if (envSecret) {
-      envSecret = envSecret.replace(/^["']|["']$/g, "").trim();
-    }
-    const defaultSecrets = ["nexus_inbound_email_secret_2026", "dev_secret"];
+    // Security verification check: require either valid Mailgun webhook signature OR valid INBOUND_EMAIL_SECRET
+    const providedSecret = extractProvidedSecret(req);
+    const isSecretAuthed = verifyInboundSharedSecret(providedSecret);
+    const isMailgunAuthed = verifyMailgunWebhookSignature(req.body);
 
-    const tokenHeader = req.headers["x-inbound-secret"] as string;
-    const tokenQuery = req.query.auth_token as string;
-    const providedToken = tokenHeader || tokenQuery;
-
-    const isAuthorized = !providedToken || 
-      (envSecret && providedToken === envSecret) ||
-      defaultSecrets.includes(providedToken);
-
-    if (!isAuthorized) {
+    if (!isSecretAuthed && !isMailgunAuthed) {
       return res.status(401).json({ error: "Unauthorized: Invalid or missing INBOUND_EMAIL_SECRET" });
     }
 
