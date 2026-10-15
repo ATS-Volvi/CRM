@@ -37,6 +37,25 @@ This document outlines the step-by-step setup procedure required to route incomi
      - **Destination URL**: `https://crm-k8g4.onrender.com/api/v1/emails/inbound?auth_token=your_secret_token_here` (replace `your_secret_token_here` with the token matching your `INBOUND_EMAIL_SECRET`).
    - Check the **"Raw"** option if you wish SendGrid to post the full raw SMTP envelope payloads.
 
+### Supported Authentication Methods
+
+The inbound email ingestion webhook (`POST /api/v1/emails/inbound`) authorizes incoming requests via one of two mechanisms:
+
+1. **Shared Secret Verification**:
+   - Authenticates against `INBOUND_EMAIL_SECRET` using constant-time comparison (`crypto.timingSafeEqual`) on equal-length buffers.
+   - The token can be passed in:
+     - Query parameter: `?auth_token=your_secret_token`
+     - Header: `X-Inbound-Secret: your_secret_token`
+     - Header: `Authorization: Bearer your_secret_token`
+
+2. **Mailgun Webhook Signature Verification**:
+   - For Mailgun inbound routes and webhooks, verifies HMAC-SHA256 signature generated with `MAILGUN_WEBHOOK_SIGNING_KEY`.
+   - Requires form fields or nested signature object containing `timestamp`, `token`, and `signature`.
+   - Verifies `HMAC-SHA256(timestamp + token, MAILGUN_WEBHOOK_SIGNING_KEY)` matches `signature` via `crypto.timingSafeEqual`.
+   - Requires `timestamp` to be within 5 minutes (300 seconds) of server time to prevent replay attacks.
+
+> **Fail-Closed Policy**: If neither `INBOUND_EMAIL_SECRET` nor `MAILGUN_WEBHOOK_SIGNING_KEY` is configured in the environment, the endpoint fails closed and rejects all incoming requests with `401 Unauthorized`. Rejected requests create no leads, create no activities, and trigger no outbound confirmation emails.
+
 ---
 
 ## Phase 3 — Database User Migration
