@@ -81,6 +81,37 @@ export function SplitViewDrawer({ isOpen, onClose, record }: SplitViewDrawerProp
     }
   }, [isOpen, token]);
 
+  const updateTempMutation = useMutation({
+    mutationFn: async (temperature: string) => {
+      if (!record?.id) throw new Error("No record selected");
+      const res = await fetch(`/api/v1/leads/${record.id}/temperature`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({ temperature })
+      });
+      if (!res.ok) throw new Error("Failed to update temperature");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+    }
+  });
+
+  const unlockTempMutation = useMutation({
+    mutationFn: async () => {
+      if (!record?.id) throw new Error("No record selected");
+      const res = await fetch(`/api/v1/leads/${record.id}/temperature/unlock`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error("Failed to unlock temperature");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+    }
+  });
+
   if (!isOpen || !record) return null;
 
   const handleInitiateCall = async () => {
@@ -106,35 +137,6 @@ export function SplitViewDrawer({ isOpen, onClose, record }: SplitViewDrawerProp
       setCallStatus(`Call Failed: ${err.message}`);
     }
   };
-
-  const updateTempMutation = useMutation({
-    mutationFn: async (temperature: string) => {
-      const res = await fetch(`/api/v1/leads/${record.id}/temperature`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-        body: JSON.stringify({ temperature })
-      });
-      if (!res.ok) throw new Error("Failed to update temperature");
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["leads"] });
-    }
-  });
-
-  const unlockTempMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch(`/api/v1/leads/${record.id}/temperature/unlock`, {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${token}` }
-      });
-      if (!res.ok) throw new Error("Failed to unlock temperature");
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["leads"] });
-    }
-  });
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden bg-black/40 backdrop-blur-xs flex justify-end">
