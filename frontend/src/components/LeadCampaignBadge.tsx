@@ -26,15 +26,8 @@ export const LeadCampaignBadge: React.FC<LeadCampaignBadgeProps> = ({
   const popoverRef = useRef<HTMLDivElement | null>(null);
   const closeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  if (!attribution || !attribution.lastTouch) {
-    return null;
-  }
-
-  const { lastTouch, firstTouch, touches = [] } = attribution;
-  const campaignCode = lastTouch.campaignCode || lastTouch.campaignName || "NO-CODE";
-  const campaignName = lastTouch.campaignName || "Untitled Campaign";
-
   const updatePosition = useCallback(() => {
+    if (!attribution?.lastTouch) return;
     if (!badgeRef.current) return;
     const rect = badgeRef.current.getBoundingClientRect();
     const POPOVER_WIDTH = 340;
@@ -45,7 +38,33 @@ export const LeadCampaignBadge: React.FC<LeadCampaignBadgeProps> = ({
     const y = flipped ? rect.bottom + 8 : rect.top - 8;
 
     setPopoverPos({ x, y, flipped });
-  }, []);
+  }, [attribution?.lastTouch]);
+
+  // Close on outside click (especially on touch devices)
+  useEffect(() => {
+    if (!attribution?.lastTouch) return;
+    if (!isOpen) return;
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (
+        badgeRef.current &&
+        !badgeRef.current.contains(e.target as Node) &&
+        popoverRef.current &&
+        !popoverRef.current.contains(e.target as Node)
+      ) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, [isOpen, attribution?.lastTouch]);
+
+  if (!attribution || !attribution.lastTouch) {
+    return null;
+  }
+
+  const { lastTouch, firstTouch, touches = [] } = attribution;
+  const campaignCode = lastTouch.campaignCode || lastTouch.campaignName || "NO-CODE";
+  const campaignName = lastTouch.campaignName || "Untitled Campaign";
 
   const handleOpen = () => {
     if (closeTimeoutRef.current) {
@@ -82,23 +101,6 @@ export const LeadCampaignBadge: React.FC<LeadCampaignBadgeProps> = ({
       setIsOpen(false);
     }
   };
-
-  // Close on outside click (especially on touch devices)
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleOutsideClick = (e: MouseEvent) => {
-      if (
-        badgeRef.current &&
-        !badgeRef.current.contains(e.target as Node) &&
-        popoverRef.current &&
-        !popoverRef.current.contains(e.target as Node)
-      ) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleOutsideClick);
-    return () => document.removeEventListener("mousedown", handleOutsideClick);
-  }, [isOpen]);
 
   const formatDate = (dateStr?: string | null) => {
     if (!dateStr) return "—";
