@@ -8,10 +8,9 @@ interface RelatedInquiriesModalProps {
 }
 
 export function RelatedInquiriesModal({ isOpen, onClose, lead }: RelatedInquiriesModalProps) {
-  if (!isOpen || !lead) return null;
-
   // Build combined inquiries list: [Primary Lead, ...Secondary Contacts]
   const inquiries = useMemo(() => {
+    if (!lead) return [];
     const list = [];
     
     // 1. Primary Lead
@@ -47,6 +46,8 @@ export function RelatedInquiriesModal({ isOpen, onClose, lead }: RelatedInquirie
     
     return list;
   }, [lead]);
+
+  if (!isOpen || !lead) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200" onClick={onClose}>
