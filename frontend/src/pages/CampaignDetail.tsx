@@ -191,6 +191,39 @@ export default function CampaignDetail() {
     enabled: !!id && (activeTab === "opportunities" || activeTab === "overview")
   });
 
+  const rawData: any = campaignDetailData;
+  const rawCampaign: Campaign | null = rawData?.campaign || (rawData?.id ? (rawData as Campaign) : null);
+  const campaign = rawCampaign;
+  const leads = Array.isArray(leadsData?.data) ? leadsData.data : [];
+  const ads: CampaignAd[] = Array.isArray(campaign?.ads) ? campaign.ads : [];
+  const rawAdMetrics = (rawData?.performance?.metrics ?? rawData?.metrics)?.adMetrics;
+
+  const [adSortField, setAdSortField] = useState<"leads" | null>("leads");
+  const [adSortDirection, setAdSortDirection] = useState<"asc" | "desc">("desc");
+
+  const adMetricsMap = useMemo(() => {
+    const map = new Map<string, any>();
+    (Array.isArray(rawAdMetrics) ? rawAdMetrics : []).forEach((m: any) => {
+      if (m && m.adId) map.set(m.adId, m);
+    });
+    return map;
+  }, [rawAdMetrics]);
+
+  const sortedAds = useMemo(() => {
+    const list = [...ads];
+    if (adSortField === "leads") {
+      list.sort((a, b) => {
+        if (!a || !b) return 0;
+        const ma = a.id ? adMetricsMap.get(a.id) : null;
+        const mb = b.id ? adMetricsMap.get(b.id) : null;
+        const aLeads = ma ? (ma.totalLeads ?? 0) : leads.filter((l: any) => l && l.adId === a.id).length;
+        const bLeads = mb ? (mb.totalLeads ?? 0) : leads.filter((l: any) => l && l.adId === b.id).length;
+        return adSortDirection === "asc" ? aLeads - bLeads : bLeads - aLeads;
+      });
+    }
+    return list;
+  }, [ads, adSortField, adSortDirection, adMetricsMap, leads]);
+
   // Loading State
   if (loadingCampaign || (pendingCampaign && !campaignDetailData)) {
     return (
@@ -212,9 +245,6 @@ export default function CampaignDetail() {
   }
 
   // 404 / Error State
-  const rawData: any = campaignDetailData;
-  const rawCampaign: Campaign | null = rawData?.campaign || (rawData?.id ? (rawData as Campaign) : null);
-  const campaign = rawCampaign;
   if (errorCampaign || !campaign || !campaign.id) {
     return (
       <div className="p-8 max-w-2xl mx-auto text-center space-y-5 my-12">
@@ -266,35 +296,7 @@ export default function CampaignDetail() {
     adMetrics: Array.isArray(rawMetrics?.adMetrics) ? rawMetrics.adMetrics : []
   };
 
-  const leads = Array.isArray(leadsData?.data) ? leadsData.data : [];
   const opportunities = Array.isArray(oppsData?.data) ? oppsData.data : [];
-  const ads: CampaignAd[] = Array.isArray(campaign.ads) ? campaign.ads : [];
-
-  const [adSortField, setAdSortField] = useState<"leads" | null>("leads");
-  const [adSortDirection, setAdSortDirection] = useState<"asc" | "desc">("desc");
-
-  const adMetricsMap = useMemo(() => {
-    const map = new Map<string, any>();
-    (metrics.adMetrics || []).forEach((m: any) => {
-      if (m && m.adId) map.set(m.adId, m);
-    });
-    return map;
-  }, [metrics.adMetrics]);
-
-  const sortedAds = useMemo(() => {
-    const list = [...ads];
-    if (adSortField === "leads") {
-      list.sort((a, b) => {
-        if (!a || !b) return 0;
-        const ma = a.id ? adMetricsMap.get(a.id) : null;
-        const mb = b.id ? adMetricsMap.get(b.id) : null;
-        const aLeads = ma ? (ma.totalLeads ?? 0) : leads.filter((l: any) => l && l.adId === a.id).length;
-        const bLeads = mb ? (mb.totalLeads ?? 0) : leads.filter((l: any) => l && l.adId === b.id).length;
-        return adSortDirection === "asc" ? aLeads - bLeads : bLeads - aLeads;
-      });
-    }
-    return list;
-  }, [ads, adSortField, adSortDirection, adMetricsMap, leads]);
 
   const currency = campaign.currency || "INR";
   const budget = Number(campaign.budget || 0);
