@@ -8,18 +8,28 @@ import { sequelize } from "@nexus-crm/database";
 import * as emailService from "../../src/services/emailService";
 import * as whatsappService from "../../src/services/whatsappService";
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
 
 describe("Phase 3: Quote Delivery System — Expiring Tokens, Customer Portal & Message Flagging", () => {
   let app: any;
   let authToken: string;
   const adminUserId = "00000000-0000-0000-0000-000000000000";
+  let originalInboundSecret: string | undefined;
+  const TEST_INBOUND_SECRET = "test-only-" + crypto.randomUUID();
 
   beforeAll(async () => {
+    originalInboundSecret = process.env.INBOUND_EMAIL_SECRET;
+    process.env.INBOUND_EMAIL_SECRET = TEST_INBOUND_SECRET;
+
     app = createServer();
     authToken = jwt.sign(
       { id: adminUserId, email: "admin@nexus.com", role: "admin" },
       process.env.JWT_SECRET || "default_secret"
     );
+  });
+
+  afterAll(async () => {
+    process.env.INBOUND_EMAIL_SECRET = originalInboundSecret;
   });
 
   let leadId: string;
@@ -339,7 +349,7 @@ describe("Phase 3: Quote Delivery System — Expiring Tokens, Customer Portal & 
       // 2. Inbound email with "Please proceed with the quote"
       const inboundRes = await request(app)
         .post("/api/v1/emails/inbound")
-        .set("x-inbound-secret", "nexus_inbound_email_secret_2026")
+        .set("x-inbound-secret", TEST_INBOUND_SECRET)
         .send({
           from: "Faisal Al-Otaibi <faisal@otaibi.com>",
           to: "sales@nexus.com",

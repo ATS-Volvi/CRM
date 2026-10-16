@@ -57,7 +57,8 @@ async function runAudit() {
   console.log("2. TESTING INBOUND CHANNEL: INBOUND EMAIL WEBHOOK (/api/v1/emails/inbound)");
   console.log("--------------------------------------------------------------------------------");
   const emailSender = `audit_sender_${timestamp}@petrogulf.sa`;
-  const emailRes = await fetch(`${API_URL}/emails/inbound?auth_token=nexus_inbound_email_secret_2026`, {
+  const inboundSecret = process.env.INBOUND_EMAIL_SECRET || "";
+  const emailRes = await fetch(`${API_URL}/emails/inbound?auth_token=${encodeURIComponent(inboundSecret)}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
