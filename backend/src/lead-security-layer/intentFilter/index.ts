@@ -105,20 +105,24 @@ export async function evaluateInboundEmail(
   const wouldHaveBlocked = decision.action !== 'CREATE_LEAD';
   const isEnforced = mode === 'enforce';
 
-  // 7. Persist IntentDecisions audit record
-  await logIntentDecision({
-    channel,
-    senderEmail: emailMeta.senderEmail,
-    subject: emailMeta.subject || 'No Subject',
-    label: decision.label,
-    leadScore: decision.score,
-    confidence: decision.confidence,
-    action: decision.action,
-    reason: decision.reason,
-    language: decision.language,
-    wouldHaveBlocked,
-    enforced: isEnforced,
-  });
+  // 7. Persist IntentDecisions audit record (isolated try/catch, must never propagate or break evaluation)
+  try {
+    await logIntentDecision({
+      channel,
+      senderEmail: emailMeta.senderEmail,
+      subject: emailMeta.subject || 'No Subject',
+      label: decision.label,
+      leadScore: decision.score,
+      confidence: decision.confidence,
+      action: decision.action,
+      reason: decision.reason,
+      language: decision.language,
+      wouldHaveBlocked,
+      enforced: isEnforced,
+    });
+  } catch (logErr: any) {
+    console.warn('[intentFilter] Error writing intent decision audit log:', logErr.message);
+  }
 
   // In SHADOW mode: log what would happen, but allow CREATE_LEAD downstream
   if (!isEnforced) {

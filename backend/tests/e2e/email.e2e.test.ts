@@ -740,3 +740,92 @@ describe("E2E: Intent Filter Gate", () => {
     expect(allowRule).not.toBeNull();
   });
 });
+
+describe("E2E: Intent Filter Fail-Safe & Resilience", () => {
+  beforeEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+    process.env.INTENT_FILTER_MODE = "enforce";
+  });
+
+  it("should still create lead in shadow mode even if IntentDecisions write throws a DB error", async () => {
+    process.env.INTENT_FILTER_MODE = "shadow";
+    jest.spyOn(sequelize.models.IntentDecision, "create").mockRejectedValue(
+      new Error("Simulated SQLite failure: IntentDecisions table locked")
+    );
+
+    const testEmail = `shadow_fail_${require('crypto').randomUUID()}@company.com`;
+    const payload = {
+      from: `Client <${testEmail}>`,
+      to: "sales@nexus.com",
+      subject: "Inquiry under DB failure",
+      text: "Please send quote for modular units."
+    };
+
+    const res = await request(app)
+      .post("/api/v1/emails/inbound?auth_token=test_secret")
+      .send(payload);
+
+    expect(res.status).toBe(201);
+    expect(res.body.leadId).toBeDefined();
+
+    const created = await sequelize.models.Lead.findOne({ where: { email: testEmail } });
+    expect(created).not.toBeNull();
+  });
+
+  it("should still create lead in off mode even if IntentDecisions write throws a DB error", async () => {
+    process.env.INTENT_FILTER_MODE = "off";
+    jest.spyOn(sequelize.models.IntentDecision, "create").mockRejectedValue(
+      new Error("Simulated SQLite failure: table missing")
+    );
+
+    const testEmail = `off_fail_${require('crypto').randomUUID()}@company.com`;
+    const payload = {
+      from: `Client <${testEmail}>`,
+      to: "sales@nexus.com",
+      subject: "Inquiry in off mode",
+      text: "Please send quote for modular units."
+    };
+
+    const res = await request(app)
+      .post("/api/v1/emails/inbound?auth_token=test_secret")
+      .send(payload);
+
+    expect(res.status).toBe(201);
+    expect(res.body.leadId).toBeDefined();
+
+    const created = await sequelize.models.Lead.findOne({ where: { email: testEmail } });
+    expect(created).not.toBeNull();
+  });
+
+  it("should fall back to REVIEW without 5xx in enforce mode even if FlaggedLeads write throws a DB error", async () => {
+    process.env.INTENT_FILTER_MODE = "enforce";
+    jest.spyOn(sequelize.models.FlaggedLead, "create").mockRejectedValue(
+      new Error("Simulated SQLite failure: FlaggedLeads write disk full")
+    );
+
+    const testEmail = `enforce_fail_${require('crypto').randomUUID()}@company.com`;
+    const payload = {
+      from: `Human <${testEmail}>`,
+      to: "sales@nexus.com",
+      subject: "Hi",
+      text: "hi"
+    };
+
+    const res = await request(app)
+      .post("/api/v1/emails/inbound?auth_token=test_secret")
+      .send(payload);
+
+    // Must return 202 without throwing 5xx or unhandled rejection
+    expect(res.status).toBe(202);
+    expect(["held", "archived"]).toContain(res.body.status);
+    expect(res.body.action).toBeDefined();
+
+    // Verify lead was NOT created for content-free greeting
+    const created = await sequelize.models.Lead.findOne({ where: { email: testEmail } });
+    expect(created).toBeNull();
+  });
+});

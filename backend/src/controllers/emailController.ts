@@ -115,14 +115,26 @@ export const receiveInboundEmail = async (req: Request, res: Response) => {
         intentVerdict = await evaluateInboundEmail("email", emailMeta, emailBody);
       } catch (gateErr: any) {
         console.error("[emailController] Intent Filter evaluation error:", gateErr.message);
-        // Fail-safe toward REVIEW
-        intentVerdict = {
-          action: "REVIEW",
-          label: "too_vague",
-          score: 50,
-          confidence: "low",
-          reason: `Intent gate error: ${gateErr.message}`
-        };
+        const mode = (process.env.INTENT_FILTER_MODE || "shadow").toLowerCase();
+        if (mode === "off" || mode === "shadow") {
+          // In shadow/off mode, system failure must NEVER block lead creation
+          intentVerdict = {
+            action: "CREATE_LEAD",
+            label: "new_enquiry",
+            score: 70,
+            confidence: "low",
+            reason: `Gate error fallback (shadow/off): ${gateErr.message}`
+          };
+        } else {
+          // In enforce mode, fail-safe toward REVIEW without 5xx
+          intentVerdict = {
+            action: "REVIEW",
+            label: "too_vague",
+            score: 50,
+            confidence: "low",
+            reason: `Intent gate error: ${gateErr.message}`
+          };
+        }
       }
     }
 

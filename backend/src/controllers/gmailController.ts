@@ -106,7 +106,13 @@ export const syncGmail = async (req: Request, res: Response) => {
         try {
           intentVerdict = await evaluateInboundEmail("email", emailMeta, email.body);
         } catch (err: any) {
-          intentVerdict = { action: "REVIEW", label: "too_vague", score: 50, reason: err.message };
+          console.error("[gmailController] Intent Filter evaluation error:", err.message);
+          const mode = (process.env.INTENT_FILTER_MODE || "shadow").toLowerCase();
+          if (mode === "off" || mode === "shadow") {
+            intentVerdict = { action: "CREATE_LEAD", label: "new_enquiry", score: 70, reason: err.message };
+          } else {
+            intentVerdict = { action: "REVIEW", label: "too_vague", score: 50, reason: err.message };
+          }
         }
 
         if (intentVerdict.action === "ATTACH_EXISTING") {
