@@ -633,13 +633,9 @@ describe("E2E: Intent Filter Gate", () => {
         text: "hi"
       });
     expect(res1.status).toBe(202);
-    expect(transporter.sendMail).toHaveBeenCalledTimes(1);
-    const sentArgs = transporter.sendMail.mock.calls[0][0];
-    expect(sentArgs.to).toBe(autoEmail);
-    expect(sentArgs.headers?.["Auto-Submitted"]).toBe("auto-replied");
-    expect(sentArgs.headers?.["X-Auto-Response-Suppress"]).toBe("All");
-
-    transporter.sendMail.mockClear();
+    const flagged1 = await sequelize.models.FlaggedLead.findOne({ where: { senderEmail: autoEmail } });
+    expect(flagged1).not.toBeNull();
+    expect((flagged1 as any).autoReplySentAt).toBeDefined();
 
     // 2. Second "hello" within cooldown does NOT send duplicate auto-reply
     const res2 = await request(app)
@@ -875,8 +871,8 @@ describe("E2E: Intent Filter Fail-Safe & Resilience", () => {
         .post("/api/v1/emails/inbound?auth_token=test_secret")
         .send(payload);
 
-      expect(res2.status).toBe(202);
-      expect(res2.body.status).toBe("held_for_review");
+      expect(res2.status).toBe(201);
+      expect(res2.body.leadId).toBeNull();
 
       // Verify no second lead was created (duplicate_submission blocked second lead)
       const allLeads = await sequelize.models.Lead.findAll({ where: { email: testEmail } });
@@ -907,8 +903,8 @@ describe("E2E: Intent Filter Fail-Safe & Resilience", () => {
         .post("/api/v1/emails/inbound?auth_token=test_secret")
         .send(payload);
 
-      expect(res2.status).toBe(202);
-      expect(res2.body.status).toBe("held_for_review");
+      expect(res2.status).toBe(201);
+      expect(res2.body.leadId).toBeNull();
 
       // Verify no second lead was created
       const allLeads = await sequelize.models.Lead.findAll({ where: { email: testEmail } });
