@@ -4,9 +4,11 @@ import {
   LayoutDashboard, Home, Inbox, Trello, FileText, Receipt, 
   Users, BarChart, Settings, Clock, ChevronLeft, 
   ChevronRight, MessageSquare, CheckSquare, Search, Bell, Sparkles, LogOut, ChevronDown, Layers, Package, Building2, LifeBuoy, Target,
-  UserCheck, Shield, Briefcase
+  UserCheck, Shield, Briefcase, ShieldAlert
 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
+import { leadFilterApi } from "../api";
 
 interface NavSubItem {
   label: string;
@@ -50,6 +52,15 @@ export function Sidebar({
 
   const userRole = (user?.role || "admin").toLowerCase();
 
+  const { data: filterStats } = useQuery({
+    queryKey: ["sidebar-lead-filter-stats"],
+    queryFn: () => leadFilterApi.getFilterStats(),
+    refetchInterval: 30000,
+    staleTime: 15000,
+  });
+
+  const needsReviewCount = filterStats?.needsReviewCount || 0;
+
   const primaryNavItems: NavItem[] = [
     { label: "Dashboard", path: "/", icon: LayoutDashboard },
     { 
@@ -57,6 +68,12 @@ export function Sidebar({
       icon: Briefcase,
       subItems: [
         { label: "Leads", path: "/leads", icon: Users },
+        { 
+          label: "Held Emails", 
+          path: "/held-emails", 
+          icon: ShieldAlert, 
+          badge: needsReviewCount > 0 ? String(needsReviewCount) : undefined 
+        },
         { label: "Opportunities", path: "/opportunities", icon: Target },
         { label: "Pipeline", path: "/pipeline", icon: Trello },
         { label: "Quotes", path: "/quotes", icon: FileText },
@@ -242,14 +259,23 @@ export function Sidebar({
                         <Link
                           key={sub.path}
                           to={sub.path}
-                          className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                          className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                             isSubActive
                               ? "bg-primary text-white shadow-2xs font-bold"
                               : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900"
                           }`}
                         >
-                          <SubIcon className="w-3.5 h-3.5" />
-                          <span className="truncate">{sub.label}</span>
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <SubIcon className="w-3.5 h-3.5 shrink-0" />
+                            <span className="truncate">{sub.label}</span>
+                          </div>
+                          {sub.badge && (
+                            <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded-full ${
+                              isSubActive ? "bg-white text-primary" : "bg-amber-500 text-white"
+                            }`}>
+                              {sub.badge}
+                            </span>
+                          )}
                         </Link>
                       );
                     })}
