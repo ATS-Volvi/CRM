@@ -115,7 +115,9 @@ export const syncGmail = async (req: Request, res: Response) => {
           }
         }
 
-        if (intentVerdict.action === "ATTACH_EXISTING") {
+        const isEnforce = (process.env.INTENT_FILTER_MODE || "off").toLowerCase() === "enforce";
+
+        if (isEnforce && intentVerdict.action === "ATTACH_EXISTING") {
           const targetLeadId = intentVerdict.openLeadId;
           if (targetLeadId && Activity) {
             try {
@@ -143,7 +145,7 @@ export const syncGmail = async (req: Request, res: Response) => {
           continue;
         }
 
-        if (["PENDING_CLARIFY", "REVIEW", "ARCHIVE"].includes(intentVerdict.action)) {
+        if (isEnforce && ["PENDING_CLARIFY", "REVIEW", "ARCHIVE"].includes(intentVerdict.action)) {
           if (FlaggedLead) {
             try {
               await FlaggedLead.create({

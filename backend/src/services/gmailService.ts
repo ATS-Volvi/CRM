@@ -153,9 +153,10 @@ export const fetchUnreadEmails = async (refreshToken: string): Promise<GmailMess
     const phoneMatch = body.match(/[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}/);
     const phone = phoneMatch ? phoneMatch[0] : "";
 
-    const isEnforce = (process.env.INTENT_FILTER_MODE || 'off').toLowerCase() === 'enforce';
+    const mode = (process.env.INTENT_FILTER_MODE || 'off').toLowerCase();
+    const shouldExtractMeta = mode === 'enforce' || mode === 'shadow';
     let emailMeta: any = undefined;
-    if (isEnforce) {
+    if (shouldExtractMeta) {
       const { extractEmailMetadata } = require("../lead-security-layer/intentFilter/headerParser");
       emailMeta = extractEmailMetadata(msg);
     }
@@ -170,7 +171,7 @@ export const fetchUnreadEmails = async (refreshToken: string): Promise<GmailMess
       date: msg.internalDate ? new Date(parseInt(msg.internalDate)) : new Date(),
       rawPayload: msg
     };
-    if (isEnforce && emailMeta) {
+    if (shouldExtractMeta && emailMeta) {
       messageItem.emailMeta = emailMeta;
     }
 
