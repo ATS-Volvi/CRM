@@ -159,6 +159,30 @@ describe('Intent Filter - Unit Tests', () => {
       const cleaned = cleanEmailText(raw);
       expect(cleaned).toBe('Please quote 20 cabins.');
     });
+
+    it('XSS: should sanitize and neutralize <script> and <img onerror> payloads', () => {
+      const xssPayloads = [
+        'Quote request <script>alert("XSS")</script> for 10 units',
+        'Hello <img src="x" onerror="alert(1)" /> please send catalog',
+        '<svg/onload=alert`1`> Need 5 modular offices',
+        'Inquiry <iframe src="javascript:alert(1)"></iframe> for site cabins',
+      ];
+
+      for (const payload of xssPayloads) {
+        const cleaned = cleanEmailText(payload);
+        expect(cleaned).not.toContain('<script>');
+        expect(cleaned).not.toContain('</script>');
+        expect(cleaned).not.toContain('<img');
+        expect(cleaned).not.toContain('onerror');
+        expect(cleaned).not.toContain('<svg');
+        expect(cleaned).not.toContain('<iframe');
+      }
+
+      // Check preserved business intent text
+      const cleanedEnquiry = cleanEmailText('Quote request <script>alert("XSS")</script> for 10 units');
+      expect(cleanedEnquiry).toContain('Quote request');
+      expect(cleanedEnquiry).toContain('for 10 units');
+    });
   });
 
   describe('No Content Filter (checkNoContent)', () => {
