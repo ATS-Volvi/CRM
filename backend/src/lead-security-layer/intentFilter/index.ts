@@ -33,7 +33,8 @@ export * from './headerParser';
 export async function evaluateInboundEmail(
   channel: string = 'email',
   emailMeta: EmailMetadata,
-  rawText: string
+  rawText: string,
+  createdLeadId?: string | null
 ): Promise<IntentDecisionResult> {
   const mode = (process.env.INTENT_FILTER_MODE || 'shadow').toLowerCase();
   const configuredChannels = (process.env.INTENT_FILTER_CHANNELS || 'email')
@@ -120,6 +121,7 @@ export async function evaluateInboundEmail(
       language: decision.language,
       wouldHaveBlocked,
       enforced: isEnforced,
+      leadId: createdLeadId || null,
     });
   } catch (logErr: any) {
     console.warn('[intentFilter] Error writing intent decision audit log:', logErr.message);

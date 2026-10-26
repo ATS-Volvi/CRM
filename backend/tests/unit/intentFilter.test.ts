@@ -668,6 +668,114 @@ describe('Intent Filter - Unit Tests', () => {
       expect((updatedLead as any).lastInboundAt).toBeDefined();
     });
   });
+
+  describe('Gmail Sync Gate Equivalence & Robustness (syncGmail)', () => {
+    const originalMode = process.env.INTENT_FILTER_MODE;
+
+    afterEach(() => {
+      if (originalMode !== undefined) {
+        process.env.INTENT_FILTER_MODE = originalMode;
+      } else {
+        delete process.env.INTENT_FILTER_MODE;
+      }
+      jest.restoreAllMocks();
+    });
+
+    const mockEmails = [
+      {
+        id: 'msg-1',
+        senderName: 'John Doe',
+        senderEmail: 'john@example.com',
+        phone: '1234567890',
+        subject: 'Enquiry for Offices',
+        body: 'Interested in site offices.',
+        rawPayload: { malformed: true, headers: null, payload: undefined } // Malformed rawPayload
+      },
+      {
+        id: 'msg-2',
+        senderName: 'Jane Smith',
+        senderEmail: 'jane@example.com',
+        phone: '9876543210',
+        subject: 'Product Question',
+        body: 'Do you have delivery options?',
+        rawPayload: 'completely_invalid_non_object_payload' // Malformed rawPayload
+      }
+    ];
+
+    it('in mode=off: sync must continue with malformed rawPayload & throwing gate; ingestedCount matches main (2)', async () => {
+      process.env.INTENT_FILTER_MODE = 'off';
+
+      const { GmailConfig } = require('@nexus-crm/database');
+      const gmailService = require('../../src/services/gmailService');
+      const leadIngestion = require('../../src/services/leadIngestion');
+      const intentFilter = require('../../src/lead-security-layer/intentFilter');
+      const { syncGmail } = require('../../src/controllers/gmailController');
+
+      jest.spyOn(GmailConfig, 'findOne').mockResolvedValue({
+        encryptedRefreshToken: 'real_encrypted_token_123',
+        lastSyncedAt: new Date(),
+        save: jest.fn().mockResolvedValue(true)
+      });
+      jest.spyOn(gmailService, 'decryptToken').mockReturnValue('decrypted_token');
+      jest.spyOn(gmailService, 'fetchUnreadEmails').mockResolvedValue(mockEmails);
+
+      const ingestSpy = jest.spyOn(leadIngestion, 'ingestLead').mockResolvedValue('new-lead-id');
+      const gateSpy = jest.spyOn(intentFilter, 'evaluateInboundEmail').mockImplementation(() => {
+        throw new Error('Gate must NOT be called in mode=off');
+      });
+
+      const req: any = {};
+      const res: any = {
+        json: jest.fn(),
+        status: jest.fn().mockReturnThis()
+      };
+
+      await syncGmail(req, res);
+
+      // In mode=off, gate is bypassed completely (no evaluateInboundEmail called)
+      expect(gateSpy).not.toHaveBeenCalled();
+      // All emails are ingested just like main
+      expect(ingestSpy).toHaveBeenCalledTimes(2);
+      expect(res.json).toHaveBeenCalledWith({ success: true, ingestedCount: 2 });
+    });
+
+    it('in mode=shadow: sync must continue when rawPayload is malformed & gate throws; ingestedCount matches main (2)', async () => {
+      process.env.INTENT_FILTER_MODE = 'shadow';
+
+      const { GmailConfig } = require('@nexus-crm/database');
+      const gmailService = require('../../src/services/gmailService');
+      const leadIngestion = require('../../src/services/leadIngestion');
+      const intentFilter = require('../../src/lead-security-layer/intentFilter');
+      const { syncGmail } = require('../../src/controllers/gmailController');
+
+      jest.spyOn(GmailConfig, 'findOne').mockResolvedValue({
+        encryptedRefreshToken: 'real_encrypted_token_123',
+        lastSyncedAt: new Date(),
+        save: jest.fn().mockResolvedValue(true)
+      });
+      jest.spyOn(gmailService, 'decryptToken').mockReturnValue('decrypted_token');
+      jest.spyOn(gmailService, 'fetchUnreadEmails').mockResolvedValue(mockEmails);
+
+      const ingestSpy = jest.spyOn(leadIngestion, 'ingestLead').mockResolvedValue('new-lead-id');
+      // Simulate gate throwing a severe error (e.g. database down, timeout)
+      const gateSpy = jest.spyOn(intentFilter, 'evaluateInboundEmail').mockRejectedValue(
+        new Error('Simulated database connection failure in shadow gate')
+      );
+
+      const req: any = {};
+      const res: any = {
+        json: jest.fn(),
+        status: jest.fn().mockReturnThis()
+      };
+
+      await syncGmail(req, res);
+
+      // In mode=shadow, gate error is caught and never interrupts ingestion
+      expect(gateSpy).toHaveBeenCalledTimes(2);
+      expect(ingestSpy).toHaveBeenCalledTimes(2);
+      expect(res.json).toHaveBeenCalledWith({ success: true, ingestedCount: 2 });
+    });
+  });
 });
 
 

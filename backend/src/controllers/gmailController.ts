@@ -1,9 +1,12 @@
 import { Request, Response } from "express";
+import { randomUUID } from "crypto";
 import { getAuthUrl, exchangeCodeForTokens, encryptToken, decryptToken, fetchUnreadEmails } from "../services/gmailService";
-import { ingestLead } from "../services/leadIngestion";
-import { GmailConfig } from "@nexus-crm/database";
-
-import { processGmailConnector } from "../services/leadIngestion";
+import { ingestLead, processGmailConnector } from "../services/leadIngestion";
+import { GmailConfig, FlaggedLead } from "@nexus-crm/database";
+import { evaluateInboundEmail } from "../lead-security-layer/intentFilter";
+import { extractEmailMetadata } from "../lead-security-layer/intentFilter/headerParser";
+import { handlePromoteOnReply } from "../lead-security-layer/intentFilter/autoReplyService";
+import { attachEmailToLeadActivity } from "../lead-security-layer/intentFilter/attachActivity";
 
 export const getGmailAuthUrl = async (req: Request, res: Response) => {
   try {
@@ -39,7 +42,7 @@ export const connectGmail = async (req: Request, res: Response) => {
     // Save configuration
     await GmailConfig.destroy({ where: {} }); // only support single Gmail integration for simplicity
     await GmailConfig.create({
-      id: require("crypto").randomUUID(),
+      id: randomUUID(),
       connectedEmail: email,
       encryptedRefreshToken: encrypted,
       lastSyncedAt: new Date()
@@ -92,95 +95,126 @@ export const syncGmail = async (req: Request, res: Response) => {
     } else {
       const decrypted = decryptToken(config.encryptedRefreshToken);
       const emails = await fetchUnreadEmails(decrypted);
+      const mode = (process.env.INTENT_FILTER_MODE || "off").toLowerCase();
 
-      for (const email of emails) {
-        const { evaluateInboundEmail } = require("../lead-security-layer/intentFilter");
-        const { extractEmailMetadata } = require("../lead-security-layer/intentFilter/headerParser");
-        const { cleanEmailText } = require("../lead-security-layer/intentFilter/cleanText");
-        const { handleDealInboundActivity } = require("../services/leadTemperatureService");
-        const { handlePromoteOnReply } = require("../lead-security-layer/intentFilter/autoReplyService");
-        const { Activity, Lead, FlaggedLead } = require("@nexus-crm/database");
+      if (mode === "off") {
+        // Mode OFF: Skip gate completely (no evaluateInboundEmail, no extractEmailMetadata, no DB/AI calls)
+        // Loop is identical to main
+        for (const email of emails) {
+          await ingestLead({
+            firstName: email.senderName.split(" ")[0] || "Unknown",
+            lastName: email.senderName.split(" ").slice(1).join(" ") || "Sender",
+            email: email.senderEmail,
+            phone: email.phone,
+            company: email.senderName + " Org",
+            source: "Gmail Connector",
+            sourceDetail: `Email Subject: ${email.subject}`,
+            message: email.body,
+            rawPayload: email.rawPayload
+          });
+          ingestedCount++;
+        }
+      } else if (mode === "shadow") {
+        // Mode SHADOW: Wrap metadata extraction, evaluation and logging in one try/catch
+        // Ingestion always runs identically to main
+        for (const email of emails) {
+          try {
+            const emailMeta = email.emailMeta || extractEmailMetadata(email.rawPayload);
+            await evaluateInboundEmail("email", emailMeta, email.body);
+          } catch (gateErr: any) {
+            console.warn("[gmailController] Shadow gate error:", gateErr.message);
+          }
 
-        const emailMeta = email.emailMeta || extractEmailMetadata(email.rawPayload);
-        let intentVerdict: any = null;
-        try {
-          intentVerdict = await evaluateInboundEmail("email", emailMeta, email.body);
-        } catch (err: any) {
-          console.error("[gmailController] Intent Filter evaluation error:", err.message);
-          const mode = (process.env.INTENT_FILTER_MODE || "shadow").toLowerCase();
-          if (mode === "off" || mode === "shadow") {
-            intentVerdict = { action: "CREATE_LEAD", label: "new_enquiry", score: 70, reason: err.message };
-          } else {
+          await ingestLead({
+            firstName: email.senderName.split(" ")[0] || "Unknown",
+            lastName: email.senderName.split(" ").slice(1).join(" ") || "Sender",
+            email: email.senderEmail,
+            phone: email.phone,
+            company: email.senderName + " Org",
+            source: "Gmail Connector",
+            sourceDetail: `Email Subject: ${email.subject}`,
+            message: email.body,
+            rawPayload: email.rawPayload
+          });
+          ingestedCount++;
+        }
+      } else {
+        // Mode ENFORCE: Gate runs before ingestion
+        for (const email of emails) {
+          let intentVerdict: any = null;
+          try {
+            const emailMeta = email.emailMeta || extractEmailMetadata(email.rawPayload);
+            intentVerdict = await evaluateInboundEmail("email", emailMeta, email.body);
+          } catch (err: any) {
+            console.error("[gmailController] Intent Filter evaluation error:", err.message);
             intentVerdict = { action: "REVIEW", label: "too_vague", score: 50, reason: err.message };
           }
-        }
 
-        const isEnforce = (process.env.INTENT_FILTER_MODE || "off").toLowerCase() === "enforce";
-
-        if (isEnforce && intentVerdict.action === "ATTACH_EXISTING") {
-          const targetLeadId = intentVerdict.openLeadId;
-          if (targetLeadId) {
-            try {
-              const { attachEmailToLeadActivity } = require("../lead-security-layer/intentFilter/attachActivity");
-              await attachEmailToLeadActivity({
-                leadId: targetLeadId,
-                subject: email.subject || "Email Received",
-                body: email.body,
-                createdById: null,
-                channelSource: "gmail"
-              });
-            } catch (actErr: any) {
-              console.warn("[gmailController] Activity attach error:", actErr.message);
+          if (intentVerdict && intentVerdict.action === "ATTACH_EXISTING") {
+            const targetLeadId = intentVerdict.openLeadId;
+            if (targetLeadId) {
+              try {
+                await attachEmailToLeadActivity({
+                  leadId: targetLeadId,
+                  subject: email.subject || "Email Received",
+                  body: email.body,
+                  createdById: null,
+                  channelSource: "gmail"
+                });
+              } catch (actErr: any) {
+                console.warn("[gmailController] Activity attach error:", actErr.message);
+              }
             }
+            continue;
           }
-          continue;
-        }
 
-        if (isEnforce && ["PENDING_CLARIFY", "REVIEW", "ARCHIVE"].includes(intentVerdict.action)) {
-          if (FlaggedLead) {
-            try {
-              await FlaggedLead.create({
-                id: require("crypto").randomUUID(),
-                payload: email.rawPayload,
-                source: "Gmail Connector",
-                channel: "email",
-                reason: intentVerdict.reason,
-                disposition: intentVerdict.action === "PENDING_CLARIFY"
-                  ? "pending_clarification"
-                  : intentVerdict.action === "ARCHIVE"
-                  ? "archived"
-                  : "review",
-                intentLabel: intentVerdict.label,
-                intentScore: intentVerdict.score,
-                explanation: intentVerdict.reason,
-                senderEmail: email.senderEmail,
-                subject: email.subject,
-                reviewed: false
-              });
-            } catch (flagErr: any) {
-              console.warn("[gmailController] FlaggedLead create error:", flagErr.message);
+          if (intentVerdict && ["PENDING_CLARIFY", "REVIEW", "ARCHIVE"].includes(intentVerdict.action)) {
+            if (FlaggedLead) {
+              try {
+                await FlaggedLead.create({
+                  id: randomUUID(),
+                  payload: email.rawPayload,
+                  source: "Gmail Connector",
+                  channel: "email",
+                  reason: intentVerdict.reason,
+                  disposition: intentVerdict.action === "PENDING_CLARIFY"
+                    ? "pending_clarification"
+                    : intentVerdict.action === "ARCHIVE"
+                    ? "archived"
+                    : "review",
+                  intentLabel: intentVerdict.label,
+                  intentScore: intentVerdict.score,
+                  explanation: intentVerdict.reason,
+                  senderEmail: email.senderEmail,
+                  subject: email.subject,
+                  reviewed: false
+                });
+              } catch (flagErr: any) {
+                console.warn("[gmailController] FlaggedLead create error:", flagErr.message);
+              }
             }
+            continue;
           }
-          continue;
-        }
 
-        const newLeadId = await ingestLead({
-          firstName: email.senderName.split(" ")[0] || "Unknown",
-          lastName: email.senderName.split(" ").slice(1).join(" ") || "Sender",
-          email: email.senderEmail,
-          phone: email.phone,
-          company: email.senderName + " Org",
-          source: "Gmail Connector",
-          sourceDetail: `Email Subject: ${email.subject}`,
-          message: email.body,
-          rawPayload: { ...(email.rawPayload || {}), skipIntentGate: true }
-        });
+          const newLeadId = await ingestLead({
+            firstName: email.senderName.split(" ")[0] || "Unknown",
+            lastName: email.senderName.split(" ").slice(1).join(" ") || "Sender",
+            email: email.senderEmail,
+            phone: email.phone,
+            company: email.senderName + " Org",
+            source: "Gmail Connector",
+            sourceDetail: `Email Subject: ${email.subject}`,
+            message: email.body,
+            rawPayload: email.rawPayload
+          });
 
-        if (newLeadId) {
           ingestedCount++;
-          try {
-            await handlePromoteOnReply(email.senderEmail, newLeadId);
-          } catch (e) {}
+
+          if (newLeadId) {
+            try {
+              await handlePromoteOnReply(email.senderEmail, newLeadId);
+            } catch (e) {}
+          }
         }
       }
     }
