@@ -109,6 +109,7 @@ describe("Phase 3: Quote Delivery System — Expiring Tokens, Customer Portal & 
       id: require("crypto").randomUUID(),
       dealId,
       status: "Approved",
+      isFinalAgreed: true,
       totalAmount: 180000,
       quoteNumber: "QT-2026-8888",
       version: 1
