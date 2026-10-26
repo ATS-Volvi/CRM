@@ -277,16 +277,19 @@ export const receiveInboundEmail = async (req: Request, res: Response) => {
       rawPayload: { subject: emailSubject, body: emailBody, recipientEmail, skipIntentGate: true }
     });
 
-    if (!leadId) {
+    const isEnforce = (process.env.INTENT_FILTER_MODE || "off").toLowerCase() === "enforce";
+    if (isEnforce && !leadId) {
       return res.status(202).json({ status: "held_for_review", message: "Held by security verification" });
     }
 
-    // Phase 5: Promote-on-reply check
-    try {
-      const { handlePromoteOnReply } = require("../lead-security-layer/intentFilter/autoReplyService");
-      await handlePromoteOnReply(email, leadId);
-    } catch (promoteErr: any) {
-      console.warn("[emailController] Promote-on-reply error:", promoteErr.message);
+    // Phase 5: Promote-on-reply check (enforce mode only)
+    if (isEnforce) {
+      try {
+        const { handlePromoteOnReply } = require("../lead-security-layer/intentFilter/autoReplyService");
+        await handlePromoteOnReply(email, leadId);
+      } catch (promoteErr: any) {
+        console.warn("[emailController] Promote-on-reply error:", promoteErr.message);
+      }
     }
 
     // Run Automated Lead Intake & Missing Info Collection Engine for Email
