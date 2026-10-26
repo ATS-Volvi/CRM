@@ -73,19 +73,8 @@ export const sendEmail = async (
 
   const ccSuffix = cc && cc.length > 0 ? `, cc: [${cc.join(", ")}]` : "";
 
-  const isEnforce = (process.env.INTENT_FILTER_MODE || 'off').toLowerCase() === 'enforce';
-
   if (isDummyKey) {
     console.log(`[Email Service - Simulated] Dispatching email to: ${to}${ccSuffix}, subject: "${subject}"`);
-    try {
-      const nodemailer = require("nodemailer");
-      const transporter = nodemailer.createTransport();
-      if (transporter && typeof transporter.sendMail === "function") {
-        const mailOpts: any = { to, subject, html: htmlContent };
-        if (isEnforce && headers) mailOpts.headers = headers;
-        await transporter.sendMail(mailOpts);
-      }
-    } catch (e) {}
     return {
       id: `<simulated_${Date.now()}@nexus-crm.local>`,
       message: "Queued (simulated/dev mode)",
@@ -103,7 +92,7 @@ export const sendEmail = async (
       html: htmlContent,
     };
     if (cc && cc.length > 0) payload.cc = cc;
-    if (isEnforce && headers) {
+    if (headers) {
       for (const [k, v] of Object.entries(headers)) {
         payload[`h:${k}`] = v;
       }

@@ -198,17 +198,9 @@ export async function routeChannelLead(input: RoutingInput): Promise<RoutingResu
       company: leadData.company || "",
       source: leadData.source
     });
-    const isEnforce = (process.env.INTENT_FILTER_MODE || 'off').toLowerCase() === 'enforce';
-    if (isEnforce) {
-      if (rulesRes.assignedToId && rulesRes.assignmentType !== "PERFORMANCE_BEST_FIT") {
-        assignedToId = rulesRes.assignedToId;
-        assignmentMethod = "assignment-rules";
-      }
-    } else {
-      if (rulesRes.assignedToId) {
-        assignedToId = rulesRes.assignedToId;
-        assignmentMethod = "assignment-rules";
-      }
+    if (rulesRes.assignedToId) {
+      assignedToId = rulesRes.assignedToId;
+      assignmentMethod = "assignment-rules";
     }
   }
 
@@ -216,23 +208,17 @@ export async function routeChannelLead(input: RoutingInput): Promise<RoutingResu
   // Priority 5: Least-Workload Fallback
   // -------------------------------------------------------------
   if (!assignedToId) {
-    const isEnforce = (process.env.INTENT_FILTER_MODE || 'off').toLowerCase() === 'enforce';
     const availableCandidates = activeUsers.filter((u) => u.isAvailable !== false);
 
     if (availableCandidates.length > 0) {
       const candidateWorkloads: { user: any; openCount: number }[] = [];
 
       for (const candidate of availableCandidates) {
-        const dealWhere: any = {
-          status: { [Op.notIn]: TERMINAL_LEAD_STATUSES }
-        };
-        if (isEnforce) {
-          dealWhere.ownerId = candidate.id;
-        } else {
-          dealWhere.assignedToId = candidate.id;
-        }
         const openCount = await Deal.count({
-          where: dealWhere
+          where: {
+            assignedToId: candidate.id,
+            status: { [Op.notIn]: TERMINAL_LEAD_STATUSES }
+          }
         });
         candidateWorkloads.push({ user: candidate, openCount });
       }
