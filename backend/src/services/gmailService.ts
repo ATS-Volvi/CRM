@@ -157,8 +157,13 @@ export const fetchUnreadEmails = async (refreshToken: string): Promise<GmailMess
     const shouldExtractMeta = mode === 'enforce' || mode === 'shadow';
     let emailMeta: any = undefined;
     if (shouldExtractMeta) {
-      const { extractEmailMetadata } = require("../lead-security-layer/intentFilter/headerParser");
-      emailMeta = extractEmailMetadata(msg);
+      try {
+        const { extractEmailMetadata } = require("../lead-security-layer/intentFilter/headerParser");
+        emailMeta = extractEmailMetadata(msg);
+      } catch (err: any) {
+        console.warn("[GmailService] Failed to extract email metadata, proceeding without it:", err?.message || err);
+        emailMeta = undefined;
+      }
     }
 
     const messageItem: any = {

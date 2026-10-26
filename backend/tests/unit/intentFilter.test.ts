@@ -535,5 +535,88 @@ describe('Intent Filter - Unit Tests', () => {
       expect(leaks).toEqual([]);
     });
   });
+
+  describe('Gmail Shadow Safety (extractEmailMetadata try/catch)', () => {
+    it('should catch metadata extraction errors on malformed messages and leave emailMeta undefined without failing sync', async () => {
+      const { fetchUnreadEmails } = require('../../src/services/gmailService');
+      const { google } = require('googleapis');
+      const headerParser = require('../../src/lead-security-layer/intentFilter/headerParser');
+
+      const prevMode = process.env.INTENT_FILTER_MODE;
+      process.env.INTENT_FILTER_MODE = 'shadow';
+
+      const origExtract = headerParser.extractEmailMetadata;
+      const extractSpy = jest.spyOn(headerParser, 'extractEmailMetadata').mockImplementation((m: any) => {
+        if (m && m.id === 'malformed-msg-1') {
+          throw new Error('Malformed RFC headers encountered');
+        }
+        return origExtract(m);
+      });
+
+      const originalGmail = google.gmail;
+      const modifyMock = jest.fn().mockResolvedValue({});
+
+      google.gmail = jest.fn().mockReturnValue({
+        users: {
+          messages: {
+            list: jest.fn().mockResolvedValue({
+              data: {
+                messages: [{ id: 'malformed-msg-1' }, { id: 'valid-msg-2' }]
+              }
+            }),
+            get: jest.fn().mockImplementation(({ id }) => {
+              if (id === 'malformed-msg-1') {
+                return Promise.resolve({
+                  data: {
+                    id: 'malformed-msg-1',
+                    snippet: 'Malformed email body',
+                    internalDate: '1600000000000',
+                    payload: {
+                      headers: [
+                        { name: 'From', value: 'Corrupted <corrupted@example.com>' },
+                        { name: 'Subject', value: 'Malformed Message' }
+                      ]
+                    }
+                  }
+                });
+              }
+              return Promise.resolve({
+                data: {
+                  id: 'valid-msg-2',
+                  snippet: 'Valid email body',
+                  internalDate: '1600000000000',
+                  payload: {
+                    headers: [
+                      { name: 'From', value: 'Valid Sender <valid@example.com>' },
+                      { name: 'Subject', value: 'Valid Subject' }
+                    ]
+                  }
+                }
+              });
+            }),
+            modify: modifyMock
+          }
+        }
+      });
+
+      try {
+        const messages = await fetchUnreadEmails('mock_refresh_token_test');
+        expect(messages.length).toBe(2);
+        // The malformed message must still be processed into parsedMessages
+        expect(messages[0].id).toBe('malformed-msg-1');
+        // emailMeta must safely be undefined
+        expect(messages[0].emailMeta).toBeUndefined();
+        // The valid message must have extracted metadata
+        expect(messages[1].id).toBe('valid-msg-2');
+        expect(messages[1].emailMeta).toBeDefined();
+        expect(messages[1].emailMeta.senderEmail).toBe('valid@example.com');
+      } finally {
+        extractSpy.mockRestore();
+        google.gmail = originalGmail;
+        process.env.INTENT_FILTER_MODE = prevMode;
+      }
+    });
+  });
 });
+
 
