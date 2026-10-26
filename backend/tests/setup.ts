@@ -2,6 +2,17 @@ process.env.USE_SQLITE = "true";
 process.env.DB_DIALECT = "sqlite";
 process.env.DB_STORAGE = "./test.sqlite";
 
+jest.mock("sanitize-html", () => {
+  return jest.fn((str: string, options: any) => {
+    if (!str) return "";
+    let res = str.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "");
+    if (options && options.allowedTags && options.allowedTags.length === 0) {
+      res = res.replace(/<[^>]*>/g, "");
+    }
+    return res;
+  });
+});
+
 import "dotenv/config";
 import { Database, sequelize } from "@nexus-crm/database";
 

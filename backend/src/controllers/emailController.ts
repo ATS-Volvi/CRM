@@ -60,14 +60,17 @@ function extractAttnName(subject: string, bodyText: string): string | null {
   return null;
 }
 
+import { extractEmailMetadata } from "../lead-security-layer/intentFilter/headerParser";
+
 // Normalize different provider payload formats (SendGrid JSON, Mailgun multipart/form-data, URL encoded)
-function normalizeInboundPayload(rawBody: any) {
+function normalizeInboundPayload(rawBody: any, files?: any[]) {
   const b = rawBody || {};
   const from = b.from || b.sender || b.From || b.Sender || "";
   const to = b.to || b.recipient || b.To || b.Recipient || "";
   const subject = b.subject || b.Subject || "No Subject";
   const text = b["stripped-text"] || b["body-plain"] || b.text || b.body || b.Body || "No message body provided.";
-  return { from, to, subject, text };
+  const emailMeta = extractEmailMetadata(rawBody, files);
+  return { from, to, subject, text, emailMeta };
 }
 
 export const receiveInboundEmail = async (req: Request, res: Response) => {
@@ -83,16 +86,18 @@ export const receiveInboundEmail = async (req: Request, res: Response) => {
     const tokenQuery = req.query.auth_token as string;
     const providedToken = tokenHeader || tokenQuery;
 
-    const isAuthorized = !providedToken || 
+    const isAuthorized = Boolean(
       (envSecret && providedToken === envSecret) ||
-      defaultSecrets.includes(providedToken);
+      (providedToken && defaultSecrets.includes(providedToken))
+    );
 
     if (!isAuthorized) {
       return res.status(401).json({ error: "Unauthorized: Invalid or missing INBOUND_EMAIL_SECRET" });
     }
 
     // Normalize inbound payload fields
-    const { from: rawFrom, to: rawTo, subject: emailSubject, text: emailBody } = normalizeInboundPayload(req.body);
+    const files = (req as any).files || (req.file ? [req.file] : []);
+    const { from: rawFrom, to: rawTo, subject: emailSubject, text: emailBody, emailMeta } = normalizeInboundPayload(req.body, files);
     
     if (!rawFrom) {
       return res.status(400).json({ error: "Missing sender information ('from' or 'sender')" });

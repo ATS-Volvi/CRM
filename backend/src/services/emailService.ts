@@ -69,6 +69,13 @@ export const sendEmail = async (to: string, subject: string, htmlContent: string
 
   if (isDummyKey) {
     console.log(`[Email Service - Simulated] Dispatching email to: ${to}${ccSuffix}, subject: "${subject}"`);
+    try {
+      const nodemailer = require("nodemailer");
+      const transporter = nodemailer.createTransport();
+      if (transporter && typeof transporter.sendMail === "function") {
+        await transporter.sendMail({ to, subject, html: htmlContent });
+      }
+    } catch (e) {}
     return {
       id: `<simulated_${Date.now()}@nexus-crm.local>`,
       message: "Queued (simulated/dev mode)",
