@@ -7,6 +7,7 @@ import { evaluateInboundEmail } from "../lead-security-layer/intentFilter";
 import { extractEmailMetadata } from "../lead-security-layer/intentFilter/headerParser";
 import { handlePromoteOnReply } from "../lead-security-layer/intentFilter/autoReplyService";
 import { attachEmailToLeadActivity } from "../lead-security-layer/intentFilter/attachActivity";
+import { getSenderContext } from "../lead-security-layer/intentFilter/senderContext";
 
 export const getGmailAuthUrl = async (req: Request, res: Response) => {
   try {
@@ -151,7 +152,17 @@ export const syncGmail = async (req: Request, res: Response) => {
           }
 
           if (intentVerdict && intentVerdict.action === "ATTACH_EXISTING") {
-            const targetLeadId = intentVerdict.openLeadId;
+            let targetLeadId = intentVerdict.openLeadId;
+            if (!targetLeadId) {
+              try {
+                const ctx = await getSenderContext(email.senderEmail);
+                targetLeadId = ctx.openLeadId;
+              } catch (ctxErr: any) {
+                console.warn("[gmailController] Failed to get sender context fallback:", ctxErr?.message);
+              }
+            }
+
+            let attachedSuccessfully = false;
             if (targetLeadId) {
               try {
                 await attachEmailToLeadActivity({
@@ -161,14 +172,20 @@ export const syncGmail = async (req: Request, res: Response) => {
                   createdById: null,
                   channelSource: "gmail"
                 });
+                attachedSuccessfully = true;
               } catch (actErr: any) {
                 console.warn("[gmailController] Activity attach error:", actErr.message);
               }
             }
-            continue;
+
+            if (attachedSuccessfully) {
+              continue;
+            }
+            // On attach failure (missing leadId or attach threw), do NOT continue; create the lead instead!
           }
 
           if (intentVerdict && ["PENDING_CLARIFY", "REVIEW", "ARCHIVE"].includes(intentVerdict.action)) {
+            let holdWritten = false;
             if (FlaggedLead) {
               try {
                 await FlaggedLead.create({
@@ -189,11 +206,16 @@ export const syncGmail = async (req: Request, res: Response) => {
                   subject: email.subject,
                   reviewed: false
                 });
+                holdWritten = true;
               } catch (flagErr: any) {
                 console.warn("[gmailController] FlaggedLead create error:", flagErr.message);
               }
             }
-            continue;
+
+            if (holdWritten) {
+              continue;
+            }
+            // On hold failure (FlaggedLead write threw or missing), do NOT continue; create the lead instead!
           }
 
           const newLeadId = await ingestLead({
