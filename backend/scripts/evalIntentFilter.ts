@@ -758,7 +758,7 @@ async function main() {
   }
 
   console.log(`Corpus Breakdown:`);
-  console.log(`  - Held-out Dataset A (NOT in few-shot json): ${heldOutCombined.length} cases`);
+  console.log(`  - Dataset A (57 cases previously used for tuning): ${heldOutCombined.length} cases`);
   console.log(`  - Few-shot Dataset B (intentExamples.json):  ${fewShotCases.length} cases\n`);
 
   const shouldCompare = process.env.COMPARE_PROVIDERS === 'true' || process.argv.includes('--compare');
@@ -787,7 +787,7 @@ async function main() {
 
     // Print Side-by-Side Comparison
     printSideBySideMatrices(
-      'Held-Out Test Cases (NOT in few-shot json, N = 57)',
+      'Previously Used for Tuning (N = 57)',
       { name: 'OpenRouter (Llama 3.1 8B)', result: p1HeldOut },
       { name: 'Anthropic (Claude Haiku 5.5)', result: p2HeldOut }
     );

@@ -182,6 +182,7 @@ async function callOpenRouterWithTimeout(text: string, timeoutMs: number): Promi
       },
       body: JSON.stringify({
         model,
+        max_tokens: 1000,
         messages: [
           { role: 'system', content: getSystemPrompt() },
           { role: 'user', content: `<email>\n${text}\n</email>` },
@@ -220,7 +221,7 @@ async function callAnthropicWithTimeout(text: string, timeoutMs: number): Promis
 
       const apiCall = client.messages.create({
         model,
-        max_tokens: 250,
+        max_tokens: 1000,
         system: getSystemPrompt(),
         messages: [
           {
