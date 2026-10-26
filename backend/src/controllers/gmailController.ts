@@ -94,7 +94,78 @@ export const syncGmail = async (req: Request, res: Response) => {
       const emails = await fetchUnreadEmails(decrypted);
 
       for (const email of emails) {
-        await ingestLead({
+        const { evaluateInboundEmail } = require("../lead-security-layer/intentFilter");
+        const { extractEmailMetadata } = require("../lead-security-layer/intentFilter/headerParser");
+        const { cleanEmailText } = require("../lead-security-layer/intentFilter/cleanText");
+        const { handleDealInboundActivity } = require("../services/leadTemperatureService");
+        const { handlePromoteOnReply } = require("../lead-security-layer/intentFilter/autoReplyService");
+        const { Activity, Lead, FlaggedLead } = require("@nexus-crm/database");
+
+        const emailMeta = email.emailMeta || extractEmailMetadata(email.rawPayload);
+        let intentVerdict: any = null;
+        try {
+          intentVerdict = await evaluateInboundEmail("email", emailMeta, email.body);
+        } catch (err: any) {
+          intentVerdict = { action: "REVIEW", label: "too_vague", score: 50, reason: err.message };
+        }
+
+        if (intentVerdict.action === "ATTACH_EXISTING") {
+          const targetLeadId = intentVerdict.openLeadId;
+          if (targetLeadId && Activity) {
+            try {
+              await Activity.create({
+                id: require("crypto").randomUUID(),
+                type: "Email Received",
+                subject: email.subject || "Email Received",
+                body: cleanEmailText(email.body) || email.body,
+                outcome: `Gmail sync email attached: ${email.subject || "No Subject"}`,
+                leadId: targetLeadId,
+                pinned: false,
+                priority: "Medium",
+                direction: "inbound"
+              });
+              const openLead = await Lead.findByPk(targetLeadId);
+              if (openLead) {
+                (openLead as any).lastInboundAt = new Date();
+                await openLead.save();
+              }
+              await handleDealInboundActivity(targetLeadId);
+            } catch (actErr: any) {
+              console.warn("[gmailController] Activity attach error:", actErr.message);
+            }
+          }
+          continue;
+        }
+
+        if (["PENDING_CLARIFY", "REVIEW", "ARCHIVE"].includes(intentVerdict.action)) {
+          if (FlaggedLead) {
+            try {
+              await FlaggedLead.create({
+                id: require("crypto").randomUUID(),
+                payload: email.rawPayload,
+                source: "Gmail Connector",
+                channel: "email",
+                reason: intentVerdict.reason,
+                disposition: intentVerdict.action === "PENDING_CLARIFY"
+                  ? "pending_clarification"
+                  : intentVerdict.action === "ARCHIVE"
+                  ? "archived"
+                  : "review",
+                intentLabel: intentVerdict.label,
+                intentScore: intentVerdict.score,
+                explanation: intentVerdict.reason,
+                senderEmail: email.senderEmail,
+                subject: email.subject,
+                reviewed: false
+              });
+            } catch (flagErr: any) {
+              console.warn("[gmailController] FlaggedLead create error:", flagErr.message);
+            }
+          }
+          continue;
+        }
+
+        const newLeadId = await ingestLead({
           firstName: email.senderName.split(" ")[0] || "Unknown",
           lastName: email.senderName.split(" ").slice(1).join(" ") || "Sender",
           email: email.senderEmail,
@@ -103,9 +174,15 @@ export const syncGmail = async (req: Request, res: Response) => {
           source: "Gmail Connector",
           sourceDetail: `Email Subject: ${email.subject}`,
           message: email.body,
-          rawPayload: email.rawPayload
+          rawPayload: { ...(email.rawPayload || {}), skipIntentGate: true }
         });
-        ingestedCount++;
+
+        if (newLeadId) {
+          ingestedCount++;
+          try {
+            await handlePromoteOnReply(email.senderEmail, newLeadId);
+          } catch (e) {}
+        }
       }
     }
 
