@@ -116,17 +116,10 @@ export const syncGmail = async (req: Request, res: Response) => {
           ingestedCount++;
         }
       } else if (mode === "shadow") {
-        // Mode SHADOW: Wrap metadata extraction, evaluation and logging in one try/catch
-        // Ingestion always runs identically to main
+        // Mode SHADOW: Run ingestLead first (identical to main), then evaluate gate
+        // inside try/catch with a bounded timeout, linking the created leadId.
         for (const email of emails) {
-          try {
-            const emailMeta = email.emailMeta || extractEmailMetadata(email.rawPayload);
-            await evaluateInboundEmail("email", emailMeta, email.body);
-          } catch (gateErr: any) {
-            console.warn("[gmailController] Shadow gate error:", gateErr.message);
-          }
-
-          await ingestLead({
+          const leadId = await ingestLead({
             firstName: email.senderName.split(" ")[0] || "Unknown",
             lastName: email.senderName.split(" ").slice(1).join(" ") || "Sender",
             email: email.senderEmail,
@@ -138,6 +131,25 @@ export const syncGmail = async (req: Request, res: Response) => {
             rawPayload: email.rawPayload
           });
           ingestedCount++;
+
+          try {
+            const emailMeta = email.emailMeta || extractEmailMetadata(email.rawPayload);
+            let timer: NodeJS.Timeout;
+            const timeoutPromise = new Promise((_, reject) => {
+              timer = setTimeout(() => reject(new Error("Shadow gate evaluation timeout")), 2000);
+              if (timer.unref) timer.unref();
+            });
+            try {
+              await Promise.race([
+                evaluateInboundEmail("email", emailMeta, email.body, leadId),
+                timeoutPromise
+              ]);
+            } finally {
+              clearTimeout(timer!);
+            }
+          } catch (gateErr: any) {
+            console.warn("[gmailController] Shadow gate error:", gateErr.message);
+          }
         }
       } else {
         // Mode ENFORCE: Gate runs before ingestion
