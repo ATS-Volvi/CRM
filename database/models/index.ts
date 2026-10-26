@@ -2333,6 +2333,17 @@ export class FlaggedLead extends Model {
   public ip!: string | null;
   public reason!: string;
   public reviewed!: boolean;
+  public channel!: string | null;
+  public disposition!: string | null; // review | pending_clarification | archived | promoted | rejected
+  public intentLabel!: string | null;
+  public intentScore!: number | null;
+  public explanation!: string | null;
+  public senderEmail!: string | null;
+  public subject!: string | null;
+  public promotedLeadId!: string | null;
+  public reviewedById!: string | null;
+  public reviewedAt!: Date | null;
+  public autoReplySentAt!: Date | null;
   public createdAt!: Date;
   public updatedAt!: Date;
 }
@@ -2345,9 +2356,85 @@ FlaggedLead.init(
     ip: { type: DataTypes.STRING, allowNull: true },
     reason: { type: DataTypes.STRING, allowNull: false },
     reviewed: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    channel: { type: DataTypes.STRING, allowNull: true, defaultValue: "email" },
+    disposition: { type: DataTypes.STRING, allowNull: true, defaultValue: "review" },
+    intentLabel: { type: DataTypes.STRING, allowNull: true },
+    intentScore: { type: DataTypes.INTEGER, allowNull: true },
+    explanation: { type: DataTypes.TEXT, allowNull: true },
+    senderEmail: { type: DataTypes.STRING, allowNull: true },
+    subject: { type: DataTypes.STRING, allowNull: true },
+    promotedLeadId: { type: DataTypes.UUID, allowNull: true },
+    reviewedById: { type: DataTypes.UUID, allowNull: true },
+    reviewedAt: { type: DataTypes.DATE, allowNull: true },
+    autoReplySentAt: { type: DataTypes.DATE, allowNull: true },
   },
   { sequelize, modelName: "FlaggedLead", tableName: "FlaggedLeads" }
 );
+
+export class IntentDecision extends Model {
+  public id!: string;
+  public channel!: string;
+  public senderEmail!: string;
+  public subject!: string | null;
+  public label!: string;
+  public leadScore!: number;
+  public confidence!: string;
+  public action!: string;
+  public reason!: string | null;
+  public language!: string | null;
+  public wouldHaveBlocked!: boolean;
+  public enforced!: boolean;
+  public leadId!: string | null;
+  public createdAt!: Date;
+  public updatedAt!: Date;
+}
+
+IntentDecision.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    channel: { type: DataTypes.STRING, allowNull: false, defaultValue: "email" },
+    senderEmail: { type: DataTypes.STRING, allowNull: false },
+    subject: { type: DataTypes.STRING, allowNull: true },
+    label: { type: DataTypes.STRING, allowNull: false },
+    leadScore: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 50 },
+    confidence: { type: DataTypes.STRING, allowNull: false, defaultValue: "medium" },
+    action: { type: DataTypes.STRING, allowNull: false },
+    reason: { type: DataTypes.TEXT, allowNull: true },
+    language: { type: DataTypes.STRING, allowNull: true, defaultValue: "en" },
+    wouldHaveBlocked: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    enforced: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    leadId: { type: DataTypes.UUID, allowNull: true },
+  },
+  { sequelize, modelName: "IntentDecision", tableName: "IntentDecisions" }
+);
+
+export class SenderRule extends Model {
+  public id!: string;
+  public type!: "allow" | "block";
+  public matchType!: "email" | "domain";
+  public value!: string;
+  public createdById!: string | null;
+  public note!: string | null;
+  public createdAt!: Date;
+  public updatedAt!: Date;
+}
+
+SenderRule.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    type: { type: DataTypes.STRING, allowNull: false },
+    matchType: { type: DataTypes.STRING, allowNull: false },
+    value: { type: DataTypes.STRING, allowNull: false },
+    createdById: { type: DataTypes.UUID, allowNull: true },
+    note: { type: DataTypes.TEXT, allowNull: true },
+  },
+  { sequelize, modelName: "SenderRule", tableName: "SenderRules" }
+);
+
+FlaggedLead.belongsTo(User, { foreignKey: "reviewedById", as: "reviewedBy" });
+FlaggedLead.belongsTo(Lead, { foreignKey: "promotedLeadId", as: "promotedLead" });
+IntentDecision.belongsTo(Lead, { foreignKey: "leadId", as: "lead" });
+SenderRule.belongsTo(User, { foreignKey: "createdById", as: "createdBy" });
 
 // ─── Campaign & Attribution Associations ─────────────────────────────────────
 User.hasMany(Campaign, { foreignKey: "ownerId", as: "campaigns" });
