@@ -49,18 +49,21 @@ export async function spamRules(lead: Record<string, any>, meta?: Record<string,
   // covers accidental double-submits and simple retry-bots alike.
   // Exception: skipped for email channel when the sender has an open lead (handled as ATTACH_EXISTING).
   if (lead.email) {
-    const isEmailChannel = (meta?.source || lead.source || '').toLowerCase().includes('email');
-    if (isEmailChannel) {
-      const openLead = await Lead.findOne({
-        where: {
-          email: lead.email,
-          status: {
-            [Op.notIn]: ['Won', 'Lost', 'Closed', 'Closed Won', 'Closed Lost', 'Not Converted', 'Archived'],
+    const isEnforce = (process.env.INTENT_FILTER_MODE || 'off').toLowerCase() === 'enforce';
+    if (isEnforce) {
+      const isEmailChannel = (meta?.source || lead.source || '').toLowerCase().includes('email');
+      if (isEmailChannel) {
+        const openLead = await Lead.findOne({
+          where: {
+            email: lead.email,
+            status: {
+              [Op.notIn]: ['Won', 'Lost', 'Closed', 'Closed Won', 'Closed Lost', 'Not Converted', 'Archived'],
+            },
           },
-        },
-      });
-      if (openLead) {
-        return { isSpam: false };
+        });
+        if (openLead) {
+          return { isSpam: false };
+        }
       }
     }
 

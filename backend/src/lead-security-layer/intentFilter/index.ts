@@ -65,8 +65,9 @@ export async function evaluateInboundEmail(
     emailMeta.senderName = headerResult.effectiveSenderName || emailMeta.senderName;
   }
 
-  // 3. Clean Text
-  const cleanedText = cleanEmailText(rawText);
+  // 3. Clean Text (include subject + body so subjects with intent words like "Quote" or "Price" are recognized)
+  const fullText = `${emailMeta.subject || ''} ${rawText}`.trim();
+  const cleanedText = cleanEmailText(fullText);
 
   // 4. No Content / Low Token Filter
   const noContentResult = checkNoContent(cleanedText, emailMeta.hasAttachments);

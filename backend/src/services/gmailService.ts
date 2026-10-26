@@ -153,10 +153,14 @@ export const fetchUnreadEmails = async (refreshToken: string): Promise<GmailMess
     const phoneMatch = body.match(/[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}/);
     const phone = phoneMatch ? phoneMatch[0] : "";
 
-    const { extractEmailMetadata } = require("../lead-security-layer/intentFilter/headerParser");
-    const emailMeta = extractEmailMetadata(msg);
+    const isEnforce = (process.env.INTENT_FILTER_MODE || 'off').toLowerCase() === 'enforce';
+    let emailMeta: any = undefined;
+    if (isEnforce) {
+      const { extractEmailMetadata } = require("../lead-security-layer/intentFilter/headerParser");
+      emailMeta = extractEmailMetadata(msg);
+    }
 
-    parsedMessages.push({
+    const messageItem: any = {
       id: msgInfo.id,
       senderName,
       senderEmail,
@@ -164,9 +168,13 @@ export const fetchUnreadEmails = async (refreshToken: string): Promise<GmailMess
       subject,
       body,
       date: msg.internalDate ? new Date(parseInt(msg.internalDate)) : new Date(),
-      rawPayload: msg,
-      emailMeta
-    });
+      rawPayload: msg
+    };
+    if (isEnforce && emailMeta) {
+      messageItem.emailMeta = emailMeta;
+    }
+
+    parsedMessages.push(messageItem);
 
     // Mark message as read
     await gmail.users.messages.modify({

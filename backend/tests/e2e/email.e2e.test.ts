@@ -20,6 +20,7 @@ describe("E2E: Email Delivery Automation", () => {
 
   beforeAll(async () => {
     process.env.INBOUND_EMAIL_SECRET = "test_secret";
+    process.env.INTENT_FILTER_MODE = "enforce";
     nodemailer = require("nodemailer");
     transporter = nodemailer.createTransport();
 
@@ -59,8 +60,11 @@ describe("E2E: Email Delivery Automation", () => {
     });
   });
 
-  beforeEach(() => {
+  beforeEach(async () => {
     transporter.sendMail.mockClear();
+    try {
+      await sequelize.models.Lead.destroy({ where: { email: "client@example.com" } });
+    } catch (e) {}
   });
 
   it("should trigger an automated email when a new public lead is captured", async () => {
@@ -827,5 +831,129 @@ describe("E2E: Intent Filter Fail-Safe & Resilience", () => {
     // Verify lead was NOT created for content-free greeting
     const created = await sequelize.models.Lead.findOne({ where: { email: testEmail } });
     expect(created).toBeNull();
+  });
+
+  describe("E2E: Shadow and Off Equivalence to Main", () => {
+    beforeEach(() => {
+      process.env.INBOUND_EMAIL_SECRET = "test_secret";
+      const { _setIntentHandler } = require("../../src/lead-security-layer/intentFilter/intentClassifier");
+      _setIntentHandler(async (meta: any, text: string) => ({
+        label: "new_enquiry",
+        leadScore: 85,
+        confidence: "high",
+        language: "en",
+        reason: "Valid prospective enquiry"
+      }));
+    });
+
+    it("in shadow mode: email webhook creates identical lead and enforces 5-min duplicate spamRule identically to main", async () => {
+      process.env.INTENT_FILTER_MODE = "shadow";
+      const testEmail = `shadow_equiv_${require('crypto').randomUUID()}@company.com`;
+      const payload = {
+        from: `Buyer <${testEmail}>`,
+        to: "sales@nexus.com",
+        subject: "Modular units quote",
+        text: "Need quote for 10 units."
+      };
+
+      // 1. First submission creates lead and assigns
+      const res1 = await request(app)
+        .post("/api/v1/emails/inbound?auth_token=test_secret")
+        .send(payload);
+
+      expect(res1.status).toBe(201);
+      expect(res1.body.leadId).toBeDefined();
+
+      const lead1 = await sequelize.models.Lead.findByPk(res1.body.leadId);
+      expect(lead1).not.toBeNull();
+      expect((lead1 as any).email).toBe(testEmail);
+      expect((lead1 as any).source).toBe("email");
+      expect((lead1 as any).assignedToId).toBeDefined();
+
+      // 2. Immediate duplicate submission within 5 minutes triggers spamRules duplicate check
+      const res2 = await request(app)
+        .post("/api/v1/emails/inbound?auth_token=test_secret")
+        .send(payload);
+
+      expect(res2.status).toBe(202);
+      expect(res2.body.status).toBe("held_for_review");
+
+      // Verify no second lead was created (duplicate_submission blocked second lead)
+      const allLeads = await sequelize.models.Lead.findAll({ where: { email: testEmail } });
+      expect(allLeads.length).toBe(1);
+      expect((allLeads[0] as any).id).toBe((lead1 as any).id);
+    });
+
+    it("in off mode: email webhook creates identical lead and enforces 5-min duplicate spamRule identically to main", async () => {
+      process.env.INTENT_FILTER_MODE = "off";
+      const testEmail = `off_equiv_${require('crypto').randomUUID()}@company.com`;
+      const payload = {
+        from: `Buyer <${testEmail}>`,
+        to: "sales@nexus.com",
+        subject: "Site cabins enquiry",
+        text: "Please send pricing for site cabins."
+      };
+
+      // 1. First submission creates lead
+      const res1 = await request(app)
+        .post("/api/v1/emails/inbound?auth_token=test_secret")
+        .send(payload);
+
+      expect(res1.status).toBe(201);
+      expect(res1.body.leadId).toBeDefined();
+
+      // 2. Immediate duplicate submission triggers spamRules
+      const res2 = await request(app)
+        .post("/api/v1/emails/inbound?auth_token=test_secret")
+        .send(payload);
+
+      expect(res2.status).toBe(202);
+      expect(res2.body.status).toBe("held_for_review");
+
+      // Verify no second lead was created
+      const allLeads = await sequelize.models.Lead.findAll({ where: { email: testEmail } });
+      expect(allLeads.length).toBe(1);
+      expect((allLeads[0] as any).id).toBe(res1.body.leadId);
+    });
+
+    it("in enforce mode: second substantive email attaches to open lead rather than spam drop", async () => {
+      process.env.INTENT_FILTER_MODE = "enforce";
+      const testEmail = `enforce_equiv_${require('crypto').randomUUID()}@company.com`;
+
+      // 1. Initial valid enquiry creates lead
+      const res1 = await request(app)
+        .post("/api/v1/emails/inbound?auth_token=test_secret")
+        .send({
+          from: `Buyer <${testEmail}>`,
+          to: "sales@nexus.com",
+          subject: "Initial quote request",
+          text: "We need 10 portacabins for our site."
+        });
+
+      expect(res1.status).toBe(201);
+      const leadId = res1.body.leadId;
+
+      // 2. Follow-up email from sender attaches to existing lead
+      const res2 = await request(app)
+        .post("/api/v1/emails/inbound?auth_token=test_secret")
+        .send({
+          from: `Buyer <${testEmail}>`,
+          to: "sales@nexus.com",
+          subject: "Re: Initial quote request",
+          text: "Also please quote delivery to Riyadh."
+        });
+
+      expect(res2.status).toBe(202);
+      expect(res2.body.status).toBe("attached");
+      expect(res2.body.action).toBe("ATTACH_EXISTING");
+
+      // Verify activity was attached to original lead
+      const activities = await sequelize.models.Activity.findAll({ where: { leadId } });
+      expect(activities.length).toBeGreaterThanOrEqual(1);
+
+      // Verify still only 1 lead exists
+      const allLeads = await sequelize.models.Lead.findAll({ where: { email: testEmail } });
+      expect(allLeads.length).toBe(1);
+    });
   });
 });
