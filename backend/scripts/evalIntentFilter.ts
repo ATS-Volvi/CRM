@@ -647,6 +647,28 @@ function printMatrix(res: DatasetResult) {
   console.log('===============================================================\n');
 }
 
+function printSideBySideMatrices(
+  datasetName: string,
+  modelA: { name: string; result: DatasetResult },
+  modelB: { name: string; result: DatasetResult }
+) {
+  const pad = (s: string | number, n: number) => String(s).padEnd(n);
+  console.log(`====================================================================================================`);
+  console.log(`                     SIDE-BY-SIDE CONFUSION MATRIX COMPARISON: ${datasetName.toUpperCase()}`);
+  console.log(`====================================================================================================`);
+  console.log(` Metric / Matrix Cell        | ${pad(modelA.name, 34)} | ${pad(modelB.name, 34)}`);
+  console.log(`-----------------------------+------------------------------------+-----------------------------------`);
+  console.log(` True Positives (TP)         | ${pad(modelA.result.truePositives, 34)} | ${pad(modelB.result.truePositives, 34)}`);
+  console.log(` True Negatives (TN)         | ${pad(modelA.result.trueNegatives, 34)} | ${pad(modelB.result.trueNegatives, 34)}`);
+  console.log(` False Positives (FP)        | ${pad(modelA.result.falsePositives, 34)} | ${pad(modelB.result.falsePositives, 34)}`);
+  console.log(` False Negatives (FN - CRIT) | ${pad(modelA.result.falseNegatives, 34)} | ${pad(modelB.result.falseNegatives, 34)}`);
+  console.log(`-----------------------------+------------------------------------+-----------------------------------`);
+  console.log(` Accuracy                    | ${pad(modelA.result.accuracy.toFixed(1) + '%', 34)} | ${pad(modelB.result.accuracy.toFixed(1) + '%', 34)}`);
+  console.log(` Precision                   | ${pad(modelA.result.precision.toFixed(1) + '%', 34)} | ${pad(modelB.result.precision.toFixed(1) + '%', 34)}`);
+  console.log(` Recall (Sales Safety)       | ${pad(modelA.result.recall.toFixed(1) + '%', 34)} | ${pad(modelB.result.recall.toFixed(1) + '%', 34)}`);
+  console.log(`====================================================================================================\n`);
+}
+
 async function main() {
   console.log('======================================================================');
   console.log('      NEXUS CRM: EMAIL INTENT FILTER HONEST EVALUATION REPORT        ');
@@ -739,12 +761,52 @@ async function main() {
   console.log(`  - Held-out Dataset A (NOT in few-shot json): ${heldOutCombined.length} cases`);
   console.log(`  - Few-shot Dataset B (intentExamples.json):  ${fewShotCases.length} cases\n`);
 
-  // Run Evaluation on Dataset A: Held-out cases
+  const shouldCompare = process.env.COMPARE_PROVIDERS === 'true' || process.argv.includes('--compare');
+
+  if (shouldCompare && useRealModel) {
+    console.log(`[MODE]: Running Side-by-Side Comparison between OpenRouter (Llama 3.1 8B) and Anthropic (Claude Haiku 5.5)...\n`);
+
+    // 1. Run Provider 1: OpenRouter Llama 3.1 8B
+    process.env.AI_MODERATION_PROVIDER = 'openrouter';
+    process.env.INTENT_MODEL = 'meta-llama/llama-3.1-8b-instruct';
+    const { _clearClassifierCache } = require('../src/lead-security-layer/intentFilter/intentClassifier');
+    _clearClassifierCache();
+
+    console.log(`Evaluating Provider 1: OpenRouter (meta-llama/llama-3.1-8b-instruct)...`);
+    const p1HeldOut = await evaluateDataset(heldOutCombined, 'Provider 1 Held-Out', true);
+    const p1FewShot = await evaluateDataset(fewShotCases, 'Provider 1 Few-Shot', true);
+
+    // 2. Run Provider 2: Anthropic Claude Haiku 5.5
+    process.env.AI_MODERATION_PROVIDER = 'anthropic';
+    process.env.INTENT_MODEL = 'claude-haiku-5-5';
+    _clearClassifierCache();
+
+    console.log(`Evaluating Provider 2: Anthropic (claude-haiku-5-5)...`);
+    const p2HeldOut = await evaluateDataset(heldOutCombined, 'Provider 2 Held-Out', true);
+    const p2FewShot = await evaluateDataset(fewShotCases, 'Provider 2 Few-Shot', true);
+
+    // Print Side-by-Side Comparison
+    printSideBySideMatrices(
+      'Held-Out Test Cases (NOT in few-shot json, N = 57)',
+      { name: 'OpenRouter (Llama 3.1 8B)', result: p1HeldOut },
+      { name: 'Anthropic (Claude Haiku 5.5)', result: p2HeldOut }
+    );
+
+    printSideBySideMatrices(
+      'Few-Shot Training Examples (N = 23)',
+      { name: 'OpenRouter (Llama 3.1 8B)', result: p1FewShot },
+      { name: 'Anthropic (Claude Haiku 5.5)', result: p2FewShot }
+    );
+
+    console.log('Comparative evaluation completed successfully.');
+    return;
+  }
+
+  // Single run (default or specified by env)
   console.log(`Running evaluation on Dataset A (Held-Out Cases)...`);
   const resultA = await evaluateDataset(heldOutCombined, 'Dataset A: Held-Out Cases (NOT in few-shot json)', useRealModel);
   printMatrix(resultA);
 
-  // Run Evaluation on Dataset B: Few-Shot Training Examples
   console.log(`Running evaluation on Dataset B (Few-Shot Training Examples)...`);
   const resultB = await evaluateDataset(fewShotCases, 'Dataset B: Few-Shot Training Examples (intentExamples.json)', useRealModel);
   printMatrix(resultB);

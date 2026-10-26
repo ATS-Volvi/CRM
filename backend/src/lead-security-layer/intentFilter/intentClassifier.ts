@@ -209,30 +209,56 @@ async function callOpenRouterWithTimeout(text: string, timeoutMs: number): Promi
 }
 
 async function callAnthropicWithTimeout(text: string, timeoutMs: number): Promise<any> {
-  const Anthropic = require('@anthropic-ai/sdk');
-  const client = new Anthropic();
-  const model = process.env.INTENT_MODEL || 'claude-haiku-4-5-20251001';
+  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  // If direct Anthropic key is present and looks valid (length > 80), attempt direct Anthropic SDK
+  if (anthropicKey && anthropicKey.startsWith('sk-ant-api') && anthropicKey.length > 80) {
+    try {
+      const Anthropic = require('@anthropic-ai/sdk');
+      const client = new Anthropic({ apiKey: anthropicKey });
+      const rawModel = process.env.INTENT_MODEL || 'claude-haiku-5-5';
+      const model = rawModel.replace(/^anthropic\//, '').replace(/claude-haiku-5\.5/, 'claude-haiku-5-5');
 
-  // Promise with race timeout
-  const apiCall = client.messages.create({
-    model,
-    max_tokens: 250,
-    system: getSystemPrompt(),
-    messages: [
-      {
-        role: 'user',
-        content: `<email>\n${text}\n</email>`,
-      },
-    ],
-  });
+      const apiCall = client.messages.create({
+        model,
+        max_tokens: 250,
+        system: getSystemPrompt(),
+        messages: [
+          {
+            role: 'user',
+            content: `<email>\n${text}\n</email>`,
+          },
+        ],
+      });
 
-  const timeoutPromise = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error(`Anthropic call timed out after ${timeoutMs}ms`)), timeoutMs)
-  );
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error(`Anthropic call timed out after ${timeoutMs}ms`)), timeoutMs)
+      );
 
-  const response: any = await Promise.race([apiCall, timeoutPromise]);
-  const raw = response.content?.find((b: any) => b.type === 'text')?.text || '{}';
-  return parseAiVerdict(raw);
+      const response: any = await Promise.race([apiCall, timeoutPromise]);
+      const raw = response.content?.find((b: any) => b.type === 'text')?.text || '{}';
+      return parseAiVerdict(raw);
+    } catch (err: any) {
+      if (!process.env.OPENROUTER_API_KEY) throw err;
+      // Fall through to OpenRouter bridge
+    }
+  }
+
+  // OpenRouter bridge for Anthropic models (e.g. anthropic/claude-haiku-5.5)
+  if (process.env.OPENROUTER_API_KEY) {
+    const origModel = process.env.INTENT_MODEL;
+    let modelSlug = origModel || 'claude-haiku-5.5';
+    if (!modelSlug.startsWith('anthropic/')) {
+      modelSlug = `anthropic/${modelSlug.replace(/claude-haiku-5-5/g, 'claude-haiku-5.5')}`;
+    }
+    process.env.INTENT_MODEL = modelSlug;
+    try {
+      return await callOpenRouterWithTimeout(text, timeoutMs);
+    } finally {
+      process.env.INTENT_MODEL = origModel;
+    }
+  }
+
+  throw new Error('ANTHROPIC_API_KEY is not configured or is invalid, and no fallback key is available');
 }
 
 export function _setIntentHandler(
