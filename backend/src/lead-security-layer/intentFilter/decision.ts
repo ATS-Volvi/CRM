@@ -170,8 +170,12 @@ export function decide(
     };
   }
 
-  // 8. Genuine new lead enquiry with score >= INTENT_CREATE_MIN and not low confidence
-  if (label === 'new_enquiry' && leadScore >= createMin && confidence !== 'low') {
+  // 8. Genuine new lead enquiry with score >= INTENT_CREATE_MIN or high confidence
+  if (
+    label === 'new_enquiry' &&
+    (leadScore >= createMin || (confidence === 'high' && leadScore >= 50)) &&
+    confidence !== 'low'
+  ) {
     return {
       action: 'CREATE_LEAD',
       label: 'new_enquiry',

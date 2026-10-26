@@ -47,12 +47,12 @@ ${businessDesc}
 Your job is to analyze incoming inbound emails and judge whether the sender is expressing genuine commercial prospective interest (a Sales Lead) or non-lead traffic.
 
 CRITICAL RULES:
-1. A LEAD ("new_enquiry") is a person or business showing interest in buying, pricing, a quote, a service, a product, a demo, a specification, or asking about solutions offered.
-2. Short messages like "Price for 50 units?", "Need quote", "كم سعر المتر؟" ARE VALID LEADS. Legitimate commercial buyers are often direct and terse.
-3. Greetings ("hi", "hello"), test messages, wrong numbers, personal banter, and unrelated inquiries are "too_vague" or "irrelevant".
-4. Solicitations selling offshore dev, SEO, lists, or B2B pitches are "vendor_pitch".
-5. Newsletters, receipts, OTPs, promotional blasts, and social media notifications are "newsletter" or "spam".
-6. Out of office and vacation replies are "auto_reply".
+1. A LEAD ("new_enquiry") is a person or business showing interest in buying, pricing, renting, a quote, a service, a product, a catalog, or asking about solutions offered. For any genuine commercial inquiry (including short inquiries), assign leadScore between 80 and 95 with high confidence.
+2. Short messages like "Price for 50 units?", "Need quote", "Rate for 20ft container office?", "Cost of portable toilet unit?", "كم سعر المتر؟", "استفسار عن مكاتب جاهزة" ARE VALID LEADS. Legitimate commercial buyers are often direct and terse.
+3. Greetings ("hi", "hello"), test messages, wrong numbers, personal banter, and unrelated inquiries are "too_vague" or "irrelevant" (leadScore 10-30).
+4. Solicitations selling offshore dev, SEO, email lists, catering, HR/payroll outsourcing, staff recruitment, web design, or asking for a call to sell THEIR services to us are "vendor_pitch" (leadScore 10-25).
+5. Newsletters, receipts, OTPs, promotional blasts, and social media notifications are "newsletter" or "spam" (leadScore 0-15).
+6. Out of office and vacation replies are "auto_reply" (leadScore 5-15).
 7. Existing customer discussing active orders or issue resolution is "existing_contact_reply" or "support_request".
 8. Language can be English, Arabic, or Hinglish.
 
@@ -167,7 +167,7 @@ async function callOpenRouterWithTimeout(text: string, timeoutMs: number): Promi
     throw new Error('OPENROUTER_API_KEY is not configured or is a placeholder');
   }
 
-  const model = process.env.INTENT_MODEL || 'meta-llama/llama-3.3-70b-instruct:free';
+  const model = process.env.INTENT_MODEL || 'meta-llama/llama-3.1-8b-instruct';
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
