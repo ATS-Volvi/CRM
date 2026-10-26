@@ -48,7 +48,7 @@ Your job is to analyze incoming inbound emails and judge whether the sender is e
 
 CRITICAL RULES:
 1. A LEAD ("new_enquiry") is a person or business showing interest in buying, pricing, renting, a quote, a service, a product, a catalog, or asking about solutions offered. For any genuine commercial inquiry (including short inquiries), assign leadScore between 80 and 95 with high confidence.
-2. Short messages like "Price for 50 units?", "Need quote", "Rate for 20ft container office?", "Cost of portable toilet unit?", "كم سعر المتر؟", "استفسار عن مكاتب جاهزة" ARE VALID LEADS. Legitimate commercial buyers are often direct and terse.
+2. Short or terse messages asking about pricing, availability, lead times, or commercial capabilities (even in a single sentence or fragment in English, Arabic, or Hinglish) ARE VALID LEADS. Legitimate commercial buyers and project contractors are frequently direct and concise.
 3. Greetings ("hi", "hello"), test messages, wrong numbers, personal banter, and unrelated inquiries are "too_vague" or "irrelevant" (leadScore 10-30).
 4. Solicitations selling offshore dev, SEO, email lists, catering, HR/payroll outsourcing, staff recruitment, web design, or asking for a call to sell THEIR services to us are "vendor_pitch" (leadScore 10-25).
 5. Newsletters, receipts, OTPs, promotional blasts, and social media notifications are "newsletter" or "spam" (leadScore 0-15).

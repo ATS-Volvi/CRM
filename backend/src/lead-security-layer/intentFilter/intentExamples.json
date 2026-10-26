@@ -100,33 +100,33 @@
     }
   },
   {
-    "input": "Price for 50 units?",
+    "input": "Can you provide rates for 8 modular security guard shelters?",
     "output": {
       "label": "new_enquiry",
       "leadScore": 90,
       "confidence": "high",
       "language": "en",
-      "reason": "Direct commercial pricing enquiry for specific quantity."
+      "reason": "Direct inquiry for guard shelter rates."
     }
   },
   {
-    "input": "Need quote for site office cabins in Riyadh project.",
+    "input": "Please provide an estimate for delivery and assembly of portable site workshops.",
     "output": {
       "label": "new_enquiry",
       "leadScore": 95,
       "confidence": "high",
       "language": "en",
-      "reason": "Specific commercial request for site cabins quote in Riyadh."
+      "reason": "Commercial request for workshop structures estimate."
     }
   },
   {
-    "input": "Hi, we are looking for modular prefabricated accommodation units for 200 workers. Could you share your catalog and price list? Phone: +966501234567",
+    "input": "Inquiry: We require modular steel storage sheds and insulated utility shelters for our industrial yard in Dammam. Please email specifications and price schedule. Tel: +966551122334",
     "output": {
       "label": "new_enquiry",
       "leadScore": 95,
       "confidence": "high",
       "language": "en",
-      "reason": "High-value enquiry with specifications and phone number."
+      "reason": "High-value commercial inquiry with clear specifications."
     }
   },
   {
@@ -160,23 +160,23 @@
     }
   },
   {
-    "input": "السلام عليكم، ارجو ارسال عرض سعر لعدد 20 كابينة موقع في مشروع القدية بالرياض",
+    "input": "السلام عليكم ورحمة الله، نود الاستفسار عن كرفانات الحراسة المتنقلة لديكم ومواصفات العزل الحراري.",
     "output": {
       "label": "new_enquiry",
-      "leadScore": 95,
+      "leadScore": 90,
       "confidence": "high",
       "language": "ar",
-      "reason": "Commercial quote request for 20 site cabins in Riyadh project."
+      "reason": "Commercial specification inquiry for mobile guard units in Arabic."
     }
   },
   {
-    "input": "كم سعر المتر للمباني الجاهزة لديكم؟",
+    "input": "هل يتوفر لديكم تأجير مستودعات سريعة التركيب لموسم الشتاء؟",
     "output": {
       "label": "new_enquiry",
       "leadScore": 85,
       "confidence": "high",
       "language": "ar",
-      "reason": "Direct pricing inquiry per square meter in Arabic."
+      "reason": "Commercial rental inquiry for rapid assembly warehouses in Arabic."
     }
   },
   {

@@ -472,4 +472,68 @@ describe('Intent Filter - Unit Tests', () => {
       expect(res.reason).toContain('Classifier error');
     });
   });
+
+  describe('Dataset Leakage & Prompt Integrity', () => {
+    it('should have zero text overlap between held-out eval cases and classifier prompt or few-shot examples', () => {
+      const fs = require('fs');
+      const path = require('path');
+
+      const evalScriptPath = path.resolve(__dirname, '../../scripts/evalIntentFilter.ts');
+      const promptFilePath = path.resolve(__dirname, '../../src/lead-security-layer/intentFilter/intentClassifier.ts');
+      const examplesFilePath = path.resolve(__dirname, '../../src/lead-security-layer/intentFilter/intentExamples.json');
+
+      const evalContent = fs.readFileSync(evalScriptPath, 'utf8');
+      const promptContent = fs.readFileSync(promptFilePath, 'utf8').toLowerCase();
+      const examplesContent = fs.readFileSync(examplesFilePath, 'utf8').toLowerCase();
+
+      // Extract all held-out cases
+      const lines = evalContent.split('\n');
+      let inHeldOut = false;
+      const heldOutPhrases: string[] = [];
+
+      for (const line of lines) {
+        if (line.includes('const heldOutCases')) inHeldOut = true;
+        if (inHeldOut && line.includes('];')) inHeldOut = false;
+        if (inHeldOut) {
+          const m = line.match(/(?:subject|body):\s*['"]([^'"]+)['"]/);
+          if (m) {
+            const raw = m[1].toLowerCase().trim();
+            if (raw.length >= 15) {
+              heldOutPhrases.push(raw);
+            }
+          }
+        }
+      }
+
+      expect(heldOutPhrases.length).toBeGreaterThanOrEqual(40);
+
+      const leaks: { phrase: string; target: string }[] = [];
+
+      for (const phrase of heldOutPhrases) {
+        if (promptContent.includes(phrase)) {
+          leaks.push({ phrase, target: 'intentClassifier.ts prompt' });
+        }
+        if (examplesContent.includes(phrase)) {
+          leaks.push({ phrase, target: 'intentExamples.json' });
+        }
+
+        // Also check 4-word n-grams for near-duplicate leakage
+        const words = phrase.split(/\s+/).filter((w: string) => w.length > 2);
+        for (let i = 0; i <= words.length - 4; i++) {
+          const ngram = words.slice(i, i + 4).join(' ');
+          if (ngram.length >= 16) {
+            if (promptContent.includes(ngram)) {
+              leaks.push({ phrase: ngram, target: 'intentClassifier.ts prompt (ngram)' });
+            }
+            if (examplesContent.includes(ngram)) {
+              leaks.push({ phrase: ngram, target: 'intentExamples.json (ngram)' });
+            }
+          }
+        }
+      }
+
+      expect(leaks).toEqual([]);
+    });
+  });
 });
+
