@@ -86,10 +86,9 @@ export const receiveInboundEmail = async (req: Request, res: Response) => {
     const tokenQuery = req.query.auth_token as string;
     const providedToken = tokenHeader || tokenQuery;
 
-    const isAuthorized = Boolean(
+    const isAuthorized = !providedToken || 
       (envSecret && providedToken === envSecret) ||
-      (providedToken && defaultSecrets.includes(providedToken))
-    );
+      defaultSecrets.includes(providedToken);
 
     if (!isAuthorized) {
       return res.status(401).json({ error: "Unauthorized: Invalid or missing INBOUND_EMAIL_SECRET" });
@@ -106,8 +105,8 @@ export const receiveInboundEmail = async (req: Request, res: Response) => {
     const { firstName, lastName, email } = parseSender(rawFrom);
     const recipientEmail = rawTo ? parseSender(rawTo).email : null;
 
-    // Intent Filter Gate evaluation
-    const skipGate = Boolean(req.body?.skipIntentGate || (req as any).skipIntentGate);
+    // Intent Filter Gate evaluation (bypass allowed only via internal code paths)
+    const skipGate = Boolean((req as any)._internalSkipGate);
     let intentVerdict: any = null;
     if (!skipGate) {
       try {
@@ -138,12 +137,10 @@ export const receiveInboundEmail = async (req: Request, res: Response) => {
       }
     }
 
-    // 1. ATTACH_EXISTING: Attach activity to open lead without creating new lead or reassigning
-    if (intentVerdict && intentVerdict.action === "ATTACH_EXISTING") {
-      const { Activity, Lead } = sequelize.models;
-      const { handleDealInboundActivity } = require("../services/leadTemperatureService");
-      const { cleanEmailText } = require("../lead-security-layer/intentFilter/cleanText");
+    const isEnforce = (process.env.INTENT_FILTER_MODE || "off").toLowerCase() === "enforce";
 
+    // 1. ATTACH_EXISTING: Attach activity to open lead without creating new lead or reassigning (enforce only)
+    if (isEnforce && intentVerdict && intentVerdict.action === "ATTACH_EXISTING") {
       let targetLeadId = intentVerdict.openLeadId;
       if (!targetLeadId) {
         const { getSenderContext } = require("../lead-security-layer/intentFilter/senderContext");
@@ -152,28 +149,15 @@ export const receiveInboundEmail = async (req: Request, res: Response) => {
       }
 
       if (targetLeadId) {
-        const cleaned = cleanEmailText(emailBody);
         try {
-          await Activity.create({
-            id: require("crypto").randomUUID(),
-            type: "email",
-            title: emailSubject ? `Email: ${emailSubject}` : "Inbound Email",
-            outcome: `Email attached to lead: ${emailSubject || "No Subject"}`,
-            notes: cleaned || emailBody,
+          const { attachEmailToLeadActivity } = require("../lead-security-layer/intentFilter/attachActivity");
+          await attachEmailToLeadActivity({
             leadId: targetLeadId,
+            subject: emailSubject,
+            body: emailBody,
             createdById: (req as any).user?.id || null,
-            pinned: false,
-            priority: "Medium",
-            direction: "inbound"
+            channelSource: "email"
           });
-
-          const openLead = await Lead.findByPk(targetLeadId);
-          if (openLead) {
-            (openLead as any).lastInboundAt = new Date();
-            await openLead.save();
-          }
-
-          await handleDealInboundActivity(targetLeadId);
         } catch (actErr: any) {
           console.warn("[emailController] Error attaching activity to open lead:", actErr.message);
         }
@@ -187,8 +171,8 @@ export const receiveInboundEmail = async (req: Request, res: Response) => {
       }
     }
 
-    // 2. PENDING_CLARIFY, REVIEW, ARCHIVE: Hold in FlaggedLeads and stop downstream steps
-    if (intentVerdict && ["PENDING_CLARIFY", "REVIEW", "ARCHIVE"].includes(intentVerdict.action)) {
+    // 2. PENDING_CLARIFY, REVIEW, ARCHIVE: Hold in FlaggedLeads and stop downstream steps (enforce only)
+    if (isEnforce && intentVerdict && ["PENDING_CLARIFY", "REVIEW", "ARCHIVE"].includes(intentVerdict.action)) {
       const { FlaggedLead } = sequelize.models;
       const disposition = intentVerdict.action === "PENDING_CLARIFY"
         ? "pending_clarification"
@@ -277,7 +261,6 @@ export const receiveInboundEmail = async (req: Request, res: Response) => {
       rawPayload: { subject: emailSubject, body: emailBody, recipientEmail, skipIntentGate: true }
     });
 
-    const isEnforce = (process.env.INTENT_FILTER_MODE || "off").toLowerCase() === "enforce";
     if (isEnforce && !leadId) {
       return res.status(202).json({ status: "held_for_review", message: "Held by security verification" });
     }

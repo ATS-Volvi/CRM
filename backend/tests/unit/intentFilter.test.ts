@@ -617,6 +617,58 @@ describe('Intent Filter - Unit Tests', () => {
       }
     });
   });
+
+  describe('Shared Attach Activity Helper (attachEmailToLeadActivity)', () => {
+    it('should create an activity with type "email", title, notes, and direction "inbound" for both channels', async () => {
+      const { attachEmailToLeadActivity } = require('../../src/lead-security-layer/intentFilter/attachActivity');
+      const { Lead, Activity, sequelize } = require('@nexus-crm/database');
+
+      // Create test lead
+      const testLead = await Lead.create({
+        id: require('crypto').randomUUID(),
+        firstName: 'Activity',
+        lastName: 'TestLead',
+        email: `act_${Date.now()}@example.com`,
+        status: 'Contacted',
+      });
+
+      // 1. Test Mailgun channelSource
+      const act1 = await attachEmailToLeadActivity({
+        leadId: testLead.id,
+        subject: 'Quote Enquiry for Site Offices',
+        body: 'Please send quote for 3 cabins.\n\n--\nSent from my iPhone',
+        channelSource: 'email',
+      });
+
+      expect(act1).toBeDefined();
+      expect(act1.type).toBe('email');
+      expect(act1.title).toBe('Email: Quote Enquiry for Site Offices');
+      expect(act1.outcome).toBe('Email attached to lead: Quote Enquiry for Site Offices');
+      expect(act1.notes).toContain('Please send quote for 3 cabins.');
+      expect(act1.notes).not.toContain('Sent from my iPhone'); // cleanEmailText applied
+      expect(act1.direction).toBe('inbound');
+      expect(act1.leadId).toBe(testLead.id);
+
+      // 2. Test Gmail channelSource
+      const act2 = await attachEmailToLeadActivity({
+        leadId: testLead.id,
+        subject: 'Follow-up regarding specification',
+        body: 'Here is the site specification document.',
+        channelSource: 'gmail',
+      });
+
+      expect(act2).toBeDefined();
+      expect(act2.type).toBe('email');
+      expect(act2.title).toBe('Email: Follow-up regarding specification');
+      expect(act2.outcome).toBe('Gmail sync email attached: Follow-up regarding specification');
+      expect(act2.direction).toBe('inbound');
+
+      // Verify open lead lastInboundAt was updated
+      const updatedLead = await Lead.findByPk(testLead.id);
+      expect((updatedLead as any).lastInboundAt).toBeDefined();
+    });
+  });
 });
+
 
 

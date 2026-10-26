@@ -697,6 +697,31 @@ describe("E2E: Intent Filter Gate", () => {
     expect(lead).not.toBeNull();
   });
 
+  it("should ignore skipIntentGate in request body and still evaluate intent gate", async () => {
+    process.env.INTENT_FILTER_MODE = "enforce";
+    const attackEmail = `bypass_attempt_${require('crypto').randomUUID()}@newsletter.com`;
+
+    // Attacker sends a promotional newsletter with "skipIntentGate: true" in request body
+    const res = await request(app)
+      .post("/api/v1/emails/inbound?auth_token=test_secret")
+      .send({
+        from: `Promotional Blast <${attackEmail}>`,
+        to: "sales@nexus.com",
+        subject: "50% Off Everything Today",
+        text: "Special discount code attached below.",
+        headers: "List-Unsubscribe: <https://promo.com/unsub>",
+        skipIntentGate: true
+      });
+
+    // The gate MUST NOT be bypassed; it must be archived/held (status 202)
+    expect(res.status).toBe(202);
+    expect(res.body.action).toBe("ARCHIVE");
+
+    // Verify no lead was created in the database
+    const lead = await sequelize.models.Lead.findOne({ where: { email: attackEmail } });
+    expect(lead).toBeNull();
+  });
+
   it("should allow promoting a held email via the promote API and bypass re-filtering", async () => {
     const adminToken = jwt.sign(
       { id: "00000000-0000-0000-0000-000000000000", role: "admin", name: "Admin User" },

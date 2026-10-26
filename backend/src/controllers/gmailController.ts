@@ -119,25 +119,16 @@ export const syncGmail = async (req: Request, res: Response) => {
 
         if (isEnforce && intentVerdict.action === "ATTACH_EXISTING") {
           const targetLeadId = intentVerdict.openLeadId;
-          if (targetLeadId && Activity) {
+          if (targetLeadId) {
             try {
-              await Activity.create({
-                id: require("crypto").randomUUID(),
-                type: "Email Received",
-                subject: email.subject || "Email Received",
-                body: cleanEmailText(email.body) || email.body,
-                outcome: `Gmail sync email attached: ${email.subject || "No Subject"}`,
+              const { attachEmailToLeadActivity } = require("../lead-security-layer/intentFilter/attachActivity");
+              await attachEmailToLeadActivity({
                 leadId: targetLeadId,
-                pinned: false,
-                priority: "Medium",
-                direction: "inbound"
+                subject: email.subject || "Email Received",
+                body: email.body,
+                createdById: null,
+                channelSource: "gmail"
               });
-              const openLead = await Lead.findByPk(targetLeadId);
-              if (openLead) {
-                (openLead as any).lastInboundAt = new Date();
-                await openLead.save();
-              }
-              await handleDealInboundActivity(targetLeadId);
             } catch (actErr: any) {
               console.warn("[gmailController] Activity attach error:", actErr.message);
             }
