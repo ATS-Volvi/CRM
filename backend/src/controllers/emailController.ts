@@ -157,6 +157,7 @@ export const receiveInboundEmail = async (req: Request, res: Response) => {
           await Activity.create({
             id: require("crypto").randomUUID(),
             type: "email",
+            title: emailSubject ? `Email: ${emailSubject}` : "Inbound Email",
             outcome: `Email attached to lead: ${emailSubject || "No Subject"}`,
             notes: cleaned || emailBody,
             leadId: targetLeadId,
