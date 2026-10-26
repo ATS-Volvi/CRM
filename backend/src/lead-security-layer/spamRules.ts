@@ -3,7 +3,7 @@
  * junk cheaply, before spending an LLM call on it.
  */
 
-import { Lead } from '@nexus-crm/database';
+import { Lead, sequelize } from '@nexus-crm/database';
 import { Op } from 'sequelize';
 
 // Keep this list updated periodically — this is exactly what HubSpot's
@@ -47,34 +47,43 @@ export async function spamRules(lead: Record<string, any>, meta?: Record<string,
 
   // Duplicate submission from the same email in a short window —
   // covers accidental double-submits and simple retry-bots alike.
-  // Exception: skipped for email channel when the sender has an open lead (handled as ATTACH_EXISTING).
+  // Exception: In enforce mode, skip duplicate-window check for email channel when sender has an open lead (fall through to remaining rules).
   if (lead.email) {
     const isEnforce = (process.env.INTENT_FILTER_MODE || 'off').toLowerCase() === 'enforce';
+    let skipDuplicateWindowCheck = false;
+
     if (isEnforce) {
       const isEmailChannel = (meta?.source || lead.source || '').toLowerCase().includes('email');
       if (isEmailChannel) {
+        const normalizedEmail = String(lead.email).toLowerCase().trim();
         const openLead = await Lead.findOne({
           where: {
-            email: lead.email,
-            status: {
-              [Op.notIn]: ['Won', 'Lost', 'Closed', 'Closed Won', 'Closed Lost', 'Not Converted', 'Archived'],
-            },
+            [Op.and]: [
+              sequelize.where(sequelize.fn('LOWER', sequelize.col('email')), normalizedEmail),
+              {
+                status: {
+                  [Op.notIn]: ['Won', 'Lost', 'Closed', 'Closed Won', 'Closed Lost', 'Not Converted', 'Archived'],
+                },
+              },
+            ],
           },
         });
         if (openLead) {
-          return { isSpam: false };
+          skipDuplicateWindowCheck = true;
         }
       }
     }
 
-    const recentDuplicate = await Lead.findOne({
-      where: {
-        email: lead.email,
-        createdAt: { [Op.gte]: new Date(Date.now() - 5 * 60 * 1000) },
-      },
-    });
-    if (recentDuplicate) {
-      return { isSpam: true, reason: 'duplicate_submission' };
+    if (!skipDuplicateWindowCheck) {
+      const recentDuplicate = await Lead.findOne({
+        where: {
+          email: lead.email,
+          createdAt: { [Op.gte]: new Date(Date.now() - 5 * 60 * 1000) },
+        },
+      });
+      if (recentDuplicate) {
+        return { isSpam: true, reason: 'duplicate_submission' };
+      }
     }
   }
 
