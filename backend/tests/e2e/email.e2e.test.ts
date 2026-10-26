@@ -22,6 +22,20 @@ describe("E2E: Email Delivery Automation", () => {
     process.env.INBOUND_EMAIL_SECRET = "test_secret";
     nodemailer = require("nodemailer");
     transporter = nodemailer.createTransport();
+
+    // Mock AI intent classifier for tests so no real LLM calls are made
+    const { _setIntentHandler } = require("../../src/lead-security-layer/intentFilter/intentClassifier");
+    _setIntentHandler(async () => ({
+      label: "new_enquiry",
+      leadScore: 85,
+      confidence: "high",
+      language: "en",
+      reason: "Mock test enquiry"
+    }));
+
+    // Mock AI moderation so no real LLM calls are made during tests
+    const { _setModerationHandler } = require("../../src/lead-security-layer/aiModeration");
+    _setModerationHandler(async () => ({ flagged: false, category: "none" }));
     
     // Create a default user to satisfy Activity foreign key constraint
     try {
@@ -158,7 +172,7 @@ describe("E2E: Email Delivery Automation", () => {
     }) as any;
 
     const payload = {
-      from: "Client <client@example.com>",
+      from: "Fallback Client <fallback.client@example.com>",
       to: "generic-inbox@nexus-crm.com",
       subject: "General Query",
       text: "Need general info."
@@ -256,7 +270,7 @@ describe("E2E: Email Delivery Automation", () => {
 
     // Verify assignment flag activity log was created
     const activity = await sequelize.models.Activity.findOne({
-      where: { leadId: response.body.leadId }
+      where: { leadId: response.body.leadId, type: "Assignment Flag" }
     }) as any;
     expect(activity).not.toBeNull();
     expect(activity.outcome).toContain("Gwen Stacy");
@@ -283,7 +297,7 @@ describe("E2E: Email Delivery Automation", () => {
     }) as any;
 
     const payload = {
-      from: "Client <client@example.com>",
+      from: "Ambiguous Client <ambig.client@example.com>",
       to: "face@123.com",
       subject: "Comparison Query",
       text: "Should I talk to Alice or Bob for this deal?"
@@ -321,7 +335,7 @@ describe("E2E: Email Delivery Automation", () => {
     }) as any;
 
     const payload = {
-      from: "Client <client@example.com>",
+      from: "Unavail Client <unavail.client@example.com>",
       to: "face@123.com",
       subject: "Random Inquiry",
       text: "Generic inquiry for team."
@@ -380,5 +394,349 @@ describe("E2E: Email Delivery Automation", () => {
     const createdLead = await sequelize.models.Lead.findByPk(response.body.leadId) as any;
     expect(createdLead.email).toBe("urlclient@example.com");
     expect(createdLead.body).toBe("Inquiry text via urlencoded form body.");
+  });
+});
+
+describe("E2E: Intent Filter Gate", () => {
+  let transporter: any;
+  const jwt = require("jsonwebtoken");
+  const JWT_SECRET = process.env.JWT_SECRET || "nexus-jwt-secret-dev";
+
+  beforeAll(async () => {
+    process.env.INBOUND_EMAIL_SECRET = "test_secret";
+    process.env.INTENT_FILTER_MODE = "enforce";
+    process.env.INTENT_FILTER_CHANNELS = "email";
+
+    const nodemailer = require("nodemailer");
+    transporter = nodemailer.createTransport();
+
+    const { _setModerationHandler } = require("../../src/lead-security-layer/aiModeration");
+    _setModerationHandler(async () => ({ flagged: false, category: "none" }));
+  });
+
+  beforeEach(() => {
+    transporter.sendMail.mockClear();
+    process.env.INTENT_FILTER_MODE = "enforce";
+    process.env.INTENT_AUTOREPLY_ENABLED = "false";
+
+    const { _setIntentHandler } = require("../../src/lead-security-layer/intentFilter/intentClassifier");
+    _setIntentHandler(async () => ({
+      label: "new_enquiry",
+      leadScore: 85,
+      confidence: "high",
+      language: "en",
+      reason: "Mock default enquiry"
+    }));
+  });
+
+  it("should archive newsletter with List-Unsubscribe and create no lead", async () => {
+    const unsubEmail = `unsub_${require('crypto').randomUUID()}@marketing.com`;
+    const payload = {
+      from: `Promo Newsletter <${unsubEmail}>`,
+      to: "sales@nexus.com",
+      subject: "50% Off Everything This Weekend!",
+      text: "Check out our weekly specials at https://example.com/specials",
+      headers: "Received: from mail.example.com\nList-Unsubscribe: <mailto:unsub@example.com>\nContent-Type: text/plain"
+    };
+
+    const res = await request(app)
+      .post("/api/v1/emails/inbound?auth_token=test_secret")
+      .send(payload);
+
+    expect(res.status).toBe(202);
+    expect(res.body.status).toBe("archived");
+    expect(res.body.action).toBe("ARCHIVE");
+
+    const lead = await sequelize.models.Lead.findOne({ where: { email: unsubEmail } });
+    expect(lead).toBeNull();
+
+    const flagged = (await sequelize.models.FlaggedLead.findOne({ where: { senderEmail: unsubEmail } })) as any;
+    expect(flagged).not.toBeNull();
+    expect(flagged.disposition).toBe("archived");
+    expect(flagged.intentLabel).toBe("newsletter");
+  });
+
+  it("should hold 'hi' email as pending_clarification and create no lead", async () => {
+    const hiEmail = `hi_${require('crypto').randomUUID()}@personal.com`;
+    const payload = {
+      from: `Human <${hiEmail}>`,
+      to: "sales@nexus.com",
+      subject: "Hi",
+      text: "hi"
+    };
+
+    const res = await request(app)
+      .post("/api/v1/emails/inbound?auth_token=test_secret")
+      .send(payload);
+
+    expect(res.status).toBe(202);
+    expect(res.body.status).toBe("held");
+    expect(res.body.action).toBe("PENDING_CLARIFY");
+    expect(res.body.disposition).toBe("pending_clarification");
+
+    const lead = await sequelize.models.Lead.findOne({ where: { email: hiEmail } });
+    expect(lead).toBeNull();
+
+    const flagged = (await sequelize.models.FlaggedLead.findOne({ where: { senderEmail: hiEmail } })) as any;
+    expect(flagged).not.toBeNull();
+    expect(flagged.disposition).toBe("pending_clarification");
+  });
+
+  it("should create lead for genuine prospective enquiry", async () => {
+    const buyerEmail = `buyer_${require('crypto').randomUUID()}@construction-corp.com`;
+    const { _setIntentHandler } = require("../../src/lead-security-layer/intentFilter/intentClassifier");
+    _setIntentHandler(async () => ({
+      label: "new_enquiry",
+      leadScore: 92,
+      confidence: "high",
+      language: "en",
+      reason: "High intent site cabin enquiry"
+    }));
+
+    const payload = {
+      from: `Sarah Connor <${buyerEmail}>`,
+      to: "sales@nexus.com",
+      subject: "Quotation request for 20 prefabricated cabins",
+      text: "We require 20 modular site cabins delivered to Riyadh next month. Please send specs and pricing."
+    };
+
+    const res = await request(app)
+      .post("/api/v1/emails/inbound?auth_token=test_secret")
+      .send(payload);
+
+    expect(res.status).toBe(201);
+    expect(res.body.leadId).toBeDefined();
+
+    const lead = (await sequelize.models.Lead.findOne({ where: { email: buyerEmail } })) as any;
+    expect(lead).not.toBeNull();
+    expect(lead.id).toBe(res.body.leadId);
+  });
+
+  it("should attach Activity to existing open lead on reply and create no new lead", async () => {
+    const clientEmail = `prospect_${require('crypto').randomUUID()}@company.com`;
+    const initialLead = (await sequelize.models.Lead.create({
+      id: require('crypto').randomUUID(),
+      firstName: "Existing",
+      lastName: "Prospect",
+      email: clientEmail,
+      status: "New",
+      source: "email"
+    })) as any;
+
+    const payload = {
+      from: `Existing Prospect <${clientEmail}>`,
+      to: "sales@nexus.com",
+      subject: "Re: Following up on our discussion",
+      text: "Thanks for the discussion earlier. When can we schedule the site inspection for the modular project?"
+    };
+
+    const res = await request(app)
+      .post("/api/v1/emails/inbound?auth_token=test_secret")
+      .send(payload);
+
+    expect(res.status).toBe(202);
+    expect(res.body.status).toBe("attached");
+    expect(res.body.action).toBe("ATTACH_EXISTING");
+    expect(res.body.leadId).toBe(initialLead.id);
+
+    // Verify only 1 lead exists for this email
+    const count = await sequelize.models.Lead.count({ where: { email: clientEmail } });
+    expect(count).toBe(1);
+
+    // Verify activity attached
+    const activity = (await sequelize.models.Activity.findOne({
+      where: { leadId: initialLead.id, type: "email" }
+    })) as any;
+    expect(activity).not.toBeNull();
+    expect(activity.outcome).toContain("Re: Following up");
+  });
+
+  it("should fail-safe to REVIEW when classifier experiences an outage (no lead created, nothing dropped)", async () => {
+    const { _setIntentHandler } = require("../../src/lead-security-layer/intentFilter/intentClassifier");
+    _setIntentHandler(async () => {
+      throw new Error("AI provider upstream 504 Gateway Timeout");
+    });
+
+    const outageEmail = `outage_${require('crypto').randomUUID()}@client.com`;
+    const payload = {
+      from: `Uncertain Client <${outageEmail}>`,
+      to: "sales@nexus.com",
+      subject: "Question regarding modular solutions",
+      text: "Could someone provide more details regarding your industrial cabins?"
+    };
+
+    const res = await request(app)
+      .post("/api/v1/emails/inbound?auth_token=test_secret")
+      .send(payload);
+
+    expect(res.status).toBe(202);
+    expect(res.body.status).toBe("held");
+    expect(res.body.action).toBe("REVIEW");
+
+    const lead = await sequelize.models.Lead.findOne({ where: { email: outageEmail } });
+    expect(lead).toBeNull();
+
+    const flagged = (await sequelize.models.FlaggedLead.findOne({ where: { senderEmail: outageEmail } })) as any;
+    expect(flagged).not.toBeNull();
+    expect(flagged.disposition).toBe("review");
+    expect(flagged.explanation.toLowerCase()).toContain("timeout");
+  });
+
+  it("should log decision with wouldHaveBlocked=true in shadow mode while still creating the lead", async () => {
+    process.env.INTENT_FILTER_MODE = "shadow";
+    const shadowEmail = `shadow_${require('crypto').randomUUID()}@weeklynewsletter.com`;
+    const payload = {
+      from: `Weekly Digest <${shadowEmail}>`,
+      to: "sales@nexus.com",
+      subject: "Industry Insights Weekly",
+      text: "Read our weekly articles at https://newsletter.com/read",
+      headers: "List-Unsubscribe: <https://newsletter.com/unsub>"
+    };
+
+    const res = await request(app)
+      .post("/api/v1/emails/inbound?auth_token=test_secret")
+      .send(payload);
+
+    expect(res.status).toBe(201);
+    expect(res.body.leadId).toBeDefined();
+
+    const decision = (await sequelize.models.IntentDecision.findOne({
+      where: { senderEmail: shadowEmail }
+    })) as any;
+    expect(decision).not.toBeNull();
+    expect(decision.wouldHaveBlocked).toBe(true);
+    expect(decision.enforced).toBe(false);
+    expect(decision.action).toBe("ARCHIVE");
+
+    process.env.INTENT_FILTER_MODE = "enforce";
+  });
+
+  it("should send clarification auto-reply respecting cooldown and loop safety", async () => {
+    process.env.INTENT_FILTER_MODE = "enforce";
+    process.env.INTENT_AUTOREPLY_ENABLED = "true";
+    process.env.INTENT_AUTOREPLY_COOLDOWN_DAYS = "7";
+    transporter.sendMail.mockClear();
+
+    const autoEmail = `auto_${require('crypto').randomUUID()}@inquirer.com`;
+
+    // 1. First "hi" sends auto-reply
+    const res1 = await request(app)
+      .post("/api/v1/emails/inbound?auth_token=test_secret")
+      .send({
+        from: `Inquirer <${autoEmail}>`,
+        to: "sales@nexus.com",
+        subject: "Hello",
+        text: "hi"
+      });
+    expect(res1.status).toBe(202);
+    expect(transporter.sendMail).toHaveBeenCalledTimes(1);
+    const sentArgs = transporter.sendMail.mock.calls[0][0];
+    expect(sentArgs.to).toBe(autoEmail);
+    expect(sentArgs.headers?.["Auto-Submitted"]).toBe("auto-replied");
+    expect(sentArgs.headers?.["X-Auto-Response-Suppress"]).toBe("All");
+
+    transporter.sendMail.mockClear();
+
+    // 2. Second "hello" within cooldown does NOT send duplicate auto-reply
+    const res2 = await request(app)
+      .post("/api/v1/emails/inbound?auth_token=test_secret")
+      .send({
+        from: `Inquirer <${autoEmail}>`,
+        to: "sales@nexus.com",
+        subject: "Follow-up",
+        text: "hello team"
+      });
+    expect(res2.status).toBe(202);
+    expect(transporter.sendMail).not.toHaveBeenCalled();
+
+    // 3. Loop safety: bulk auto-header prevents auto-reply
+    transporter.sendMail.mockClear();
+    const bulkAutoEmail = `bulkauto_${require('crypto').randomUUID()}@newsletter.com`;
+    await request(app)
+      .post("/api/v1/emails/inbound?auth_token=test_secret")
+      .send({
+        from: `Promo <${bulkAutoEmail}>`,
+        to: "sales@nexus.com",
+        subject: "Weekly Promo",
+        text: "hi promo",
+        headers: "List-Unsubscribe: <https://promo.com/unsub>"
+      });
+    expect(transporter.sendMail).not.toHaveBeenCalled();
+
+    process.env.INTENT_AUTOREPLY_ENABLED = "false";
+  });
+
+  it("should bypass filter for allowlisted sender", async () => {
+    const allowEmail = `vip_${require('crypto').randomUUID()}@strategic-partner.com`;
+    await sequelize.models.SenderRule.create({
+      id: require('crypto').randomUUID(),
+      type: "allow",
+      matchType: "email",
+      value: allowEmail,
+      note: "Strategic VIP partner"
+    });
+
+    // Send "hi" which would normally be held as pending_clarification
+    const res = await request(app)
+      .post("/api/v1/emails/inbound?auth_token=test_secret")
+      .send({
+        from: `VIP Partner <${allowEmail}>`,
+        to: "sales@nexus.com",
+        subject: "Hi",
+        text: "hi"
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.leadId).toBeDefined();
+
+    const lead = await sequelize.models.Lead.findOne({ where: { email: allowEmail } });
+    expect(lead).not.toBeNull();
+  });
+
+  it("should allow promoting a held email via the promote API and bypass re-filtering", async () => {
+    const adminToken = jwt.sign(
+      { id: "00000000-0000-0000-0000-000000000000", role: "admin", name: "Admin User" },
+      JWT_SECRET
+    );
+
+    const heldEmail = `held_${require('crypto').randomUUID()}@customer.com`;
+    const flaggedLead = (await sequelize.models.FlaggedLead.create({
+      id: require('crypto').randomUUID(),
+      source: "email",
+      channel: "email",
+      disposition: "review",
+      intentLabel: "too_vague",
+      intentScore: 40,
+      reason: "Short inquiry held for review",
+      explanation: "Short inquiry held for review",
+      senderEmail: heldEmail,
+      subject: "Inquiry about cabins",
+      payload: {
+        from: `Held Prospect <${heldEmail}>`,
+        subject: "Inquiry about cabins",
+        text: "We are interested in cabins."
+      }
+    })) as any;
+
+    const promoteRes = await request(app)
+      .post(`/api/v1/lead-filter/held/${flaggedLead.id}/promote`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ addSenderToAllowlist: true });
+
+    expect([200, 201]).toContain(promoteRes.status);
+    expect(promoteRes.body.success).toBe(true);
+    expect(promoteRes.body.lead).toBeDefined();
+    expect(promoteRes.body.lead.email).toBe(heldEmail);
+
+    // Verify FlaggedLead updated
+    const updatedFlagged = (await sequelize.models.FlaggedLead.findByPk(flaggedLead.id)) as any;
+    expect(updatedFlagged.disposition).toBe("promoted");
+    expect(updatedFlagged.promotedLeadId).toBe(promoteRes.body.lead.id);
+
+    // Verify sender rule created
+    const allowRule = await sequelize.models.SenderRule.findOne({
+      where: { matchType: "email", value: heldEmail, type: "allow" }
+    });
+    expect(allowRule).not.toBeNull();
   });
 });

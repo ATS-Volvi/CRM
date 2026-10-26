@@ -198,7 +198,7 @@ export async function routeChannelLead(input: RoutingInput): Promise<RoutingResu
       company: leadData.company || "",
       source: leadData.source
     });
-    if (rulesRes.assignedToId) {
+    if (rulesRes.assignedToId && rulesRes.assignmentType !== "PERFORMANCE_BEST_FIT") {
       assignedToId = rulesRes.assignedToId;
       assignmentMethod = "assignment-rules";
     }
@@ -216,7 +216,7 @@ export async function routeChannelLead(input: RoutingInput): Promise<RoutingResu
       for (const candidate of availableCandidates) {
         const openCount = await Deal.count({
           where: {
-            assignedToId: candidate.id,
+            ownerId: candidate.id,
             status: { [Op.notIn]: TERMINAL_LEAD_STATUSES }
           }
         });

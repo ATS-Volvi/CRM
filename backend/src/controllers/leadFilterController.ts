@@ -128,7 +128,8 @@ export const promoteHeldEmail = async (req: Request, res: Response) => {
     const { addSenderToAllowlist } = req.body || {};
     const userId = (req as any).user?.id || null;
 
-    const heldRow = (await FlaggedLead.findByPk(id)) as any;
+    const heldId = String(id);
+    const heldRow = (await FlaggedLead.findByPk(heldId)) as any;
     if (!heldRow) {
       return res.status(404).json({ error: 'Held email record not found' });
     }
@@ -195,6 +196,7 @@ export const promoteHeldEmail = async (req: Request, res: Response) => {
       success: true,
       message: 'Held email successfully promoted to Lead',
       leadId: newLeadId,
+      lead: { id: newLeadId, email },
       disposition: 'promoted',
     });
   } catch (err: any) {
@@ -237,7 +239,8 @@ export const rejectHeldEmail = async (req: Request, res: Response) => {
     const { blockSender, blockDomain } = req.body || {};
     const userId = (req as any).user?.id || null;
 
-    const heldRow = (await FlaggedLead.findByPk(id)) as any;
+    const heldId = String(id);
+    const heldRow = (await FlaggedLead.findByPk(heldId)) as any;
     if (!heldRow) {
       return res.status(404).json({ error: 'Held email record not found' });
     }
@@ -526,7 +529,8 @@ export const createSenderRule = async (req: Request, res: Response) => {
 export const deleteSenderRule = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const deletedCount = await SenderRule.destroy({ where: { id } });
+    const ruleId = String(id);
+    const deletedCount = await SenderRule.destroy({ where: { id: ruleId } });
     if (!deletedCount) {
       return res.status(404).json({ error: 'Sender rule not found' });
     }

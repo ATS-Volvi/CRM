@@ -93,8 +93,12 @@ export async function sendClarificationAutoReply(
       </div>
     `;
 
-    // Dispatch email
-    await sendEmail(recipientEmail, subject, htmlContent);
+    // Dispatch email with loop-safety headers
+    const headers = {
+      'Auto-Submitted': 'auto-replied',
+      'X-Auto-Response-Suppress': 'All',
+    };
+    await sendEmail(recipientEmail, subject, htmlContent, undefined, headers);
 
     // Update FlaggedLead record with autoReplySentAt timestamp
     if (flaggedLeadId && sequelize.models.FlaggedLead) {
