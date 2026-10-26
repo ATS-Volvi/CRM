@@ -564,6 +564,11 @@ async function evaluateDataset(
 
     const predictedLead = decision.action === 'CREATE_LEAD';
 
+    if (process.env.PRINT_PER_CASE === 'true' || process.env.VERBOSE === 'true') {
+      const matchSymbol = item.expectedLead === predictedLead ? '✓' : '✗';
+      console.log(`  ${matchSymbol} [${item.id.padEnd(16)}] Expected: ${(item.expectedLead ? 'LEAD' : 'NON-LEAD').padEnd(8)} | Action: ${decision.action.padEnd(14)} | Label: ${(decision.label || 'none').padEnd(20)} | Score: ${String(decision.score).padStart(3)} | Reason: ${decision.reason}`);
+    }
+
     if (item.expectedLead && predictedLead) {
       truePositives++;
     } else if (!item.expectedLead && !predictedLead) {
