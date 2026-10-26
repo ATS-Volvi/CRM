@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { checkHeaderRules } from '../../src/lead-security-layer/intentFilter/headerRules';
 import { cleanEmailText } from '../../src/lead-security-layer/intentFilter/cleanText';
 import { checkNoContent } from '../../src/lead-security-layer/intentFilter/noContent';
@@ -770,10 +771,126 @@ describe('Intent Filter - Unit Tests', () => {
 
       await syncGmail(req, res);
 
+      // Allow background setImmediate queue to trigger
+      await new Promise((r) => setTimeout(r, 50));
+
       // In mode=shadow, gate error is caught and never interrupts ingestion
       expect(gateSpy).toHaveBeenCalledTimes(2);
       expect(ingestSpy).toHaveBeenCalledTimes(2);
       expect(res.json).toHaveBeenCalledWith({ success: true, ingestedCount: 2 });
+    });
+
+    it('with the gate stubbed to take 5 seconds, a sync of 20 emails finishes in under 1 second, ingestedCount is 20, and the IntentDecisions rows appear afterwards', async () => {
+      process.env.INTENT_FILTER_MODE = 'shadow';
+      const { GmailConfig, IntentDecision, Lead } = require('@nexus-crm/database');
+      const gmailService = require('../../src/services/gmailService');
+      const leadIngestion = require('../../src/services/leadIngestion');
+      const intentFilter = require('../../src/lead-security-layer/intentFilter');
+      const { syncGmail } = require('../../src/controllers/gmailController');
+
+      jest.spyOn(GmailConfig, 'findOne').mockResolvedValue({
+        encryptedRefreshToken: 'real_encrypted_token_123',
+        lastSyncedAt: new Date(),
+        save: jest.fn().mockResolvedValue(true)
+      });
+      jest.spyOn(gmailService, 'decryptToken').mockReturnValue('decrypted_token');
+
+      const timestamp = Date.now();
+      const batchEmails = Array.from({ length: 20 }, (_, i) => {
+        const senderEmail = `shadow_5s_${timestamp}_${i}@example.com`;
+        return {
+          id: `email-${i}`,
+          threadId: `thread-${i}`,
+          senderName: `Sender ${i}`,
+          senderEmail,
+          subject: `Enquiry #${i}`,
+          body: `Enquiry body #${i}`,
+          emailMeta: { senderEmail, hasAttachments: false, headers: {} },
+          rawPayload: { from: `Sender ${i} <${senderEmail}>`, subject: `Enquiry #${i}`, body: `Enquiry body #${i}` },
+          phone: ''
+        };
+      });
+      jest.spyOn(gmailService, 'fetchUnreadEmails').mockResolvedValue(batchEmails);
+      jest.spyOn(leadIngestion, 'ingestLead').mockImplementation(async (d: any) => {
+        const lead = await Lead.create({
+          id: randomUUID(),
+          firstName: d.firstName || 'Shadow',
+          lastName: d.lastName || 'Lead',
+          email: d.email,
+          status: 'New'
+        });
+        return lead.id;
+      });
+
+      // Stub evaluateInboundEmail to take 5 seconds (5000ms)
+      const gateResolvers: Array<() => void> = [];
+      jest.spyOn(intentFilter, 'evaluateInboundEmail').mockImplementation(async (channel: any, meta: any, body: any, leadId: any) => {
+        await new Promise<void>((resolve) => {
+          const timeout = setTimeout(() => {
+            resolve();
+          }, 5000);
+          gateResolvers.push(() => {
+            clearTimeout(timeout);
+            resolve();
+          });
+        });
+
+        await IntentDecision.create({
+          id: randomUUID(),
+          channel: 'email',
+          senderEmail: meta?.senderEmail || 'test@example.com',
+          action: 'CREATE_LEAD',
+          label: 'new_enquiry',
+          leadScore: 90,
+          confidence: 'high',
+          leadId: leadId || null,
+          wouldHaveBlocked: false,
+          enforced: false,
+          reason: 'Gate 5s evaluation completed'
+        });
+        return { action: 'CREATE_LEAD', score: 90, label: 'new_enquiry' };
+      });
+
+      const req: any = {};
+      const res: any = {
+        json: jest.fn(),
+        status: jest.fn().mockReturnThis()
+      };
+
+      const start = Date.now();
+      await syncGmail(req, res);
+      const elapsed = Date.now() - start;
+
+      // 1. A sync of 20 emails finishes in under 1 second (gate is unawaited in sync loop)
+      expect(elapsed).toBeLessThan(1000);
+      // 2. IngestedCount is 20
+      expect(res.json).toHaveBeenCalledWith({ success: true, ingestedCount: 20 });
+
+      // Before resolving slow gate tasks, no IntentDecisions rows exist yet
+      const senderEmails = batchEmails.map((e) => e.senderEmail);
+      const rowsBefore = await IntentDecision.findAll({ where: { senderEmail: senderEmails } });
+      expect(rowsBefore.length).toBe(0);
+
+      // Allow setImmediate to enqueue into shadowQueue, then resolve the gate tasks
+      await new Promise((r) => setImmediate(r));
+
+      // Resolve all 20 gate tasks as the 3 concurrent workers process them
+      for (let i = 0; i < 20; i++) {
+        while (gateResolvers.length === 0) {
+          await new Promise((r) => setTimeout(r, 10));
+        }
+        const resolver = gateResolvers.shift();
+        if (resolver) resolver();
+        await new Promise((r) => setTimeout(r, 10));
+      }
+
+      // Wait a moment for all 20 IntentDecision DB writes to settle
+      await new Promise((r) => setTimeout(r, 200));
+
+      // 3. The IntentDecisions rows appear afterwards
+      const rowsAfter = await IntentDecision.findAll({ where: { senderEmail: senderEmails } });
+      expect(rowsAfter.length).toBe(20);
+      expect(rowsAfter[0].leadId).toBeDefined();
     });
   });
 });

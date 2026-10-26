@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { sequelize } from '@nexus-crm/database';
 import {
   EmailMetadata,
@@ -174,7 +175,7 @@ async function logIntentDecision(data: {
 
   try {
     await (IntentDecision as any).create({
-      id: require('crypto').randomUUID(),
+      id: randomUUID(),
       channel: data.channel,
       senderEmail: data.senderEmail,
       subject: data.subject.slice(0, 255),

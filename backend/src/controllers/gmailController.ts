@@ -9,6 +9,41 @@ import { handlePromoteOnReply } from "../lead-security-layer/intentFilter/autoRe
 import { attachEmailToLeadActivity } from "../lead-security-layer/intentFilter/attachActivity";
 import { getSenderContext } from "../lead-security-layer/intentFilter/senderContext";
 
+// Concurrency-capped queue for background shadow evaluations
+class ShadowEvaluationQueue {
+  private running = 0;
+  private queue: (() => Promise<void>)[] = [];
+  private concurrency: number;
+
+  constructor(concurrency = 3) {
+    this.concurrency = concurrency;
+  }
+
+  enqueue(task: () => Promise<void>) {
+    this.queue.push(task);
+    this.processNext();
+  }
+
+  private processNext() {
+    if (this.running >= this.concurrency || this.queue.length === 0) {
+      return;
+    }
+    const task = this.queue.shift();
+    if (!task) return;
+    this.running++;
+    task()
+      .catch((err) => {
+        console.warn("[gmailController] Shadow evaluation task error:", err?.message || err);
+      })
+      .finally(() => {
+        this.running--;
+        this.processNext();
+      });
+  }
+}
+
+export const shadowQueue = new ShadowEvaluationQueue(3);
+
 export const getGmailAuthUrl = async (req: Request, res: Response) => {
   try {
     const clientId = process.env.GMAIL_CLIENT_ID;
@@ -116,8 +151,8 @@ export const syncGmail = async (req: Request, res: Response) => {
           ingestedCount++;
         }
       } else if (mode === "shadow") {
-        // Mode SHADOW: Run ingestLead first (identical to main), then evaluate gate
-        // inside try/catch with a bounded timeout, linking the created leadId.
+        // Mode SHADOW: Run ingestLead first (identical to main), then schedule gate
+        // evaluation with setImmediate inside try/catch, never awaited, with a concurrency cap of 3.
         for (const email of emails) {
           const leadId = await ingestLead({
             firstName: email.senderName.split(" ")[0] || "Unknown",
@@ -132,24 +167,33 @@ export const syncGmail = async (req: Request, res: Response) => {
           });
           ingestedCount++;
 
-          try {
-            const emailMeta = email.emailMeta || extractEmailMetadata(email.rawPayload);
-            let timer: NodeJS.Timeout;
-            const timeoutPromise = new Promise((_, reject) => {
-              timer = setTimeout(() => reject(new Error("Shadow gate evaluation timeout")), 2000);
-              if (timer.unref) timer.unref();
-            });
+          setImmediate(() => {
             try {
-              await Promise.race([
-                evaluateInboundEmail("email", emailMeta, email.body, leadId),
-                timeoutPromise
-              ]);
-            } finally {
-              clearTimeout(timer!);
+              shadowQueue.enqueue(async () => {
+                try {
+                  const emailMeta = email.emailMeta || extractEmailMetadata(email.rawPayload);
+                  const timeoutMs = parseInt(process.env.SHADOW_GATE_TIMEOUT_MS || process.env.INTENT_FILTER_TIMEOUT_MS || "10000", 10);
+                  let timer: NodeJS.Timeout;
+                  const timeoutPromise = new Promise((_, reject) => {
+                    timer = setTimeout(() => reject(new Error("Shadow gate evaluation timeout")), timeoutMs);
+                    if (timer.unref) timer.unref();
+                  });
+                  try {
+                    await Promise.race([
+                      evaluateInboundEmail("email", emailMeta, email.body, leadId),
+                      timeoutPromise
+                    ]);
+                  } finally {
+                    clearTimeout(timer!);
+                  }
+                } catch (gateErr: any) {
+                  console.warn("[gmailController] Shadow gate error:", gateErr.message);
+                }
+              });
+            } catch (err: any) {
+              console.warn("[gmailController] Failed to schedule shadow evaluation:", err.message);
             }
-          } catch (gateErr: any) {
-            console.warn("[gmailController] Shadow gate error:", gateErr.message);
-          }
+          });
         }
       } else {
         // Mode ENFORCE: Gate runs before ingestion
