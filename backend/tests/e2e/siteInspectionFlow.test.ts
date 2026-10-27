@@ -499,4 +499,43 @@ describe("Site Inspection Commercial Pipeline Gate E2E Flow", () => {
       throw err;
     }
   });
+
+  test("Step k: ops_manager scope verification (403 on unrelated admin/manager routes, 200 on inspection routes)", async () => {
+    try {
+      // 1. Unrelated admin/manager route -> 403 Forbidden
+      const unrelatedRes = await request(app)
+        .get("/api/v1/lead-filter/held")
+        .set("Authorization", `Bearer ${opsManagerToken}`);
+
+      expect(unrelatedRes.status).toBe(403);
+      expect(unrelatedRes.body.error || "").toMatch(/admin or manager role required/i);
+
+      // 2. Inspection approver route (GET /site-inspections/site-managers) -> 200 OK
+      const approverRouteRes = await request(app)
+        .get("/api/v1/site-inspections/site-managers")
+        .set("Authorization", `Bearer ${opsManagerToken}`);
+
+      expect(approverRouteRes.status).toBe(200);
+
+      // 3. Inspection approver route (POST /site-bases) -> 200 or 201
+      const ts = Date.now();
+      const baseRes = await request(app)
+        .post("/api/v1/site-bases")
+        .set("Authorization", `Bearer ${opsManagerToken}`)
+        .send({
+          code: `BASE_${ts}`,
+          name: `Test Base ${ts}`,
+          region: "Eastern Province",
+          latitude: 26.5,
+          longitude: 50.0
+        });
+
+      expect([200, 201]).toContain(baseRes.status);
+
+      console.log("PASS: Step k - ops_manager scope verified: 403 on admin/manager route, 200 on inspection approver routes");
+    } catch (err) {
+      console.error("FAIL: Step k - ops_manager scope verification failed", err);
+      throw err;
+    }
+  });
 });

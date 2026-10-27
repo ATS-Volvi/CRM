@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { register, login } from "../controllers/auth";
 import { createPublicLead } from "../controllers/publicLeads";
-import { authMiddleware, requireAdminOrManager, requireAdmin } from "../middleware/auth";
+import { authMiddleware, requireAdminOrManager, requireAdmin, requireInspectionApprover } from "../middleware/auth";
 import {
   getPipeline, moveDealStage, createDeal, getDeals, validateTransition,
   getOpportunities, getOpportunityById, createOpportunity, updateOpportunity, moveOpportunityStage,
@@ -928,13 +928,13 @@ import {
 } from "../controllers/siteInspectionController";
 
 router.get("/site-inspections/master", authMiddleware, getMasterData);
-router.get("/site-inspections/site-managers", authMiddleware, getSiteManagers);
+router.get("/site-inspections/site-managers", authMiddleware, requireInspectionApprover, getSiteManagers);
 
-router.post("/site-bases", authMiddleware, createSiteBase);
-router.put("/site-bases/:id", authMiddleware, updateSiteBase);
+router.post("/site-bases", authMiddleware, requireInspectionApprover, createSiteBase);
+router.put("/site-bases/:id", authMiddleware, requireInspectionApprover, updateSiteBase);
 
-router.post("/site-facilities", authMiddleware, createSiteFacility);
-router.put("/site-facilities/:id", authMiddleware, updateSiteFacility);
+router.post("/site-facilities", authMiddleware, requireInspectionApprover, createSiteFacility);
+router.put("/site-facilities/:id", authMiddleware, requireInspectionApprover, updateSiteFacility);
 
 router.get("/site-inspections", authMiddleware, listSiteInspections);
 router.get("/site-inspections/:id", authMiddleware, getSiteInspectionById);
