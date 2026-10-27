@@ -24,56 +24,66 @@ module.exports = {
         );
       }
 
-      // Create ENUM for Invoice paymentStatus
-      await queryInterface.sequelize.query(
-        `
-        DO $$
-        BEGIN
-          IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'enum_Invoices_paymentStatus') THEN
-            CREATE TYPE "enum_Invoices_paymentStatus" AS ENUM ('unpaid', 'partial', 'paid', 'overdue');
-          END IF;
-        END
-        $$;
-        `,
-        { transaction: t }
-      );
-
-      if (!invoiceInfo.paymentStatus) {
+      const isSqlite = queryInterface.sequelize.getDialect() === "sqlite";
+      if (!isSqlite) {
         await queryInterface.sequelize.query(
-          `ALTER TABLE public."Invoices" ADD COLUMN "paymentStatus" "enum_Invoices_paymentStatus" NOT NULL DEFAULT 'unpaid'`,
+          `
+          DO $$
+          BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'enum_Invoices_paymentStatus') THEN
+              CREATE TYPE "enum_Invoices_paymentStatus" AS ENUM ('unpaid', 'partial', 'paid', 'overdue');
+            END IF;
+          END
+          $$;
+          `,
           { transaction: t }
         );
       }
 
-      // 2. Create Payments ENUM
-      await queryInterface.sequelize.query(
-        `
-        DO $$
-        BEGIN
-          IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'enum_Payments_method') THEN
-            CREATE TYPE "enum_Payments_method" AS ENUM ('bank_transfer', 'cheque', 'cash', 'card', 'other');
-          END IF;
-        END
-        $$;
-        `,
-        { transaction: t }
-      );
+      if (!invoiceInfo.paymentStatus) {
+        if (isSqlite) {
+          await queryInterface.addColumn("Invoices", "paymentStatus", {
+            type: DataTypes.STRING,
+            allowNull: false,
+            defaultValue: "unpaid"
+          }, { transaction: t });
+        } else {
+          await queryInterface.sequelize.query(
+            `ALTER TABLE public."Invoices" ADD COLUMN "paymentStatus" "enum_Invoices_paymentStatus" NOT NULL DEFAULT 'unpaid'`,
+            { transaction: t }
+          );
+        }
+      }
 
-      // Ensure Invoices has a primary key on id
-      await queryInterface.sequelize.query(
-        `
-        DO $$
-        BEGIN
-          IF NOT EXISTS (
-            SELECT 1 FROM pg_constraint WHERE conname = 'Invoices_pkey'
-          ) THEN
-            ALTER TABLE public."Invoices" ADD PRIMARY KEY (id);
-          END IF;
-        END
-        $$;
-        `,
-        { transaction: t }
-      );
+      if (!isSqlite) {
+        await queryInterface.sequelize.query(
+          `
+          DO $$
+          BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'enum_Payments_method') THEN
+              CREATE TYPE "enum_Payments_method" AS ENUM ('bank_transfer', 'cheque', 'cash', 'card', 'other');
+            END IF;
+          END
+          $$;
+          `,
+          { transaction: t }
+        );
+
+        await queryInterface.sequelize.query(
+          `
+          DO $$
+          BEGIN
+            IF NOT EXISTS (
+              SELECT 1 FROM pg_constraint WHERE conname = 'Invoices_pkey'
+            ) THEN
+              ALTER TABLE public."Invoices" ADD PRIMARY KEY (id);
+            END IF;
+          END
+          $$;
+          `,
+          { transaction: t }
+        );
+      }
 
       // 3. Create Payments table
       if (!tables.includes("Payments")) {
@@ -129,19 +139,20 @@ module.exports = {
           { transaction: t }
         );
 
-        // Convert method column to the ENUM
-        await queryInterface.sequelize.query(
-          `ALTER TABLE public."Payments" ALTER COLUMN method DROP DEFAULT`,
-          { transaction: t }
-        );
-        await queryInterface.sequelize.query(
-          `ALTER TABLE public."Payments" ALTER COLUMN method TYPE "enum_Payments_method" USING method::"enum_Payments_method"`,
-          { transaction: t }
-        );
-        await queryInterface.sequelize.query(
-          `ALTER TABLE public."Payments" ALTER COLUMN method SET DEFAULT 'bank_transfer'::"enum_Payments_method"`,
-          { transaction: t }
-        );
+        if (!isSqlite) {
+          await queryInterface.sequelize.query(
+            `ALTER TABLE public."Payments" ALTER COLUMN method DROP DEFAULT`,
+            { transaction: t }
+          );
+          await queryInterface.sequelize.query(
+            `ALTER TABLE public."Payments" ALTER COLUMN method TYPE "enum_Payments_method" USING method::"enum_Payments_method"`,
+            { transaction: t }
+          );
+          await queryInterface.sequelize.query(
+            `ALTER TABLE public."Payments" ALTER COLUMN method SET DEFAULT 'bank_transfer'::"enum_Payments_method"`,
+            { transaction: t }
+          );
+        }
       }
     });
   },

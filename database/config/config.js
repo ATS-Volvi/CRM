@@ -11,7 +11,7 @@ const isSqlite = process.env.USE_SQLITE === 'true';
 
 const sqliteConfig = {
   dialect: 'sqlite',
-  storage: path.resolve(__dirname, '../../nexus_crm.sqlite'),
+  storage: process.env.DB_STORAGE ? path.resolve(process.env.DB_STORAGE) : path.resolve(__dirname, '../../nexus_crm.sqlite'),
   logging: false
 };
 

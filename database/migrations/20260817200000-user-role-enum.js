@@ -5,6 +5,10 @@ const { DataTypes } = require("sequelize");
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
+    if (queryInterface.sequelize.getDialect() === "sqlite") {
+      await queryInterface.sequelize.query(`UPDATE "Users" SET role = 'manager' WHERE role = 'sales_manager'`);
+      return;
+    }
     await queryInterface.sequelize.transaction(async (t) => {
       // Step 1: Rename existing 'sales_manager' rows to 'manager' BEFORE creating ENUM
       // Idempotent: WHERE clause is a no-op if already renamed
@@ -56,6 +60,10 @@ module.exports = {
   },
 
   async down(queryInterface, Sequelize) {
+    if (queryInterface.sequelize.getDialect() === "sqlite") {
+      await queryInterface.sequelize.query(`UPDATE "Users" SET role = 'sales_manager' WHERE role = 'manager'`);
+      return;
+    }
     await queryInterface.sequelize.transaction(async (t) => {
       // Revert ENUM back to VARCHAR
       await queryInterface.sequelize.query(
