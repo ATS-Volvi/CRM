@@ -810,17 +810,15 @@ describe('Intent Filter - Unit Tests', () => {
           phone: ''
         };
       });
-      jest.spyOn(gmailService, 'fetchUnreadEmails').mockResolvedValue(batchEmails);
-      jest.spyOn(leadIngestion, 'ingestLead').mockImplementation(async (d: any) => {
-        const lead = await Lead.create({
-          id: randomUUID(),
-          firstName: d.firstName || 'Shadow',
-          lastName: d.lastName || 'Lead',
-          email: d.email,
-          status: 'New'
-        });
-        return lead.id;
+      const precreatedLead = await Lead.create({
+        id: randomUUID(),
+        firstName: 'Shadow',
+        lastName: 'Lead',
+        email: `shadow_batch_${timestamp}@example.com`,
+        status: 'New'
       });
+      jest.spyOn(gmailService, 'fetchUnreadEmails').mockResolvedValue(batchEmails);
+      jest.spyOn(leadIngestion, 'ingestLead').mockResolvedValue(precreatedLead.id);
 
       // Stub evaluateInboundEmail to take 5 seconds (5000ms)
       const gateResolvers: Array<() => void> = [];

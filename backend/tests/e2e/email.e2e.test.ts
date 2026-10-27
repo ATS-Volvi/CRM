@@ -628,51 +628,95 @@ describe("E2E: Intent Filter Gate", () => {
     process.env.INTENT_FILTER_MODE = "enforce";
     process.env.INTENT_AUTOREPLY_ENABLED = "true";
     process.env.INTENT_AUTOREPLY_COOLDOWN_DAYS = "7";
-    transporter.sendMail.mockClear();
+    const originalMailgunKey = process.env.MAILGUN_API_KEY;
+    process.env.MAILGUN_API_KEY = "test_mailgun_api_key_valid";
 
-    const autoEmail = `auto_${require('crypto').randomUUID()}@inquirer.com`;
+    const { mg } = require("../../src/services/emailService");
+    const mgCreateSpy = jest.spyOn(mg.messages, "create").mockResolvedValue({
+      id: "<mock_auto_reply_msg@inbound.volvitech.com>",
+      message: "Queued. Thank you."
+    } as any);
 
-    // 1. First "hi" sends auto-reply
-    const res1 = await request(app)
-      .post("/api/v1/emails/inbound?auth_token=test_secret")
-      .send({
-        from: `Inquirer <${autoEmail}>`,
-        to: "sales@nexus.com",
-        subject: "Hello",
-        text: "hi"
+    try {
+      const autoEmail = `auto_${require('crypto').randomUUID()}@inquirer.com`;
+
+      // 1. First "hi" sends auto-reply via Mailgun client
+      const res1 = await request(app)
+        .post("/api/v1/emails/inbound?auth_token=test_secret")
+        .send({
+          from: `Inquirer <${autoEmail}>`,
+          to: "sales@nexus.com",
+          subject: "Hello",
+          text: "hi"
+        });
+      expect(res1.status).toBe(202);
+      expect(mgCreateSpy).toHaveBeenCalledTimes(1);
+      const firstCallPayload = mgCreateSpy.mock.calls[0]?.[1] as any;
+      expect(firstCallPayload.to).toEqual([autoEmail]);
+      expect(firstCallPayload["h:Auto-Submitted"]).toBe("auto-replied");
+      expect(firstCallPayload["h:X-Auto-Response-Suppress"]).toBe("All");
+
+      const flagged1 = (await sequelize.models.FlaggedLead.findOne({
+        where: { senderEmail: autoEmail },
+        order: [["createdAt", "ASC"]]
+      })) as any;
+      expect(flagged1).not.toBeNull();
+      expect(flagged1.autoReplySentAt).not.toBeNull();
+      expect(new Date(flagged1.autoReplySentAt).toString()).not.toBe("Invalid Date");
+      expect(new Date(flagged1.autoReplySentAt).getTime()).toBeGreaterThan(0);
+
+      // 2. Second "hello" within cooldown does NOT send duplicate auto-reply
+      const res2 = await request(app)
+        .post("/api/v1/emails/inbound?auth_token=test_secret")
+        .send({
+          from: `Inquirer <${autoEmail}>`,
+          to: "sales@nexus.com",
+          subject: "Follow-up",
+          text: "hello team"
+        });
+      expect(res2.status).toBe(202);
+      expect(mgCreateSpy).toHaveBeenCalledTimes(1); // Still 1; nothing sent
+
+      const flaggedRows = await sequelize.models.FlaggedLead.findAll({
+        where: { senderEmail: autoEmail },
+        order: [["createdAt", "ASC"]]
       });
-    expect(res1.status).toBe(202);
-    const flagged1 = await sequelize.models.FlaggedLead.findOne({ where: { senderEmail: autoEmail } });
-    expect(flagged1).not.toBeNull();
-    expect((flagged1 as any).autoReplySentAt).toBeDefined();
+      expect(flaggedRows.length).toBe(2);
+      expect((flaggedRows[1] as any).autoReplySentAt).toBeNull();
 
-    // 2. Second "hello" within cooldown does NOT send duplicate auto-reply
-    const res2 = await request(app)
-      .post("/api/v1/emails/inbound?auth_token=test_secret")
-      .send({
-        from: `Inquirer <${autoEmail}>`,
-        to: "sales@nexus.com",
-        subject: "Follow-up",
-        text: "hello team"
-      });
-    expect(res2.status).toBe(202);
-    expect(transporter.sendMail).not.toHaveBeenCalled();
+      // 3. Loop safety: bulk auto-header prevents auto-reply
+      const bulkAutoEmail = `bulkauto_${require('crypto').randomUUID()}@newsletter.com`;
+      await request(app)
+        .post("/api/v1/emails/inbound?auth_token=test_secret")
+        .send({
+          from: `Promo <${bulkAutoEmail}>`,
+          to: "sales@nexus.com",
+          subject: "Weekly Promo",
+          text: "hi promo",
+          headers: "List-Unsubscribe: <https://promo.com/unsub>"
+        });
+      expect(mgCreateSpy).toHaveBeenCalledTimes(1); // Still 1; no reply to bulk
 
-    // 3. Loop safety: bulk auto-header prevents auto-reply
-    transporter.sendMail.mockClear();
-    const bulkAutoEmail = `bulkauto_${require('crypto').randomUUID()}@newsletter.com`;
-    await request(app)
-      .post("/api/v1/emails/inbound?auth_token=test_secret")
-      .send({
-        from: `Promo <${bulkAutoEmail}>`,
-        to: "sales@nexus.com",
-        subject: "Weekly Promo",
-        text: "hi promo",
-        headers: "List-Unsubscribe: <https://promo.com/unsub>"
-      });
-    expect(transporter.sendMail).not.toHaveBeenCalled();
-
-    process.env.INTENT_AUTOREPLY_ENABLED = "false";
+      // 4. Loop safety: noreply sender prevents auto-reply
+      const noreplyEmail = `noreply@vendor-${require('crypto').randomUUID().slice(0, 8)}.com`;
+      await request(app)
+        .post("/api/v1/emails/inbound?auth_token=test_secret")
+        .send({
+          from: `Vendor Robot <${noreplyEmail}>`,
+          to: "sales@nexus.com",
+          subject: "Notice",
+          text: "hi robot"
+        });
+      expect(mgCreateSpy).toHaveBeenCalledTimes(1); // Still 1; no reply to noreply
+    } finally {
+      mgCreateSpy.mockRestore();
+      if (originalMailgunKey !== undefined) {
+        process.env.MAILGUN_API_KEY = originalMailgunKey;
+      } else {
+        delete process.env.MAILGUN_API_KEY;
+      }
+      process.env.INTENT_AUTOREPLY_ENABLED = "false";
+    }
   });
 
   it("should bypass filter for allowlisted sender", async () => {

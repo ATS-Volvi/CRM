@@ -8,7 +8,7 @@ const cleanEnv = (key: string, defaultVal: string) => {
 };
 
 const mailgun = new Mailgun(FormData);
-const mg = mailgun.client({
+export const mg = mailgun.client({
   username: 'api',
   key: cleanEnv("MAILGUN_API_KEY", "dummy-key")
 });
