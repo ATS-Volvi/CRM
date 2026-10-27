@@ -302,7 +302,8 @@ export const reviewSiteInspection = async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
     const id = req.params.id as string;
-    const { action, comment } = req.body;
+    const action = req.body.action || req.body.decision;
+    const comment = req.body.comment;
 
     if (!user || !APPROVER_ROLES.includes(user.role)) {
       return res.status(403).json({ error: "Only authorized managers or approvers may review inspections." });

@@ -42,7 +42,7 @@ export const authMiddleware = (req: Request, res: Response, next: NextFunction) 
  */
 export const requireAdminOrManager = (req: Request, res: Response, next: NextFunction) => {
   const role: string = (req as any).user?.role ?? "";
-  const ALLOWED_ROLES = ["admin", "director", "manager", "sales_manager"];
+  const ALLOWED_ROLES = ["admin", "director", "manager", "sales_manager", "ops_manager"];
   if (!ALLOWED_ROLES.includes(role)) {
     res.status(403).json({ error: "Forbidden: admin or manager role required" });
     return;
