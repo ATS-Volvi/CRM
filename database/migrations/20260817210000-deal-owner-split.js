@@ -51,30 +51,22 @@ module.exports = {
         );
       }
 
-      const isSqlite = queryInterface.sequelize.getDialect() === "sqlite";
-      if (isSqlite) {
-        await queryInterface.sequelize.query(
-          `INSERT OR IGNORE INTO "WorkspaceSettings" (id, key, value, description, "createdAt", "updatedAt")
-           VALUES ('ws-default-qualifying-split', 'default_qualifying_split_pct', '20', 'Default commission split percentage for the qualifying rep when a lead is converted to an opportunity', datetime('now'), datetime('now'))`,
-          { transaction: t }
-        );
-      } else {
-        await queryInterface.sequelize.query(
-          `
-          INSERT INTO public."WorkspaceSettings" (id, key, value, description, "createdAt", "updatedAt")
-          VALUES (
-            gen_random_uuid(),
-            'default_qualifying_split_pct',
-            '20',
-            'Default commission split percentage for the qualifying rep when a lead is converted to an opportunity',
-            NOW(),
-            NOW()
-          )
-          ON CONFLICT (key) DO NOTHING
-          `,
-          { transaction: t }
-        );
-      }
+      // Step 2: Seed the default qualifying split setting (idempotent via ON CONFLICT)
+      await queryInterface.sequelize.query(
+        `
+        INSERT INTO public."WorkspaceSettings" (id, key, value, description, "createdAt", "updatedAt")
+        VALUES (
+          gen_random_uuid(),
+          'default_qualifying_split_pct',
+          '20',
+          'Default commission split percentage for the qualifying rep when a lead is converted to an opportunity',
+          NOW(),
+          NOW()
+        )
+        ON CONFLICT (key) DO NOTHING
+        `,
+        { transaction: t }
+      );
 
       // Step 3: Create DealOwners table
       if (!tables.includes("DealOwners")) {
@@ -130,38 +122,25 @@ module.exports = {
         });
       }
 
-      if (isSqlite) {
-        const [deals] = await queryInterface.sequelize.query(
-          `SELECT id, "ownerId" FROM "Deals" WHERE "ownerId" IS NOT NULL`,
-          { transaction: t }
-        );
-        const crypto = require("crypto");
-        for (const d of deals) {
-          await queryInterface.sequelize.query(
-            `INSERT OR IGNORE INTO "DealOwners" (id, "dealId", "userId", "splitPct", role, "createdAt", "updatedAt")
-             VALUES ('` + crypto.randomUUID() + `', '` + d.id + `', '` + d.ownerId + `', 100.00, 'closing_ae', datetime('now'), datetime('now'))`,
-            { transaction: t }
-          );
-        }
-      } else {
-        await queryInterface.sequelize.query(
-          `
-          INSERT INTO public."DealOwners" (id, "dealId", "userId", "splitPct", role, "createdAt", "updatedAt")
-          SELECT
-            gen_random_uuid(),
-            d.id AS "dealId",
-            d."ownerId" AS "userId",
-            100.00 AS "splitPct",
-            'closing_ae' AS role,
-            NOW(),
-            NOW()
-          FROM public."Deals" d
-          WHERE d."ownerId" IS NOT NULL
-          ON CONFLICT ("dealId", "userId") DO NOTHING
-          `,
-          { transaction: t }
-        );
-      }
+      // Step 4: Backfill existing deals — one DealOwner row per deal with non-null ownerId at 100%
+      // Idempotent: INSERT ... ON CONFLICT DO NOTHING (relies on unique constraint)
+      await queryInterface.sequelize.query(
+        `
+        INSERT INTO public."DealOwners" (id, "dealId", "userId", "splitPct", role, "createdAt", "updatedAt")
+        SELECT
+          gen_random_uuid(),
+          d.id AS "dealId",
+          d."ownerId" AS "userId",
+          100.00 AS "splitPct",
+          'closing_ae' AS role,
+          NOW(),
+          NOW()
+        FROM public."Deals" d
+        WHERE d."ownerId" IS NOT NULL
+        ON CONFLICT ("dealId", "userId") DO NOTHING
+        `,
+        { transaction: t }
+      );
     });
   },
 

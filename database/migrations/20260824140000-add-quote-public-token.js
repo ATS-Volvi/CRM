@@ -7,12 +7,11 @@ module.exports = {
   async up(queryInterface, Sequelize) {
     const tableInfo = await queryInterface.describeTable("Quotes").catch(() => ({}));
 
-    const isSqlite = queryInterface.sequelize.getDialect() === "sqlite";
     if (!tableInfo.publicAccessToken) {
       await queryInterface.addColumn("Quotes", "publicAccessToken", {
         type: DataTypes.STRING,
         allowNull: true,
-        unique: isSqlite ? false : true
+        unique: true
       });
     }
 
