@@ -92,6 +92,7 @@ export interface GmailMessage {
   body: string;
   date: Date;
   rawPayload: any;
+  emailMeta?: any;
 }
 
 export const fetchUnreadEmails = async (refreshToken: string): Promise<GmailMessage[]> => {
@@ -152,7 +153,20 @@ export const fetchUnreadEmails = async (refreshToken: string): Promise<GmailMess
     const phoneMatch = body.match(/[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}/);
     const phone = phoneMatch ? phoneMatch[0] : "";
 
-    parsedMessages.push({
+    const mode = (process.env.INTENT_FILTER_MODE || 'off').toLowerCase();
+    const shouldExtractMeta = mode === 'enforce' || mode === 'shadow';
+    let emailMeta: any = undefined;
+    if (shouldExtractMeta) {
+      try {
+        const { extractEmailMetadata } = require("../lead-security-layer/intentFilter/headerParser");
+        emailMeta = extractEmailMetadata(msg);
+      } catch (err: any) {
+        console.warn("[GmailService] Failed to extract email metadata, proceeding without it:", err?.message || err);
+        emailMeta = undefined;
+      }
+    }
+
+    const messageItem: any = {
       id: msgInfo.id,
       senderName,
       senderEmail,
@@ -161,7 +175,12 @@ export const fetchUnreadEmails = async (refreshToken: string): Promise<GmailMess
       body,
       date: msg.internalDate ? new Date(parseInt(msg.internalDate)) : new Date(),
       rawPayload: msg
-    });
+    };
+    if (shouldExtractMeta && emailMeta) {
+      messageItem.emailMeta = emailMeta;
+    }
+
+    parsedMessages.push(messageItem);
 
     // Mark message as read
     await gmail.users.messages.modify({

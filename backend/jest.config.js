@@ -8,4 +8,5 @@ module.exports = {
   },
   setupFilesAfterEnv: ['<rootDir>/tests/setup.ts'],
   testTimeout: 60000,
+  maxWorkers: 1,
 };

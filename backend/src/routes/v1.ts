@@ -878,13 +878,27 @@ router.get("/support-tickets/:id", authMiddleware, getSupportTicketById);
 router.put("/support-tickets/:id", authMiddleware, updateSupportTicket);
 
 // ==========================================
-// VERCEL SERVERLESS CRON JOBS
+// LEAD INTENT FILTER & HELD EMAILS
 // ==========================================
-import { runHourlyCron, runDailyCron } from "../controllers/cronController";
-router.get("/cron/hourly", runHourlyCron);
-router.post("/cron/hourly", runHourlyCron);
-router.get("/cron/daily", runDailyCron);
-router.post("/cron/daily", runDailyCron);
+import {
+  getHeldEmails,
+  promoteHeldEmail,
+  rejectHeldEmail,
+  getFilterStats,
+  getShadowLogs,
+  getSenderRules,
+  createSenderRule,
+  deleteSenderRule,
+} from "../controllers/leadFilterController";
+
+router.get("/lead-filter/held", authMiddleware, requireAdminOrManager, getHeldEmails);
+router.post("/lead-filter/held/:id/promote", authMiddleware, requireAdminOrManager, promoteHeldEmail);
+router.post("/lead-filter/held/:id/reject", authMiddleware, requireAdminOrManager, rejectHeldEmail);
+router.get("/lead-filter/stats", authMiddleware, requireAdminOrManager, getFilterStats);
+router.get("/lead-filter/shadow-logs", authMiddleware, requireAdminOrManager, getShadowLogs);
+router.get("/lead-filter/sender-rules", authMiddleware, requireAdminOrManager, getSenderRules);
+router.post("/lead-filter/sender-rules", authMiddleware, requireAdminOrManager, createSenderRule);
+router.delete("/lead-filter/sender-rules/:id", authMiddleware, requireAdminOrManager, deleteSenderRule);
 
 export default router;
 

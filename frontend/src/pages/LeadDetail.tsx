@@ -1269,6 +1269,11 @@ export default function LeadDetail() {
                                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border uppercase tracking-wider ${typeBg}`}>
                                   {titleText}
                                 </span>
+                                {act.direction && (
+                                  <span className="text-[9px] font-bold text-sky-700 dark:text-sky-300 bg-sky-100 dark:bg-sky-950/60 px-1.5 py-0.5 rounded border border-sky-200 dark:border-sky-800 uppercase tracking-wider">
+                                    {act.direction}
+                                  </span>
+                                )}
                                 {isAutomated ? (
                                   <span className="text-[9px] font-extrabold text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-950/60 px-1.5 py-0.5 rounded border border-purple-200 dark:border-purple-800 uppercase tracking-wider flex items-center gap-1">
                                     <Sparkles className="w-2.5 h-2.5 text-purple-600" /> Automated
@@ -1298,6 +1303,11 @@ export default function LeadDetail() {
                             </div>
 
                             {/* Text Content */}
+                            {act.type === "email" && act.outcome && act.outcome !== parsedText && (
+                              <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 pl-8">
+                                {act.outcome}
+                              </p>
+                            )}
                             {parsedText && (
                               <p className="text-xs text-slate-800 dark:text-slate-200 font-medium leading-relaxed whitespace-pre-line pl-8">
                                 {parsedText}
