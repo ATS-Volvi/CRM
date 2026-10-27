@@ -16,3 +16,4 @@ export * from "./marketing";
 export * from "./fulfillments";
 export * from "./assets";
 export * from "./leadFilter";
+export * from "./siteInspection";

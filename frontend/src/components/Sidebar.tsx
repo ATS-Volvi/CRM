@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { 
-  LayoutDashboard, Home, Inbox, Trello, FileText, Receipt, 
+  ClipboardCheck, LayoutDashboard, Home, Inbox, Trello, FileText, Receipt, 
   Users, BarChart, Settings, Clock, ChevronLeft, 
   ChevronRight, MessageSquare, CheckSquare, Search, Bell, Sparkles, LogOut, ChevronDown, Layers, Package, Building2, LifeBuoy, Target,
   UserCheck, Shield, Briefcase, ShieldAlert
@@ -61,13 +61,19 @@ export function Sidebar({
 
   const needsReviewCount = filterStats?.needsReviewCount || 0;
 
-  const primaryNavItems: NavItem[] = [
+  const siteManagerNavItems: NavItem[] = [
+    { label: "My Site Inspections", path: "/site-inspections", icon: ClipboardCheck },
+    { label: "Work Orders", path: "/purchase-orders", icon: Layers },
+  ];
+
+  const standardNavItems: NavItem[] = [
     { label: "Dashboard", path: "/", icon: LayoutDashboard },
     { 
       label: "Sales Division", 
       icon: Briefcase,
       subItems: [
         { label: "Leads", path: "/leads", icon: Users },
+        { label: "Site Inspections", path: "/site-inspections", icon: ClipboardCheck },
         { 
           label: "Held Emails", 
           path: "/held-emails", 
@@ -91,6 +97,8 @@ export function Sidebar({
     },
     { label: "Master Catalog & Pricing", path: "/master-data/requirements", icon: Settings },
   ];
+
+  const primaryNavItems = userRole === "site_manager" ? siteManagerNavItems : standardNavItems;
 
   // Track open dropdowns (default open for active route)
   const [openDropdowns, setOpenDropdowns] = useState<Record<string, boolean>>({
