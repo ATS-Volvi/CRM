@@ -61,6 +61,8 @@ import { Navigate, Outlet } from "react-router-dom";
 import QuoteDetail from "./pages/QuoteDetail";
 import PublicQuoteReview from "./pages/PublicQuoteReview";
 import HeldEmails from "./pages/HeldEmails";
+import SiteInspections from "./pages/SiteInspections";
+import SiteInspectionForm from "./pages/SiteInspectionForm";
 
 const ProtectedRoute = () => {
   const { isAuthenticated } = useAuth();
@@ -74,6 +76,10 @@ const RoleBasedLayout = () => {
 
 /** Redirect / to initial landing dashboard (My Work / Operational Dashboard) */
 const RoleBasedHome = () => {
+  const { user } = useAuth();
+  if (user?.role === "site_manager") {
+    return <Navigate to="/site-inspections" replace />;
+  }
   return <MyDashboard />;
 };
 
@@ -95,6 +101,10 @@ function App() {
               <Route path="/inbox" element={<LeadInbox />} />
               <Route path="/kpi" element={<KpiDashboard />} />
               
+              {/* Site Inspections Workspace */}
+              <Route path="/site-inspections" element={<SiteInspections />} />
+              <Route path="/site-inspections/:id" element={<SiteInspectionForm />} />
+
               {/* Pre-Sales Leads Workspace */}
               <Route path="/leads" element={<Leads />} />
               <Route path="/leads/new" element={<LeadCreate />} />

@@ -16,6 +16,8 @@ import { QualificationDrawer } from "../components/QualificationDrawer";
 import { LeadConversionModal } from "../components/LeadConversionModal";
 import { HandoffChatWidget } from "../components/HandoffChatWidget";
 import { AiRequirementSummaryCard } from "../components/AiRequirementSummaryCard";
+import { SiteInspectionCard, useLeadSiteInspection } from "../components/SiteInspectionCard";
+import { getStatusStyle } from "../lib/siteInspection";
 
 export default function LeadDetail() {
   const { id } = useParams();
@@ -44,6 +46,9 @@ export default function LeadDetail() {
   // Quick Action Modal States
   const [activeModal, setActiveModal] = useState<string | null>(null);
   const [isQualifyDrawerOpen, setIsQualifyDrawerOpen] = useState(false);
+  const [gateBlockedBanner, setGateBlockedBanner] = useState<string | null>(null);
+  const [statusErrorMessage, setStatusErrorMessage] = useState<string | null>(null);
+  const { gate, inspection } = useLeadSiteInspection(id);
 
   // Activity Timeline Filter & Note States
   const [activityFilter, setActivityFilter] = useState<string>("all");
@@ -74,7 +79,19 @@ export default function LeadDetail() {
   const [docType, setDocType] = useState("PDF");
 
   const handleOpenConversionModal = () => {
+    if (gate && !gate.allowed) {
+      setGateBlockedBanner(gate.message);
+      return;
+    }
     setIsConversionModalOpen(true);
+  };
+
+  const handleOpenQualifyDrawer = () => {
+    if (gate && !gate.allowed) {
+      setGateBlockedBanner(gate.message);
+      return;
+    }
+    setIsQualifyDrawerOpen(true);
   };
 
   // Queries
@@ -224,7 +241,10 @@ export default function LeadDetail() {
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
         body: JSON.stringify({ status: newStatus })
       });
-      if (!res.ok) throw new Error(await res.text());
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => null);
+        throw new Error(errorData?.error || "Failed to update lead status");
+      }
       return res.json();
     },
     onMutate: async (newStatus: string) => {
@@ -233,10 +253,11 @@ export default function LeadDetail() {
       queryClient.setQueryData(["lead", id], (old: any) => old ? { ...old, status: newStatus } : old);
       return { prev };
     },
-    onError: (_err, _newStatus, context: any) => {
+    onError: (err: any, _newStatus, context: any) => {
       if (context?.prev) {
         queryClient.setQueryData(["lead", id], context.prev);
       }
+      setStatusErrorMessage(err.message || "Failed to update status");
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["lead", id] });
@@ -640,29 +661,96 @@ export default function LeadDetail() {
         </div>
       )}
 
+      {/* Status Rejection Error Banner */}
+      {statusErrorMessage && (
+        <div className="p-4 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-2xl flex items-center justify-between text-xs font-bold text-rose-800 dark:text-rose-200">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            <span>{statusErrorMessage}</span>
+          </div>
+          <button onClick={() => setStatusErrorMessage(null)} className="text-rose-500 hover:text-rose-700 text-sm font-bold">×</button>
+        </div>
+      )}
+
+      {/* Site Inspection Gate Blocked Banner */}
+      {gateBlockedBanner && (
+        <div className="p-4 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-2xl flex items-start justify-between text-xs text-amber-900 dark:text-amber-200 shadow-sm">
+          <div className="flex items-start gap-2.5">
+            <Lock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold">Lead Qualification Gate Locked</p>
+              <p className="text-amber-700 dark:text-amber-300 mt-0.5 leading-relaxed">{gateBlockedBanner}</p>
+              {inspection?.id ? (
+                <Link
+                  to={`/site-inspections/${inspection.id}`}
+                  className="inline-flex items-center gap-1 font-bold text-indigo-600 dark:text-indigo-400 mt-1 hover:underline"
+                >
+                  <span>Open Site Inspection & Assessment Portal</span>
+                  <ExternalLink className="w-3 h-3" />
+                </Link>
+              ) : null}
+            </div>
+          </div>
+          <button onClick={() => setGateBlockedBanner(null)} className="text-amber-600 hover:text-amber-800 font-bold text-sm">×</button>
+        </div>
+      )}
+
       {/* 3. Modern Chevron Arrow & Checkpoint Milestone Stepper */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-2 shadow-xs">
         <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-2">
           
           {/* Linked Chevron Arrow Path */}
-          <div className="flex-1 grid grid-cols-2 sm:grid-cols-4 gap-1 sm:gap-0 bg-slate-100/80 dark:bg-slate-800/80 rounded-xl overflow-hidden p-1 border border-slate-200/60 dark:border-slate-700/60">
+          <div className="flex-1 grid grid-cols-2 sm:grid-cols-5 gap-1 sm:gap-0 bg-slate-100/80 dark:bg-slate-800/80 rounded-xl overflow-hidden p-1 border border-slate-200/60 dark:border-slate-700/60">
             {[
               { key: "NEW", num: "1", label: "New Enquiry", desc: "Ingested & Assigned" },
               { key: "CONTACTED", num: "2", label: "Contacted", desc: "Outreach in Progress" },
-              { key: "QUALIFIED", num: "3", label: "Qualified", desc: "Needs & Budget Set" },
-              { key: "CONVERTED", num: "4", label: "Converted", desc: "Deal Auto-Created" }
+              { key: "SITE_INSPECTION", num: "3", label: "Site Inspection", desc: inspection?.status === "APPROVED" ? "Approved" : inspection?.status ? getStatusStyle(inspection.status).label : "Gate Required" },
+              { key: "QUALIFIED", num: "4", label: "Qualified", desc: "Needs & Budget Set" },
+              { key: "CONVERTED", num: "5", label: "Converted", desc: "Deal Auto-Created" }
             ].map((stage, idx) => {
               const currentStatus = (lead.status || "NEW").toUpperCase();
               const isNotConverted = currentStatus === "NOT_CONVERTED" || currentStatus === "LOST";
-              const sequentialStages = ["NEW", "CONTACTED", "QUALIFIED", "CONVERTED"];
-              const currentSeqIdx = sequentialStages.indexOf(currentStatus);
-              const isCurrent = currentStatus === stage.key;
-              const isPast = !isNotConverted && currentSeqIdx !== -1 && idx < currentSeqIdx;
+              const isApproved = inspection?.status === "APPROVED";
+
+              let isCurrent = false;
+              let isPast = false;
+
+              if (stage.key === "NEW") {
+                isCurrent = currentStatus === "NEW";
+                isPast = currentStatus !== "NEW" && !isNotConverted;
+              } else if (stage.key === "CONTACTED") {
+                isCurrent = currentStatus === "CONTACTED" && !isApproved;
+                isPast = ["QUALIFIED", "CONVERTED"].includes(currentStatus) || (currentStatus === "CONTACTED" && isApproved);
+              } else if (stage.key === "SITE_INSPECTION") {
+                isCurrent = currentStatus === "CONTACTED" && !isApproved;
+                isPast = isApproved || ["QUALIFIED", "CONVERTED"].includes(currentStatus);
+              } else if (stage.key === "QUALIFIED") {
+                isCurrent = currentStatus === "QUALIFIED";
+                isPast = currentStatus === "CONVERTED";
+              } else if (stage.key === "CONVERTED") {
+                isCurrent = currentStatus === "CONVERTED";
+                isPast = false;
+              }
+
+              const handleStageClick = () => {
+                if (stage.key === "SITE_INSPECTION") {
+                  if (inspection?.id) {
+                    navigate(`/site-inspections/${inspection.id}`);
+                  }
+                  return;
+                }
+                if ((stage.key === "QUALIFIED" || stage.key === "CONVERTED") && gate && !gate.allowed) {
+                  setGateBlockedBanner(gate.message);
+                  return;
+                }
+                setStatusErrorMessage(null);
+                updateStatusMutation.mutate(stage.key);
+              };
 
               return (
                 <div key={stage.key} className="relative flex items-center flex-1">
                   <button
-                    onClick={() => updateStatusMutation.mutate(stage.key)}
+                    onClick={handleStageClick}
                     className={`w-full group relative flex items-center gap-2.5 py-2.5 px-3 rounded-lg sm:rounded-none transition-all duration-150 cursor-pointer select-none ${
                       isCurrent
                         ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold shadow-md shadow-blue-600/30 z-20 rounded-lg sm:rounded-lg"
@@ -701,7 +789,7 @@ export default function LeadDetail() {
                   </button>
 
                   {/* Arrowhead Divider between steps on desktop */}
-                  {idx < 3 && (
+                  {idx < 4 && (
                     <div className="hidden sm:flex items-center absolute -right-2 z-30 pointer-events-none">
                       <ChevronRight className={`w-4 h-4 stroke-[3] ${isPast ? "text-emerald-500" : isCurrent ? "text-indigo-400" : "text-slate-300 dark:text-slate-600"}`} />
                     </div>
@@ -743,7 +831,7 @@ export default function LeadDetail() {
           if (lead.status === "QUALIFIED" || lead.status === "Qualified") {
             handleOpenConversionModal();
           } else {
-            setIsQualifyDrawerOpen(true);
+            handleOpenQualifyDrawer();
           }
         }}
       />
@@ -753,6 +841,8 @@ export default function LeadDetail() {
 
         {/* SIDEBAR (Right/Left): AI Copilot + Customer Metadata + Tasks */}
         <div className="col-span-12 lg:col-span-4 flex flex-col gap-5">
+          {/* Site Inspection Card */}
+          <SiteInspectionCard leadId={id!} leadStatus={lead?.status} />
 
           {/* AI Sales Copilot Card */}
           <div className="bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-900/60 rounded-2xl p-5 shadow-xs space-y-3 relative overflow-hidden">

@@ -1,3 +1,4 @@
+process.env.SITE_INSPECTION_GATE = "off";
 process.env.USE_SQLITE = "true";
 process.env.DB_DIALECT = "sqlite";
 process.env.DB_STORAGE = "./test.sqlite";
