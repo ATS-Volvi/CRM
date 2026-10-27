@@ -8,22 +8,24 @@ module.exports = {
     await queryInterface.sequelize.transaction(async (t) => {
       const tables = await queryInterface.showAllTables();
 
-      // Create ENUMs for SupportTickets
-      await queryInterface.sequelize.query(
-        `
-        DO $$
-        BEGIN
-          IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'enum_SupportTickets_status') THEN
-            CREATE TYPE "enum_SupportTickets_status" AS ENUM ('open', 'in_progress', 'resolved', 'closed');
-          END IF;
-          IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'enum_SupportTickets_category') THEN
-            CREATE TYPE "enum_SupportTickets_category" AS ENUM ('issue', 'maintenance', 'other');
-          END IF;
-        END
-        $$;
-        `,
-        { transaction: t }
-      );
+      const isSqlite = queryInterface.sequelize.getDialect() === "sqlite";
+      if (!isSqlite) {
+        await queryInterface.sequelize.query(
+          `
+          DO $$
+          BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'enum_SupportTickets_status') THEN
+              CREATE TYPE "enum_SupportTickets_status" AS ENUM ('open', 'in_progress', 'resolved', 'closed');
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'enum_SupportTickets_category') THEN
+              CREATE TYPE "enum_SupportTickets_category" AS ENUM ('issue', 'maintenance', 'other');
+            END IF;
+          END
+          $$;
+          `,
+          { transaction: t }
+        );
+      }
 
       // Create SupportTickets table
       if (!tables.includes("SupportTickets")) {
@@ -86,33 +88,33 @@ module.exports = {
           { transaction: t }
         );
 
-        // Convert status to ENUM
-        await queryInterface.sequelize.query(
-          `ALTER TABLE public."SupportTickets" ALTER COLUMN status DROP DEFAULT`,
-          { transaction: t }
-        );
-        await queryInterface.sequelize.query(
-          `ALTER TABLE public."SupportTickets" ALTER COLUMN status TYPE "enum_SupportTickets_status" USING status::"enum_SupportTickets_status"`,
-          { transaction: t }
-        );
-        await queryInterface.sequelize.query(
-          `ALTER TABLE public."SupportTickets" ALTER COLUMN status SET DEFAULT 'open'::"enum_SupportTickets_status"`,
-          { transaction: t }
-        );
+        if (!isSqlite) {
+          await queryInterface.sequelize.query(
+            `ALTER TABLE public."SupportTickets" ALTER COLUMN status DROP DEFAULT`,
+            { transaction: t }
+          );
+          await queryInterface.sequelize.query(
+            `ALTER TABLE public."SupportTickets" ALTER COLUMN status TYPE "enum_SupportTickets_status" USING status::"enum_SupportTickets_status"`,
+            { transaction: t }
+          );
+          await queryInterface.sequelize.query(
+            `ALTER TABLE public."SupportTickets" ALTER COLUMN status SET DEFAULT 'open'::"enum_SupportTickets_status"`,
+            { transaction: t }
+          );
 
-        // Convert category to ENUM
-        await queryInterface.sequelize.query(
-          `ALTER TABLE public."SupportTickets" ALTER COLUMN category DROP DEFAULT`,
-          { transaction: t }
-        );
-        await queryInterface.sequelize.query(
-          `ALTER TABLE public."SupportTickets" ALTER COLUMN category TYPE "enum_SupportTickets_category" USING category::"enum_SupportTickets_category"`,
-          { transaction: t }
-        );
-        await queryInterface.sequelize.query(
-          `ALTER TABLE public."SupportTickets" ALTER COLUMN category SET DEFAULT 'issue'::"enum_SupportTickets_category"`,
-          { transaction: t }
-        );
+          await queryInterface.sequelize.query(
+            `ALTER TABLE public."SupportTickets" ALTER COLUMN category DROP DEFAULT`,
+            { transaction: t }
+          );
+          await queryInterface.sequelize.query(
+            `ALTER TABLE public."SupportTickets" ALTER COLUMN category TYPE "enum_SupportTickets_category" USING category::"enum_SupportTickets_category"`,
+            { transaction: t }
+          );
+          await queryInterface.sequelize.query(
+            `ALTER TABLE public."SupportTickets" ALTER COLUMN category SET DEFAULT 'issue'::"enum_SupportTickets_category"`,
+            { transaction: t }
+          );
+        }
       }
     });
   },

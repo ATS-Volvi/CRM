@@ -7,7 +7,7 @@ if (!process.env.DATABASE_URL) {
   dotenv.config({ path: path.resolve(__dirname, "../../../backend/.env") });
 }
 
-const sqlitePath = __dirname.includes("dist")
+const sqlitePath = process.env.DB_STORAGE ? path.resolve(process.env.DB_STORAGE) : __dirname.includes("dist")
   ? path.resolve(__dirname, "../../../nexus_crm.sqlite")
   : path.resolve(__dirname, "../../nexus_crm.sqlite");
 
