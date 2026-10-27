@@ -5,6 +5,25 @@ const { DataTypes } = require("sequelize");
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
+    if (queryInterface.sequelize.getDialect() === "postgres") {
+      try {
+        await queryInterface.sequelize.query(
+          "ALTER TYPE enum_Users_role ADD VALUE IF NOT EXISTS 'sales_manager'"
+        );
+        await queryInterface.sequelize.query(
+          "ALTER TYPE enum_Users_role ADD VALUE IF NOT EXISTS 'site_manager'"
+        );
+        await queryInterface.sequelize.query(
+          "ALTER TYPE enum_Users_role ADD VALUE IF NOT EXISTS 'ops_manager'"
+        );
+        await queryInterface.sequelize.query(
+          "ALTER TYPE \"enum_Activities_type\" ADD VALUE IF NOT EXISTS 'site_inspection'"
+        );
+      } catch (e) {
+        // Ignored if type does not exist or already added
+      }
+    }
+
     const tables = await queryInterface.showAllTables();
 
     // 1. Create SiteBases table

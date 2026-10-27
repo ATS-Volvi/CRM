@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -88,9 +88,12 @@ export default function SiteInspectionForm() {
   const [formData, setFormData] = useState<Partial<SiteInspectionRecord>>({});
   const [services, setServices] = useState<SiteInspectionServiceItem[]>([]);
 
-  // Initialize form data when inspection loads
+  const isInitializedRef = useRef(false);
+
+  // Initialize form data once on load so subsequent queries do not overwrite local draft edits
   useEffect(() => {
-    if (inspection) {
+    if (inspection && !isInitializedRef.current) {
+      isInitializedRef.current = true;
       setFormData({
         ...inspection,
         auditAt: inspection.auditAt ? inspection.auditAt.slice(0, 16) : "",
@@ -148,7 +151,7 @@ export default function SiteInspectionForm() {
   const saveDraftMutation = useMutation({
     mutationFn: (data: any) => siteInspectionApi.saveDraft(id!, data),
     onSuccess: (updated) => {
-      queryClient.invalidateQueries({ queryKey: ["site-inspection", id] });
+      setFormData((prev) => ({ ...prev, ...updated }));
       setSaveSuccessMsg("Draft saved successfully.");
       setTimeout(() => setSaveSuccessMsg(null), 3000);
     },
@@ -313,7 +316,36 @@ export default function SiteInspectionForm() {
   const statusInfo = getStatusStyle(inspection.status);
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+    <>
+      <style>{`
+        @media print {
+          body, html, #root, .h-screen, main, div {
+            height: auto !important;
+            overflow: visible !important;
+          }
+          body, html {
+            background: #ffffff !important;
+            color: #000000 !important;
+          }
+          nav, header, aside, .sidebar, [role="navigation"] {
+            display: none !important;
+          }
+          .inspection-screen-view {
+            display: none !important;
+          }
+          .inspection-print-view {
+            display: block !important;
+          }
+        }
+        @media screen {
+          .inspection-print-view {
+            display: none !important;
+          }
+        }
+      `}</style>
+
+      {/* Screen Interactive View */}
+      <div className="inspection-screen-view max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 print:hidden">
       {/* Top Banner Navigation */}
       <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4">
         <div className="flex items-center gap-3">
@@ -1162,7 +1194,21 @@ export default function SiteInspectionForm() {
                           </span>
                         </div>
 
-                        {/* EXIF GPS Badge if present */}
+                        {/* Thumbnail preview */}
+                      {(att.mimeType?.startsWith("image/") || att.fileName?.match(/\.(jpe?g|png|webp)$/i)) && (
+                        <div className="w-full h-32 overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+                          <img
+                            src={`/api/v1/site-inspections/${id}/attachments/${att.id}/file`}
+                            alt={att.fileName}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              (e.target as HTMLElement).style.display = "none";
+                            }}
+                          />
+                        </div>
+                      )}
+
+                      {/* EXIF GPS Badge if present */}
                         {att.latitude != null && att.longitude != null && (
                           <span
                             title={`EXIF GPS: ${att.latitude}, ${att.longitude}`}
@@ -1272,7 +1318,7 @@ export default function SiteInspectionForm() {
             className="flex items-center gap-1.5 px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl hover:bg-slate-50 cursor-pointer"
           >
             <Printer className="w-3.5 h-3.5" />
-            <span>Print Report</span>
+            <span>Preview PDF Report</span>
           </button>
 
           {/* Save Draft */}
@@ -1308,6 +1354,237 @@ export default function SiteInspectionForm() {
           )}
         </div>
       </div>
-    </div>
+      </div>
+
+      {/* ================= DEDICATED PRINT VIEW ================= */}
+      <div className="inspection-print-view hidden print:block max-w-4xl mx-auto p-8 bg-white text-slate-900 font-sans space-y-6">
+        {/* Document Header */}
+        <div className="border-b-2 border-slate-900 pb-4 flex justify-between items-start">
+          <div>
+            <h1 className="text-2xl font-black uppercase tracking-wider text-slate-900">
+              Technical Site Inspection Report
+            </h1>
+            <p className="text-xs text-slate-600 mt-1">
+              Nexus CRM Commercial Pipeline — Pre-Qualification Technical Audit
+            </p>
+          </div>
+          <div className="text-right">
+            <span className="text-sm font-mono font-bold text-slate-900 block">
+              {inspection.inspectionNumber} (Rev {inspection.revision})
+            </span>
+            <span className="text-xs font-bold text-indigo-700 uppercase block mt-1">
+              Status: {inspection.status}
+            </span>
+            <span className="text-[10px] text-slate-500 block mt-0.5">
+              Generated: {new Date().toLocaleDateString("en-GB")}
+            </span>
+          </div>
+        </div>
+
+        {/* Lead & Assignment Metadata */}
+        <div className="grid grid-cols-2 gap-4 p-4 bg-slate-50 border border-slate-200 rounded-lg text-xs">
+          <div>
+            <span className="text-[10px] font-bold text-slate-500 uppercase block">Client / Account</span>
+            <span className="font-bold text-slate-900 text-sm block">
+              {inspection.lead?.company || formData.clientOrganization || "Commercial Client"}
+            </span>
+            <span className="text-slate-600 block mt-1">
+              Contact: {inspection.lead ? `${inspection.lead.firstName || ""} ${inspection.lead.lastName || ""}`.trim() || formData.clientRepName || "N/A" : (formData.clientRepName || "N/A")}
+              {formData.clientRepPhone && ` (${formData.clientRepPhone})`}
+            </span>
+          </div>
+          <div className="text-right">
+            <span className="text-[10px] font-bold text-slate-500 uppercase block">Site Manager Assignee</span>
+            <span className="font-bold text-slate-900 text-sm block">
+              {inspection.assignedTo?.name || "Assigned Site Manager"}
+            </span>
+            <span className="text-slate-600 block mt-1">
+              {inspection.assignedTo?.email || "site_manager@nexus.com"}
+            </span>
+          </div>
+        </div>
+
+        {/* SECTION 1: Operations Base & Site Location */}
+        <div className="space-y-3 pt-2">
+          <h2 className="text-sm font-black uppercase border-b border-slate-300 pb-1 text-slate-900 tracking-wider">
+            Section 1: Operations Base, Site Location & Client
+          </h2>
+          <div className="grid grid-cols-2 gap-4 text-xs">
+            <div>
+              <span className="font-bold text-slate-700 block">Operations Base:</span>
+              <span className="text-slate-900 font-semibold">{formData.baseName || "Jubail Operations Base"}</span>
+              <span className="text-slate-500 block text-[11px] mt-0.5">
+                Straight Line to Site: <strong>{liveBaseToSiteKm} km</strong>
+              </span>
+            </div>
+            <div>
+              <span className="font-bold text-slate-700 block">Site / Facility Name:</span>
+              <span className="text-slate-900 font-semibold">{formData.siteName || "Industrial Site"}</span>
+              <span className="text-slate-600 block text-[11px] mt-0.5">{formData.siteAddress || "N/A"}</span>
+            </div>
+            <div>
+              <span className="font-bold text-slate-700 block">GPS Coordinates:</span>
+              <span className="font-mono text-slate-900 font-semibold">
+                {formData.latitude != null ? formData.latitude.toFixed(4) : "N/A"}° N,{" "}
+                {formData.longitude != null ? formData.longitude.toFixed(4) : "N/A"}° E
+              </span>
+            </div>
+            <div>
+              <span className="font-bold text-slate-700 block">Client Representative:</span>
+              <span className="text-slate-900">
+                {formData.clientRepName || "N/A"} {formData.clientRepPhone && `(${formData.clientRepPhone})`}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* SECTION 2: Mobilization Haulage & Waste Scopes */}
+        <div className="space-y-3 pt-2">
+          <h2 className="text-sm font-black uppercase border-b border-slate-300 pb-1 text-slate-900 tracking-wider">
+            Section 2: Mobilization Haulage, Waste Scopes & Transport Metrics
+          </h2>
+
+          <div className="grid grid-cols-2 gap-4 text-xs">
+            <div>
+              <span className="font-bold text-slate-700 block">Mobilization Route:</span>
+              <span className="text-slate-900">{formData.mobilizationRoute || "Direct Highway Route"}</span>
+              <span className="text-slate-500 block text-[11px] mt-0.5">
+                Mobilization Distance: <strong>{formData.mobilizationKm || 0} km</strong> (Speed limit: {formData.speedLimitKmh || 80} km/h)
+              </span>
+            </div>
+            <div className="p-3 bg-indigo-50/70 border border-indigo-200 rounded-lg text-center grid grid-cols-2 gap-2">
+              <div>
+                <span className="text-[10px] font-bold text-slate-600 uppercase block">Total Cycle KM</span>
+                <span className="text-base font-black text-indigo-900 block mt-0.5">
+                  {liveMetrics.totalCycleKm} km
+                </span>
+                <span className="text-[9px] text-slate-500 block">2 × (Mob + Scopes)</span>
+              </div>
+              <div>
+                <span className="text-[10px] font-bold text-slate-600 uppercase block">Est. Diesel Fuel</span>
+                <span className="text-base font-black text-indigo-900 block mt-0.5">
+                  {liveMetrics.estFuelLitres} L
+                </span>
+                <span className="text-[9px] text-slate-500 block">@ 0.4 L/km</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Active Waste Scopes Table */}
+          <div className="pt-2">
+            <span className="text-xs font-bold text-slate-700 block mb-1">Active Waste Scopes & Facilities:</span>
+            <table className="w-full text-left text-xs border border-slate-200">
+              <thead className="bg-slate-100 text-slate-700 font-bold">
+                <tr>
+                  <th className="p-2 border-b border-r border-slate-200">Service Type</th>
+                  <th className="p-2 border-b border-r border-slate-200">Treatment Facility</th>
+                  <th className="p-2 border-b border-r border-slate-200">Haulage (KM)</th>
+                  <th className="p-2 border-b border-r border-slate-200">Road Cond.</th>
+                  <th className="p-2 border-b border-r border-slate-200">Est. Volume</th>
+                  <th className="p-2 border-b border-slate-200">Logistics & Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {services.filter((s) => s.isActive).length > 0 ? (
+                  services
+                    .filter((s) => s.isActive)
+                    .map((s) => (
+                      <tr key={s.serviceType} className="border-b border-slate-200">
+                        <td className="p-2 font-bold border-r border-slate-200">{s.serviceType}</td>
+                        <td className="p-2 border-r border-slate-200">{s.facilityName || "Designated Facility"}</td>
+                        <td className="p-2 border-r border-slate-200">{s.distanceKm || 0} km</td>
+                        <td className="p-2 border-r border-slate-200">{s.roadCondition || "Good"}</td>
+                        <td className="p-2 border-r border-slate-200">
+                          {s.estimatedVolume ? `${s.estimatedVolume} ${s.volumeUnit || "m3"}` : "N/A"}
+                        </td>
+                        <td className="p-2 text-slate-600 text-[11px]">
+                          {s.wasteDescription || s.logisticsNote || "Standard vacuum/flatbed transport"}
+                        </td>
+                      </tr>
+                    ))
+                ) : (
+                  <tr>
+                    <td colSpan={6} className="p-3 text-center text-slate-400 italic">
+                      No active waste services specified.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* SECTION 3: Observations & Photo Attachments */}
+        <div className="space-y-3 pt-2">
+          <h2 className="text-sm font-black uppercase border-b border-slate-300 pb-1 text-slate-900 tracking-wider">
+            Section 3: Ground Observations & Evidence Photos
+          </h2>
+
+          <div className="text-xs">
+            <span className="font-bold text-slate-700 block mb-1">Site Observations & Access Constraints:</span>
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 leading-relaxed whitespace-pre-wrap">
+              {formData.observations || "Site inspection conducted with no critical hazards noted."}
+            </div>
+          </div>
+
+          {/* Photo Evidence */}
+          <div className="pt-2">
+            <span className="text-xs font-bold text-slate-700 block mb-2">
+              Ground Photo Evidence ({inspection.attachments?.length || 0} attachments):
+            </span>
+            <div className="grid grid-cols-2 gap-4">
+              {(inspection.attachments || []).map((att) => (
+                <div key={att.id} className="border border-slate-200 rounded-lg p-2 bg-slate-50 space-y-1">
+                  <div className="h-44 w-full bg-slate-200 rounded overflow-hidden flex items-center justify-center">
+                    <img
+                      src={`/api/v1/site-inspections/${id}/attachments/${att.id}/file`}
+                      alt={att.fileName}
+                      className="max-h-full max-w-full object-contain"
+                    />
+                  </div>
+                  <div className="text-[10px] text-slate-600 pt-1 flex justify-between">
+                    <span className="font-bold truncate">{att.fileName}</span>
+                    <span>{att.tag || "Ground Photo"}</span>
+                  </div>
+                  {att.latitude != null && att.longitude != null && (
+                    <div className="text-[9px] font-mono text-emerald-700">
+                      EXIF GPS: {att.latitude.toFixed(4)}° N, {att.longitude.toFixed(4)}° E
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Sign-off / Review Signatures */}
+        <div className="pt-6 border-t-2 border-slate-300 grid grid-cols-2 gap-8 text-xs">
+          <div>
+            <span className="text-[10px] font-bold text-slate-500 uppercase block">Submitted By</span>
+            <span className="font-bold text-slate-900 block mt-1">
+              {inspection.assignedTo?.name || "Site Manager"}
+            </span>
+            <span className="text-slate-500 block text-[11px]">
+              Date: {inspection.submittedAt ? new Date(inspection.submittedAt).toLocaleString("en-GB") : "Pending"}
+            </span>
+          </div>
+          <div>
+            <span className="text-[10px] font-bold text-slate-500 uppercase block">Operations / Approver Review</span>
+            <span className="font-bold text-slate-900 block mt-1">
+              {inspection.reviewedBy?.name || (inspection.status === "APPROVED" ? "Operations Manager" : "Awaiting Review")}
+            </span>
+            <span className="text-slate-500 block text-[11px]">
+              Status: <strong>{inspection.status}</strong>
+              {inspection.reviewedAt && ` on ${new Date(inspection.reviewedAt).toLocaleString("en-GB")}`}
+            </span>
+            {inspection.reviewComment && (
+              <p className="text-[10px] text-slate-600 italic mt-1 bg-slate-50 p-1.5 border border-slate-200 rounded">
+                Note: "{inspection.reviewComment}"
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+    </>
   );
 }

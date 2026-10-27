@@ -265,15 +265,18 @@ export async function requestSiteInspection(
 
   // Log Activity on the lead
   try {
-    await Activity.create({
-      id: crypto.randomUUID(),
-      leadId: lead.id,
-      type: "site_inspection",
-      outcome: `Site Inspection requested (${inspectionNumber})`,
-      notes: requestNote || "Site inspection requested prior to qualification.",
-      userId: requestedById || lead.assignedToId || null,
-      direction: "internal",
-    });
+    const creatorId = requestedById || lead.assignedToId;
+    if (creatorId) {
+      await Activity.create({
+        id: crypto.randomUUID(),
+        leadId: lead.id,
+        type: "site_inspection",
+        outcome: `Site Inspection requested (${inspectionNumber})`,
+        notes: requestNote || "Site inspection requested prior to qualification.",
+        createdById: creatorId,
+        direction: "internal",
+      });
+    }
   } catch (actErr) {
     console.warn("[requestSiteInspection] Activity create warn:", actErr);
   }
