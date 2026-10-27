@@ -999,7 +999,6 @@ router.post("/cron/hourly", runHourlyCron);
 router.get("/cron/daily", runDailyCron);
 router.post("/cron/daily", runDailyCron);
 
-
 // ==========================================
 // SITE INSPECTIONS
 // ==========================================
@@ -1054,6 +1053,30 @@ router.get("/site-inspections/:id/attachments/:attId/file", authMiddleware, getA
 
 router.get("/leads/:leadId/site-inspection", authMiddleware, getLeadSiteInspection);
 router.post("/leads/:leadId/site-inspection/request", authMiddleware, requestLeadSiteInspectionEndpoint);
+
+// ==========================================
+// LEAD INTENT FILTER & HELD EMAILS
+// ==========================================
+import {
+  getHeldEmails,
+  promoteHeldEmail,
+  rejectHeldEmail,
+  getFilterStats,
+  getShadowLogs,
+  getSenderRules,
+  createSenderRule,
+  deleteSenderRule,
+} from "../controllers/leadFilterController";
+
+router.get("/lead-filter/held", authMiddleware, requireAdminOrManager, getHeldEmails);
+router.post("/lead-filter/held/:id/promote", authMiddleware, requireAdminOrManager, promoteHeldEmail);
+router.post("/lead-filter/held/:id/reject", authMiddleware, requireAdminOrManager, rejectHeldEmail);
+router.get("/lead-filter/stats", authMiddleware, requireAdminOrManager, getFilterStats);
+router.get("/lead-filter/shadow-logs", authMiddleware, requireAdminOrManager, getShadowLogs);
+router.get("/lead-filter/sender-rules", authMiddleware, requireAdminOrManager, getSenderRules);
+router.post("/lead-filter/sender-rules", authMiddleware, requireAdminOrManager, createSenderRule);
+router.delete("/lead-filter/sender-rules/:id", authMiddleware, requireAdminOrManager, deleteSenderRule);
+
 
 export default router;
 

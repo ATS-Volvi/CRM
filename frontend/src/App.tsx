@@ -65,6 +65,7 @@ import QuoteDetail from "./pages/QuoteDetail";
 import PublicQuoteReview from "./pages/PublicQuoteReview";
 import SiteInspections from "./pages/SiteInspections";
 import SiteInspectionForm from "./pages/SiteInspectionForm";
+import HeldEmails from "./pages/HeldEmails";
 
 const ProtectedRoute = () => {
   const { isAuthenticated } = useAuth();
@@ -135,6 +136,7 @@ function App() {
                 <Route path="/leads" element={<Leads />} />
                 <Route path="/leads/new" element={<LeadCreate />} />
                 <Route path="/leads/:id" element={<LeadDetail />} />
+                <Route path="/held-emails" element={<HeldEmails />} />
                 
                 {/* Commercial Opportunities Workspace */}
                 <Route path="/opportunities" element={<Opportunities />} />
