@@ -24,6 +24,12 @@ import {
   reviewInspection,
   reassignInspection,
 } from "../services/siteInspectionService";
+import {
+  getFileStorage,
+  getUploadRoot,
+  generateInspectionStorageKey,
+  LocalFileStorage,
+} from "../services/fileStorage";
 
 // Multer memory storage configured for max 25MB files
 export const uploadAttachments = multer({
@@ -34,10 +40,10 @@ export const uploadAttachments = multer({
   },
 });
 
-const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
-const ALLOWED_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp", ".pdf"];
+export const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+export const ALLOWED_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp", ".pdf"];
 
-function validateFileMagic(buffer: Buffer, mimeType: string, originalName: string): boolean {
+export function validateFileMagic(buffer: Buffer, mimeType: string, originalName: string): boolean {
   const ext = path.extname(originalName).toLowerCase();
   if (!ALLOWED_EXTENSIONS.includes(ext)) return false;
   if (!ALLOWED_MIME_TYPES.includes(mimeType)) return false;
@@ -59,6 +65,7 @@ function validateFileMagic(buffer: Buffer, mimeType: string, originalName: strin
   if (mimeType === "image/webp") {
     // RIFF....WEBP
     return (
+      buffer.length >= 12 &&
       buffer.toString("ascii", 0, 4) === "RIFF" &&
       buffer.toString("ascii", 8, 12) === "WEBP"
     );
@@ -70,9 +77,8 @@ function validateFileMagic(buffer: Buffer, mimeType: string, originalName: strin
   return true;
 }
 
-const UPLOAD_ROOT = process.env.UPLOAD_DIR
-  ? path.resolve(process.env.UPLOAD_DIR)
-  : path.resolve(__dirname, "../../uploads");
+const UPLOAD_ROOT = getUploadRoot();
+
 
 export const getMasterData = async (req: Request, res: Response) => {
   try {
@@ -91,6 +97,7 @@ export const getMasterData = async (req: Request, res: Response) => {
       roadConditions: ["Good", "Fair", "Poor"],
       volumeUnits: ["L", "m3", "ton", "loads"],
       serviceTypes: ["SEWAGE", "GENERAL", "HAZARDOUS"],
+      storageDriver: (process.env.STORAGE_DRIVER || "local").toLowerCase(),
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -333,43 +340,253 @@ export const reassignSiteInspection = async (req: Request, res: Response) => {
   }
 };
 
+// Helper to verify user permissions and inspection editability for attachment modifications
+async function checkAttachmentPermissionAndEditable(
+  inspectionId: string,
+  user: any
+): Promise<{ inspection: any; errorStatus?: number; errorMessage?: string }> {
+  const inspection: any = await SiteInspection.findByPk(inspectionId);
+  if (!inspection) {
+    return { inspection: null, errorStatus: 404, errorMessage: "Site inspection not found" };
+  }
+
+  // Permission check: only assigned site_manager, admin, or approvers
+  if (user?.role === "site_manager" && inspection.assignedToId !== user.id) {
+    return {
+      inspection,
+      errorStatus: 403,
+      errorMessage: "Access denied: you may only upload attachments to inspections assigned to you.",
+    };
+  }
+
+  // Inspection must be in an editable status
+  const EDITABLE_STATUSES = ["REQUESTED", "DRAFT", "CHANGES_REQUESTED"];
+  if (!EDITABLE_STATUSES.includes(inspection.status)) {
+    return {
+      inspection,
+      errorStatus: 400,
+      errorMessage: `Cannot modify attachments when inspection status is ${inspection.status}.`,
+    };
+  }
+
+  return { inspection };
+}
+
+/**
+ * POST /site-inspections/:id/attachments/presign
+ * body: { fileName, mimeType, sizeBytes }
+ */
+export const presignAttachmentUpload = async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    const inspectionId = req.params.id as string;
+    const { fileName, mimeType, sizeBytes } = req.body;
+
+    if (!fileName || !mimeType || typeof sizeBytes !== "number") {
+      return res.status(400).json({ error: "fileName, mimeType, and sizeBytes are required." });
+    }
+
+    const { errorStatus, errorMessage } = await checkAttachmentPermissionAndEditable(inspectionId, user);
+    if (errorStatus) {
+      return res.status(errorStatus).json({ error: errorMessage });
+    }
+
+    // Validate extension & mime
+    const ext = path.extname(fileName).toLowerCase();
+    if (!ALLOWED_EXTENSIONS.includes(ext)) {
+      return res.status(400).json({ error: `Extension '${ext}' is not allowed. Allowed: ${ALLOWED_EXTENSIONS.join(", ")}` });
+    }
+    if (!ALLOWED_MIME_TYPES.includes(mimeType)) {
+      return res.status(400).json({ error: `MIME type '${mimeType}' is not allowed. Allowed: ${ALLOWED_MIME_TYPES.join(", ")}` });
+    }
+
+    // Validate size (max 25MB)
+    const MAX_SIZE = 25 * 1024 * 1024;
+    if (sizeBytes <= 0 || sizeBytes > MAX_SIZE) {
+      return res.status(400).json({ error: "File size exceeds the 25 MB limit or is invalid." });
+    }
+
+    // Max 30 files per inspection
+    const existingCount = await SiteInspectionAttachment.count({ where: { inspectionId } });
+    if (existingCount >= 30) {
+      return res.status(400).json({ error: "Maximum limit of 30 attachments per inspection exceeded." });
+    }
+
+    const storageKey = generateInspectionStorageKey(inspectionId, ext);
+    const storage = getFileStorage();
+    const expiresIn = 300; // 5 minutes
+
+    const uploadUrl = await storage.getSignedUploadUrl(storageKey, {
+      contentType: mimeType,
+      expiresInSeconds: expiresIn,
+    });
+
+    res.json({
+      uploadUrl,
+      storageKey,
+      expiresIn,
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * POST /site-inspections/:id/attachments/complete
+ * body: { storageKey, fileName, caption, tag }
+ */
+export const completeAttachmentUpload = async (req: Request, res: Response) => {
+  const inspectionId = req.params.id as string;
+  const user = (req as any).user;
+  const { storageKey, fileName, caption, tag } = req.body;
+  const storage = getFileStorage();
+
+  if (!storageKey || !fileName) {
+    return res.status(400).json({ error: "storageKey and fileName are required." });
+  }
+
+  // 1. Confirm the key belongs to this inspection
+  // Key format: site-inspections/<inspectionId>/<random-uuid><ext>
+  const expectedPrefix = `site-inspections/${inspectionId}/`;
+  if (!storageKey.startsWith(expectedPrefix)) {
+    return res.status(400).json({ error: "Invalid storageKey: key does not belong to this inspection." });
+  }
+
+  const { errorStatus, errorMessage } = await checkAttachmentPermissionAndEditable(inspectionId, user);
+  if (errorStatus) {
+    return res.status(errorStatus).json({ error: errorMessage });
+  }
+
+  const existingCount = await SiteInspectionAttachment.count({ where: { inspectionId } });
+  if (existingCount >= 30) {
+    await storage.deleteObject(storageKey).catch(() => {});
+    return res.status(400).json({ error: "Maximum limit of 30 attachments per inspection exceeded." });
+  }
+
+  // 2. Read first bytes and size from storage
+  let head: any;
+  try {
+    head = await storage.getObjectHead(storageKey, 64);
+  } catch (headErr: any) {
+    return res.status(400).json({ error: `Failed to inspect uploaded file in storage: ${headErr.message}` });
+  }
+
+  const MAX_SIZE = 25 * 1024 * 1024;
+  if (!head || head.contentLength <= 0 || head.contentLength > MAX_SIZE) {
+    await storage.deleteObject(storageKey).catch(() => {});
+    return res.status(400).json({ error: "Uploaded file is empty or exceeds the 25 MB limit." });
+  }
+
+  // Determine mime from extension and validate magic bytes
+  const ext = path.extname(fileName).toLowerCase();
+  let mimeType = head.contentType;
+  if (!mimeType || mimeType === "application/octet-stream") {
+    if (ext === ".jpg" || ext === ".jpeg") mimeType = "image/jpeg";
+    else if (ext === ".png") mimeType = "image/png";
+    else if (ext === ".webp") mimeType = "image/webp";
+    else if (ext === ".pdf") mimeType = "application/pdf";
+  }
+
+  const firstBytes = head.firstBytes || Buffer.alloc(0);
+  const isValid = validateFileMagic(firstBytes, mimeType, fileName);
+  if (!isValid) {
+    await storage.deleteObject(storageKey).catch(() => {});
+    return res.status(400).json({ error: "Uploaded file content does not match declared type (magic byte check failed)." });
+  }
+
+  // 3. Extract EXIF GPS with exifr if image
+  let latitude: number | null = null;
+  let longitude: number | null = null;
+  let takenAt: Date | null = null;
+
+  if (mimeType.startsWith("image/")) {
+    try {
+      const exifr = require("exifr");
+      // If we have firstBytes or need to read more bytes for EXIF:
+      // Try parsing from first bytes or read up to 64KB if available
+      let exifBuffer = firstBytes;
+      if (storage instanceof LocalFileStorage) {
+        const fullLocalPath = path.resolve(UPLOAD_ROOT, storageKey);
+        if (fs.existsSync(fullLocalPath)) {
+          exifBuffer = fs.readFileSync(fullLocalPath);
+        }
+      } else {
+        // In S3 driver, read up to first 64KB for EXIF headers
+        try {
+          const s3Head = await storage.getObjectHead(storageKey, 65536);
+          if (s3Head.firstBytes) exifBuffer = s3Head.firstBytes;
+        } catch {}
+      }
+
+      const exifData = await exifr.parse(exifBuffer, { gps: true, tiff: true });
+      if (exifData) {
+        if (typeof exifData.latitude === "number") latitude = exifData.latitude;
+        if (typeof exifData.longitude === "number") longitude = exifData.longitude;
+        if (exifData.DateTimeOriginal) takenAt = new Date(exifData.DateTimeOriginal);
+      }
+    } catch (exifErr) {
+      // EXIF parsing is non-fatal
+    }
+  }
+
+  // 4. Create SiteInspectionAttachments row
+  try {
+    const att = await SiteInspectionAttachment.create({
+      id: crypto.randomUUID(),
+      inspectionId,
+      fileName,
+      mimeType,
+      sizeBytes: head.contentLength,
+      storagePath: storageKey,
+      caption: caption || null,
+      tag: tag || "Site Overview",
+      latitude,
+      longitude,
+      takenAt: takenAt || new Date(),
+      uploadedById: user?.id || null,
+    });
+
+    res.status(201).json(att);
+  } catch (createErr: any) {
+    await storage.deleteObject(storageKey).catch(() => {});
+    res.status(500).json({ error: createErr.message });
+  }
+};
+
 export const uploadSiteAttachments = async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
     const inspectionId = req.params.id as string;
 
-    const inspection: any = await SiteInspection.findByPk(inspectionId);
-    if (!inspection) return res.status(404).json({ error: "Site inspection not found" });
-
-    if (user?.role === "site_manager" && inspection.assignedToId !== user.id) {
-      return res.status(403).json({ error: "Access denied: you may only upload to inspections assigned to you." });
-    }
-
-    const existingCount = await SiteInspectionAttachment.count({ where: { inspectionId } });
     const files = (req.files as Express.Multer.File[]) || (req.file ? [req.file] : []);
 
     if (files.length === 0) {
       return res.status(400).json({ error: "No files uploaded." });
     }
 
-    if (existingCount + files.length > 30) {
-      return res.status(400).json({ error: "Maximum limit of 30 attachments per inspection exceeded." });
-    }
-
-    const uploadDir = path.join(UPLOAD_ROOT, "site-inspections", inspectionId);
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-
-    const createdAttachments: any[] = [];
-
+    // Validate magic bytes and format first
     for (const file of files) {
       if (!validateFileMagic(file.buffer, file.mimetype, file.originalname)) {
         return res.status(400).json({
           error: `File ${file.originalname} is not a valid JPEG, PNG, WEBP, or PDF file.`,
         });
       }
+    }
 
+    const { errorStatus, errorMessage } = await checkAttachmentPermissionAndEditable(inspectionId, user);
+    if (errorStatus) {
+      return res.status(errorStatus).json({ error: errorMessage });
+    }
+
+    const existingCount = await SiteInspectionAttachment.count({ where: { inspectionId } });
+    if (existingCount + files.length > 30) {
+      return res.status(400).json({ error: "Maximum limit of 30 attachments per inspection exceeded." });
+    }
+
+    const storage = getFileStorage();
+    const createdAttachments: any[] = [];
+
+    for (const file of files) {
       // Optional EXIF GPS extraction
       let latitude: number | null = null;
       let longitude: number | null = null;
@@ -390,11 +607,11 @@ export const uploadSiteAttachments = async (req: Request, res: Response) => {
       }
 
       const fileExt = path.extname(file.originalname).toLowerCase();
-      const storedFileName = `${crypto.randomUUID()}${fileExt}`;
-      const fullPath = path.join(uploadDir, storedFileName);
-      fs.writeFileSync(fullPath, file.buffer);
+      const storageKey = generateInspectionStorageKey(inspectionId, fileExt);
 
-      const relPath = path.join("site-inspections", inspectionId, storedFileName);
+      await storage.putObject(storageKey, file.buffer, {
+        contentType: file.mimetype,
+      });
 
       const att = await SiteInspectionAttachment.create({
         id: crypto.randomUUID(),
@@ -402,7 +619,7 @@ export const uploadSiteAttachments = async (req: Request, res: Response) => {
         fileName: file.originalname,
         mimeType: file.mimetype,
         sizeBytes: file.size,
-        storagePath: relPath,
+        storagePath: storageKey,
         caption: req.body.caption || null,
         tag: req.body.tag || "Site Overview",
         latitude,
@@ -451,6 +668,15 @@ export const deleteAttachment = async (req: Request, res: Response) => {
     });
     if (!att) return res.status(404).json({ error: "Attachment not found" });
 
+    const storage = getFileStorage();
+    // Delete from storage (handles both local and s3)
+    try {
+      await storage.deleteObject(att.storagePath);
+    } catch (e) {
+      console.warn("Failed to delete stored object:", e);
+    }
+
+    // Also support fallback cleanup for older rows with legacy relative paths
     const fullPath = path.resolve(UPLOAD_ROOT, att.storagePath);
     if (fullPath.startsWith(UPLOAD_ROOT) && fs.existsSync(fullPath)) {
       try {
@@ -475,6 +701,19 @@ export const getAttachmentFile = async (req: Request, res: Response) => {
     });
     if (!att) return res.status(404).json({ error: "Attachment not found" });
 
+    const driver = (process.env.STORAGE_DRIVER || "local").toLowerCase();
+
+    // If driver is s3 and file is stored in S3, redirect to short-lived signed download URL
+    if (driver === "s3") {
+      const storage = getFileStorage();
+      const signedUrl = await storage.getSignedDownloadUrl(att.storagePath, {
+        expiresInSeconds: 60,
+        responseContentDisposition: `inline; filename="${att.fileName}"`,
+      });
+      return res.redirect(signedUrl);
+    }
+
+    // Local driver or fallback for legacy files
     const safePath = path.resolve(UPLOAD_ROOT, att.storagePath);
     if (!safePath.startsWith(UPLOAD_ROOT)) {
       return res.status(403).json({ error: "Path traversal rejected" });
@@ -491,6 +730,7 @@ export const getAttachmentFile = async (req: Request, res: Response) => {
     res.status(500).json({ error: error.message });
   }
 };
+
 
 export const getLeadSiteInspection = async (req: Request, res: Response) => {
   try {

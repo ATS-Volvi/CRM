@@ -50,6 +50,10 @@ export default function SiteInspectionForm() {
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
 
+  // Per-file upload progress and status
+  const [uploadProgress, setUploadProgress] = useState<{ [fileName: string]: number }>({});
+  const [isUploading, setIsUploading] = useState(false);
+
   // Modal for viewing an attachment
   const [previewAttachment, setPreviewAttachment] = useState<SiteInspectionAttachmentItem | null>(null);
 
@@ -256,19 +260,88 @@ export default function SiteInspectionForm() {
     });
   };
 
-  // File Upload Handler
+  // File Upload Handler (presign -> direct PUT -> complete; fall back to multipart if local driver)
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
     const fileList = Array.from(e.target.files);
-    const fd = new FormData();
-    fileList.forEach((file) => fd.append("files", file));
-    fd.append("tag", "Site Overview");
+    e.target.value = ""; // reset file input
+
+    setIsUploading(true);
+    setFormError(null);
+
+    const isS3Driver = masterData?.storageDriver === "s3";
 
     try {
-      await siteInspectionApi.uploadAttachments(id!, fd);
-      queryClient.invalidateQueries({ queryKey: ["site-inspection", id] });
+      if (!isS3Driver) {
+        // Fallback to legacy/local multipart upload
+        const fd = new FormData();
+        fileList.forEach((file) => fd.append("files", file));
+        fd.append("tag", "Site Overview");
+        await siteInspectionApi.uploadAttachments(id!, fd);
+      } else {
+        // Direct upload flow per file
+        for (const file of fileList) {
+          const fileName = file.name;
+          setUploadProgress((prev) => ({ ...prev, [fileName]: 0 }));
+
+          // 1. Presign
+          const { uploadUrl, storageKey } = await siteInspectionApi.presignAttachment(id!, {
+            fileName: file.name,
+            mimeType: file.type || "application/octet-stream",
+            sizeBytes: file.size,
+          });
+
+          // 2. Direct PUT to S3 / R2 / Supabase with XMLHttpRequest to track progress
+          await new Promise<void>((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open("PUT", uploadUrl, true);
+            xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+
+            xhr.upload.onprogress = (evt) => {
+              if (evt.lengthComputable) {
+                const pct = Math.round((evt.loaded / evt.total) * 100);
+                setUploadProgress((prev) => ({ ...prev, [fileName]: pct }));
+              }
+            };
+
+            xhr.onload = () => {
+              if (xhr.status >= 200 && xhr.status < 300) {
+                resolve();
+              } else {
+                reject(
+                  new Error(
+                    `Upload to storage failed (HTTP ${xhr.status}). If using a custom bucket, verify that the CORS policy allows PUT from this origin.`
+                  )
+                );
+              }
+            };
+
+            xhr.onerror = () => {
+              reject(
+                new Error(
+                  `Upload blocked by network or CORS policy. Check browser console and ensure the S3 bucket CORS allows PUT and Content-Type.`
+                )
+              );
+            };
+
+            xhr.send(file);
+          });
+
+          // 3. Complete attachment
+          await siteInspectionApi.completeAttachment(id!, {
+            storageKey,
+            fileName: file.name,
+            tag: "Site Overview",
+          });
+        }
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ["site-inspection", id] });
     } catch (err: any) {
       setFormError(err.response?.data?.error || err.message || "Upload failed");
+    } finally {
+      setIsUploading(false);
+      setUploadProgress({});
     }
   };
 
@@ -1166,10 +1239,11 @@ export default function SiteInspectionForm() {
                 {isEditable && (
                   <label className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl cursor-pointer shadow-xs">
                     <Upload className="w-3.5 h-3.5" />
-                    <span>Upload Files</span>
+                    <span>{isUploading ? "Uploading..." : "Upload Files"}</span>
                     <input
                       type="file"
                       multiple
+                      disabled={isUploading}
                       accept="image/jpeg,image/png,image/webp,application/pdf"
                       onChange={handleFileUpload}
                       className="hidden"
@@ -1177,6 +1251,29 @@ export default function SiteInspectionForm() {
                   </label>
                 )}
               </div>
+
+              {/* Upload Progress Bar if uploading */}
+              {isUploading && Object.keys(uploadProgress).length > 0 && (
+                <div className="p-3 bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 rounded-xl space-y-2">
+                  <div className="text-xs font-bold text-indigo-700 dark:text-indigo-300 flex items-center justify-between">
+                    <span>Uploading direct to storage...</span>
+                  </div>
+                  {Object.entries(uploadProgress).map(([fName, pct]) => (
+                    <div key={fName} className="space-y-1">
+                      <div className="flex justify-between text-[11px] text-slate-600 dark:text-slate-300 font-medium">
+                        <span className="truncate max-w-[250px]">{fName}</span>
+                        <span>{pct}%</span>
+                      </div>
+                      <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-indigo-600 transition-all duration-200"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {/* Attachments List */}
               {(inspection.attachments || []).length > 0 ? (

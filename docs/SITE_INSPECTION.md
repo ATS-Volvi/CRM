@@ -59,7 +59,74 @@ The gate is enforced in both backend service logic and controller entrypoints:
 | `SITE_INSPECTION_GATE` | `on` | Set to `off` to bypass gate checks (demos or legacy test suites only). |
 | `SITE_INSPECTION_SLA_HOURS` | `48` | Target hours between `REQUESTED` and `SUBMITTED` before flagging overdue. |
 | `SITE_INSPECTION_FUEL_L_PER_KM` | `0.40` | Heavy vehicle fuel consumption factor (diesel litres per kilometer). |
-| `UPLOAD_DIR` | `./uploads/site-inspections` | File system directory where photo and PDF attachments are stored. Must be backed by a persistent volume in production. |
+| `STORAGE_DRIVER` | `local` | Storage driver: `local` (disk under `UPLOAD_DIR`) or `s3` (S3-compatible object storage). Default is `local`. |
+| `UPLOAD_DIR` | `./uploads` | Local directory for attachments when `STORAGE_DRIVER=local`. (On Vercel, use `/tmp/uploads`). |
+| `S3_BUCKET` | *(none)* | Bucket name for S3-compatible storage (required when `STORAGE_DRIVER=s3`). |
+| `S3_REGION` | `us-east-1` | S3 region or `auto` for Cloudflare R2. |
+| `S3_ENDPOINT` | *(none)* | Custom endpoint URL (required for Cloudflare R2 and Supabase Storage S3 endpoints). |
+| `S3_ACCESS_KEY_ID` | *(none)* | S3 access key ID. |
+| `S3_SECRET_ACCESS_KEY` | *(none)* | S3 secret access key. |
+| `S3_FORCE_PATH_STYLE` | `false` | Set to `true` if your S3-compatible provider requires path-style addressing (e.g. MinIO or Supabase). |
+
+---
+
+## 4.1 Object Storage Setup & Bucket Security Checklist
+
+To run securely with `STORAGE_DRIVER=s3`:
+
+1. **Private Bucket**:
+   - Bucket must be strictly **private** (block all public read/write access).
+   - All browser uploads use 5-minute pre-signed PUT URLs.
+   - All downloads use 60-second pre-signed GET URLs generated on-demand by the backend API.
+2. **Least-Privilege IAM / Access Credentials**:
+   - Scope access credentials strictly to the designated bucket:
+     - `s3:PutObject`
+     - `s3:GetObject`
+     - `s3:DeleteObject`
+     - `s3:HeadObject`
+3. **CORS Configuration Rule**:
+   - The bucket must configure CORS to allow the frontend origin to upload directly:
+   ```json
+   [
+     {
+       "AllowedHeaders": ["Content-Type"],
+       "AllowedMethods": ["PUT", "GET"],
+       "AllowedOrigins": ["https://your-crm-frontend.vercel.app", "http://localhost:5173"],
+       "ExposeHeaders": ["ETag"],
+       "MaxAgeSeconds": 3600
+     }
+   ]
+   ```
+
+### Cloudflare R2 Quick Setup
+1. In the Cloudflare Dashboard, navigate to **R2** ➔ **Create Bucket** (e.g., `nexus-site-inspections`).
+2. Under **Bucket Settings** ➔ **CORS Policy**, paste the CORS configuration above (replace with your frontend domain).
+3. Under **Manage R2 API Tokens**, click **Create API Token**:
+   - Permission: *Object Read & Write*
+   - Specify bucket: `nexus-site-inspections`
+4. Copy credentials to Vercel Environment Variables:
+   - `STORAGE_DRIVER=s3`
+   - `S3_BUCKET=nexus-site-inspections`
+   - `S3_REGION=auto`
+   - `S3_ENDPOINT=https://<ACCOUNT_ID>.r2.cloudflarestorage.com`
+   - `S3_ACCESS_KEY_ID=<R2_ACCESS_KEY_ID>`
+   - `S3_SECRET_ACCESS_KEY=<R2_SECRET_ACCESS_KEY>`
+
+### Supabase Storage (S3 Protocol) Quick Setup
+1. In your Supabase project dashboard, navigate to **Storage** ➔ **New Bucket**:
+   - Name: `nexus-site-inspections`
+   - Public: **OFF** (Keep private).
+2. Go to **Project Settings** ➔ **Storage** ➔ **S3 Access Keys**:
+   - Generate a new S3 Access Key ID and Secret Key.
+3. Configure CORS on the Supabase bucket settings for your frontend origin.
+4. Copy credentials to Vercel Environment Variables:
+   - `STORAGE_DRIVER=s3`
+   - `S3_BUCKET=nexus-site-inspections`
+   - `S3_REGION=<project-region>` (e.g., `us-east-1` or your Supabase region)
+   - `S3_ENDPOINT=https://<project-ref>.supabase.co/storage/v1/s3`
+   - `S3_ACCESS_KEY_ID=<ACCESS_KEY_ID>`
+   - `S3_SECRET_ACCESS_KEY=<SECRET_ACCESS_KEY>`
+   - `S3_FORCE_PATH_STYLE=true`
 
 ---
 
