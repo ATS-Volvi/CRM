@@ -24,10 +24,21 @@ if [[ -z "${SITE_MANAGER_JWT:-}" ]]; then
   exit 1
 fi
 
+placeholder_regex='(YOUR|\.\.\.|<|>|example\.com)'
+if [[ "$BASE_URL" =~ $placeholder_regex ]]; then
+  echo "ERROR: BASE_URL contains an unreplaced placeholder: '$BASE_URL'"
+  exit 1
+fi
+
 # Guard against accidental execution on production
 if [[ "$BASE_URL" =~ "prod" ]] && [[ "$FORCE_PROD" != "--i-know-this-is-production" ]]; then
   echo "ERROR: BASE_URL contains 'prod'. To run against production, pass --i-know-this-is-production as the second argument."
   exit 1
+fi
+
+BYPASS_HEADER=()
+if [[ -n "${VERCEL_BYPASS_TOKEN:-}" ]]; then
+  BYPASS_HEADER=("-H" "x-vercel-protection-bypass: ${VERCEL_BYPASS_TOKEN}")
 fi
 
 TMP_DIR="$(mktemp -d /tmp/storage-smoke-XXXXXX)"
@@ -127,6 +138,7 @@ echo "Generated image size: $FILE_SIZE bytes (~$(( FILE_SIZE / 1024 / 1024 )) MB
 # ------------------------------------------------------------------------------
 echo "--- Step 2: Requesting pre-signed upload URL ---"
 PRESIGN_RES=$(curl -s -X POST "$BASE_URL/api/v1/site-inspections/$INSPECTION_ID/attachments/presign" \
+  ${BYPASS_HEADER[@]+"${BYPASS_HEADER[@]}"} \
   -H "Authorization: Bearer $SITE_MANAGER_JWT" \
   -H "Content-Type: application/json" \
   -d "{\"fileName\": \"smoke_test_gps.jpg\", \"mimeType\": \"image/jpeg\", \"sizeBytes\": $FILE_SIZE}")
@@ -160,6 +172,7 @@ echo "PASS: Direct PUT succeeded (HTTP $PUT_STATUS)."
 # ------------------------------------------------------------------------------
 echo "--- Step 4: Calling complete attachment endpoint ---"
 COMPLETE_RES=$(curl -s -X POST "$BASE_URL/api/v1/site-inspections/$INSPECTION_ID/attachments/complete" \
+  ${BYPASS_HEADER[@]+"${BYPASS_HEADER[@]}"} \
   -H "Authorization: Bearer $SITE_MANAGER_JWT" \
   -H "Content-Type: application/json" \
   -d "{\"storageKey\": \"$STORAGE_KEY\", \"fileName\": \"smoke_test_gps.jpg\", \"caption\": \"Smoke Test Photo\", \"tag\": \"Site Overview\"}")
@@ -181,6 +194,7 @@ echo "Extracted GPS Coordinates: Lat: $LATITUDE, Lon: $LONGITUDE"
 echo "--- Step 5: Verifying file download size ---"
 DOWNLOADED_FILE="$TMP_DIR/downloaded.jpg"
 curl -s -L "$BASE_URL/api/v1/site-inspections/$INSPECTION_ID/attachments/$ATTACHMENT_ID/file" \
+  ${BYPASS_HEADER[@]+"${BYPASS_HEADER[@]}"} \
   -H "Authorization: Bearer $SITE_MANAGER_JWT" \
   -o "$DOWNLOADED_FILE"
 
@@ -201,6 +215,7 @@ echo "This is not an image but plain text." > "$FAKE_FILE"
 FAKE_SIZE=$(wc -c < "$FAKE_FILE" | tr -d ' ')
 
 SPOOF_PRESIGN=$(curl -s -X POST "$BASE_URL/api/v1/site-inspections/$INSPECTION_ID/attachments/presign" \
+  ${BYPASS_HEADER[@]+"${BYPASS_HEADER[@]}"} \
   -H "Authorization: Bearer $SITE_MANAGER_JWT" \
   -H "Content-Type: application/json" \
   -d "{\"fileName\": \"spoofed.jpg\", \"mimeType\": \"image/jpeg\", \"sizeBytes\": $FAKE_SIZE}")
@@ -211,6 +226,7 @@ FAKE_KEY=$(echo "$SPOOF_PRESIGN" | python3 -c 'import sys, json; data=json.load(
 curl -s -X PUT "$FAKE_UPLOAD_URL" -H "Content-Type: image/jpeg" --data-binary @"$FAKE_FILE" > /dev/null
 
 SPOOF_COMPLETE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X POST "$BASE_URL/api/v1/site-inspections/$INSPECTION_ID/attachments/complete" \
+  ${BYPASS_HEADER[@]+"${BYPASS_HEADER[@]}"} \
   -H "Authorization: Bearer $SITE_MANAGER_JWT" \
   -H "Content-Type: application/json" \
   -d "{\"storageKey\": \"$FAKE_KEY\", \"fileName\": \"spoofed.jpg\"}")
@@ -227,6 +243,7 @@ fi
 # ------------------------------------------------------------------------------
 echo "--- Step 7: Cleaning up test attachment ---"
 DELETE_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE "$BASE_URL/api/v1/site-inspections/$INSPECTION_ID/attachments/$ATTACHMENT_ID" \
+  ${BYPASS_HEADER[@]+"${BYPASS_HEADER[@]}"} \
   -H "Authorization: Bearer $SITE_MANAGER_JWT")
 
 if [[ "$DELETE_STATUS" -eq 200 ]]; then

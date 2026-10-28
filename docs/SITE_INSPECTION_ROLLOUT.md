@@ -7,8 +7,12 @@ This runbook outlines the step-by-step procedure for safely deploying the Site I
 ### Step 1: Back up the Production Database `[User Only]`
 *Take a complete SQL snapshot before applying any migrations.*
 ```bash
-# Set your production database URL (never commit or hard-code this value)
-export PROD_DB='postgresql://user:password@host:5432/dbname?sslmode=require'
+# Securely read your production database URL into PROD_DB (never hard-code or commit secrets)
+# For zsh (macOS default):
+read -s "PROD_DB?Enter production database URL: "
+echo
+export PROD_DB
+# (Note for bash users: read -s -p "Enter production database URL: " PROD_DB; echo; export PROD_DB)
 
 # Run pg_dump excluding ownership and privilege statements for portability
 pg_dump "$PROD_DB" --no-owner --no-acl > prod_backup_before_site_inspection_$(date +%Y%m%d_%H%M%S).sql
@@ -29,7 +33,11 @@ unset PROD_DB
 git checkout main
 git pull origin main
 
-export PROD_DB='postgresql://user:password@host:5432/dbname?sslmode=require'
+# For zsh (macOS default):
+read -s "PROD_DB?Enter production database URL: "
+echo
+export PROD_DB
+# (Note for bash users: read -s -p "Enter production database URL: " PROD_DB; echo; export PROD_DB)
 
 # Run migration
 DATABASE_URL="$PROD_DB" USE_SQLITE="false" NODE_ENV="production" npx sequelize-cli db:migrate
@@ -129,7 +137,12 @@ If any operational issue arises, execute the following steps in order:
    > [!CAUTION]
    > Undoing the database migration drops the 5 site inspection tables and deletes all recorded inspection data. Use only if a severe schema defect is detected before production usage.
    ```bash
-   export PROD_DB='postgresql://user:password@host:5432/dbname?sslmode=require'
+   # For zsh (macOS default):
+   read -s "PROD_DB?Enter production database URL: "
+   echo
+   export PROD_DB
+   # (Note for bash users: read -s -p "Enter production database URL: " PROD_DB; echo; export PROD_DB)
+
    DATABASE_URL="$PROD_DB" USE_SQLITE="false" NODE_ENV="production" npx sequelize-cli db:migrate:undo
    unset PROD_DB
    ```
