@@ -340,6 +340,13 @@ export const reassignSiteInspection = async (req: Request, res: Response) => {
   }
 };
 
+// Sanitize filename to prevent header injection or special character exploits
+function sanitizeFileName(rawName: string): string {
+  // Strip null bytes, control characters, quotes, semicolons, path separators
+  const base = path.basename(rawName).replace(/[\r\n\0"';\\/]/g, "_").trim();
+  return base || "attachment";
+}
+
 // Helper to verify user permissions and inspection editability for attachment modifications
 async function checkAttachmentPermissionAndEditable(
   inspectionId: string,
@@ -350,12 +357,14 @@ async function checkAttachmentPermissionAndEditable(
     return { inspection: null, errorStatus: 404, errorMessage: "Site inspection not found" };
   }
 
-  // Permission check: only assigned site_manager, admin, or approvers
-  if (user?.role === "site_manager" && inspection.assignedToId !== user.id) {
+  // Permission check: only assigned site_manager or admin
+  const isAssigned = user?.role === "site_manager" && inspection.assignedToId === user.id;
+  const isAdmin = user?.role === "admin";
+  if (!isAssigned && !isAdmin) {
     return {
       inspection,
       errorStatus: 403,
-      errorMessage: "Access denied: you may only upload attachments to inspections assigned to you.",
+      errorMessage: "Access denied: only the assigned site manager or an administrator may modify attachments.",
     };
   }
 
@@ -446,15 +455,26 @@ export const completeAttachmentUpload = async (req: Request, res: Response) => {
   }
 
   // 1. Confirm the key belongs to this inspection
-  // Key format: site-inspections/<inspectionId>/<random-uuid><ext>
-  const expectedPrefix = `site-inspections/${inspectionId}/`;
-  if (!storageKey.startsWith(expectedPrefix)) {
-    return res.status(400).json({ error: "Invalid storageKey: key does not belong to this inspection." });
+  // Strict regex: site-inspections/<this inspectionId>/<uuid><ext>
+  // Disallows backslashes, "..", or foreign inspection IDs
+  if (storageKey.includes("..") || storageKey.includes("\\")) {
+    return res.status(400).json({ error: "Invalid storageKey: path traversal or backslashes detected." });
+  }
+
+  const expectedPattern = new RegExp(`^site-inspections/${inspectionId}/[0-9a-fA-F-]+(\\.[a-zA-Z0-9]+)$`);
+  if (!expectedPattern.test(storageKey)) {
+    return res.status(400).json({ error: "Invalid storageKey: key does not belong to this inspection or format is invalid." });
   }
 
   const { errorStatus, errorMessage } = await checkAttachmentPermissionAndEditable(inspectionId, user);
   if (errorStatus) {
     return res.status(errorStatus).json({ error: errorMessage });
+  }
+
+  // Prevent duplicate registration of the same storageKey
+  const duplicate = await SiteInspectionAttachment.findOne({ where: { storagePath: storageKey } });
+  if (duplicate) {
+    return res.status(400).json({ error: "Attachment with this storage key has already been registered." });
   }
 
   const existingCount = await SiteInspectionAttachment.count({ where: { inspectionId } });
@@ -502,8 +522,6 @@ export const completeAttachmentUpload = async (req: Request, res: Response) => {
   if (mimeType.startsWith("image/")) {
     try {
       const exifr = require("exifr");
-      // If we have firstBytes or need to read more bytes for EXIF:
-      // Try parsing from first bytes or read up to 64KB if available
       let exifBuffer = firstBytes;
       if (storage instanceof LocalFileStorage) {
         const fullLocalPath = path.resolve(UPLOAD_ROOT, storageKey);
@@ -511,7 +529,6 @@ export const completeAttachmentUpload = async (req: Request, res: Response) => {
           exifBuffer = fs.readFileSync(fullLocalPath);
         }
       } else {
-        // In S3 driver, read up to first 64KB for EXIF headers
         try {
           const s3Head = await storage.getObjectHead(storageKey, 65536);
           if (s3Head.firstBytes) exifBuffer = s3Head.firstBytes;
@@ -529,12 +546,14 @@ export const completeAttachmentUpload = async (req: Request, res: Response) => {
     }
   }
 
+  const sanitized = sanitizeFileName(fileName);
+
   // 4. Create SiteInspectionAttachments row
   try {
     const att = await SiteInspectionAttachment.create({
       id: crypto.randomUUID(),
       inspectionId,
-      fileName,
+      fileName: sanitized,
       mimeType,
       sizeBytes: head.contentLength,
       storagePath: storageKey,
@@ -587,7 +606,6 @@ export const uploadSiteAttachments = async (req: Request, res: Response) => {
     const createdAttachments: any[] = [];
 
     for (const file of files) {
-      // Optional EXIF GPS extraction
       let latitude: number | null = null;
       let longitude: number | null = null;
       let takenAt: Date | null = null;
@@ -613,10 +631,12 @@ export const uploadSiteAttachments = async (req: Request, res: Response) => {
         contentType: file.mimetype,
       });
 
+      const sanitized = sanitizeFileName(file.originalname);
+
       const att = await SiteInspectionAttachment.create({
         id: crypto.randomUUID(),
         inspectionId,
-        fileName: file.originalname,
+        fileName: sanitized,
         mimeType: file.mimetype,
         sizeBytes: file.size,
         storagePath: storageKey,
@@ -639,8 +659,15 @@ export const uploadSiteAttachments = async (req: Request, res: Response) => {
 
 export const updateAttachmentMetadata = async (req: Request, res: Response) => {
   try {
-    const { id, attId } = req.params;
+    const id = req.params.id as string;
+    const attId = req.params.attId as string;
     const { caption, tag } = req.body;
+    const user = (req as any).user;
+
+    const { errorStatus, errorMessage } = await checkAttachmentPermissionAndEditable(id, user);
+    if (errorStatus) {
+      return res.status(errorStatus).json({ error: errorMessage });
+    }
 
     const att: any = await SiteInspectionAttachment.findOne({
       where: { id: attId, inspectionId: id },
@@ -660,8 +687,15 @@ export const updateAttachmentMetadata = async (req: Request, res: Response) => {
 
 export const deleteAttachment = async (req: Request, res: Response) => {
   try {
-    const { id, attId } = req.params;
+    const id = req.params.id as string;
+    const attId = req.params.attId as string;
     const user = (req as any).user;
+
+    // Check permission and editable status (must not be SUBMITTED or APPROVED)
+    const { errorStatus, errorMessage } = await checkAttachmentPermissionAndEditable(id, user);
+    if (errorStatus) {
+      return res.status(errorStatus).json({ error: errorMessage });
+    }
 
     const att: any = await SiteInspectionAttachment.findOne({
       where: { id: attId, inspectionId: id },
@@ -695,20 +729,40 @@ export const deleteAttachment = async (req: Request, res: Response) => {
 
 export const getAttachmentFile = async (req: Request, res: Response) => {
   try {
-    const { id, attId } = req.params;
+    const id = req.params.id as string;
+    const attId = req.params.attId as string;
+    const user = (req as any).user;
+
+    const inspection: any = await SiteInspection.findByPk(id, {
+      include: [{ model: Lead, as: "lead" }],
+    });
+    if (!inspection) return res.status(404).json({ error: "Site inspection not found" });
+
+    // Download authorization check:
+    // Allowed: approvers, assigned site_manager, admin, or the lead owner
+    const isApprover = APPROVER_ROLES.includes(user?.role);
+    const isAssigned = inspection.assignedToId === user?.id;
+    const isLeadOwner = inspection.lead?.assignedToId === user?.id;
+    const isAdmin = user?.role === "admin";
+
+    if (!isApprover && !isAssigned && !isLeadOwner && !isAdmin) {
+      return res.status(403).json({ error: "Access denied: you do not have permission to view attachments for this inspection." });
+    }
+
     const att: any = await SiteInspectionAttachment.findOne({
       where: { id: attId, inspectionId: id },
     });
     if (!att) return res.status(404).json({ error: "Attachment not found" });
 
     const driver = (process.env.STORAGE_DRIVER || "local").toLowerCase();
+    const safeName = sanitizeFileName(att.fileName);
 
-    // If driver is s3 and file is stored in S3, redirect to short-lived signed download URL
+    // If driver is s3, redirect to short-lived (60 second) signed download URL
     if (driver === "s3") {
       const storage = getFileStorage();
       const signedUrl = await storage.getSignedDownloadUrl(att.storagePath, {
         expiresInSeconds: 60,
-        responseContentDisposition: `inline; filename="${att.fileName}"`,
+        responseContentDisposition: `inline; filename="${safeName}"`,
       });
       return res.redirect(signedUrl);
     }
@@ -724,7 +778,7 @@ export const getAttachmentFile = async (req: Request, res: Response) => {
     }
 
     res.setHeader("Content-Type", att.mimeType);
-    res.setHeader("Content-Disposition", `inline; filename="${att.fileName}"`);
+    res.setHeader("Content-Disposition", `inline; filename="${safeName}"`);
     fs.createReadStream(safePath).pipe(res);
   } catch (error: any) {
     res.status(500).json({ error: error.message });

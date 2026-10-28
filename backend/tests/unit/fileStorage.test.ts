@@ -240,22 +240,48 @@ describe("FileStorage Adapter & Direct Upload Unit Tests", () => {
       expect(statusSpy).toHaveBeenCalledWith(403);
     });
 
-    test("complete rejects wrong inspection key or path traversal", async () => {
+    test("complete rejects wrong inspection key, path traversal, or malformed key", async () => {
       mockReq = {
         user: { id: "mgr-1", role: "site_manager" },
         params: { id: "insp-100" },
         body: {
-          storageKey: "site-inspections/different-inspection/malicious.jpg",
+          storageKey: "site-inspections/different-inspection/11111111-2222-3333-4444-555555555555.jpg",
           fileName: "photo.jpg",
         },
       };
 
       await completeAttachmentUpload(mockReq, mockRes);
       expect(statusSpy).toHaveBeenCalledWith(400);
-      expect(jsonSpy).toHaveBeenCalledWith(expect.objectContaining({ error: expect.stringContaining("does not belong") }));
+      expect(jsonSpy).toHaveBeenCalledWith(expect.objectContaining({ error: expect.stringContaining("Invalid storageKey") }));
+    });
+
+    test("complete rejects duplicate storageKey registration", async () => {
+      const validKey = "site-inspections/insp-100/11111111-2222-3333-4444-555555555555.jpg";
+      mockReq = {
+        user: { id: "mgr-1", role: "site_manager" },
+        params: { id: "insp-100" },
+        body: {
+          storageKey: validKey,
+          fileName: "photo.jpg",
+        },
+      };
+      jest.spyOn(SiteInspection, "findByPk").mockResolvedValueOnce({
+        id: "insp-100",
+        assignedToId: "mgr-1",
+        status: "DRAFT",
+      });
+      jest.spyOn(SiteInspectionAttachment, "findOne").mockResolvedValueOnce({
+        id: "att-existing",
+        storagePath: validKey,
+      } as any);
+
+      await completeAttachmentUpload(mockReq, mockRes);
+      expect(statusSpy).toHaveBeenCalledWith(400);
+      expect(jsonSpy).toHaveBeenCalledWith(expect.objectContaining({ error: expect.stringContaining("already been registered") }));
     });
 
     test("complete rejects spoofed content and deletes object", async () => {
+      const validKey = "site-inspections/insp-100/22222222-3333-4444-5555-666666666666.jpg";
       const mockStorage = {
         getObjectHead: jest.fn().mockResolvedValue({
           contentLength: 1024,
@@ -270,7 +296,7 @@ describe("FileStorage Adapter & Direct Upload Unit Tests", () => {
         user: { id: "mgr-1", role: "site_manager" },
         params: { id: "insp-100" },
         body: {
-          storageKey: "site-inspections/insp-100/test.jpg",
+          storageKey: validKey,
           fileName: "photo.jpg",
         },
       };
@@ -279,17 +305,19 @@ describe("FileStorage Adapter & Direct Upload Unit Tests", () => {
         assignedToId: "mgr-1",
         status: "DRAFT",
       });
+      jest.spyOn(SiteInspectionAttachment, "findOne").mockResolvedValueOnce(null);
       jest.spyOn(SiteInspectionAttachment, "count").mockResolvedValueOnce(0);
 
       await completeAttachmentUpload(mockReq, mockRes);
-      expect(mockStorage.deleteObject).toHaveBeenCalledWith("site-inspections/insp-100/test.jpg");
+      expect(mockStorage.deleteObject).toHaveBeenCalledWith(validKey);
       expect(statusSpy).toHaveBeenCalledWith(400);
       expect(jsonSpy).toHaveBeenCalledWith(expect.objectContaining({ error: expect.stringContaining("magic byte check failed") }));
 
       setFileStorage(null); // reset
     });
 
-    test("complete creates attachment for valid upload", async () => {
+    test("complete creates attachment for valid upload with sanitized fileName", async () => {
+      const validKey = "site-inspections/insp-100/33333333-4444-5555-6666-777777777777.jpg";
       const mockStorage = {
         getObjectHead: jest.fn().mockResolvedValue({
           contentLength: 2048,
@@ -304,8 +332,8 @@ describe("FileStorage Adapter & Direct Upload Unit Tests", () => {
         user: { id: "mgr-1", role: "site_manager" },
         params: { id: "insp-100" },
         body: {
-          storageKey: "site-inspections/insp-100/valid.jpg",
-          fileName: "ground_photo.jpg",
+          storageKey: validKey,
+          fileName: "ground_\"unsafe\";photo.jpg",
           caption: "North Gate",
           tag: "Access Road",
         },
@@ -315,20 +343,40 @@ describe("FileStorage Adapter & Direct Upload Unit Tests", () => {
         assignedToId: "mgr-1",
         status: "DRAFT",
       });
+      jest.spyOn(SiteInspectionAttachment, "findOne").mockResolvedValueOnce(null);
       jest.spyOn(SiteInspectionAttachment, "count").mockResolvedValueOnce(2);
       const createSpy = jest.spyOn(SiteInspectionAttachment, "create").mockResolvedValueOnce({
         id: "att-1",
         inspectionId: "insp-100",
-        fileName: "ground_photo.jpg",
+        fileName: "ground__unsafe__photo.jpg",
         sizeBytes: 2048,
-        storagePath: "site-inspections/insp-100/valid.jpg",
+        storagePath: validKey,
       } as any);
 
       await completeAttachmentUpload(mockReq, mockRes);
       expect(statusSpy).toHaveBeenCalledWith(201);
-      expect(createSpy).toHaveBeenCalled();
+      expect(createSpy).toHaveBeenCalledWith(expect.objectContaining({
+        fileName: "ground__unsafe__photo.jpg",
+      }));
 
       setFileStorage(null);
+    });
+
+    test("deleteAttachment rejects deletion if inspection is SUBMITTED or APPROVED", async () => {
+      const { deleteAttachment } = require("../../src/controllers/siteInspectionController");
+      mockReq = {
+        user: { id: "mgr-1", role: "site_manager" },
+        params: { id: "insp-100", attId: "att-1" },
+      };
+      jest.spyOn(SiteInspection, "findByPk").mockResolvedValueOnce({
+        id: "insp-100",
+        assignedToId: "mgr-1",
+        status: "SUBMITTED",
+      });
+
+      await deleteAttachment(mockReq, mockRes);
+      expect(statusSpy).toHaveBeenCalledWith(400);
+      expect(jsonSpy).toHaveBeenCalledWith(expect.objectContaining({ error: expect.stringContaining("Cannot modify attachments") }));
     });
   });
 });
