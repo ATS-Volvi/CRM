@@ -1,17 +1,14 @@
 import { Request, Response } from "express";
-import { randomUUID } from "crypto";
 import { User, Activity, FlaggedLead, sequelize } from "@nexus-crm/database";
 import { assignLead } from "../services/assignmentEngine";
 import { routeChannelLead } from "../services/channelRoutingEngine";
-import { ingestLead } from "../services/leadIngestion";
 import { Op } from "sequelize";
+import { randomUUID } from "crypto";
 import { extractEmailMetadata } from "../lead-security-layer/intentFilter/headerParser";
 import { evaluateInboundEmail } from "../lead-security-layer/intentFilter";
-import { attachEmailToLeadActivity } from "../lead-security-layer/intentFilter/attachActivity";
 import { getSenderContext } from "../lead-security-layer/intentFilter/senderContext";
+import { attachEmailToLeadActivity } from "../lead-security-layer/intentFilter/attachActivity";
 import { shouldSendClarificationAutoReply, sendClarificationAutoReply, handlePromoteOnReply } from "../lead-security-layer/intentFilter/autoReplyService";
-import { processInboundIntakeEvent } from "../services/leadIntakeAutomationEngine";
-import { detectAndFlagQuoteAcceptance } from "../services/quoteDeliveryService";
 
 const WHITELIST_ROLES = ["sales_rep", "manager", "admin", "director"];
 const TERMINAL_LEAD_STATUSES = ["Won", "Lost", "Closed", "Closed Won", "Closed Lost"];
@@ -70,7 +67,6 @@ function extractAttnName(subject: string, bodyText: string): string | null {
 }
 
 // Normalize different provider payload formats (SendGrid JSON, Mailgun multipart/form-data, URL encoded)
-// Byte-identical to main: Does not call extractEmailMetadata here
 function normalizeInboundPayload(rawBody: any) {
   const b = rawBody || {};
   const from = b.from || b.sender || b.From || b.Sender || "";
@@ -206,139 +202,6 @@ export const receiveInboundEmail = async (req: Request, res: Response) => {
     const { firstName, lastName, email } = parseSender(rawFrom);
     const recipientEmail = rawTo ? parseSender(rawTo).email : null;
 
-    const mode = (process.env.INTENT_FILTER_MODE || "off").toLowerCase();
-
-    // In mode=off, do NOT call extractEmailMetadata at all.
-    // In shadow/enforce, extract metadata wrapped in try/catch returning undefined on error.
-    let emailMeta: any = undefined;
-    if (mode === "shadow" || mode === "enforce") {
-      try {
-        const files = (req as any).files || (req.file ? [req.file] : []);
-        emailMeta = extractEmailMetadata(req.body, files);
-      } catch (err: any) {
-        console.warn("[emailController] Failed to extract email metadata, proceeding without it:", err?.message || err);
-        emailMeta = undefined;
-      }
-    }
-
-    // In mode=enforce: Intent Filter Gate runs before ingestion
-    if (mode === "enforce") {
-      const skipGate = Boolean((req as any)._internalSkipGate);
-      let intentVerdict: any = null;
-      if (!skipGate) {
-        try {
-          intentVerdict = await evaluateInboundEmail("email", emailMeta, emailBody);
-        } catch (gateErr: any) {
-          console.error("[emailController] Intent Filter evaluation error:", gateErr.message);
-          intentVerdict = {
-            action: "REVIEW",
-            label: "too_vague",
-            score: 50,
-            confidence: "low",
-            reason: `Intent gate error: ${gateErr.message}`
-          };
-        }
-      }
-
-      // 1. ATTACH_EXISTING: Attach activity to open lead without creating new lead or reassigning
-      if (intentVerdict && intentVerdict.action === "ATTACH_EXISTING") {
-        let targetLeadId = intentVerdict.openLeadId;
-        if (!targetLeadId) {
-          try {
-            const ctx = await getSenderContext(email);
-            targetLeadId = ctx.openLeadId;
-          } catch (ctxErr: any) {
-            console.warn("[emailController] Failed to get sender context fallback:", ctxErr?.message);
-          }
-        }
-
-        let attachedSuccessfully = false;
-        if (targetLeadId) {
-          try {
-            await attachEmailToLeadActivity({
-              leadId: targetLeadId,
-              subject: emailSubject,
-              body: emailBody,
-              createdById: (req as any).user?.id || null,
-              channelSource: "email"
-            });
-            attachedSuccessfully = true;
-          } catch (actErr: any) {
-            console.warn("[emailController] Error attaching activity to open lead:", actErr.message);
-          }
-        }
-
-        if (attachedSuccessfully) {
-          return res.status(202).json({
-            status: "attached",
-            message: "Email attached to existing open lead",
-            leadId: targetLeadId,
-            action: "ATTACH_EXISTING"
-          });
-        }
-        // Fall through to normal lead creation if targetLeadId is missing or attach threw
-      }
-
-      // 2. PENDING_CLARIFY, REVIEW, ARCHIVE: Hold in FlaggedLeads and stop downstream steps
-      if (intentVerdict && ["PENDING_CLARIFY", "REVIEW", "ARCHIVE"].includes(intentVerdict.action)) {
-        const disposition = intentVerdict.action === "PENDING_CLARIFY"
-          ? "pending_clarification"
-          : intentVerdict.action === "ARCHIVE"
-          ? "archived"
-          : "review";
-
-        let flaggedRow: any = null;
-        let holdWritten = false;
-        if (FlaggedLead) {
-          try {
-            flaggedRow = await FlaggedLead.create({
-              id: randomUUID(),
-              payload: req.body,
-              source: "email",
-              channel: "email",
-              ip: req.ip || null,
-              reason: intentVerdict.reason,
-              disposition,
-              intentLabel: intentVerdict.label,
-              intentScore: intentVerdict.score,
-              explanation: intentVerdict.reason,
-              senderEmail: email,
-              subject: emailSubject,
-              reviewed: false
-            });
-            holdWritten = true;
-          } catch (flagErr: any) {
-            console.warn("[emailController] Error creating FlaggedLead record:", flagErr.message);
-          }
-        }
-
-        if (holdWritten) {
-          // Clarification auto-reply (Phase 5)
-          if (intentVerdict.action === "PENDING_CLARIFY") {
-            try {
-              const senderCtx = await getSenderContext(email);
-              const shouldReply = await shouldSendClarificationAutoReply(emailMeta, senderCtx);
-              if (shouldReply) {
-                await sendClarificationAutoReply(email, flaggedRow?.id);
-              }
-            } catch (replyErr: any) {
-              console.warn("[emailController] Auto-reply error:", replyErr.message);
-            }
-          }
-
-          return res.status(202).json({
-            status: intentVerdict.action === "ARCHIVE" ? "archived" : "held",
-            message: `Inbound email filtered: ${intentVerdict.action}`,
-            action: intentVerdict.action,
-            reason: intentVerdict.reason,
-            disposition
-          });
-        }
-        // Fall through to normal lead creation if FlaggedLead is missing or write threw
-      }
-    }
-
-    // In mode=off, mode=shadow (or unheld in enforce mode): Run pipeline directly
     const routingResult = await routeChannelLead({
       channel: "email",
       subject: emailSubject,
@@ -380,6 +243,125 @@ export const receiveInboundEmail = async (req: Request, res: Response) => {
       }
     }
 
+    const mode = process.env.INTENT_FILTER_MODE || "off";
+
+    if (mode === "enforce") {
+      let emailMeta: any = undefined;
+      try {
+        emailMeta = extractEmailMetadata(req.body, rawFiles);
+      } catch {
+        emailMeta = undefined;
+      }
+
+      const intentVerdict = await evaluateInboundEmail("email", emailMeta, emailBody);
+
+      if (intentVerdict && intentVerdict.action === "ATTACH_EXISTING") {
+        let targetLeadId = intentVerdict.openLeadId;
+        if (!targetLeadId) {
+          try {
+            const ctx = await getSenderContext(email);
+            targetLeadId = ctx.openLeadId;
+          } catch (ctxErr: any) {
+            console.warn("[emailController] Failed to get sender context fallback:", ctxErr?.message);
+          }
+        }
+
+        let attachedSuccessfully = false;
+        if (targetLeadId) {
+          try {
+            await attachEmailToLeadActivity({
+              leadId: targetLeadId,
+              subject: emailSubject,
+              body: emailBody,
+              createdById: (req as any).user?.id || null,
+              channelSource: "email"
+            });
+            attachedSuccessfully = true;
+          } catch (actErr: any) {
+            console.warn("[emailController] Error attaching activity to open lead:", actErr.message);
+          }
+        }
+
+        if (attachedSuccessfully) {
+          return res.status(202).json({
+            status: "attached",
+            message: "Email attached to existing open lead",
+            leadId: targetLeadId,
+            action: "ATTACH_EXISTING"
+          });
+        }
+        // Fall through to normal lead creation if targetLeadId is missing or attach threw
+      }
+
+      if (intentVerdict && ["PENDING_CLARIFY", "REVIEW", "ARCHIVE"].includes(intentVerdict.action)) {
+        const disposition = intentVerdict.action === "PENDING_CLARIFY"
+          ? "pending_clarification"
+          : intentVerdict.action === "ARCHIVE"
+          ? "archived"
+          : "review";
+
+        let flaggedRow: any = null;
+        let holdWritten = false;
+        if (FlaggedLead) {
+          try {
+            const sanitizedAttachments = (rawFiles || []).map((f: any) => ({
+              filename: f.originalname || f.fieldname || "attachment",
+              size: f.size ?? (f.buffer ? f.buffer.length : 0),
+              mimetype: f.mimetype
+            }));
+
+            const sanitizedPayload: any = {
+              ...req.body,
+              attachments: sanitizedAttachments
+            };
+
+            flaggedRow = await FlaggedLead.create({
+              id: randomUUID(),
+              payload: sanitizedPayload,
+              source: "email",
+              channel: "email",
+              ip: req.ip || null,
+              reason: intentVerdict.reason,
+              disposition,
+              intentLabel: intentVerdict.label,
+              intentScore: intentVerdict.score,
+              explanation: intentVerdict.reason,
+              senderEmail: email,
+              subject: emailSubject,
+              reviewed: false
+            });
+            holdWritten = true;
+          } catch (flagErr: any) {
+            console.warn("[emailController] Error creating FlaggedLead record:", flagErr.message);
+          }
+        }
+
+        if (holdWritten) {
+          if (intentVerdict.action === "PENDING_CLARIFY") {
+            try {
+              const senderCtx = await getSenderContext(email);
+              const shouldReply = await shouldSendClarificationAutoReply(emailMeta, senderCtx);
+              if (shouldReply) {
+                await sendClarificationAutoReply(email, flaggedRow?.id);
+              }
+            } catch (replyErr: any) {
+              console.warn("[emailController] Auto-reply error:", replyErr.message);
+            }
+          }
+
+          return res.status(202).json({
+            status: intentVerdict.action === "ARCHIVE" ? "archived" : "held",
+            message: `Inbound email filtered: ${intentVerdict.action}`,
+            action: intentVerdict.action,
+            reason: intentVerdict.reason,
+            disposition
+          });
+        }
+        // Fall through to normal lead creation if FlaggedLead is missing or write threw
+      }
+    }
+
+    const { ingestLead } = require("../services/leadIngestion");
     const leadId = await ingestLead({
       firstName,
       lastName,
@@ -389,20 +371,29 @@ export const receiveInboundEmail = async (req: Request, res: Response) => {
       source: "email",
       sourceDetail: emailSubject,
       message: emailBody,
-      assignedToId: assignedToId || undefined,
-      assignmentMethod: assignmentMethod || undefined,
-      recipientEmail: recipientEmail || undefined,
+      assignedToId: assignedToId,
+      assignmentMethod: assignmentMethod || null,
+      recipientEmail: recipientEmail || null,
       rawPayload: mode === "enforce"
         ? { subject: emailSubject, body: emailBody, recipientEmail, attachments: safeAttachments, skipIntentGate: true }
         : { subject: emailSubject, body: emailBody, recipientEmail, attachments: safeAttachments }
     });
+
+    // Promote-on-reply check (enforce mode only)
+    if (mode === "enforce" && leadId) {
+      try {
+        await handlePromoteOnReply(email, leadId);
+      } catch (promoteErr: any) {
+        console.warn("[emailController] Promote-on-reply error:", promoteErr.message);
+      }
+    }
 
     // If any attachment was rejected/quarantined, log a high-priority Activity on the lead for operational awareness
     if (leadId && rejectedAttachments.length > 0) {
       try {
         for (const rejected of rejectedAttachments) {
           await Activity.create({
-            id: randomUUID(),
+            id: require("crypto").randomUUID(),
             type: "Security Alert",
             outcome: `Attachment Quarantined: File "${rejected.filename}" was blocked by security scan (${rejected.reason}).`,
             leadId: leadId,
@@ -417,24 +408,12 @@ export const receiveInboundEmail = async (req: Request, res: Response) => {
       }
     }
 
-    if (mode === "enforce" && !leadId) {
-      return res.status(202).json({ status: "held_for_review", message: "Held by security verification" });
-    }
-
-    // Promote-on-reply check (enforce mode only)
-    if (mode === "enforce" && leadId) {
-      try {
-        await handlePromoteOnReply(email, leadId);
-      } catch (promoteErr: any) {
-        console.warn("[emailController] Promote-on-reply error:", promoteErr.message);
-      }
-    }
-
     // Run Automated Lead Intake & Missing Info Collection Engine for Email
     try {
+      const { processInboundIntakeEvent } = require("../services/leadIntakeAutomationEngine");
       await processInboundIntakeEvent({
         channel: "email",
-        leadId: leadId || undefined,
+        leadId,
         senderEmail: email,
         senderName: `${firstName} ${lastName}`.trim(),
         subject: emailSubject,
@@ -453,7 +432,7 @@ export const receiveInboundEmail = async (req: Request, res: Response) => {
     if (isFuzzyNameMatch && leadId) {
       try {
         await Activity.create({
-          id: randomUUID(),
+          id: require("crypto").randomUUID(),
           type: "Assignment Flag",
           outcome: `Fuzzy Name Match: Assigned to '${matchedNameStr}' based on single name mention in email text. Please verify assignment.`,
           leadId: leadId,
@@ -469,8 +448,9 @@ export const receiveInboundEmail = async (req: Request, res: Response) => {
 
     // Check for positive quote acceptance intent in inbound email
     try {
+      const { detectAndFlagQuoteAcceptance } = require("../services/quoteDeliveryService");
       await detectAndFlagQuoteAcceptance({
-        leadId: leadId || undefined,
+        leadId,
         messageText: `${emailSubject || ""} ${emailBody || ""}`,
         sourceChannel: "EMAIL",
         senderInfo: email
@@ -484,7 +464,13 @@ export const receiveInboundEmail = async (req: Request, res: Response) => {
     if (mode === "shadow") {
       setImmediate(async () => {
         try {
-          await evaluateInboundEmail("email", emailMeta, emailBody, leadId);
+          let shadowMeta: any = undefined;
+          try {
+            shadowMeta = extractEmailMetadata(req.body, rawFiles);
+          } catch {
+            shadowMeta = undefined;
+          }
+          await evaluateInboundEmail("email", shadowMeta, emailBody, leadId);
         } catch (gateErr: any) {
           console.warn("[emailController] Shadow gate error:", gateErr.message);
         }

@@ -140,6 +140,95 @@ describe("E2E: Email Delivery Automation", () => {
     expect(wrongTokenRes.body.error).toContain("Unauthorized");
   });
 
+  describe("Inbound Webhook Authentication & Strict Secret Validation", () => {
+    it("should return 401 when no token and no valid signature is provided", async () => {
+      const payload = {
+        from: "Unauthenticated Sender <sender@example.com>",
+        to: "sales@nexus.com",
+        subject: "No auth test",
+        text: "Inbound request without credentials"
+      };
+
+      const res = await request(app)
+        .post("/api/v1/emails/inbound")
+        .send(payload);
+
+      expect(res.status).toBe(401);
+      expect(res.body.error).toContain("Unauthorized");
+    });
+
+    it("should allow inbound email when a valid secret is provided via query auth_token or header", async () => {
+      const originalSecret = process.env.INBOUND_EMAIL_SECRET;
+      const testSecret = "configured_secret_for_e2e_test";
+      process.env.INBOUND_EMAIL_SECRET = testSecret;
+
+      try {
+        const payload = {
+          from: "Authorized Sender <authorized_sender@example.com>",
+          to: "sales@nexus.com",
+          subject: "Valid secret test",
+          text: "Authorized request via query auth_token"
+        };
+
+        const res = await request(app)
+          .post(`/api/v1/emails/inbound?auth_token=${testSecret}`)
+          .send(payload);
+
+        expect(res.status).toBe(201);
+        expect(res.body.message).toContain("Inbound email ingested successfully");
+      } finally {
+        process.env.INBOUND_EMAIL_SECRET = originalSecret;
+      }
+    });
+
+    it("should return 401 when attempting to use hardcoded main-branch secrets ('dev_secret', 'nexus_inbound_email_secret_2026')", async () => {
+      const originalSecret = process.env.INBOUND_EMAIL_SECRET;
+      const serverSecret = "strictly_configured_server_secret_789";
+      process.env.INBOUND_EMAIL_SECRET = serverSecret;
+
+      try {
+        const payload = {
+          from: "Attacker <attacker@example.com>",
+          to: "sales@nexus.com",
+          subject: "Exploit attempt with legacy default secret",
+          text: "Attempting to bypass auth with main-branch defaults"
+        };
+
+        // 1. Attempt with query param 'dev_secret'
+        const devRes = await request(app)
+          .post("/api/v1/emails/inbound?auth_token=dev_secret")
+          .send(payload);
+        expect(devRes.status).toBe(401);
+        expect(devRes.body.error).toContain("Unauthorized");
+
+        // 2. Attempt with query param 'nexus_inbound_email_secret_2026'
+        const legacyRes = await request(app)
+          .post("/api/v1/emails/inbound?auth_token=nexus_inbound_email_secret_2026")
+          .send(payload);
+        expect(legacyRes.status).toBe(401);
+        expect(legacyRes.body.error).toContain("Unauthorized");
+
+        // 3. Attempt with header 'x-inbound-secret: dev_secret'
+        const headerRes = await request(app)
+          .post("/api/v1/emails/inbound")
+          .set("x-inbound-secret", "dev_secret")
+          .send(payload);
+        expect(headerRes.status).toBe(401);
+        expect(headerRes.body.error).toContain("Unauthorized");
+
+        // 4. Attempt with Bearer 'dev_secret'
+        const bearerRes = await request(app)
+          .post("/api/v1/emails/inbound")
+          .set("Authorization", "Bearer dev_secret")
+          .send(payload);
+        expect(bearerRes.status).toBe(401);
+        expect(bearerRes.body.error).toContain("Unauthorized");
+      } finally {
+        process.env.INBOUND_EMAIL_SECRET = originalSecret;
+      }
+    });
+  });
+
   it("should assign lead directly to salesperson if email is addressed to their email address", async () => {
     // Create a known salesperson
     const userEmail = `sales_rep_${require('crypto').randomUUID()}@nexus.com`;

@@ -20,7 +20,12 @@ jest.mock("sanitize-html", () => {
 });
 
 import "dotenv/config";
-import { Database, sequelize } from "@nexus-crm/database";
+delete process.env.DATABASE_URL;
+process.env.USE_SQLITE = "true";
+process.env.DB_DIALECT = "sqlite";
+process.env.DB_STORAGE = "./test.sqlite";
+
+const { Database, sequelize } = require("@nexus-crm/database");
 
 jest.setTimeout(60000);
 
