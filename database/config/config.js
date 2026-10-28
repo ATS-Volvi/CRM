@@ -15,10 +15,21 @@ const sqliteConfig = {
   logging: false
 };
 
+function isLocalDatabaseHost(urlStr) {
+  if (!urlStr) return false;
+  try {
+    const parsed = new URL(urlStr);
+    const host = parsed.hostname.toLowerCase();
+    return host === 'localhost' || host === '127.0.0.1';
+  } catch {
+    return false;
+  }
+}
+
 const postgresConfig = {
   use_env_variable: 'DATABASE_URL',
   dialect: 'postgres',
-  dialectOptions: process.env.DATABASE_URL?.includes('localhost') ? {} : {
+  dialectOptions: isLocalDatabaseHost(process.env.DATABASE_URL) ? {} : {
     ssl: {
       require: true,
       rejectUnauthorized: false
