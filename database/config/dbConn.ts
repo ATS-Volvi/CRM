@@ -1,8 +1,11 @@
 import { Sequelize } from "sequelize";
 import * as path from "path";
 import * as dotenv from "dotenv";
-dotenv.config();
+// Load .env only if DATABASE_URL is not already set in the environment.
+// On Render (and other CI/CD platforms), DATABASE_URL is injected directly into
+// the process environment — we must NOT override it by loading a local .env file.
 if (!process.env.DATABASE_URL) {
+  dotenv.config();
   dotenv.config({ path: path.resolve(__dirname, "../../backend/.env") });
   dotenv.config({ path: path.resolve(__dirname, "../../../backend/.env") });
 }
@@ -11,7 +14,12 @@ const sqlitePath = __dirname.includes("dist")
   ? path.resolve(__dirname, "../../../nexus_crm.sqlite")
   : path.resolve(__dirname, "../../nexus_crm.sqlite");
 
-export const sequelize = process.env.USE_SQLITE === "true"
+const isLocalhost = Boolean(
+  process.env.DATABASE_URL &&
+    (process.env.DATABASE_URL.includes("localhost") || process.env.DATABASE_URL.includes("127.0.0.1"))
+);
+
+export const sequelize = (process.env.USE_SQLITE === "true" && !process.env.DATABASE_URL)
   ? new Sequelize({
       dialect: "sqlite",
       storage: sqlitePath,
@@ -48,10 +56,14 @@ export const sequelize = process.env.USE_SQLITE === "true"
         ]
       },
       dialectOptions: {
-        ssl: {
-          require: true,
-          rejectUnauthorized: false
-        },
+        ...(isLocalhost
+          ? {}
+          : {
+              ssl: {
+                require: true,
+                rejectUnauthorized: false
+              }
+            }),
         keepAlive: true,
         keepAliveInitialDelayMillis: 10000,
         connectTimeout: 60000
