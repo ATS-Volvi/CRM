@@ -526,7 +526,7 @@ describe("Site Inspection Commercial Pipeline Gate E2E Flow", () => {
     try {
       // 1. Unrelated admin/manager route -> 403 Forbidden
       const unrelatedRes = await request(app)
-        .get("/api/v1/lead-filter/held")
+        .get("/api/v1/sales-approval-profiles")
         .set("Authorization", `Bearer ${opsManagerToken}`);
 
       expect(unrelatedRes.status).toBe(403);
