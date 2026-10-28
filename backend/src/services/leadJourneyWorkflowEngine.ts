@@ -187,6 +187,15 @@ export async function convertLeadToOpportunity(
   if (!lead) throw new Error("Lead not found");
   const l = lead as any;
 
+  // Site inspection gate (skip if lead already CONVERTED)
+  if (String(l.status || "").toUpperCase() !== "CONVERTED") {
+    const { getSiteInspectionGate } = require("./siteInspectionService");
+    const gate = await getSiteInspectionGate(l.id);
+    if (!gate.allowed) {
+      throw new Error(gate.message);
+    }
+  }
+
   // 1. Validate Stage Transition & Qualification Model
   validateStageTransition(l.status, "QUALIFIED");
   const validQual = validateQualificationData(qualificationData);
@@ -511,6 +520,18 @@ export async function convertLeadToOpportunity(
     }
   } catch (attrErr) {
     // Non-fatal
+  }
+
+  // Link Site Inspection to Deal
+  if (sequelize.models.SiteInspection) {
+    try {
+      await sequelize.models.SiteInspection.update(
+        { dealId: deal.id },
+        { where: { leadId: l.id } }
+      );
+    } catch (siErr) {
+      console.warn("[convertLeadToOpportunity] SiteInspection dealId update error:", siErr);
+    }
   }
 
   // 7. Update Lead record with Conversion & Qualification details

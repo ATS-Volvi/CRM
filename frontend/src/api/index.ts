@@ -15,3 +15,4 @@ export * from "./approvals";
 export * from "./marketing";
 export * from "./fulfillments";
 export * from "./assets";
+export * from "./siteInspection";

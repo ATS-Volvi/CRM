@@ -161,7 +161,7 @@ module.exports = {
               primaryKey: true
             },
             invoiceId: {
-              type: DataTypes.STRING,
+              type: DataTypes.UUID,
               allowNull: false,
               references: { model: "Invoices", key: "id" },
               onDelete: "CASCADE",
