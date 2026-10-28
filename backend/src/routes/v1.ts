@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { register, login } from "../controllers/auth";
 import { createPublicLead } from "../controllers/publicLeads";
-import { authMiddleware, requireAdminOrManager, requireAdmin } from "../middleware/auth";
+import { authMiddleware, requireAdminOrManager, requireAdmin, requireInspectionApprover } from "../middleware/auth";
 import {
   getPipeline, moveDealStage, createDeal, getDeals, validateTransition,
   getOpportunities, getOpportunityById, createOpportunity, updateOpportunity, moveOpportunityStage,
@@ -996,6 +996,62 @@ router.get("/cron/hourly", runHourlyCron);
 router.post("/cron/hourly", runHourlyCron);
 router.get("/cron/daily", runDailyCron);
 router.post("/cron/daily", runDailyCron);
+
+
+// ==========================================
+// SITE INSPECTIONS
+// ==========================================
+import {
+  getMasterData,
+  getSiteManagers,
+  createSiteBase,
+  updateSiteBase,
+  createSiteFacility,
+  updateSiteFacility,
+  listSiteInspections,
+  getSiteInspectionById,
+  saveSiteInspectionDraft,
+  checkCompleteness,
+  submitSiteInspection,
+  reviewSiteInspection,
+  reassignSiteInspection,
+  uploadSiteAttachments,
+  presignAttachmentUpload,
+  completeAttachmentUpload,
+  updateAttachmentMetadata,
+  deleteAttachment,
+  getAttachmentFile,
+  getLeadSiteInspection,
+  requestLeadSiteInspectionEndpoint,
+  uploadAttachments,
+} from "../controllers/siteInspectionController";
+
+router.get("/site-inspections/master", authMiddleware, getMasterData);
+router.get("/site-inspections/site-managers", authMiddleware, requireInspectionApprover, getSiteManagers);
+
+router.post("/site-bases", authMiddleware, requireInspectionApprover, createSiteBase);
+router.put("/site-bases/:id", authMiddleware, requireInspectionApprover, updateSiteBase);
+
+router.post("/site-facilities", authMiddleware, requireInspectionApprover, createSiteFacility);
+router.put("/site-facilities/:id", authMiddleware, requireInspectionApprover, updateSiteFacility);
+
+router.get("/site-inspections", authMiddleware, listSiteInspections);
+router.get("/site-inspections/:id", authMiddleware, getSiteInspectionById);
+router.put("/site-inspections/:id", authMiddleware, saveSiteInspectionDraft);
+router.get("/site-inspections/:id/completeness", authMiddleware, checkCompleteness);
+router.post("/site-inspections/:id/submit", authMiddleware, submitSiteInspection);
+router.post("/site-inspections/:id/review", authMiddleware, reviewSiteInspection);
+router.post("/site-inspections/:id/reassign", authMiddleware, reassignSiteInspection);
+
+router.post("/site-inspections/:id/attachments/presign", authMiddleware, presignAttachmentUpload);
+router.post("/site-inspections/:id/attachments/complete", authMiddleware, completeAttachmentUpload);
+router.post("/site-inspections/:id/attachments", authMiddleware, uploadAttachments.array("files", 10), uploadSiteAttachments);
+router.patch("/site-inspections/:id/attachments/:attId", authMiddleware, updateAttachmentMetadata);
+router.delete("/site-inspections/:id/attachments/:attId", authMiddleware, deleteAttachment);
+router.get("/site-inspections/:id/attachments/:attId/file", authMiddleware, getAttachmentFile);
+
+router.get("/leads/:leadId/site-inspection", authMiddleware, getLeadSiteInspection);
+router.post("/leads/:leadId/site-inspection/request", authMiddleware, requestLeadSiteInspectionEndpoint);
 
 export default router;
 

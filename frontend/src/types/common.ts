@@ -26,7 +26,7 @@ export interface ApiError {
   details?: Record<string, unknown>;
 }
 
-export type UserRole = "admin" | "sales_manager" | "senior_ae" | "sales_rep" | "viewer";
+export type UserRole = "admin" | "sales_manager" | "manager" | "senior_ae" | "sales_rep" | "viewer" | "director" | "site_manager" | "ops_manager";
 
 export interface RolePermissions {
   canViewInternalCost: boolean;
@@ -39,6 +39,38 @@ export interface RolePermissions {
 
 export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
   admin: {
+    canViewInternalCost: true,
+    canApproveQuotes: true,
+    canEditDiscount: true,
+    canManageSettings: true,
+    canReassignLeads: true,
+    canViewAllAccounts: true,
+  },
+  ops_manager: {
+    canViewInternalCost: true,
+    canApproveQuotes: true,
+    canEditDiscount: true,
+    canManageSettings: false,
+    canReassignLeads: true,
+    canViewAllAccounts: true,
+  },
+  site_manager: {
+    canViewInternalCost: false,
+    canApproveQuotes: false,
+    canEditDiscount: false,
+    canManageSettings: false,
+    canReassignLeads: false,
+    canViewAllAccounts: false,
+  },
+  manager: {
+    canViewInternalCost: true,
+    canApproveQuotes: true,
+    canEditDiscount: true,
+    canManageSettings: false,
+    canReassignLeads: true,
+    canViewAllAccounts: true,
+  },
+  director: {
     canViewInternalCost: true,
     canApproveQuotes: true,
     canEditDiscount: true,

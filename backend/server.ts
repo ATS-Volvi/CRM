@@ -9,6 +9,9 @@ import { setupSwagger } from "./src/swagger";
 export function createServer(): Express {
   const app = express();
 
+  // Trust Render reverse proxy / load balancer for accurate client IP resolution
+  app.set("trust proxy", 1);
+
   app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
   const corsOrigins = process.env.CORS_ORIGIN
     ? process.env.CORS_ORIGIN.split(",").map(o => o.trim())

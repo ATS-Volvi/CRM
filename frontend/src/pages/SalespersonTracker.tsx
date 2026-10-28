@@ -74,6 +74,9 @@ function roleLabel(role: string, tier?: string | null) {
     return tier === "executive" ? "Sales Rep (Executive)" : "Sales Rep (Agent)";
   }
   return role === "manager" ? "Sales Manager"
+    : role === "sales_manager" ? "Sales Manager"
+    : role === "ops_manager" ? "Operations Manager"
+    : role === "site_manager" ? "Site Manager"
     : role === "admin" ? "Admin"
     : role === "director" ? "Director"
     : role;
@@ -510,6 +513,8 @@ export default function SalespersonTracker() {
                 className="w-full bg-surface border border-outline rounded-lg p-2.5 text-xs font-semibold focus:outline-none cursor-pointer">
                 <option value="sales_rep">Sales Representative</option>
                 <option value="manager">Sales Manager</option>
+                <option value="ops_manager">Operations Manager</option>
+                <option value="site_manager">Site Manager</option>
                 <option value="director">Director</option>
                 <option value="admin">Administrator</option>
               </select>

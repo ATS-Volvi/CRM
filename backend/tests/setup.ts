@@ -1,6 +1,12 @@
-process.env.USE_SQLITE = "true";
-process.env.DB_DIALECT = "sqlite";
-process.env.DB_STORAGE = "./test.sqlite";
+process.env.SITE_INSPECTION_GATE = "off";
+
+if (process.env.DATABASE_URL) {
+  process.env.USE_SQLITE = "false";
+} else {
+  process.env.USE_SQLITE = "true";
+  process.env.DB_DIALECT = "sqlite";
+  process.env.DB_STORAGE = "./test.sqlite";
+}
 
 import "dotenv/config";
 import { Database, sequelize } from "@nexus-crm/database";
@@ -8,11 +14,39 @@ import { Database, sequelize } from "@nexus-crm/database";
 jest.setTimeout(60000);
 
 beforeAll(async () => {
+  if (process.env.DATABASE_URL?.includes("localhost") || process.env.DATABASE_URL?.includes("127.0.0.1")) {
+    try {
+      require("pg").defaults.ssl = false;
+      const s: any = sequelize;
+      if (s.options?.dialectOptions?.ssl) delete s.options.dialectOptions.ssl;
+      if (s.config?.dialectOptions?.ssl) delete s.config.dialectOptions.ssl;
+      if (s.connectionManager?.config?.dialectOptions?.ssl) delete s.connectionManager.config.dialectOptions.ssl;
+      if (s.connectionManager?.pool?._factory?.clientConfig?.ssl) delete s.connectionManager.pool._factory.clientConfig.ssl;
+    } catch (e) {}
+  }
+
   // Connect and sync fresh schema
   await Database.createConnection();
-  await sequelize.query("PRAGMA foreign_keys = OFF;");
-  await sequelize.sync({ force: true });
-  await sequelize.query("PRAGMA foreign_keys = ON;");
+  const dialect = sequelize.getDialect();
+  if (dialect === "sqlite") {
+    await sequelize.query("PRAGMA foreign_keys = OFF;");
+    await sequelize.sync({ force: true });
+    await sequelize.query("PRAGMA foreign_keys = ON;");
+  } else if (dialect === "postgres") {
+    const tableNames = [
+      "SiteInspectionAttachments",
+      "SiteInspectionServices",
+      "SiteInspections",
+      "Activities",
+      "Opportunities",
+      "Deals",
+      "Leads",
+      "Users",
+    ];
+    for (const table of tableNames) {
+      await sequelize.query(`TRUNCATE TABLE "${table}" CASCADE;`).catch(() => {});
+    }
+  }
 
   // Seed default admin user so that Activity's createdById constraint does not fail
   try {

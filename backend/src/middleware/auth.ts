@@ -64,3 +64,18 @@ export const requireAdmin = (req: Request, res: Response, next: NextFunction) =>
   }
   next();
 };
+
+/**
+ * requireInspectionApprover — must be used AFTER authMiddleware.
+ * Permits access to users authorized to manage inspection bases/facilities and view site managers:
+ * roles: admin | director | manager | sales_manager | ops_manager.
+ */
+export const requireInspectionApprover = (req: Request, res: Response, next: NextFunction) => {
+  const role: string = (req as any).user?.role ?? "";
+  const ALLOWED_ROLES = ["admin", "director", "manager", "sales_manager", "ops_manager"];
+  if (!ALLOWED_ROLES.includes(role)) {
+    res.status(403).json({ error: "Forbidden: site inspection approver or manager role required" });
+    return;
+  }
+  next();
+};
