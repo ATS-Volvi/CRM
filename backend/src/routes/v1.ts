@@ -919,6 +919,8 @@ import {
   reviewSiteInspection,
   reassignSiteInspection,
   uploadSiteAttachments,
+  presignAttachmentUpload,
+  completeAttachmentUpload,
   updateAttachmentMetadata,
   deleteAttachment,
   getAttachmentFile,
@@ -944,6 +946,8 @@ router.post("/site-inspections/:id/submit", authMiddleware, submitSiteInspection
 router.post("/site-inspections/:id/review", authMiddleware, reviewSiteInspection);
 router.post("/site-inspections/:id/reassign", authMiddleware, reassignSiteInspection);
 
+router.post("/site-inspections/:id/attachments/presign", authMiddleware, presignAttachmentUpload);
+router.post("/site-inspections/:id/attachments/complete", authMiddleware, completeAttachmentUpload);
 router.post("/site-inspections/:id/attachments", authMiddleware, uploadAttachments.array("files", 10), uploadSiteAttachments);
 router.patch("/site-inspections/:id/attachments/:attId", authMiddleware, updateAttachmentMetadata);
 router.delete("/site-inspections/:id/attachments/:attId", authMiddleware, deleteAttachment);

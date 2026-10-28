@@ -12,6 +12,7 @@ export interface MasterDataResponse {
   roadConditions: ("Good" | "Fair" | "Poor")[];
   volumeUnits: ("L" | "m3" | "ton" | "loads")[];
   serviceTypes: ("SEWAGE" | "GENERAL" | "HAZARDOUS")[];
+  storageDriver?: string;
 }
 
 export const siteInspectionApi = {
@@ -58,6 +59,44 @@ export const siteInspectionApi = {
 
   async reassignInspection(id: string, assignedToId: string): Promise<SiteInspectionRecord> {
     return apiClient.post<SiteInspectionRecord>(`/api/v1/site-inspections/${id}/reassign`, { assignedToId });
+  },
+
+  async presignAttachment(
+    id: string,
+    data: { fileName: string; mimeType: string; sizeBytes: number }
+  ): Promise<{ uploadUrl: string; storageKey: string; expiresIn: number }> {
+    const res = await apiClient(`/api/v1/site-inspections/${id}/attachments/presign`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      let errText = "Failed to presign upload";
+      try {
+        const errJson = await res.json();
+        errText = errJson.error || errText;
+      } catch {}
+      throw new Error(errText);
+    }
+    return res.json();
+  },
+
+  async completeAttachment(
+    id: string,
+    data: { storageKey: string; fileName: string; caption?: string; tag?: string }
+  ): Promise<any> {
+    const res = await apiClient(`/api/v1/site-inspections/${id}/attachments/complete`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      let errText = "Failed to complete upload";
+      try {
+        const errJson = await res.json();
+        errText = errJson.error || errText;
+      } catch {}
+      throw new Error(errText);
+    }
+    return res.json();
   },
 
   async uploadAttachments(id: string, formData: FormData): Promise<any[]> {
