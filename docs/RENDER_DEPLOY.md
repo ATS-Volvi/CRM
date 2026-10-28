@@ -1,6 +1,6 @@
 # Render Deployment Runbook — Site Inspection Feature & Production Service
 
-This runbook guides the complete, safe deployment of Nexus Sales CRM to Render with the Site Inspection feature and persistent disk storage.
+This runbook guides the complete, safe deployment of Nexus Sales CRM to Render with the Site Inspection feature and S3 object storage (no paid persistent disk required).
 
 > **CRITICAL RULE**: Follow these steps in the exact sequential order listed below. Steps requiring the Render Dashboard, production credentials, or a physical mobile device are explicitly marked with **[Only the owner can do this]**.
 
@@ -10,34 +10,31 @@ This runbook guides the complete, safe deployment of Nexus Sales CRM to Render w
 **[Only the owner can do this]**
 
 1. Log in to the [Render Dashboard](https://dashboard.render.com).
-2. Check if a Render Web Service (e.g. `nexus-crm` or `crm-k8g4`) and a Render PostgreSQL database already exist.
+2. Check if a Render Web Service (e.g. `nexus-crm` or `crm-k8g4`) and a PostgreSQL database (e.g. Neon or Render Postgres) already exist.
 3. **If yes, REUSE THEM.**
    - **Do NOT create a new database.**
    - **Do NOT delete or recreate the existing service.**
-   - Retain the existing `DATABASE_URL` and `JWT_SECRET` unchanged to avoid service outage or user session invalidation.
-4. If no PostgreSQL database exists yet, create one in the Render Dashboard (**PostgreSQL**, plan: Starter or higher, Region matching your target audience).
+   - Retain the existing `DATABASE_URL` and `JWT_SECRET` unchanged to prevent service disruption or user session invalidation.
 
 ---
 
 ### Step B: Pre-Deployment Database Backup with `pg_dump`
 **[Only the owner can do this]**
 
-Before deploying any migrations, capture a complete, restorable backup of the production database using your local terminal. Use the zsh-safe `read -s "PROD_DB?..."` syntax so credentials are not echoed or stored in shell history.
+Before deploying, capture a complete, restorable backup of the production database using your local Mac terminal. Use the zsh-safe `read -s "PROD_DB?..."` syntax so credentials are not echoed or stored in shell history.
 
 ```zsh
 # 1. Prompt for the production database connection string with hidden input
 read -s "PROD_DB?Paste production DATABASE_URL: "
 echo
 
-# 2. Validate non-empty input
-if [[ -z "$PROD_DB" ]]; then
-  echo "Error: PROD_DB is empty."
-  exit 1
-fi
+# 2. Clean pooler/parameter flags if needed for pg_dump compatibility
+PROD_DUMP_URL="${PROD_DB/-pooler/}"
+PROD_DUMP_URL="${PROD_DUMP_URL/&channel_binding=require/}"
 
 # 3. Create a timestamped backup file
 BACKUP_FILE="backup_pre_site_inspection_$(date +%Y%m%d_%H%M%S).dump"
-pg_dump "$PROD_DB" --format=custom --file="$BACKUP_FILE"
+pg_dump "$PROD_DUMP_URL" --format=custom --file="$BACKUP_FILE"
 
 # 4. Verify the backup file was created and is not empty
 if [[ -s "$BACKUP_FILE" ]]; then
@@ -47,8 +44,8 @@ else
   exit 1
 fi
 
-# 5. Clear the sensitive shell variable
-unset PROD_DB
+# 5. Clear sensitive shell variables
+unset PROD_DB PROD_DUMP_URL
 ```
 
 Keep this `.dump` file safe in a secure local storage directory.
@@ -67,7 +64,7 @@ In the Render Dashboard, open your Web Service and configure **Settings**:
 | **Branch** | `main` |
 | **Build Command** | `npm ci && npm run build` |
 | **Start Command** | `npm run start:backend` |
-| **Pre-deploy Command** | `npm run migrate` |
+| **Pre-deploy Command** | *(Leave blank — migrations are run manually from Mac)* |
 | **Health Check Path** | `/api/health` |
 | **Auto-Deploy** | `Yes` (or trigger manually after saving) |
 
@@ -77,71 +74,92 @@ Navigate to **Environment** tab in your Render Web Service. Add or update the fo
 - **Required System Variables**:
   - `NODE_ENV`: `production`
   - `PORT`: `10000` (Render's internal port)
-  - `DATABASE_URL`: *(Your existing Render PostgreSQL External/Internal Connection String)*
+  - `DATABASE_URL`: *(Your existing Neon/Render PostgreSQL Connection String)*
   - `JWT_SECRET`: *(Your existing JWT signing secret string)*
-  - `UPLOAD_DIR`: `/var/data/uploads`
   - `SITE_INSPECTION_GATE`: `off` *(Set to `off` initially so existing lead qualification is uninterrupted while migrations and smoke tests run)*
-  - `CORS_ORIGIN`: `https://<your-render-domain>.onrender.com` *(Optional: browser calls to the backend on the same origin do not require CORS, but configure your frontend domain if accessing from an external URL)*
+  - `CORS_ORIGIN`: `https://<your-render-domain>.onrender.com` *(Optional: same-origin browser calls do not require CORS, but configure your frontend domain if accessing from an external URL)*
 
-- **Site Inspection Storage Driver (Optional S3 Driver)**:
-  - If using local persistent disk (recommended default):
-    - `STORAGE_DRIVER`: `local` (or leave unset)
-  - If using Cloudflare R2 / AWS S3 object storage instead of disk:
-    - `STORAGE_DRIVER`: `s3`
-    - `S3_BUCKET`
-    - `S3_REGION`
-    - `S3_ENDPOINT`
-    - `S3_ACCESS_KEY_ID`
-    - `S3_SECRET_ACCESS_KEY`
-    - `S3_FORCE_PATH_STYLE`
-
-- **Optional Integration Variables (leave existing intact if already configured)**:
-  - `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_NUMBER`, `TWILIO_PHONE_NUMBER`, `TWILIO_VERIFY_TOKEN`
-  - `META_APP_ID`, `META_APP_SECRET`, `META_ACCESS_TOKEN`
-  - `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET`, `LINKEDIN_ACCESS_TOKEN`
-  - `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REDIRECT_URI`, `GMAIL_ENCRYPTION_KEY`
-  - `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`
-  - `GROQ_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY`
-  - `INTENT_FILTER_MODE`, `INTENT_MODEL`
+- **Site Inspection S3 Object Storage Driver (Free Bucket — No Persistent Disk Required)**:
+  - `STORAGE_DRIVER`: `s3`
+  - `S3_BUCKET`: *(Your bucket name, e.g. Cloudflare R2 or AWS S3 free tier)*
+  - `S3_REGION`: *(e.g. auto for R2, or us-east-1)*
+  - `S3_ENDPOINT`: *(e.g. https://<account_id>.r2.cloudflarestorage.com or AWS endpoint)*
+  - `S3_ACCESS_KEY_ID`: *(Bucket access key ID)*
+  - `S3_SECRET_ACCESS_KEY`: *(Bucket secret access key)*
+  - `S3_FORCE_PATH_STYLE`: `true`
 
 ---
 
-### Step D: Attach Persistent Disk & Set `UPLOAD_DIR`
+### Step D: Object Storage Configuration (Free Bucket, No Disk)
 **[Only the owner can do this]**
 
-> **Note on Plan Requirements**: Render Web Services require a paid instance type (e.g. **Starter** at $7/mo or higher) to attach persistent disks and run pre-deploy commands. Free tier instances do not support disks.
+> **No Paid Persistent Disk Needed**: The Site Inspection feature uses `STORAGE_DRIVER=s3`. Photos and inspection documents are uploaded directly to an S3-compatible bucket (e.g., Cloudflare R2 free tier with 10 GB/mo free, or AWS S3 free tier).
+>
+> **Do NOT attach a paid disk** on Render. The application runs on the standard Web Service plan without local persistent storage dependencies.
 
-1. In the Web Service dashboard, navigate to **Disks** → **Add Disk**.
-2. Configure the disk:
-   - **Name**: `crm-uploads`
-   - **Mount Path**: `/var/data`
-   - **Size**: `10 GB` (or larger as required)
-3. Ensure the environment variable `UPLOAD_DIR` is set to `/var/data/uploads`.
-4. Click **Save Changes**. The service will mount the disk across redeploys and restarts.
-
----
-
-### Step E: Deploy, Verify Migration Log & Run Smoke Script
-**[Only the owner can do this]**
-
-1. Trigger a deploy or push the merged branch to `main`.
-2. In the Render Dashboard, click **Logs** and watch the **Pre-Deploy** phase:
-   - Verify the pre-deploy migration runs `npm run migrate`.
-   - Confirm you see the line:
-     ```text
-     20261025000000-create-site-inspection-tables: migrated
-     ```
-     *(If the migration was already applied previously, it will show "No migrations were executed, database schema was already up to date".)*
-3. Once the Web Service reaches **Live**, run the smoke script from your local terminal:
-
-```bash
-# Basic unauthenticated smoke checks:
-./scripts/render-smoke.sh https://<your-service-name>.onrender.com
-
-# Or full authenticated smoke checks with a temporary JWT:
-SMOKE_JWT="<your_admin_jwt>" ./scripts/render-smoke.sh https://<your-service-name>.onrender.com
+Ensure your S3/R2 bucket CORS allows `PUT`, `GET`, `HEAD`, `DELETE` from your frontend origin:
+```json
+[
+  {
+    "AllowedOrigins": ["https://<your-service>.onrender.com"],
+    "AllowedMethods": ["GET", "PUT", "HEAD", "DELETE"],
+    "AllowedHeaders": ["*"],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3000
+  }
+]
 ```
 
+---
+
+### Step E: Run Database Migrations by Hand from Mac & Deploy
+**[Only the owner can do this]**
+
+Because Render pre-deploy commands are not relied upon, execute database migrations directly and safely from your Mac terminal before releasing:
+
+1. **Run Migrations Locally**:
+```zsh
+# Read production DATABASE_URL into a temporary variable with hidden input
+read -s "PROD_DB?Paste production DATABASE_URL: "
+echo
+
+# Normalize connection string if pooler or channel binding flag is present
+PROD_DB=${PROD_DB/-pooler/}
+PROD_DB=${PROD_DB/&channel_binding=require/}
+
+# Execute migration
+if [[ "$PROD_DB" == postgres* ]]; then
+  DATABASE_URL="$PROD_DB" npx sequelize-cli db:migrate
+else
+  echo "STOPPED: that is not a database address."
+  exit 1
+fi
+unset PROD_DB
+```
+
+2. **Verify Migration Output**:
+Confirm the migration log output displays:
+```text
+== 20261025000000-create-site-inspection-tables: migrated
+```
+*(If already applied, it will report "No migrations were executed, database schema was already up to date".)*
+
+3. **Verify Tables via PSQL**:
+```zsh
+read -s "PROD_DB?Paste production DATABASE_URL: "
+echo
+PROD_DB=${PROD_DB/-pooler/}
+PROD_DB=${PROD_DB/&channel_binding=require/}
+psql "$PROD_DB" -c "SELECT code FROM \"SiteBases\";"
+unset PROD_DB
+```
+Confirm the 4 seeded bases (`JUBAIL`, `JAFURAH`, `YANBU`, `RIYADH`) are present.
+
+4. **Deploy & Run Smoke Script**:
+Trigger the deploy on Render (or push merged commit to `main`). Once the Render Web Service shows **Live**, run:
+```bash
+./scripts/render-smoke.sh https://<your-service-name>.onrender.com
+```
 Confirm all checks output `PASS`.
 
 ---
@@ -174,10 +192,10 @@ Confirm all checks output `PASS`.
    - Log back in as `site_manager` and click **Re-Submit**.
    - Log back in as `ops_manager` and click **Approve Inspection**.
 7. In the CRM, click **Qualify Lead** on the test lead. Verify the lead transitions to **QUALIFIED** and converts to an Opportunity.
-8. **Test Persistence Across Restart**:
+8. **Test Persistence in S3 Bucket Across Restart**:
    - In the Render Dashboard, go to your Web Service and click **Manual Deploy** → **Restart Service**.
    - Once restarted, open the inspection attachments or click Download Photo.
-   - Confirm the photo downloads and renders completely, proving persistent disk retention.
+   - Confirm the photo downloads and renders completely, proving S3 object storage persistence.
 
 ---
 
@@ -215,5 +233,5 @@ If an unforeseen issue occurs after deployment:
    - In Render Dashboard → **Deploys**, find the deploy preceding this release.
    - Click the three dots (`...`) next to that deploy and select **Rollback to this deploy**.
 3. **Database Migration Safety**:
-   - **DO NOT run `npm run migrate-undo`** unless you are prepared to permanently delete all site inspection tables, history, and uploaded records.
+   - **DO NOT run `npx sequelize-cli db:migrate:undo`** unless you are prepared to permanently delete all site inspection tables, history, and uploaded records.
    - The migration `20261025000000-create-site-inspection-tables.js` is strictly additive. Leaving the tables in the database is backward-compatible with older backend code and causes no errors.

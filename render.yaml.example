@@ -7,44 +7,36 @@
 # rename this file to render.yaml or connect a Blueprint, as Render Blueprint sync
 # can provision duplicate databases, reset environment variables, or trigger
 # accidental service replacement. Reuse your existing service and database!
+#
+# STORAGE & MIGRATIONS ARCHITECTURE:
+# - No paid persistent disk is required: Site inspection photos and documents are
+#   persisted using STORAGE_DRIVER=s3 with a free object storage bucket
+#   (e.g., Cloudflare R2 / AWS S3 free tier).
+# - No Render pre-deploy command: Database migrations are executed by hand from
+#   the administrator's local machine before deployment.
 # ==============================================================================
 
 services:
   - type: web
     name: nexus-crm
     runtime: node
-    plan: starter # Persistent disks and pre-deploy commands require a paid plan (Starter or higher)
+    plan: free # No paid persistent disk required; runs on standard Render Web Service
     branch: main
     buildCommand: npm ci && npm run build
     startCommand: npm run start:backend
-    preDeployCommand: npm run migrate
     healthCheckPath: /api/health
-    disk:
-      name: crm-uploads
-      mountPath: /var/data
-      sizeGB: 10
     envVars:
       # Node runtime & service configuration
       - key: NODE_ENV
         value: production
       - key: PORT
         value: "10000"
-      - key: UPLOAD_DIR
-        value: /var/data/uploads
       - key: SITE_INSPECTION_GATE
-        value: "off" # Set to "off" during initial deploy/migration verification; remove to enforce gate
+        value: "off" # Start with "off" during initial deploy/verification; remove to enforce gate
 
-      # Database & Authentication (Secrets - sync: false, configured in Render Dashboard)
-      - key: DATABASE_URL
-        sync: false
-      - key: JWT_SECRET
-        sync: false
-      - key: CORS_ORIGIN
-        sync: false
-
-      # Site Inspection Storage Driver (optional S3 adapter; defaults to local disk)
+      # Storage Driver (S3-compatible object storage; no local disk needed)
       - key: STORAGE_DRIVER
-        sync: false
+        value: s3
       - key: S3_BUCKET
         sync: false
       - key: S3_REGION
@@ -56,6 +48,14 @@ services:
       - key: S3_SECRET_ACCESS_KEY
         sync: false
       - key: S3_FORCE_PATH_STYLE
+        sync: false
+
+      # Database & Authentication (Secrets - sync: false, configured in Render Dashboard)
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: CORS_ORIGIN
         sync: false
 
       # Integrations & Omnichannel Communications (Secrets - sync: false)
