@@ -149,6 +149,8 @@ export class S3FileStorage implements FileStorage {
         region,
         endpoint,
         forcePathStyle,
+        requestChecksumCalculation: "WHEN_REQUIRED",
+        responseChecksumValidation: "WHEN_REQUIRED",
         credentials: {
           accessKeyId,
           secretAccessKey,
@@ -222,6 +224,7 @@ export class S3FileStorage implements FileStorage {
     });
     return getSignedUrl(this.client, cmd, {
       expiresIn: options.expiresInSeconds || 300,
+      signableHeaders: new Set(["content-type"]),
     });
   }
 

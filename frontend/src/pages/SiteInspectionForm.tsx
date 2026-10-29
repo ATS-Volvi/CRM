@@ -260,6 +260,13 @@ export default function SiteInspectionForm() {
     });
   };
 
+  // Helper to construct authenticated attachment file URL
+  const getAttachmentUrl = (attId: string) => {
+    const token = typeof window !== "undefined" ? (sessionStorage.getItem("nexus_token") || localStorage.getItem("token")) : null;
+    const base = `/api/v1/site-inspections/${id}/attachments/${attId}/file`;
+    return token ? `${base}?token=${encodeURIComponent(token)}` : base;
+  };
+
   // File Upload Handler (presign -> direct PUT -> complete; fall back to multipart if local driver)
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
@@ -1295,7 +1302,7 @@ export default function SiteInspectionForm() {
                       {(att.mimeType?.startsWith("image/") || att.fileName?.match(/\.(jpe?g|png|webp)$/i)) && (
                         <div className="w-full h-32 overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
                           <img
-                            src={`/api/v1/site-inspections/${id}/attachments/${att.id}/file`}
+                            src={getAttachmentUrl(att.id)}
                             alt={att.fileName}
                             className="w-full h-full object-cover"
                             onError={(e) => {
@@ -1325,7 +1332,7 @@ export default function SiteInspectionForm() {
                       {/* Actions */}
                       <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-200/60 dark:border-slate-700/60">
                         <a
-                          href={`/api/v1/site-inspections/${id}/attachments/${att.id}/file`}
+                          href={getAttachmentUrl(att.id)}
                           target="_blank"
                           rel="noreferrer"
                           className="text-[10px] font-bold text-indigo-600 hover:underline flex items-center gap-1"
@@ -1634,7 +1641,7 @@ export default function SiteInspectionForm() {
                 <div key={att.id} className="border border-slate-200 rounded-lg p-2 bg-slate-50 space-y-1">
                   <div className="h-44 w-full bg-slate-200 rounded overflow-hidden flex items-center justify-center">
                     <img
-                      src={`/api/v1/site-inspections/${id}/attachments/${att.id}/file`}
+                      src={getAttachmentUrl(att.id)}
                       alt={att.fileName}
                       className="max-h-full max-w-full object-contain"
                     />
