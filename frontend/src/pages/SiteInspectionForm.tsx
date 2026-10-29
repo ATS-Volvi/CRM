@@ -39,6 +39,106 @@ import {
   canApproveInspection,
 } from "../lib/siteInspection";
 import { useAuth } from "../context/AuthContext";
+import { apiClient } from "../lib/apiClient";
+
+function InspectionAttachmentThumbnail({
+  inspectionId,
+  attachmentId,
+  fileName,
+  className = "w-full h-full object-cover",
+}: {
+  inspectionId: string;
+  attachmentId: string;
+  fileName: string;
+  className?: string;
+}) {
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [hasError, setHasError] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    let createdUrl: string | null = null;
+
+    async function fetchAttachmentBlob() {
+      try {
+        setLoading(true);
+        setHasError(false);
+        const res = await apiClient(
+          `/api/v1/site-inspections/${inspectionId}/attachments/${attachmentId}/file`,
+          { headers: { Accept: "application/json, image/*, */*" } }
+        );
+
+        if (!res.ok) {
+          console.error("[AttachmentLoad] Backend file endpoint returned status:", res.status, res.statusText);
+          if (active) setHasError(true);
+          return;
+        }
+
+        const contentType = res.headers.get("content-type") || "";
+        let finalBlob: Blob;
+
+        if (contentType.includes("application/json")) {
+          const data = await res.json();
+          // Fetch signed storage URL directly without any Authorization header
+          const s3Res = await fetch(data.url);
+          if (!s3Res.ok) {
+            console.error("[AttachmentLoad] S3 fetch returned status:", s3Res.status, s3Res.statusText);
+            if (active) setHasError(true);
+            return;
+          }
+          finalBlob = await s3Res.blob();
+        } else {
+          finalBlob = await res.blob();
+        }
+
+        if (active) {
+          createdUrl = URL.createObjectURL(finalBlob);
+          setBlobUrl(createdUrl);
+        }
+      } catch (err: any) {
+        console.error("[AttachmentLoad] Exception occurred during load:", err?.name, err?.message);
+        if (active) setHasError(true);
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+
+    fetchAttachmentBlob();
+
+    return () => {
+      active = false;
+      if (createdUrl) {
+        URL.revokeObjectURL(createdUrl);
+      }
+    };
+  }, [inspectionId, attachmentId]);
+
+  if (hasError) {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-slate-100 dark:bg-slate-900 text-slate-400 text-[10px]">
+        Failed to load image
+      </div>
+    );
+  }
+
+  if (loading || !blobUrl) {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-slate-100 dark:bg-slate-900 animate-pulse text-slate-400 text-[10px]">
+        Loading...
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={blobUrl}
+      alt={fileName}
+      className={className}
+      onError={() => setHasError(true)}
+    />
+  );
+}
 
 export default function SiteInspectionForm() {
   const { id } = useParams<{ id: string }>();
@@ -258,6 +358,31 @@ export default function SiteInspectionForm() {
       const updated = current ? `${current}; ${chip}` : chip;
       return { ...prev, observations: updated };
     });
+  };
+
+  // Handler to safely view an attachment without exposing token in URL
+  const handleViewAttachment = async (attId: string) => {
+    try {
+      const res = await apiClient(
+        `/api/v1/site-inspections/${id}/attachments/${attId}/file`,
+        { headers: { Accept: "application/json, image/*, */*" } }
+      );
+      if (!res.ok) throw new Error("Failed to load attachment");
+      const contentType = res.headers.get("content-type") || "";
+      let blob: Blob;
+      if (contentType.includes("application/json")) {
+        const data = await res.json();
+        const s3Res = await fetch(data.url);
+        if (!s3Res.ok) throw new Error("Failed to fetch attachment");
+        blob = await s3Res.blob();
+      } else {
+        blob = await res.blob();
+      }
+      const blobUrl = URL.createObjectURL(blob);
+      window.open(blobUrl, "_blank");
+    } catch {
+      alert("Unable to view attachment.");
+    }
   };
 
   // File Upload Handler (presign -> direct PUT -> complete; fall back to multipart if local driver)
@@ -1294,13 +1419,11 @@ export default function SiteInspectionForm() {
                         {/* Thumbnail preview */}
                       {(att.mimeType?.startsWith("image/") || att.fileName?.match(/\.(jpe?g|png|webp)$/i)) && (
                         <div className="w-full h-32 overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
-                          <img
-                            src={`/api/v1/site-inspections/${id}/attachments/${att.id}/file`}
-                            alt={att.fileName}
+                          <InspectionAttachmentThumbnail
+                            inspectionId={id!}
+                            attachmentId={att.id}
+                            fileName={att.fileName}
                             className="w-full h-full object-cover"
-                            onError={(e) => {
-                              (e.target as HTMLElement).style.display = "none";
-                            }}
                           />
                         </div>
                       )}
@@ -1324,15 +1447,14 @@ export default function SiteInspectionForm() {
 
                       {/* Actions */}
                       <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-200/60 dark:border-slate-700/60">
-                        <a
-                          href={`/api/v1/site-inspections/${id}/attachments/${att.id}/file`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-[10px] font-bold text-indigo-600 hover:underline flex items-center gap-1"
+                        <button
+                          type="button"
+                          onClick={() => handleViewAttachment(att.id)}
+                          className="text-[10px] font-bold text-indigo-600 hover:underline flex items-center gap-1 cursor-pointer"
                         >
                           <Eye className="w-3 h-3" />
                           View
-                        </a>
+                        </button>
 
                         {isEditable && (
                           <button
@@ -1633,9 +1755,10 @@ export default function SiteInspectionForm() {
               {(inspection.attachments || []).map((att) => (
                 <div key={att.id} className="border border-slate-200 rounded-lg p-2 bg-slate-50 space-y-1">
                   <div className="h-44 w-full bg-slate-200 rounded overflow-hidden flex items-center justify-center">
-                    <img
-                      src={`/api/v1/site-inspections/${id}/attachments/${att.id}/file`}
-                      alt={att.fileName}
+                    <InspectionAttachmentThumbnail
+                      inspectionId={id!}
+                      attachmentId={att.id}
+                      fileName={att.fileName}
                       className="max-h-full max-w-full object-contain"
                     />
                   </div>
