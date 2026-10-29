@@ -757,13 +757,19 @@ export const getAttachmentFile = async (req: Request, res: Response) => {
     const driver = (process.env.STORAGE_DRIVER || "local").toLowerCase();
     const safeName = sanitizeFileName(att.fileName);
 
-    // If driver is s3, redirect to short-lived (60 second) signed download URL
+    // If driver is s3, return JSON or redirect to short-lived (60 second) signed download URL
     if (driver === "s3") {
       const storage = getFileStorage();
       const signedUrl = await storage.getSignedDownloadUrl(att.storagePath, {
         expiresInSeconds: 60,
         responseContentDisposition: `inline; filename="${safeName}"`,
       });
+
+      // If client requested JSON via Accept header or format query param, return JSON
+      if (req.headers.accept?.includes("application/json") || req.query.format === "json") {
+        return res.json({ url: signedUrl, expiresIn: 60 });
+      }
+
       return res.redirect(signedUrl);
     }
 

@@ -115,7 +115,7 @@ describe("FileStorage Adapter & Direct Upload Unit Tests", () => {
       // Mock presigner getSignedUrl
       const presigner = require("@aws-sdk/s3-request-presigner");
       jest.spyOn(presigner, "getSignedUrl").mockImplementation(async (_client: any, cmd: any, opts: any) => {
-        return `https://test-bucket.s3.amazonaws.com/${cmd.input.Key}?token=mock-presigned&expires=${opts?.expiresIn || 300}`;
+        return `https://test-bucket.s3.amazonaws.com/${cmd.input.Key}?signature=mock-presigned&expires=${opts?.expiresIn || 300}`;
       });
 
       const uploadUrl = await s3Storage.getSignedUploadUrl("site-inspections/insp-1/pic.jpg", {

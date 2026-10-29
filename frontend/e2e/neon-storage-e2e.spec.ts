@@ -55,45 +55,60 @@ test.describe("Neon Object Storage S3 Integration E2E Flow", () => {
       fs.mkdirSync(testDir, { recursive: true });
     }
 
-    // 1. Generate ~6 MB JPEG with valid GPS EXIF (26.65° N, 50.15° E)
+    // 1. Generate ~6 MB fully decodeable JPEG with valid GPS EXIF (26.65° N, 50.15° E)
     execSync(`python3 - << 'PYEOF'
+from PIL import Image
 import struct, os
-soi = b'\\xff\\xd8'
-app1_marker = b'\\xff\\xe1'
-exif_header = b'Exif\\x00\\x00'
-tiff_header = b'II\\x2a\\x00\\x08\\x00\\x00\\x00'
-ifd0 = struct.pack('<HHI I', 0x8825, 4, 1, 26)
-ifd0_full = struct.pack('<H', 1) + ifd0 + struct.pack('<I', 0)
+
+img = Image.new("RGB", (200, 200), color=(60, 120, 200))
+img.save("/tmp/base.jpg", "JPEG", quality=90)
+with open("/tmp/base.jpg", "rb") as f:
+    base_bytes = f.read()
+
+soi = base_bytes[:2]
+rest = base_bytes[2:]
+
+exif_header = b"Exif\\x00\\x00"
+tiff_header = b"II\\x2a\\x00\\x08\\x00\\x00\\x00"
+ifd0 = struct.pack("<HHI I", 0x8825, 4, 1, 26)
+ifd0_full = struct.pack("<H", 1) + ifd0 + struct.pack("<I", 0)
 gps_entries = 5
-gps_ifd = struct.pack('<H', gps_entries)
-gps_ifd += struct.pack('<HHII', 0x0000, 1, 4, 0x00000202)
-gps_ifd += struct.pack('<HHII', 0x0001, 2, 2, ord('N'))
-gps_ifd += struct.pack('<HHII', 0x0002, 5, 3, 92)
-gps_ifd += struct.pack('<HHII', 0x0003, 2, 2, ord('E'))
-gps_ifd += struct.pack('<HHII', 0x0004, 5, 3, 116)
-gps_ifd += struct.pack('<I', 0)
-lat_val = struct.pack('<II II II', 26, 1, 39, 1, 0, 1)
-lon_val = struct.pack('<II II II', 50, 1, 9, 1, 0, 1)
+gps_ifd = struct.pack("<H", gps_entries)
+gps_ifd += struct.pack("<HHII", 0x0000, 1, 4, 0x00000202)
+gps_ifd += struct.pack("<HHII", 0x0001, 2, 2, ord("N"))
+gps_ifd += struct.pack("<HHII", 0x0002, 5, 3, 92)
+gps_ifd += struct.pack("<HHII", 0x0003, 2, 2, ord("E"))
+gps_ifd += struct.pack("<HHII", 0x0004, 5, 3, 116)
+gps_ifd += struct.pack("<I", 0)
+lat_val = struct.pack("<II II II", 26, 1, 39, 1, 0, 1)
+lon_val = struct.pack("<II II II", 50, 1, 9, 1, 0, 1)
 app1_payload = exif_header + tiff_header + ifd0_full + gps_ifd + lat_val + lon_val
-app1_seg = app1_marker + struct.pack('>H', len(app1_payload) + 2) + app1_payload
-target_size = 6 * 1024 * 1024 + 150 * 1024
-padding = target_size - len(soi) - len(app1_seg) - 4
-com_marker = b'\\xff\\xfe'
+app1_seg = b"\\xff\\xe1" + struct.pack(">H", len(app1_payload) + 2) + app1_payload
+
+com_marker = b"\\xff\\xfe"
 com_len = 65535
+target_size = 6 * 1024 * 1024 + 150 * 1024
+padding = target_size - len(soi) - len(app1_seg) - len(rest)
+
 out_path = '${largeGpsJpg}'
-with open(out_path, 'wb') as f:
+with open(out_path, "wb") as f:
     f.write(soi)
     f.write(app1_seg)
     rem = padding
     while rem > 0:
         sz = min(rem, com_len - 2)
-        f.write(com_marker + struct.pack('>H', sz + 2) + (b'X' * sz))
+        f.write(com_marker + struct.pack(">H", sz + 2) + (b"X" * sz))
         rem -= sz
-    f.write(b'\\xff\\xd9')
+    f.write(rest)
 PYEOF`);
 
     // 2. Generate spoofed text file renamed to .jpg
     fs.writeFileSync(fakeJpg, "THIS IS PLAIN TEXT PRETENDING TO BE A JPEG IMAGE");
+
+    // 3. Clear any existing attachments from prior runs in local test db
+    try {
+      execSync(`psql -d render_neon_playwright_test_db -c "DELETE FROM \\"SiteInspectionAttachments\\" WHERE \\"inspectionId\\" = '${inspectionId}';"`, { stdio: "ignore" });
+    } catch {}
   });
 
   test.afterAll(async () => {
@@ -107,8 +122,30 @@ PYEOF`);
 
   test("Site Inspection Neon Object Storage Playwright Flow", async ({ page }) => {
     const putRequests: Array<{ url: string; status: number }> = [];
+    const allRequests: Array<{ url: string; headers: Record<string, string>; method: string }> = [];
+
+    page.on("console", (msg) => {
+      console.log(`[PAGE CONSOLE ${msg.type()}]:`, msg.text());
+    });
+
+    page.on("request", (req) => {
+      if (req.url().includes("file") || req.url().includes("neon.tech")) {
+        console.log("ATTACHMENT/STORAGE REQUEST:", req.method(), req.url());
+      }
+      allRequests.push({
+        url: req.url(),
+        headers: req.headers(),
+        method: req.method(),
+      });
+    });
 
     page.on("response", (res) => {
+      if (res.url().includes("file") || res.url().includes("neon.tech")) {
+        console.log("ATTACHMENT/STORAGE RESPONSE:", res.status(), res.url());
+      }
+      if (res.status() >= 400) {
+        console.log("FAILED RESPONSE:", res.status(), res.url());
+      }
       const req = res.request();
       if (req.method() === "PUT") {
         putRequests.push({ url: req.url(), status: res.status() });
@@ -174,8 +211,12 @@ PYEOF`);
     const gpsBadge = page.locator('[title*="EXIF GPS"]').first();
     await expect(gpsBadge).toBeVisible({ timeout: 15000 });
 
-    const thumbnail = page.locator(`img[src*="${attachmentId}"]`).first();
+    const thumbnail = page.locator('img[alt="test_6mb_gps.jpg"]').first();
     await expect(thumbnail).toBeVisible({ timeout: 15000 });
+    const src = await thumbnail.getAttribute("src");
+    expect(src).toBeTruthy();
+    expect(src!).toMatch(/^blob:/);
+    console.log(`  [PASS] Thumbnail loaded successfully using blob URL: ${src!.substring(0, 30)}...`);
 
     // Step 6: Reload page and confirm photo and GPS badge still load
     console.log(">>> Reloading page to verify persistence...");
@@ -186,7 +227,10 @@ PYEOF`);
     await page.waitForTimeout(500);
 
     await expect(gpsBadge).toBeVisible({ timeout: 15000 });
-    await expect(thumbnail).toBeVisible({ timeout: 15000 });
+    const thumbnailReload = page.locator('img[alt="test_6mb_gps.jpg"]').first();
+    await expect(thumbnailReload).toBeVisible({ timeout: 15000 });
+    const srcReload = await thumbnailReload.getAttribute("src");
+    expect(srcReload!).toMatch(/^blob:/);
 
     // Step 7: Upload text file renamed .jpg -> confirm rejection
     console.log(">>> Uploading spoofed text file renamed .jpg...");
@@ -238,7 +282,10 @@ PYEOF`);
     trackedStorageKeys.push(secondStorageKey);
 
     await reuploadRefetchPromise;
-    await expect(page.locator(`img[src*="${secondAttId}"]`).first()).toBeVisible({ timeout: 15000 });
+    const secondThumb = page.locator('img[alt="test_6mb_gps.jpg"]').first();
+    await expect(secondThumb).toBeVisible({ timeout: 15000 });
+    const secondSrc = await secondThumb.getAttribute("src");
+    expect(secondSrc!).toMatch(/^blob:/);
 
     console.log(">>> Restarting backend process...");
     execSync("./scripts/restart-backend.sh", { stdio: "inherit" });
@@ -282,6 +329,24 @@ PYEOF`);
       }
     }
     expect(secondDeleted).toBe(true);
-    console.log("  [PASS] Cleanup complete!");
+
+    // Step 10: Network Security Audits
+    console.log(">>> Running Network Security Audits...");
+    // Confirm no request URL in the entire test contains "token" or "token="
+    const requestsWithToken = allRequests.filter((r) => {
+      const u = r.url.toLowerCase();
+      return u.includes("token=") || u.includes("?token") || u.includes("&token");
+    });
+    expect(requestsWithToken).toHaveLength(0);
+    console.log("  [PASS] Network audit: 0 requests contain token in URL query!");
+
+    // Confirm Authorization header was NEVER sent to the storage host
+    const s3Requests = allRequests.filter((r) => r.url.includes("neon.tech"));
+    expect(s3Requests.length).toBeGreaterThan(0);
+    for (const sReq of s3Requests) {
+      expect(sReq.headers["authorization"]).toBeUndefined();
+    }
+    console.log(`  [PASS] Authorization header was NEVER sent to storage host (${s3Requests.length} storage requests audited)!`);
+    console.log("  [PASS] All E2E steps passed successfully!");
   });
 });

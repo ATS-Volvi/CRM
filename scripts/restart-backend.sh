@@ -9,6 +9,7 @@ if [ -n "$PID" ]; then
 fi
 
 nohup env PORT=5506 DATABASE_URL="postgres://localhost:5432/render_neon_playwright_test_db" node --env-file="$HOME/.site-inspection-bucket.env" backend/build/backend/index.js > /tmp/crm-backend.log 2>&1 &
+disown || true
 
 # Wait for backend to be ready
 for i in {1..30}; do
