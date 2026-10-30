@@ -152,13 +152,18 @@ export interface SiteInspectionSettingsData {
   maxDistanceKm: number;
   balancedWeights: { distance: number; load: number };
   slaHours: {
-    acceptHours: number;
-    scheduleHours: number;
-    submitHours: number;
-    reviewHours: number;
+    accept: number;
+    schedule: number;
+    submit: number;
+    review: number;
+    acceptHours?: number;
+    scheduleHours?: number;
+    submitHours?: number;
+    reviewHours?: number;
   };
-  workingWeek: number[];
+  workingWeek: Array<number | string>;
   workingHours: { start: string; end: string };
+  timezone?: string;
   automation: boolean;
   autoQualify: boolean;
 }

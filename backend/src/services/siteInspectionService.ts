@@ -189,18 +189,25 @@ export async function requestSiteInspection(
     throw new Error("Priority URGENT requires a priority reason.");
   }
 
-  // Create with retry in case of transient database locks or collisions
-  let inspection: any = null;
-  for (let attempt = 0; attempt < 5; attempt++) {
-    try {
-      inspection = await SiteInspection.create({
-        id: crypto.randomUUID(),
-        inspectionNumber,
-        leadId: lead.id,
-        dealId: null,
-        status: "REQUESTED",
-        assignedToId: null, // Will be set by assignInspectionTransaction
-        requestedById: requestedById || lead.assignedToId || null,
+  const { isPhase2SchemaReady } = require("@nexus-crm/database");
+  const { getSettings } = require("./siteInspectionSettingsService");
+  const settings = await getSettings().catch(() => ({ assignmentMode: "legacy" }));
+  const hasPhase2ExplicitOptions = Boolean(
+    payloadOptions.requestedInspectorId ||
+    payloadOptions.siteAreaName ||
+    (payloadOptions.priority && payloadOptions.priority !== "NORMAL") ||
+    (payloadOptions.requiredCertifications && payloadOptions.requiredCertifications.length > 0)
+  );
+  const usePhase2Engine = Boolean(isPhase2SchemaReady && (settings.assignmentMode !== "legacy" || hasPhase2ExplicitOptions));
+
+  const createFields: any = {
+    id: crypto.randomUUID(),
+    inspectionNumber,
+    leadId: lead.id,
+    dealId: null,
+    status: "REQUESTED",
+    assignedToId: null, // Set below
+    requestedById: requestedById || lead.assignedToId || null,
     requestNote: requestNote || payloadOptions.requestNote || null,
     dueAt,
     baseId: null,
@@ -224,11 +231,21 @@ export async function requestSiteInspection(
     observations: null,
     accepted: false,
     revision: 1,
-    priority,
-    priorityReason: payloadOptions.priorityReason || null,
-    siteAreaName: payloadOptions.siteAreaName || null,
-    siteLatitudeHint: payloadOptions.siteLatitudeHint || null,
-      });
+  };
+
+  if (isPhase2SchemaReady && (SiteInspection as any).rawAttributes?.priority) {
+    createFields.priority = priority;
+    createFields.priorityReason = payloadOptions.priorityReason || null;
+    createFields.siteAreaName = payloadOptions.siteAreaName || null;
+    createFields.siteLatitudeHint = payloadOptions.siteLatitudeHint || null;
+  }
+
+  // Create with retry in case of transient database locks or collisions
+  let inspection: any = null;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      createFields.inspectionNumber = inspectionNumber;
+      inspection = await SiteInspection.create(createFields);
       break;
     } catch (err: any) {
       if (attempt === 4) throw err;
@@ -286,27 +303,78 @@ export async function requestSiteInspection(
     siteInspectionId: inspection.id,
   });
 
-  // Assign inspector via assignment service (handles engine, advisory locks, audit log, notifications)
-  try {
-    const { assignInspectionTransaction } = require("./siteInspectionAssignmentService");
-    await assignInspectionTransaction(
-      inspection.id,
-      {
-        siteAreaName: payloadOptions.siteAreaName,
-        siteLatitudeHint: payloadOptions.siteLatitudeHint,
-        siteLongitudeHint: payloadOptions.siteLongitudeHint,
-        priority,
-        priorityReason: payloadOptions.priorityReason,
-        requiredCertifications: payloadOptions.requiredCertifications,
-        requestedInspectorId: payloadOptions.requestedInspectorId,
-        requestedInspectorReason: payloadOptions.requestedInspectorReason,
-        requestNote: requestNote || payloadOptions.requestNote,
-      },
-      requestedById,
-      actorRole
-    );
-  } catch (assignErr) {
-    console.error("[requestSiteInspection] Assignment error:", assignErr);
+  // Assign inspector
+  if (usePhase2Engine) {
+    // Phase 2 Transactional Assignment Service (engine, advisory locks, audit logs, notifications)
+    try {
+      const { assignInspectionTransaction } = require("./siteInspectionAssignmentService");
+      await assignInspectionTransaction(
+        inspection.id,
+        {
+          siteAreaName: payloadOptions.siteAreaName,
+          siteLatitudeHint: payloadOptions.siteLatitudeHint,
+          siteLongitudeHint: payloadOptions.siteLongitudeHint,
+          priority,
+          priorityReason: payloadOptions.priorityReason,
+          requiredCertifications: payloadOptions.requiredCertifications,
+          requestedInspectorId: payloadOptions.requestedInspectorId,
+          requestedInspectorReason: payloadOptions.requestedInspectorReason,
+          requestNote: requestNote || payloadOptions.requestNote,
+        },
+        requestedById,
+        actorRole
+      );
+    } catch (assignErr) {
+      console.error("[requestSiteInspection] Phase 2 Assignment error:", assignErr);
+    }
+  } else {
+    // Pure Legacy Pre-Phase 2 Assignment: fewest open inspections, fair round-robin
+    // Does NOT query SiteInspectorProfiles, SiteInspectionSettings, or write SiteInspectionAuditLogs
+    try {
+      const siteManagers = await User.findAll({
+        where: {
+          role: "site_manager",
+          [Op.or]: [{ status: { [Op.ne]: "Inactive" } }, { status: null }],
+        },
+      });
+
+      let assignedManagerId: string | null = null;
+      if (siteManagers.length > 0) {
+        const openStatuses = ["REQUESTED", "DRAFT", "CHANGES_REQUESTED", "SUBMITTED"];
+        const managersWithCounts = await Promise.all(
+          siteManagers.map(async (mgr: any) => {
+            const openCount = await SiteInspection.count({
+              where: {
+                assignedToId: mgr.id,
+                status: { [Op.in]: openStatuses },
+              },
+            });
+            return { id: mgr.id, openCount };
+          })
+        );
+
+        managersWithCounts.sort((a, b) => a.openCount - b.openCount);
+        assignedManagerId = managersWithCounts[0]?.id || null;
+      }
+
+      if (assignedManagerId) {
+        await inspection.update({ assignedToId: assignedManagerId });
+        try {
+          const { createNotification } = require("./notificationService");
+          await createNotification(
+            assignedManagerId,
+            "site_inspection",
+            "New Site Inspection Assigned",
+            `Site Inspection ${inspectionNumber} has been assigned to you.`,
+            `/site-inspections/${inspection.id}`
+          );
+        } catch (notifErr) {
+          console.warn("[requestSiteInspection] Notification warning:", notifErr);
+        }
+      }
+    } catch (legacyErr) {
+      console.error("[requestSiteInspection] Legacy assignment error:", legacyErr);
+    }
   }
 
   return SiteInspection.findByPk(inspection.id, {
@@ -734,6 +802,31 @@ export async function reassignInspection(
 ): Promise<any> {
   if (!APPROVER_ROLES.includes(callerRole)) {
     throw new Error("Only managers or approvers may reassign site inspections.");
+  }
+
+  const { isPhase2SchemaReady } = require("@nexus-crm/database");
+  if (!isPhase2SchemaReady) {
+    const inspection: any = await SiteInspection.findByPk(inspectionId);
+    if (!inspection) throw new Error("Site inspection not found");
+
+    const newAssignee: any = await User.findByPk(newAssigneeId);
+    if (!newAssignee) throw new Error("New assignee user not found");
+
+    await inspection.update({ assignedToId: newAssigneeId });
+
+    try {
+      await createNotification(
+        newAssigneeId,
+        "site_inspection",
+        "Site Inspection Assigned",
+        `Site Inspection ${inspection.inspectionNumber} has been reassigned to you.`,
+        `/site-inspections/${inspection.id}`
+      );
+    } catch (err) {
+      console.warn("[reassignInspection] Notification warn:", err);
+    }
+
+    return inspection;
   }
 
   const { manualReassignInspection } = require("./siteInspectionAssignmentService");

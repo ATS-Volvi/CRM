@@ -9,14 +9,16 @@ import { logSiteInspectionAudit } from "./siteInspectionAuditService";
 import crypto from "crypto";
 
 export interface SlaHoursConfig {
-  acceptUrgent: number;
-  acceptNormal: number;
-  acceptLow: number;
+  accept: number;
   schedule: number;
-  submitUrgent: number;
-  submitNormal: number;
-  submitLowDays: number;
+  submit: number;
   review: number;
+  acceptUrgent?: number;
+  acceptNormal?: number;
+  acceptLow?: number;
+  submitUrgent?: number;
+  submitNormal?: number;
+  submitLowDays?: number;
 }
 
 export interface BalancedWeightsConfig {
@@ -40,7 +42,7 @@ export interface SiteInspectionSettingsData {
   maxVisitsPerDay: number;
   maxDistanceKm: number;
   balancedWeights: BalancedWeightsConfig;
-  workingWeek: string[];
+  workingWeek: Array<number | string>;
   workingHours: WorkingHoursConfig;
   timezone: string;
   slaHours: SlaHoursConfig;
@@ -56,18 +58,20 @@ export const DEFAULT_SETTINGS: SiteInspectionSettingsData = {
   maxVisitsPerDay: 2,
   maxDistanceKm: 300,
   balancedWeights: { distance: 0.5, load: 0.5 },
-  workingWeek: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday"],
+  workingWeek: [0, 1, 2, 3, 4], // Sunday to Thursday (0 = Sunday, 4 = Thursday)
   workingHours: { start: "08:00", end: "17:00" },
   timezone: "Asia/Riyadh",
   slaHours: {
+    accept: 4,
+    schedule: 24,
+    submit: 48,
+    review: 24,
     acceptUrgent: 4,
     acceptNormal: 4,
     acceptLow: 8,
-    schedule: 24,
     submitUrgent: 24,
     submitNormal: 48,
     submitLowDays: 5,
-    review: 24,
   },
   reminderTimes: { reminder1Percent: 50, reminder2Percent: 80 },
   escalationRecipients: ["ops_manager", "director"],
@@ -91,8 +95,8 @@ export function validateSetting(key: keyof SiteInspectionSettingsData, value: an
       }
       return null;
     case "maxVisitsPerDay":
-      if (typeof value !== "number" || value < 1 || value > 10) {
-        return "maxVisitsPerDay must be an integer between 1 and 10";
+      if (typeof value !== "number" || value < 1 || value > 20) {
+        return "maxVisitsPerDay must be an integer between 1 and 20";
       }
       return null;
     case "maxDistanceKm":
@@ -114,7 +118,21 @@ export function validateSetting(key: keyof SiteInspectionSettingsData, value: an
       return null;
     case "workingWeek":
       if (!Array.isArray(value) || value.length === 0) {
-        return "workingWeek must be a non-empty array of day names";
+        return "workingWeek must be a non-empty array of days (numbers 0 to 6, or day names)";
+      }
+      const validNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+      for (const d of value) {
+        if (typeof d === "number") {
+          if (!Number.isInteger(d) || d < 0 || d > 6) {
+            return "workingWeek day numbers must be integers between 0 (Sunday) and 6 (Saturday)";
+          }
+        } else if (typeof d === "string") {
+          if (!validNames.includes(d.toLowerCase())) {
+            return `workingWeek day name "${d}" is invalid`;
+          }
+        } else {
+          return "workingWeek elements must be day numbers (0 to 6) or day names";
+        }
       }
       return null;
     case "workingHours":
@@ -128,13 +146,20 @@ export function validateSetting(key: keyof SiteInspectionSettingsData, value: an
       }
       return null;
     case "slaHours":
+      if (!value || typeof value !== "object") {
+        return "slaHours must be an object";
+      }
+      const acceptVal = value.accept ?? value.acceptNormal;
+      const schedVal = value.schedule ?? value.scheduleHours;
+      const submitVal = value.submit ?? value.submitNormal;
+      const reviewVal = value.review ?? value.reviewHours;
       if (
-        !value ||
-        typeof value.acceptNormal !== "number" ||
-        typeof value.submitNormal !== "number" ||
-        typeof value.review !== "number"
+        typeof acceptVal !== "number" || acceptVal < 1 ||
+        typeof schedVal !== "number" || schedVal < 1 ||
+        typeof submitVal !== "number" || submitVal < 1 ||
+        typeof reviewVal !== "number" || reviewVal < 1
       ) {
-        return "slaHours must contain valid numeric targets for accept, submit, and review";
+        return "slaHours must contain valid positive numbers for accept, schedule, submit, and review";
       }
       return null;
     case "automation":
@@ -174,8 +199,20 @@ export function explainSettingEffect(key: string, oldValue: any, newValue: any):
       return `Balanced routing weights updated to ${(newValue.distance * 100).toFixed(0)}% distance and ${(newValue.load * 100).toFixed(0)}% workload.`;
     case "workingHours":
       return `Business working hours changed to ${newValue.start} - ${newValue.end} (${DEFAULT_SETTINGS.timezone}). SLA clocks will pause outside these hours.`;
-    case "workingWeek":
-      return `Working week changed to ${newValue.join(", ")}. SLA clocks will pause on non-working days.`;
+    case "workingWeek": {
+      const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      const formatted = Array.isArray(newValue)
+        ? newValue.map((d: any) => typeof d === "number" ? dayNames[d] || d : d).join(", ")
+        : String(newValue);
+      return `Working week changed to ${formatted}. SLA clocks will pause on non-working days.`;
+    }
+    case "slaHours": {
+      const sAccept = newValue.accept ?? newValue.acceptNormal ?? 4;
+      const sSched = newValue.schedule ?? newValue.scheduleHours ?? 24;
+      const sSubmit = newValue.submit ?? newValue.submitNormal ?? 48;
+      const sReview = newValue.review ?? newValue.reviewHours ?? 24;
+      return `SLA milestone targets updated: Accept in ${sAccept}h, Schedule in ${sSched}h, Submit in ${sSubmit}h, Review in ${sReview}h.`;
+    }
     case "automation":
       return newValue
         ? "Enabled site inspection automation (SLA timers, notifications, escalations, auto-requeue on leave)."

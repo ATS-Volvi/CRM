@@ -39,10 +39,17 @@ export function SiteInspectionSettingsModal({ isOpen, onClose, onSaved }: Settin
   const [settings, setSettings] = useState({
     assignmentMode: "legacy" as "legacy" | "nearest" | "balanced",
     maxOpenInspections: 5,
-    maxVisitsPerDay: 4,
+    maxVisitsPerDay: 2,
     maxDistanceKm: 300,
     balancedWeights: { distance: 0.5, load: 0.5 },
+    workingWeek: [0, 1, 2, 3, 4] as number[],
     workingHours: { start: "08:00", end: "17:00" },
+    slaHours: {
+      accept: 4,
+      schedule: 24,
+      submit: 48,
+      review: 24,
+    },
     automation: false,
     autoQualify: false,
   });
@@ -81,13 +88,31 @@ export function SiteInspectionSettingsModal({ isOpen, onClose, onSaved }: Settin
       ]);
 
       if (fetchedSettings) {
+        const dayNameToNum: Record<string, number> = {
+          sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6,
+        };
+        const rawWeek = Array.isArray(fetchedSettings.workingWeek)
+          ? fetchedSettings.workingWeek
+          : [0, 1, 2, 3, 4];
+        const normalizedWeek = rawWeek.map((d: any) =>
+          typeof d === "number" ? d : (dayNameToNum[String(d).toLowerCase()] ?? 0)
+        );
+
+        const rawSla = fetchedSettings.slaHours || {};
         setSettings({
           assignmentMode: fetchedSettings.assignmentMode || "legacy",
           maxOpenInspections: fetchedSettings.maxOpenInspections || 5,
-          maxVisitsPerDay: fetchedSettings.maxVisitsPerDay || 4,
+          maxVisitsPerDay: fetchedSettings.maxVisitsPerDay ?? 2,
           maxDistanceKm: fetchedSettings.maxDistanceKm || 300,
           balancedWeights: fetchedSettings.balancedWeights || { distance: 0.5, load: 0.5 },
+          workingWeek: normalizedWeek,
           workingHours: fetchedSettings.workingHours || { start: "08:00", end: "17:00" },
+          slaHours: {
+            accept: Number(rawSla.accept ?? rawSla.acceptNormal ?? 4),
+            schedule: Number(rawSla.schedule ?? rawSla.scheduleHours ?? 24),
+            submit: Number(rawSla.submit ?? rawSla.submitNormal ?? 48),
+            review: Number(rawSla.review ?? rawSla.reviewHours ?? 24),
+          },
           automation: Boolean(fetchedSettings.automation),
           autoQualify: Boolean(fetchedSettings.autoQualify),
         });
@@ -102,19 +127,29 @@ export function SiteInspectionSettingsModal({ isOpen, onClose, onSaved }: Settin
     }
   };
 
-  const handleSaveSettings = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSaveSettings = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     setSaving(true);
     setError(null);
     setSuccessMessage(null);
     try {
+      if (settings.workingWeek.length === 0) {
+        throw new Error("Working week must contain at least one day (0 to 6).");
+      }
       const res = await siteInspectionApi.updateSettings({
         assignmentMode: settings.assignmentMode,
         maxOpenInspections: Number(settings.maxOpenInspections),
         maxVisitsPerDay: Number(settings.maxVisitsPerDay),
         maxDistanceKm: Number(settings.maxDistanceKm),
         balancedWeights: settings.balancedWeights,
+        workingWeek: settings.workingWeek,
         workingHours: settings.workingHours,
+        slaHours: {
+          accept: Number(settings.slaHours.accept),
+          schedule: Number(settings.slaHours.schedule),
+          submit: Number(settings.slaHours.submit),
+          review: Number(settings.slaHours.review),
+        },
         automation: settings.automation,
         autoQualify: settings.autoQualify,
       });
@@ -422,18 +457,215 @@ export function SiteInspectionSettingsModal({ isOpen, onClose, onSaved }: Settin
           {/* TAB 2: WORKING HOURS & HOLIDAYS */}
           {activeTab === "holidays" && (
             <div className="space-y-6">
-              {/* Working Hours Info Card */}
-              <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                <div>
-                  <h4 className="font-bold text-slate-900 dark:text-white">
-                    Official Working Calendar (Asia/Riyadh)
-                  </h4>
-                  <p className="text-slate-500 text-[11px] mt-0.5">
-                    Sunday to Thursday, 08:00 AM – 05:00 PM (AST). SLA timers pause outside these hours and on holidays.
-                  </p>
+              {/* Working Hours & Calendar Configuration Card */}
+              <div className="p-5 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <h4 className="font-extrabold text-sm text-slate-900 dark:text-white">
+                      Working Week & Business Hours (Asia/Riyadh)
+                    </h4>
+                    <p className="text-slate-500 text-[11px] mt-0.5">
+                      Select which days of the week (0=Sun to 6=Sat) count towards SLA calculation. Clocks pause outside business hours and on public holidays.
+                    </p>
+                  </div>
+                  <div className="px-3 py-1 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 font-mono text-[11px] font-bold self-start">
+                    {settings.workingWeek.length} days/week active
+                  </div>
                 </div>
-                <div className="px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 font-mono font-bold">
-                  Sun – Thu · 08:00 - 17:00
+
+                {/* Day selector toggles 0 to 6 */}
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block">
+                    Working Days (Days 0 to 6)
+                  </label>
+                  <div className="grid grid-cols-7 gap-1.5">
+                    {[
+                      { num: 0, label: "Sun" },
+                      { num: 1, label: "Mon" },
+                      { num: 2, label: "Tue" },
+                      { num: 3, label: "Wed" },
+                      { num: 4, label: "Thu" },
+                      { num: 5, label: "Fri" },
+                      { num: 6, label: "Sat" },
+                    ].map((d) => {
+                      const isSelected = settings.workingWeek.includes(d.num);
+                      return (
+                        <button
+                          key={d.num}
+                          type="button"
+                          onClick={() => {
+                            setSettings((prev) => {
+                              const exists = prev.workingWeek.includes(d.num);
+                              const updated = exists
+                                ? prev.workingWeek.filter((x) => x !== d.num)
+                                : [...prev.workingWeek, d.num].sort((a, b) => a - b);
+                              return { ...prev, workingWeek: updated };
+                            });
+                          }}
+                          className={`py-2 px-1 text-center rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                            isSelected
+                              ? "bg-indigo-600 text-white border-indigo-600 shadow-xs shadow-indigo-600/30"
+                              : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-slate-300"
+                          }`}
+                        >
+                          <div>{d.label}</div>
+                          <div className="text-[10px] opacity-75 font-mono">Day {d.num}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Working Hours start & end */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                      Business Day Starts
+                    </label>
+                    <input
+                      type="time"
+                      value={settings.workingHours.start}
+                      onChange={(e) =>
+                        setSettings((s) => ({
+                          ...s,
+                          workingHours: { ...s.workingHours, start: e.target.value },
+                        }))
+                      }
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-900 dark:text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                      Business Day Ends
+                    </label>
+                    <input
+                      type="time"
+                      value={settings.workingHours.end}
+                      onChange={(e) =>
+                        setSettings((s) => ({
+                          ...s,
+                          workingHours: { ...s.workingHours, end: e.target.value },
+                        }))
+                      }
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-900 dark:text-white"
+                    />
+                  </div>
+                </div>
+
+                {/* SLA Targets Grid */}
+                <div className="pt-2 border-t border-slate-200/80 dark:border-slate-700/80 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="font-extrabold text-xs text-slate-900 dark:text-white">
+                      SLA Milestone Targets (Business Hours)
+                    </label>
+                    <span className="text-[10px] text-slate-400">Validated positive integer hours</span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1">
+                      <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block">
+                        Accept SLA
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="number"
+                          min="1"
+                          max="168"
+                          value={settings.slaHours.accept}
+                          onChange={(e) =>
+                            setSettings((s) => ({
+                              ...s,
+                              slaHours: { ...s.slaHours, accept: parseInt(e.target.value) || 1 },
+                            }))
+                          }
+                          className="w-full px-2 py-1 bg-slate-50 dark:bg-slate-800 rounded-lg text-xs font-bold text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700"
+                        />
+                        <span className="text-[11px] text-slate-400 font-medium">hrs</span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 block">Default: 4h</span>
+                    </div>
+
+                    <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1">
+                      <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block">
+                        Schedule SLA
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="number"
+                          min="1"
+                          max="168"
+                          value={settings.slaHours.schedule}
+                          onChange={(e) =>
+                            setSettings((s) => ({
+                              ...s,
+                              slaHours: { ...s.slaHours, schedule: parseInt(e.target.value) || 1 },
+                            }))
+                          }
+                          className="w-full px-2 py-1 bg-slate-50 dark:bg-slate-800 rounded-lg text-xs font-bold text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700"
+                        />
+                        <span className="text-[11px] text-slate-400 font-medium">hrs</span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 block">Default: 24h</span>
+                    </div>
+
+                    <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1">
+                      <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block">
+                        Submit SLA
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="number"
+                          min="1"
+                          max="336"
+                          value={settings.slaHours.submit}
+                          onChange={(e) =>
+                            setSettings((s) => ({
+                              ...s,
+                              slaHours: { ...s.slaHours, submit: parseInt(e.target.value) || 1 },
+                            }))
+                          }
+                          className="w-full px-2 py-1 bg-slate-50 dark:bg-slate-800 rounded-lg text-xs font-bold text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700"
+                        />
+                        <span className="text-[11px] text-slate-400 font-medium">hrs</span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 block">Default: 48h</span>
+                    </div>
+
+                    <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1">
+                      <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block">
+                        Review SLA
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="number"
+                          min="1"
+                          max="168"
+                          value={settings.slaHours.review}
+                          onChange={(e) =>
+                            setSettings((s) => ({
+                              ...s,
+                              slaHours: { ...s.slaHours, review: parseInt(e.target.value) || 1 },
+                            }))
+                          }
+                          className="w-full px-2 py-1 bg-slate-50 dark:bg-slate-800 rounded-lg text-xs font-bold text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700"
+                        />
+                        <span className="text-[11px] text-slate-400 font-medium">hrs</span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 block">Default: 24h</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Save Calendar & SLA Button */}
+                <div className="flex justify-end pt-2">
+                  <button
+                    type="button"
+                    onClick={() => handleSaveSettings()}
+                    disabled={saving}
+                    className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-xs shadow-indigo-600/20 disabled:opacity-50 transition-all cursor-pointer text-xs"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    <span>{saving ? "Saving Schedule..." : "Save Calendar & SLA Settings"}</span>
+                  </button>
                 </div>
               </div>
 

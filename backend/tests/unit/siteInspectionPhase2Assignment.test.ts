@@ -364,6 +364,36 @@ describe("Site Inspection Phase 2 — Stage A Assignment Engine & Settings Unit 
       expect(validateSetting("assignmentMode", "nearest")).toBeNull();
     });
 
+    test("Validates workingWeek can contain any days 0 to 6 (Sunday to Saturday)", () => {
+      // Default Sunday to Thursday
+      expect(DEFAULT_SETTINGS.workingWeek).toEqual([0, 1, 2, 3, 4]);
+      expect(validateSetting("workingWeek", [0, 1, 2, 3, 4])).toBeNull();
+      // Sunday to Saturday (all days)
+      expect(validateSetting("workingWeek", [0, 1, 2, 3, 4, 5, 6])).toBeNull();
+      // Any combination of 0 to 6
+      expect(validateSetting("workingWeek", [1, 2, 3, 4, 5])).toBeNull();
+      expect(validateSetting("workingWeek", [0, 6])).toBeNull();
+      // Rejects invalid day numbers
+      expect(validateSetting("workingWeek", [-1, 0, 1])).toBeTruthy();
+      expect(validateSetting("workingWeek", [0, 7])).toBeTruthy();
+      expect(validateSetting("workingWeek", [])).toBeTruthy();
+    });
+
+    test("Checks defaults for maxVisitsPerDay: 2 and slaHours (accept: 4, schedule: 24, submit: 48, review: 24)", () => {
+      expect(DEFAULT_SETTINGS.maxVisitsPerDay).toBe(2);
+      expect(DEFAULT_SETTINGS.slaHours.accept).toBe(4);
+      expect(DEFAULT_SETTINGS.slaHours.schedule).toBe(24);
+      expect(DEFAULT_SETTINGS.slaHours.submit).toBe(48);
+      expect(DEFAULT_SETTINGS.slaHours.review).toBe(24);
+
+      expect(validateSetting("maxVisitsPerDay", 2)).toBeNull();
+      expect(validateSetting("maxVisitsPerDay", 0)).toBeTruthy();
+      expect(validateSetting("maxVisitsPerDay", 25)).toBeTruthy();
+
+      expect(validateSetting("slaHours", { accept: 4, schedule: 24, submit: 48, review: 24 })).toBeNull();
+      expect(validateSetting("slaHours", { accept: 0, schedule: 24, submit: 48, review: 24 })).toBeTruthy();
+    });
+
     test("Produces descriptive human-readable effect explanations", () => {
       const modeEffect = explainSettingEffect("assignmentMode", "legacy", "nearest");
       expect(modeEffect).toContain("nearest-base routing");
@@ -373,6 +403,9 @@ describe("Site Inspection Phase 2 — Stage A Assignment Engine & Settings Unit 
 
       const autoEffect = explainSettingEffect("automation", false, true);
       expect(autoEffect).toContain("Enabled site inspection automation");
+
+      const weekEffect = explainSettingEffect("workingWeek", [0, 1, 2, 3, 4], [0, 1, 2, 3, 4, 5, 6]);
+      expect(weekEffect).toContain("Working week changed to Sun, Mon, Tue, Wed, Thu, Fri, Sat");
     });
   });
 });

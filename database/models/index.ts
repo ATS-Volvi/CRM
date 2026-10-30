@@ -3134,6 +3134,76 @@ SiteInspection.init(
   { sequelize, modelName: "SiteInspection", tableName: "SiteInspections" }
 );
 
+export const PHASE2_COLUMNS = [
+  "siteAreaName",
+  "siteLatitudeHint",
+  "siteLongitudeHint",
+  "siteLocationSource",
+  "priority",
+  "priorityReason",
+  "requiredCertifications",
+  "assignmentMode",
+  "assignmentState",
+  "assignmentReason",
+  "assignedAt",
+  "requestedInspectorId",
+  "requestedInspectorReason",
+  "acceptedAt",
+  "declinedAt",
+  "declineReason",
+  "scheduledVisitAt",
+  "startedAt",
+  "slaAcceptDueAt",
+  "slaScheduleDueAt",
+  "slaSubmitDueAt",
+  "slaReviewDueAt",
+];
+
+export let isPhase2SchemaReady = true;
+
+/**
+ * Checks if Phase 2 migration (20261030100000) has run in the active database.
+ * If not, removes Phase 2 attributes from SiteInspection.rawAttributes so queries
+ * succeed against pre-Phase 2 database tables without column errors.
+ */
+export async function verifyAndAdaptPhase2Schema(): Promise<boolean> {
+  try {
+    const dialect = sequelize.getDialect();
+    let hasCol = false;
+    if (dialect === "postgres") {
+      const [rows]: any = await sequelize.query(`
+        SELECT column_name FROM information_schema.columns 
+        WHERE table_name = 'SiteInspections' AND column_name = 'siteAreaName'
+        LIMIT 1;
+      `);
+      hasCol = Boolean(rows && rows.length > 0);
+    } else if (dialect === "sqlite") {
+      const [rows]: any = await sequelize.query(`PRAGMA table_info("SiteInspections");`);
+      hasCol = Boolean(rows && rows.some((r: any) => r.name === "siteAreaName"));
+    } else {
+      hasCol = true;
+    }
+
+    if (!hasCol) {
+      isPhase2SchemaReady = false;
+      for (const col of PHASE2_COLUMNS) {
+        if ((SiteInspection as any).rawAttributes[col]) {
+          delete (SiteInspection as any).rawAttributes[col];
+        }
+      }
+      if (typeof (SiteInspection as any).refreshAttributes === "function") {
+        (SiteInspection as any).refreshAttributes();
+      }
+      console.log("[Phase2] Migration 20261030100000 not yet applied in database. Model successfully adapted to pre-Phase 2 schema for backward compatibility.");
+    } else {
+      isPhase2SchemaReady = true;
+    }
+  } catch (err: any) {
+    isPhase2SchemaReady = false;
+  }
+  return isPhase2SchemaReady;
+}
+
 export class SiteInspectionService extends Model {
   public id!: string;
   public inspectionId!: string;
