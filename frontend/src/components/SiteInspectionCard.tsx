@@ -16,7 +16,7 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import { siteInspectionApi } from "../api/siteInspection";
-import { getStatusStyle, SiteInspectionRecord, SiteInspectionGateResult } from "../lib/siteInspection";
+import { getStatusStyle, getInspectionRag, SiteInspectionRecord, SiteInspectionGateResult } from "../lib/siteInspection";
 import { SiteInspectionRequestModal } from "./SiteInspectionRequestModal";
 
 export function useLeadSiteInspection(leadId?: string) {
@@ -128,6 +128,20 @@ export function SiteInspectionCard({
         {/* Inspection Details if present */}
         {inspection ? (
           <div className="space-y-3 pt-1">
+            {/* Stage B SLA RAG Countdown */}
+            {(() => {
+              const ragInfo = getInspectionRag(inspection);
+              return (
+                <div className={`flex items-center justify-between px-3 py-2 rounded-xl border ${ragInfo.badgeBg} text-xs font-bold`}>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`w-2 h-2 rounded-full ${ragInfo.dotColor}`} />
+                    <span>{ragInfo.label}</span>
+                  </div>
+                  <span className="font-mono text-[11px] font-extrabold">{ragInfo.countdown}</span>
+                </div>
+              );
+            })()}
+
             {inspection.siteAreaName && (
               <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/40 px-2.5 py-1.5 rounded-lg border border-slate-100 dark:border-slate-800">
                 <MapPin className="w-3.5 h-3.5 text-indigo-500 shrink-0" />

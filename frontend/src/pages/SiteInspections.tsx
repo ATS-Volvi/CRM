@@ -23,7 +23,7 @@ import {
   X,
 } from "lucide-react";
 import { siteInspectionApi } from "../api/siteInspection";
-import { getStatusStyle, SiteInspectionRecord, APPROVER_ROLES } from "../lib/siteInspection";
+import { getStatusStyle, getInspectionRag, SiteInspectionRecord, APPROVER_ROLES } from "../lib/siteInspection";
 import { useAuth } from "../context/AuthContext";
 import { SiteInspectionSettingsModal } from "../components/SiteInspectionSettingsModal";
 
@@ -426,6 +426,20 @@ export default function SiteInspections() {
                       <span>{ins.assignmentReason}</span>
                     </div>
                   )}
+
+                  {/* Stage B SLA RAG Countdown */}
+                  {(() => {
+                    const rag = getInspectionRag(ins);
+                    return (
+                      <div className={`flex items-center justify-between px-2.5 py-1.5 rounded-xl border ${rag.badgeBg} text-[11px] font-bold`}>
+                        <div className="flex items-center gap-1.5">
+                          <span className={`w-1.5 h-1.5 rounded-full ${rag.dotColor}`} />
+                          <span>{rag.label}</span>
+                        </div>
+                        <span className="font-mono text-[10px] font-black">{rag.countdown}</span>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* Metrics Pill Grid */}

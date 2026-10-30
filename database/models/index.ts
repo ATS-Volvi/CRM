@@ -3058,6 +3058,17 @@ export class SiteInspection extends Model {
   public slaScheduleDueAt!: Date | null;
   public slaSubmitDueAt!: Date | null;
   public slaReviewDueAt!: Date | null;
+  public waitingOnClientReason!: string | null;
+  public waitingOnClientExpectedAt!: Date | null;
+  public slaPausedAt!: Date | null;
+  public slaTotalPausedMinutes!: number;
+  public moreTimeReason!: string | null;
+  public moreTimeRequestedHours!: number | null;
+  public moreTimeStatus!: string | null;
+  public moreTimeApprovedById!: string | null;
+  public moreTimeApprovedAt!: Date | null;
+  public escalatedToOpsAt!: Date | null;
+  public escalatedToDirectorAt!: Date | null;
   public createdAt!: Date;
   public updatedAt!: Date;
 
@@ -3130,6 +3141,18 @@ SiteInspection.init(
     slaScheduleDueAt: { type: DataTypes.DATE, allowNull: true },
     slaSubmitDueAt: { type: DataTypes.DATE, allowNull: true },
     slaReviewDueAt: { type: DataTypes.DATE, allowNull: true },
+    // Phase 2 Stage B columns — added by 20261030110000-site-inspection-stage-b-timelines-alerts.js
+    waitingOnClientReason: { type: DataTypes.TEXT, allowNull: true },
+    waitingOnClientExpectedAt: { type: DataTypes.DATE, allowNull: true },
+    slaPausedAt: { type: DataTypes.DATE, allowNull: true },
+    slaTotalPausedMinutes: { type: DataTypes.INTEGER, allowNull: true, defaultValue: 0 },
+    moreTimeReason: { type: DataTypes.TEXT, allowNull: true },
+    moreTimeRequestedHours: { type: DataTypes.INTEGER, allowNull: true },
+    moreTimeStatus: { type: DataTypes.STRING, allowNull: true },
+    moreTimeApprovedById: { type: DataTypes.UUID, allowNull: true },
+    moreTimeApprovedAt: { type: DataTypes.DATE, allowNull: true },
+    escalatedToOpsAt: { type: DataTypes.DATE, allowNull: true },
+    escalatedToDirectorAt: { type: DataTypes.DATE, allowNull: true },
   },
   { sequelize, modelName: "SiteInspection", tableName: "SiteInspections" }
 );
@@ -3157,6 +3180,17 @@ export const PHASE2_COLUMNS = [
   "slaScheduleDueAt",
   "slaSubmitDueAt",
   "slaReviewDueAt",
+  "waitingOnClientReason",
+  "waitingOnClientExpectedAt",
+  "slaPausedAt",
+  "slaTotalPausedMinutes",
+  "moreTimeReason",
+  "moreTimeRequestedHours",
+  "moreTimeStatus",
+  "moreTimeApprovedById",
+  "moreTimeApprovedAt",
+  "escalatedToOpsAt",
+  "escalatedToDirectorAt",
 ];
 
 export let isPhase2SchemaReady = true;
@@ -3443,5 +3477,81 @@ SiteInspectionAuditLog.belongsTo(User, { foreignKey: "actorId", as: "actor", con
 SiteInspectionAuditLog.belongsTo(SiteInspection, { foreignKey: "inspectionId", as: "inspection", constraints: false });
 SiteInspection.belongsTo(User, { foreignKey: "requestedInspectorId", as: "requestedInspector", constraints: false });
 
+export class SiteInspectionAlert extends Model {
+  public id!: string;
+  public dedupeKey!: string;
+  public inspectionId!: string | null;
+  public alertType!: string;
+  public recipientId!: string;
+  public recipientRole!: string | null;
+  public channel!: string;
+  public status!: string;
+  public sentAt!: Date;
+  public scheduledFor!: Date | null;
+  public payload!: string | null;
+  public createdAt!: Date;
+  public updatedAt!: Date;
+
+  public inspection?: any;
+  public recipient?: any;
+}
+
+SiteInspectionAlert.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    dedupeKey: { type: DataTypes.STRING, allowNull: false, unique: true },
+    inspectionId: { type: DataTypes.UUID, allowNull: true },
+    alertType: { type: DataTypes.STRING, allowNull: false },
+    recipientId: { type: DataTypes.UUID, allowNull: false },
+    recipientRole: { type: DataTypes.STRING, allowNull: true },
+    channel: { type: DataTypes.STRING, allowNull: false, defaultValue: "IN_APP" },
+    status: { type: DataTypes.STRING, allowNull: false, defaultValue: "SENT" },
+    sentAt: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
+    scheduledFor: { type: DataTypes.DATE, allowNull: true },
+    payload: { type: DataTypes.TEXT, allowNull: true },
+  },
+  {
+    sequelize,
+    modelName: "SiteInspectionAlert",
+    tableName: "SiteInspectionAlerts",
+  }
+);
+
+export class SiteInspectionAutomationRun extends Model {
+  public id!: string;
+  public startedAt!: Date;
+  public completedAt!: Date | null;
+  public alertsScanned!: number;
+  public alertsTriggered!: number;
+  public escalationsTriggered!: number;
+  public status!: string;
+  public errorDetails!: string | null;
+  public createdAt!: Date;
+  public updatedAt!: Date;
+}
+
+SiteInspectionAutomationRun.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    startedAt: { type: DataTypes.DATE, allowNull: false },
+    completedAt: { type: DataTypes.DATE, allowNull: true },
+    alertsScanned: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+    alertsTriggered: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+    escalationsTriggered: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+    status: { type: DataTypes.STRING, allowNull: false, defaultValue: "SUCCESS" },
+    errorDetails: { type: DataTypes.TEXT, allowNull: true },
+  },
+  {
+    sequelize,
+    modelName: "SiteInspectionAutomationRun",
+    tableName: "SiteInspectionAutomationRuns",
+  }
+);
+
+SiteInspectionAlert.belongsTo(SiteInspection, { foreignKey: "inspectionId", as: "inspection", constraints: false });
+SiteInspectionAlert.belongsTo(User, { foreignKey: "recipientId", as: "recipient", constraints: false });
+SiteInspection.hasMany(SiteInspectionAlert, { foreignKey: "inspectionId", as: "alerts", constraints: false });
+
 export { sequelize };
+
 
