@@ -2,7 +2,18 @@ import { DataTypes, Model, Op } from "sequelize";
 import crypto from "crypto";
 import { sequelize } from "../config/dbConn";
 
-export type UserRole = "admin" | "manager" | "senior_ae" | "sales_rep" | "director" | "site_manager" | "ops_manager" | "sales_manager";
+export const ALLOWED_USER_ROLES = [
+  "sales_rep",
+  "senior_ae",
+  "manager",
+  "sales_manager",
+  "director",
+  "admin",
+  "site_manager",
+  "ops_manager"
+] as const;
+
+export type UserRole = (typeof ALLOWED_USER_ROLES)[number];
 
 export class User extends Model {
   public id!: string;

@@ -23,3 +23,4 @@ dry_run_query.sql
 *.zip
 uploads/
 backend/uploads/
+test-results/

@@ -632,6 +632,8 @@ router.get("/salespersons/org-chart", authMiddleware, getOrgChartEmployees);
 router.get("/salespersons/:id/performance", authMiddleware, getSalespersonPerformanceDetails);
 router.post("/salespersons", authMiddleware, createSalesperson);
 router.put("/salespersons/:id/capacity", authMiddleware, updateSalespersonCapacity);
+router.put("/salespersons/:id", authMiddleware, updateSalespersonCapacity);
+router.patch("/salespersons/:id", authMiddleware, updateSalespersonCapacity);
 router.patch("/users/:id/team-type", authMiddleware, updateRepTeamType);
 router.put("/users/:id/team-type", authMiddleware, updateRepTeamType);
 router.patch("/salespersons/:id/team-type", authMiddleware, updateRepTeamType);

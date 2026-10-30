@@ -26,7 +26,18 @@ export interface ApiError {
   details?: Record<string, unknown>;
 }
 
-export type UserRole = "admin" | "sales_manager" | "manager" | "senior_ae" | "sales_rep" | "viewer" | "director" | "site_manager" | "ops_manager";
+export const ALLOWED_USER_ROLES = [
+  "sales_rep",
+  "senior_ae",
+  "manager",
+  "sales_manager",
+  "director",
+  "admin",
+  "site_manager",
+  "ops_manager"
+] as const;
+
+export type UserRole = (typeof ALLOWED_USER_ROLES)[number] | "viewer";
 
 export interface RolePermissions {
   canViewInternalCost: boolean;
