@@ -182,7 +182,7 @@ export const updateSiteFacility = async (req: Request, res: Response) => {
 export const listSiteInspections = async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
-    const { status, q, mine } = req.query;
+    const { status, q, mine, assignmentState, priority } = req.query;
 
     const where: any = {};
 
@@ -202,6 +202,14 @@ export const listSiteInspections = async (req: Request, res: Response) => {
 
     if (status && status !== "ALL") {
       where.status = status;
+    }
+
+    if (assignmentState) {
+      where.assignmentState = assignmentState;
+    }
+
+    if (priority) {
+      where.priority = priority;
     }
 
     if (q) {
@@ -336,13 +344,17 @@ export const reassignSiteInspection = async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
     const id = req.params.id as string;
-    const { assignedToId } = req.body;
+    const { assignedToId, reason } = req.body;
 
     if (!user || !APPROVER_ROLES.includes(user.role)) {
       return res.status(403).json({ error: "Only managers may reassign site inspections." });
     }
 
-    const reassigned = await reassignInspection(id, assignedToId, user.role);
+    if (!reason || !String(reason).trim()) {
+      return res.status(400).json({ error: "A reason is required when reassigning a site inspection." });
+    }
+
+    const reassigned = await reassignInspection(id, assignedToId, user.role, String(reason).trim(), user.id, req.ip);
     res.json(reassigned);
   } catch (error: any) {
     res.status(400).json({ error: error.message });
@@ -832,9 +844,194 @@ export const requestLeadSiteInspectionEndpoint = async (req: Request, res: Respo
     const user = (req as any).user;
     const { requestNote } = req.body;
 
-    const inspection = await requestSiteInspection(leadId, user?.id, requestNote);
+    const inspection = await requestSiteInspection(leadId, user?.id, requestNote, req.body, user?.role);
     res.status(201).json(inspection);
   } catch (error: any) {
     res.status(400).json({ error: error.message });
   }
 };
+
+// ==========================================
+// PHASE 2 STAGE A SETTINGS & GOVERNANCE ENDPOINTS
+// ==========================================
+import {
+  getSettings,
+  updateSettings,
+  listHolidays,
+  addHoliday,
+  updateHoliday,
+  deleteHoliday,
+  getInspectorProfiles,
+  getInspectorProfileByUserId,
+  upsertInspectorProfile,
+} from "../services/siteInspectionSettingsService";
+import { getSiteInspectionAuditLogs } from "../services/siteInspectionAuditService";
+import { bulkAssignInspections } from "../services/siteInspectionAssignmentService";
+
+const SETTINGS_ALLOWED_ROLES = ["admin", "director", "ops_manager"];
+
+export const getSiteInspectionSettings = async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (!user || !SETTINGS_ALLOWED_ROLES.includes(user.role)) {
+      return res.status(403).json({ error: "Access denied: settings are restricted to Ops Manager, Director, and Admin." });
+    }
+    const settings = await getSettings();
+    res.json(settings);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const updateSiteInspectionSettings = async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (!user || !SETTINGS_ALLOWED_ROLES.includes(user.role)) {
+      return res.status(403).json({ error: "Access denied: settings can only be modified by Ops Manager, Director, or Admin." });
+    }
+    const result = await updateSettings(req.body, user.id, user.role, req.ip);
+    res.json(result);
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+};
+
+export const listSiteHolidays = async (req: Request, res: Response) => {
+  try {
+    const holidays = await listHolidays(req.query.all !== "true");
+    res.json(holidays);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const createSiteHoliday = async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (!user || !SETTINGS_ALLOWED_ROLES.includes(user.role)) {
+      return res.status(403).json({ error: "Access denied: holidays can only be created by Ops Manager, Director, or Admin." });
+    }
+    const { date, name } = req.body;
+    const holiday = await addHoliday(date, name, user.id, user.role);
+    res.status(201).json(holiday);
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+};
+
+export const updateSiteHoliday = async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (!user || !SETTINGS_ALLOWED_ROLES.includes(user.role)) {
+      return res.status(403).json({ error: "Access denied: holidays can only be updated by Ops Manager, Director, or Admin." });
+    }
+    const id = req.params.id as string;
+    const holiday = await updateHoliday(id, req.body, user.id, user.role);
+    res.json(holiday);
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+};
+
+export const deleteSiteHoliday = async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (!user || !SETTINGS_ALLOWED_ROLES.includes(user.role)) {
+      return res.status(403).json({ error: "Access denied: holidays can only be deleted by Ops Manager, Director, or Admin." });
+    }
+    const id = req.params.id as string;
+    await deleteHoliday(id, user.id, user.role);
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+};
+
+export const listInspectorProfiles = async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (!user || !SETTINGS_ALLOWED_ROLES.includes(user.role)) {
+      return res.status(403).json({ error: "Access denied: inspector profiles are restricted to Ops Manager, Director, and Admin." });
+    }
+    const profiles = await getInspectorProfiles();
+    res.json(profiles);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const getInspectorProfile = async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    const targetUserId = req.params.userId as string;
+    // Allow inspector to view own profile, or manager/admin to view any
+    if (user.id !== targetUserId && !SETTINGS_ALLOWED_ROLES.includes(user.role)) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+    const profile = await getInspectorProfileByUserId(targetUserId);
+    res.json(profile);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const updateInspectorProfile = async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (!user || !SETTINGS_ALLOWED_ROLES.includes(user.role)) {
+      return res.status(403).json({ error: "Access denied: only Ops Manager, Director, or Admin can edit inspector profiles." });
+    }
+    const targetUserId = req.params.userId as string;
+    const profile = await upsertInspectorProfile(targetUserId, req.body, user.id, user.role, req.ip);
+    res.json(profile);
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+};
+
+export const listSiteInspectionAuditLogs = async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (!user || !SETTINGS_ALLOWED_ROLES.includes(user.role)) {
+      return res.status(403).json({ error: "Access denied: audit logs are restricted to Ops Manager, Director, and Admin." });
+    }
+    const result = await getSiteInspectionAuditLogs({
+      inspectionId: req.query.inspectionId as string,
+      entityType: req.query.entityType as string,
+      action: req.query.action as string,
+      actorId: req.query.actorId as string,
+      limit: req.query.limit ? parseInt(req.query.limit as string, 10) : undefined,
+      offset: req.query.offset ? parseInt(req.query.offset as string, 10) : undefined,
+    });
+    res.json(result);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const bulkAssignSiteInspectionsEndpoint = async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (!user || !SETTINGS_ALLOWED_ROLES.includes(user.role)) {
+      return res.status(403).json({ error: "Access denied: bulk assignment is restricted to Ops Manager, Director, and Admin." });
+    }
+    const { inspectionIds, targetAssigneeId, reason } = req.body;
+    if (!Array.isArray(inspectionIds) || inspectionIds.length === 0) {
+      return res.status(400).json({ error: "inspectionIds must be a non-empty array of UUIDs" });
+    }
+    if (!reason || !String(reason).trim()) {
+      return res.status(400).json({ error: "A reason is required when bulk-assigning inspections." });
+    }
+    const result = await bulkAssignInspections(
+      inspectionIds,
+      targetAssigneeId || null,
+      String(reason).trim(),
+      user.id,
+      user.role
+    );
+    res.json(result);
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+};
+

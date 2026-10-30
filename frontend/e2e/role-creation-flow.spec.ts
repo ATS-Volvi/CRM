@@ -2,15 +2,15 @@ import { test, expect } from "@playwright/test";
 
 test.describe.serial("Site Manager & Operations Manager Role Creation and Access Flow", () => {
   const ts = Date.now();
-  const adminEmail = "admin@local.test";
-  const adminPassword = "Password123!";
+  const adminEmail = process.env.ADMIN_EMAIL || "admin@local.test";
+  const adminPassword = process.env.ADMIN_PASSWORD || "TestPassword123!";
 
   const siteManagerEmail = `sm-e2e-${ts}@nexus.com`;
-  const siteManagerPassword = "Password123!";
+  const siteManagerPassword = process.env.USER_TEST_PASSWORD || "TestPassword123!";
   const siteManagerName = `Site Manager ${ts}`;
 
   const opsManagerEmail = `om-e2e-${ts}@nexus.com`;
-  const opsManagerPassword = "Password123!";
+  const opsManagerPassword = process.env.USER_TEST_PASSWORD || "TestPassword123!";
   const opsManagerName = `Ops Manager ${ts}`;
 
   test("Gate OFF: Admin registers Site Manager & Ops Manager, verifies landing on /site-inspections", async ({ page }) => {

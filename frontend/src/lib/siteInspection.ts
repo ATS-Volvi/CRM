@@ -96,6 +96,30 @@ export interface SiteInspectionRecord {
   createdAt: string;
   updatedAt: string;
 
+  // Phase 2 Assignment & Timeline fields
+  siteAreaName?: string | null;
+  siteLatitudeHint?: number | null;
+  siteLongitudeHint?: number | null;
+  siteLocationSource?: string | null;
+  priority?: "LOW" | "NORMAL" | "URGENT";
+  priorityReason?: string | null;
+  requiredCertifications?: string[] | null;
+  assignmentMode?: string | null;
+  assignmentState?: "ASSIGNED" | "UNASSIGNED" | "NEEDS_AREA" | "PENDING_CONFIRMATION" | "ACCEPTED" | "DECLINED" | "VISIT_SCHEDULED" | "VISIT_STARTED";
+  assignmentReason?: string | null;
+  assignedAt?: string | null;
+  requestedInspectorId?: string | null;
+  requestedInspectorReason?: string | null;
+  acceptedAt?: string | null;
+  declinedAt?: string | null;
+  declineReason?: string | null;
+  scheduledVisitAt?: string | null;
+  startedAt?: string | null;
+  slaAcceptDueAt?: string | null;
+  slaScheduleDueAt?: string | null;
+  slaSubmitDueAt?: string | null;
+  slaReviewDueAt?: string | null;
+
   lead?: {
     id: string;
     firstName: string;
@@ -119,6 +143,65 @@ export interface SiteInspectionRecord {
   base?: SiteBase;
   services?: SiteInspectionServiceItem[];
   attachments?: SiteInspectionAttachmentItem[];
+}
+
+export interface SiteInspectionSettingsData {
+  assignmentMode: "legacy" | "nearest" | "balanced";
+  maxOpenInspections: number;
+  maxVisitsPerDay: number;
+  maxDistanceKm: number;
+  balancedWeights: { distance: number; load: number };
+  slaHours: {
+    acceptHours: number;
+    scheduleHours: number;
+    submitHours: number;
+    reviewHours: number;
+  };
+  workingWeek: number[];
+  workingHours: { start: string; end: string };
+  automation: boolean;
+  autoQualify: boolean;
+}
+
+export interface SiteHolidayRecord {
+  id: string;
+  date: string;
+  name: string;
+  isRecurringYearly: boolean;
+  notes?: string | null;
+}
+
+export interface SiteInspectorProfileRecord {
+  id: string;
+  userId: string;
+  user?: { id: string; name: string; email: string; role: string; isAvailable: boolean };
+  isAvailable: boolean;
+  leaveStartDate?: string | null;
+  leaveEndDate?: string | null;
+  maxOpenInspections: number;
+  maxVisitsPerDay: number;
+  maxDistanceKm: number;
+  certifications: string[];
+  defaultBaseId?: string | null;
+  homeLatitude?: number | null;
+  homeLongitude?: number | null;
+  lastAssignedAt?: string | null;
+}
+
+export interface SiteInspectionAuditLogRecord {
+  id: string;
+  inspectionId?: string | null;
+  entityType: string;
+  entityId?: string | null;
+  action: string;
+  actorId?: string | null;
+  actorRole?: string | null;
+  actor?: { id: string; name: string; email: string; role: string };
+  fromValue?: string | null;
+  toValue?: string | null;
+  reason?: string | null;
+  ip?: string | null;
+  createdAt: string;
 }
 
 export interface SiteInspectionGateResult {

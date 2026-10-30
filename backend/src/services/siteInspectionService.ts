@@ -138,12 +138,14 @@ export async function getSiteInspectionGate(
 /**
  * Creates and requests a new Site Inspection for a Lead.
  * Ensures one live inspection per lead.
- * Auto-assigns the available site_manager with the fewest open inspections.
+ * Assigns inspector via the assignment engine (legacy, nearest, balanced).
  */
 export async function requestSiteInspection(
   leadId: string,
   requestedById?: string,
-  requestNote?: string
+  requestNote?: string,
+  options?: any,
+  actorRole?: string
 ): Promise<any> {
   const lead: any = await Lead.findByPk(leadId);
   if (!lead) {
@@ -167,53 +169,39 @@ export async function requestSiteInspection(
   // Generate inspection number: SI-YYYY-####
   const currentYear = new Date().getFullYear();
   const countThisYear = await SiteInspection.count();
-  const inspectionNumber = `SI-${currentYear}-${String(countThisYear + 1).padStart(4, "0")}`;
+  let inspectionNumber = `SI-${currentYear}-${String(countThisYear + 1).padStart(4, "0")}`;
+  const existingNum = await SiteInspection.findOne({ where: { inspectionNumber } });
+  if (existingNum) {
+    inspectionNumber = `SI-${currentYear}-${String(countThisYear + 1).padStart(4, "0")}-${crypto.randomBytes(2).toString("hex").toUpperCase()}`;
+  }
 
   // SLA Hours
   const slaHours = parseInt(process.env.SITE_INSPECTION_SLA_HOURS || "48", 10);
   const dueAt = new Date(Date.now() + slaHours * 3600 * 1000);
 
-  // Auto-assign site manager with fewest open inspections
-  const siteManagers = await User.findAll({
-    where: {
-      role: "site_manager",
-      [Op.or]: [{ status: { [Op.ne]: "Inactive" } }, { status: null }],
-    },
-  });
-
-  let assignedManagerId: string | null = null;
-  if (siteManagers.length > 0) {
-    const openStatuses = ["REQUESTED", "DRAFT", "CHANGES_REQUESTED", "SUBMITTED"];
-    const managersWithCounts = await Promise.all(
-      siteManagers.map(async (mgr: any) => {
-        const openCount = await SiteInspection.count({
-          where: {
-            assignedToId: mgr.id,
-            status: { [Op.in]: openStatuses },
-          },
-        });
-        return { manager: mgr, openCount };
-      })
-    );
-
-    // Sort ascending by open count
-    managersWithCounts.sort((a, b) => a.openCount - b.openCount);
-    assignedManagerId = managersWithCounts[0].manager.id;
-  }
-
   const clientName = [lead.firstName, lead.lastName].filter(Boolean).join(" ").trim();
   const rfqNum = lead.leadNumber || (lead.id ? lead.id.slice(0, 8).toUpperCase() : "");
   const scope = lead.body || lead.notes || lead.extractedRequirement?.requirement || lead.subject || "";
 
-  const inspection: any = await SiteInspection.create({
-    id: crypto.randomUUID(),
-    inspectionNumber,
-    leadId: lead.id,
-    dealId: null,
-    status: "REQUESTED",
-    assignedToId: assignedManagerId,
-    requestedById: requestedById || lead.assignedToId || null,
-    requestNote: requestNote || null,
+  const payloadOptions = options || {};
+  const priority = payloadOptions.priority || "NORMAL";
+  if (priority === "URGENT" && (!payloadOptions.priorityReason || !payloadOptions.priorityReason.trim())) {
+    throw new Error("Priority URGENT requires a priority reason.");
+  }
+
+  // Create with retry in case of transient database locks or collisions
+  let inspection: any = null;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      inspection = await SiteInspection.create({
+        id: crypto.randomUUID(),
+        inspectionNumber,
+        leadId: lead.id,
+        dealId: null,
+        status: "REQUESTED",
+        assignedToId: null, // Will be set by assignInspectionTransaction
+        requestedById: requestedById || lead.assignedToId || null,
+    requestNote: requestNote || payloadOptions.requestNote || null,
     dueAt,
     baseId: null,
     baseName: null,
@@ -236,7 +224,18 @@ export async function requestSiteInspection(
     observations: null,
     accepted: false,
     revision: 1,
-  });
+    priority,
+    priorityReason: payloadOptions.priorityReason || null,
+    siteAreaName: payloadOptions.siteAreaName || null,
+    siteLatitudeHint: payloadOptions.siteLatitudeHint || null,
+      });
+      break;
+    } catch (err: any) {
+      if (attempt === 4) throw err;
+      await new Promise((r) => setTimeout(r, 40 * (attempt + 1) + Math.floor(Math.random() * 50)));
+      inspectionNumber = `SI-${currentYear}-${String(countThisYear + attempt + 2).padStart(4, "0")}-${crypto.randomBytes(2).toString("hex").toUpperCase()}`;
+    }
+  }
 
   // Pre-create the 3 waste services inactive
   await SiteInspectionService.bulkCreate([
@@ -287,43 +286,34 @@ export async function requestSiteInspection(
     siteInspectionId: inspection.id,
   });
 
-  // Notifications
-  if (assignedManagerId) {
-    try {
-      await createNotification(
-        assignedManagerId,
-        "site_inspection",
-        "New Site Inspection Assigned",
-        `Site Inspection ${inspectionNumber} has been assigned to you for ${lead.company || clientName}.`,
-        `/site-inspections/${inspection.id}`
-      );
-    } catch (notifErr) {
-      console.warn("[requestSiteInspection] Notification warn:", notifErr);
-    }
-  } else {
-    // Notify approvers that an unassigned inspection was requested
-    try {
-      const approvers = await User.findAll({
-        where: { role: { [Op.in]: APPROVER_ROLES } },
-      });
-      for (const approver of approvers) {
-        await createNotification(
-          (approver as any).id,
-          "site_inspection",
-          "Site Inspection Requires Assignment",
-          `Site Inspection ${inspectionNumber} requested for ${lead.company || clientName} has no available Site Manager.`,
-          `/site-inspections/${inspection.id}`
-        );
-      }
-    } catch (notifErr) {
-      console.warn("[requestSiteInspection] Approvers notification warn:", notifErr);
-    }
+  // Assign inspector via assignment service (handles engine, advisory locks, audit log, notifications)
+  try {
+    const { assignInspectionTransaction } = require("./siteInspectionAssignmentService");
+    await assignInspectionTransaction(
+      inspection.id,
+      {
+        siteAreaName: payloadOptions.siteAreaName,
+        siteLatitudeHint: payloadOptions.siteLatitudeHint,
+        siteLongitudeHint: payloadOptions.siteLongitudeHint,
+        priority,
+        priorityReason: payloadOptions.priorityReason,
+        requiredCertifications: payloadOptions.requiredCertifications,
+        requestedInspectorId: payloadOptions.requestedInspectorId,
+        requestedInspectorReason: payloadOptions.requestedInspectorReason,
+        requestNote: requestNote || payloadOptions.requestNote,
+      },
+      requestedById,
+      actorRole
+    );
+  } catch (assignErr) {
+    console.error("[requestSiteInspection] Assignment error:", assignErr);
   }
 
   return SiteInspection.findByPk(inspection.id, {
     include: [
       { model: SiteInspectionService, as: "services" },
       { model: SiteBase, as: "base" },
+      { model: User, as: "assignedTo" },
     ],
   });
 }
@@ -737,31 +727,22 @@ export async function reviewInspection(
 export async function reassignInspection(
   inspectionId: string,
   newAssigneeId: string,
-  callerRole: string
+  callerRole: string,
+  reason?: string,
+  actorId?: string,
+  ip?: string
 ): Promise<any> {
   if (!APPROVER_ROLES.includes(callerRole)) {
     throw new Error("Only managers or approvers may reassign site inspections.");
   }
 
-  const inspection: any = await SiteInspection.findByPk(inspectionId);
-  if (!inspection) throw new Error("Site inspection not found");
-
-  const newAssignee: any = await User.findByPk(newAssigneeId);
-  if (!newAssignee) throw new Error("New assignee user not found");
-
-  await inspection.update({ assignedToId: newAssigneeId });
-
-  try {
-    await createNotification(
-      newAssigneeId,
-      "site_inspection",
-      "Site Inspection Assigned",
-      `Site Inspection ${inspection.inspectionNumber} has been reassigned to you.`,
-      `/site-inspections/${inspection.id}`
-    );
-  } catch (err) {
-    console.warn("[reassignInspection] Notification warn:", err);
-  }
-
-  return inspection;
+  const { manualReassignInspection } = require("./siteInspectionAssignmentService");
+  return manualReassignInspection(
+    inspectionId,
+    newAssigneeId,
+    reason || "Reassigned by manager",
+    actorId || "system",
+    callerRole,
+    ip
+  );
 }
