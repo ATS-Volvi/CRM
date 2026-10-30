@@ -186,8 +186,17 @@ export const listSiteInspections = async (req: Request, res: Response) => {
 
     const where: any = {};
 
-    // Site Managers see only their own inspections
-    if (user?.role === "site_manager" || mine === "true") {
+    // Site Managers see only their own inspections (or unassigned if not strictly filtering for mine)
+    if (user?.role === "site_manager") {
+      if (mine === "true") {
+        where.assignedToId = user?.id;
+      } else {
+        where[Op.or] = [
+          { assignedToId: user?.id },
+          { assignedToId: null }
+        ];
+      }
+    } else if (mine === "true") {
       where.assignedToId = user?.id;
     }
 
@@ -247,8 +256,8 @@ export const getSiteInspectionById = async (req: Request, res: Response) => {
 
     if (!inspection) return res.status(404).json({ error: "Site inspection not found" });
 
-    // Isolation check for Site Manager
-    if (user?.role === "site_manager" && inspection.assignedToId !== user.id) {
+    // Isolation check for Site Manager: can only view inspections assigned to them or unassigned
+    if (user?.role === "site_manager" && inspection.assignedToId && inspection.assignedToId !== user.id) {
       return res.status(403).json({ error: "Access denied: you may only view inspections assigned to you." });
     }
 
@@ -266,7 +275,7 @@ export const saveSiteInspectionDraft = async (req: Request, res: Response) => {
     const existing: any = await SiteInspection.findByPk(id);
     if (!existing) return res.status(404).json({ error: "Site inspection not found" });
 
-    if (user?.role === "site_manager" && existing.assignedToId !== user.id) {
+    if (user?.role === "site_manager" && existing.assignedToId && existing.assignedToId !== user.id) {
       return res.status(403).json({ error: "Access denied: you may only edit inspections assigned to you." });
     }
 
@@ -294,7 +303,7 @@ export const submitSiteInspection = async (req: Request, res: Response) => {
     const existing: any = await SiteInspection.findByPk(id);
     if (!existing) return res.status(404).json({ error: "Site inspection not found" });
 
-    if (user?.role === "site_manager" && existing.assignedToId !== user.id) {
+    if (user?.role === "site_manager" && existing.assignedToId && existing.assignedToId !== user.id) {
       return res.status(403).json({ error: "Access denied: you may only submit inspections assigned to you." });
     }
 
@@ -357,8 +366,8 @@ async function checkAttachmentPermissionAndEditable(
     return { inspection: null, errorStatus: 404, errorMessage: "Site inspection not found" };
   }
 
-  // Permission check: only assigned site_manager or admin
-  const isAssigned = user?.role === "site_manager" && inspection.assignedToId === user.id;
+  // Permission check: assigned site_manager (or unassigned) or admin
+  const isAssigned = user?.role === "site_manager" && (!inspection.assignedToId || inspection.assignedToId === user.id);
   const isAdmin = user?.role === "admin";
   if (!isAssigned && !isAdmin) {
     return {

@@ -55,6 +55,11 @@ export function Sidebar({
     { label: "Work Orders", path: "/purchase-orders", icon: Layers },
   ];
 
+  const opsManagerNavItems: NavItem[] = [
+    { label: "Site Inspections", path: "/site-inspections", icon: ClipboardCheck },
+    { label: "Work Orders", path: "/purchase-orders", icon: Layers },
+  ];
+
   const standardNavItems: NavItem[] = [
     { label: "Dashboard", path: "/", icon: LayoutDashboard },
     { 
@@ -83,7 +88,11 @@ export function Sidebar({
     { label: "Settings", path: "/master-data/requirements", icon: Settings },
   ];
 
-  const primaryNavItems = userRole === "site_manager" ? siteManagerNavItems : standardNavItems;
+  const primaryNavItems = userRole === "site_manager"
+    ? siteManagerNavItems
+    : userRole === "ops_manager"
+    ? opsManagerNavItems
+    : standardNavItems;
 
   // Track open dropdowns (default open for active route)
   const [openDropdowns, setOpenDropdowns] = useState<Record<string, boolean>>({

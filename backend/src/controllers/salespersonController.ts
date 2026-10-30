@@ -5,6 +5,7 @@ import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { isWonStage, isLostStage } from "../utils/pipelineStageHelpers";
 import { findRevenueKpiTarget, REVENUE_KPI_NAMES, isRevenueKpiName } from "../services/kpiHelpers";
+import { ALLOWED_USER_ROLES, ROLE_HIERARCHY, validateRoleAssignment } from "../constants/roles";
 
 /**
  * Derives a normalized pipeline cycle stage from a quote's status and timestamps.
@@ -402,10 +403,10 @@ export const createSalesperson = async (req: Request, res: Response) => {
       return;
     }
 
-    const ALLOWED_ROLES = ["sales_rep", "manager", "director", "admin"];
     const targetRole = role || "sales_rep";
-    if (role && !ALLOWED_ROLES.includes(role)) {
-      res.status(400).json({ error: `role must be one of: ${ALLOWED_ROLES.join(", ")}` });
+    const validation = validateRoleAssignment(caller.role, targetRole);
+    if (!validation.allowed) {
+      res.status(validation.status).json({ error: validation.error });
       return;
     }
 
@@ -787,7 +788,7 @@ export const getAllSalespersons = async (req: Request, res: Response) => {
 export const updateSalespersonCapacity = async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
-    const { maxOpenLeads, isAvailable, onLeave, status, dealValueCutoff, maxOpenDeals, tier } = req.body;
+    const { maxOpenLeads, isAvailable, onLeave, status, dealValueCutoff, maxOpenDeals, tier, role } = req.body;
 
     const user = await sequelize.models.User.findByPk(id) as any;
     if (!user) {
@@ -795,7 +796,21 @@ export const updateSalespersonCapacity = async (req: Request, res: Response) => 
       return;
     }
 
+    const caller = (req as any).user;
     const updates: any = {};
+
+    if (role !== undefined) {
+      if (caller && caller.id === user.id && role !== user.role) {
+        res.status(403).json({ error: "Forbidden: a user cannot change their own role" });
+        return;
+      }
+      const validation = validateRoleAssignment(caller?.role || "", role);
+      if (!validation.allowed) {
+        res.status(validation.status).json({ error: validation.error });
+        return;
+      }
+      updates.role = role;
+    }
     if (tier !== undefined) {
       updates.tier = user.role === "sales_rep" ? (tier === "executive" ? "executive" : "agent") : null;
       if (dealValueCutoff === undefined && user.role === "sales_rep") {

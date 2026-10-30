@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { formatCurrency } from "../utils/currency";
 import KpiAttainmentTable from "../components/KpiAttainmentTable";
+import { ALLOWED_USER_ROLES } from "../types/common";
 
 interface Salesperson {
   id: string;
@@ -69,17 +70,23 @@ function getInitials(name: string) {
   return name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
 }
 
+export const ROLE_LABELS: Record<string, string> = {
+  sales_rep: "Sales Representative",
+  senior_ae: "Senior Account Executive",
+  manager: "Sales Manager",
+  sales_manager: "Sales Manager (Operational)",
+  director: "Director",
+  admin: "Administrator",
+  site_manager: "Site Manager",
+  ops_manager: "Operations Manager",
+};
+
 function roleLabel(role: string, tier?: string | null) {
   if (role === "sales_rep") {
     return tier === "executive" ? "Sales Rep (Executive)" : "Sales Rep (Agent)";
   }
-  return role === "manager" ? "Sales Manager"
-    : role === "sales_manager" ? "Sales Manager"
-    : role === "ops_manager" ? "Operations Manager"
-    : role === "site_manager" ? "Site Manager"
-    : role === "admin" ? "Admin"
-    : role === "director" ? "Director"
-    : role;
+  return role === "senior_ae" ? "Senior AE"
+    : ROLE_LABELS[role] || role;
 }
 
 const AVATAR_GRADIENTS = [
@@ -511,12 +518,11 @@ export default function SalespersonTracker() {
                 setForm({ ...form, role: newRole, tier: newRole === "sales_rep" ? "agent" : "" });
               }}
                 className="w-full bg-surface border border-outline rounded-lg p-2.5 text-xs font-semibold focus:outline-none cursor-pointer">
-                <option value="sales_rep">Sales Representative</option>
-                <option value="manager">Sales Manager</option>
-                <option value="ops_manager">Operations Manager</option>
-                <option value="site_manager">Site Manager</option>
-                <option value="director">Director</option>
-                <option value="admin">Administrator</option>
+                {ALLOWED_USER_ROLES.map((r) => (
+                  <option key={r} value={r}>
+                    {ROLE_LABELS[r] || r}
+                  </option>
+                ))}
               </select>
             </div>
 
