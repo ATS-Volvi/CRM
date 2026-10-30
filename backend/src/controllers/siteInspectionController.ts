@@ -1035,3 +1035,170 @@ export const bulkAssignSiteInspectionsEndpoint = async (req: Request, res: Respo
   }
 };
 
+// ─── Stage B: Inspector State Machine & Timelines Controllers ────────────────
+
+export const acceptInspectionHandler = async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    const { acceptInspection } = require("../services/siteInspectionService");
+    const result = await acceptInspection(req.params.id as string, user.id, user.role, req.ip);
+    res.json(result);
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+};
+
+export const declineInspectionHandler = async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    const { reason } = req.body;
+    if (!reason || !String(reason).trim()) {
+      return res.status(400).json({ error: "A decline reason is mandatory." });
+    }
+    const { declineInspection } = require("../services/siteInspectionService");
+    const result = await declineInspection(req.params.id as string, String(reason).trim(), user.id, user.role, req.ip);
+    res.json(result);
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+};
+
+export const scheduleInspectionVisitHandler = async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    const { scheduledVisitAt } = req.body;
+    if (!scheduledVisitAt) {
+      return res.status(400).json({ error: "scheduledVisitAt datetime is required." });
+    }
+    const { scheduleInspectionVisit } = require("../services/siteInspectionService");
+    const result = await scheduleInspectionVisit(req.params.id as string, new Date(scheduledVisitAt), user.id, user.role, req.ip);
+    res.json(result);
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+};
+
+export const startInspectionVisitHandler = async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    const { startInspectionVisit } = require("../services/siteInspectionService");
+    const result = await startInspectionVisit(req.params.id as string, user.id, user.role, req.ip);
+    res.json(result);
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+};
+
+export const requestMoreTimeHandler = async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    const { hoursRequested, reason } = req.body;
+    if (!hoursRequested || Number(hoursRequested) <= 0) {
+      return res.status(400).json({ error: "hoursRequested must be greater than 0." });
+    }
+    if (!reason || !String(reason).trim()) {
+      return res.status(400).json({ error: "A reason explaining the extension is required." });
+    }
+    const { requestMoreTime } = require("../services/siteInspectionService");
+    const result = await requestMoreTime(req.params.id as string, Number(hoursRequested), String(reason).trim(), user.id, user.role, req.ip);
+    res.json(result);
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+};
+
+export const reviewMoreTimeHandler = async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (!user || !SETTINGS_ALLOWED_ROLES.includes(user.role)) {
+      return res.status(403).json({ error: "Access denied: extension requests can only be reviewed by Ops Manager, Director, or Admin." });
+    }
+    const { action, comment } = req.body;
+    if (action !== "APPROVE" && action !== "REJECT") {
+      return res.status(400).json({ error: "action must be APPROVE or REJECT." });
+    }
+    const { reviewMoreTimeRequest } = require("../services/siteInspectionService");
+    const result = await reviewMoreTimeRequest(req.params.id as string, action, user.id, user.role, comment, req.ip);
+    res.json(result);
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+};
+
+export const markWaitingOnClientHandler = async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    const { reason, expectedAt } = req.body;
+    if (!reason || !String(reason).trim()) {
+      return res.status(400).json({ error: "A reason is mandatory when marking waiting on client." });
+    }
+    const { pauseSlaClock } = require("../services/siteInspectionSlaService");
+    const result = await pauseSlaClock(
+      req.params.id as string,
+      String(reason).trim(),
+      expectedAt ? new Date(expectedAt) : null,
+      user.id,
+      user.role,
+      req.ip
+    );
+    res.json(result);
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+};
+
+export const resumeFromWaitingOnClientHandler = async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    const { resumeSlaClock } = require("../services/siteInspectionSlaService");
+    const result = await resumeSlaClock(req.params.id as string, user.id, user.role, req.ip);
+    res.json(result);
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+};
+
+export const overrideDueDateHandler = async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (!user || !SETTINGS_ALLOWED_ROLES.includes(user.role)) {
+      return res.status(403).json({ error: "Access denied: due dates can only be overridden by Ops Manager, Director, or Admin." });
+    }
+    const { milestone, newDueAt, reason } = req.body;
+    if (!milestone || !newDueAt || !reason || !String(reason).trim()) {
+      return res.status(400).json({ error: "milestone, newDueAt, and a mandatory reason are required." });
+    }
+    const { overrideDueDate } = require("../services/siteInspectionSlaService");
+    const result = await overrideDueDate(
+      req.params.id as string,
+      milestone,
+      new Date(newDueAt),
+      String(reason).trim(),
+      user.id,
+      user.role,
+      req.ip
+    );
+    res.json(result);
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+};
+
+export const getAutomationHealthHandler = async (req: Request, res: Response) => {
+  try {
+    const { getAutomationHealth } = require("../services/siteInspectionAutomationScanner");
+    const health = await getAutomationHealth();
+    res.json(health);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+

@@ -28,6 +28,7 @@ export interface RequestInspectionPayload {
   requestedInspectorId?: string | null;
   requestedInspectorReason?: string | null;
   requestNote?: string | null;
+  excludedUserIds?: string[];
 }
 
 // Known coordinates for major Saudi industrial regions and bases
@@ -359,7 +360,10 @@ export async function assignInspectionTransaction(
       }
 
       // Evaluate candidates with pure assignment engine
-      const candidates = await loadEngineCandidates(t);
+      let candidates = await loadEngineCandidates(t);
+      if (payload.excludedUserIds && payload.excludedUserIds.length > 0) {
+        candidates = candidates.filter((c) => !payload.excludedUserIds!.includes(c.userId));
+      }
       const engineBases: EngineSiteBase[] = bases.map((b: any) => ({
         id: b.id,
         name: b.name,
@@ -398,6 +402,19 @@ export async function assignInspectionTransaction(
       if (decision.selectedUserId) {
         updateFields.assignedToId = decision.selectedUserId;
         updateFields.assignedAt = now;
+
+        // Compute SLA Milestones for Stage B
+        try {
+          const { computeSlaMilestones } = require("./siteInspectionSlaService");
+          const milestones = await computeSlaMilestones(now, priority, settings);
+          updateFields.slaAcceptDueAt = milestones.slaAcceptDueAt;
+          updateFields.slaScheduleDueAt = milestones.slaScheduleDueAt;
+          updateFields.slaSubmitDueAt = milestones.slaSubmitDueAt;
+          updateFields.slaReviewDueAt = milestones.slaReviewDueAt;
+          updateFields.dueAt = milestones.slaSubmitDueAt;
+        } catch (slaErr) {
+          console.warn("[assignInspectionTransaction] SLA milestone calculation warn:", slaErr);
+        }
 
         // Update inspector profile lastAssignedAt
         await SiteInspectorProfile.update(
@@ -438,7 +455,7 @@ export async function assignInspectionTransaction(
           link: `/site-inspections/${inspection.id}`,
         });
       } else {
-        // Notify Ops Managers that inspection is in UNASSIGNED queue
+        // Queue unassigned alert for Ops Managers
         try {
           const approvers = await User.findAll({
             where: { role: { [Op.in]: APPROVER_ROLES } },

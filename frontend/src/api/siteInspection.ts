@@ -214,4 +214,63 @@ export const siteInspectionApi = {
   }): Promise<{ assignedCount: number; errors: Array<{ id: string; error: string }> }> {
     return apiClient.post<any>("/api/v1/site-inspections/bulk-assign", data);
   },
+
+  // ─── Phase 2 Stage B: Inspector State Machine & Timelines ────────────────────
+  async acceptInspection(id: string): Promise<SiteInspectionRecord> {
+    return apiClient.post<SiteInspectionRecord>(`/api/v1/site-inspections/${id}/accept`, {});
+  },
+
+  async declineInspection(id: string, reason: string): Promise<SiteInspectionRecord> {
+    return apiClient.post<SiteInspectionRecord>(`/api/v1/site-inspections/${id}/decline`, { reason });
+  },
+
+  async scheduleVisit(id: string, scheduledVisitAt: string): Promise<SiteInspectionRecord> {
+    return apiClient.post<SiteInspectionRecord>(`/api/v1/site-inspections/${id}/schedule`, { scheduledVisitAt });
+  },
+
+  async startVisit(id: string): Promise<SiteInspectionRecord> {
+    return apiClient.post<SiteInspectionRecord>(`/api/v1/site-inspections/${id}/start-visit`, {});
+  },
+
+  async requestMoreTime(id: string, hoursRequested: number, reason: string): Promise<SiteInspectionRecord> {
+    return apiClient.post<SiteInspectionRecord>(`/api/v1/site-inspections/${id}/request-more-time`, {
+      hoursRequested,
+      reason,
+    });
+  },
+
+  async reviewMoreTime(id: string, action: "APPROVE" | "REJECT", comment?: string): Promise<SiteInspectionRecord> {
+    return apiClient.post<SiteInspectionRecord>(`/api/v1/site-inspections/${id}/review-more-time`, {
+      action,
+      comment,
+    });
+  },
+
+  async markWaitingOnClient(id: string, reason: string, expectedAt?: string): Promise<SiteInspectionRecord> {
+    return apiClient.post<SiteInspectionRecord>(`/api/v1/site-inspections/${id}/waiting-on-client`, {
+      reason,
+      expectedAt,
+    });
+  },
+
+  async resumeFromWaitingOnClient(id: string): Promise<SiteInspectionRecord> {
+    return apiClient.post<SiteInspectionRecord>(`/api/v1/site-inspections/${id}/resume`, {});
+  },
+
+  async overrideDueDate(
+    id: string,
+    milestone: "accept" | "schedule" | "submit" | "review",
+    newDueAt: string,
+    reason: string
+  ): Promise<SiteInspectionRecord> {
+    return apiClient.post<SiteInspectionRecord>(`/api/v1/site-inspections/${id}/override-due-date`, {
+      milestone,
+      newDueAt,
+      reason,
+    });
+  },
+
+  async getAutomationHealth(): Promise<any> {
+    return apiClient.get<any>("/api/v1/site-inspections/automation/health");
+  },
 };
