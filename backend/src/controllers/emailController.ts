@@ -1,8 +1,14 @@
 import { Request, Response } from "express";
-import { User, Activity, sequelize } from "@nexus-crm/database";
+import { User, Activity, FlaggedLead, sequelize } from "@nexus-crm/database";
 import { assignLead } from "../services/assignmentEngine";
 import { routeChannelLead } from "../services/channelRoutingEngine";
 import { Op } from "sequelize";
+import { randomUUID } from "crypto";
+import { extractEmailMetadata } from "../lead-security-layer/intentFilter/headerParser";
+import { evaluateInboundEmail } from "../lead-security-layer/intentFilter";
+import { getSenderContext } from "../lead-security-layer/intentFilter/senderContext";
+import { attachEmailToLeadActivity } from "../lead-security-layer/intentFilter/attachActivity";
+import { shouldSendClarificationAutoReply, sendClarificationAutoReply, handlePromoteOnReply } from "../lead-security-layer/intentFilter/autoReplyService";
 
 const WHITELIST_ROLES = ["sales_rep", "manager", "admin", "director"];
 const TERMINAL_LEAD_STATUSES = ["Won", "Lost", "Closed", "Closed Won", "Closed Lost"];
@@ -237,6 +243,145 @@ export const receiveInboundEmail = async (req: Request, res: Response) => {
       }
     }
 
+    const mode = (process.env.INTENT_FILTER_MODE || "off").trim().toLowerCase();
+
+    if (mode === "enforce") {
+      let emailMeta: any = undefined;
+      try {
+        emailMeta = extractEmailMetadata(req.body, rawFiles);
+      } catch {
+        emailMeta = undefined;
+      }
+
+      let intentVerdict: any = null;
+      try {
+        intentVerdict = await evaluateInboundEmail("email", emailMeta, emailBody);
+      } catch (gateErr: any) {
+        console.warn("[emailController] Intent evaluation error, falling back to REVIEW:", gateErr?.message || gateErr);
+        intentVerdict = {
+          action: "REVIEW",
+          label: "too_vague",
+          score: 50,
+          confidence: "low",
+          reason: `Intent evaluation error: ${gateErr?.message || "unknown"}`
+        };
+      }
+
+      if (intentVerdict && intentVerdict.action === "ATTACH_EXISTING") {
+        let targetLeadId = intentVerdict.openLeadId;
+        if (!targetLeadId) {
+          try {
+            const ctx = await getSenderContext(email);
+            targetLeadId = ctx.openLeadId;
+          } catch (ctxErr: any) {
+            console.warn("[emailController] Failed to get sender context fallback:", ctxErr?.message);
+          }
+        }
+
+        let attachedSuccessfully = false;
+        if (targetLeadId) {
+          try {
+            await attachEmailToLeadActivity({
+              leadId: targetLeadId,
+              subject: emailSubject,
+              body: emailBody,
+              createdById: (req as any).user?.id || null,
+              channelSource: "email"
+            });
+            attachedSuccessfully = true;
+          } catch (actErr: any) {
+            console.warn("[emailController] Error attaching activity to open lead:", actErr.message);
+          }
+        }
+
+        if (attachedSuccessfully) {
+          return res.status(202).json({
+            status: "attached",
+            message: "Email attached to existing open lead",
+            leadId: targetLeadId,
+            action: "ATTACH_EXISTING"
+          });
+        }
+        // Fall through to normal lead creation if targetLeadId is missing or attach threw
+      }
+
+      if (intentVerdict && ["PENDING_CLARIFY", "REVIEW", "ARCHIVE"].includes(intentVerdict.action)) {
+        const disposition = intentVerdict.action === "PENDING_CLARIFY"
+          ? "pending_clarification"
+          : intentVerdict.action === "ARCHIVE"
+          ? "archived"
+          : "review";
+
+        let flaggedRow: any = null;
+        let holdWritten = false;
+        if (FlaggedLead) {
+          try {
+            const sourceAttachments: any[] = (rawFiles && rawFiles.length > 0)
+              ? rawFiles
+              : (Array.isArray(req.body?.attachments) ? req.body.attachments : []);
+
+            const sanitizedAttachments = sourceAttachments.map((f: any) => {
+              const filename = f.originalname || f.filename || f.fieldname || "attachment";
+              const size = typeof f.size === "number"
+                ? f.size
+                : (f.buffer ? f.buffer.length : (typeof f.content === "string" ? f.content.length : 0));
+              return { filename, size };
+            });
+
+            const bodyCopy = { ...(req.body || {}) };
+            delete bodyCopy.attachments;
+
+            const sanitizedPayload: any = {
+              ...bodyCopy,
+              attachments: sanitizedAttachments
+            };
+
+            flaggedRow = await FlaggedLead.create({
+              id: randomUUID(),
+              payload: sanitizedPayload,
+              source: "email",
+              channel: "email",
+              ip: req.ip || null,
+              reason: intentVerdict.reason,
+              disposition,
+              intentLabel: intentVerdict.label,
+              intentScore: intentVerdict.score,
+              explanation: intentVerdict.reason,
+              senderEmail: email,
+              subject: emailSubject,
+              reviewed: false
+            });
+            holdWritten = true;
+          } catch (flagErr: any) {
+            console.warn("[emailController] Error creating FlaggedLead record:", flagErr.message);
+          }
+        }
+
+        if (holdWritten) {
+          if (intentVerdict.action === "PENDING_CLARIFY") {
+            try {
+              const senderCtx = await getSenderContext(email);
+              const shouldReply = await shouldSendClarificationAutoReply(emailMeta, senderCtx);
+              if (shouldReply) {
+                await sendClarificationAutoReply(email, flaggedRow?.id);
+              }
+            } catch (replyErr: any) {
+              console.warn("[emailController] Auto-reply error:", replyErr.message);
+            }
+          }
+
+          return res.status(202).json({
+            status: intentVerdict.action === "ARCHIVE" ? "archived" : "held",
+            message: `Inbound email filtered: ${intentVerdict.action}`,
+            action: intentVerdict.action,
+            reason: intentVerdict.reason,
+            disposition
+          });
+        }
+        // Fall through to normal lead creation if FlaggedLead is missing or write threw
+      }
+    }
+
     const { ingestLead } = require("../services/leadIngestion");
     const leadId = await ingestLead({
       firstName,
@@ -250,8 +395,19 @@ export const receiveInboundEmail = async (req: Request, res: Response) => {
       assignedToId: assignedToId,
       assignmentMethod: assignmentMethod || null,
       recipientEmail: recipientEmail || null,
-      rawPayload: { subject: emailSubject, body: emailBody, recipientEmail, attachments: safeAttachments }
+      rawPayload: mode === "enforce"
+        ? { subject: emailSubject, body: emailBody, recipientEmail, attachments: safeAttachments, skipIntentGate: true }
+        : { subject: emailSubject, body: emailBody, recipientEmail, attachments: safeAttachments }
     });
+
+    // Promote-on-reply check (enforce mode only)
+    if (mode === "enforce" && leadId) {
+      try {
+        await handlePromoteOnReply(email, leadId);
+      } catch (promoteErr: any) {
+        console.warn("[emailController] Promote-on-reply error:", promoteErr.message);
+      }
+    }
 
     // If any attachment was rejected/quarantined, log a high-priority Activity on the lead for operational awareness
     if (leadId && rejectedAttachments.length > 0) {
@@ -322,6 +478,24 @@ export const receiveInboundEmail = async (req: Request, res: Response) => {
       });
     } catch (flagErr: any) {
       console.warn("Failed to check quote acceptance keywords:", flagErr.message);
+    }
+
+    // In mode=shadow: Evaluate gate asynchronously in the background, never delaying or altering the response,
+    // and linking the IntentDecisions row to the created leadId
+    if (mode === "shadow") {
+      setImmediate(async () => {
+        try {
+          let shadowMeta: any = undefined;
+          try {
+            shadowMeta = extractEmailMetadata(req.body, rawFiles);
+          } catch {
+            shadowMeta = undefined;
+          }
+          await evaluateInboundEmail("email", shadowMeta, emailBody, leadId);
+        } catch (gateErr: any) {
+          console.warn("[emailController] Shadow gate error:", gateErr.message);
+        }
+      });
     }
 
     res.status(201).json({

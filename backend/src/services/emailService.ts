@@ -67,7 +67,7 @@ export const buildFromHeader = (
 };
 
 const mailgun = new Mailgun(FormData);
-const mg = mailgun.client({
+export const mg = mailgun.client({
   username: 'api',
   key: cleanEnv("MAILGUN_API_KEY", "dummy-key")
 });
@@ -124,7 +124,13 @@ export const getBaseHtmlTemplate = (bodyContent: string, leadId?: string): strin
   `;
 };
 
-export const sendEmail = async (to: string, subject: string, htmlContent: string, cc?: string[]) => {
+export const sendEmail = async (
+  to: string,
+  subject: string,
+  htmlContent: string,
+  cc?: string[],
+  headers?: Record<string, string>
+) => {
   const apiKey = cleanEnv("MAILGUN_API_KEY", "dummy-key");
   const isDummyKey = !apiKey || apiKey === "dummy-key" || apiKey.startsWith("your_");
 
@@ -153,6 +159,11 @@ export const sendEmail = async (to: string, subject: string, htmlContent: string
       html: htmlContent,
     };
     if (cc && cc.length > 0) payload.cc = cc;
+    if (headers) {
+      for (const [k, v] of Object.entries(headers)) {
+        payload[`h:${k}`] = v;
+      }
+    }
     const info = await mg.messages.create(domain, payload);
     console.log("Message sent:", info);
     return info;
