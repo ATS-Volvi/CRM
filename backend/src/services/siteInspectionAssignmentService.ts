@@ -219,6 +219,8 @@ async function withBusyRetry<T>(fn: () => Promise<T>, maxRetries = 10): Promise<
 /**
  * Assigns an inspection transactionally with row locking / Postgres advisory lock.
  */
+let sqliteAssignmentQueue: Promise<any> = Promise.resolve();
+
 export async function assignInspectionTransaction(
   inspectionId: string,
   payload: RequestInspectionPayload,
@@ -227,8 +229,9 @@ export async function assignInspectionTransaction(
 ): Promise<any> {
   const pendingNotifications: Array<{ userId: string; type: string; title: string; message: string; link?: string }> = [];
 
-  const resultInspection = await withBusyRetry(async () => {
-    return sequelize.transaction(async (t) => {
+  const runAssignment = async () => {
+    return await withBusyRetry(async () => {
+      return sequelize.transaction(async (t) => {
       // 1. Acquire advisory lock on PostgreSQL to guarantee strict mutual exclusion
       if (sequelize.getDialect() === "postgres") {
         await sequelize.query("SELECT pg_advisory_xact_lock(hashtext('site_inspection_assignment'));", {
@@ -476,6 +479,16 @@ export async function assignInspectionTransaction(
       return inspection;
     });
   });
+};
+
+  let resultInspection: any;
+  if (sequelize.getDialect() === "postgres") {
+    resultInspection = await runAssignment();
+  } else {
+    const queued = sqliteAssignmentQueue.then(() => runAssignment(), () => runAssignment());
+    sqliteAssignmentQueue = queued.then(() => {}, () => {});
+    resultInspection = await queued;
+  }
 
   // Dispatch queued notifications asynchronously after transaction commits
   for (const n of pendingNotifications) {

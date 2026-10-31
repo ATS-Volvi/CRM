@@ -3290,18 +3290,39 @@ export async function verifyAndAdaptPhase2Schema(): Promise<boolean> {
   try {
     const dialect = sequelize.getDialect();
     let hasCol = false;
+    let tableExists = true;
+
     if (dialect === "postgres") {
-      const [rows]: any = await sequelize.query(`
-        SELECT column_name FROM information_schema.columns 
-        WHERE table_name = 'SiteInspections' AND column_name = 'siteAreaName'
+      const [tRows]: any = await sequelize.query(`
+        SELECT table_name FROM information_schema.tables 
+        WHERE table_schema = 'public' AND table_name = 'SiteInspections'
         LIMIT 1;
       `);
-      hasCol = Boolean(rows && rows.length > 0);
+      if (!tRows || tRows.length === 0) {
+        tableExists = false;
+      } else {
+        const [rows]: any = await sequelize.query(`
+          SELECT column_name FROM information_schema.columns 
+          WHERE table_name = 'SiteInspections' AND column_name = 'siteAreaName'
+          LIMIT 1;
+        `);
+        hasCol = Boolean(rows && rows.length > 0);
+      }
     } else if (dialect === "sqlite") {
-      const [rows]: any = await sequelize.query(`PRAGMA table_info("SiteInspections");`);
-      hasCol = Boolean(rows && rows.some((r: any) => r.name === "siteAreaName"));
+      const [tRows]: any = await sequelize.query(`SELECT name FROM sqlite_master WHERE type='table' AND name='SiteInspections';`);
+      if (!tRows || tRows.length === 0) {
+        tableExists = false;
+      } else {
+        const [rows]: any = await sequelize.query(`PRAGMA table_info("SiteInspections");`);
+        hasCol = Boolean(rows && rows.some((r: any) => r.name === "siteAreaName"));
+      }
     } else {
       hasCol = true;
+    }
+
+    if (!tableExists) {
+      isPhase2SchemaReady = true;
+      return true;
     }
 
     if (!hasCol) {
