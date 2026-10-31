@@ -1025,10 +1025,34 @@ import {
   getLeadSiteInspection,
   requestLeadSiteInspectionEndpoint,
   uploadAttachments,
+  getSiteInspectionSettings,
+  updateSiteInspectionSettings,
+  listSiteHolidays,
+  createSiteHoliday,
+  updateSiteHoliday,
+  deleteSiteHoliday,
+  listInspectorProfiles,
+  getInspectorProfile,
+  updateInspectorProfile,
+  listSiteInspectionAuditLogs,
+  bulkAssignSiteInspectionsEndpoint,
 } from "../controllers/siteInspectionController";
 
 router.get("/site-inspections/master", authMiddleware, getMasterData);
 router.get("/site-inspections/site-managers", authMiddleware, requireInspectionApprover, getSiteManagers);
+
+// Phase 2 Settings, Holidays, Profiles, and Audit Logs
+router.get("/site-inspections/settings", authMiddleware, getSiteInspectionSettings);
+router.put("/site-inspections/settings", authMiddleware, updateSiteInspectionSettings);
+router.get("/site-inspections/holidays", authMiddleware, listSiteHolidays);
+router.post("/site-inspections/holidays", authMiddleware, createSiteHoliday);
+router.put("/site-inspections/holidays/:id", authMiddleware, updateSiteHoliday);
+router.delete("/site-inspections/holidays/:id", authMiddleware, deleteSiteHoliday);
+router.get("/site-inspections/inspectors", authMiddleware, listInspectorProfiles);
+router.get("/site-inspections/inspectors/:userId/profile", authMiddleware, getInspectorProfile);
+router.put("/site-inspections/inspectors/:userId/profile", authMiddleware, updateInspectorProfile);
+router.get("/site-inspections/audit-logs", authMiddleware, listSiteInspectionAuditLogs);
+router.post("/site-inspections/bulk-assign", authMiddleware, bulkAssignSiteInspectionsEndpoint);
 
 router.post("/site-bases", authMiddleware, requireInspectionApprover, createSiteBase);
 router.put("/site-bases/:id", authMiddleware, requireInspectionApprover, updateSiteBase);
