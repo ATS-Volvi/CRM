@@ -1036,6 +1036,16 @@ import {
   updateInspectorProfile,
   listSiteInspectionAuditLogs,
   bulkAssignSiteInspectionsEndpoint,
+  acceptInspectionHandler,
+  declineInspectionHandler,
+  scheduleInspectionVisitHandler,
+  startInspectionVisitHandler,
+  requestMoreTimeHandler,
+  reviewMoreTimeHandler,
+  markWaitingOnClientHandler,
+  resumeFromWaitingOnClientHandler,
+  overrideDueDateHandler,
+  getAutomationHealthHandler,
 } from "../controllers/siteInspectionController";
 
 router.get("/site-inspections/master", authMiddleware, getMasterData);
@@ -1067,6 +1077,18 @@ router.get("/site-inspections/:id/completeness", authMiddleware, checkCompletene
 router.post("/site-inspections/:id/submit", authMiddleware, submitSiteInspection);
 router.post("/site-inspections/:id/review", authMiddleware, reviewSiteInspection);
 router.post("/site-inspections/:id/reassign", authMiddleware, reassignSiteInspection);
+
+// Stage B Inspector State Machine & Timelines
+router.post("/site-inspections/:id/accept", authMiddleware, acceptInspectionHandler);
+router.post("/site-inspections/:id/decline", authMiddleware, declineInspectionHandler);
+router.post("/site-inspections/:id/schedule", authMiddleware, scheduleInspectionVisitHandler);
+router.post("/site-inspections/:id/start-visit", authMiddleware, startInspectionVisitHandler);
+router.post("/site-inspections/:id/request-more-time", authMiddleware, requestMoreTimeHandler);
+router.post("/site-inspections/:id/review-more-time", authMiddleware, reviewMoreTimeHandler);
+router.post("/site-inspections/:id/waiting-on-client", authMiddleware, markWaitingOnClientHandler);
+router.post("/site-inspections/:id/resume", authMiddleware, resumeFromWaitingOnClientHandler);
+router.post("/site-inspections/:id/override-due-date", authMiddleware, overrideDueDateHandler);
+router.get("/site-inspections/automation/health", getAutomationHealthHandler);
 
 router.post("/site-inspections/:id/attachments/presign", authMiddleware, presignAttachmentUpload);
 router.post("/site-inspections/:id/attachments/complete", authMiddleware, completeAttachmentUpload);

@@ -1,6 +1,7 @@
 export type SiteInspectionStatus =
   | "REQUESTED"
   | "DRAFT"
+  | "WAITING_ON_CLIENT"
   | "SUBMITTED"
   | "CHANGES_REQUESTED"
   | "APPROVED"
@@ -119,6 +120,19 @@ export interface SiteInspectionRecord {
   slaScheduleDueAt?: string | null;
   slaSubmitDueAt?: string | null;
   slaReviewDueAt?: string | null;
+
+  // Phase 2 Stage B Timelines & Escalation fields
+  waitingOnClientReason?: string | null;
+  waitingOnClientExpectedAt?: string | null;
+  slaPausedAt?: string | null;
+  slaTotalPausedMinutes?: number;
+  moreTimeReason?: string | null;
+  moreTimeRequestedHours?: number | null;
+  moreTimeStatus?: "PENDING" | "APPROVED" | "REJECTED" | null;
+  moreTimeApprovedById?: string | null;
+  moreTimeApprovedAt?: string | null;
+  escalatedToOpsAt?: string | null;
+  escalatedToDirectorAt?: string | null;
 
   lead?: {
     id: string;
@@ -301,6 +315,12 @@ export function getStatusStyle(status: string) {
         badgeBg: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800",
         dotColor: "bg-amber-500",
       };
+    case "WAITING_ON_CLIENT":
+      return {
+        label: "Waiting on Client",
+        badgeBg: "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/40 dark:text-orange-400 dark:border-orange-800",
+        dotColor: "bg-orange-500",
+      };
     case "CANCELLED":
       return {
         label: "Cancelled",
@@ -315,4 +335,104 @@ export function getStatusStyle(status: string) {
         dotColor: "bg-slate-400",
       };
   }
+}
+
+/**
+ * Calculates RAG status and countdown string for UI cards and badges.
+ */
+export function getInspectionRag(inspection: SiteInspectionRecord): {
+  rag: "ON_TRACK" | "AT_RISK" | "OVERDUE" | "PAUSED" | "COMPLETED";
+  label: string;
+  countdown: string;
+  badgeBg: string;
+  dotColor: string;
+} {
+  if (inspection.status === "APPROVED") {
+    return {
+      rag: "COMPLETED",
+      label: "Approved",
+      countdown: "Completed",
+      badgeBg: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800",
+      dotColor: "bg-emerald-500",
+    };
+  }
+
+  if (inspection.status === "WAITING_ON_CLIENT" || inspection.slaPausedAt) {
+    return {
+      rag: "PAUSED",
+      label: "SLA Paused",
+      countdown: inspection.waitingOnClientExpectedAt
+        ? `Expected: ${new Date(inspection.waitingOnClientExpectedAt).toLocaleDateString()}`
+        : "Waiting on client",
+      badgeBg: "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/40 dark:text-orange-400 dark:border-orange-800",
+      dotColor: "bg-orange-500",
+    };
+  }
+
+  // Determine active milestone deadline
+  let targetDueStr = inspection.slaSubmitDueAt || inspection.dueAt;
+  let targetStartStr = inspection.acceptedAt || inspection.createdAt;
+
+  if (inspection.status === "REQUESTED" && inspection.slaAcceptDueAt) {
+    targetDueStr = inspection.slaAcceptDueAt;
+    targetStartStr = inspection.assignedAt || inspection.createdAt;
+  } else if (inspection.status === "SUBMITTED" && inspection.slaReviewDueAt) {
+    targetDueStr = inspection.slaReviewDueAt;
+    targetStartStr = inspection.submittedAt || inspection.updatedAt;
+  }
+
+  if (!targetDueStr) {
+    return {
+      rag: "ON_TRACK",
+      label: "Standard SLA",
+      countdown: "48h Standard",
+      badgeBg: "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700",
+      dotColor: "bg-slate-400",
+    };
+  }
+
+  const now = new Date().getTime();
+  const due = new Date(targetDueStr).getTime();
+  const start = targetStartStr ? new Date(targetStartStr).getTime() : now - 3600000;
+  const totalWindow = Math.max(1, due - start);
+  const remainingMs = due - now;
+
+  if (remainingMs <= 0) {
+    const overdueMin = Math.round(Math.abs(remainingMs) / 60000);
+    const h = Math.floor(overdueMin / 60);
+    const m = overdueMin % 60;
+    return {
+      rag: "OVERDUE",
+      label: "Overdue",
+      countdown: `Overdue by ${h}h ${m}m`,
+      badgeBg: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800",
+      dotColor: "bg-rose-500",
+    };
+  }
+
+  const elapsed = Math.max(0, now - start);
+  const pct = Math.min(100, Math.round((elapsed / totalWindow) * 100));
+
+  const remMin = Math.round(remainingMs / 60000);
+  const h = Math.floor(remMin / 60);
+  const m = remMin % 60;
+  const countdown = `${h}h ${m}m remaining`;
+
+  if (pct >= 80) {
+    return {
+      rag: "AT_RISK",
+      label: "At Risk (80%)",
+      countdown,
+      badgeBg: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800",
+      dotColor: "bg-amber-500",
+    };
+  }
+
+  return {
+    rag: "ON_TRACK",
+    label: "On Track",
+    countdown,
+    badgeBg: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800",
+    dotColor: "bg-emerald-500",
+  };
 }
