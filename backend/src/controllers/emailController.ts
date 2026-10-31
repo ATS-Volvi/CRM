@@ -243,7 +243,7 @@ export const receiveInboundEmail = async (req: Request, res: Response) => {
       }
     }
 
-    const mode = process.env.INTENT_FILTER_MODE || "off";
+    const mode = (process.env.INTENT_FILTER_MODE || "off").trim().toLowerCase();
 
     if (mode === "enforce") {
       let emailMeta: any = undefined;
@@ -253,7 +253,19 @@ export const receiveInboundEmail = async (req: Request, res: Response) => {
         emailMeta = undefined;
       }
 
-      const intentVerdict = await evaluateInboundEmail("email", emailMeta, emailBody);
+      let intentVerdict: any = null;
+      try {
+        intentVerdict = await evaluateInboundEmail("email", emailMeta, emailBody);
+      } catch (gateErr: any) {
+        console.warn("[emailController] Intent evaluation error, falling back to REVIEW:", gateErr?.message || gateErr);
+        intentVerdict = {
+          action: "REVIEW",
+          label: "too_vague",
+          score: 50,
+          confidence: "low",
+          reason: `Intent evaluation error: ${gateErr?.message || "unknown"}`
+        };
+      }
 
       if (intentVerdict && intentVerdict.action === "ATTACH_EXISTING") {
         let targetLeadId = intentVerdict.openLeadId;
@@ -304,14 +316,23 @@ export const receiveInboundEmail = async (req: Request, res: Response) => {
         let holdWritten = false;
         if (FlaggedLead) {
           try {
-            const sanitizedAttachments = (rawFiles || []).map((f: any) => ({
-              filename: f.originalname || f.fieldname || "attachment",
-              size: f.size ?? (f.buffer ? f.buffer.length : 0),
-              mimetype: f.mimetype
-            }));
+            const sourceAttachments: any[] = (rawFiles && rawFiles.length > 0)
+              ? rawFiles
+              : (Array.isArray(req.body?.attachments) ? req.body.attachments : []);
+
+            const sanitizedAttachments = sourceAttachments.map((f: any) => {
+              const filename = f.originalname || f.filename || f.fieldname || "attachment";
+              const size = typeof f.size === "number"
+                ? f.size
+                : (f.buffer ? f.buffer.length : (typeof f.content === "string" ? f.content.length : 0));
+              return { filename, size };
+            });
+
+            const bodyCopy = { ...(req.body || {}) };
+            delete bodyCopy.attachments;
 
             const sanitizedPayload: any = {
-              ...req.body,
+              ...bodyCopy,
               attachments: sanitizedAttachments
             };
 

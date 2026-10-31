@@ -54,7 +54,9 @@ export const getHeldEmails = async (req: Request, res: Response) => {
     const channel = req.query.channel as string;
     const search = (req.query.search as string || '').trim().toLowerCase();
 
-    const where: any = {};
+    const where: any = {
+      intentLabel: { [Op.ne]: null },
+    };
 
     if (disposition) {
       where.disposition = disposition;
@@ -361,6 +363,7 @@ export const getFilterStats = async (req: Request, res: Response) => {
         where: {
           createdAt: { [Op.gte]: todayStart },
           disposition: { [Op.in]: ['review', 'pending_clarification'] },
+          intentLabel: { [Op.ne]: null },
         },
       });
 
@@ -368,29 +371,33 @@ export const getFilterStats = async (req: Request, res: Response) => {
         where: {
           createdAt: { [Op.gte]: todayStart },
           disposition: 'archived',
+          intentLabel: { [Op.ne]: null },
         },
       });
 
       promotedAfterHold = await FlaggedLead.count({
         where: {
           disposition: 'promoted',
+          intentLabel: { [Op.ne]: null },
         },
       });
 
       needsReviewCount = await FlaggedLead.count({
         where: {
           disposition: 'review',
+          intentLabel: { [Op.ne]: null },
         },
       });
 
       waitingReplyCount = await FlaggedLead.count({
         where: {
           disposition: 'pending_clarification',
+          intentLabel: { [Op.ne]: null },
         },
       });
     }
 
-    const mode = process.env.INTENT_FILTER_MODE || 'shadow';
+    const mode = (process.env.INTENT_FILTER_MODE || 'off').trim().toLowerCase();
 
     res.json({
       mode,
