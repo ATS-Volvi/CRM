@@ -50,9 +50,11 @@ export function Sidebar({
     });
   };
 
+  const userRole = (user?.role || "admin").toLowerCase();
+
   const ALLOWED_FILTER_ROLES = ["admin", "director", "manager", "sales_manager"];
-  const userRole = (user?.role || "").toLowerCase();
-  const isFilterRoleAllowed = Boolean(user && ALLOWED_FILTER_ROLES.includes(userRole));
+  const filterRole = (user?.role || "").toLowerCase();
+  const isFilterRoleAllowed = Boolean(user && ALLOWED_FILTER_ROLES.includes(filterRole));
 
   const { data: filterStats } = useQuery({
     queryKey: ["sidebar-lead-filter-stats"],
