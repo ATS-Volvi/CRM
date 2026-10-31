@@ -50,11 +50,14 @@ export function Sidebar({
     });
   };
 
-  const userRole = (user?.role || "admin").toLowerCase();
+  const ALLOWED_FILTER_ROLES = ["admin", "director", "manager", "sales_manager"];
+  const userRole = (user?.role || "").toLowerCase();
+  const isFilterRoleAllowed = Boolean(user && ALLOWED_FILTER_ROLES.includes(userRole));
 
   const { data: filterStats } = useQuery({
     queryKey: ["sidebar-lead-filter-stats"],
     queryFn: () => leadFilterApi.getFilterStats(),
+    enabled: isFilterRoleAllowed,
     refetchInterval: 30000,
     staleTime: 15000,
   });
@@ -80,12 +83,12 @@ export function Sidebar({
         { label: "Leads", path: "/leads", icon: Users },
         { label: "Campaigns", path: "/campaigns", icon: Megaphone },
         { label: "Site Inspections", path: "/site-inspections", icon: ClipboardCheck },
-        { 
+        ...(isFilterRoleAllowed ? [{ 
           label: "Held Emails", 
           path: "/held-emails", 
           icon: ShieldAlert, 
           badge: needsReviewCount > 0 ? String(needsReviewCount) : undefined 
-        },
+        }] : []),
         { label: "Opportunities", path: "/opportunities", icon: Target },
         { label: "Pipeline", path: "/pipeline", icon: Trello },
         { label: "Quotes", path: "/quotes", icon: FileText },

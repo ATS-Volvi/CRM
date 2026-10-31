@@ -21,9 +21,15 @@ import {
   Sparkles,
 } from "lucide-react";
 import { leadFilterApi, FlaggedEmailItem, SenderRuleItem } from "../api/leadFilter";
+import { useAuth } from "../context/AuthContext";
 
 export default function HeldEmails() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const ALLOWED_FILTER_ROLES = ["admin", "director", "manager", "sales_manager"];
+  const userRole = (user?.role || "").toLowerCase();
+  const isAllowed = Boolean(user && ALLOWED_FILTER_ROLES.includes(userRole));
+
   const [activeTab, setActiveTab] = useState<
     "review" | "pending_clarification" | "archived" | "shadow_log" | "sender_rules"
   >("review");
@@ -51,6 +57,7 @@ export default function HeldEmails() {
     queryKey: ["leadFilterStats"],
     queryFn: () => leadFilterApi.getFilterStats(),
     refetchInterval: 15000,
+    enabled: isAllowed,
   });
 
   // 2. Fetch Held Emails (Tabs: review, pending_clarification, archived)
@@ -68,7 +75,7 @@ export default function HeldEmails() {
         limit: 15,
         search,
       }),
-    enabled: isHeldTab,
+    enabled: isAllowed && isHeldTab,
   });
 
   // 3. Fetch Shadow Logs
@@ -79,7 +86,7 @@ export default function HeldEmails() {
   } = useQuery({
     queryKey: ["shadowLogs", page],
     queryFn: () => leadFilterApi.getShadowLogs({ page, limit: 15 }),
-    enabled: activeTab === "shadow_log",
+    enabled: isAllowed && activeTab === "shadow_log",
   });
 
   // 4. Fetch Sender Rules
@@ -90,7 +97,7 @@ export default function HeldEmails() {
   } = useQuery({
     queryKey: ["senderRules"],
     queryFn: () => leadFilterApi.getSenderRules(),
-    enabled: activeTab === "sender_rules",
+    enabled: isAllowed && activeTab === "sender_rules",
   });
 
   // Mutations
@@ -158,6 +165,22 @@ export default function HeldEmails() {
     if (activeTab === "shadow_log") refetchShadow();
     if (activeTab === "sender_rules") refetchRules();
   };
+
+  if (!isAllowed) {
+    return (
+      <div className="p-8 max-w-4xl mx-auto">
+        <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl p-6 text-center">
+          <ShieldAlert className="w-12 h-12 text-amber-500 mx-auto mb-3" />
+          <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-2">
+            Access Denied
+          </h2>
+          <p className="text-sm text-slate-600 dark:text-slate-400">
+            You do not have permission to access Held Emails. This section is restricted to administrators and managers.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
