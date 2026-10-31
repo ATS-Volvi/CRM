@@ -3121,6 +3121,29 @@ export class SiteInspection extends Model {
   public reviewedAt!: Date | null;
   public reviewComment!: string | null;
   public revision!: number;
+  // Phase 2 (all nullable / additive)
+  public siteAreaName!: string | null;
+  public siteLatitudeHint!: number | null;
+  public siteLongitudeHint!: number | null;
+  public siteLocationSource!: string | null;
+  public priority!: "URGENT" | "NORMAL" | "LOW" | null;
+  public priorityReason!: string | null;
+  public requiredCertifications!: string | null;
+  public assignmentMode!: string | null;
+  public assignmentState!: string | null;
+  public assignmentReason!: string | null;
+  public assignedAt!: Date | null;
+  public requestedInspectorId!: string | null;
+  public requestedInspectorReason!: string | null;
+  public acceptedAt!: Date | null;
+  public declinedAt!: Date | null;
+  public declineReason!: string | null;
+  public scheduledVisitAt!: Date | null;
+  public startedAt!: Date | null;
+  public slaAcceptDueAt!: Date | null;
+  public slaScheduleDueAt!: Date | null;
+  public slaSubmitDueAt!: Date | null;
+  public slaReviewDueAt!: Date | null;
   public createdAt!: Date;
   public updatedAt!: Date;
 
@@ -3170,9 +3193,102 @@ SiteInspection.init(
     reviewedAt: { type: DataTypes.DATE, allowNull: true },
     reviewComment: { type: DataTypes.TEXT, allowNull: true },
     revision: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },
+    // Phase 2 columns — added by 20261030100000-site-inspection-phase2-assignment.js
+    siteAreaName: { type: DataTypes.STRING, allowNull: true },
+    siteLatitudeHint: { type: DataTypes.FLOAT, allowNull: true },
+    siteLongitudeHint: { type: DataTypes.FLOAT, allowNull: true },
+    siteLocationSource: { type: DataTypes.STRING, allowNull: true },
+    priority: { type: DataTypes.STRING, allowNull: true },
+    priorityReason: { type: DataTypes.TEXT, allowNull: true },
+    requiredCertifications: { type: DataTypes.TEXT, allowNull: true },
+    assignmentMode: { type: DataTypes.STRING, allowNull: true },
+    assignmentState: { type: DataTypes.STRING, allowNull: true },
+    assignmentReason: { type: DataTypes.TEXT, allowNull: true },
+    assignedAt: { type: DataTypes.DATE, allowNull: true },
+    requestedInspectorId: { type: DataTypes.UUID, allowNull: true },
+    requestedInspectorReason: { type: DataTypes.TEXT, allowNull: true },
+    acceptedAt: { type: DataTypes.DATE, allowNull: true },
+    declinedAt: { type: DataTypes.DATE, allowNull: true },
+    declineReason: { type: DataTypes.TEXT, allowNull: true },
+    scheduledVisitAt: { type: DataTypes.DATE, allowNull: true },
+    startedAt: { type: DataTypes.DATE, allowNull: true },
+    slaAcceptDueAt: { type: DataTypes.DATE, allowNull: true },
+    slaScheduleDueAt: { type: DataTypes.DATE, allowNull: true },
+    slaSubmitDueAt: { type: DataTypes.DATE, allowNull: true },
+    slaReviewDueAt: { type: DataTypes.DATE, allowNull: true },
   },
   { sequelize, modelName: "SiteInspection", tableName: "SiteInspections" }
 );
+
+export const PHASE2_COLUMNS = [
+  "siteAreaName",
+  "siteLatitudeHint",
+  "siteLongitudeHint",
+  "siteLocationSource",
+  "priority",
+  "priorityReason",
+  "requiredCertifications",
+  "assignmentMode",
+  "assignmentState",
+  "assignmentReason",
+  "assignedAt",
+  "requestedInspectorId",
+  "requestedInspectorReason",
+  "acceptedAt",
+  "declinedAt",
+  "declineReason",
+  "scheduledVisitAt",
+  "startedAt",
+  "slaAcceptDueAt",
+  "slaScheduleDueAt",
+  "slaSubmitDueAt",
+  "slaReviewDueAt",
+];
+
+export let isPhase2SchemaReady = true;
+
+/**
+ * Checks if Phase 2 migration (20261030100000) has run in the active database.
+ * If not, removes Phase 2 attributes from SiteInspection.rawAttributes so queries
+ * succeed against pre-Phase 2 database tables without column errors.
+ */
+export async function verifyAndAdaptPhase2Schema(): Promise<boolean> {
+  try {
+    const dialect = sequelize.getDialect();
+    let hasCol = false;
+    if (dialect === "postgres") {
+      const [rows]: any = await sequelize.query(`
+        SELECT column_name FROM information_schema.columns 
+        WHERE table_name = 'SiteInspections' AND column_name = 'siteAreaName'
+        LIMIT 1;
+      `);
+      hasCol = Boolean(rows && rows.length > 0);
+    } else if (dialect === "sqlite") {
+      const [rows]: any = await sequelize.query(`PRAGMA table_info("SiteInspections");`);
+      hasCol = Boolean(rows && rows.some((r: any) => r.name === "siteAreaName"));
+    } else {
+      hasCol = true;
+    }
+
+    if (!hasCol) {
+      isPhase2SchemaReady = false;
+      for (const col of PHASE2_COLUMNS) {
+        if ((SiteInspection as any).rawAttributes[col]) {
+          delete (SiteInspection as any).rawAttributes[col];
+        }
+      }
+      if (typeof (SiteInspection as any).refreshAttributes === "function") {
+        (SiteInspection as any).refreshAttributes();
+      }
+      console.log("[Phase2] Migration 20261030100000 not yet applied in database. Model successfully adapted to pre-Phase 2 schema for backward compatibility.");
+    } else {
+      isPhase2SchemaReady = true;
+    }
+  } catch (err: any) {
+    isPhase2SchemaReady = false;
+  }
+  return isPhase2SchemaReady;
+}
 
 export class SiteInspectionService extends Model {
   public id!: string;
@@ -3275,6 +3391,143 @@ SiteInspection.hasMany(SiteInspectionAttachment, { foreignKey: "inspectionId", a
 SiteInspectionAttachment.belongsTo(SiteInspection, { foreignKey: "inspectionId", as: "inspection" });
 
 SiteInspectionAttachment.belongsTo(User, { foreignKey: "uploadedById", as: "uploadedBy" });
+
+// ─── Site Inspection Phase 2 Models ─────────────────────────────────────────
+
+export class SiteInspectorProfile extends Model {
+  public id!: string;
+  public userId!: string;
+  public homeBaseId!: string | null;
+  public coverageBaseIds!: string | null; // JSON array
+  public isAvailable!: boolean;
+  public onLeaveFrom!: Date | null;
+  public onLeaveTo!: Date | null;
+  public maxOpenInspections!: number | null;
+  public maxVisitsPerDay!: number | null;
+  public maxDistanceKm!: number | null;
+  public certifications!: string | null; // JSON array
+  public languages!: string | null; // JSON array
+  public lastAssignedAt!: Date | null;
+  public createdAt!: Date;
+  public updatedAt!: Date;
+
+  public user?: any;
+  public homeBase?: any;
+}
+
+SiteInspectorProfile.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    userId: { type: DataTypes.UUID, allowNull: false, unique: true },
+    homeBaseId: { type: DataTypes.UUID, allowNull: true },
+    coverageBaseIds: { type: DataTypes.TEXT, allowNull: true },
+    isAvailable: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
+    onLeaveFrom: { type: DataTypes.DATE, allowNull: true },
+    onLeaveTo: { type: DataTypes.DATE, allowNull: true },
+    maxOpenInspections: { type: DataTypes.INTEGER, allowNull: true },
+    maxVisitsPerDay: { type: DataTypes.INTEGER, allowNull: true },
+    maxDistanceKm: { type: DataTypes.FLOAT, allowNull: true },
+    certifications: { type: DataTypes.TEXT, allowNull: true },
+    languages: { type: DataTypes.TEXT, allowNull: true },
+    lastAssignedAt: { type: DataTypes.DATE, allowNull: true },
+  },
+  { sequelize, modelName: "SiteInspectorProfile", tableName: "SiteInspectorProfiles" }
+);
+
+export class SiteInspectionSetting extends Model {
+  public key!: string;
+  public value!: string | null; // JSON-encoded
+  public updatedBy!: string | null;
+  public createdAt!: Date;
+  public updatedAt!: Date;
+}
+
+SiteInspectionSetting.init(
+  {
+    key: { type: DataTypes.STRING, primaryKey: true, allowNull: false },
+    value: { type: DataTypes.TEXT, allowNull: true },
+    updatedBy: { type: DataTypes.UUID, allowNull: true },
+  },
+  { sequelize, modelName: "SiteInspectionSetting", tableName: "SiteInspectionSettings" }
+);
+
+export class SiteHoliday extends Model {
+  public id!: string;
+  public date!: string; // YYYY-MM-DD (Asia/Riyadh calendar date)
+  public name!: string;
+  public isActive!: boolean;
+  public createdAt!: Date;
+  public updatedAt!: Date;
+}
+
+SiteHoliday.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    date: { type: DataTypes.DATEONLY, allowNull: false },
+    name: { type: DataTypes.STRING, allowNull: false },
+    isActive: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
+  },
+  { sequelize, modelName: "SiteHoliday", tableName: "SiteHolidays" }
+);
+
+export class SiteInspectionAuditLog extends Model {
+  public id!: string;
+  public inspectionId!: string | null;
+  public entityType!: string;
+  public entityId!: string | null;
+  public action!: string;
+  public actorId!: string | null;
+  public actorRole!: string | null;
+  public fromValue!: string | null;
+  public toValue!: string | null;
+  public reason!: string | null;
+  public ip!: string | null;
+  public createdAt!: Date;
+}
+
+SiteInspectionAuditLog.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    inspectionId: { type: DataTypes.UUID, allowNull: true },
+    entityType: { type: DataTypes.STRING, allowNull: false },
+    entityId: { type: DataTypes.STRING, allowNull: true },
+    action: { type: DataTypes.STRING, allowNull: false },
+    actorId: { type: DataTypes.UUID, allowNull: true },
+    actorRole: { type: DataTypes.STRING, allowNull: true },
+    fromValue: { type: DataTypes.TEXT, allowNull: true },
+    toValue: { type: DataTypes.TEXT, allowNull: true },
+    reason: { type: DataTypes.TEXT, allowNull: true },
+    ip: { type: DataTypes.STRING, allowNull: true },
+  },
+  {
+    sequelize,
+    modelName: "SiteInspectionAuditLog",
+    tableName: "SiteInspectionAuditLogs",
+    updatedAt: false,
+    hooks: {
+      // Append-only: the application never edits or deletes audit entries.
+      beforeUpdate: () => {
+        throw new Error("SiteInspectionAuditLog is append-only and cannot be updated");
+      },
+      beforeBulkUpdate: () => {
+        throw new Error("SiteInspectionAuditLog is append-only and cannot be updated");
+      },
+      beforeDestroy: () => {
+        throw new Error("SiteInspectionAuditLog is append-only and cannot be deleted");
+      },
+      beforeBulkDestroy: () => {
+        throw new Error("SiteInspectionAuditLog is append-only and cannot be deleted");
+      },
+    },
+  }
+);
+
+SiteInspectorProfile.belongsTo(User, { foreignKey: "userId", as: "user" });
+User.hasOne(SiteInspectorProfile, { foreignKey: "userId", as: "inspectorProfile" });
+SiteInspectorProfile.belongsTo(SiteBase, { foreignKey: "homeBaseId", as: "homeBase" });
+SiteInspectionAuditLog.belongsTo(User, { foreignKey: "actorId", as: "actor", constraints: false });
+SiteInspectionAuditLog.belongsTo(SiteInspection, { foreignKey: "inspectionId", as: "inspection", constraints: false });
+SiteInspection.belongsTo(User, { foreignKey: "requestedInspectorId", as: "requestedInspector", constraints: false });
 
 export { sequelize };
 

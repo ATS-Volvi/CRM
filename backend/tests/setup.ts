@@ -45,6 +45,8 @@ beforeAll(async () => {
   await Database.createConnection();
   const dialect = sequelize.getDialect();
   if (dialect === "sqlite") {
+    await sequelize.query("PRAGMA journal_mode = WAL;").catch(() => {});
+    await sequelize.query("PRAGMA busy_timeout = 30000;").catch(() => {});
     await sequelize.query("PRAGMA foreign_keys = OFF;");
     await sequelize.sync({ force: true });
     await sequelize.query("PRAGMA foreign_keys = ON;");
@@ -53,6 +55,10 @@ beforeAll(async () => {
       "SiteInspectionAttachments",
       "SiteInspectionServices",
       "SiteInspections",
+      "SiteInspectorProfiles",
+      "SiteInspectionSettings",
+      "SiteHolidays",
+      "SiteInspectionAuditLogs",
       "Activities",
       "Opportunities",
       "Deals",

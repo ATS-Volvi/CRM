@@ -57,8 +57,8 @@ export const siteInspectionApi = {
     return apiClient.post<SiteInspectionRecord>(`/api/v1/site-inspections/${id}/review`, { action, comment });
   },
 
-  async reassignInspection(id: string, assignedToId: string): Promise<SiteInspectionRecord> {
-    return apiClient.post<SiteInspectionRecord>(`/api/v1/site-inspections/${id}/reassign`, { assignedToId });
+  async reassignInspection(id: string, assignedToId: string, reason?: string): Promise<SiteInspectionRecord> {
+    return apiClient.post<SiteInspectionRecord>(`/api/v1/site-inspections/${id}/reassign`, { assignedToId, reason });
   },
 
   async presignAttachment(
@@ -141,9 +141,77 @@ export const siteInspectionApi = {
     );
   },
 
-  async requestInspection(leadId: string, requestNote?: string): Promise<SiteInspectionRecord> {
-    return apiClient.post<SiteInspectionRecord>(`/api/v1/leads/${leadId}/site-inspection/request`, {
-      requestNote,
-    });
+  async requestInspection(
+    leadId: string,
+    options?: {
+      siteAreaName?: string;
+      siteLatitudeHint?: number;
+      siteLongitudeHint?: number;
+      priority?: "LOW" | "NORMAL" | "URGENT";
+      priorityReason?: string;
+      requestedInspectorId?: string;
+      requestedInspectorReason?: string;
+      requiredCertifications?: string[];
+      requestNote?: string;
+    } | string
+  ): Promise<SiteInspectionRecord> {
+    const payload = typeof options === "string" ? { requestNote: options } : options || {};
+    return apiClient.post<SiteInspectionRecord>(`/api/v1/leads/${leadId}/site-inspection/request`, payload);
+  },
+
+  // ─── Phase 2 Stage A: Settings, Holidays, Profiles, Audits ───────────────────
+  async getSettings(): Promise<any> {
+    return apiClient.get<any>("/api/v1/site-inspections/settings");
+  },
+
+  async updateSettings(data: any): Promise<{ message: string; settings: any; explanations: Record<string, string> }> {
+    return apiClient.put<any>("/api/v1/site-inspections/settings", data);
+  },
+
+  async getHolidays(): Promise<any[]> {
+    return apiClient.get<any[]>("/api/v1/site-inspections/holidays");
+  },
+
+  async addHoliday(data: { date: string; name: string; isRecurringYearly?: boolean; notes?: string }): Promise<any> {
+    return apiClient.post<any>("/api/v1/site-inspections/holidays", data);
+  },
+
+  async updateHoliday(id: string, data: any): Promise<any> {
+    return apiClient.put<any>(`/api/v1/site-inspections/holidays/${id}`, data);
+  },
+
+  async deleteHoliday(id: string): Promise<{ success: boolean }> {
+    return apiClient.delete<any>(`/api/v1/site-inspections/holidays/${id}`);
+  },
+
+  async getInspectorProfiles(): Promise<any[]> {
+    return apiClient.get<any[]>("/api/v1/site-inspections/inspectors");
+  },
+
+  async updateInspectorProfile(userId: string, data: any): Promise<any> {
+    return apiClient.put<any>(`/api/v1/site-inspections/inspectors/${userId}`, data);
+  },
+
+  async getAuditLogs(params?: {
+    inspectionId?: string;
+    entityType?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ rows: any[]; count: number }> {
+    const query = new URLSearchParams();
+    if (params?.inspectionId) query.set("inspectionId", params.inspectionId);
+    if (params?.entityType) query.set("entityType", params.entityType);
+    if (params?.limit) query.set("limit", String(params.limit));
+    if (params?.offset) query.set("offset", String(params.offset));
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    return apiClient.get<any>(`/api/v1/site-inspections/audit-logs${qs}`);
+  },
+
+  async bulkAssign(data: {
+    inspectionIds: string[];
+    targetAssigneeId?: string | null;
+    reason: string;
+  }): Promise<{ assignedCount: number; errors: Array<{ id: string; error: string }> }> {
+    return apiClient.post<any>("/api/v1/site-inspections/bulk-assign", data);
   },
 };

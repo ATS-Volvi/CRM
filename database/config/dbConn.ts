@@ -97,6 +97,10 @@ export class Database {
     try {
       await sequelize.authenticate();
       console.log("DB connection established");
+      try {
+        const { verifyAndAdaptPhase2Schema } = require("../models");
+        await verifyAndAdaptPhase2Schema();
+      } catch (e) {}
     } catch (error) {
       console.log("unable to connect to DB : ", error);
     }
