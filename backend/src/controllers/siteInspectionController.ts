@@ -898,6 +898,10 @@ export const updateSiteInspectionSettings = async (req: Request, res: Response) 
 
 export const listSiteHolidays = async (req: Request, res: Response) => {
   try {
+    const user = (req as any).user;
+    if (!user || !SETTINGS_ALLOWED_ROLES.includes(user.role)) {
+      return res.status(403).json({ error: "Access denied: holidays can only be viewed by Ops Manager, Director, or Admin." });
+    }
     const holidays = await listHolidays(req.query.all !== "true");
     res.json(holidays);
   } catch (error: any) {
