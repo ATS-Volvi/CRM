@@ -1,3 +1,7 @@
+if (!process.env.JWT_SECRET) {
+  process.env.JWT_SECRET = "default_secret";
+}
+
 process.env.SITE_INSPECTION_GATE = "off";
 
 if (process.env.DATABASE_URL) {
