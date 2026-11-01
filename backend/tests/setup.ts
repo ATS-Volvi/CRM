@@ -9,7 +9,7 @@ if (process.env.DATABASE_URL) {
 } else {
   process.env.USE_SQLITE = "true";
   process.env.DB_DIALECT = "sqlite";
-  process.env.DB_STORAGE = "./test.sqlite";
+  process.env.DB_STORAGE = `./test_${process.env.JEST_WORKER_ID || "1"}.sqlite`;
 }
 
 jest.mock("sanitize-html", () => {
@@ -27,7 +27,7 @@ import "dotenv/config";
 delete process.env.DATABASE_URL;
 process.env.USE_SQLITE = "true";
 process.env.DB_DIALECT = "sqlite";
-process.env.DB_STORAGE = "./test.sqlite";
+process.env.DB_STORAGE = `./test_${process.env.JEST_WORKER_ID || "1"}.sqlite`;
 
 const { Database, sequelize } = require("@nexus-crm/database");
 
