@@ -38,6 +38,11 @@ if (sequelize.getDialect() === "sqlite") {
     if (connection && typeof connection.configure === "function") {
       connection.configure("busyTimeout", 30000);
     }
+    if (connection && typeof connection.run === "function") {
+      connection.run("PRAGMA journal_mode = WAL;");
+      connection.run("PRAGMA busy_timeout = 30000;");
+      connection.run("PRAGMA synchronous = NORMAL;");
+    }
     return connection;
   };
 }
