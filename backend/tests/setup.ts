@@ -32,12 +32,14 @@ process.env.DB_STORAGE = `./test_${process.env.JEST_WORKER_ID || "1"}.sqlite`;
 const { Database, sequelize } = require("@nexus-crm/database");
 
 if (sequelize.getDialect() === "sqlite") {
-  sequelize.addHook("afterConnect", (connection: any) => {
-    if (connection && typeof connection.run === "function") {
-      connection.run("PRAGMA busy_timeout = 30000;");
-      connection.run("PRAGMA journal_mode = WAL;");
+  const origGetConnection = sequelize.connectionManager.getConnection.bind(sequelize.connectionManager);
+  sequelize.connectionManager.getConnection = async function(options: any) {
+    const connection = await origGetConnection(options);
+    if (connection && typeof connection.configure === "function") {
+      connection.configure("busyTimeout", 30000);
     }
-  });
+    return connection;
+  };
 }
 
 jest.setTimeout(60000);
