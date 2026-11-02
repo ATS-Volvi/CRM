@@ -69,6 +69,7 @@ export function SiteInspectionSettingsModal({ isOpen, onClose, onSaved }: Settin
 
   // Audit Logs State
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [bases, setBases] = useState<any[]>([]);
 
   useEffect(() => {
     if (isOpen) {
@@ -80,11 +81,12 @@ export function SiteInspectionSettingsModal({ isOpen, onClose, onSaved }: Settin
     setLoading(true);
     setError(null);
     try {
-      const [fetchedSettings, fetchedHolidays, fetchedInspectors, fetchedLogs] = await Promise.all([
+      const [fetchedSettings, fetchedHolidays, fetchedInspectors, fetchedLogs, fetchedMaster] = await Promise.all([
         siteInspectionApi.getSettings(),
         siteInspectionApi.getHolidays().catch(() => []),
         siteInspectionApi.getInspectorProfiles().catch(() => []),
         siteInspectionApi.getAuditLogs({ limit: 20 }).catch(() => ({ rows: [] })),
+        siteInspectionApi.getMasterData().catch(() => ({ bases: [] })),
       ]);
 
       if (fetchedSettings) {
@@ -120,6 +122,7 @@ export function SiteInspectionSettingsModal({ isOpen, onClose, onSaved }: Settin
       setHolidays(fetchedHolidays || []);
       setInspectors(fetchedInspectors || []);
       setAuditLogs(fetchedLogs?.rows || []);
+      setBases((fetchedMaster as any)?.bases || []);
     } catch (err: any) {
       setError(err?.message || "Failed to load settings data.");
     } finally {
@@ -191,6 +194,7 @@ export function SiteInspectionSettingsModal({ isOpen, onClose, onSaved }: Settin
     if (!editingInspector) return;
     try {
       await siteInspectionApi.updateInspectorProfile(editingInspector.userId, {
+        homeBaseId: editingInspector.homeBaseId || undefined,
         isAvailable: editingInspector.isAvailable,
         maxOpenInspections: Number(editingInspector.maxOpenInspections),
         maxVisitsPerDay: Number(editingInspector.maxVisitsPerDay),
@@ -833,6 +837,7 @@ export function SiteInspectionSettingsModal({ isOpen, onClose, onSaved }: Settin
                                 {insp.name}
                               </span>
                               <span className="text-[10px] text-slate-400">{insp.email}</span>
+<div className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 mt-0.5">📍 {insp.profile?.homeBaseName || bases.find((b: any) => b.id === insp.profile?.homeBaseId)?.name || "Base Unassigned"}</div>
                             </td>
                             <td className="px-4 py-3">
                               <span
@@ -871,7 +876,8 @@ export function SiteInspectionSettingsModal({ isOpen, onClose, onSaved }: Settin
                               <button
                                 onClick={() =>
                                   setEditingInspector({
-                                    userId: insp.id,
+                                    userId: insp.userId || insp.id,
+                                    homeBaseId: insp.profile?.homeBaseId || "11111111-1111-4111-a111-111111111111",
                                     name: insp.name,
                                     isAvailable: insp.profile?.isAvailable ?? true,
                                     maxOpenInspections: insp.profile?.maxOpenInspections || 5,
@@ -910,7 +916,29 @@ export function SiteInspectionSettingsModal({ isOpen, onClose, onSaved }: Settin
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block mb-1">
+                        Home Operations Base
+                      </label>
+                      <select
+                        value={editingInspector.homeBaseId || ""}
+                        onChange={(e) =>
+                          setEditingInspector((p: any) => ({
+                            ...p,
+                            homeBaseId: e.target.value,
+                          }))
+                        }
+                        className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium"
+                      >
+                        <option value="">Select Home Base...</option>
+                        {bases.map((b: any) => (
+                          <option key={b.id} value={b.id}>
+                            {b.name}{b.region ? " (" + b.region + ")" : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                     <div>
                       <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block mb-1">
                         Max Open Inspections
