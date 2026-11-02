@@ -78,6 +78,13 @@ export default {
         'inverse-on-surface': "hsl(var(--background))",
         outline: "hsl(var(--muted-foreground))",
         'outline-variant': "hsl(var(--border))",
+        face: {
+          green: { DEFAULT: "#17614A", dark: "#0F4A38", light: "#E6F2EC", soft: "#5FB892", mint: "#A8E6C8" },
+          brown: { DEFAULT: "#7A4616", light: "#F6ECE0" },
+          blue:  { DEFAULT: "#4556A6", light: "#E8EBF8" },
+          red:   { DEFAULT: "#B02F2B", light: "#FBE8E7" },
+          field: "#F2F3F8", line: "#E8E9F2", ink: "#1A1C21", muted: "#6B6F7B",
+        },
       },
       fontFamily: {
         sans: ['Inter', 'sans-serif'],
