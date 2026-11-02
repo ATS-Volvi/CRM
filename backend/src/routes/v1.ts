@@ -1061,6 +1061,7 @@ router.delete("/site-inspections/holidays/:id", authMiddleware, deleteSiteHolida
 router.get("/site-inspections/inspectors", authMiddleware, listInspectorProfiles);
 router.get("/site-inspections/inspectors/:userId/profile", authMiddleware, getInspectorProfile);
 router.put("/site-inspections/inspectors/:userId/profile", authMiddleware, updateInspectorProfile);
+router.put("/site-inspections/inspectors/:userId", authMiddleware, updateInspectorProfile);
 router.get("/site-inspections/audit-logs", authMiddleware, listSiteInspectionAuditLogs);
 router.post("/site-inspections/bulk-assign", authMiddleware, bulkAssignSiteInspectionsEndpoint);
 
