@@ -193,8 +193,7 @@ export function SiteInspectionSettingsModal({ isOpen, onClose, onSaved }: Settin
   const handleSaveInspectorProfile = async () => {
     if (!editingInspector) return;
     try {
-      await siteInspectionApi.updateInspectorProfile(editingInspector.userId, {
-        homeBaseId: editingInspector.homeBaseId || undefined,
+      const payload: any = {
         isAvailable: editingInspector.isAvailable,
         maxOpenInspections: Number(editingInspector.maxOpenInspections),
         maxVisitsPerDay: Number(editingInspector.maxVisitsPerDay),
@@ -202,7 +201,11 @@ export function SiteInspectionSettingsModal({ isOpen, onClose, onSaved }: Settin
         leaveStartDate: editingInspector.leaveStartDate || null,
         leaveEndDate: editingInspector.leaveEndDate || null,
         certifications: editingInspector.certifications,
-      });
+      };
+      if (editingInspector.homeBaseId) {
+        payload.homeBaseId = editingInspector.homeBaseId;
+      }
+      await siteInspectionApi.updateInspectorProfile(editingInspector.userId, payload);
       setEditingInspector(null);
       loadAllData();
     } catch (err: any) {
@@ -837,7 +840,7 @@ export function SiteInspectionSettingsModal({ isOpen, onClose, onSaved }: Settin
                                 {insp.name}
                               </span>
                               <span className="text-[10px] text-slate-400">{insp.email}</span>
-<div className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 mt-0.5">📍 {insp.profile?.homeBaseName || bases.find((b: any) => b.id === insp.profile?.homeBaseId)?.name || "Base Unassigned"}</div>
+<div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Base: {insp.profile?.homeBaseName || bases.find((b: any) => b.id === insp.profile?.homeBaseId)?.name || "Unassigned"}</div>
                             </td>
                             <td className="px-4 py-3">
                               <span
@@ -876,8 +879,8 @@ export function SiteInspectionSettingsModal({ isOpen, onClose, onSaved }: Settin
                               <button
                                 onClick={() =>
                                   setEditingInspector({
-                                    userId: insp.userId || insp.id,
-                                    homeBaseId: insp.profile?.homeBaseId || "11111111-1111-4111-a111-111111111111",
+                                    userId: insp.userId,
+                                    homeBaseId: insp.profile?.homeBaseId || "",
                                     name: insp.name,
                                     isAvailable: insp.profile?.isAvailable ?? true,
                                     maxOpenInspections: insp.profile?.maxOpenInspections || 5,

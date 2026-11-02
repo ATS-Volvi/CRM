@@ -285,9 +285,15 @@ describe("Site Inspection Phase 2 — Stage A Concurrency & API Test Suite", () 
       expect(getRes.status).toBe(200);
       expect(Array.isArray(getRes.body)).toBe(true);
 
-      // Edit Alpha profile
+      // Verify inspector list items expose userId matching sm.id
+      const alphaInList = getRes.body.find((i: any) => i.userId === inspectorAlpha.id);
+      expect(alphaInList).toBeDefined();
+      expect(alphaInList.userId).toBe(inspectorAlpha.id);
+      expect(alphaInList.profile?.homeBaseId).toBeNull();
+
+      // Edit Alpha profile via PUT /site-inspections/inspectors/:userId alias sending no homeBaseId
       const putRes = await request(app)
-        .put(`/api/v1/site-inspections/inspectors/${inspectorAlpha.id}/profile`)
+        .put(`/api/v1/site-inspections/inspectors/${inspectorAlpha.id}`)
         .set("Authorization", `Bearer ${opsManagerToken}`)
         .send({
           maxOpenInspections: 4,
@@ -297,6 +303,8 @@ describe("Site Inspection Phase 2 — Stage A Concurrency & API Test Suite", () 
 
       expect(putRes.status).toBe(200);
       expect(putRes.body.maxOpenInspections).toBe(4);
+      expect(putRes.body.userId).toBe(inspectorAlpha.id);
+      expect(putRes.body.homeBaseId).toBeNull();
     });
 
     test("Audit Logs: Immutable append-only audit trail records changes and blocks modifications", async () => {
