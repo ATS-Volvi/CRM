@@ -140,6 +140,14 @@ function InspectionAttachmentThumbnail({
   );
 }
 
+const SERVICE_THEME: Record<string, { head: string; border: string }> = {
+  SEWAGE:    { head: "bg-face-brown", border: "border-face-brown" },
+  GENERAL:   { head: "bg-face-blue",  border: "border-face-blue" },
+  HAZARDOUS: { head: "bg-face-red",   border: "border-face-red" },
+};
+const getServiceTheme = (type: string) =>
+  SERVICE_THEME[type] || { head: "bg-face-green", border: "border-face-green" };
+
 export default function SiteInspectionForm() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -543,27 +551,27 @@ export default function SiteInspectionForm() {
       `}</style>
 
       {/* Screen Interactive View */}
-      <div className="inspection-screen-view max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 print:hidden">
+      <div className="inspection-screen-view font-sans tracking-normal max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 print:hidden">
       {/* Top Banner Navigation */}
-      <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4">
+      <div className="flex items-center justify-between border-b border-face-line dark:border-slate-800 pb-4">
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate("/site-inspections")}
-            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-slate-500 cursor-pointer"
+            className="p-2 hover:bg-face-field dark:hover:bg-slate-800 rounded-xl text-face-muted cursor-pointer"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-mono text-xs font-black text-indigo-600 dark:text-indigo-400">
+              <span className="font-mono text-sm font-black text-face-green dark:text-face-green-mint">
                 {inspection.inspectionNumber}
               </span>
-              <span className="text-slate-300 dark:text-slate-700">·</span>
-              <h1 className="text-base font-black text-slate-900 dark:text-white tracking-tight">
+              <span className="text-face-line dark:text-slate-700">·</span>
+              <h1 className="text-lg font-extrabold uppercase tracking-tight text-face-ink dark:text-white">
                 Site Inspection & Assessment Portal
               </h1>
             </div>
-            <span className="text-[11px] text-slate-400 font-medium">
+            <span className="text-xs text-face-muted font-medium">
               Lead: {inspection.lead?.company || inspection.clientOrganization}
             </span>
           </div>
@@ -572,7 +580,7 @@ export default function SiteInspectionForm() {
         {/* Status Badge */}
         <div className="flex items-center gap-2">
           <span
-            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${statusInfo.badgeBg}`}
+            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-bold border ${statusInfo.badgeBg}`}
           >
             <span className={`w-1.5 h-1.5 rounded-full ${statusInfo.dotColor}`} />
             {statusInfo.label} (Rev {inspection.revision || 1})
@@ -582,19 +590,19 @@ export default function SiteInspectionForm() {
 
       {/* Notifications / Alerts */}
       {saveSuccessMsg && (
-        <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-bold rounded-xl flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+        <div className="p-3 bg-face-green-light dark:bg-emerald-950/40 border border-face-green/30 dark:border-emerald-800 text-face-green-dark dark:text-emerald-300 text-sm font-bold rounded-xl flex items-center gap-2">
+          <CheckCircle2 className="w-4 h-4 text-face-green" />
           <span>{saveSuccessMsg}</span>
         </div>
       )}
 
       {formError && (
-        <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300 text-xs font-bold rounded-xl flex items-center justify-between">
+        <div className="p-3 bg-face-red-light dark:bg-rose-950/40 border border-face-red/30 dark:border-rose-800 text-face-red dark:text-rose-300 text-sm font-bold rounded-xl flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            <AlertCircle className="w-4 h-4 text-face-red shrink-0" />
             <span>{formError}</span>
           </div>
-          <button onClick={() => setFormError(null)} className="text-rose-500 hover:text-rose-700">
+          <button onClick={() => setFormError(null)} className="text-face-red hover:opacity-80">
             ×
           </button>
         </div>
@@ -602,15 +610,15 @@ export default function SiteInspectionForm() {
 
       {/* Reviewer / Ops Manager Review Panel */}
       {isApprover && inspection.status === "SUBMITTED" && (
-        <div className="bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-950/30 dark:to-indigo-950/30 border border-purple-200 dark:border-purple-800/60 rounded-2xl p-5 space-y-4 shadow-sm">
+        <div className="bg-gradient-to-r from-face-blue-light to-face-green-light dark:from-purple-950/30 dark:to-indigo-950/30 border border-face-blue/30 dark:border-purple-800/60 rounded-3xl p-5 sm:p-6 space-y-4 shadow-sm">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <ShieldCheck className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+              <ShieldCheck className="w-5 h-5 text-face-blue dark:text-purple-400" />
               <div>
-                <h3 className="text-sm font-black text-purple-950 dark:text-purple-200">
+                <h3 className="text-base font-black uppercase tracking-tight text-face-ink dark:text-purple-200">
                   Supervisor & Ops Review Panel
                 </h3>
-                <p className="text-[11px] text-purple-700 dark:text-purple-300">
+                <p className="text-xs text-face-muted dark:text-purple-300">
                   Site Manager {inspection.assignedTo?.name || ""} submitted this inspection. Approving allows lead qualification.
                 </p>
               </div>
@@ -618,17 +626,17 @@ export default function SiteInspectionForm() {
 
             {/* Self-approval Warning if applicable */}
             {inspection.assignedToId === user?.id && (
-              <span className="px-2.5 py-1 bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-bold rounded-lg">
+              <span className="px-2.5 py-1 bg-amber-100 text-amber-800 border border-amber-300 text-xs font-bold rounded-lg">
                 Self-approval prohibited
               </span>
             )}
           </div>
 
           {canApproveInspection(userRole, inspection.assignedToId, user?.id) && (
-            <div className="space-y-3 pt-2 border-t border-purple-200/60 dark:border-purple-800/60">
+            <div className="space-y-3 pt-2 border-t border-face-line dark:border-purple-800/60">
               {isRejecting ? (
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
+                  <label className="text-sm font-bold text-face-ink dark:text-slate-300 block">
                     Reason for Requesting Changes (Required):
                   </label>
                   <textarea
@@ -636,12 +644,12 @@ export default function SiteInspectionForm() {
                     onChange={(e) => setReviewComment(e.target.value)}
                     placeholder="Describe specific changes or corrections needed by the Site Manager..."
                     rows={3}
-                    className="w-full p-2.5 bg-white dark:bg-slate-900 border border-purple-300 dark:border-purple-700 rounded-xl text-xs"
+                    className="w-full p-2.5 bg-white dark:bg-slate-900 border border-face-blue/30 dark:border-purple-700 rounded-xl text-sm text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
                   />
                   <div className="flex items-center gap-2 justify-end">
                     <button
                       onClick={() => setIsRejecting(false)}
-                      className="px-3 py-1.5 text-xs font-bold text-slate-500 hover:text-slate-700 cursor-pointer"
+                      className="px-3 py-1.5 text-sm font-bold text-face-muted hover:text-face-ink cursor-pointer"
                     >
                       Cancel
                     </button>
@@ -650,7 +658,7 @@ export default function SiteInspectionForm() {
                         reviewMutation.mutate({ action: "REQUEST_CHANGES", comment: reviewComment })
                       }
                       disabled={!reviewComment.trim() || reviewMutation.isPending}
-                      className="px-4 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl disabled:opacity-50 cursor-pointer"
+                      className="px-4 py-1.5 bg-face-red hover:opacity-90 text-white text-sm font-bold rounded-xl disabled:opacity-50 cursor-pointer"
                     >
                       {reviewMutation.isPending ? "Submitting..." : "Confirm Changes Request"}
                     </button>
@@ -664,13 +672,13 @@ export default function SiteInspectionForm() {
                       value={reviewComment}
                       onChange={(e) => setReviewComment(e.target.value)}
                       placeholder="Optional approval note..."
-                      className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-800 rounded-xl text-xs"
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-face-blue/30 dark:border-purple-800 rounded-xl text-sm text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
                     />
                   </div>
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setIsRejecting(true)}
-                      className="px-3 py-2 bg-white hover:bg-rose-50 text-rose-600 border border-rose-200 text-xs font-bold rounded-xl cursor-pointer"
+                      className="px-3 py-2 bg-white hover:bg-face-red-light text-face-red border border-face-red/30 text-sm font-bold rounded-xl cursor-pointer"
                     >
                       Request Changes
                     </button>
@@ -679,7 +687,7 @@ export default function SiteInspectionForm() {
                         reviewMutation.mutate({ action: "APPROVE", comment: reviewComment })
                       }
                       disabled={reviewMutation.isPending}
-                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-sm cursor-pointer disabled:opacity-50"
+                      className="px-4 py-2 bg-face-green hover:bg-face-green-dark text-white text-sm font-bold rounded-xl shadow-sm cursor-pointer disabled:opacity-50"
                     >
                       {reviewMutation.isPending ? "Approving..." : "Approve Site Inspection"}
                     </button>
@@ -693,13 +701,13 @@ export default function SiteInspectionForm() {
 
       {/* Review Comment Banner if CHANGES_REQUESTED */}
       {inspection.status === "CHANGES_REQUESTED" && inspection.reviewComment && (
-        <div className="p-4 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900 rounded-2xl flex items-start gap-3">
-          <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
-          <div className="text-xs">
-            <h4 className="font-bold text-rose-900 dark:text-rose-200">
+        <div className="p-4 bg-face-red-light dark:bg-rose-950/30 border border-face-red/30 dark:border-rose-900 rounded-2xl flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-face-red shrink-0 mt-0.5" />
+          <div className="text-sm">
+            <h4 className="font-bold text-face-red dark:text-rose-200">
               Changes Requested by {inspection.reviewedBy?.name || "Operations Manager"}:
             </h4>
-            <p className="text-rose-700 dark:text-rose-300 mt-1 leading-relaxed">
+            <p className="text-face-red dark:text-rose-300 mt-1 leading-relaxed">
               {inspection.reviewComment}
             </p>
           </div>
@@ -708,10 +716,10 @@ export default function SiteInspectionForm() {
 
       {/* Reassign Panel for Approvers */}
       {isApprover && (
-        <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-xl text-xs">
+        <div className="flex items-center justify-between p-3 bg-face-field dark:bg-slate-800/40 border border-face-line dark:border-slate-800 rounded-xl text-sm">
           <div className="flex items-center gap-2">
-            <UserCheck className="w-4 h-4 text-slate-400" />
-            <span className="font-bold text-slate-700 dark:text-slate-300">
+            <UserCheck className="w-4 h-4 text-face-muted" />
+            <span className="font-bold text-face-ink dark:text-slate-300">
               Assigned Site Manager: {inspection.assignedTo?.name || "Unassigned"}
             </span>
           </div>
@@ -720,7 +728,7 @@ export default function SiteInspectionForm() {
             <select
               value={selectedReassignUser}
               onChange={(e) => setSelectedReassignUser(e.target.value)}
-              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1 text-xs"
+              className="bg-white dark:bg-slate-900 border border-face-line dark:border-slate-700 rounded-lg px-2.5 py-1 text-sm text-face-ink dark:text-white"
             >
               <option value="">Select Site Manager...</option>
               {siteManagers.map((sm) => (
@@ -734,7 +742,7 @@ export default function SiteInspectionForm() {
                 if (selectedReassignUser) reassignMutation.mutate(selectedReassignUser);
               }}
               disabled={!selectedReassignUser || reassignMutation.isPending}
-              className="px-3 py-1 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-lg disabled:opacity-40 cursor-pointer"
+              className="px-3 py-1 bg-face-green hover:bg-face-green-dark text-white text-sm font-bold rounded-lg disabled:opacity-40 cursor-pointer"
             >
               Reassign
             </button>
@@ -743,7 +751,7 @@ export default function SiteInspectionForm() {
       )}
 
       {/* 3-Step Wizard Navigation */}
-      <div className="grid grid-cols-3 gap-2 p-1.5 bg-slate-100 dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80">
+      <div className="grid grid-cols-3 gap-2 p-1.5 bg-face-field dark:bg-slate-800 rounded-2xl border border-face-line dark:border-slate-700/80">
         {[
           { stepNum: 1, title: "1. Site & Client", subtitle: "Base, GPS & RFQ" },
           { stepNum: 2, title: "2. Haulage & Waste", subtitle: "Mobilization & Services" },
@@ -754,26 +762,26 @@ export default function SiteInspectionForm() {
             onClick={() => setStep(s.stepNum as any)}
             className={`p-3 rounded-xl text-left transition-all cursor-pointer ${
               step === s.stepNum
-                ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm font-bold"
-                : "text-slate-500 hover:text-slate-900 dark:hover:text-white"
+                ? "bg-white dark:bg-slate-900 text-face-green dark:text-face-green-mint shadow-sm font-bold"
+                : "text-face-muted hover:text-face-ink dark:hover:text-white"
             }`}
           >
-            <span className="text-xs font-black block leading-none">{s.title}</span>
-            <span className="text-[10px] text-slate-400 font-medium block mt-1">{s.subtitle}</span>
+            <span className="text-sm font-black block leading-none">{s.title}</span>
+            <span className="text-xs text-face-muted font-medium block mt-1">{s.subtitle}</span>
           </button>
         ))}
       </div>
 
       {/* Step Contents */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xs space-y-6">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 shadow-[0_2px_16px_rgba(40,50,120,0.07)] space-y-6">
         {/* ================= STEP 1: Site & Client ================= */}
         {step === 1 && (
           <div className="space-y-6">
-            <div className="border-b border-slate-100 dark:border-slate-800 pb-3">
-              <h2 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">
+            <div className="border-b border-face-line dark:border-slate-800 pb-3">
+              <h2 className="text-xl sm:text-2xl font-extrabold uppercase tracking-tight text-face-ink dark:text-white">
                 Step 1: Operations Base, Site Location & Client
               </h2>
-              <p className="text-xs text-slate-400">
+              <p className="text-sm text-face-muted">
                 Specify the deploying operations hub, ground audit timestamp, and precise GPS coordinates.
               </p>
             </div>
@@ -781,14 +789,14 @@ export default function SiteInspectionForm() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {/* Operations Base */}
               <div>
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1.5">
-                  Operations Base <span className="text-rose-500">*</span>
+                <label className="text-xs uppercase font-bold text-face-muted tracking-wider block mb-1.5">
+                  Operations Base <span className="text-face-red">*</span>
                 </label>
                 <select
                   disabled={!isEditable}
                   value={formData.baseId || ""}
                   onChange={(e) => setFormData({ ...formData, baseId: e.target.value })}
-                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  className="w-full p-2.5 bg-face-field dark:bg-slate-800/60 border border-face-line dark:border-slate-700 rounded-xl text-sm font-medium text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
                 >
                   <option value="">Select Deploying Base...</option>
                   {(masterData?.bases || []).map((b) => (
@@ -801,22 +809,22 @@ export default function SiteInspectionForm() {
 
               {/* Audit Date & Time */}
               <div>
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1.5">
-                  Audit Date & Time <span className="text-rose-500">*</span>
+                <label className="text-xs uppercase font-bold text-face-muted tracking-wider block mb-1.5">
+                  Audit Date & Time <span className="text-face-red">*</span>
                 </label>
                 <input
                   type="datetime-local"
                   disabled={!isEditable}
                   value={formData.auditAt || ""}
                   onChange={(e) => setFormData({ ...formData, auditAt: e.target.value })}
-                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  className="w-full p-2.5 bg-face-field dark:bg-slate-800/60 border border-face-line dark:border-slate-700 rounded-xl text-sm font-medium text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
                 />
               </div>
 
               {/* Site Name */}
               <div>
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1.5">
-                  Site / Facility Name <span className="text-rose-500">*</span>
+                <label className="text-xs uppercase font-bold text-face-muted tracking-wider block mb-1.5">
+                  Site / Facility Name <span className="text-face-red">*</span>
                 </label>
                 <input
                   type="text"
@@ -824,13 +832,13 @@ export default function SiteInspectionForm() {
                   value={formData.siteName || ""}
                   onChange={(e) => setFormData({ ...formData, siteName: e.target.value })}
                   placeholder="e.g. Ras Tanura Refinery - Plant 4 Gate"
-                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  className="w-full p-2.5 bg-face-field dark:bg-slate-800/60 border border-face-line dark:border-slate-700 rounded-xl text-sm font-medium text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
                 />
               </div>
 
               {/* Site Address */}
               <div>
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1.5">
+                <label className="text-xs uppercase font-bold text-face-muted tracking-wider block mb-1.5">
                   Site Physical Address / Plot
                 </label>
                 <input
@@ -839,24 +847,24 @@ export default function SiteInspectionForm() {
                   value={formData.siteAddress || ""}
                   onChange={(e) => setFormData({ ...formData, siteAddress: e.target.value })}
                   placeholder="Street, Gate #, Industrial Zone"
-                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  className="w-full p-2.5 bg-face-field dark:bg-slate-800/60 border border-face-line dark:border-slate-700 rounded-xl text-sm font-medium text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
                 />
               </div>
 
               {/* GPS Coordinates & Current Location Button */}
-              <div className="md:col-span-2 space-y-2 p-4 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-2xl">
+              <div className="md:col-span-2 space-y-2 p-4 bg-face-field dark:bg-slate-800/40 border border-face-line dark:border-slate-800 rounded-2xl">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Compass className="w-4 h-4 text-indigo-600" />
-                    <span className="text-xs font-bold text-slate-900 dark:text-white">
-                      GPS Coordinates <span className="text-rose-500">*</span>
+                    <Compass className="w-4 h-4 text-face-green" />
+                    <span className="text-sm font-bold text-face-ink dark:text-white uppercase tracking-wider">
+                      GPS Coordinates <span className="text-face-red">*</span>
                     </span>
                   </div>
                   {isEditable && (
                     <button
                       type="button"
                       onClick={handleGetCurrentLocation}
-                      className="flex items-center gap-1.5 px-3 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 text-indigo-600 dark:text-indigo-400 text-xs font-bold rounded-lg shadow-2xs cursor-pointer"
+                      className="flex items-center gap-1.5 px-3 py-1 bg-white dark:bg-slate-900 border border-face-line dark:border-slate-700 hover:bg-face-field text-face-green dark:text-face-green-mint text-sm font-bold rounded-lg shadow-2xs cursor-pointer"
                     >
                       <MapPin className="w-3.5 h-3.5" />
                       <span>Use my current location</span>
@@ -866,7 +874,7 @@ export default function SiteInspectionForm() {
 
                 <div className="grid grid-cols-2 gap-3 pt-1">
                   <div>
-                    <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                    <label className="text-[11px] uppercase font-bold text-face-muted block mb-1 tracking-wider">
                       Latitude (-90 to 90)
                     </label>
                     <input
@@ -881,12 +889,12 @@ export default function SiteInspectionForm() {
                         })
                       }
                       placeholder="e.g. 26.6500"
-                      className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-mono"
+                      className="w-full p-2 bg-white dark:bg-slate-900 border border-face-line dark:border-slate-700 rounded-lg text-sm font-mono text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
                     />
                   </div>
 
                   <div>
-                    <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                    <label className="text-[11px] uppercase font-bold text-face-muted block mb-1 tracking-wider">
                       Longitude (-180 to 180)
                     </label>
                     <input
@@ -901,15 +909,15 @@ export default function SiteInspectionForm() {
                         })
                       }
                       placeholder="e.g. 50.1500"
-                      className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-mono"
+                      className="w-full p-2 bg-white dark:bg-slate-900 border border-face-line dark:border-slate-700 rounded-lg text-sm font-mono text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
                     />
                   </div>
                 </div>
 
                 {/* Straight line distance indicator */}
-                <div className="flex items-center justify-between text-xs pt-2 border-t border-slate-200/60 dark:border-slate-700/60">
-                  <span className="text-slate-500">Live straight-line distance base → site:</span>
-                  <span className="font-extrabold text-indigo-600 dark:text-indigo-400">
+                <div className="flex items-center justify-between text-sm pt-2 border-t border-face-line dark:border-slate-700/60">
+                  <span className="text-face-muted">Live straight-line distance base → site:</span>
+                  <span className="font-extrabold text-face-green dark:text-face-green-mint">
                     {liveBaseToSiteKm > 0 ? `${liveBaseToSiteKm} km` : "Set base & GPS to compute"}
                   </span>
                 </div>
@@ -917,33 +925,33 @@ export default function SiteInspectionForm() {
 
               {/* Client Info (Pre-filled from lead) */}
               <div>
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1.5">
-                  Client Organisation <span className="text-rose-500">*</span>
+                <label className="text-xs uppercase font-bold text-face-muted tracking-wider block mb-1.5">
+                  Client Organisation <span className="text-face-red">*</span>
                 </label>
                 <input
                   type="text"
                   disabled={!isEditable}
                   value={formData.clientOrganization || ""}
                   onChange={(e) => setFormData({ ...formData, clientOrganization: e.target.value })}
-                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium focus:outline-none"
+                  className="w-full p-2.5 bg-face-field dark:bg-slate-800/60 border border-face-line dark:border-slate-700 rounded-xl text-sm font-medium text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
                 />
               </div>
 
               <div>
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1.5">
+                <label className="text-xs uppercase font-bold text-face-muted tracking-wider block mb-1.5">
                   RFQ / Reference ID (Read-only)
                 </label>
                 <input
                   type="text"
                   disabled
                   value={formData.rfqNumber || ""}
-                  className="w-full p-2.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono text-slate-500"
+                  className="w-full p-2.5 bg-face-field/70 dark:bg-slate-800 border border-face-line dark:border-slate-700 rounded-xl text-sm font-mono text-face-muted"
                 />
               </div>
 
               <div>
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1.5">
-                  Field Representative Name <span className="text-rose-500">*</span>
+                <label className="text-xs uppercase font-bold text-face-muted tracking-wider block mb-1.5">
+                  Field Representative Name <span className="text-face-red">*</span>
                 </label>
                 <input
                   type="text"
@@ -951,12 +959,12 @@ export default function SiteInspectionForm() {
                   value={formData.clientRepName || ""}
                   onChange={(e) => setFormData({ ...formData, clientRepName: e.target.value })}
                   placeholder="Client Site Contact"
-                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium focus:outline-none"
+                  className="w-full p-2.5 bg-face-field dark:bg-slate-800/60 border border-face-line dark:border-slate-700 rounded-xl text-sm font-medium text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
                 />
               </div>
 
               <div>
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1.5">
+                <label className="text-xs uppercase font-bold text-face-muted tracking-wider block mb-1.5">
                   Field Representative Phone
                 </label>
                 <input
@@ -965,12 +973,12 @@ export default function SiteInspectionForm() {
                   value={formData.clientRepPhone || ""}
                   onChange={(e) => setFormData({ ...formData, clientRepPhone: e.target.value })}
                   placeholder="+966..."
-                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium focus:outline-none"
+                  className="w-full p-2.5 bg-face-field dark:bg-slate-800/60 border border-face-line dark:border-slate-700 rounded-xl text-sm font-medium text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
                 />
               </div>
 
               <div className="md:col-span-2">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1.5">
+                <label className="text-xs uppercase font-bold text-face-muted tracking-wider block mb-1.5">
                   RFQ Scope Summary (from Lead)
                 </label>
                 <textarea
@@ -978,7 +986,7 @@ export default function SiteInspectionForm() {
                   value={formData.scopeSummary || ""}
                   onChange={(e) => setFormData({ ...formData, scopeSummary: e.target.value })}
                   rows={2}
-                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium focus:outline-none"
+                  className="w-full p-2.5 bg-face-field dark:bg-slate-800/60 border border-face-line dark:border-slate-700 rounded-xl text-sm font-medium text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
                 />
               </div>
             </div>
@@ -988,21 +996,21 @@ export default function SiteInspectionForm() {
         {/* ================= STEP 2: Haulage & Waste ================= */}
         {step === 2 && (
           <div className="space-y-6">
-            <div className="border-b border-slate-100 dark:border-slate-800 pb-3">
-              <h2 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">
+            <div className="border-b border-face-line dark:border-slate-800 pb-3">
+              <h2 className="text-xl sm:text-2xl font-extrabold uppercase tracking-tight text-face-ink dark:text-white">
                 Step 2: Mobilization Haulage & Waste Scopes
               </h2>
-              <p className="text-xs text-slate-400">
+              <p className="text-sm text-face-muted">
                 Configure one-way mobilization distance, select active waste streams, and assign approved disposal facilities.
               </p>
             </div>
 
             {/* Mandatory Mobilization Section */}
-            <div className="p-4 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-2xl space-y-4">
+            <div className="p-4 bg-face-field dark:bg-slate-800/40 border border-face-line dark:border-slate-800 rounded-2xl space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Truck className="w-4 h-4 text-indigo-600" />
-                  <span className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                  <Truck className="w-4 h-4 text-face-green" />
+                  <span className="text-sm font-bold text-face-ink dark:text-white uppercase tracking-wider">
                     Mandatory Mobilization (Base → Site)
                   </span>
                 </div>
@@ -1010,7 +1018,7 @@ export default function SiteInspectionForm() {
                   <button
                     type="button"
                     onClick={handleApplyRoadEstimate}
-                    className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 dark:hover:text-indigo-400 flex items-center gap-1 cursor-pointer"
+                    className="text-xs font-bold text-face-green hover:text-face-green-dark dark:hover:text-face-green-mint flex items-center gap-1 cursor-pointer"
                   >
                     <span>Use road estimate (×1.3 = {Math.round(liveBaseToSiteKm * 1.3)} km)</span>
                   </button>
@@ -1019,7 +1027,7 @@ export default function SiteInspectionForm() {
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div className="md:col-span-2">
-                  <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                  <label className="text-[11px] uppercase font-bold text-face-muted block mb-1 tracking-wider">
                     Mobilization Route Description
                   </label>
                   <input
@@ -1028,13 +1036,13 @@ export default function SiteInspectionForm() {
                     value={formData.mobilizationRoute || ""}
                     onChange={(e) => setFormData({ ...formData, mobilizationRoute: e.target.value })}
                     placeholder="e.g. Highway 613 via Abu Hadriyah Expressway"
-                    className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                    className="w-full p-2 bg-white dark:bg-slate-900 border border-face-line dark:border-slate-700 rounded-lg text-sm text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
                   />
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-bold text-slate-400 block mb-1">
-                    One-way Distance (KM) <span className="text-rose-500">*</span>
+                  <label className="text-[11px] uppercase font-bold text-face-muted block mb-1 tracking-wider">
+                    One-way Distance (KM) <span className="text-face-red">*</span>
                   </label>
                   <input
                     type="number"
@@ -1049,7 +1057,7 @@ export default function SiteInspectionForm() {
                       })
                     }
                     placeholder="km"
-                    className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-mono font-bold"
+                    className="w-full p-2 bg-white dark:bg-slate-900 border border-face-line dark:border-slate-700 rounded-lg text-sm font-mono font-bold text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
                   />
                 </div>
               </div>
@@ -1057,7 +1065,7 @@ export default function SiteInspectionForm() {
 
             {/* Three Toggleable Waste Types */}
             <div className="space-y-4">
-              <h3 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
+              <h3 className="text-sm font-black text-face-ink dark:text-white uppercase tracking-wider">
                 Waste Types & Disposal Streams (At least 1 required)
               </h3>
 
@@ -1065,18 +1073,25 @@ export default function SiteInspectionForm() {
                 const facilitiesForType = (masterData?.facilities || []).filter(
                   (f) => f.serviceType === svc.serviceType
                 );
+                const theme = getServiceTheme(svc.serviceType);
 
                 return (
                   <div
                     key={svc.serviceType}
-                    className={`border rounded-2xl transition-all overflow-hidden ${
+                    className={`border transition-all overflow-hidden ${
                       svc.isActive
-                        ? "border-indigo-300 dark:border-indigo-800 bg-white dark:bg-slate-900 shadow-xs"
-                        : "border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/20 opacity-80"
+                        ? `border-2 rounded-3xl ${theme.border} bg-white dark:bg-slate-900 shadow-xs`
+                        : "border-face-line dark:border-slate-800 rounded-2xl bg-face-field/60 dark:bg-slate-800/20 opacity-80"
                     }`}
                   >
                     {/* Header with Toggle */}
-                    <div className="p-4 flex items-center justify-between border-b border-slate-100 dark:border-slate-800">
+                    <div
+                      className={`p-4 flex items-center justify-between border-b ${
+                        svc.isActive
+                          ? `${theme.head} border-transparent text-white`
+                          : "border-face-line dark:border-slate-800"
+                      }`}
+                    >
                       <div className="flex items-center gap-3">
                         <input
                           type="checkbox"
@@ -1088,21 +1103,25 @@ export default function SiteInspectionForm() {
                             updated[idx].isActive = e.target.checked;
                             setServices(updated);
                           }}
-                          className="w-4 h-4 text-indigo-600 rounded cursor-pointer"
+                          className={`w-4 h-4 rounded cursor-pointer ${
+                            svc.isActive ? "accent-white" : "text-face-green"
+                          }`}
                         />
                         <label
                           htmlFor={`toggle-${svc.serviceType}`}
-                          className="text-xs font-black text-slate-900 dark:text-white cursor-pointer uppercase tracking-wider"
+                          className={`text-sm font-black cursor-pointer uppercase tracking-wider ${
+                            svc.isActive ? "text-white" : "text-face-ink dark:text-white"
+                          }`}
                         >
                           {svc.serviceType} WASTE STREAM
                         </label>
                       </div>
 
                       <span
-                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold ${
+                        className={`px-2.5 py-0.5 rounded-full text-xs font-extrabold ${
                           svc.isActive
-                            ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300"
-                            : "bg-slate-200 text-slate-500"
+                            ? "bg-white/20 text-white"
+                            : "bg-face-line text-face-muted"
                         }`}
                       >
                         {svc.isActive ? "ACTIVE SCOPE" : "INACTIVE"}
@@ -1114,8 +1133,8 @@ export default function SiteInspectionForm() {
                       <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-4">
                         {/* Facility Select */}
                         <div>
-                          <label className="text-[10px] font-bold text-slate-400 block mb-1">
-                            Disposal Facility <span className="text-rose-500">*</span>
+                          <label className="text-[11px] uppercase font-bold text-face-muted block mb-1 tracking-wider">
+                            Disposal Facility <span className="text-face-red">*</span>
                           </label>
                           <select
                             disabled={!isEditable}
@@ -1128,7 +1147,7 @@ export default function SiteInspectionForm() {
                               updated[idx].facilityName = fac?.name || "";
                               setServices(updated);
                             }}
-                            className="w-full p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                            className="w-full p-2 bg-face-field dark:bg-slate-800 border border-face-line dark:border-slate-700 rounded-lg text-sm text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
                           >
                             <option value="">Select Facility...</option>
                             {facilitiesForType.map((f) => (
@@ -1141,8 +1160,8 @@ export default function SiteInspectionForm() {
 
                         {/* Haulage KM */}
                         <div>
-                          <label className="text-[10px] font-bold text-slate-400 block mb-1">
-                            Haulage One-Way Distance (KM) <span className="text-rose-500">*</span>
+                          <label className="text-[11px] uppercase font-bold text-face-muted block mb-1 tracking-wider">
+                            Haulage One-Way Distance (KM) <span className="text-face-red">*</span>
                           </label>
                           <input
                             type="number"
@@ -1156,14 +1175,14 @@ export default function SiteInspectionForm() {
                               setServices(updated);
                             }}
                             placeholder="km"
-                            className="w-full p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-mono font-bold"
+                            className="w-full p-2 bg-face-field dark:bg-slate-800 border border-face-line dark:border-slate-700 rounded-lg text-sm font-mono font-bold text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
                           />
                         </div>
 
                         {/* Road Condition Buttons */}
                         <div>
-                          <label className="text-[10px] font-bold text-slate-400 block mb-1">
-                            Road Condition Rating <span className="text-rose-500">*</span>
+                          <label className="text-[11px] uppercase font-bold text-face-muted block mb-1 tracking-wider">
+                            Road Condition Rating <span className="text-face-red">*</span>
                           </label>
                           <div className="grid grid-cols-3 gap-1">
                             {(["Good", "Fair", "Poor"] as const).map((rating) => (
@@ -1176,14 +1195,14 @@ export default function SiteInspectionForm() {
                                   updated[idx].roadCondition = rating;
                                   setServices(updated);
                                 }}
-                                className={`py-1.5 px-2 text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${
+                                className={`py-1.5 px-2 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
                                   svc.roadCondition === rating
                                     ? rating === "Good"
-                                      ? "bg-emerald-600 text-white border-emerald-600"
+                                      ? "bg-face-green text-white border-face-green"
                                       : rating === "Fair"
                                       ? "bg-amber-600 text-white border-amber-600"
-                                      : "bg-rose-600 text-white border-rose-600"
-                                    : "bg-slate-50 dark:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-700 hover:bg-slate-100"
+                                      : "bg-face-red text-white border-face-red"
+                                    : "bg-face-field dark:bg-slate-800 text-face-muted border-face-line dark:border-slate-700 hover:bg-face-line/50"
                                 }`}
                               >
                                 {rating}
@@ -1195,7 +1214,7 @@ export default function SiteInspectionForm() {
                         {/* Volume & Unit */}
                         <div className="md:col-span-2 grid grid-cols-2 gap-2">
                           <div>
-                            <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                            <label className="text-[11px] uppercase font-bold text-face-muted block mb-1 tracking-wider">
                               Estimated Volume
                             </label>
                             <input
@@ -1209,12 +1228,12 @@ export default function SiteInspectionForm() {
                                 setServices(updated);
                               }}
                               placeholder="Qty"
-                              className="w-full p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-mono"
+                              className="w-full p-2 bg-face-field dark:bg-slate-800 border border-face-line dark:border-slate-700 rounded-lg text-sm font-mono text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
                             />
                           </div>
 
                           <div>
-                            <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                            <label className="text-[11px] uppercase font-bold text-face-muted block mb-1 tracking-wider">
                               Unit
                             </label>
                             <select
@@ -1225,7 +1244,7 @@ export default function SiteInspectionForm() {
                                 updated[idx].volumeUnit = e.target.value as any;
                                 setServices(updated);
                               }}
-                              className="w-full p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                              className="w-full p-2 bg-face-field dark:bg-slate-800 border border-face-line dark:border-slate-700 rounded-lg text-sm text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
                             >
                               <option value="">Select Unit...</option>
                               {(masterData?.volumeUnits || ["L", "m3", "ton", "loads"]).map((u) => (
@@ -1239,7 +1258,7 @@ export default function SiteInspectionForm() {
 
                         {/* Waste description */}
                         <div>
-                          <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                          <label className="text-[11px] uppercase font-bold text-face-muted block mb-1 tracking-wider">
                             Waste Description
                           </label>
                           <input
@@ -1252,7 +1271,7 @@ export default function SiteInspectionForm() {
                               setServices(updated);
                             }}
                             placeholder="e.g. Sludge, chemicals, oily water"
-                            className="w-full p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                            className="w-full p-2 bg-face-field dark:bg-slate-800 border border-face-line dark:border-slate-700 rounded-lg text-sm text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
                           />
                         </div>
                       </div>
@@ -1263,42 +1282,42 @@ export default function SiteInspectionForm() {
             </div>
 
             {/* Metrics Calculation Panel */}
-            <div className="p-4 bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-950/40 dark:to-blue-950/40 border border-indigo-200 dark:border-indigo-800 rounded-2xl">
-              <span className="text-[10px] font-black uppercase text-indigo-800 dark:text-indigo-300 tracking-wider block mb-2">
+            <div className="p-4 bg-gradient-to-r from-face-green-light to-face-blue-light dark:from-indigo-950/40 dark:to-blue-950/40 border border-face-line dark:border-indigo-800 rounded-2xl">
+              <span className="text-xs font-black uppercase text-face-green-dark dark:text-indigo-300 tracking-wider block mb-2">
                 Real-Time Transport & Cycle Metrics
               </span>
 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-                <div className="bg-white/80 dark:bg-slate-900/80 p-2.5 rounded-xl border border-indigo-100 dark:border-indigo-900">
-                  <span className="text-[9px] font-bold text-slate-400 uppercase block">Single Cycle KM</span>
-                  <span className="text-base font-black text-slate-900 dark:text-white mt-0.5 block">
+                <div className="bg-white/80 dark:bg-slate-900/80 p-2.5 rounded-xl border border-face-line dark:border-indigo-900">
+                  <span className="text-[11px] font-bold text-face-muted uppercase block">Single Cycle KM</span>
+                  <span className="text-lg font-black text-face-ink dark:text-white mt-0.5 block">
                     {liveMetrics.totalCycleKm} km
                   </span>
-                  <span className="text-[9px] text-slate-400 block">2 × (Mob + Active Scopes)</span>
+                  <span className="text-[11px] text-face-muted block">2 × (Mob + Active Scopes)</span>
                 </div>
 
-                <div className="bg-white/80 dark:bg-slate-900/80 p-2.5 rounded-xl border border-indigo-100 dark:border-indigo-900">
-                  <span className="text-[9px] font-bold text-slate-400 uppercase block">Est. Diesel Fuel</span>
-                  <span className="text-base font-black text-slate-900 dark:text-white mt-0.5 block">
+                <div className="bg-white/80 dark:bg-slate-900/80 p-2.5 rounded-xl border border-face-line dark:border-indigo-900">
+                  <span className="text-[11px] font-bold text-face-muted uppercase block">Est. Diesel Fuel</span>
+                  <span className="text-lg font-black text-face-ink dark:text-white mt-0.5 block">
                     {liveMetrics.estFuelLitres} L
                   </span>
-                  <span className="text-[9px] text-slate-400 block">@ 0.4 L/km</span>
+                  <span className="text-[11px] text-face-muted block">@ 0.4 L/km</span>
                 </div>
 
-                <div className="bg-white/80 dark:bg-slate-900/80 p-2.5 rounded-xl border border-indigo-100 dark:border-indigo-900">
-                  <span className="text-[9px] font-bold text-slate-400 uppercase block">Base → Site</span>
-                  <span className="text-base font-black text-slate-900 dark:text-white mt-0.5 block">
+                <div className="bg-white/80 dark:bg-slate-900/80 p-2.5 rounded-xl border border-face-line dark:border-indigo-900">
+                  <span className="text-[11px] font-bold text-face-muted uppercase block">Base → Site</span>
+                  <span className="text-lg font-black text-face-ink dark:text-white mt-0.5 block">
                     {liveBaseToSiteKm} km
                   </span>
-                  <span className="text-[9px] text-slate-400 block">Straight Line</span>
+                  <span className="text-[11px] text-face-muted block">Straight Line</span>
                 </div>
 
-                <div className="bg-white/80 dark:bg-slate-900/80 p-2.5 rounded-xl border border-indigo-100 dark:border-indigo-900">
-                  <span className="text-[9px] font-bold text-slate-400 uppercase block">Active Scopes</span>
-                  <span className="text-base font-black text-slate-900 dark:text-white mt-0.5 block">
+                <div className="bg-white/80 dark:bg-slate-900/80 p-2.5 rounded-xl border border-face-line dark:border-indigo-900">
+                  <span className="text-[11px] font-bold text-face-muted uppercase block">Active Scopes</span>
+                  <span className="text-lg font-black text-face-ink dark:text-white mt-0.5 block">
                     {services.filter((s) => s.isActive).length} / 3
                   </span>
-                  <span className="text-[9px] text-slate-400 block">Services</span>
+                  <span className="text-[11px] text-face-muted block">Services</span>
                 </div>
               </div>
             </div>
@@ -1308,18 +1327,18 @@ export default function SiteInspectionForm() {
         {/* ================= STEP 3: Observations & Attachments ================= */}
         {step === 3 && (
           <div className="space-y-6">
-            <div className="border-b border-slate-100 dark:border-slate-800 pb-3">
-              <h2 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">
+            <div className="border-b border-face-line dark:border-slate-800 pb-3">
+              <h2 className="text-xl sm:text-2xl font-extrabold uppercase tracking-tight text-face-ink dark:text-white">
                 Step 3: Ground Observations & Evidence Attachments
               </h2>
-              <p className="text-xs text-slate-400">
+              <p className="text-sm text-face-muted">
                 Log critical ground conditions, safety clearances, and upload photos with optional EXIF GPS metadata.
               </p>
             </div>
 
             {/* Quick Chips & Textarea */}
             <div className="space-y-3">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
+              <label className="text-xs uppercase font-bold text-face-muted tracking-wider block">
                 Ground Observations & Safety Restrictions
               </label>
 
@@ -1331,7 +1350,7 @@ export default function SiteInspectionForm() {
                       key={chip}
                       type="button"
                       onClick={() => handleAddChip(chip)}
-                      className="px-2.5 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-slate-600 hover:text-indigo-600 dark:text-slate-300 dark:hover:text-indigo-300 text-[10px] font-bold rounded-lg border border-slate-200 dark:border-slate-700 transition-all cursor-pointer"
+                      className="px-2.5 py-1 bg-face-field dark:bg-slate-800 hover:bg-face-green-light dark:hover:bg-face-green-dark/40 text-face-muted hover:text-face-green dark:text-slate-300 dark:hover:text-face-green-mint text-xs font-bold rounded-lg border border-face-line dark:border-slate-700 transition-all cursor-pointer"
                     >
                       + {chip}
                     </button>
@@ -1345,7 +1364,7 @@ export default function SiteInspectionForm() {
                 onChange={(e) => setFormData({ ...formData, observations: e.target.value })}
                 rows={4}
                 placeholder="Enter detailed site access notes, overhead restrictions, pipe clearance, marsh ground conditions..."
-                className="w-full p-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                className="w-full p-3 bg-face-field dark:bg-slate-800/60 border border-face-line dark:border-slate-700 rounded-xl text-sm font-medium text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
               />
             </div>
 
@@ -1353,16 +1372,16 @@ export default function SiteInspectionForm() {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
-                    Site Photos & Document Attachments ({inspection.attachments?.length || 0}) <span className="text-rose-500">*</span>
+                  <h3 className="text-sm font-bold text-face-ink dark:text-white uppercase tracking-wider">
+                    Site Photos & Document Attachments ({inspection.attachments?.length || 0}) <span className="text-face-red">*</span>
                   </h3>
-                  <p className="text-[10px] text-slate-400">
+                  <p className="text-[11px] text-face-muted">
                     JPG, PNG, WEBP, or PDF (Max 25MB). At least 1 attachment is required to submit.
                   </p>
                 </div>
 
                 {isEditable && (
-                  <label className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl cursor-pointer shadow-xs">
+                  <label className="flex items-center gap-1.5 px-3.5 py-2 bg-face-green hover:bg-face-green-dark text-white text-sm font-bold rounded-xl cursor-pointer shadow-xs">
                     <Upload className="w-3.5 h-3.5" />
                     <span>{isUploading ? "Uploading..." : "Upload Files"}</span>
                     <input
@@ -1379,19 +1398,19 @@ export default function SiteInspectionForm() {
 
               {/* Upload Progress Bar if uploading */}
               {isUploading && Object.keys(uploadProgress).length > 0 && (
-                <div className="p-3 bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 rounded-xl space-y-2">
-                  <div className="text-xs font-bold text-indigo-700 dark:text-indigo-300 flex items-center justify-between">
+                <div className="p-3 bg-face-green-light dark:bg-indigo-950/30 border border-face-green/30 dark:border-indigo-800 rounded-xl space-y-2">
+                  <div className="text-sm font-bold text-face-green-dark dark:text-indigo-300 flex items-center justify-between">
                     <span>Uploading direct to storage...</span>
                   </div>
                   {Object.entries(uploadProgress).map(([fName, pct]) => (
                     <div key={fName} className="space-y-1">
-                      <div className="flex justify-between text-[11px] text-slate-600 dark:text-slate-300 font-medium">
+                      <div className="flex justify-between text-xs text-face-muted dark:text-slate-300 font-medium">
                         <span className="truncate max-w-[250px]">{fName}</span>
                         <span>{pct}%</span>
                       </div>
-                      <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                      <div className="w-full h-1.5 bg-face-line dark:bg-slate-700 rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-indigo-600 transition-all duration-200"
+                          className="h-full bg-face-green transition-all duration-200"
                           style={{ width: `${pct}%` }}
                         />
                       </div>
@@ -1406,19 +1425,19 @@ export default function SiteInspectionForm() {
                   {inspection.attachments?.map((att) => (
                     <div
                       key={att.id}
-                      className="p-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl space-y-2 relative group"
+                      className="p-3 bg-face-field dark:bg-slate-800/50 border border-face-line dark:border-slate-700 rounded-xl space-y-2 relative group"
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex items-center gap-2 min-w-0">
-                          <FileText className="w-4 h-4 text-indigo-600 shrink-0" />
-                          <span className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                          <FileText className="w-4 h-4 text-face-green shrink-0" />
+                          <span className="text-sm font-bold text-face-ink dark:text-white truncate">
                             {att.fileName}
                           </span>
                         </div>
 
                         {/* Thumbnail preview */}
                       {(att.mimeType?.startsWith("image/") || att.fileName?.match(/\.(jpe?g|png|webp)$/i)) && (
-                        <div className="w-full h-32 overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+                        <div className="w-full h-32 overflow-hidden rounded-lg bg-white dark:bg-slate-900 border border-face-line dark:border-slate-700">
                           <InspectionAttachmentThumbnail
                             inspectionId={id!}
                             attachmentId={att.id}
@@ -1432,7 +1451,7 @@ export default function SiteInspectionForm() {
                         {att.latitude != null && att.longitude != null && (
                           <span
                             title={`EXIF GPS: ${att.latitude}, ${att.longitude}`}
-                            className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-emerald-100 text-emerald-800 text-[9px] font-bold rounded shrink-0"
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-face-green-light text-face-green-dark text-[11px] font-bold rounded shrink-0"
                           >
                             <MapPin className="w-2.5 h-2.5" />
                             GPS
@@ -1440,17 +1459,17 @@ export default function SiteInspectionForm() {
                         )}
                       </div>
 
-                      <div className="text-[10px] text-slate-400 flex items-center justify-between">
+                      <div className="text-[11px] text-face-muted flex items-center justify-between">
                         <span>Tag: {att.tag || "Site Overview"}</span>
                         <span>{Math.round(att.sizeBytes / 1024)} KB</span>
                       </div>
 
                       {/* Actions */}
-                      <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-200/60 dark:border-slate-700/60">
+                      <div className="flex items-center justify-end gap-2 pt-1 border-t border-face-line dark:border-slate-700/60">
                         <button
                           type="button"
                           onClick={() => handleViewAttachment(att.id)}
-                          className="text-[10px] font-bold text-indigo-600 hover:underline flex items-center gap-1 cursor-pointer"
+                          className="text-xs font-bold text-face-green hover:underline flex items-center gap-1 cursor-pointer"
                         >
                           <Eye className="w-3 h-3" />
                           View
@@ -1460,7 +1479,7 @@ export default function SiteInspectionForm() {
                           <button
                             type="button"
                             onClick={() => deleteAttMutation.mutate(att.id)}
-                            className="text-[10px] font-bold text-rose-600 hover:text-rose-800 cursor-pointer flex items-center gap-1"
+                            className="text-xs font-bold text-face-red hover:opacity-80 cursor-pointer flex items-center gap-1"
                           >
                             <Trash2 className="w-3 h-3" />
                             Delete
@@ -1471,10 +1490,10 @@ export default function SiteInspectionForm() {
                   ))}
                 </div>
               ) : (
-                <div className="p-8 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl text-center space-y-2">
-                  <Upload className="w-6 h-6 text-slate-400 mx-auto" />
-                  <p className="text-xs font-bold text-slate-500">No attachments uploaded yet</p>
-                  <p className="text-[10px] text-slate-400">
+                <div className="p-8 border-2 border-dashed border-face-line dark:border-slate-800 rounded-2xl text-center space-y-2">
+                  <Upload className="w-6 h-6 text-face-muted mx-auto" />
+                  <p className="text-sm font-bold text-face-muted">No attachments uploaded yet</p>
+                  <p className="text-[11px] text-face-muted">
                     Upload photos of ground conditions, gates, overhead cables, and waste holding pits.
                   </p>
                 </div>
@@ -1482,20 +1501,20 @@ export default function SiteInspectionForm() {
             </div>
 
             {/* Certification Checkbox */}
-            <div className="p-4 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-2xl flex items-start gap-3">
+            <div className="p-4 bg-face-field dark:bg-slate-800/40 border border-face-line dark:border-slate-800 rounded-2xl flex items-start gap-3">
               <input
                 type="checkbox"
                 id="certification-check"
                 disabled={!isEditable}
                 checked={Boolean(formData.accepted)}
                 onChange={(e) => setFormData({ ...formData, accepted: e.target.checked })}
-                className="w-4 h-4 text-indigo-600 rounded mt-0.5 cursor-pointer"
+                className="w-4 h-4 text-face-green rounded mt-0.5 cursor-pointer accent-face-green"
               />
               <label
                 htmlFor="certification-check"
-                className="text-xs text-slate-700 dark:text-slate-300 font-medium leading-relaxed cursor-pointer select-none"
+                className="text-sm text-face-muted dark:text-slate-300 font-medium leading-relaxed cursor-pointer select-none"
               >
-                <strong className="font-bold text-slate-900 dark:text-white block">
+                <strong className="font-bold text-face-ink dark:text-white block">
                   Ground Assessment Certification & Accuracy Guarantee
                 </strong>
                 I confirm and certify that all site inspection information, GPS coordinates, haulage distances, and waste specifications provided herein are accurate and reflect real ground conditions.
@@ -1512,7 +1531,7 @@ export default function SiteInspectionForm() {
             <button
               type="button"
               onClick={() => setStep((prev) => (prev - 1) as any)}
-              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl transition-all cursor-pointer"
+              className="px-4 py-2 bg-face-field hover:bg-face-line dark:bg-slate-800 dark:hover:bg-slate-700 text-face-ink dark:text-slate-200 text-sm font-bold rounded-xl transition-all cursor-pointer"
             >
               Previous
             </button>
@@ -1521,7 +1540,7 @@ export default function SiteInspectionForm() {
             <button
               type="button"
               onClick={() => setStep((prev) => (prev + 1) as any)}
-              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
+              className="px-4 py-2 bg-face-green hover:bg-face-green-dark text-white text-sm font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
             >
               <span>Next</span>
               <ArrowRight className="w-3.5 h-3.5" />
@@ -1534,7 +1553,7 @@ export default function SiteInspectionForm() {
           <button
             type="button"
             onClick={() => window.print()}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl hover:bg-slate-50 cursor-pointer"
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-white dark:bg-slate-900 border border-face-line dark:border-slate-800 text-face-ink dark:text-slate-200 text-sm font-bold rounded-xl hover:bg-face-field cursor-pointer"
           >
             <Printer className="w-3.5 h-3.5" />
             <span>Preview PDF Report</span>
@@ -1546,7 +1565,7 @@ export default function SiteInspectionForm() {
               type="button"
               onClick={handleSaveDraft}
               disabled={saveDraftMutation.isPending}
-              className="flex items-center gap-1.5 px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-white text-xs font-bold rounded-xl transition-all cursor-pointer disabled:opacity-50"
+              className="flex items-center gap-1.5 px-4 py-2 bg-face-field hover:bg-face-line dark:bg-slate-800 text-face-ink dark:text-white text-sm font-bold rounded-xl transition-all cursor-pointer disabled:opacity-50"
             >
               <Save className="w-3.5 h-3.5" />
               <span>{saveDraftMutation.isPending ? "Saving..." : "Save Draft"}</span>
@@ -1559,7 +1578,7 @@ export default function SiteInspectionForm() {
               type="button"
               onClick={handleSubmit}
               disabled={submitMutation.isPending}
-              className="flex items-center gap-1.5 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-md shadow-indigo-600/20 transition-all cursor-pointer disabled:opacity-50"
+              className="flex items-center gap-1.5 px-5 py-2 bg-face-green hover:bg-face-green-dark text-white text-sm font-bold rounded-xl shadow-md shadow-face-green/20 transition-all cursor-pointer disabled:opacity-50"
             >
               <Send className="w-3.5 h-3.5" />
               <span>
