@@ -8,6 +8,8 @@ import {
   Lead,
   User,
   Activity,
+  SiteHoliday,
+  SiteInspectionAuditLog,
 } from "@nexus-crm/database";
 import { Op } from "sequelize";
 import crypto from "crypto";
@@ -138,12 +140,14 @@ export async function getSiteInspectionGate(
 /**
  * Creates and requests a new Site Inspection for a Lead.
  * Ensures one live inspection per lead.
- * Auto-assigns the available site_manager with the fewest open inspections.
+ * Assigns inspector via the assignment engine (legacy, nearest, balanced).
  */
 export async function requestSiteInspection(
   leadId: string,
   requestedById?: string,
-  requestNote?: string
+  requestNote?: string,
+  options?: any,
+  actorRole?: string
 ): Promise<any> {
   const lead: any = await Lead.findByPk(leadId);
   if (!lead) {
@@ -167,53 +171,46 @@ export async function requestSiteInspection(
   // Generate inspection number: SI-YYYY-####
   const currentYear = new Date().getFullYear();
   const countThisYear = await SiteInspection.count();
-  const inspectionNumber = `SI-${currentYear}-${String(countThisYear + 1).padStart(4, "0")}`;
+  let inspectionNumber = `SI-${currentYear}-${String(countThisYear + 1).padStart(4, "0")}`;
+  const existingNum = await SiteInspection.findOne({ where: { inspectionNumber } });
+  if (existingNum) {
+    inspectionNumber = `SI-${currentYear}-${String(countThisYear + 1).padStart(4, "0")}-${crypto.randomBytes(2).toString("hex").toUpperCase()}`;
+  }
 
   // SLA Hours
   const slaHours = parseInt(process.env.SITE_INSPECTION_SLA_HOURS || "48", 10);
   const dueAt = new Date(Date.now() + slaHours * 3600 * 1000);
 
-  // Auto-assign site manager with fewest open inspections
-  const siteManagers = await User.findAll({
-    where: {
-      role: "site_manager",
-      [Op.or]: [{ status: { [Op.ne]: "Inactive" } }, { status: null }],
-    },
-  });
-
-  let assignedManagerId: string | null = null;
-  if (siteManagers.length > 0) {
-    const openStatuses = ["REQUESTED", "DRAFT", "CHANGES_REQUESTED", "SUBMITTED"];
-    const managersWithCounts = await Promise.all(
-      siteManagers.map(async (mgr: any) => {
-        const openCount = await SiteInspection.count({
-          where: {
-            assignedToId: mgr.id,
-            status: { [Op.in]: openStatuses },
-          },
-        });
-        return { manager: mgr, openCount };
-      })
-    );
-
-    // Sort ascending by open count
-    managersWithCounts.sort((a, b) => a.openCount - b.openCount);
-    assignedManagerId = managersWithCounts[0].manager.id;
-  }
-
   const clientName = [lead.firstName, lead.lastName].filter(Boolean).join(" ").trim();
   const rfqNum = lead.leadNumber || (lead.id ? lead.id.slice(0, 8).toUpperCase() : "");
   const scope = lead.body || lead.notes || lead.extractedRequirement?.requirement || lead.subject || "";
 
-  const inspection: any = await SiteInspection.create({
+  const payloadOptions = options || {};
+  const priority = payloadOptions.priority || "NORMAL";
+  if (priority === "URGENT" && (!payloadOptions.priorityReason || !payloadOptions.priorityReason.trim())) {
+    throw new Error("Priority URGENT requires a priority reason.");
+  }
+
+  const { isPhase2SchemaReady } = require("@nexus-crm/database");
+  const { getSettings } = require("./siteInspectionSettingsService");
+  const settings = await getSettings().catch(() => ({ assignmentMode: "legacy" }));
+  const hasPhase2ExplicitOptions = Boolean(
+    payloadOptions.requestedInspectorId ||
+    payloadOptions.siteAreaName ||
+    (payloadOptions.priority && payloadOptions.priority !== "NORMAL") ||
+    (payloadOptions.requiredCertifications && payloadOptions.requiredCertifications.length > 0)
+  );
+  const usePhase2Engine = Boolean(isPhase2SchemaReady && (settings.assignmentMode !== "legacy" || hasPhase2ExplicitOptions));
+
+  const createFields: any = {
     id: crypto.randomUUID(),
     inspectionNumber,
     leadId: lead.id,
     dealId: null,
     status: "REQUESTED",
-    assignedToId: assignedManagerId,
+    assignedToId: null, // Set below
     requestedById: requestedById || lead.assignedToId || null,
-    requestNote: requestNote || null,
+    requestNote: requestNote || payloadOptions.requestNote || null,
     dueAt,
     baseId: null,
     baseName: null,
@@ -236,7 +233,28 @@ export async function requestSiteInspection(
     observations: null,
     accepted: false,
     revision: 1,
-  });
+  };
+
+  if (isPhase2SchemaReady && (SiteInspection as any).rawAttributes?.priority) {
+    createFields.priority = priority;
+    createFields.priorityReason = payloadOptions.priorityReason || null;
+    createFields.siteAreaName = payloadOptions.siteAreaName || null;
+    createFields.siteLatitudeHint = payloadOptions.siteLatitudeHint || null;
+  }
+
+  // Create with retry in case of transient database locks or collisions
+  let inspection: any = null;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      createFields.inspectionNumber = inspectionNumber;
+      inspection = await SiteInspection.create(createFields);
+      break;
+    } catch (err: any) {
+      if (attempt === 4) throw err;
+      await new Promise((r) => setTimeout(r, 40 * (attempt + 1) + Math.floor(Math.random() * 50)));
+      inspectionNumber = `SI-${currentYear}-${String(countThisYear + attempt + 2).padStart(4, "0")}-${crypto.randomBytes(2).toString("hex").toUpperCase()}`;
+    }
+  }
 
   // Pre-create the 3 waste services inactive
   await SiteInspectionService.bulkCreate([
@@ -287,36 +305,77 @@ export async function requestSiteInspection(
     siteInspectionId: inspection.id,
   });
 
-  // Notifications
-  if (assignedManagerId) {
+  // Assign inspector
+  if (usePhase2Engine) {
+    // Phase 2 Transactional Assignment Service (engine, advisory locks, audit logs, notifications)
     try {
-      await createNotification(
-        assignedManagerId,
-        "site_inspection",
-        "New Site Inspection Assigned",
-        `Site Inspection ${inspectionNumber} has been assigned to you for ${lead.company || clientName}.`,
-        `/site-inspections/${inspection.id}`
+      const { assignInspectionTransaction } = require("./siteInspectionAssignmentService");
+      await assignInspectionTransaction(
+        inspection.id,
+        {
+          siteAreaName: payloadOptions.siteAreaName,
+          siteLatitudeHint: payloadOptions.siteLatitudeHint,
+          siteLongitudeHint: payloadOptions.siteLongitudeHint,
+          priority,
+          priorityReason: payloadOptions.priorityReason,
+          requiredCertifications: payloadOptions.requiredCertifications,
+          requestedInspectorId: payloadOptions.requestedInspectorId,
+          requestedInspectorReason: payloadOptions.requestedInspectorReason,
+          requestNote: requestNote || payloadOptions.requestNote,
+        },
+        requestedById,
+        actorRole
       );
-    } catch (notifErr) {
-      console.warn("[requestSiteInspection] Notification warn:", notifErr);
+    } catch (assignErr) {
+      console.error("[requestSiteInspection] Phase 2 Assignment error:", assignErr);
     }
   } else {
-    // Notify approvers that an unassigned inspection was requested
+    // Pure Legacy Pre-Phase 2 Assignment: fewest open inspections, fair round-robin
+    // Does NOT query SiteInspectorProfiles, SiteInspectionSettings, or write SiteInspectionAuditLogs
     try {
-      const approvers = await User.findAll({
-        where: { role: { [Op.in]: APPROVER_ROLES } },
+      const siteManagers = await User.findAll({
+        where: {
+          role: "site_manager",
+          [Op.or]: [{ status: { [Op.ne]: "Inactive" } }, { status: null }],
+        },
       });
-      for (const approver of approvers) {
-        await createNotification(
-          (approver as any).id,
-          "site_inspection",
-          "Site Inspection Requires Assignment",
-          `Site Inspection ${inspectionNumber} requested for ${lead.company || clientName} has no available Site Manager.`,
-          `/site-inspections/${inspection.id}`
+
+      let assignedManagerId: string | null = null;
+      if (siteManagers.length > 0) {
+        const openStatuses = ["REQUESTED", "DRAFT", "CHANGES_REQUESTED", "SUBMITTED"];
+        const managersWithCounts = await Promise.all(
+          siteManagers.map(async (mgr: any) => {
+            const openCount = await SiteInspection.count({
+              where: {
+                assignedToId: mgr.id,
+                status: { [Op.in]: openStatuses },
+              },
+            });
+            return { id: mgr.id, openCount };
+          })
         );
+
+        managersWithCounts.sort((a, b) => a.openCount - b.openCount);
+        assignedManagerId = managersWithCounts[0]?.id || null;
       }
-    } catch (notifErr) {
-      console.warn("[requestSiteInspection] Approvers notification warn:", notifErr);
+
+      if (assignedManagerId) {
+        await inspection.update({ assignedToId: assignedManagerId });
+        try {
+          const { createNotification } = require("./notificationService");
+          await createNotification(
+            assignedManagerId,
+            "site_inspection",
+            "New Site Inspection Assigned",
+            `Site Inspection ${inspectionNumber} has been assigned to you.`,
+            `/site-inspections/${inspection.id}`
+          );
+        } catch (notifErr) {
+          console.warn("[requestSiteInspection] Notification warning:", notifErr);
+        }
+      }
+    } catch (legacyErr) {
+      console.error("[requestSiteInspection] Legacy assignment error:", legacyErr);
     }
   }
 
@@ -324,6 +383,7 @@ export async function requestSiteInspection(
     include: [
       { model: SiteInspectionService, as: "services" },
       { model: SiteBase, as: "base" },
+      { model: User, as: "assignedTo" },
     ],
   });
 }
@@ -737,31 +797,404 @@ export async function reviewInspection(
 export async function reassignInspection(
   inspectionId: string,
   newAssigneeId: string,
-  callerRole: string
+  callerRole: string,
+  reason?: string,
+  actorId?: string,
+  ip?: string
 ): Promise<any> {
   if (!APPROVER_ROLES.includes(callerRole)) {
     throw new Error("Only managers or approvers may reassign site inspections.");
   }
 
+  const { isPhase2SchemaReady } = require("@nexus-crm/database");
+  if (!isPhase2SchemaReady) {
+    const inspection: any = await SiteInspection.findByPk(inspectionId);
+    if (!inspection) throw new Error("Site inspection not found");
+
+    const newAssignee: any = await User.findByPk(newAssigneeId);
+    if (!newAssignee) throw new Error("New assignee user not found");
+
+    await inspection.update({ assignedToId: newAssigneeId });
+
+    try {
+      await createNotification(
+        newAssigneeId,
+        "site_inspection",
+        "Site Inspection Assigned",
+        `Site Inspection ${inspection.inspectionNumber} has been reassigned to you.`,
+        `/site-inspections/${inspection.id}`
+      );
+    } catch (err) {
+      console.warn("[reassignInspection] Notification warn:", err);
+    }
+
+    return inspection;
+  }
+
+  const { manualReassignInspection } = require("./siteInspectionAssignmentService");
+  return manualReassignInspection(
+    inspectionId,
+    newAssigneeId,
+    reason || "Reassigned by manager",
+    actorId || "system",
+    callerRole,
+    ip
+  );
+}
+
+// ─── Phase 2 Stage B: Inspector State Machine Actions ────────────────────────
+
+/**
+ * Inspector accepts assignment. Transitions from REQUESTED -> DRAFT.
+ */
+export async function acceptInspection(
+  inspectionId: string,
+  userId: string,
+  callerRole: string,
+  ip?: string
+): Promise<any> {
   const inspection: any = await SiteInspection.findByPk(inspectionId);
   if (!inspection) throw new Error("Site inspection not found");
 
-  const newAssignee: any = await User.findByPk(newAssigneeId);
-  if (!newAssignee) throw new Error("New assignee user not found");
-
-  await inspection.update({ assignedToId: newAssigneeId });
-
-  try {
-    await createNotification(
-      newAssigneeId,
-      "site_inspection",
-      "Site Inspection Assigned",
-      `Site Inspection ${inspection.inspectionNumber} has been reassigned to you.`,
-      `/site-inspections/${inspection.id}`
-    );
-  } catch (err) {
-    console.warn("[reassignInspection] Notification warn:", err);
+  if (inspection.assignedToId && inspection.assignedToId !== userId && !APPROVER_ROLES.includes(callerRole)) {
+    throw new Error("Only the assigned inspector or a manager may accept this site inspection.");
   }
+
+  const now = new Date();
+  await inspection.update({
+    status: "DRAFT",
+    acceptedAt: now,
+    assignmentState: "ASSIGNED",
+  });
+
+  const { logSiteInspectionAudit } = require("./siteInspectionAuditService");
+  await logSiteInspectionAudit({
+    inspectionId,
+    entityType: "INSPECTION",
+    entityId: inspectionId,
+    action: "ACCEPT_ASSIGNMENT",
+    actorId: userId,
+    actorRole: callerRole,
+    fromValue: "REQUESTED",
+    toValue: "DRAFT",
+    reason: "Inspector accepted assignment",
+    ip: ip || null,
+  });
+
+  return SiteInspection.findByPk(inspectionId, {
+    include: [
+      { model: SiteInspectionService, as: "services" },
+      { model: SiteBase, as: "base" },
+      { model: User, as: "assignedTo" },
+    ],
+  });
+}
+
+/**
+ * Inspector declines assignment. Requires reason. Re-offers to next candidate.
+ */
+export async function declineInspection(
+  inspectionId: string,
+  reason: string,
+  userId: string,
+  callerRole: string,
+  ip?: string
+): Promise<any> {
+  if (!reason || !reason.trim()) {
+    throw new Error("A decline reason is mandatory.");
+  }
+
+  const inspection: any = await SiteInspection.findByPk(inspectionId);
+  if (!inspection) throw new Error("Site inspection not found");
+
+  if (inspection.assignedToId && inspection.assignedToId !== userId && !APPROVER_ROLES.includes(callerRole)) {
+    throw new Error("Only the assigned inspector or a manager may decline this site inspection.");
+  }
+
+  const previousInspectorId = inspection.assignedToId;
+
+  const { logSiteInspectionAudit } = require("./siteInspectionAuditService");
+  await logSiteInspectionAudit({
+    inspectionId,
+    entityType: "INSPECTION",
+    entityId: inspectionId,
+    action: "DECLINE_ASSIGNMENT",
+    actorId: userId,
+    actorRole: callerRole,
+    fromValue: previousInspectorId,
+    toValue: null,
+    reason: `Declined by inspector: ${reason.trim()}`,
+    ip: ip || null,
+  });
+
+  // Query previous declines for this inspection to exclude all past declined inspectors
+  const pastDeclines = await SiteInspectionAuditLog.findAll({
+    where: {
+      inspectionId,
+      action: "DECLINE_ASSIGNMENT",
+    },
+  });
+  const excludedUserIds = pastDeclines.map((d: any) => d.fromValue).filter(Boolean);
+  if (previousInspectorId && !excludedUserIds.includes(previousInspectorId)) {
+    excludedUserIds.push(previousInspectorId);
+  }
+
+  await inspection.update({
+    status: "REQUESTED",
+    assignedToId: null,
+    declinedAt: new Date(),
+    declineReason: reason.trim(),
+    assignmentState: "UNASSIGNED",
+  });
+
+  // Re-offer via assignment engine excluding all declined inspectors
+  const { assignInspectionTransaction } = require("./siteInspectionAssignmentService");
+  return assignInspectionTransaction(
+    inspectionId,
+    {
+      excludedUserIds,
+      priority: inspection.priority,
+      siteAreaName: inspection.siteAreaName,
+      siteLatitudeHint: inspection.siteLatitudeHint,
+      siteLongitudeHint: inspection.siteLongitudeHint,
+      requiredCertifications: inspection.requiredCertifications
+        ? JSON.parse(inspection.requiredCertifications)
+        : [],
+    },
+    userId,
+    callerRole,
+    ip
+  );
+}
+
+/**
+ * Schedules the field visit. Validates working day in Asia/Riyadh and maxVisitsPerDay limit.
+ */
+export async function scheduleInspectionVisit(
+  inspectionId: string,
+  scheduledVisitAt: Date,
+  userId: string,
+  callerRole: string,
+  ip?: string
+): Promise<any> {
+  const inspection: any = await SiteInspection.findByPk(inspectionId);
+  if (!inspection) throw new Error("Site inspection not found");
+
+  const inspectorId = inspection.assignedToId || userId;
+
+  // Validate working day
+  const { isWorkingDay } = require("./siteInspectionSlaService");
+  const { getSettings } = require("./siteInspectionSettingsService");
+  const settings = await getSettings();
+  const holidays = await SiteHoliday.findAll({ where: { isActive: true } });
+
+  const visitDate = new Date(scheduledVisitAt);
+  if (isNaN(visitDate.getTime())) {
+    throw new Error("Invalid visit date/time.");
+  }
+
+  const validDay = isWorkingDay(visitDate, settings.workingWeek, holidays);
+  if (!validDay) {
+    throw new Error("Site visit cannot be scheduled on a non-working day or public holiday.");
+  }
+
+  // Validate daily visit limit (maxVisitsPerDay)
+  const maxVisits = settings.maxVisitsPerDay || 2;
+  // Calculate start and end of this day in Asia/Riyadh (UTC+3)
+  const rd = new Date(visitDate.getTime() + 3 * 3600000);
+  const dayStart = new Date(Date.UTC(rd.getUTCFullYear(), rd.getUTCMonth(), rd.getUTCDate()) - 3 * 3600000);
+  const dayEnd = new Date(Date.UTC(rd.getUTCFullYear(), rd.getUTCMonth(), rd.getUTCDate() + 1) - 3 * 3600000);
+
+  const existingVisitsCount = await SiteInspection.count({
+    where: {
+      assignedToId: inspectorId,
+      id: { [Op.ne]: inspectionId },
+      scheduledVisitAt: { [Op.gte]: dayStart, [Op.lt]: dayEnd },
+    },
+  });
+
+  if (existingVisitsCount >= maxVisits) {
+    throw new Error(`Inspector already has ${existingVisitsCount} visits scheduled on this day (Maximum allowed: ${maxVisits}).`);
+  }
+
+  await inspection.update({ scheduledVisitAt: visitDate });
+
+  const { logSiteInspectionAudit } = require("./siteInspectionAuditService");
+  await logSiteInspectionAudit({
+    inspectionId,
+    entityType: "INSPECTION",
+    entityId: inspectionId,
+    action: "SCHEDULE_VISIT",
+    actorId: userId,
+    actorRole: callerRole,
+    toValue: visitDate.toISOString(),
+    reason: `Visit scheduled for ${visitDate.toISOString()}`,
+    ip: ip || null,
+  });
 
   return inspection;
 }
+
+/**
+ * Inspector starts field assessment visit.
+ */
+export async function startInspectionVisit(
+  inspectionId: string,
+  userId: string,
+  callerRole: string,
+  ip?: string
+): Promise<any> {
+  const inspection: any = await SiteInspection.findByPk(inspectionId);
+  if (!inspection) throw new Error("Site inspection not found");
+
+  const now = new Date();
+  await inspection.update({ startedAt: now });
+
+  const { logSiteInspectionAudit } = require("./siteInspectionAuditService");
+  await logSiteInspectionAudit({
+    inspectionId,
+    entityType: "INSPECTION",
+    entityId: inspectionId,
+    action: "START_VISIT",
+    actorId: userId,
+    actorRole: callerRole,
+    toValue: now.toISOString(),
+    reason: "Inspector started field visit assessment",
+    ip: ip || null,
+  });
+
+  return inspection;
+}
+
+/**
+ * Inspector requests more time (SLA extension). Requires reason, awaits manager review.
+ */
+export async function requestMoreTime(
+  inspectionId: string,
+  hoursRequested: number,
+  reason: string,
+  userId: string,
+  callerRole: string,
+  ip?: string
+): Promise<any> {
+  if (!hoursRequested || hoursRequested <= 0) {
+    throw new Error("Additional hours requested must be greater than 0.");
+  }
+  if (!reason || !reason.trim()) {
+    throw new Error("A reason explaining the extension request is mandatory.");
+  }
+
+  const inspection: any = await SiteInspection.findByPk(inspectionId);
+  if (!inspection) throw new Error("Site inspection not found");
+
+  await inspection.update({
+    moreTimeStatus: "PENDING",
+    moreTimeRequestedHours: hoursRequested,
+    moreTimeReason: reason.trim(),
+  });
+
+  const { logSiteInspectionAudit } = require("./siteInspectionAuditService");
+  await logSiteInspectionAudit({
+    inspectionId,
+    entityType: "INSPECTION",
+    entityId: inspectionId,
+    action: "REQUEST_MORE_TIME",
+    actorId: userId,
+    actorRole: callerRole,
+    toValue: { hoursRequested, reason: reason.trim() },
+    reason: `Inspector requested +${hoursRequested}h extension: ${reason.trim()}`,
+    ip: ip || null,
+  });
+
+  // Notify Ops Managers
+  try {
+    const approvers = await User.findAll({ where: { role: { [Op.in]: APPROVER_ROLES } } });
+    for (const approver of approvers) {
+      await createNotification(
+        (approver as any).id,
+        "site_inspection",
+        "Extension Requested",
+        `Inspector requested +${hoursRequested}h extension on ${inspection.inspectionNumber}: ${reason.trim()}`,
+        `/site-inspections/${inspection.id}`
+      );
+    }
+  } catch (err) {}
+
+  return inspection;
+}
+
+/**
+ * Ops Manager or Director reviews inspector's more time request (APPROVE or REJECT).
+ */
+export async function reviewMoreTimeRequest(
+  inspectionId: string,
+  action: "APPROVE" | "REJECT",
+  reviewerId: string,
+  reviewerRole: string,
+  comment?: string,
+  ip?: string
+): Promise<any> {
+  if (!APPROVER_ROLES.includes(reviewerRole)) {
+    throw new Error("Only Ops Managers, Directors, or Admins may review extension requests.");
+  }
+
+  const inspection: any = await SiteInspection.findByPk(inspectionId);
+  if (!inspection) throw new Error("Site inspection not found");
+
+  const now = new Date();
+  if (action === "APPROVE") {
+    const hours = inspection.moreTimeRequestedHours || 24;
+    const currentDue = inspection.slaSubmitDueAt ? new Date(inspection.slaSubmitDueAt) : new Date();
+    const newDueAt = new Date(currentDue.getTime() + hours * 3600000);
+
+    await inspection.update({
+      moreTimeStatus: "APPROVED",
+      moreTimeApprovedById: reviewerId,
+      moreTimeApprovedAt: now,
+      slaSubmitDueAt: newDueAt,
+      dueAt: newDueAt,
+    });
+
+    if (inspection.assignedToId) {
+      await createNotification(
+        inspection.assignedToId,
+        "site_inspection",
+        "Extension Approved",
+        `Your request for +${hours}h extension on ${inspection.inspectionNumber} was approved.`,
+        `/site-inspections/${inspection.id}`
+      );
+    }
+  } else {
+    await inspection.update({
+      moreTimeStatus: "REJECTED",
+      moreTimeApprovedById: reviewerId,
+      moreTimeApprovedAt: now,
+    });
+
+    if (inspection.assignedToId) {
+      await createNotification(
+        inspection.assignedToId,
+        "site_inspection",
+        "Extension Request Rejected",
+        `Your extension request for ${inspection.inspectionNumber} was rejected.${comment ? ` Reason: ${comment}` : ""}`,
+        `/site-inspections/${inspection.id}`
+      );
+    }
+  }
+
+  const { logSiteInspectionAudit } = require("./siteInspectionAuditService");
+  await logSiteInspectionAudit({
+    inspectionId,
+    entityType: "INSPECTION",
+    entityId: inspectionId,
+    action: action === "APPROVE" ? "APPROVE_MORE_TIME" : "REJECT_MORE_TIME",
+    actorId: reviewerId,
+    actorRole: reviewerRole,
+    toValue: action,
+    reason: comment || `Manager ${action.toLowerCase()}d extension request`,
+    ip: ip || null,
+  });
+
+  return inspection;
+}
+

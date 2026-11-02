@@ -14,9 +14,11 @@ if (process.env.NODE_ENV === "production" && !process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL environment variable is required in production");
 }
 
-const sqlitePath = __dirname.includes("dist")
-  ? path.resolve(__dirname, "../../../nexus_crm.sqlite")
-  : path.resolve(__dirname, "../../nexus_crm.sqlite");
+const sqlitePath = process.env.DB_STORAGE
+  ? path.resolve(process.env.DB_STORAGE)
+  : (__dirname.includes("dist")
+    ? path.resolve(__dirname, "../../../nexus_crm.sqlite")
+    : path.resolve(__dirname, "../../nexus_crm.sqlite"));
 
 export function isLocalDatabaseHost(urlStr?: string): boolean {
   if (!urlStr) return false;
@@ -97,6 +99,10 @@ export class Database {
     try {
       await sequelize.authenticate();
       console.log("DB connection established");
+      try {
+        const { verifyAndAdaptPhase2Schema } = require("../models");
+        await verifyAndAdaptPhase2Schema();
+      } catch (e) {}
     } catch (error) {
       console.log("unable to connect to DB : ", error);
     }

@@ -1,3 +1,7 @@
+if (!process.env.JWT_SECRET) {
+  process.env.JWT_SECRET = "default_secret";
+}
+
 process.env.SITE_INSPECTION_GATE = "off";
 
 if (process.env.DATABASE_URL) {
@@ -5,7 +9,7 @@ if (process.env.DATABASE_URL) {
 } else {
   process.env.USE_SQLITE = "true";
   process.env.DB_DIALECT = "sqlite";
-  process.env.DB_STORAGE = "./test.sqlite";
+  process.env.DB_STORAGE = `./test_${process.env.JEST_WORKER_ID || "1"}.sqlite`;
 }
 
 jest.mock("sanitize-html", () => {
@@ -23,9 +27,25 @@ import "dotenv/config";
 delete process.env.DATABASE_URL;
 process.env.USE_SQLITE = "true";
 process.env.DB_DIALECT = "sqlite";
-process.env.DB_STORAGE = "./test.sqlite";
+process.env.DB_STORAGE = `./test_${process.env.JEST_WORKER_ID || "1"}.sqlite`;
 
 const { Database, sequelize } = require("@nexus-crm/database");
+
+if (sequelize.getDialect() === "sqlite") {
+  const origGetConnection = sequelize.connectionManager.getConnection.bind(sequelize.connectionManager);
+  sequelize.connectionManager.getConnection = async function(options: any) {
+    const connection = await origGetConnection(options);
+    if (connection && typeof connection.configure === "function") {
+      connection.configure("busyTimeout", 30000);
+    }
+    if (connection && typeof connection.run === "function") {
+      connection.run("PRAGMA journal_mode = WAL;");
+      connection.run("PRAGMA busy_timeout = 30000;");
+      connection.run("PRAGMA synchronous = NORMAL;");
+    }
+    return connection;
+  };
+}
 
 jest.setTimeout(60000);
 
@@ -45,6 +65,8 @@ beforeAll(async () => {
   await Database.createConnection();
   const dialect = sequelize.getDialect();
   if (dialect === "sqlite") {
+    await sequelize.query("PRAGMA journal_mode = WAL;").catch(() => {});
+    await sequelize.query("PRAGMA busy_timeout = 30000;").catch(() => {});
     await sequelize.query("PRAGMA foreign_keys = OFF;");
     await sequelize.sync({ force: true });
     await sequelize.query("PRAGMA foreign_keys = ON;");
@@ -53,6 +75,10 @@ beforeAll(async () => {
       "SiteInspectionAttachments",
       "SiteInspectionServices",
       "SiteInspections",
+      "SiteInspectorProfiles",
+      "SiteInspectionSettings",
+      "SiteHolidays",
+      "SiteInspectionAuditLogs",
       "Activities",
       "Opportunities",
       "Deals",

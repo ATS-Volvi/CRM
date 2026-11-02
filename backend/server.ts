@@ -26,6 +26,16 @@ export function createServer(): Express {
     res.json({ status: "ok", service: "nexus-crm-backend" });
   });
 
+  app.get(["/api/health/automation", "/health/automation"], async (_req, res) => {
+    try {
+      const { getAutomationHealth } = require("./src/services/siteInspectionAutomationScanner");
+      const health = await getAutomationHealth();
+      res.json(health);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   app.get(["/api/db-health", "/db-health"], async (_req, res) => {
     const { sequelize } = require("@nexus-crm/database");
     try {

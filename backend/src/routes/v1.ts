@@ -1025,10 +1025,45 @@ import {
   getLeadSiteInspection,
   requestLeadSiteInspectionEndpoint,
   uploadAttachments,
+  getSiteInspectionSettings,
+  updateSiteInspectionSettings,
+  listSiteHolidays,
+  createSiteHoliday,
+  updateSiteHoliday,
+  deleteSiteHoliday,
+  listInspectorProfiles,
+  getInspectorProfile,
+  updateInspectorProfile,
+  listSiteInspectionAuditLogs,
+  bulkAssignSiteInspectionsEndpoint,
+  acceptInspectionHandler,
+  declineInspectionHandler,
+  scheduleInspectionVisitHandler,
+  startInspectionVisitHandler,
+  requestMoreTimeHandler,
+  reviewMoreTimeHandler,
+  markWaitingOnClientHandler,
+  resumeFromWaitingOnClientHandler,
+  overrideDueDateHandler,
+  getAutomationHealthHandler,
 } from "../controllers/siteInspectionController";
 
 router.get("/site-inspections/master", authMiddleware, getMasterData);
 router.get("/site-inspections/site-managers", authMiddleware, requireInspectionApprover, getSiteManagers);
+
+// Phase 2 Settings, Holidays, Profiles, and Audit Logs
+router.get("/site-inspections/settings", authMiddleware, getSiteInspectionSettings);
+router.put("/site-inspections/settings", authMiddleware, updateSiteInspectionSettings);
+router.get("/site-inspections/holidays", authMiddleware, listSiteHolidays);
+router.post("/site-inspections/holidays", authMiddleware, createSiteHoliday);
+router.put("/site-inspections/holidays/:id", authMiddleware, updateSiteHoliday);
+router.delete("/site-inspections/holidays/:id", authMiddleware, deleteSiteHoliday);
+router.get("/site-inspections/inspectors", authMiddleware, listInspectorProfiles);
+router.get("/site-inspections/inspectors/:userId/profile", authMiddleware, getInspectorProfile);
+router.put("/site-inspections/inspectors/:userId/profile", authMiddleware, updateInspectorProfile);
+router.put("/site-inspections/inspectors/:userId", authMiddleware, updateInspectorProfile);
+router.get("/site-inspections/audit-logs", authMiddleware, listSiteInspectionAuditLogs);
+router.post("/site-inspections/bulk-assign", authMiddleware, bulkAssignSiteInspectionsEndpoint);
 
 router.post("/site-bases", authMiddleware, requireInspectionApprover, createSiteBase);
 router.put("/site-bases/:id", authMiddleware, requireInspectionApprover, updateSiteBase);
@@ -1043,6 +1078,18 @@ router.get("/site-inspections/:id/completeness", authMiddleware, checkCompletene
 router.post("/site-inspections/:id/submit", authMiddleware, submitSiteInspection);
 router.post("/site-inspections/:id/review", authMiddleware, reviewSiteInspection);
 router.post("/site-inspections/:id/reassign", authMiddleware, reassignSiteInspection);
+
+// Stage B Inspector State Machine & Timelines
+router.post("/site-inspections/:id/accept", authMiddleware, acceptInspectionHandler);
+router.post("/site-inspections/:id/decline", authMiddleware, declineInspectionHandler);
+router.post("/site-inspections/:id/schedule", authMiddleware, scheduleInspectionVisitHandler);
+router.post("/site-inspections/:id/start-visit", authMiddleware, startInspectionVisitHandler);
+router.post("/site-inspections/:id/request-more-time", authMiddleware, requestMoreTimeHandler);
+router.post("/site-inspections/:id/review-more-time", authMiddleware, reviewMoreTimeHandler);
+router.post("/site-inspections/:id/waiting-on-client", authMiddleware, markWaitingOnClientHandler);
+router.post("/site-inspections/:id/resume", authMiddleware, resumeFromWaitingOnClientHandler);
+router.post("/site-inspections/:id/override-due-date", authMiddleware, overrideDueDateHandler);
+router.get("/site-inspections/automation/health", getAutomationHealthHandler);
 
 router.post("/site-inspections/:id/attachments/presign", authMiddleware, presignAttachmentUpload);
 router.post("/site-inspections/:id/attachments/complete", authMiddleware, completeAttachmentUpload);

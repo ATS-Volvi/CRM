@@ -497,7 +497,7 @@ describe("E2E: Email Delivery Automation", () => {
 describe("E2E: Intent Filter Gate", () => {
   let transporter: any;
   const jwt = require("jsonwebtoken");
-  const JWT_SECRET = process.env.JWT_SECRET || "nexus-jwt-secret-dev";
+  const JWT_SECRET = process.env.JWT_SECRET;
 
   beforeAll(async () => {
     process.env.INBOUND_EMAIL_SECRET = "test_secret";
