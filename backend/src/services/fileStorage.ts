@@ -135,26 +135,50 @@ export class S3FileStorage implements FileStorage {
   private bucket: string;
 
   constructor(client?: S3Client, bucket?: string) {
-    this.bucket = bucket || process.env.S3_BUCKET || "";
+    this.bucket = bucket || process.env.S3_BUCKET_NAME || process.env.S3_BUCKET || process.env.AWS_S3_BUCKET || "";
     if (client) {
       this.client = client;
     } else {
-      const region = process.env.S3_REGION || "us-east-1";
-      const endpoint = process.env.S3_ENDPOINT || undefined;
+      const region = process.env.AWS_REGION || process.env.S3_REGION || process.env.AWS_DEFAULT_REGION || "us-east-1";
+      const endpoint = process.env.S3_ENDPOINT || process.env.AWS_ENDPOINT_URL || undefined;
       const forcePathStyle = process.env.S3_FORCE_PATH_STYLE === "true" || process.env.S3_FORCE_PATH_STYLE === "1";
-      const accessKeyId = process.env.S3_ACCESS_KEY_ID || "";
-      const secretAccessKey = process.env.S3_SECRET_ACCESS_KEY || "";
+      const accessKeyId = process.env.AWS_ACCESS_KEY_ID || process.env.S3_ACCESS_KEY_ID || "";
+      const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY || process.env.S3_SECRET_ACCESS_KEY || "";
+
+      // Validate and log explicit errors when required env vars are missing
+      const isS3Driver = (process.env.STORAGE_DRIVER || "").toLowerCase() === "s3";
+      if (isS3Driver) {
+        if (!this.bucket) {
+          console.error(
+            "[S3FileStorage] Missing required environment variable: S3_BUCKET_NAME (or S3_BUCKET). File storage operations will fail."
+          );
+        }
+        if (!process.env.AWS_REGION && !process.env.S3_REGION && !process.env.AWS_DEFAULT_REGION) {
+          console.warn(
+            `[S3FileStorage] Neither AWS_REGION nor S3_REGION is defined. Defaulting to '${region}'. If your S3 bucket is in another region, presigned URLs will fail CORS preflight due to 301/307 redirects.`
+          );
+        }
+        if (!accessKeyId || !secretAccessKey) {
+          console.error(
+            "[S3FileStorage] Missing AWS credentials: AWS_ACCESS_KEY_ID and/or AWS_SECRET_ACCESS_KEY (or S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY). S3 operations will fail."
+          );
+        }
+      }
 
       this.client = new S3Client({
         region,
-        endpoint,
+        ...(endpoint ? { endpoint } : {}),
         forcePathStyle,
         requestChecksumCalculation: "WHEN_REQUIRED",
         responseChecksumValidation: "WHEN_REQUIRED",
-        credentials: {
-          accessKeyId,
-          secretAccessKey,
-        },
+        ...(accessKeyId && secretAccessKey
+          ? {
+              credentials: {
+                accessKeyId,
+                secretAccessKey,
+              },
+            }
+          : {}),
       });
     }
   }
