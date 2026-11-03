@@ -1,0 +1,28 @@
+import { S3Client, PutBucketCorsCommand, GetBucketCorsCommand } from "@aws-sdk/client-s3";
+
+const client = new S3Client({
+  region: process.env.AWS_REGION,
+  endpoint: process.env.AWS_ENDPOINT_URL_S3,
+  forcePathStyle: true,
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  },
+});
+
+const Bucket = "nexus-crm-inspections";
+
+await client.send(new PutBucketCorsCommand({
+  Bucket,
+  CORSConfiguration: {
+    CORSRules: [{
+      AllowedOrigins: ["https://crm-k8g4.onrender.com", "http://localhost:5173"],
+      AllowedMethods: ["PUT", "GET", "HEAD"],
+      AllowedHeaders: ["*"],
+      ExposeHeaders: ["ETag"],
+      MaxAgeSeconds: 3000,
+    }],
+  },
+}));
+
+console.log(JSON.stringify(await client.send(new GetBucketCorsCommand({ Bucket })), null, 2));

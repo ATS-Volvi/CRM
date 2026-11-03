@@ -148,6 +148,37 @@ const SERVICE_THEME: Record<string, { head: string; border: string }> = {
 const getServiceTheme = (type: string) =>
   SERVICE_THEME[type] || { head: "bg-face-green", border: "border-face-green" };
 
+const ALLOWED_UPLOAD_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp", ".pdf"];
+const MAX_UPLOAD_BYTES = 25 * 1024 * 1024; // 25 MB
+
+const getCanonicalMimeType = (fileName: string, detectedType?: string): string => {
+  const ext = fileName.slice(fileName.lastIndexOf(".")).toLowerCase();
+  switch (ext) {
+    case ".jpg":
+    case ".jpeg":
+      return "image/jpeg";
+    case ".png":
+      return "image/png";
+    case ".webp":
+      return "image/webp";
+    case ".pdf":
+      return "application/pdf";
+    default:
+      return detectedType && detectedType !== "application/octet-stream"
+        ? detectedType
+        : "application/octet-stream";
+  }
+};
+
+const sanitizePresignedUrl = (rawUrl: string): string => {
+  try {
+    const parsed = new URL(rawUrl);
+    return `${parsed.origin}${parsed.pathname}`;
+  } catch {
+    return rawUrl.split("?")[0];
+  }
+};
+
 export default function SiteInspectionForm() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -393,15 +424,41 @@ export default function SiteInspectionForm() {
     }
   };
 
-  // File Upload Handler (presign -> direct PUT -> complete; fall back to multipart if local driver)
+  // File Upload Handler (validate -> presign -> direct PUT via fetch -> complete; fall back to multipart if local driver)
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
     const fileList = Array.from(e.target.files);
     e.target.value = ""; // reset file input
 
-    setIsUploading(true);
     setFormError(null);
 
+    // 1. Client-side validation: file type (JPG, PNG, WEBP, PDF) and size (max 25MB) before requesting presigned URL
+    for (const file of fileList) {
+      const ext = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
+      if (!ALLOWED_UPLOAD_EXTENSIONS.includes(ext)) {
+        const err = `File "${file.name}" has an unsupported format (${ext || "unknown"}). Allowed formats: JPG, PNG, WEBP, PDF.`;
+        console.error(`[Upload Validation] ${err}`);
+        setFormError(err);
+        return;
+      }
+
+      if (file.size <= 0) {
+        const err = `File "${file.name}" is empty (0 bytes).`;
+        console.error(`[Upload Validation] ${err}`);
+        setFormError(err);
+        return;
+      }
+
+      if (file.size > MAX_UPLOAD_BYTES) {
+        const sizeMb = (file.size / (1024 * 1024)).toFixed(1);
+        const err = `File "${file.name}" exceeds the 25MB limit (${sizeMb}MB). Please select a file smaller than 25MB.`;
+        console.error(`[Upload Validation] ${err}`);
+        setFormError(err);
+        return;
+      }
+    }
+
+    setIsUploading(true);
     const isS3Driver = masterData?.storageDriver === "s3";
 
     try {
@@ -415,61 +472,84 @@ export default function SiteInspectionForm() {
         // Direct upload flow per file
         for (const file of fileList) {
           const fileName = file.name;
-          setUploadProgress((prev) => ({ ...prev, [fileName]: 0 }));
+          const resolvedMime = getCanonicalMimeType(fileName, file.type);
+          setUploadProgress((prev) => ({ ...prev, [fileName]: 10 }));
 
-          // 1. Presign
-          const { uploadUrl, storageKey } = await siteInspectionApi.presignAttachment(id!, {
-            fileName: file.name,
-            mimeType: file.type || "application/octet-stream",
-            sizeBytes: file.size,
-          });
+          // 2. Request presigned URL
+          let presignRes: { uploadUrl: string; storageKey: string };
+          try {
+            presignRes = await siteInspectionApi.presignAttachment(id!, {
+              fileName: file.name,
+              mimeType: resolvedMime,
+              sizeBytes: file.size,
+            });
+          } catch (presignErr: any) {
+            const serverMsg =
+              presignErr.response?.data?.error || presignErr.message || "Failed to generate upload URL";
+            console.error(`[Upload Error] Presign request failed for "${fileName}":`, presignErr);
+            throw new Error(`Presign request failed for "${fileName}": ${serverMsg}`);
+          }
 
-          // 2. Direct PUT to S3 / R2 / Supabase with XMLHttpRequest to track progress
-          await new Promise<void>((resolve, reject) => {
-            const xhr = new XMLHttpRequest();
-            xhr.open("PUT", uploadUrl, true);
-            xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+          const { uploadUrl, storageKey } = presignRes;
+          const sanitizedHostUrl = sanitizePresignedUrl(uploadUrl);
+          setUploadProgress((prev) => ({ ...prev, [fileName]: 40 }));
 
-            xhr.upload.onprogress = (evt) => {
-              if (evt.lengthComputable) {
-                const pct = Math.round((evt.loaded / evt.total) * 100);
-                setUploadProgress((prev) => ({ ...prev, [fileName]: pct }));
-              }
-            };
+          // 3. Direct S3 PUT via fetch: no credentials, only Content-Type header
+          let s3Response: Response;
+          try {
+            s3Response = await fetch(uploadUrl, {
+              method: "PUT",
+              headers: {
+                "Content-Type": resolvedMime,
+              },
+              body: file,
+              credentials: "omit",
+              mode: "cors",
+            });
+          } catch (networkOrCorsErr: any) {
+            console.error(
+              `[Upload Error] Network or CORS preflight failure for "${fileName}". S3 Target: ${sanitizedHostUrl}`,
+              networkOrCorsErr
+            );
+            throw new Error(
+              `Upload blocked by network or CORS policy for "${fileName}". Check browser console and ensure the S3 bucket CORS allows PUT and Content-Type from this origin, and that AWS_REGION matches the bucket's actual region.`
+            );
+          }
 
-            xhr.onload = () => {
-              if (xhr.status >= 200 && xhr.status < 300) {
-                resolve();
-              } else {
-                reject(
-                  new Error(
-                    `Upload to storage failed (HTTP ${xhr.status}). If using a custom bucket, verify that the CORS policy allows PUT from this origin.`
-                  )
-                );
-              }
-            };
+          // Check S3 response status
+          if (!s3Response.ok) {
+            const responseBody = await s3Response.text().catch(() => "");
+            console.error(
+              `[Upload Error] S3 PUT failed for "${fileName}". Status: ${s3Response.status} ${s3Response.statusText}. S3 Target: ${sanitizedHostUrl}. Response body: ${responseBody}`
+            );
+            throw new Error(
+              `S3 upload failed for "${fileName}" (HTTP ${s3Response.status}: ${s3Response.statusText || "Forbidden / Rejected"}). Verify S3 bucket permissions.`
+            );
+          }
 
-            xhr.onerror = () => {
-              reject(
-                new Error(
-                  `Upload blocked by network or CORS policy. Check browser console and ensure the S3 bucket CORS allows PUT and Content-Type.`
-                )
-              );
-            };
+          setUploadProgress((prev) => ({ ...prev, [fileName]: 80 }));
 
-            xhr.send(file);
-          });
+          // 4. Complete attachment registration in database
+          try {
+            await siteInspectionApi.completeAttachment(id!, {
+              storageKey,
+              fileName: file.name,
+              tag: "Site Overview",
+            });
+          } catch (completeErr: any) {
+            const serverMsg =
+              completeErr.response?.data?.error || completeErr.message || "Failed to save attachment metadata";
+            console.error(`[Upload Error] Complete registration failed for "${fileName}":`, completeErr);
+            throw new Error(`Failed to save attachment "${fileName}" to database: ${serverMsg}`);
+          }
 
-          // 3. Complete attachment
-          await siteInspectionApi.completeAttachment(id!, {
-            storageKey,
-            fileName: file.name,
-            tag: "Site Overview",
-          });
+          setUploadProgress((prev) => ({ ...prev, [fileName]: 100 }));
         }
       }
 
+      // Invalidate queries and refetch to update counter and attachments list
       await queryClient.invalidateQueries({ queryKey: ["site-inspection", id] });
+      await refetch();
     } catch (err: any) {
       setFormError(err.response?.data?.error || err.message || "Upload failed");
     } finally {
