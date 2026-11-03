@@ -833,6 +833,7 @@ export const getLeadSiteInspection = async (req: Request, res: Response) => {
         { model: SiteInspectionAttachment, as: "attachments" },
         { model: SiteBase, as: "base" },
         { model: User, as: "assignedTo", attributes: ["id", "name", "email", "role"] },
+        { model: User, as: "requestedInspector", attributes: ["id", "name", "email", "role"] },
       ],
       order: [["createdAt", "DESC"]],
     });

@@ -148,6 +148,12 @@ export interface SiteInspectionRecord {
     email: string;
     role: string;
   };
+  requestedInspector?: {
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+  };
   reviewedBy?: {
     id: string;
     name: string;
@@ -434,5 +440,163 @@ export function getInspectionRag(inspection: SiteInspectionRecord): {
     countdown,
     badgeBg: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800",
     dotColor: "bg-emerald-500",
+  };
+}
+
+export interface AssignmentDisplayResult {
+  state: "REQUESTED_AWAITING_ACCEPTANCE" | "PENDING_CONFIRMATION" | "DECLINED" | "ACCEPTED" | "UNASSIGNED";
+  title: string;
+  name: string;
+  email?: string;
+  initials?: string;
+  pillText: string;
+  pillVariant: "amber" | "green" | "red";
+  subline?: string;
+  isOverdue?: boolean;
+  approverHint?: string;
+  headerStatusOverride?: string;
+}
+
+export function formatInspectionDateTime(dateInput: string | Date): string {
+  try {
+    const d = typeof dateInput === "string" ? new Date(dateInput) : dateInput;
+    if (isNaN(d.getTime())) return String(dateInput);
+    const day = String(d.getDate()).padStart(2, "0");
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const month = months[d.getMonth()];
+    let hours = d.getHours();
+    const minutes = String(d.getMinutes()).padStart(2, "0");
+    const ampm = hours >= 12 ? "PM" : "AM";
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    return `${day} ${month}, ${hours}:${minutes} ${ampm}`;
+  } catch {
+    return String(dateInput);
+  }
+}
+
+export function getAssignmentDisplay(
+  inspection?: Partial<SiteInspectionRecord> | null,
+  referenceNowMs?: number
+): AssignmentDisplayResult | null {
+  if (!inspection) return null;
+
+  const now = referenceNowMs ?? Date.now();
+
+  const getInitials = (fullName?: string): string => {
+    if (!fullName) return "SI";
+    return (
+      fullName
+        .split(" ")
+        .filter(Boolean)
+        .map((n) => n[0])
+        .join("")
+        .slice(0, 2)
+        .toUpperCase() || "SI"
+    );
+  };
+
+  // a) status === "REQUESTED" && assignedTo && !acceptedAt (and not declined or pending confirmation)
+  if (
+    inspection.status === "REQUESTED" &&
+    inspection.assignedTo &&
+    !inspection.acceptedAt &&
+    !inspection.declinedAt &&
+    inspection.assignmentState !== "DECLINED" &&
+    inspection.assignmentState !== "PENDING_CONFIRMATION"
+  ) {
+    let subline: string | undefined;
+    let isOverdue = false;
+    if (inspection.slaAcceptDueAt) {
+      const dueTime = new Date(inspection.slaAcceptDueAt).getTime();
+      isOverdue = !isNaN(dueTime) && dueTime < now;
+      subline = `Accept by ${formatInspectionDateTime(inspection.slaAcceptDueAt)}`;
+    }
+    return {
+      state: "REQUESTED_AWAITING_ACCEPTANCE",
+      title: "Requested from",
+      name: inspection.assignedTo.name,
+      email: inspection.assignedTo.email,
+      initials: getInitials(inspection.assignedTo.name),
+      pillText: "Waiting for acceptance",
+      pillVariant: "amber",
+      subline,
+      isOverdue,
+      headerStatusOverride: "Awaiting Acceptance",
+    };
+  }
+
+  // b) assignmentState === "PENDING_CONFIRMATION" && requestedInspector
+  if (inspection.assignmentState === "PENDING_CONFIRMATION" && inspection.requestedInspector) {
+    return {
+      state: "PENDING_CONFIRMATION",
+      title: "Requested inspector",
+      name: inspection.requestedInspector.name,
+      email: inspection.requestedInspector.email,
+      initials: getInitials(inspection.requestedInspector.name),
+      pillText: "Awaiting manager confirmation",
+      pillVariant: "amber",
+      subline: inspection.requestedInspectorReason || undefined,
+    };
+  }
+
+  // c) assignmentState === "DECLINED" || declinedAt
+  if (inspection.assignmentState === "DECLINED" || Boolean(inspection.declinedAt)) {
+    const prevInfo = inspection.assignedTo || inspection.requestedInspector;
+    return {
+      state: "DECLINED",
+      title: "Declined",
+      name: prevInfo?.name || "Declined Inspector",
+      email: prevInfo?.email,
+      initials: getInitials(prevInfo?.name),
+      pillText: "Declined",
+      pillVariant: "red",
+      subline: inspection.declineReason || undefined,
+    };
+  }
+
+  // d) assignedTo && (acceptedAt || status in DRAFT, WAITING_ON_CLIENT, SUBMITTED, CHANGES_REQUESTED, APPROVED)
+  const acceptedStatuses = ["DRAFT", "WAITING_ON_CLIENT", "SUBMITTED", "CHANGES_REQUESTED", "APPROVED"];
+  if (
+    inspection.assignedTo &&
+    (Boolean(inspection.acceptedAt) || acceptedStatuses.includes(inspection.status || ""))
+  ) {
+    let pillText = "Accepted";
+    if (inspection.startedAt) {
+      pillText = "Visit started";
+    } else if (inspection.scheduledVisitAt) {
+      pillText = "Visit scheduled";
+    }
+
+    const sublineParts: string[] = [];
+    if (inspection.acceptedAt) {
+      sublineParts.push(`Accepted ${formatInspectionDateTime(inspection.acceptedAt)}`);
+    }
+    if (inspection.scheduledVisitAt) {
+      sublineParts.push(`Visit: ${formatInspectionDateTime(inspection.scheduledVisitAt)}`);
+    }
+
+    return {
+      state: "ACCEPTED",
+      title: "Assigned Site Inspector",
+      name: inspection.assignedTo.name,
+      email: inspection.assignedTo.email,
+      initials: getInitials(inspection.assignedTo.name),
+      pillText,
+      pillVariant: "green",
+      subline: sublineParts.length > 0 ? sublineParts.join(" · ") : undefined,
+    };
+  }
+
+  // e) no assignedTo (UNASSIGNED / NEEDS_AREA)
+  const stateLabel = (inspection.assignmentState || "UNASSIGNED").replace(/_/g, " ");
+  return {
+    state: "UNASSIGNED",
+    title: "Assigned Site Inspector",
+    name: "Not assigned yet",
+    pillText: stateLabel,
+    pillVariant: "amber",
+    subline: inspection.assignmentReason || undefined,
+    approverHint: "Open the portal to assign an inspector manually.",
   };
 }

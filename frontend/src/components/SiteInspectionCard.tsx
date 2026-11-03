@@ -17,7 +17,14 @@ import {
   User,
 } from "lucide-react";
 import { siteInspectionApi } from "../api/siteInspection";
-import { getStatusStyle, getInspectionRag, SiteInspectionRecord, SiteInspectionGateResult } from "../lib/siteInspection";
+import {
+  getStatusStyle,
+  getInspectionRag,
+  SiteInspectionRecord,
+  SiteInspectionGateResult,
+  getAssignmentDisplay,
+  APPROVER_ROLES,
+} from "../lib/siteInspection";
 import { SiteInspectionRequestModal } from "./SiteInspectionRequestModal";
 import { useAuth } from "../context/AuthContext";
 
@@ -60,6 +67,7 @@ export function SiteInspectionCard({
     useLeadSiteInspection(leadId);
 
   const userRole = (user?.role || "").toLowerCase();
+  const isApprover = APPROVER_ROLES.includes(userRole);
   const isAssignedInspector =
     Boolean(inspection) &&
     userRole === "site_manager" &&
@@ -67,6 +75,7 @@ export function SiteInspectionCard({
 
   const status = inspection?.status || gate?.status || "NOT_REQUESTED";
   const statusInfo = getStatusStyle(status);
+  const assignmentDisplay = getAssignmentDisplay(inspection);
 
   const isGateLocked = gate ? !gate.allowed : status !== "APPROVED";
 
@@ -109,7 +118,7 @@ export function SiteInspectionCard({
               className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold border ${statusInfo.badgeBg}`}
             >
               <span className={`w-1.5 h-1.5 rounded-full ${statusInfo.dotColor}`} />
-              {statusInfo.label}
+              {assignmentDisplay?.headerStatusOverride || statusInfo.label}
             </span>
           </div>
         </div>
@@ -132,57 +141,67 @@ export function SiteInspectionCard({
         {/* Inspection Details if present */}
         {inspection ? (
           <div className="space-y-3 pt-1">
-            {/* Assigned Site Inspector Block */}
-            {inspection.assignedTo ? (
-              <div className="p-2.5 bg-face-field dark:bg-slate-800/60 rounded-xl border border-face-line dark:border-slate-800 flex items-center justify-between gap-2.5">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-8 h-8 rounded-full bg-face-green-light dark:bg-face-green-dark/40 text-face-green dark:text-face-green-mint font-bold text-xs flex items-center justify-center shrink-0 border border-face-green/20 dark:border-face-green-dark/60">
-                    {(inspection.assignedTo.name || "SI")
-                      .split(" ")
-                      .filter(Boolean)
-                      .map((n) => n[0])
-                      .join("")
-                      .slice(0, 2)
-                      .toUpperCase() || "SI"}
-                  </div>
+            {/* Assigned Site Inspector / Request & Acceptance State Block */}
+            {assignmentDisplay && (
+              <div
+                className={`p-2.5 rounded-xl border flex items-start justify-between gap-2.5 ${
+                  assignmentDisplay.state === "UNASSIGNED"
+                    ? "bg-amber-50/70 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900/60"
+                    : assignmentDisplay.state === "DECLINED"
+                    ? "bg-rose-50/70 dark:bg-rose-950/30 border-rose-200 dark:border-rose-900/60"
+                    : "bg-face-field dark:bg-slate-800/60 border-face-line dark:border-slate-800"
+                }`}
+              >
+                <div className="flex items-start gap-2.5 min-w-0">
+                  {assignmentDisplay.email || assignmentDisplay.name !== "Not assigned yet" ? (
+                    <div className="w-8 h-8 rounded-full bg-face-green-light dark:bg-face-green-dark/40 text-face-green dark:text-face-green-mint font-bold text-xs flex items-center justify-center shrink-0 border border-face-green/20 dark:border-face-green-dark/60 mt-0.5">
+                      {assignmentDisplay.initials || "SI"}
+                    </div>
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 font-bold text-xs flex items-center justify-center shrink-0 border border-amber-300 dark:border-amber-800 mt-0.5">
+                      <User className="w-4 h-4" />
+                    </div>
+                  )}
                   <div className="min-w-0">
-                    <span className="text-[10px] uppercase font-bold text-face-muted block tracking-wider leading-none">
-                      Assigned Site Inspector
+                    <span className="text-[10px] uppercase font-bold text-face-muted dark:text-slate-400 block tracking-wider leading-none">
+                      {assignmentDisplay.title}
                     </span>
                     <p className="text-xs font-bold text-face-ink dark:text-white truncate mt-0.5">
-                      {inspection.assignedTo.name}
+                      {assignmentDisplay.name}
                     </p>
-                    <p className="text-[10px] text-face-muted dark:text-slate-400 truncate">
-                      {inspection.assignedTo.email}
-                    </p>
+                    {assignmentDisplay.email && (
+                      <p className="text-[10px] text-face-muted dark:text-slate-400 truncate">
+                        {assignmentDisplay.email}
+                      </p>
+                    )}
+                    {assignmentDisplay.subline && (
+                      <p className="text-[10px] text-face-muted dark:text-slate-400 mt-1 flex items-center gap-1.5 flex-wrap">
+                        <span>{assignmentDisplay.subline}</span>
+                        {assignmentDisplay.isOverdue && (
+                          <span className="px-1.5 py-0.2 bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 text-[9px] font-black uppercase rounded">
+                            Overdue
+                          </span>
+                        )}
+                      </p>
+                    )}
+                    {assignmentDisplay.approverHint && isApprover && (
+                      <p className="text-[10px] text-face-green dark:text-face-green-mint font-semibold mt-1">
+                        {assignmentDisplay.approverHint}
+                      </p>
+                    )}
                   </div>
                 </div>
-                {inspection.assignmentState && (
-                  <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider shrink-0 bg-face-green-light text-face-green dark:bg-face-green-dark/30 dark:text-face-green-mint border border-face-green/30 dark:border-face-green-dark">
-                    {inspection.assignmentState.replace(/_/g, " ")}
-                  </span>
-                )}
-              </div>
-            ) : (
-              <div className="p-2.5 bg-amber-50/70 dark:bg-amber-950/30 rounded-xl border border-amber-200 dark:border-amber-900/60 flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 font-bold text-xs flex items-center justify-center shrink-0 border border-amber-300 dark:border-amber-800">
-                    <User className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <span className="text-[10px] uppercase font-bold text-amber-700 dark:text-amber-300 block tracking-wider leading-none">
-                      Assigned Site Inspector
-                    </span>
-                    <p className="text-xs font-bold text-amber-900 dark:text-amber-200 mt-0.5">
-                      Not assigned yet
-                    </p>
-                  </div>
-                </div>
-                {inspection.assignmentState && (
-                  <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider shrink-0 bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
-                    {inspection.assignmentState.replace(/_/g, " ")}
-                  </span>
-                )}
+                <span
+                  className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider shrink-0 ${
+                    assignmentDisplay.pillVariant === "green"
+                      ? "bg-face-green-light text-face-green dark:bg-face-green-dark/30 dark:text-face-green-mint border border-face-green/30 dark:border-face-green-dark"
+                      : assignmentDisplay.pillVariant === "red"
+                      ? "bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200 dark:border-rose-800"
+                      : "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800"
+                  }`}
+                >
+                  {assignmentDisplay.pillText}
+                </span>
               </div>
             )}
 
