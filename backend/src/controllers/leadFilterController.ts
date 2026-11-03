@@ -136,8 +136,42 @@ export const promoteHeldEmail = async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Held email record not found' });
     }
 
+    // Idempotency check: if already promoted, return 409 and existing leadId
+    if (heldRow.disposition === 'promoted') {
+      return res.status(409).json({
+        error: 'Held email has already been promoted',
+        leadId: heldRow.promotedLeadId || null,
+        disposition: 'promoted',
+      });
+    }
+
+    // Concurrency guard: atomic conditional update to lock row from concurrent promotions
+    const originalDisposition = heldRow.disposition || 'held';
+    const [affectedCount] = await FlaggedLead.update(
+      { disposition: 'promoting' },
+      {
+        where: {
+          id: heldId,
+          disposition: { [Op.notIn]: ['promoted', 'promoting'] },
+        },
+      }
+    );
+
+    if (affectedCount === 0) {
+      const refreshed = (await FlaggedLead.findByPk(heldId)) as any;
+      return res.status(409).json({
+        error: 'Held email has already been promoted or is currently being promoted',
+        leadId: refreshed?.promotedLeadId || null,
+        disposition: refreshed?.disposition || 'promoted',
+      });
+    }
+
     const payload = heldRow.payload || {};
-    const email = (heldRow.senderEmail || payload.email || payload.from || '').toLowerCase().trim();
+    let email = (heldRow.senderEmail || payload.email || payload.from || '').toLowerCase().trim();
+    const emailBracketMatch = email.match(/<([^>]+)>/);
+    if (emailBracketMatch) {
+      email = emailBracketMatch[1].trim();
+    }
     const subject = heldRow.subject || payload.subject || 'Promoted Inbound Email';
     const message = payload.text || payload.body || payload.message || heldRow.explanation || '';
 
@@ -150,47 +184,67 @@ export const promoteHeldEmail = async (req: Request, res: Response) => {
       lastName = namePart.split('.')[1] || 'Lead';
     }
 
-    // Ingest as genuine Lead with bypass flag so it is not re-filtered
-    const newLeadId = await ingestLead({
-      firstName: firstName || 'Inbound',
-      lastName: lastName || 'Lead',
-      email,
-      phone: payload.phone || '',
-      company: payload.company || '',
-      source: 'email',
-      sourceDetail: subject,
-      message,
-      skipIntentGate: true,
-      rawPayload: { ...payload, skipIntentGate: true },
-    } as any);
+    let newLeadId: string | null = null;
+    try {
+      // Ingest as genuine Lead with bypass flag so it is not re-filtered
+      newLeadId = await ingestLead({
+        firstName: firstName || 'Inbound',
+        lastName: lastName || 'Lead',
+        email,
+        phone: payload.phone || '',
+        company: payload.company || '',
+        source: 'email',
+        sourceDetail: subject,
+        message,
+        skipIntentGate: true,
+        rawPayload: { ...payload, skipIntentGate: true },
+      } as any);
+    } catch (ingestErr: any) {
+      // Rollback disposition lock if ingestion fails
+      await FlaggedLead.update({ disposition: originalDisposition }, { where: { id: heldId } });
+      throw ingestErr;
+    }
 
     if (!newLeadId) {
+      await FlaggedLead.update({ disposition: originalDisposition }, { where: { id: heldId } });
       return res.status(500).json({ error: 'Failed to ingest lead during promotion' });
     }
 
-    // Update FlaggedLead
-    heldRow.disposition = 'promoted';
-    heldRow.promotedLeadId = newLeadId;
-    heldRow.reviewedById = userId;
-    heldRow.reviewedAt = new Date();
-    await heldRow.save();
+    // Update FlaggedLead to completed promoted state
+    await FlaggedLead.update(
+      {
+        disposition: 'promoted',
+        promotedLeadId: newLeadId,
+        reviewedById: userId,
+        reviewedAt: new Date(),
+        reviewed: true,
+      },
+      { where: { id: heldId } }
+    );
 
     // Optionally add sender to allowlist
     if (addSenderToAllowlist && email) {
-      try {
-        await SenderRule.findOrCreate({
-          where: { matchType: 'email', value: email },
-          defaults: {
-            id: require('crypto').randomUUID(),
-            type: 'allow',
-            matchType: 'email',
-            value: email,
-            createdById: userId,
-            note: `Auto-allowlisted upon promoting held email ${id}`,
-          },
-        });
-      } catch (allowErr: any) {
-        console.warn('[leadFilterController] Failed to auto-allowlist sender:', allowErr.message);
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          await SenderRule.findOrCreate({
+            where: { matchType: 'email', value: email },
+            defaults: {
+              id: require('crypto').randomUUID(),
+              type: 'allow',
+              matchType: 'email',
+              value: email,
+              createdById: userId,
+              note: `Auto-allowlisted upon promoting held email ${id}`,
+            },
+          });
+          break;
+        } catch (allowErr: any) {
+          if (attempt === 3) {
+            console.warn('[leadFilterController] Failed to auto-allowlist sender:', allowErr.message);
+          } else {
+            await new Promise((r) => setTimeout(r, 60 * attempt));
+          }
+        }
       }
     }
 

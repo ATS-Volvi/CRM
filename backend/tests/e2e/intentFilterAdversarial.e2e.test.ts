@@ -400,14 +400,15 @@ describe('Adversarial E2E Tests: Failures, Webhook Formats, Roles, & Filter Endp
       expect(domainRule.type).toBe('block');
     });
 
-    it('demonstrates duplicate promote behavior on repeated promote call', async () => {
+    it('fails when promoting the same held row twice (idempotency: second call returns 409 and creates no duplicate lead)', async () => {
+      const uniqueEmail = `idempotent.promote.${Date.now()}@example.com`;
       const held = await FlaggedLead.create({
         id: randomUUID(),
         payload: {
-          from: 'duplicate.promote@example.com',
-          subject: 'Initial Inbound',
-          text: 'Need cabins.',
-          firstName: 'Duplicate',
+          from: uniqueEmail,
+          subject: 'Initial Inbound for Idempotency',
+          text: 'Need cabins urgently.',
+          firstName: 'Idempotent',
           lastName: 'Promote',
         },
         source: 'email',
@@ -417,8 +418,8 @@ describe('Adversarial E2E Tests: Failures, Webhook Formats, Roles, & Filter Endp
         intentScore: 50,
         reason: 'Vague initial enquiry',
         explanation: 'Vague initial enquiry',
-        senderEmail: 'duplicate.promote@example.com',
-        subject: 'Initial Inbound',
+        senderEmail: uniqueEmail,
+        subject: 'Initial Inbound for Idempotency',
       });
 
       // First promote
@@ -428,16 +429,65 @@ describe('Adversarial E2E Tests: Failures, Webhook Formats, Roles, & Filter Endp
         .send({});
 
       expect(res1.status).toBe(200);
+      expect(res1.body.success).toBe(true);
       const firstLeadId = res1.body.leadId;
+      expect(firstLeadId).toBeDefined();
 
-      // Second promote (idempotency check)
+      // Second promote (must be idempotent: return 409 and not create a new lead)
       const res2 = await request(app)
         .post(`/api/v1/lead-filter/held/${held.id}/promote`)
         .set('Authorization', `Bearer ${tokens['admin']}`)
         .send({});
 
-      // Report whether duplicate promote returned 200 or errored / created new lead
-      expect([200, 500]).toContain(res2.status);
+      expect(res2.status).toBe(409);
+      expect(res2.body.error).toMatch(/already.*promoted/i);
+
+      // Verify only 1 lead exists in the database for this email
+      const leads = await Lead.findAll({ where: { email: uniqueEmail } });
+      expect(leads.length).toBe(1);
+      expect(leads[0].id).toBe(firstLeadId);
+    });
+
+    it('handles concurrent promote calls safely (exactly one succeeds with 200, one 409, exactly 1 lead created)', async () => {
+      const concurrentEmail = `concurrent.promote.${Date.now()}@example.com`;
+      const held = await FlaggedLead.create({
+        id: randomUUID(),
+        payload: {
+          from: concurrentEmail,
+          subject: 'Concurrent Inbound',
+          text: 'Need cabins for concurrent test.',
+          firstName: 'Concurrent',
+          lastName: 'Test',
+        },
+        source: 'email',
+        channel: 'email',
+        disposition: 'review',
+        intentLabel: 'too_vague',
+        intentScore: 50,
+        reason: 'Vague initial enquiry',
+        explanation: 'Vague initial enquiry',
+        senderEmail: concurrentEmail,
+        subject: 'Concurrent Inbound',
+      });
+
+      // Fire two promote requests simultaneously
+      const [resA, resB] = await Promise.all([
+        request(app)
+          .post(`/api/v1/lead-filter/held/${held.id}/promote`)
+          .set('Authorization', `Bearer ${tokens['admin']}`)
+          .send({}),
+        request(app)
+          .post(`/api/v1/lead-filter/held/${held.id}/promote`)
+          .set('Authorization', `Bearer ${tokens['admin']}`)
+          .send({}),
+      ]);
+
+      const statuses = [resA.status, resB.status].sort();
+      expect(statuses).toEqual([200, 409]);
+
+      // Verify only 1 lead was created in total
+      const leads = await Lead.findAll({ where: { email: concurrentEmail } });
+      expect(leads.length).toBe(1);
     });
   });
 
