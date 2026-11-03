@@ -257,13 +257,36 @@ describe('Adversarial Unit Tests: Intent Filter Deterministic Layers', () => {
       expect(cleaned).not.toContain('jsmith@partner.com');
     });
 
-    it('documents bug: cleanEmailText strips angle brackets as HTML tags, leaving From: without email', () => {
-      // Because /<[a-z][sS]*>/i matches <jsmith@partner.com>, it strips the angle-bracketed email,
-      // leaving "From: John Smith ", which does not match /^Froms*:s*.+@.+/i on line 50.
-      const raw = 'Need 20 more cabins at site B.\n\nFrom: John Smith <jsmith@partner.com>\nSubject: Re: Cabins';
+    it('cuts thread starting with From: Name <email@domain.com> with angle brackets', () => {
+      const raw = 'Need 20 more cabins at site B.\n\nFrom: John Smith <jsmith@partner.com>\nSent: Tuesday, Nov 3, 2026\nTo: sales@nexus.com\nSubject: Re: Cabins\n\nPrior message content.';
       const cleaned = cleanEmailText(raw);
-      // Demonstrates current behavior where "From: John Smith " survives
-      expect(cleaned).toContain('Need 20 more cabins at site B.');
+      expect(cleaned).toBe('Need 20 more cabins at site B.');
+      expect(cleaned).not.toContain('John Smith');
+      expect(cleaned).not.toContain('Prior message content');
+    });
+
+    it('cuts thread starting with Sent: header', () => {
+      const raw = 'Can you quote delivery to Jubail?\n\nSent: Monday, January 12, 2026 10:00 AM\nTo: info@nexus.com\nSubject: Delivery inquiry\n\nOld thread text.';
+      const cleaned = cleanEmailText(raw);
+      expect(cleaned).toBe('Can you quote delivery to Jubail?');
+      expect(cleaned).not.toContain('January 12');
+      expect(cleaned).not.toContain('Old thread text');
+    });
+
+    it('cuts thread starting with On ... wrote: containing angle bracketed email', () => {
+      const raw = 'Please proceed with order.\n\nOn Tue, Nov 3, 2026 at 2:00 PM Jane Doe <jane.doe@buyer.sa> wrote:\n> Please provide the proforma invoice.\n> Thanks.';
+      const cleaned = cleanEmailText(raw);
+      expect(cleaned).toBe('Please proceed with order.');
+      expect(cleaned).not.toContain('Jane Doe');
+      expect(cleaned).not.toContain('proforma');
+    });
+
+    it('cuts thread with Outlook style underscore separator', () => {
+      const raw = 'Looking for portable toilets.\n\n________________________________\nFrom: Buyer Team <buyer@client.com>\nSent: Monday, November 2, 2026\nTo: Sales\nSubject: Inquiry\n\nPrevious discussions here.';
+      const cleaned = cleanEmailText(raw);
+      expect(cleaned).toBe('Looking for portable toilets.');
+      expect(cleaned).not.toContain('Previous discussions here');
+      expect(cleaned).not.toContain('Buyer Team');
     });
 
     it('strips standard RFC signature delimiter ("-- " or "--")', () => {

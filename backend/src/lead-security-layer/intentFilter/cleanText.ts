@@ -3,61 +3,64 @@
  * mobile device footers, and legal disclaimers.
  */
 export function cleanEmailText(rawText: string): string {
-  if (!rawText || typeof rawText !== 'string') {
-    return '';
+  if (!rawText || typeof rawText !== "string") {
+    return "";
   }
 
   let text = rawText;
 
-  // 1. Strip HTML tags if present
-  if (/<[a-z][\s\S]*>/i.test(text)) {
-    // Replace <br>, <p>, <div> with newlines
-    text = text.replace(/<br\s*[\/]?>/gi, '\n');
-    text = text.replace(/<\/(p|div|tr|h[1-6])>/gi, '\n');
-    text = text.replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '');
-    text = text.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '');
-    text = text.replace(/<[^>]+>/g, ' ');
-    // Normalize spaces within lines
-    text = text.replace(/[ \t]+/g, ' ');
-    // Decode common HTML entities
-    text = text
-      .replace(/&nbsp;/gi, ' ')
-      .replace(/&amp;/gi, '&')
-      .replace(/&lt;/gi, '<')
-      .replace(/&gt;/gi, '>')
-      .replace(/&quot;/gi, '"')
-      .replace(/&#39;/gi, "'");
-  }
+  // 1. Convert HTML block tags to newlines before line inspection so thread headers are on their own lines
+  text = text
+    .replace(/<br\s*[\/]?>/gi, "\n")
+    .replace(/<\/(p|div|tr|h[1-6]|table|blockquote)>/gi, "\n")
+    .replace(/<hr\s*[\/]?>/gi, "\n");
 
-  // Normalize line breaks
+  // 2. Cut quoted threads, headers, and footers before stripping tags or email addresses
   const lines = text.split(/\r?\n/);
-  const cleanedLines: string[] = [];
+  const keptLines: string[] = [];
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const trimmed = line.trim();
 
-    // Check for quoted reply cutoff markers (everything below is part of prior thread)
     // "On Mon, Jan 1, 2026 at 10:00 AM John <... wrote:"
-    if (/^On\s+.+wrote\s*:\s*$/i.test(trimmed)) {
+    if (/^On\s+.+wrote\s*:?\s*$/i.test(trimmed)) {
       break;
     }
-    // "-----Original Message-----"
-    if (/^-----+\s*Original Message\s*-----+$/i.test(trimmed)) {
+    // "-----Original Message-----" or "--- Original Message ---"
+    if (/^[-=]+\s*Original Message\s*[-=]+$/i.test(trimmed)) {
       break;
     }
-    // "From: someone@example.com" or "From: John Doe <...>"
-    if (/^From\s*:\s*.+@.+/i.test(trimmed)) {
+    // Outlook horizontal line separator: "________________________________"
+    if (/^_{5,}\s*$/i.test(trimmed)) {
+      break;
+    }
+
+    // Thread header lines: "From: someone@example.com" or "From: John Doe <...>"
+    if (/^From\s*:\s*.+/i.test(trimmed)) {
+      if (
+        /@|<.+>|\[mailto:.+\]/i.test(trimmed) ||
+        (i + 1 < lines.length && /^(?:Sent|To|Subject|Date)\s*:/i.test(lines[i + 1].trim()))
+      ) {
+        break;
+      }
+      if (/^From\s*:\s*["']?[A-Z]/i.test(trimmed)) {
+        break;
+      }
+    }
+
+    // "Sent: Monday, January 12, 2026 10:00 AM"
+    if (/^Sent\s*:\s*.+/i.test(trimmed)) {
       break;
     }
 
     // Standard RFC signature delimiter: "-- " or "--"
-    if (trimmed === '--' || trimmed === '-- ') {
+    if (trimmed === "--" || trimmed === "-- ") {
       break;
     }
 
     // Skip lines that start with ">" (quoted text)
-    if (trimmed.startsWith('>')) {
+    if (trimmed.startsWith(">")) {
       continue;
     }
 
@@ -79,13 +82,33 @@ export function cleanEmailText(rawText: string): string {
       break;
     }
 
-    cleanedLines.push(line);
+    keptLines.push(line);
   }
 
-  // Join lines and normalize excessive blank lines
-  const cleaned = cleanedLines
-    .join('\n')
-    .replace(/\n{3,}/g, '\n\n')
+  text = keptLines.join("\n");
+
+  // 3. Strip styles, scripts, comments, and real HTML tags (preserve bracketed email addresses like <user@domain.com>)
+  text = text.replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, "");
+  text = text.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
+  text = text.replace(/<!--[\s\S]*?-->/g, "");
+  // Only strip tags that are not email addresses
+  text = text.replace(/<(?!s*[^@\s>]+@[^@\s>]+>)[^>]+>/gi, " ");
+
+  // 4. Decode common HTML entities
+  text = text
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, "\"")
+    .replace(/&#39;/gi, "'");
+
+  // 5. Normalize line breaks and whitespace
+  const cleaned = text
+    .split(/\r?\n/)
+    .map(l => l.replace(/[ \t]+/g, " ").trim())
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
     .trim();
 
   return cleaned;
