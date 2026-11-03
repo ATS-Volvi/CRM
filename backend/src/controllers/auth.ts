@@ -2,12 +2,20 @@ import { Request, Response } from "express";
 import { User } from "@nexus-crm/database";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { ALLOWED_USER_ROLES, UserRole } from "../constants/roles";
 
 const JWT_SECRET = process.env.JWT_SECRET || "default_secret";
 
 export const register = async (req: Request, res: Response) => {
   try {
     const { name, email, password, role } = req.body;
+
+    const targetRole = role || "sales_rep";
+    if (role && !ALLOWED_USER_ROLES.includes(role as UserRole)) {
+      res.status(400).json({ error: `role must be one of: ${ALLOWED_USER_ROLES.join(", ")}` });
+      return;
+    }
+
     const existing = await User.findOne({ where: { email } });
     if (existing) {
       res.status(400).json({ error: "Email already exists" });
@@ -15,7 +23,7 @@ export const register = async (req: Request, res: Response) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const user = await User.create({ name, email, password: hashedPassword, role, isAvailable: true });
+    const user = await User.create({ name, email, password: hashedPassword, role: targetRole, isAvailable: true });
     
     const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: "1d" });
     res.status(201).json({ user: { id: user.id, email: user.email, name: user.name, role: user.role }, token });

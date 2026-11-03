@@ -1,9 +1,48 @@
 import { Request, Response } from "express";
+import { randomUUID } from "crypto";
 import { getAuthUrl, exchangeCodeForTokens, encryptToken, decryptToken, fetchUnreadEmails } from "../services/gmailService";
-import { ingestLead } from "../services/leadIngestion";
-import { GmailConfig } from "@nexus-crm/database";
+import { ingestLead, processGmailConnector } from "../services/leadIngestion";
+import { GmailConfig, FlaggedLead } from "@nexus-crm/database";
+import { evaluateInboundEmail } from "../lead-security-layer/intentFilter";
+import { extractEmailMetadata } from "../lead-security-layer/intentFilter/headerParser";
+import { handlePromoteOnReply } from "../lead-security-layer/intentFilter/autoReplyService";
+import { attachEmailToLeadActivity } from "../lead-security-layer/intentFilter/attachActivity";
+import { getSenderContext } from "../lead-security-layer/intentFilter/senderContext";
 
-import { processGmailConnector } from "../services/leadIngestion";
+// Concurrency-capped queue for background shadow evaluations
+class ShadowEvaluationQueue {
+  private running = 0;
+  private queue: (() => Promise<void>)[] = [];
+  private concurrency: number;
+
+  constructor(concurrency = 3) {
+    this.concurrency = concurrency;
+  }
+
+  enqueue(task: () => Promise<void>) {
+    this.queue.push(task);
+    this.processNext();
+  }
+
+  private processNext() {
+    if (this.running >= this.concurrency || this.queue.length === 0) {
+      return;
+    }
+    const task = this.queue.shift();
+    if (!task) return;
+    this.running++;
+    task()
+      .catch((err) => {
+        console.warn("[gmailController] Shadow evaluation task error:", err?.message || err);
+      })
+      .finally(() => {
+        this.running--;
+        this.processNext();
+      });
+  }
+}
+
+export const shadowQueue = new ShadowEvaluationQueue(3);
 
 export const getGmailAuthUrl = async (req: Request, res: Response) => {
   try {
@@ -39,7 +78,7 @@ export const connectGmail = async (req: Request, res: Response) => {
     // Save configuration
     await GmailConfig.destroy({ where: {} }); // only support single Gmail integration for simplicity
     await GmailConfig.create({
-      id: require("crypto").randomUUID(),
+      id: randomUUID(),
       connectedEmail: email,
       encryptedRefreshToken: encrypted,
       lastSyncedAt: new Date()
@@ -92,20 +131,169 @@ export const syncGmail = async (req: Request, res: Response) => {
     } else {
       const decrypted = decryptToken(config.encryptedRefreshToken);
       const emails = await fetchUnreadEmails(decrypted);
+      const mode = (process.env.INTENT_FILTER_MODE || "off").toLowerCase();
 
-      for (const email of emails) {
-        await ingestLead({
-          firstName: email.senderName.split(" ")[0] || "Unknown",
-          lastName: email.senderName.split(" ").slice(1).join(" ") || "Sender",
-          email: email.senderEmail,
-          phone: email.phone,
-          company: email.senderName + " Org",
-          source: "Gmail Connector",
-          sourceDetail: `Email Subject: ${email.subject}`,
-          message: email.body,
-          rawPayload: email.rawPayload
-        });
-        ingestedCount++;
+      if (mode === "off") {
+        // Mode OFF: Skip gate completely (no evaluateInboundEmail, no extractEmailMetadata, no DB/AI calls)
+        // Loop is identical to main
+        for (const email of emails) {
+          await ingestLead({
+            firstName: email.senderName.split(" ")[0] || "Unknown",
+            lastName: email.senderName.split(" ").slice(1).join(" ") || "Sender",
+            email: email.senderEmail,
+            phone: email.phone,
+            company: email.senderName + " Org",
+            source: "Gmail Connector",
+            sourceDetail: `Email Subject: ${email.subject}`,
+            message: email.body,
+            rawPayload: email.rawPayload
+          });
+          ingestedCount++;
+        }
+      } else if (mode === "shadow") {
+        // Mode SHADOW: Run ingestLead first (identical to main), then schedule gate
+        // evaluation with setImmediate inside try/catch, never awaited, with a concurrency cap of 3.
+        for (const email of emails) {
+          const leadId = await ingestLead({
+            firstName: email.senderName.split(" ")[0] || "Unknown",
+            lastName: email.senderName.split(" ").slice(1).join(" ") || "Sender",
+            email: email.senderEmail,
+            phone: email.phone,
+            company: email.senderName + " Org",
+            source: "Gmail Connector",
+            sourceDetail: `Email Subject: ${email.subject}`,
+            message: email.body,
+            rawPayload: email.rawPayload
+          });
+          ingestedCount++;
+
+          setImmediate(() => {
+            try {
+              shadowQueue.enqueue(async () => {
+                try {
+                  const emailMeta = email.emailMeta || extractEmailMetadata(email.rawPayload);
+                  const timeoutMs = parseInt(process.env.SHADOW_GATE_TIMEOUT_MS || process.env.INTENT_FILTER_TIMEOUT_MS || "10000", 10);
+                  let timer: NodeJS.Timeout;
+                  const timeoutPromise = new Promise((_, reject) => {
+                    timer = setTimeout(() => reject(new Error("Shadow gate evaluation timeout")), timeoutMs);
+                    if (timer.unref) timer.unref();
+                  });
+                  try {
+                    await Promise.race([
+                      evaluateInboundEmail("email", emailMeta, email.body, leadId),
+                      timeoutPromise
+                    ]);
+                  } finally {
+                    clearTimeout(timer!);
+                  }
+                } catch (gateErr: any) {
+                  console.warn("[gmailController] Shadow gate error:", gateErr.message);
+                }
+              });
+            } catch (err: any) {
+              console.warn("[gmailController] Failed to schedule shadow evaluation:", err.message);
+            }
+          });
+        }
+      } else {
+        // Mode ENFORCE: Gate runs before ingestion
+        for (const email of emails) {
+          let intentVerdict: any = null;
+          try {
+            const emailMeta = email.emailMeta || extractEmailMetadata(email.rawPayload);
+            intentVerdict = await evaluateInboundEmail("email", emailMeta, email.body);
+          } catch (err: any) {
+            console.error("[gmailController] Intent Filter evaluation error:", err.message);
+            intentVerdict = { action: "REVIEW", label: "too_vague", score: 50, reason: err.message };
+          }
+
+          if (intentVerdict && intentVerdict.action === "ATTACH_EXISTING") {
+            let targetLeadId = intentVerdict.openLeadId;
+            if (!targetLeadId) {
+              try {
+                const ctx = await getSenderContext(email.senderEmail);
+                targetLeadId = ctx.openLeadId;
+              } catch (ctxErr: any) {
+                console.warn("[gmailController] Failed to get sender context fallback:", ctxErr?.message);
+              }
+            }
+
+            let attachedSuccessfully = false;
+            if (targetLeadId) {
+              try {
+                await attachEmailToLeadActivity({
+                  leadId: targetLeadId,
+                  subject: email.subject || "Email Received",
+                  body: email.body,
+                  createdById: null,
+                  channelSource: "gmail"
+                });
+                attachedSuccessfully = true;
+              } catch (actErr: any) {
+                console.warn("[gmailController] Activity attach error:", actErr.message);
+              }
+            }
+
+            if (attachedSuccessfully) {
+              continue;
+            }
+            // On attach failure (missing leadId or attach threw), do NOT continue; create the lead instead!
+          }
+
+          if (intentVerdict && ["PENDING_CLARIFY", "REVIEW", "ARCHIVE"].includes(intentVerdict.action)) {
+            let holdWritten = false;
+            if (FlaggedLead) {
+              try {
+                await FlaggedLead.create({
+                  id: randomUUID(),
+                  payload: email.rawPayload,
+                  source: "Gmail Connector",
+                  channel: "email",
+                  reason: intentVerdict.reason,
+                  disposition: intentVerdict.action === "PENDING_CLARIFY"
+                    ? "pending_clarification"
+                    : intentVerdict.action === "ARCHIVE"
+                    ? "archived"
+                    : "review",
+                  intentLabel: intentVerdict.label,
+                  intentScore: intentVerdict.score,
+                  explanation: intentVerdict.reason,
+                  senderEmail: email.senderEmail,
+                  subject: email.subject,
+                  reviewed: false
+                });
+                holdWritten = true;
+              } catch (flagErr: any) {
+                console.warn("[gmailController] FlaggedLead create error:", flagErr.message);
+              }
+            }
+
+            if (holdWritten) {
+              continue;
+            }
+            // On hold failure (FlaggedLead write threw or missing), do NOT continue; create the lead instead!
+          }
+
+          const newLeadId = await ingestLead({
+            firstName: email.senderName.split(" ")[0] || "Unknown",
+            lastName: email.senderName.split(" ").slice(1).join(" ") || "Sender",
+            email: email.senderEmail,
+            phone: email.phone,
+            company: email.senderName + " Org",
+            source: "Gmail Connector",
+            sourceDetail: `Email Subject: ${email.subject}`,
+            message: email.body,
+            rawPayload: email.rawPayload
+          });
+
+          ingestedCount++;
+
+          if (newLeadId) {
+            try {
+              await handlePromoteOnReply(email.senderEmail, newLeadId);
+            } catch (e) {}
+          }
+        }
       }
     }
 

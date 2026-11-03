@@ -18,7 +18,8 @@
     "dev": "npm run dev:backend",
     "test:frontend": "npm test --workspace=frontend",
     "test:backend": "npm test --workspace=backend",
-    "test": "npm test --workspace=frontend && npm test --workspace=backend"
+    "test": "npm test --workspace=frontend && npm test --workspace=backend",
+    "s3:cors": "node scripts/set-s3-cors.js"
   },
   "supportedArchitectures": {
     "os": [

@@ -105,6 +105,12 @@ export async function checkAndAutoAdvanceLead(
 
     // ── 2. Check CONTACTED -> QUALIFIED ────────────────────────────────────────
     if (currentStatus === "CONTACTED") {
+      try {
+        const { ensureInspectionRequestedForContactedLead } = require("./siteInspectionService");
+        await ensureInspectionRequestedForContactedLead(leadId);
+      } catch (ensureErr) {
+        console.warn("[leadStageAutomationService] ensureInspectionRequested error:", ensureErr);
+      }
       const validation = await validateStageTransition(
         leadId,
         "CONTACTED",

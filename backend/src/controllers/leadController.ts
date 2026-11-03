@@ -461,6 +461,14 @@ export const updateLead = async (req: Request, res: Response) => {
       });
     }
 
+    if (updateData.status && (updateData.status.toUpperCase() === "QUALIFIED" || updateData.status.toUpperCase() === "CONVERTED")) {
+      const { getSiteInspectionGate } = require("../services/siteInspectionService");
+      const gate = await getSiteInspectionGate(id);
+      if (!gate.allowed) {
+        return res.status(400).json({ error: gate.message });
+      }
+    }
+
     if (updateData.assignedToId && updateData.assignedToId !== (lead as any).assignedToId) {
       await assignLeadToSalesperson(lead, updateData.assignedToId);
       delete updateData.assignedToId;

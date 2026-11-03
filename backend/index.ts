@@ -67,6 +67,10 @@ const startServer = async () => {
       // Start Campaign Message Scheduler
       const { startCampaignMessageScheduler } = require("./src/services/campaignMessageScheduler");
       startCampaignMessageScheduler();
+
+      // Start Site Inspection Stage B Automation Scanner
+      const { startAutomationScheduler } = require("./src/services/siteInspectionAutomationScanner");
+      startAutomationScheduler();
     });
   } catch (error) {
     console.error("Failed to start server:", error);

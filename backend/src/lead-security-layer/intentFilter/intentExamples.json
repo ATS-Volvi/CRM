@@ -1,0 +1,232 @@
+[
+  {
+    "input": "Win a free ticket... Exclusively with the Happy IndiGo Day Offer. T&C apply. To view this message in HTML format click here: https://t.marketing.goindigo.in",
+    "output": {
+      "label": "newsletter",
+      "leadScore": 5,
+      "confidence": "high",
+      "language": "en",
+      "reason": "Airline marketing promotion newsletter."
+    }
+  },
+  {
+    "input": "Harshad Vesaokar reacted to this post: Pratish Udhwani liked this. Read more on LinkedIn: https://www.linkedin.com/comm/feed",
+    "output": {
+      "label": "newsletter",
+      "leadScore": 5,
+      "confidence": "high",
+      "language": "en",
+      "reason": "Social media activity notification."
+    }
+  },
+  {
+    "input": "The Atlas by GenAI Works: Apple asked a judge for permission to send forensic experts. Mixture-of-Kittens fuses all computation. Read more on LinkedIn.",
+    "output": {
+      "label": "newsletter",
+      "leadScore": 5,
+      "confidence": "high",
+      "language": "en",
+      "reason": "Weekly industry tech newsletter."
+    }
+  },
+  {
+    "input": "Flipkart: Get ₹1,250 Vouchers + 5% cashback on your next order today! Check out top deals.",
+    "output": {
+      "label": "newsletter",
+      "leadScore": 5,
+      "confidence": "high",
+      "language": "en",
+      "reason": "E-commerce promotional email."
+    }
+  },
+  {
+    "input": "hi",
+    "output": {
+      "label": "too_vague",
+      "leadScore": 10,
+      "confidence": "high",
+      "language": "en",
+      "reason": "Single greeting word with no context or business intent."
+    }
+  },
+  {
+    "input": "Hello sir, testing email server please ignore",
+    "output": {
+      "label": "too_vague",
+      "leadScore": 5,
+      "confidence": "high",
+      "language": "en",
+      "reason": "Internal test message with no enquiry."
+    }
+  },
+  {
+    "input": "Sorry wrong email address, please ignore my previous message.",
+    "output": {
+      "label": "irrelevant",
+      "leadScore": 5,
+      "confidence": "high",
+      "language": "en",
+      "reason": "Sender sent to wrong address."
+    }
+  },
+  {
+    "input": "Is this Dr. Ahmed's dental clinic? I want to reschedule my appointment for Sunday.",
+    "output": {
+      "label": "irrelevant",
+      "leadScore": 5,
+      "confidence": "high",
+      "language": "en",
+      "reason": "Unrelated business enquiry sent to wrong recipient."
+    }
+  },
+  {
+    "input": "Dear Founder, We are an offshore software agency offering web development and SEO services at $15/hr. Would you like to review our portfolio?",
+    "output": {
+      "label": "vendor_pitch",
+      "leadScore": 15,
+      "confidence": "high",
+      "language": "en",
+      "reason": "Unsolicited vendor pitch selling B2B services."
+    }
+  },
+  {
+    "input": "I will be out of the office on annual leave from Oct 10 to Oct 25 with limited access to email. In my absence contact support@corp.com.",
+    "output": {
+      "label": "auto_reply",
+      "leadScore": 5,
+      "confidence": "high",
+      "language": "en",
+      "reason": "Automated out-of-office reply."
+    }
+  },
+  {
+    "input": "Can you provide rates for 8 modular security guard shelters?",
+    "output": {
+      "label": "new_enquiry",
+      "leadScore": 90,
+      "confidence": "high",
+      "language": "en",
+      "reason": "Direct inquiry for guard shelter rates."
+    }
+  },
+  {
+    "input": "Please provide an estimate for delivery and assembly of portable site workshops.",
+    "output": {
+      "label": "new_enquiry",
+      "leadScore": 95,
+      "confidence": "high",
+      "language": "en",
+      "reason": "Commercial request for workshop structures estimate."
+    }
+  },
+  {
+    "input": "Inquiry: We require modular steel storage sheds and insulated utility shelters for our industrial yard in Dammam. Please email specifications and price schedule. Tel: +966551122334",
+    "output": {
+      "label": "new_enquiry",
+      "leadScore": 95,
+      "confidence": "high",
+      "language": "en",
+      "reason": "High-value commercial inquiry with clear specifications."
+    }
+  },
+  {
+    "input": "Can you send the pricing grid for standard annual maintenance contracts for HVAC systems?",
+    "output": {
+      "label": "new_enquiry",
+      "leadScore": 90,
+      "confidence": "high",
+      "language": "en",
+      "reason": "Prospective buyer requesting maintenance contract pricing."
+    }
+  },
+  {
+    "input": "We are expanding our Dubai logistics warehouse and require an estimate for heavy-duty industrial shelving.",
+    "output": {
+      "label": "new_enquiry",
+      "leadScore": 95,
+      "confidence": "high",
+      "language": "en",
+      "reason": "Specific project requirement requesting commercial estimate."
+    }
+  },
+  {
+    "input": "Interested in scheduling a live product demo next Tuesday for our procurement committee.",
+    "output": {
+      "label": "new_enquiry",
+      "leadScore": 85,
+      "confidence": "high",
+      "language": "en",
+      "reason": "Commercial prospect requesting product demonstration."
+    }
+  },
+  {
+    "input": "السلام عليكم ورحمة الله، نود الاستفسار عن كرفانات الحراسة المتنقلة لديكم ومواصفات العزل الحراري.",
+    "output": {
+      "label": "new_enquiry",
+      "leadScore": 90,
+      "confidence": "high",
+      "language": "ar",
+      "reason": "Commercial specification inquiry for mobile guard units in Arabic."
+    }
+  },
+  {
+    "input": "هل يتوفر لديكم تأجير مستودعات سريعة التركيب لموسم الشتاء؟",
+    "output": {
+      "label": "new_enquiry",
+      "leadScore": 85,
+      "confidence": "high",
+      "language": "ar",
+      "reason": "Commercial rental inquiry for rapid assembly warehouses in Arabic."
+    }
+  },
+  {
+    "input": "مرحبا، نحتاج كتالوج المنتجات مع قائمة الاسعار لمشاريعنا في جدة وشكرا",
+    "output": {
+      "label": "new_enquiry",
+      "leadScore": 90,
+      "confidence": "high",
+      "language": "ar",
+      "reason": "Product catalog and pricing request in Arabic."
+    }
+  },
+  {
+    "input": "عرض سعر لـ 50 وحدة سكن عمال؟",
+    "output": {
+      "label": "new_enquiry",
+      "leadScore": 95,
+      "confidence": "high",
+      "language": "ar",
+      "reason": "Terse Arabic enquiry for 50 worker housing units."
+    }
+  },
+  {
+    "input": "Sir 10 units prefabricated cabins ka quotation chahiye urgent project ke liye, kindly revert.",
+    "output": {
+      "label": "new_enquiry",
+      "leadScore": 90,
+      "confidence": "high",
+      "language": "hinglish",
+      "reason": "Clear quotation request in Hinglish with quantity."
+    }
+  },
+  {
+    "input": "Our previous invoice #INV-2026-004 has an incorrect tax calculation. Please revise and resend.",
+    "output": {
+      "label": "support_request",
+      "leadScore": 35,
+      "confidence": "high",
+      "language": "en",
+      "reason": "Billing and invoice adjustment support request."
+    }
+  },
+  {
+    "input": "Thanks for sending the revised quotation QT-2026-102. Our CFO has approved and we accept the terms.",
+    "output": {
+      "label": "existing_contact_reply",
+      "leadScore": 85,
+      "confidence": "high",
+      "language": "en",
+      "reason": "Client response approving an existing quotation."
+    }
+  }
+]

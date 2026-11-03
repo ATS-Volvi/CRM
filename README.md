@@ -48,3 +48,28 @@ Nexus CRM uses **Twilio Programmable Messaging / WhatsApp API** for real-time le
 > - Registering a Twilio-brokered **Production WhatsApp Sender** (requires Meta Business Verification through Twilio), OR
 > - Switching back to direct Meta Cloud API once Meta Business Verification is completed.
 
+## S3 Bucket CORS Setup (Site Inspection File Uploads)
+
+Direct browser-to-S3 file uploads require proper bucket CORS configuration:
+
+### Automated Setup
+```bash
+npm run s3:cors
+```
+
+### Manual Setup via AWS Console
+1. Navigate to **Amazon S3** > **Buckets** > `YOUR_BUCKET_NAME` > **Permissions** > **Cross-origin resource sharing (CORS)**.
+2. Click **Edit** and paste:
+```json
+[
+  {
+    "AllowedHeaders": ["*"],
+    "AllowedMethods": ["PUT", "GET", "HEAD"],
+    "AllowedOrigins": ["https://crm-k8g4.onrender.com", "http://localhost:5173"],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3000
+  }
+]
+```
+3. Save changes. Detailed guide and IAM policies: [docs/S3_CORS_SETUP.md](docs/S3_CORS_SETUP.md).
+

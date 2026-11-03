@@ -8,6 +8,7 @@ module.exports = {
   },
   setupFilesAfterEnv: ['<rootDir>/tests/setup.ts'],
   testTimeout: 60000,
+  maxWorkers: 1,
   transform: {
     '^.+\\.[tj]sx?$': [
       'ts-jest',
@@ -21,4 +22,5 @@ module.exports = {
   transformIgnorePatterns: [
     'node_modules/(?!(sanitize-html|htmlparser2|dom-serializer|domhandler|domutils|domelementtype|entities)/)',
   ],
+  maxWorkers: 1,
 };

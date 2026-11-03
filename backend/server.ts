@@ -6,10 +6,53 @@ import path from "path";
 import v1Router from "./src/routes/v1";
 import { setupSwagger } from "./src/swagger";
 
+function getStorageCspOrigin(): string | null {
+  const driver = (process.env.STORAGE_DRIVER || "local").toLowerCase();
+  if (driver !== "s3") {
+    return null;
+  }
+
+  const endpoint = process.env.S3_ENDPOINT || process.env.AWS_ENDPOINT_URL;
+  if (endpoint && endpoint.trim()) {
+    try {
+      const raw = endpoint.trim();
+      const withProtocol = raw.startsWith("http://") || raw.startsWith("https://") ? raw : `https://${raw}`;
+      return new URL(withProtocol).origin;
+    } catch {
+      return null;
+    }
+  }
+
+  return "https://*.amazonaws.com";
+}
+
 export function createServer(): Express {
   const app = express();
 
-  app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
+  // Trust Render reverse proxy / load balancer for accurate client IP resolution
+  app.set("trust proxy", 1);
+
+  const storageOrigin = getStorageCspOrigin();
+  const defaultDirectives = helmet.contentSecurityPolicy.getDefaultDirectives();
+
+  app.use(
+    helmet({
+      crossOriginResourcePolicy: { policy: "cross-origin" },
+      contentSecurityPolicy: {
+        directives: {
+          ...defaultDirectives,
+          "connect-src": ["'self'", ...(storageOrigin ? [storageOrigin] : [])],
+          "img-src": ["'self'", "data:", "blob:", ...(storageOrigin ? [storageOrigin] : [])],
+          ...(storageOrigin
+            ? {
+                "frame-src": ["'self'", storageOrigin],
+                "object-src": ["'self'", storageOrigin],
+              }
+            : {}),
+        },
+      },
+    })
+  );
   const corsOrigins = process.env.CORS_ORIGIN
     ? process.env.CORS_ORIGIN.split(",").map(o => o.trim())
     : ["http://localhost:5173", "https://crm-k8g4.onrender.com"];
@@ -21,6 +64,16 @@ export function createServer(): Express {
 
   app.get(["/api/health", "/health"], (_req, res) => {
     res.json({ status: "ok", service: "nexus-crm-backend" });
+  });
+
+  app.get(["/api/health/automation", "/health/automation"], async (_req, res) => {
+    try {
+      const { getAutomationHealth } = require("./src/services/siteInspectionAutomationScanner");
+      const health = await getAutomationHealth();
+      res.json(health);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
   });
 
   app.get(["/api/db-health", "/db-health"], async (_req, res) => {

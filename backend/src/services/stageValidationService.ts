@@ -128,6 +128,17 @@ export async function validateStageTransition(
 
   // 3. QUALIFIED / DISCOVERY / REQUIREMENTS STAGE
   if (normalizedTo === "qualified" || normalizedTo === "qualification" || normalizedTo === "discovery" || normalizedTo === "requirements") {
+    if (lead) {
+      try {
+        const { getSiteInspectionGate } = require("./siteInspectionService");
+        const gate = await getSiteInspectionGate(lead.id);
+        if (!gate.allowed) {
+          missingRequirements.push(gate.message);
+        }
+      } catch (gateErr) {
+        console.warn("[stageValidationService] Site inspection gate error:", gateErr);
+      }
+    }
     const qualObj = typeof (lead as any)?.qualificationData === "string" 
       ? JSON.parse((lead as any).qualificationData) 
       : (lead as any)?.qualificationData;
