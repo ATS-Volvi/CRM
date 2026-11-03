@@ -283,8 +283,8 @@ export const saveSiteInspectionDraft = async (req: Request, res: Response) => {
     const existing: any = await SiteInspection.findByPk(id);
     if (!existing) return res.status(404).json({ error: "Site inspection not found" });
 
-    if (user?.role === "site_manager" && existing.assignedToId && existing.assignedToId !== user.id) {
-      return res.status(403).json({ error: "Access denied: you may only edit inspections assigned to you." });
+    if (!canWriteInspection(user, existing)) {
+      return res.status(403).json({ error: READ_ONLY_INSPECTION_MESSAGE });
     }
 
     const updated = await saveInspectionDraft(id, req.body, user?.id);
@@ -311,8 +311,8 @@ export const submitSiteInspection = async (req: Request, res: Response) => {
     const existing: any = await SiteInspection.findByPk(id);
     if (!existing) return res.status(404).json({ error: "Site inspection not found" });
 
-    if (user?.role === "site_manager" && existing.assignedToId && existing.assignedToId !== user.id) {
-      return res.status(403).json({ error: "Access denied: you may only submit inspections assigned to you." });
+    if (!canWriteInspection(user, existing)) {
+      return res.status(403).json({ error: READ_ONLY_INSPECTION_MESSAGE });
     }
 
     const inspection = await submitInspection(id, req.body, user?.id);
@@ -368,6 +368,16 @@ function sanitizeFileName(rawName: string): string {
   return base || "attachment";
 }
 
+export const READ_ONLY_INSPECTION_MESSAGE =
+  "Access denied: only the assigned site inspector can modify this inspection. Your access is read-only.";
+
+export function canWriteInspection(user: any, inspection: any): boolean {
+  if (!user || user.role !== "site_manager") {
+    return false;
+  }
+  return !inspection.assignedToId || inspection.assignedToId === user.id;
+}
+
 // Helper to verify user permissions and inspection editability for attachment modifications
 async function checkAttachmentPermissionAndEditable(
   inspectionId: string,
@@ -378,14 +388,12 @@ async function checkAttachmentPermissionAndEditable(
     return { inspection: null, errorStatus: 404, errorMessage: "Site inspection not found" };
   }
 
-  // Permission check: assigned site_manager (or unassigned) or admin
-  const isAssigned = user?.role === "site_manager" && (!inspection.assignedToId || inspection.assignedToId === user.id);
-  const isAdmin = user?.role === "admin";
-  if (!isAssigned && !isAdmin) {
+  // Permission check: only the assigned site inspector may modify attachments
+  if (!canWriteInspection(user, inspection)) {
     return {
       inspection,
       errorStatus: 403,
-      errorMessage: "Access denied: only the assigned site manager or an administrator may modify attachments.",
+      errorMessage: READ_ONLY_INSPECTION_MESSAGE,
     };
   }
 
@@ -1045,6 +1053,14 @@ export const acceptInspectionHandler = async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
     if (!user) return res.status(401).json({ error: "Unauthorized" });
+
+    const inspection: any = await SiteInspection.findByPk(req.params.id as string);
+    if (!inspection) return res.status(404).json({ error: "Site inspection not found" });
+
+    if (!canWriteInspection(user, inspection)) {
+      return res.status(403).json({ error: READ_ONLY_INSPECTION_MESSAGE });
+    }
+
     const { acceptInspection } = require("../services/siteInspectionService");
     const result = await acceptInspection(req.params.id as string, user.id, user.role, req.ip);
     res.json(result);
@@ -1057,6 +1073,14 @@ export const declineInspectionHandler = async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
     if (!user) return res.status(401).json({ error: "Unauthorized" });
+
+    const inspection: any = await SiteInspection.findByPk(req.params.id as string);
+    if (!inspection) return res.status(404).json({ error: "Site inspection not found" });
+
+    if (!canWriteInspection(user, inspection)) {
+      return res.status(403).json({ error: READ_ONLY_INSPECTION_MESSAGE });
+    }
+
     const { reason } = req.body;
     if (!reason || !String(reason).trim()) {
       return res.status(400).json({ error: "A decline reason is mandatory." });
@@ -1073,6 +1097,14 @@ export const scheduleInspectionVisitHandler = async (req: Request, res: Response
   try {
     const user = (req as any).user;
     if (!user) return res.status(401).json({ error: "Unauthorized" });
+
+    const inspection: any = await SiteInspection.findByPk(req.params.id as string);
+    if (!inspection) return res.status(404).json({ error: "Site inspection not found" });
+
+    if (!canWriteInspection(user, inspection)) {
+      return res.status(403).json({ error: READ_ONLY_INSPECTION_MESSAGE });
+    }
+
     const { scheduledVisitAt } = req.body;
     if (!scheduledVisitAt) {
       return res.status(400).json({ error: "scheduledVisitAt datetime is required." });
@@ -1089,6 +1121,14 @@ export const startInspectionVisitHandler = async (req: Request, res: Response) =
   try {
     const user = (req as any).user;
     if (!user) return res.status(401).json({ error: "Unauthorized" });
+
+    const inspection: any = await SiteInspection.findByPk(req.params.id as string);
+    if (!inspection) return res.status(404).json({ error: "Site inspection not found" });
+
+    if (!canWriteInspection(user, inspection)) {
+      return res.status(403).json({ error: READ_ONLY_INSPECTION_MESSAGE });
+    }
+
     const { startInspectionVisit } = require("../services/siteInspectionService");
     const result = await startInspectionVisit(req.params.id as string, user.id, user.role, req.ip);
     res.json(result);

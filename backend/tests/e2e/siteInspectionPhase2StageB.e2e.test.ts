@@ -192,8 +192,8 @@ describe("Site Inspection Phase 2 — Stage B End-to-End Test Suite", () => {
         .post(`/api/v1/site-inspections/${testInspection.id}/accept`)
         .set("Authorization", `Bearer ${inspectorBetaToken}`);
 
-      expect(res.status).toBe(400);
-      expect(res.body.error).toContain("Only the assigned inspector");
+      expect(res.status).toBe(403);
+      expect(res.body.error).toContain("only the assigned site inspector");
     });
 
     test("Assigned inspector successfully accepts inspection -> transitions to DRAFT with timestamp & audit log", async () => {

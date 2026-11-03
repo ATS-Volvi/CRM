@@ -560,4 +560,122 @@ describe("Site Inspection Commercial Pipeline Gate E2E Flow", () => {
       throw err;
     }
   });
+
+  test("Step l: Inspector-only writes enforced, read-only for salesman & other inspectors, manager approve & reassign works", async () => {
+    try {
+      const ts = Date.now();
+      const testLead = await Lead.create({
+        id: crypto.randomUUID(),
+        leadNumber: `LEAD-PERM-${ts}`,
+        firstName: "Perm",
+        lastName: "Test",
+        company: "Perm Testing Co",
+        status: "NEW",
+        assignedToId: salesRep.id,
+      });
+
+      const permInspection = await SiteInspection.create({
+        id: crypto.randomUUID(),
+        inspectionNumber: `INSP-PERM-${ts}`,
+        leadId: testLead.id,
+        status: "DRAFT",
+        assignedToId: siteManager.id,
+        speedLimitKmh: 60,
+        accepted: true,
+      });
+
+      // 1. Salesman (sales_rep) PUT /site-inspections/:id -> 403 Forbidden
+      const salesmanPutRes = await request(app)
+        .put(`/api/v1/site-inspections/${permInspection.id}`)
+        .set("Authorization", `Bearer ${salesRepToken}`)
+        .send({ observations: "Salesman trying to write" });
+
+      expect(salesmanPutRes.status).toBe(403);
+      expect(salesmanPutRes.body.error).toBe(
+        "Access denied: only the assigned site inspector can modify this inspection. Your access is read-only."
+      );
+
+      // 2. Salesman (sales_rep) POST /site-inspections/:id/submit -> 403 Forbidden
+      const salesmanSubmitRes = await request(app)
+        .post(`/api/v1/site-inspections/${permInspection.id}/submit`)
+        .set("Authorization", `Bearer ${salesRepToken}`)
+        .send({});
+
+      expect(salesmanSubmitRes.status).toBe(403);
+      expect(salesmanSubmitRes.body.error).toBe(
+        "Access denied: only the assigned site inspector can modify this inspection. Your access is read-only."
+      );
+
+      // 3. Different site manager (siteManager2) PUT /site-inspections/:id -> 403 Forbidden
+      const otherInspectorPutRes = await request(app)
+        .put(`/api/v1/site-inspections/${permInspection.id}`)
+        .set("Authorization", `Bearer ${siteManager2Token}`)
+        .send({ observations: "Other inspector trying to write" });
+
+      expect(otherInspectorPutRes.status).toBe(403);
+      expect(otherInspectorPutRes.body.error).toBe(
+        "Access denied: only the assigned site inspector can modify this inspection. Your access is read-only."
+      );
+
+      // 4. Assigned site manager (siteManager) PUT /site-inspections/:id -> 200 OK
+      const assignedInspectorPutRes = await request(app)
+        .put(`/api/v1/site-inspections/${permInspection.id}`)
+        .set("Authorization", `Bearer ${siteManagerToken}`)
+        .send({
+          observations: "Assigned inspector updating draft observations",
+          speedLimitKmh: 65,
+        });
+
+      expect(assignedInspectorPutRes.status).toBe(200);
+      expect(assignedInspectorPutRes.body.observations).toBe(
+        "Assigned inspector updating draft observations"
+      );
+
+      // 5. Manager / Approver (opsManager) can reassign to siteManager2
+      const reassignRes = await request(app)
+        .post(`/api/v1/site-inspections/${permInspection.id}/reassign`)
+        .set("Authorization", `Bearer ${opsManagerToken}`)
+        .send({
+          assignedToId: siteManager2.id,
+          reason: "Reassigning to siteManager2 for workload balance",
+        });
+
+      expect(reassignRes.status).toBe(200);
+      expect(reassignRes.body.assignedToId).toBe(siteManager2.id);
+
+      // 6. Now siteManager2 is assigned -> PUT returns 200, old siteManager returns 403
+      const newInspectorPutRes = await request(app)
+        .put(`/api/v1/site-inspections/${permInspection.id}`)
+        .set("Authorization", `Bearer ${siteManager2Token}`)
+        .send({ observations: "Now siteManager2 can write" });
+
+      expect(newInspectorPutRes.status).toBe(200);
+
+      const oldInspectorPutRes = await request(app)
+        .put(`/api/v1/site-inspections/${permInspection.id}`)
+        .set("Authorization", `Bearer ${siteManagerToken}`)
+        .send({ observations: "Old inspector should be blocked" });
+
+      expect(oldInspectorPutRes.status).toBe(403);
+      expect(oldInspectorPutRes.body.error).toBe(
+        "Access denied: only the assigned site inspector can modify this inspection. Your access is read-only."
+      );
+
+      // 7. Manager / Approver review works (request changes & approve)
+      await permInspection.update({ status: "SUBMITTED", assignedToId: siteManager2.id });
+
+      const approveRes = await request(app)
+        .post(`/api/v1/site-inspections/${permInspection.id}/review`)
+        .set("Authorization", `Bearer ${opsManagerToken}`)
+        .send({ action: "APPROVE", comment: "Ops manager approved" });
+
+      expect(approveRes.status).toBe(200);
+      expect(approveRes.body.status).toBe("APPROVED");
+
+      console.log("PASS: Step l - Inspector-only writes, salesman read-only, and manager review/reassign verified");
+    } catch (err) {
+      console.error("FAIL: Step l - Inspector permission tests failed", err);
+      throw err;
+    }
+  });
 });

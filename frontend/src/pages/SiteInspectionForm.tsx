@@ -268,13 +268,16 @@ export default function SiteInspectionForm() {
 
   const userRole = (user?.role || "").toLowerCase();
   const isApprover = APPROVER_ROLES.includes(userRole);
-  const isAssignedManager = inspection?.assignedToId === user?.id;
+  const isInspector =
+    Boolean(inspection) &&
+    userRole === "site_manager" &&
+    (!inspection?.assignedToId || inspection.assignedToId === user?.id);
 
-  // Can user edit draft?
+  // Can user edit draft? Inspector-only writes
   const isEditable =
     Boolean(inspection) &&
     ["REQUESTED", "DRAFT", "CHANGES_REQUESTED"].includes(inspection?.status || "") &&
-    (isAssignedManager || isApprover);
+    isInspector;
 
   // Live straight line distance calculation
   const liveBaseToSiteKm = useMemo(() => {
@@ -685,6 +688,27 @@ export default function SiteInspectionForm() {
           <button onClick={() => setFormError(null)} className="text-face-red hover:opacity-80">
             ×
           </button>
+        </div>
+      )}
+
+      {/* Read-only view banner when user is not the assigned inspector */}
+      {!isInspector && (
+        <div className="p-4 bg-slate-100 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-sm font-medium rounded-2xl flex items-center gap-3">
+          <Lock className="w-5 h-5 text-slate-500 shrink-0" />
+          <div>
+            <span className="font-bold text-slate-900 dark:text-white">Read-only view:</span>{" "}
+            {inspection.assignedTo ? (
+              <span>
+                This site inspection is being completed by{" "}
+                <span className="font-bold text-slate-900 dark:text-white">{inspection.assignedTo.name}</span>
+                {inspection.assignedTo.email ? ` (${inspection.assignedTo.email})` : ""}. Only the assigned site inspector can modify details or upload attachments.
+              </span>
+            ) : (
+              <span>
+                This site inspection has not been assigned to an inspector yet. Only an assigned site inspector can modify details.
+              </span>
+            )}
+          </div>
         </div>
       )}
 

@@ -24,9 +24,10 @@ New  ──►  Contacted  ──►  Site Inspection  ──►  Qualified  ─
 
 | Role | Permissions & Scope |
 | :--- | :--- |
-| `site_manager` | • Sees **only** their own assigned inspections in `/site-inspections` (isolated list).<br>• Root path `/` redirects directly to `/site-inspections`.<br>• Can draft, update, upload attachments, and submit their assigned inspections.<br>• **Strictly forbidden** from approving inspections (including their own). |
+| `site_manager` (Assigned Site Inspector) | • **Only role permitted to write inspection data** (drafting, editing details, uploading/deleting attachments, and submitting).<br>• Writes are restricted strictly to the assigned site inspector (or any site manager if unassigned). Other site managers cannot edit or upload.<br>• Sees **only** their own assigned inspections in `/site-inspections` (isolated list).<br>• Root path `/` redirects directly to `/site-inspections`.<br>• **Strictly forbidden** from approving inspections (including their own). |
+| All other roles (`sales_rep`, `manager`, `admin`, etc.) | • **Read-only access** to inspection data and attachments.<br>• Sales reps and non-inspector roles can view inspection progress and read reports from the lead page and inspection portal, but cannot modify drafts or upload files (backend returns 403 Forbidden). |
 | `ops_manager` | • Operations manager role with inspection oversight.<br>• Can review inspections (`APPROVE` or `REQUEST_CHANGES` with a mandatory comment).<br>• Can reassign inspections to other site managers.<br>• Can manage Operations Bases (`SiteBases`) and Disposal Facilities (`SiteFacilities`).<br>• Receives 403 Forbidden on unrelated admin/management routes (e.g., user administration). |
-| Approvers (`admin`, `director`, `manager`, `sales_manager`, `ops_manager`) | • Authorized to review, approve, request changes, or reassign inspections.<br>• **Self-approval is forbidden**: An approver who is assigned as the inspector on a record cannot approve their own inspection. |
+| Approvers (`admin`, `director`, `manager`, `sales_manager`, `ops_manager`) | • Authorized to review, approve, request changes, or reassign inspections.<br>• **Self-approval is forbidden**: An approver who is assigned as the inspector on a record cannot approve their own inspection.<br>• While approvers can review and reassign, inspection form data and attachments remain strictly writable only by the assigned `site_manager`. |
 
 ---
 
