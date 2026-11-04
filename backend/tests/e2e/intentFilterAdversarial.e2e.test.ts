@@ -7,7 +7,7 @@ import { randomUUID } from 'crypto';
 
 const app = createServer();
 const JWT_SECRET = process.env.JWT_SECRET || 'throwaway-secret-for-testing-only-12345';
-const INBOUND_SECRET = 'adversarial_test_secret';
+const INBOUND_SECRET = 'test_secret';
 
 function createAuthToken(user: any): string {
   return jwt.sign(
@@ -33,6 +33,7 @@ describe('Adversarial E2E Tests: Failures, Webhook Formats, Roles, & Filter Endp
   let opsManagerUser: any;
 
   let tokens: Record<string, string> = {};
+  const origInboundSecret = process.env.INBOUND_EMAIL_SECRET;
 
   beforeAll(async () => {
     process.env.INBOUND_EMAIL_SECRET = INBOUND_SECRET;
@@ -705,5 +706,13 @@ describe('Adversarial E2E Tests: Failures, Webhook Formats, Roles, & Filter Endp
         process.env.INTENT_FILTER_MODE = orig;
       }
     });
+  });
+
+  afterAll(async () => {
+    if (origInboundSecret !== undefined) {
+      process.env.INBOUND_EMAIL_SECRET = origInboundSecret;
+    } else {
+      delete process.env.INBOUND_EMAIL_SECRET;
+    }
   });
 });
