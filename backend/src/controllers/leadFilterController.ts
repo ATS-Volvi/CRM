@@ -59,7 +59,11 @@ export const getHeldEmails = async (req: Request, res: Response) => {
     };
 
     if (disposition) {
-      where.disposition = disposition;
+      if (disposition === 'review') {
+        where.disposition = { [Op.in]: ['review', 'promoting'] };
+      } else {
+        where.disposition = disposition;
+      }
     }
     if (channel) {
       where.channel = channel;
@@ -145,14 +149,22 @@ export const promoteHeldEmail = async (req: Request, res: Response) => {
       });
     }
 
-    // Concurrency guard: atomic conditional update to lock row from concurrent promotions
+    // Concurrency guard: atomic conditional update to lock row from concurrent promotions.
+    // If disposition is 'promoting' but older than 5 minutes, take over the stale lock.
     const originalDisposition = heldRow.disposition || 'held';
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
     const [affectedCount] = await FlaggedLead.update(
-      { disposition: 'promoting' },
+      { disposition: 'promoting', updatedAt: new Date() },
       {
         where: {
           id: heldId,
-          disposition: { [Op.notIn]: ['promoted', 'promoting'] },
+          [Op.or]: [
+            { disposition: { [Op.notIn]: ['promoted', 'promoting'] } },
+            {
+              disposition: 'promoting',
+              updatedAt: { [Op.lt]: fiveMinutesAgo },
+            },
+          ],
         },
       }
     );
@@ -416,7 +428,7 @@ export const getFilterStats = async (req: Request, res: Response) => {
       heldToday = await FlaggedLead.count({
         where: {
           createdAt: { [Op.gte]: todayStart },
-          disposition: { [Op.in]: ['review', 'pending_clarification'] },
+          disposition: { [Op.in]: ['review', 'pending_clarification', 'promoting'] },
           intentLabel: { [Op.ne]: null },
         },
       });
@@ -438,7 +450,7 @@ export const getFilterStats = async (req: Request, res: Response) => {
 
       needsReviewCount = await FlaggedLead.count({
         where: {
-          disposition: 'review',
+          disposition: { [Op.in]: ['review', 'promoting'] },
           intentLabel: { [Op.ne]: null },
         },
       });

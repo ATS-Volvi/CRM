@@ -489,6 +489,148 @@ describe('Adversarial E2E Tests: Failures, Webhook Formats, Roles, & Filter Endp
       const leads = await Lead.findAll({ where: { email: concurrentEmail } });
       expect(leads.length).toBe(1);
     });
+
+    it('takes over stale promoting lock older than 5 minutes and succeeds in creating lead', async () => {
+      const staleEmail = `stale.promoting.${Date.now()}@example.com`;
+      const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+      const held = await FlaggedLead.create({
+        id: randomUUID(),
+        payload: {
+          from: staleEmail,
+          subject: 'Stale lock inquiry',
+          text: 'Need 10 portacabins for project site.',
+          firstName: 'Stale',
+          lastName: 'Lock',
+        },
+        source: 'email',
+        channel: 'email',
+        disposition: 'promoting',
+        intentLabel: 'too_vague',
+        intentScore: 50,
+        reason: 'Worker crashed during earlier promotion attempt',
+        explanation: 'Worker crashed during earlier promotion attempt',
+        senderEmail: staleEmail,
+        subject: 'Stale lock inquiry',
+        createdAt: tenMinutesAgo,
+        updatedAt: tenMinutesAgo,
+      });
+
+      // Set updatedAt in the past using dialect-aware query
+      if (sequelize.getDialect() === "sqlite") {
+        const pad = (n: number, len = 2) => String(n).padStart(len, "0");
+        const sqliteDate =
+          tenMinutesAgo.getUTCFullYear() + "-" +
+          pad(tenMinutesAgo.getUTCMonth() + 1) + "-" +
+          pad(tenMinutesAgo.getUTCDate()) + " " +
+          pad(tenMinutesAgo.getUTCHours()) + ":" +
+          pad(tenMinutesAgo.getUTCMinutes()) + ":" +
+          pad(tenMinutesAgo.getUTCSeconds()) + "." +
+          pad(tenMinutesAgo.getUTCMilliseconds(), 3) + " +00:00";
+        await sequelize.query('UPDATE "FlaggedLeads" SET "updatedAt" = ? WHERE "id" = ?', {
+          replacements: [sqliteDate, held.id],
+        });
+      } else {
+        await sequelize.query('UPDATE "FlaggedLeads" SET "updatedAt" = ? WHERE "id" = ?', {
+          replacements: [tenMinutesAgo, held.id],
+        });
+      }
+
+      // Promote should succeed by taking over stale lock
+      const res = await request(app)
+        .post(`/api/v1/lead-filter/held/${held.id}/promote`)
+        .set('Authorization', `Bearer ${tokens['admin']}`)
+        .send({});
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.leadId).toBeDefined();
+
+      // Verify lead created and disposition updated to promoted
+      const updated = (await FlaggedLead.findByPk(held.id)) as any;
+      expect(updated.disposition).toBe('promoted');
+      expect(updated.promotedLeadId).toBe(res.body.leadId);
+
+      const leads = await Lead.findAll({ where: { email: staleEmail } });
+      expect(leads.length).toBe(1);
+    });
+
+    it('rejects promote call with 409 when disposition is promoting and updatedAt is recent (< 5 min)', async () => {
+      const recentEmail = `recent.promoting.${Date.now()}@example.com`;
+      const held = await FlaggedLead.create({
+        id: randomUUID(),
+        payload: {
+          from: recentEmail,
+          subject: 'Active lock inquiry',
+          text: 'Need cabins immediately.',
+          firstName: 'Active',
+          lastName: 'Promoting',
+        },
+        source: 'email',
+        channel: 'email',
+        disposition: 'promoting',
+        intentLabel: 'too_vague',
+        intentScore: 50,
+        reason: 'Currently in progress',
+        explanation: 'Currently in progress',
+        senderEmail: recentEmail,
+        subject: 'Active lock inquiry',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      const res = await request(app)
+        .post(`/api/v1/lead-filter/held/${held.id}/promote`)
+        .set('Authorization', `Bearer ${tokens['admin']}`)
+        .send({});
+
+      expect(res.status).toBe(409);
+      expect(res.body.error).toMatch(/promoting|already/i);
+
+      // No lead should be created
+      const leads = await Lead.findAll({ where: { email: recentEmail } });
+      expect(leads.length).toBe(0);
+    });
+
+    it('treats promoting rows as needs review in Held Emails list and stats count', async () => {
+      const stuckEmail = `stuck.in.list.${Date.now()}@example.com`;
+      const stuckRow = await FlaggedLead.create({
+        id: randomUUID(),
+        payload: {
+          from: stuckEmail,
+          subject: 'Stuck promoting row',
+          text: 'Message body text.',
+        },
+        source: 'email',
+        channel: 'email',
+        disposition: 'promoting',
+        intentLabel: 'ambiguous_lead',
+        intentScore: 55,
+        reason: 'Stuck promoting',
+        explanation: 'Stuck promoting',
+        senderEmail: stuckEmail,
+        subject: 'Stuck promoting row',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      // 1. GET /api/v1/lead-filter/held?disposition=review should include 'promoting' rows
+      const listRes = await request(app)
+        .get('/api/v1/lead-filter/held?disposition=review')
+        .set('Authorization', `Bearer ${tokens['admin']}`);
+
+      expect(listRes.status).toBe(200);
+      const items = listRes.body.items || [];
+      const foundInList = items.some((i: any) => i.id === stuckRow.id);
+      expect(foundInList).toBe(true);
+
+      // 2. GET /api/v1/lead-filter/stats should count 'promoting' in needsReviewCount
+      const statsRes = await request(app)
+        .get('/api/v1/lead-filter/stats')
+        .set('Authorization', `Bearer ${tokens['admin']}`);
+
+      expect(statsRes.status).toBe(200);
+      expect(statsRes.body.needsReviewCount).toBeGreaterThan(0);
+    });
   });
 
   describe('5. Webhook File Attachments Handling', () => {
