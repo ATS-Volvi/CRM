@@ -52,7 +52,6 @@ export default function LeadDetail() {
   const [gateBlockedBanner, setGateBlockedBanner] = useState<string | null>(null);
   const [statusErrorMessage, setStatusErrorMessage] = useState<string | null>(null);
   const { gate, inspection } = useLeadSiteInspection(id);
-  const requiresSiteInspection = lead?.requiresSiteInspection === true;
 
   // Activity Timeline Filter & Note States
   const [activityFilter, setActivityFilter] = useState<string>("all");
@@ -113,6 +112,8 @@ export default function LeadDetail() {
     },
     enabled: !!id && !!token
   });
+
+  const requiresSiteInspection = lead?.requiresSiteInspection === true;
 
   const { data: pipelineStages } = useQuery<any[]>({
     queryKey: ["pipelineStages"],
