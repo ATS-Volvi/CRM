@@ -150,7 +150,8 @@ describe("Site Inspection Commercial Pipeline Gate E2E Flow", () => {
         status: "NEW",
         source: "Website",
         assignedToId: salesRep.id,
-        siteInspectionStatus: "NOT_REQUESTED"
+        siteInspectionStatus: "NOT_REQUESTED",
+        requiresSiteInspection: true
       });
 
       // Log outbound call via POST /api/v1/activities

@@ -52,6 +52,7 @@ export default function LeadDetail() {
   const [gateBlockedBanner, setGateBlockedBanner] = useState<string | null>(null);
   const [statusErrorMessage, setStatusErrorMessage] = useState<string | null>(null);
   const { gate, inspection } = useLeadSiteInspection(id);
+  const requiresSiteInspection = lead?.requiresSiteInspection === true;
 
   // Activity Timeline Filter & Note States
   const [activityFilter, setActivityFilter] = useState<string>("all");
@@ -238,6 +239,21 @@ export default function LeadDetail() {
       queryClient.invalidateQueries({ queryKey: ["lead", id] });
       queryClient.invalidateQueries({ queryKey: ["leadActivities", id] });
       setIsEditingDetails(false);
+    }
+  });
+
+  const toggleSiteInspectionMutation = useMutation({
+    mutationFn: async (value: boolean) => {
+      const res = await fetch(`/api/v1/leads/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({ requiresSiteInspection: value })
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["lead", id] });
     }
   });
 
@@ -822,14 +838,26 @@ export default function LeadDetail() {
         <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-2">
           
           {/* Linked Chevron Arrow Path */}
-          <div className="flex-1 grid grid-cols-2 sm:grid-cols-5 gap-1 sm:gap-0 bg-slate-100/80 dark:bg-slate-800/80 rounded-xl overflow-hidden p-1 border border-slate-200/60 dark:border-slate-700/60">
-            {[
-              { key: "NEW", num: "1", label: "New Enquiry", desc: "Ingested & Assigned" },
-              { key: "CONTACTED", num: "2", label: "Contacted", desc: "Outreach in Progress" },
-              { key: "SITE_INSPECTION", num: "3", label: "Site Inspection", desc: inspection?.status === "APPROVED" ? "Approved" : inspection?.status ? getStatusStyle(inspection.status).label : "Gate Required" },
-              { key: "QUALIFIED", num: "4", label: "Qualified", desc: "Needs & Budget Set" },
-              { key: "CONVERTED", num: "5", label: "Converted", desc: "Deal Auto-Created" }
-            ].map((stage, idx) => {
+          {(() => {
+            const workflowStages = requiresSiteInspection
+              ? [
+                  { key: "NEW",             num: "1", label: "New Enquiry",     desc: "Ingested & Assigned" },
+                  { key: "CONTACTED",       num: "2", label: "Contacted",       desc: "Outreach in Progress" },
+                  { key: "SITE_INSPECTION", num: "3", label: "Site Inspection", desc: inspection?.status === "APPROVED" ? "Approved" : inspection?.status ? getStatusStyle(inspection.status).label : "Gate Required" },
+                  { key: "QUALIFIED",       num: "4", label: "Qualified",       desc: "Needs & Budget Set" },
+                  { key: "CONVERTED",       num: "5", label: "Converted",       desc: "Deal Auto-Created" },
+                ]
+              : [
+                  { key: "NEW",       num: "1", label: "New Enquiry", desc: "Ingested & Assigned" },
+                  { key: "CONTACTED", num: "2", label: "Contacted",   desc: "Outreach in Progress" },
+                  { key: "QUALIFIED", num: "3", label: "Qualified",   desc: "Needs & Budget Set" },
+                  { key: "CONVERTED", num: "4", label: "Converted",   desc: "Deal Auto-Created" },
+                ];
+            const totalStages = workflowStages.length;
+            const gridCols = totalStages === 5 ? "grid-cols-2 sm:grid-cols-5" : "grid-cols-2 sm:grid-cols-4";
+            return (
+          <div className={`flex-1 grid ${gridCols} gap-1 sm:gap-0 bg-slate-100/80 dark:bg-slate-800/80 rounded-xl overflow-hidden p-1 border border-slate-200/60 dark:border-slate-700/60`}>
+            {workflowStages.map((stage, idx) => {
               const currentStatus = (lead.status || "NEW").toUpperCase();
               const isNotConverted = currentStatus === "NOT_CONVERTED" || currentStatus === "LOST";
               const isApproved = inspection?.status === "APPROVED";
@@ -911,7 +939,7 @@ export default function LeadDetail() {
                   </button>
 
                   {/* Arrowhead Divider between steps on desktop */}
-                  {idx < 4 && (
+                  {idx < totalStages - 1 && (
                     <div className="hidden sm:flex items-center absolute -right-2 z-30 pointer-events-none">
                       <ChevronRight className={`w-4 h-4 stroke-[3] ${isPast ? "text-emerald-500" : isCurrent ? "text-indigo-400" : "text-slate-300 dark:text-slate-600"}`} />
                     </div>
@@ -920,6 +948,8 @@ export default function LeadDetail() {
               );
             })}
           </div>
+            );
+          })()}
 
           {/* Separate Disqualified / Lost Step Action */}
           {(() => {
@@ -964,7 +994,9 @@ export default function LeadDetail() {
         {/* SIDEBAR (Right/Left): AI Copilot + Customer Metadata + Tasks */}
         <div className="col-span-12 lg:col-span-4 flex flex-col gap-5">
           {/* Site Inspection Card */}
-          <SiteInspectionCard leadId={id!} leadStatus={lead?.status} />
+          {requiresSiteInspection && (
+            <SiteInspectionCard leadId={id!} leadStatus={lead?.status} />
+          )}
 
           {/* AI Sales Copilot Card */}
           <div className="bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-900/60 rounded-2xl p-5 shadow-xs space-y-3 relative overflow-hidden">
@@ -1076,6 +1108,32 @@ export default function LeadDetail() {
                     onChange={e => setEditNotes(e.target.value)}
                     className="enterprise-input w-full"
                   />
+                </div>
+                {/* Site Inspection Required Toggle */}
+                <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <div>
+                    <p className="text-xs font-bold text-slate-800 dark:text-slate-200">Site Inspection Required</p>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                      Enable for Waste Management / Disposal services. Disable for Equipment Rental, Procurement, etc.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      toggleSiteInspectionMutation.mutate(!lead.requiresSiteInspection)
+                    }
+                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                      lead.requiresSiteInspection
+                        ? "bg-blue-600"
+                        : "bg-slate-300 dark:bg-slate-600"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
+                        lead.requiresSiteInspection ? "translate-x-4" : "translate-x-1"
+                      }`}
+                    />
+                  </button>
                 </div>
                 <div className="flex gap-2 justify-end pt-1">
                   <button 

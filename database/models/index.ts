@@ -175,6 +175,7 @@ export class Lead extends Model {
 
   public siteInspectionStatus!: string;
   public siteInspectionId!: string | null;
+  public requiresSiteInspection!: boolean;
 }
 
 Lead.init(
@@ -251,6 +252,7 @@ Lead.init(
     enrichedAt: { type: DataTypes.DATE, allowNull: true },
     siteInspectionStatus: { type: DataTypes.STRING, defaultValue: "NOT_REQUESTED" },
     siteInspectionId: { type: DataTypes.UUID, allowNull: true },
+    requiresSiteInspection: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
   },
   { 
     sequelize, 

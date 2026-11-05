@@ -411,7 +411,7 @@ export const getLeadById = async (req: Request, res: Response) => {
 
 export const createLead = async (req: Request, res: Response) => {
   try {
-    const { firstName, lastName, email, company, source, status, industry, phone, budgetRange } = req.body;
+    const { firstName, lastName, email, company, source, status, industry, phone, budgetRange, requiresSiteInspection } = req.body;
     
     const leadId = await ingestLead({
       firstName,
@@ -422,6 +422,7 @@ export const createLead = async (req: Request, res: Response) => {
       source: source || 'email',
       industry,
       budgetRange,
+      requiresSiteInspection: typeof requiresSiteInspection === "boolean" ? requiresSiteInspection : false,
       rawPayload: req.body
     });
 

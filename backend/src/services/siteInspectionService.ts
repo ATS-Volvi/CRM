@@ -88,6 +88,16 @@ export async function getSiteInspectionGate(
     };
   }
 
+  // ── NEW: If this lead does not require a site inspection, skip the gate ──
+  if (!lead.requiresSiteInspection) {
+    return {
+      allowed: true,
+      status: "EXEMPT",
+      message: "Site inspection not required for this service type.",
+    };
+  }
+  // ── End new block ──
+
   const status = lead.siteInspectionStatus || "NOT_REQUESTED";
 
   switch (status) {
@@ -303,6 +313,7 @@ export async function requestSiteInspection(
   await lead.update({
     siteInspectionStatus: "REQUESTED",
     siteInspectionId: inspection.id,
+    requiresSiteInspection: true,
   });
 
   // Assign inspector
@@ -396,6 +407,10 @@ export async function ensureInspectionRequestedForContactedLead(leadId: string):
   if (process.env.SITE_INSPECTION_GATE === "off") return;
   const lead: any = await Lead.findByPk(leadId);
   if (!lead) return;
+
+  // ── NEW: Only auto-request inspection for leads that require it ──
+  if (!lead.requiresSiteInspection) return;
+  // ── End new block ──
 
   if (!lead.siteInspectionStatus || lead.siteInspectionStatus === "NOT_REQUESTED" || !lead.siteInspectionId) {
     await requestSiteInspection(leadId, lead.assignedToId);

@@ -53,6 +53,7 @@ export interface LeadPayload {
   whatsappConsent?: boolean;
   whatsappConsentStatus?: string;
   whatsappConsentSource?: string;
+  requiresSiteInspection?: boolean;
 }
 
 const { runPipeline } = require("../lead-security-layer");
@@ -205,6 +206,13 @@ export async function ingestLead(rawPayload: LeadPayload) {
     let attempts = 0;
     const maxAttempts = 5;
 
+    // Auto-detect if this lead needs site inspection (waste management keywords)
+    const bodyText = `${payload.message || ""} ${payload.industry || ""}`.toLowerCase();
+    const wasteKeywords = ["sewage", "waste", "garbage", "disposal", "hazardous", "general waste", "sanitation", "toilet cabin", "septic"];
+    const autoRequiresSiteInspection = wasteKeywords.some(kw => bodyText.includes(kw));
+    // payload.requiresSiteInspection can be explicitly set by internal forms
+    const requiresSiteInspection = payload.requiresSiteInspection ?? autoRequiresSiteInspection;
+
     while (!newLead && attempts < maxAttempts) {
       attempts++;
       const count = await Lead.count();
@@ -243,7 +251,8 @@ export async function ingestLead(rawPayload: LeadPayload) {
           optedOutWhatsapp: false,
           whatsappConsentStatus: payload.whatsappConsent === true ? "OPTED_IN" : (payload.whatsappConsentStatus || "UNSPECIFIED"),
           whatsappOptInAt: payload.whatsappConsent === true ? new Date() : null,
-          whatsappConsentSource: payload.whatsappConsent === true ? (payload.whatsappConsentSource || "public_form") : (payload.whatsappConsentSource || null)
+          whatsappConsentSource: payload.whatsappConsent === true ? (payload.whatsappConsentSource || "public_form") : (payload.whatsappConsentSource || null),
+          requiresSiteInspection: requiresSiteInspection,
         });
       } catch (err: any) {
         if (err.name === 'SequelizeUniqueConstraintError' && attempts < maxAttempts) {

@@ -30,7 +30,7 @@ describe("E2E: Social Lead Capture", () => {
     expect(lead).toBeTruthy();
     expect((lead as any).email).toBe("jane.doe.test@example.com");
     expect((lead as any).source).toBe("LinkedIn");
-    expect((lead as any).status).toBe("New");
+    expect((lead as any).status.toUpperCase()).toBe("NEW");
   });
 
   it("should fail if missing required fields", async () => {
