@@ -185,7 +185,6 @@ export default function SiteInspectionForm() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
 
-  const [step, setStep] = useState<1 | 2 | 3>(1);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -854,53 +853,39 @@ export default function SiteInspectionForm() {
         </div>
       )}
 
-      {/* 3-Step Wizard Navigation */}
-      <div className="grid grid-cols-3 gap-2 p-1.5 bg-face-field dark:bg-slate-800 rounded-2xl border border-face-line dark:border-slate-700/80">
-        {[
-          { stepNum: 1, title: "1. Site & Client", subtitle: "Base, GPS & RFQ" },
-          { stepNum: 2, title: "2. Haulage & Waste", subtitle: "Mobilization & Services" },
-          { stepNum: 3, title: "3. Observations", subtitle: "Notes & Photos" },
-        ].map((s) => (
-          <button
-            key={s.stepNum}
-            onClick={() => setStep(s.stepNum as any)}
-            className={`p-3 rounded-xl text-left transition-all cursor-pointer ${
-              step === s.stepNum
-                ? "bg-white dark:bg-slate-900 text-face-green dark:text-face-green-mint shadow-sm font-bold"
-                : "text-face-muted hover:text-face-ink dark:hover:text-white"
-            }`}
-          >
-            <span className="text-sm font-black block leading-none">{s.title}</span>
-            <span className="text-xs text-face-muted font-medium block mt-1">{s.subtitle}</span>
-          </button>
-        ))}
-      </div>
+      {/* ================= UNIFIED SINGLE-SCREEN INSPECTION DASHBOARD ================= */}
+      <div className="space-y-6">
 
-      {/* Step Contents */}
-      <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 shadow-[0_2px_16px_rgba(40,50,120,0.07)] space-y-6">
-        {/* ================= STEP 1: Site & Client ================= */}
-        {step === 1 && (
-          <div className="space-y-6">
-            <div className="border-b border-face-line dark:border-slate-800 pb-3">
-              <h2 className="text-xl sm:text-2xl font-extrabold uppercase tracking-tight text-face-ink dark:text-white">
-                Step 1: Operations Base, Site Location & Client
-              </h2>
-              <p className="text-sm text-face-muted">
-                Specify the deploying operations hub, ground audit timestamp, and precise GPS coordinates.
-              </p>
+        {/* ── 01. INSPECTION SITE & CLIENT DETAILS ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+          {/* Left Card: 01 INSPECTION SITE (spans 2 cols) */}
+          <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-7 shadow-[0_2px_16px_rgba(40,50,120,0.06)] border border-face-line/70 dark:border-slate-800 space-y-4">
+            <div className="flex items-center justify-between border-b border-face-line/70 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <span className="px-2.5 py-0.5 bg-emerald-600 text-white text-xs font-black rounded-lg">
+                  01
+                </span>
+                <h2 className="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                  INSPECTION SITE
+                </h2>
+              </div>
+              <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 px-2.5 py-0.5 rounded-full uppercase flex items-center gap-1">
+                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                STEP VERIFIED
+              </span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Operations Base */}
               <div>
-                <label className="text-xs uppercase font-bold text-face-muted tracking-wider block mb-1.5">
-                  Operations Base <span className="text-face-red">*</span>
+                <label className="text-[11px] uppercase font-bold text-face-muted tracking-wider block mb-1">
+                  Assigned Operations Base <span className="text-face-red">*</span>
                 </label>
                 <select
                   disabled={!isEditable}
                   value={formData.baseId || ""}
                   onChange={(e) => setFormData({ ...formData, baseId: e.target.value })}
-                  className="w-full p-2.5 bg-face-field dark:bg-slate-800/60 border border-face-line dark:border-slate-700 rounded-xl text-sm font-medium text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
+                  className="w-full p-2.5 bg-face-field dark:bg-slate-800/60 border border-face-line dark:border-slate-700 rounded-xl text-xs font-semibold text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
                 >
                   <option value="">Select Deploying Base...</option>
                   {(masterData?.bases || []).map((b) => (
@@ -913,74 +898,70 @@ export default function SiteInspectionForm() {
 
               {/* Audit Date & Time */}
               <div>
-                <label className="text-xs uppercase font-bold text-face-muted tracking-wider block mb-1.5">
-                  Audit Date & Time <span className="text-face-red">*</span>
+                <label className="text-[11px] uppercase font-bold text-face-muted tracking-wider block mb-1">
+                  Audit Date & Time (AST) <span className="text-face-red">*</span>
                 </label>
                 <input
                   type="datetime-local"
                   disabled={!isEditable}
                   value={formData.auditAt || ""}
                   onChange={(e) => setFormData({ ...formData, auditAt: e.target.value })}
-                  className="w-full p-2.5 bg-face-field dark:bg-slate-800/60 border border-face-line dark:border-slate-700 rounded-xl text-sm font-medium text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
+                  className="w-full p-2.5 bg-face-field dark:bg-slate-800/60 border border-face-line dark:border-slate-700 rounded-xl text-xs font-semibold text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
                 />
               </div>
 
               {/* Site Name */}
               <div>
-                <label className="text-xs uppercase font-bold text-face-muted tracking-wider block mb-1.5">
-                  Site / Facility Name <span className="text-face-red">*</span>
+                <label className="text-[11px] uppercase font-bold text-face-muted tracking-wider block mb-1">
+                  Inspection Site Name <span className="text-face-red">*</span>
                 </label>
                 <input
                   type="text"
                   disabled={!isEditable}
                   value={formData.siteName || ""}
                   onChange={(e) => setFormData({ ...formData, siteName: e.target.value })}
-                  placeholder="e.g. Ras Tanura Refinery - Plant 4 Gate"
-                  className="w-full p-2.5 bg-face-field dark:bg-slate-800/60 border border-face-line dark:border-slate-700 rounded-xl text-sm font-medium text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
+                  placeholder="e.g. Tanajib Offshore Gas Facility - Sector 4B"
+                  className="w-full p-2.5 bg-face-field dark:bg-slate-800/60 border border-face-line dark:border-slate-700 rounded-xl text-xs font-semibold text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
                 />
               </div>
 
               {/* Site Address */}
               <div>
-                <label className="text-xs uppercase font-bold text-face-muted tracking-wider block mb-1.5">
-                  Site Physical Address / Plot
+                <label className="text-[11px] uppercase font-bold text-face-muted tracking-wider block mb-1">
+                  Physical Plot / Gate Address
                 </label>
                 <input
                   type="text"
                   disabled={!isEditable}
                   value={formData.siteAddress || ""}
                   onChange={(e) => setFormData({ ...formData, siteAddress: e.target.value })}
-                  placeholder="Street, Gate #, Industrial Zone"
-                  className="w-full p-2.5 bg-face-field dark:bg-slate-800/60 border border-face-line dark:border-slate-700 rounded-xl text-sm font-medium text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
+                  placeholder="e.g. Gate 3, Tanajib Industrial Zone"
+                  className="w-full p-2.5 bg-face-field dark:bg-slate-800/60 border border-face-line dark:border-slate-700 rounded-xl text-xs font-semibold text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
                 />
               </div>
 
-              {/* GPS Coordinates & Current Location Button */}
-              <div className="md:col-span-2 space-y-2 p-4 bg-face-field dark:bg-slate-800/40 border border-face-line dark:border-slate-800 rounded-2xl">
+              {/* GPS Coordinates Box */}
+              <div className="md:col-span-2 p-3 bg-face-field dark:bg-slate-800/40 border border-face-line dark:border-slate-800 rounded-xl space-y-2">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Compass className="w-4 h-4 text-face-green" />
-                    <span className="text-sm font-bold text-face-ink dark:text-white uppercase tracking-wider">
-                      GPS Coordinates <span className="text-face-red">*</span>
-                    </span>
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-face-ink dark:text-white">
+                    <Compass className="w-3.5 h-3.5 text-face-green" />
+                    <span>Inspection Site GPS Coordinates</span>
+                    <span className="text-face-red">*</span>
                   </div>
                   {isEditable && (
                     <button
                       type="button"
                       onClick={handleGetCurrentLocation}
-                      className="flex items-center gap-1.5 px-3 py-1 bg-white dark:bg-slate-900 border border-face-line dark:border-slate-700 hover:bg-face-field text-face-green dark:text-face-green-mint text-sm font-bold rounded-lg shadow-2xs cursor-pointer"
+                      className="text-[11px] font-bold text-face-green hover:text-face-green-dark dark:hover:text-face-green-mint flex items-center gap-1 cursor-pointer"
                     >
-                      <MapPin className="w-3.5 h-3.5" />
-                      <span>Use my current location</span>
+                      <MapPin className="w-3 h-3" />
+                      <span>Use my GPS</span>
                     </button>
                   )}
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 pt-1">
+                <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-[11px] uppercase font-bold text-face-muted block mb-1 tracking-wider">
-                      Latitude (-90 to 90)
-                    </label>
                     <input
                       type="number"
                       step="any"
@@ -992,15 +973,11 @@ export default function SiteInspectionForm() {
                           latitude: e.target.value === "" ? null : Number(e.target.value),
                         })
                       }
-                      placeholder="e.g. 26.6500"
-                      className="w-full p-2 bg-white dark:bg-slate-900 border border-face-line dark:border-slate-700 rounded-lg text-sm font-mono text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
+                      placeholder="Latitude (e.g. 27.8341)"
+                      className="w-full p-2 bg-white dark:bg-slate-900 border border-face-line dark:border-slate-700 rounded-lg text-xs font-mono font-bold text-face-ink dark:text-white"
                     />
                   </div>
-
                   <div>
-                    <label className="text-[11px] uppercase font-bold text-face-muted block mb-1 tracking-wider">
-                      Longitude (-180 to 180)
-                    </label>
                     <input
                       type="number"
                       step="any"
@@ -1012,24 +989,57 @@ export default function SiteInspectionForm() {
                           longitude: e.target.value === "" ? null : Number(e.target.value),
                         })
                       }
-                      placeholder="e.g. 50.1500"
-                      className="w-full p-2 bg-white dark:bg-slate-900 border border-face-line dark:border-slate-700 rounded-lg text-sm font-mono text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
+                      placeholder="Longitude (e.g. 48.8872)"
+                      className="w-full p-2 bg-white dark:bg-slate-900 border border-face-line dark:border-slate-700 rounded-lg text-xs font-mono font-bold text-face-ink dark:text-white"
                     />
                   </div>
                 </div>
 
-                {/* Straight line distance indicator */}
-                <div className="flex items-center justify-between text-sm pt-2 border-t border-face-line dark:border-slate-700/60">
-                  <span className="text-face-muted">Live straight-line distance base → site:</span>
-                  <span className="font-extrabold text-face-green dark:text-face-green-mint">
-                    {liveBaseToSiteKm > 0 ? `${liveBaseToSiteKm} km` : "Set base & GPS to compute"}
+                <div className="flex items-center justify-between text-[11px] text-face-muted pt-1">
+                  <span>Calculated straight-line deployment:</span>
+                  <span className="font-extrabold text-emerald-600 dark:text-emerald-400">
+                    {liveBaseToSiteKm > 0 ? `${liveBaseToSiteKm} km straight line` : "Set base & coordinates"}
                   </span>
                 </div>
               </div>
 
-              {/* Client Info (Pre-filled from lead) */}
+              {/* Approved RFQ Scope Summary */}
+              <div className="md:col-span-2">
+                <label className="text-[11px] uppercase font-bold text-face-muted tracking-wider block mb-1">
+                  Approved RFQ Scope Summary (from Lead)
+                </label>
+                <input
+                  type="text"
+                  disabled={!isEditable}
+                  value={formData.scopeSummary || ""}
+                  onChange={(e) => setFormData({ ...formData, scopeSummary: e.target.value })}
+                  placeholder="e.g. Comprehensive Industrial Site Assessment for Sludge Dewatering, Hazardous Pit Action"
+                  className="w-full p-2.5 bg-face-field dark:bg-slate-800/60 border border-face-line dark:border-slate-700 rounded-xl text-xs font-semibold text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Right Card: Client Details (spans 1 col) */}
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-7 shadow-[0_2px_16px_rgba(40,50,120,0.06)] border border-face-line/70 dark:border-slate-800 flex flex-col justify-between space-y-4">
+            <div className="space-y-4">
+              <div className="border-b border-face-line/70 dark:border-slate-800 pb-3">
+                <h2 className="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                  Client Details
+                </h2>
+              </div>
+
               <div>
-                <label className="text-xs uppercase font-bold text-face-muted tracking-wider block mb-1.5">
+                <label className="text-[10px] uppercase font-extrabold text-face-muted block mb-1 tracking-wider">
+                  RFQ Identifier
+                </label>
+                <div className="font-mono text-xs font-black text-slate-800 dark:text-slate-100 bg-slate-100 dark:bg-slate-800 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700">
+                  {formData.rfqNumber || inspection.inspectionNumber}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] uppercase font-extrabold text-face-muted block mb-1 tracking-wider">
                   Client Organisation <span className="text-face-red">*</span>
                 </label>
                 <input
@@ -1037,665 +1047,864 @@ export default function SiteInspectionForm() {
                   disabled={!isEditable}
                   value={formData.clientOrganization || ""}
                   onChange={(e) => setFormData({ ...formData, clientOrganization: e.target.value })}
-                  className="w-full p-2.5 bg-face-field dark:bg-slate-800/60 border border-face-line dark:border-slate-700 rounded-xl text-sm font-medium text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
+                  placeholder="e.g. Saudi Aramco (Vendor Code: CL-ARM101)"
+                  className="w-full p-2.5 bg-face-field dark:bg-slate-800/60 border border-face-line dark:border-slate-700 rounded-xl text-xs font-semibold text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
                 />
               </div>
 
               <div>
-                <label className="text-xs uppercase font-bold text-face-muted tracking-wider block mb-1.5">
-                  RFQ / Reference ID (Read-only)
-                </label>
-                <input
-                  type="text"
-                  disabled
-                  value={formData.rfqNumber || ""}
-                  className="w-full p-2.5 bg-face-field/70 dark:bg-slate-800 border border-face-line dark:border-slate-700 rounded-xl text-sm font-mono text-face-muted"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs uppercase font-bold text-face-muted tracking-wider block mb-1.5">
-                  Field Representative Name <span className="text-face-red">*</span>
+                <label className="text-[10px] uppercase font-extrabold text-face-muted block mb-1 tracking-wider">
+                  Client Field Representative <span className="text-face-red">*</span>
                 </label>
                 <input
                   type="text"
                   disabled={!isEditable}
                   value={formData.clientRepName || ""}
                   onChange={(e) => setFormData({ ...formData, clientRepName: e.target.value })}
-                  placeholder="Client Site Contact"
-                  className="w-full p-2.5 bg-face-field dark:bg-slate-800/60 border border-face-line dark:border-slate-700 rounded-xl text-sm font-medium text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
+                  placeholder="e.g. Eng. Fahad Al-Zahrani"
+                  className="w-full p-2.5 bg-face-field dark:bg-slate-800/60 border border-face-line dark:border-slate-700 rounded-xl text-xs font-semibold text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
                 />
               </div>
 
               <div>
-                <label className="text-xs uppercase font-bold text-face-muted tracking-wider block mb-1.5">
-                  Field Representative Phone
+                <label className="text-[10px] uppercase font-extrabold text-face-muted block mb-1 tracking-wider">
+                  Representative Phone / WhatsApp
                 </label>
                 <input
                   type="text"
                   disabled={!isEditable}
                   value={formData.clientRepPhone || ""}
                   onChange={(e) => setFormData({ ...formData, clientRepPhone: e.target.value })}
-                  placeholder="+966..."
-                  className="w-full p-2.5 bg-face-field dark:bg-slate-800/60 border border-face-line dark:border-slate-700 rounded-xl text-sm font-medium text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
+                  placeholder="+966 54 112 7101"
+                  className="w-full p-2.5 bg-face-field dark:bg-slate-800/60 border border-face-line dark:border-slate-700 rounded-xl text-xs font-semibold text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
                 />
               </div>
+            </div>
 
-              <div className="md:col-span-2">
-                <label className="text-xs uppercase font-bold text-face-muted tracking-wider block mb-1.5">
-                  RFQ Scope Summary (from Lead)
-                </label>
-                <textarea
-                  disabled={!isEditable}
-                  value={formData.scopeSummary || ""}
-                  onChange={(e) => setFormData({ ...formData, scopeSummary: e.target.value })}
-                  rows={2}
-                  className="w-full p-2.5 bg-face-field dark:bg-slate-800/60 border border-face-line dark:border-slate-700 rounded-xl text-sm font-medium text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
-                />
-              </div>
+            <div className="pt-2 border-t border-face-line dark:border-slate-800 text-[11px] text-face-muted flex items-center justify-between">
+              <span>Origin Assignment:</span>
+              <span className="font-bold text-slate-800 dark:text-slate-200">
+                {inspection.assignedTo?.name || "Assigned Inspector"}
+              </span>
             </div>
           </div>
-        )}
+        </div>
 
-        {/* ================= STEP 2: Haulage & Waste ================= */}
-        {step === 2 && (
-          <div className="space-y-6">
-            <div className="border-b border-face-line dark:border-slate-800 pb-3">
-              <h2 className="text-xl sm:text-2xl font-extrabold uppercase tracking-tight text-face-ink dark:text-white">
-                Step 2: Mobilization Haulage & Waste Scopes
-              </h2>
-              <p className="text-sm text-face-muted">
-                Configure one-way mobilization distance, select active waste streams, and assign approved disposal facilities.
-              </p>
+        {/* ── 02. HAULAGE DISTANCE INPUTS (KM) & ACCESSIBILITY ── */}
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-7 shadow-[0_2px_16px_rgba(40,50,120,0.06)] border border-face-line/70 dark:border-slate-800 space-y-5">
+          {/* Section Header with Quick Scope Toggles */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-face-line/70 dark:border-slate-800 pb-4">
+            <div className="flex items-center gap-2.5">
+              <span className="px-2.5 py-0.5 bg-blue-600 text-white text-xs font-black rounded-lg">
+                02
+              </span>
+              <div>
+                <h2 className="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                  HAULAGE DISTANCE INPUTS (KM) &amp; ACCESSIBILITY
+                </h2>
+                <span className="text-[10px] font-bold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 px-2 py-0.5 rounded-md uppercase inline-block mt-0.5">
+                  {services.filter((s) => s.isActive).length} of 3 OPTIONAL SCOPES ACTIVE
+                </span>
+              </div>
             </div>
 
-            {/* Mandatory Mobilization Section */}
-            <div className="p-4 bg-face-field dark:bg-slate-800/40 border border-face-line dark:border-slate-800 rounded-2xl space-y-4">
-              <div className="flex items-center justify-between">
+            {/* Quick scope activation pills */}
+            {isEditable && (
+              <div className="flex flex-wrap items-center gap-2">
+                {(["SEWAGE", "GENERAL", "HAZARDOUS"] as const).map((type) => {
+                  const idx = services.findIndex((s) => s.serviceType === type);
+                  const active = services[idx]?.isActive;
+                  const theme =
+                    type === "SEWAGE"
+                      ? "border-amber-600 text-amber-700 dark:text-amber-300 hover:bg-amber-50"
+                      : type === "GENERAL"
+                      ? "border-blue-600 text-blue-700 dark:text-blue-300 hover:bg-blue-50"
+                      : "border-rose-600 text-rose-700 dark:text-rose-300 hover:bg-rose-50";
+
+                  return (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => {
+                        const updated = [...services];
+                        if (idx >= 0) {
+                          updated[idx].isActive = !active;
+                          setServices(updated);
+                        }
+                      }}
+                      className={`px-3 py-1 text-xs font-black uppercase rounded-lg border transition-all cursor-pointer flex items-center gap-1.5 ${
+                        active
+                          ? type === "SEWAGE"
+                            ? "bg-amber-700 text-white border-amber-700"
+                            : type === "GENERAL"
+                            ? "bg-blue-600 text-white border-blue-600"
+                            : "bg-rose-600 text-white border-rose-600"
+                          : `bg-white dark:bg-slate-900 ${theme}`
+                      }`}
+                    >
+                      <span>{active ? "✓" : "+"}</span>
+                      <span>{type} WASTE</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* 4-Column Card Grid: MOBILIZATION, SEWAGE, GENERAL, HAZARDOUS */}
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 items-stretch">
+            {/* 1. MOBILIZATION CARD (Emerald) */}
+            <div className="flex flex-col justify-between border-2 border-emerald-500/50 dark:border-emerald-500/40 rounded-2xl bg-emerald-50/20 dark:bg-emerald-950/10 overflow-hidden shadow-xs">
+              <div className="bg-emerald-600 text-white p-3 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Truck className="w-4 h-4 text-face-green" />
-                  <span className="text-sm font-bold text-face-ink dark:text-white uppercase tracking-wider">
-                    Mandatory Mobilization (Base → Site)
-                  </span>
+                  <Truck className="w-4 h-4" />
+                  <span className="text-xs font-black uppercase tracking-wider">MOBILIZATION</span>
                 </div>
-                {isEditable && liveBaseToSiteKm > 0 && (
-                  <button
-                    type="button"
-                    onClick={handleApplyRoadEstimate}
-                    className="text-xs font-bold text-face-green hover:text-face-green-dark dark:hover:text-face-green-mint flex items-center gap-1 cursor-pointer"
-                  >
-                    <span>Use road estimate (×1.3 = {Math.round(liveBaseToSiteKm * 1.3)} km)</span>
-                  </button>
-                )}
+                <span className="text-[10px] font-extrabold bg-white/20 px-2 py-0.5 rounded-full uppercase">
+                  BASE CORRIDOR
+                </span>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div className="md:col-span-2">
-                  <label className="text-[11px] uppercase font-bold text-face-muted block mb-1 tracking-wider">
-                    Mobilization Route Description
+              <div className="p-4 space-y-3.5 flex-1 flex flex-col justify-between">
+                {/* Route label */}
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block mb-1 tracking-wider">
+                    Base → Site Logistics Corridor
                   </label>
                   <input
                     type="text"
                     disabled={!isEditable}
                     value={formData.mobilizationRoute || ""}
                     onChange={(e) => setFormData({ ...formData, mobilizationRoute: e.target.value })}
-                    placeholder="e.g. Highway 613 via Abu Hadriyah Expressway"
-                    className="w-full p-2 bg-white dark:bg-slate-900 border border-face-line dark:border-slate-700 rounded-lg text-sm text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
+                    placeholder="e.g. Route: Al-Zour Base → Site Gate 3"
+                    className="w-full p-2 bg-white dark:bg-slate-900 border border-emerald-300 dark:border-emerald-800 rounded-lg text-xs font-medium text-slate-900 dark:text-white"
                   />
                 </div>
 
+                {/* Big Distance KM input */}
                 <div>
-                  <label className="text-[11px] uppercase font-bold text-face-muted block mb-1 tracking-wider">
-                    One-way Distance (KM) <span className="text-face-red">*</span>
+                  <label className="text-[10px] uppercase font-extrabold text-emerald-800 dark:text-emerald-300 block mb-1 tracking-wider">
+                    One-Way Mobilization (KM) <span className="text-face-red">*</span>
                   </label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    disabled={!isEditable}
-                    value={formData.mobilizationKm ?? ""}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        mobilizationKm: e.target.value === "" ? null : Number(e.target.value),
-                      })
-                    }
-                    placeholder="km"
-                    className="w-full p-2 bg-white dark:bg-slate-900 border border-face-line dark:border-slate-700 rounded-lg text-sm font-mono font-bold text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
-                  />
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      disabled={!isEditable}
+                      value={formData.mobilizationKm ?? ""}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          mobilizationKm: e.target.value === "" ? null : Number(e.target.value),
+                        })
+                      }
+                      placeholder="0.0"
+                      className="w-full text-center text-2xl font-black font-mono py-2 bg-white dark:bg-slate-900 border-2 border-emerald-500/60 rounded-xl text-emerald-950 dark:text-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                    />
+                    <span className="absolute right-3 top-3 text-[11px] font-black text-emerald-600 dark:text-emerald-400">
+                      KM
+                    </span>
+                  </div>
+                  {isEditable && liveBaseToSiteKm > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleApplyRoadEstimate}
+                      className="text-[10px] font-bold text-emerald-700 hover:text-emerald-800 dark:text-emerald-400 mt-1 block w-full text-center cursor-pointer"
+                    >
+                      Use road estimate (×1.3 = {Math.round(liveBaseToSiteKm * 1.3)} km)
+                    </button>
+                  )}
+                </div>
+
+                {/* Road Condition */}
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block mb-1 tracking-wider">
+                    Corridor Condition
+                  </label>
+                  <div className="grid grid-cols-3 gap-1">
+                    {(["Good", "Fair", "Poor"] as const).map((r) => (
+                      <button
+                        key={r}
+                        type="button"
+                        disabled={!isEditable}
+                        onClick={() => setFormData({ ...formData, mobilizationRoadCondition: r } as any)}
+                        className={`py-1 text-[11px] font-bold rounded-md border transition-all cursor-pointer ${
+                          (formData as any).mobilizationRoadCondition === r
+                            ? "bg-emerald-600 text-white border-emerald-600"
+                            : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700"
+                        }`}
+                      >
+                        {r === "Good" ? "Smooth" : r}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-emerald-500/20 text-[10px] text-emerald-800 dark:text-emerald-300 font-semibold flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                  <span>Verified Transport Corridor</span>
                 </div>
               </div>
             </div>
 
-            {/* Three Toggleable Waste Types */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-black text-face-ink dark:text-white uppercase tracking-wider">
-                Waste Types & Disposal Streams (At least 1 required)
-              </h3>
+            {/* 2. SEWAGE WASTE CARD (Amber) */}
+            {(() => {
+              const idx = services.findIndex((s) => s.serviceType === "SEWAGE");
+              const svc = services[idx] || ({} as any);
+              const facilities = (masterData?.facilities || []).filter((f) => f.serviceType === "SEWAGE");
 
-              {services.map((svc, idx) => {
-                const facilitiesForType = (masterData?.facilities || []).filter(
-                  (f) => f.serviceType === svc.serviceType
-                );
-                const theme = getServiceTheme(svc.serviceType);
-
-                return (
+              return (
+                <div
+                  className={`flex flex-col justify-between border-2 rounded-2xl overflow-hidden shadow-xs transition-all ${
+                    svc.isActive
+                      ? "border-amber-700/60 bg-amber-50/20 dark:bg-amber-950/10"
+                      : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 opacity-70"
+                  }`}
+                >
                   <div
-                    key={svc.serviceType}
-                    className={`border transition-all overflow-hidden ${
-                      svc.isActive
-                        ? `border-2 rounded-3xl ${theme.border} bg-white dark:bg-slate-900 shadow-xs`
-                        : "border-face-line dark:border-slate-800 rounded-2xl bg-face-field/60 dark:bg-slate-800/20 opacity-80"
+                    className={`p-3 flex items-center justify-between ${
+                      svc.isActive ? "bg-amber-700 text-white" : "bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
                     }`}
                   >
-                    {/* Header with Toggle */}
-                    <div
-                      className={`p-4 flex items-center justify-between border-b ${
-                        svc.isActive
-                          ? `${theme.head} border-transparent text-white`
-                          : "border-face-line dark:border-slate-800"
+                    <span className="text-xs font-black uppercase tracking-wider">SEWAGE WASTE</span>
+                    <button
+                      type="button"
+                      disabled={!isEditable}
+                      onClick={() => {
+                        const updated = [...services];
+                        if (idx >= 0) {
+                          updated[idx].isActive = !svc.isActive;
+                          setServices(updated);
+                        }
+                      }}
+                      className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase cursor-pointer ${
+                        svc.isActive ? "bg-white/20 text-white" : "bg-slate-300 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
                       }`}
                     >
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="checkbox"
-                          id={`toggle-${svc.serviceType}`}
-                          disabled={!isEditable}
-                          checked={svc.isActive}
-                          onChange={(e) => {
-                            const updated = [...services];
-                            updated[idx].isActive = e.target.checked;
-                            setServices(updated);
-                          }}
-                          className={`w-4 h-4 rounded cursor-pointer ${
-                            svc.isActive ? "accent-white" : "text-face-green"
-                          }`}
-                        />
-                        <label
-                          htmlFor={`toggle-${svc.serviceType}`}
-                          className={`text-sm font-black cursor-pointer uppercase tracking-wider ${
-                            svc.isActive ? "text-white" : "text-face-ink dark:text-white"
-                          }`}
-                        >
-                          {svc.serviceType} WASTE STREAM
-                        </label>
-                      </div>
+                      {svc.isActive ? "SCOPE ACTIVE" : "INACTIVE"}
+                    </button>
+                  </div>
 
-                      <span
-                        className={`px-2.5 py-0.5 rounded-full text-xs font-extrabold ${
-                          svc.isActive
-                            ? "bg-white/20 text-white"
-                            : "bg-face-line text-face-muted"
-                        }`}
+                  <div className="p-4 space-y-3.5 flex-1 flex flex-col justify-between">
+                    <div>
+                      <label className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block mb-1 tracking-wider">
+                        Approved STP Treatment Facility <span className="text-face-red">*</span>
+                      </label>
+                      <select
+                        disabled={!isEditable || !svc.isActive}
+                        value={svc.facilityId || ""}
+                        onChange={(e) => {
+                          const updated = [...services];
+                          const f = facilities.find((item) => item.id === e.target.value);
+                          updated[idx].facilityId = e.target.value || null;
+                          updated[idx].facilityName = f?.name || "";
+                          setServices(updated);
+                        }}
+                        className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-white"
                       >
-                        {svc.isActive ? "ACTIVE SCOPE" : "INACTIVE"}
-                      </span>
+                        <option value="">Select STP Facility...</option>
+                        {facilities.map((f) => (
+                          <option key={f.id} value={f.id}>
+                            {f.name}
+                          </option>
+                        ))}
+                      </select>
                     </div>
 
-                    {/* Service Fields if Active */}
-                    {svc.isActive && (
-                      <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {/* Facility Select */}
-                        <div>
-                          <label className="text-[11px] uppercase font-bold text-face-muted block mb-1 tracking-wider">
-                            Disposal Facility <span className="text-face-red">*</span>
-                          </label>
-                          <select
-                            disabled={!isEditable}
-                            value={svc.facilityId || ""}
-                            onChange={(e) => {
-                              const updated = [...services];
-                              const facId = e.target.value;
-                              const fac = facilitiesForType.find((f) => f.id === facId);
-                              updated[idx].facilityId = facId || null;
-                              updated[idx].facilityName = fac?.name || "";
-                              setServices(updated);
-                            }}
-                            className="w-full p-2 bg-face-field dark:bg-slate-800 border border-face-line dark:border-slate-700 rounded-lg text-sm text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
-                          >
-                            <option value="">Select Facility...</option>
-                            {facilitiesForType.map((f) => (
-                              <option key={f.id} value={f.id}>
-                                {f.name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        {/* Haulage KM */}
-                        <div>
-                          <label className="text-[11px] uppercase font-bold text-face-muted block mb-1 tracking-wider">
-                            Haulage One-Way Distance (KM) <span className="text-face-red">*</span>
-                          </label>
-                          <input
-                            type="number"
-                            step="0.1"
-                            min="0"
-                            disabled={!isEditable}
-                            value={svc.distanceKm ?? ""}
-                            onChange={(e) => {
-                              const updated = [...services];
-                              updated[idx].distanceKm = Number(e.target.value);
-                              setServices(updated);
-                            }}
-                            placeholder="km"
-                            className="w-full p-2 bg-face-field dark:bg-slate-800 border border-face-line dark:border-slate-700 rounded-lg text-sm font-mono font-bold text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
-                          />
-                        </div>
-
-                        {/* Road Condition Buttons */}
-                        <div>
-                          <label className="text-[11px] uppercase font-bold text-face-muted block mb-1 tracking-wider">
-                            Road Condition Rating <span className="text-face-red">*</span>
-                          </label>
-                          <div className="grid grid-cols-3 gap-1">
-                            {(["Good", "Fair", "Poor"] as const).map((rating) => (
-                              <button
-                                key={rating}
-                                type="button"
-                                disabled={!isEditable}
-                                onClick={() => {
-                                  const updated = [...services];
-                                  updated[idx].roadCondition = rating;
-                                  setServices(updated);
-                                }}
-                                className={`py-1.5 px-2 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
-                                  svc.roadCondition === rating
-                                    ? rating === "Good"
-                                      ? "bg-face-green text-white border-face-green"
-                                      : rating === "Fair"
-                                      ? "bg-amber-600 text-white border-amber-600"
-                                      : "bg-face-red text-white border-face-red"
-                                    : "bg-face-field dark:bg-slate-800 text-face-muted border-face-line dark:border-slate-700 hover:bg-face-line/50"
-                                }`}
-                              >
-                                {rating}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Volume & Unit */}
-                        <div className="md:col-span-2 grid grid-cols-2 gap-2">
-                          <div>
-                            <label className="text-[11px] uppercase font-bold text-face-muted block mb-1 tracking-wider">
-                              Estimated Volume
-                            </label>
-                            <input
-                              type="number"
-                              disabled={!isEditable}
-                              value={svc.estimatedVolume ?? ""}
-                              onChange={(e) => {
-                                const updated = [...services];
-                                updated[idx].estimatedVolume =
-                                  e.target.value === "" ? null : Number(e.target.value);
-                                setServices(updated);
-                              }}
-                              placeholder="Qty"
-                              className="w-full p-2 bg-face-field dark:bg-slate-800 border border-face-line dark:border-slate-700 rounded-lg text-sm font-mono text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
-                            />
-                          </div>
-
-                          <div>
-                            <label className="text-[11px] uppercase font-bold text-face-muted block mb-1 tracking-wider">
-                              Unit
-                            </label>
-                            <select
-                              disabled={!isEditable}
-                              value={svc.volumeUnit || ""}
-                              onChange={(e) => {
-                                const updated = [...services];
-                                updated[idx].volumeUnit = e.target.value as any;
-                                setServices(updated);
-                              }}
-                              className="w-full p-2 bg-face-field dark:bg-slate-800 border border-face-line dark:border-slate-700 rounded-lg text-sm text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
-                            >
-                              <option value="">Select Unit...</option>
-                              {(masterData?.volumeUnits || ["L", "m3", "ton", "loads"]).map((u) => (
-                                <option key={u} value={u}>
-                                  {u}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        </div>
-
-                        {/* Waste description */}
-                        <div>
-                          <label className="text-[11px] uppercase font-bold text-face-muted block mb-1 tracking-wider">
-                            Waste Description
-                          </label>
-                          <input
-                            type="text"
-                            disabled={!isEditable}
-                            value={svc.wasteDescription || ""}
-                            onChange={(e) => {
-                              const updated = [...services];
-                              updated[idx].wasteDescription = e.target.value;
-                              setServices(updated);
-                            }}
-                            placeholder="e.g. Sludge, chemicals, oily water"
-                            className="w-full p-2 bg-face-field dark:bg-slate-800 border border-face-line dark:border-slate-700 rounded-lg text-sm text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
-                          />
-                        </div>
+                    <div>
+                      <label className="text-[10px] uppercase font-extrabold text-amber-900 dark:text-amber-300 block mb-1 tracking-wider">
+                        Haulage to Discharge (KM) <span className="text-face-red">*</span>
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="0"
+                          disabled={!isEditable || !svc.isActive}
+                          value={svc.distanceKm ?? ""}
+                          onChange={(e) => {
+                            const updated = [...services];
+                            updated[idx].distanceKm = Number(e.target.value);
+                            setServices(updated);
+                          }}
+                          placeholder="0.0"
+                          className="w-full text-center text-2xl font-black font-mono py-2 bg-white dark:bg-slate-900 border-2 border-amber-600/50 rounded-xl text-amber-950 dark:text-amber-100 focus:outline-none"
+                        />
+                        <span className="absolute right-3 top-3 text-[11px] font-black text-amber-700 dark:text-amber-400">
+                          KM
+                        </span>
                       </div>
-                    )}
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block mb-1 tracking-wider">
+                        Road Condition
+                      </label>
+                      <div className="grid grid-cols-3 gap-1">
+                        {(["Good", "Fair", "Poor"] as const).map((r) => (
+                          <button
+                            key={r}
+                            type="button"
+                            disabled={!isEditable || !svc.isActive}
+                            onClick={() => {
+                              const updated = [...services];
+                              updated[idx].roadCondition = r;
+                              setServices(updated);
+                            }}
+                            className={`py-1 text-[11px] font-bold rounded-md border transition-all cursor-pointer ${
+                              svc.roadCondition === r
+                                ? "bg-amber-700 text-white border-amber-700"
+                                : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700"
+                            }`}
+                          >
+                            {r === "Good" ? "Smooth" : r}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block mb-1 tracking-wider">
+                        Clearance Notes
+                      </label>
+                      <input
+                        type="text"
+                        disabled={!isEditable || !svc.isActive}
+                        value={svc.wasteDescription || ""}
+                        onChange={(e) => {
+                          const updated = [...services];
+                          updated[idx].wasteDescription = e.target.value;
+                          setServices(updated);
+                        }}
+                        placeholder="e.g. Vacuum tanker access; Gate 2"
+                        className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs"
+                      />
+                    </div>
                   </div>
-                );
-              })}
+                </div>
+              );
+            })()}
+
+            {/* 3. GENERAL WASTE CARD (Blue) */}
+            {(() => {
+              const idx = services.findIndex((s) => s.serviceType === "GENERAL");
+              const svc = services[idx] || ({} as any);
+              const facilities = (masterData?.facilities || []).filter((f) => f.serviceType === "GENERAL");
+
+              return (
+                <div
+                  className={`flex flex-col justify-between border-2 rounded-2xl overflow-hidden shadow-xs transition-all ${
+                    svc.isActive
+                      ? "border-blue-600/60 bg-blue-50/20 dark:bg-blue-950/10"
+                      : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 opacity-70"
+                  }`}
+                >
+                  <div
+                    className={`p-3 flex items-center justify-between ${
+                      svc.isActive ? "bg-blue-600 text-white" : "bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
+                    }`}
+                  >
+                    <span className="text-xs font-black uppercase tracking-wider">GENERAL WASTE</span>
+                    <button
+                      type="button"
+                      disabled={!isEditable}
+                      onClick={() => {
+                        const updated = [...services];
+                        if (idx >= 0) {
+                          updated[idx].isActive = !svc.isActive;
+                          setServices(updated);
+                        }
+                      }}
+                      className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase cursor-pointer ${
+                        svc.isActive ? "bg-white/20 text-white" : "bg-slate-300 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+                      }`}
+                    >
+                      {svc.isActive ? "SCOPE ACTIVE" : "INACTIVE"}
+                    </button>
+                  </div>
+
+                  <div className="p-4 space-y-3.5 flex-1 flex flex-col justify-between">
+                    <div>
+                      <label className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block mb-1 tracking-wider">
+                        Approved Landfill / Transfer Stn <span className="text-face-red">*</span>
+                      </label>
+                      <select
+                        disabled={!isEditable || !svc.isActive}
+                        value={svc.facilityId || ""}
+                        onChange={(e) => {
+                          const updated = [...services];
+                          const f = facilities.find((item) => item.id === e.target.value);
+                          updated[idx].facilityId = e.target.value || null;
+                          updated[idx].facilityName = f?.name || "";
+                          setServices(updated);
+                        }}
+                        className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-white"
+                      >
+                        <option value="">Select Landfill Facility...</option>
+                        {facilities.map((f) => (
+                          <option key={f.id} value={f.id}>
+                            {f.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] uppercase font-extrabold text-blue-900 dark:text-blue-300 block mb-1 tracking-wider">
+                        Haulage to Landfill (KM) <span className="text-face-red">*</span>
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="0"
+                          disabled={!isEditable || !svc.isActive}
+                          value={svc.distanceKm ?? ""}
+                          onChange={(e) => {
+                            const updated = [...services];
+                            updated[idx].distanceKm = Number(e.target.value);
+                            setServices(updated);
+                          }}
+                          placeholder="0.0"
+                          className="w-full text-center text-2xl font-black font-mono py-2 bg-white dark:bg-slate-900 border-2 border-blue-600/50 rounded-xl text-blue-950 dark:text-blue-100 focus:outline-none"
+                        />
+                        <span className="absolute right-3 top-3 text-[11px] font-black text-blue-600 dark:text-blue-400">
+                          KM
+                        </span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block mb-1 tracking-wider">
+                        Road Condition
+                      </label>
+                      <div className="grid grid-cols-3 gap-1">
+                        {(["Good", "Fair", "Poor"] as const).map((r) => (
+                          <button
+                            key={r}
+                            type="button"
+                            disabled={!isEditable || !svc.isActive}
+                            onClick={() => {
+                              const updated = [...services];
+                              updated[idx].roadCondition = r;
+                              setServices(updated);
+                            }}
+                            className={`py-1 text-[11px] font-bold rounded-md border transition-all cursor-pointer ${
+                              svc.roadCondition === r
+                                ? "bg-blue-600 text-white border-blue-600"
+                                : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700"
+                            }`}
+                          >
+                            {r === "Good" ? "Smooth" : r}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block mb-1 tracking-wider">
+                        Clearance Notes
+                      </label>
+                      <input
+                        type="text"
+                        disabled={!isEditable || !svc.isActive}
+                        value={svc.wasteDescription || ""}
+                        onChange={(e) => {
+                          const updated = [...services];
+                          updated[idx].wasteDescription = e.target.value;
+                          setServices(updated);
+                        }}
+                        placeholder="e.g. Double-trailer compactors accessible"
+                        className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs"
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* 4. HAZARDOUS WASTE CARD (Red) */}
+            {(() => {
+              const idx = services.findIndex((s) => s.serviceType === "HAZARDOUS");
+              const svc = services[idx] || ({} as any);
+              const facilities = (masterData?.facilities || []).filter((f) => f.serviceType === "HAZARDOUS");
+
+              return (
+                <div
+                  className={`flex flex-col justify-between border-2 rounded-2xl overflow-hidden shadow-xs transition-all ${
+                    svc.isActive
+                      ? "border-rose-600/60 bg-rose-50/20 dark:bg-rose-950/10"
+                      : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 opacity-70"
+                  }`}
+                >
+                  <div
+                    className={`p-3 flex items-center justify-between ${
+                      svc.isActive ? "bg-rose-600 text-white" : "bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
+                    }`}
+                  >
+                    <span className="text-xs font-black uppercase tracking-wider">HAZARDOUS WASTE</span>
+                    <button
+                      type="button"
+                      disabled={!isEditable}
+                      onClick={() => {
+                        const updated = [...services];
+                        if (idx >= 0) {
+                          updated[idx].isActive = !svc.isActive;
+                          setServices(updated);
+                        }
+                      }}
+                      className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase cursor-pointer ${
+                        svc.isActive ? "bg-white/20 text-white" : "bg-slate-300 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+                      }`}
+                    >
+                      {svc.isActive ? "SCOPE ACTIVE" : "INACTIVE"}
+                    </button>
+                  </div>
+
+                  <div className="p-4 space-y-3.5 flex-1 flex flex-col justify-between">
+                    <div>
+                      <label className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block mb-1 tracking-wider">
+                        Certified Hazmat Complex <span className="text-face-red">*</span>
+                      </label>
+                      <select
+                        disabled={!isEditable || !svc.isActive}
+                        value={svc.facilityId || ""}
+                        onChange={(e) => {
+                          const updated = [...services];
+                          const f = facilities.find((item) => item.id === e.target.value);
+                          updated[idx].facilityId = e.target.value || null;
+                          updated[idx].facilityName = f?.name || "";
+                          setServices(updated);
+                        }}
+                        className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-white"
+                      >
+                        <option value="">Select Hazmat Facility...</option>
+                        {facilities.map((f) => (
+                          <option key={f.id} value={f.id}>
+                            {f.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] uppercase font-extrabold text-rose-900 dark:text-rose-300 block mb-1 tracking-wider">
+                        Haulage for Haz Treatment (KM) <span className="text-face-red">*</span>
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="0"
+                          disabled={!isEditable || !svc.isActive}
+                          value={svc.distanceKm ?? ""}
+                          onChange={(e) => {
+                            const updated = [...services];
+                            updated[idx].distanceKm = Number(e.target.value);
+                            setServices(updated);
+                          }}
+                          placeholder="0.0"
+                          className="w-full text-center text-2xl font-black font-mono py-2 bg-white dark:bg-slate-900 border-2 border-rose-600/50 rounded-xl text-rose-950 dark:text-rose-100 focus:outline-none"
+                        />
+                        <span className="absolute right-3 top-3 text-[11px] font-black text-rose-600 dark:text-rose-400">
+                          KM
+                        </span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block mb-1 tracking-wider">
+                        Road Condition
+                      </label>
+                      <div className="grid grid-cols-3 gap-1">
+                        {(["Good", "Fair", "Poor"] as const).map((r) => (
+                          <button
+                            key={r}
+                            type="button"
+                            disabled={!isEditable || !svc.isActive}
+                            onClick={() => {
+                              const updated = [...services];
+                              updated[idx].roadCondition = r;
+                              setServices(updated);
+                            }}
+                            className={`py-1 text-[11px] font-bold rounded-md border transition-all cursor-pointer ${
+                              svc.roadCondition === r
+                                ? "bg-rose-600 text-white border-rose-600"
+                                : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700"
+                            }`}
+                          >
+                            {r === "Good" ? "Smooth" : r}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block mb-1 tracking-wider">
+                        Clearance Notes
+                      </label>
+                      <input
+                        type="text"
+                        disabled={!isEditable || !svc.isActive}
+                        value={svc.wasteDescription || ""}
+                        onChange={(e) => {
+                          const updated = [...services];
+                          updated[idx].wasteDescription = e.target.value;
+                          setServices(updated);
+                        }}
+                        placeholder="e.g. Aramco permit Level 2 required"
+                        className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs"
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Full-Width Aggregate Operational Haulage Metrics Bar */}
+          <div className="bg-slate-900 text-white rounded-2xl p-4 sm:p-5 border border-slate-800 flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center shrink-0">
+                <Truck className="w-5 h-5 text-emerald-400" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs sm:text-sm font-black uppercase tracking-wider text-white">
+                    Aggregate Operational Haulage Metrics
+                  </span>
+                  <span className="text-[10px] font-black uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 px-2.5 py-0.5 rounded-full">
+                    {services.filter((s) => s.isActive).length} Scopes Active
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Calculated total single-cycle haulage including mobilization and facility discharge channels.
+                </p>
+              </div>
             </div>
 
-            {/* Metrics Calculation Panel */}
-            <div className="p-4 bg-gradient-to-r from-face-green-light to-face-blue-light dark:from-indigo-950/40 dark:to-blue-950/40 border border-face-line dark:border-indigo-800 rounded-2xl">
-              <span className="text-xs font-black uppercase text-face-green-dark dark:text-indigo-300 tracking-wider block mb-2">
-                Real-Time Transport & Cycle Metrics
-              </span>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-                <div className="bg-white/80 dark:bg-slate-900/80 p-2.5 rounded-xl border border-face-line dark:border-indigo-900">
-                  <span className="text-[11px] font-bold text-face-muted uppercase block">Single Cycle KM</span>
-                  <span className="text-lg font-black text-face-ink dark:text-white mt-0.5 block">
-                    {liveMetrics.totalCycleKm} km
-                  </span>
-                  <span className="text-[11px] text-face-muted block">2 × (Mob + Active Scopes)</span>
-                </div>
-
-                <div className="bg-white/80 dark:bg-slate-900/80 p-2.5 rounded-xl border border-face-line dark:border-indigo-900">
-                  <span className="text-[11px] font-bold text-face-muted uppercase block">Est. Diesel Fuel</span>
-                  <span className="text-lg font-black text-face-ink dark:text-white mt-0.5 block">
-                    {liveMetrics.estFuelLitres} L
-                  </span>
-                  <span className="text-[11px] text-face-muted block">@ 0.4 L/km</span>
-                </div>
-
-                <div className="bg-white/80 dark:bg-slate-900/80 p-2.5 rounded-xl border border-face-line dark:border-indigo-900">
-                  <span className="text-[11px] font-bold text-face-muted uppercase block">Base → Site</span>
-                  <span className="text-lg font-black text-face-ink dark:text-white mt-0.5 block">
-                    {liveBaseToSiteKm} km
-                  </span>
-                  <span className="text-[11px] text-face-muted block">Straight Line</span>
-                </div>
-
-                <div className="bg-white/80 dark:bg-slate-900/80 p-2.5 rounded-xl border border-face-line dark:border-indigo-900">
-                  <span className="text-[11px] font-bold text-face-muted uppercase block">Active Scopes</span>
-                  <span className="text-lg font-black text-face-ink dark:text-white mt-0.5 block">
-                    {services.filter((s) => s.isActive).length} / 3
-                  </span>
-                  <span className="text-[11px] text-face-muted block">Services</span>
-                </div>
+            <div className="flex items-center gap-6 sm:gap-8 shrink-0">
+              <div className="text-right">
+                <span className="text-2xl sm:text-3xl font-black font-mono text-emerald-400 block leading-none">
+                  {liveMetrics.totalCycleKm} KM
+                </span>
+                <span className="text-[9px] uppercase font-bold text-slate-400 tracking-wider block mt-1">
+                  Single Complete Cycle
+                </span>
+              </div>
+              <div className="text-right">
+                <span className="text-2xl sm:text-3xl font-black font-mono text-sky-400 block leading-none">
+                  {liveMetrics.estFuelLitres} L
+                </span>
+                <span className="text-[9px] uppercase font-bold text-slate-400 tracking-wider block mt-1">
+                  Est. Diesel Fuel Burn
+                </span>
               </div>
             </div>
           </div>
-        )}
+        </div>
 
-        {/* ================= STEP 3: Observations & Attachments ================= */}
-        {step === 3 && (
-          <div className="space-y-6">
-            <div className="border-b border-face-line dark:border-slate-800 pb-3">
-              <h2 className="text-xl sm:text-2xl font-extrabold uppercase tracking-tight text-face-ink dark:text-white">
-                Step 3: Ground Observations & Evidence Attachments
-              </h2>
-              <p className="text-sm text-face-muted">
-                Log critical ground conditions, safety clearances, and upload photos with optional EXIF GPS metadata.
-              </p>
+        {/* ── 03. SITE OBSERVATIONS & FIELD ATTACHMENTS ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          {/* Left Card: Ground Observations & Operational Constraints */}
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-7 shadow-[0_2px_16px_rgba(40,50,120,0.06)] border border-face-line/70 dark:border-slate-800 space-y-3.5">
+            <div className="flex items-center justify-between border-b border-face-line/70 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <span className="px-2.5 py-0.5 bg-indigo-600 text-white text-xs font-black rounded-lg">
+                  03
+                </span>
+                <h2 className="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                  Site Observations &amp; Operational Constraints
+                </h2>
+              </div>
             </div>
 
-            {/* Quick Chips & Textarea */}
-            <div className="space-y-3">
-              <label className="text-xs uppercase font-bold text-face-muted tracking-wider block">
-                Ground Observations & Safety Restrictions
-              </label>
+            <textarea
+              disabled={!isEditable}
+              rows={6}
+              value={formData.observations || ""}
+              onChange={(e) => setFormData({ ...formData, observations: e.target.value })}
+              placeholder="Record ground conditions, crane access, load restrictions, environmental hazards, hot work restrictions..."
+              className="w-full p-3 bg-face-field dark:bg-slate-800/60 border border-face-line dark:border-slate-700 rounded-xl text-xs font-medium text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green leading-relaxed"
+            />
 
-              {/* Quick Insert Chips */}
-              {isEditable && (
+            {/* Quick Insert Chips */}
+            {isEditable && (
+              <div>
+                <span className="text-[10px] uppercase font-extrabold text-face-muted block mb-1.5 tracking-wider">
+                  Quick-Insert Operational Chips:
+                </span>
                 <div className="flex flex-wrap gap-1.5">
                   {quickChips.map((chip) => (
                     <button
                       key={chip}
                       type="button"
                       onClick={() => handleAddChip(chip)}
-                      className="px-2.5 py-1 bg-face-field dark:bg-slate-800 hover:bg-face-green-light dark:hover:bg-face-green-dark/40 text-face-muted hover:text-face-green dark:text-slate-300 dark:hover:text-face-green-mint text-xs font-bold rounded-lg border border-face-line dark:border-slate-700 transition-all cursor-pointer"
+                      className="px-2 py-0.5 bg-face-field dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-face-muted hover:text-emerald-700 dark:text-slate-300 dark:hover:text-emerald-300 text-[11px] font-bold rounded-md border border-face-line dark:border-slate-700 transition-all cursor-pointer"
                     >
                       + {chip}
                     </button>
                   ))}
                 </div>
-              )}
+              </div>
+            )}
+          </div>
 
-              <textarea
-                disabled={!isEditable}
-                value={formData.observations || ""}
-                onChange={(e) => setFormData({ ...formData, observations: e.target.value })}
-                rows={4}
-                placeholder="Enter detailed site access notes, overhead restrictions, pipe clearance, marsh ground conditions..."
-                className="w-full p-3 bg-face-field dark:bg-slate-800/60 border border-face-line dark:border-slate-700 rounded-xl text-sm font-medium text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
-              />
-            </div>
-
-            {/* Attachments Upload */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-bold text-face-ink dark:text-white uppercase tracking-wider">
-                    Site Photos & Document Attachments ({inspection.attachments?.length || 0}) <span className="text-face-red">*</span>
-                  </h3>
-                  <p className="text-[11px] text-face-muted">
-                    JPG, PNG, WEBP, or PDF (Max 25MB). At least 1 attachment is required to submit.
-                  </p>
-                </div>
-
-                {isEditable && (
-                  <label className="flex items-center gap-1.5 px-3.5 py-2 bg-face-green hover:bg-face-green-dark text-white text-sm font-bold rounded-xl cursor-pointer shadow-xs">
-                    <Upload className="w-3.5 h-3.5" />
-                    <span>{isUploading ? "Uploading..." : "Upload Files"}</span>
-                    <input
-                      type="file"
-                      multiple
-                      disabled={isUploading}
-                      accept="image/jpeg,image/png,image/webp,application/pdf"
-                      onChange={handleFileUpload}
-                      className="hidden"
-                    />
-                  </label>
-                )}
+          {/* Right Card: Field Photos & Environmental Passes */}
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-7 shadow-[0_2px_16px_rgba(40,50,120,0.06)] border border-face-line/70 dark:border-slate-800 space-y-3.5 flex flex-col justify-between">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between border-b border-face-line/70 dark:border-slate-800 pb-3">
+                <h2 className="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                  Field Photos &amp; Environmental Passes
+                </h2>
+                <span className="text-xs font-bold text-face-muted">
+                  {inspection.attachments?.length || 0} File{(inspection.attachments?.length || 0) === 1 ? "" : "s"}
+                </span>
               </div>
 
-              {/* Upload Progress Bar if uploading */}
-              {isUploading && Object.keys(uploadProgress).length > 0 && (
-                <div className="p-3 bg-face-green-light dark:bg-indigo-950/30 border border-face-green/30 dark:border-indigo-800 rounded-xl space-y-2">
-                  <div className="text-sm font-bold text-face-green-dark dark:text-indigo-300 flex items-center justify-between">
-                    <span>Uploading direct to storage...</span>
-                  </div>
-                  {Object.entries(uploadProgress).map(([fName, pct]) => (
-                    <div key={fName} className="space-y-1">
-                      <div className="flex justify-between text-xs text-face-muted dark:text-slate-300 font-medium">
-                        <span className="truncate max-w-[250px]">{fName}</span>
-                        <span>{pct}%</span>
-                      </div>
-                      <div className="w-full h-1.5 bg-face-line dark:bg-slate-700 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-face-green transition-all duration-200"
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
+              {/* Upload Dropzone */}
+              {isEditable && (
+                <label className="border-2 border-dashed border-face-green/40 hover:border-face-green dark:border-face-green-dark bg-face-green-light/40 dark:bg-slate-800/40 hover:bg-face-green-light/60 p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all">
+                  <Upload className="w-5 h-5 text-face-green mb-1" />
+                  <span className="text-xs font-bold text-face-ink dark:text-white">
+                    {isUploading ? "Uploading..." : "Click or drag to upload field photos & permits"}
+                  </span>
+                  <span className="text-[10px] text-face-muted mt-0.5">
+                    JPG, PNG, WEBP, or PDF up to 25MB (EXIF GPS auto-extracted)
+                  </span>
+                  <input
+                    type="file"
+                    multiple
+                    accept=".jpg,.jpeg,.png,.webp,.pdf"
+                    disabled={isUploading}
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+                </label>
               )}
 
               {/* Attachments List */}
-              {(inspection.attachments || []).length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                  {inspection.attachments?.map((att) => (
-                    <div
-                      key={att.id}
-                      className="p-3 bg-face-field dark:bg-slate-800/50 border border-face-line dark:border-slate-700 rounded-xl space-y-2 relative group"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <FileText className="w-4 h-4 text-face-green shrink-0" />
-                          <span className="text-sm font-bold text-face-ink dark:text-white truncate">
+              <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                {(inspection.attachments || []).length === 0 ? (
+                  <p className="text-xs text-face-muted text-center py-4 italic">
+                    No field attachments uploaded yet. At least 1 photo is required.
+                  </p>
+                ) : (
+                  (inspection.attachments || []).map((att) => {
+                    const isPdf = att.fileName.toLowerCase().endsWith(".pdf");
+                    return (
+                      <div
+                        key={att.id}
+                        className="flex items-center justify-between p-2 bg-face-field dark:bg-slate-800 rounded-xl border border-face-line dark:border-slate-700 text-xs"
+                      >
+                        <div className="flex items-center gap-2 truncate">
+                          <span
+                            className={`px-1.5 py-0.5 text-[9px] font-black rounded uppercase ${
+                              isPdf ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"
+                            }`}
+                          >
+                            {isPdf ? "PDF" : "PHOTO"}
+                          </span>
+                          <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">
                             {att.fileName}
                           </span>
                         </div>
-
-                        {/* Thumbnail preview */}
-                      {(att.mimeType?.startsWith("image/") || att.fileName?.match(/\.(jpe?g|png|webp)$/i)) && (
-                        <div className="w-full h-32 overflow-hidden rounded-lg bg-white dark:bg-slate-900 border border-face-line dark:border-slate-700">
-                          <InspectionAttachmentThumbnail
-                            inspectionId={id!}
-                            attachmentId={att.id}
-                            fileName={att.fileName}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                      )}
-
-                      {/* EXIF GPS Badge if present */}
-                        {att.latitude != null && att.longitude != null && (
-                          <span
-                            title={`EXIF GPS: ${att.latitude}, ${att.longitude}`}
-                            className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-face-green-light text-face-green-dark text-[11px] font-bold rounded shrink-0"
-                          >
-                            <MapPin className="w-2.5 h-2.5" />
-                            GPS
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="text-[11px] text-face-muted flex items-center justify-between">
-                        <span>Tag: {att.tag || "Site Overview"}</span>
-                        <span>{Math.round(att.sizeBytes / 1024)} KB</span>
-                      </div>
-
-                      {/* Actions */}
-                      <div className="flex items-center justify-end gap-2 pt-1 border-t border-face-line dark:border-slate-700/60">
-                        <button
-                          type="button"
-                          onClick={() => handleViewAttachment(att.id)}
-                          className="text-xs font-bold text-face-green hover:underline flex items-center gap-1 cursor-pointer"
-                        >
-                          <Eye className="w-3 h-3" />
-                          View
-                        </button>
-
-                        {isEditable && (
+                        <div className="flex items-center gap-2 shrink-0">
                           <button
                             type="button"
-                            onClick={() => deleteAttMutation.mutate(att.id)}
-                            className="text-xs font-bold text-face-red hover:opacity-80 cursor-pointer flex items-center gap-1"
+                            onClick={() => handleViewAttachment(att.id)}
+                            className="p-1 hover:text-blue-600 text-slate-400"
+                            title="View"
                           >
-                            <Trash2 className="w-3 h-3" />
-                            Delete
+                            <Eye className="w-3.5 h-3.5" />
                           </button>
-                        )}
+                          {isEditable && (
+                            <button
+                              type="button"
+                              onClick={() => deleteAttMutation.mutate(att.id)}
+                              disabled={deleteAttMutation.isPending}
+                              className="p-1 hover:text-red-600 text-slate-400"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="p-8 border-2 border-dashed border-face-line dark:border-slate-800 rounded-2xl text-center space-y-2">
-                  <Upload className="w-6 h-6 text-face-muted mx-auto" />
-                  <p className="text-sm font-bold text-face-muted">No attachments uploaded yet</p>
-                  <p className="text-[11px] text-face-muted">
-                    Upload photos of ground conditions, gates, overhead cables, and waste holding pits.
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {/* Certification Checkbox */}
-            <div className="p-4 bg-face-field dark:bg-slate-800/40 border border-face-line dark:border-slate-800 rounded-2xl flex items-start gap-3">
-              <input
-                type="checkbox"
-                id="certification-check"
-                disabled={!isEditable}
-                checked={Boolean(formData.accepted)}
-                onChange={(e) => setFormData({ ...formData, accepted: e.target.checked })}
-                className="w-4 h-4 text-face-green rounded mt-0.5 cursor-pointer accent-face-green"
-              />
-              <label
-                htmlFor="certification-check"
-                className="text-sm text-face-muted dark:text-slate-300 font-medium leading-relaxed cursor-pointer select-none"
-              >
-                <strong className="font-bold text-face-ink dark:text-white block">
-                  Ground Assessment Certification & Accuracy Guarantee
-                </strong>
-                I confirm and certify that all site inspection information, GPS coordinates, haulage distances, and waste specifications provided herein are accurate and reflect real ground conditions.
-              </label>
+                    );
+                  })
+                )}
+              </div>
             </div>
           </div>
-        )}
-      </div>
-
-      {/* Footer Navigation & Actions */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-2">
-        <div className="flex items-center gap-2">
-          {step > 1 && (
-            <button
-              type="button"
-              onClick={() => setStep((prev) => (prev - 1) as any)}
-              className="px-4 py-2 bg-face-field hover:bg-face-line dark:bg-slate-800 dark:hover:bg-slate-700 text-face-ink dark:text-slate-200 text-sm font-bold rounded-xl transition-all cursor-pointer"
-            >
-              Previous
-            </button>
-          )}
-          {step < 3 && (
-            <button
-              type="button"
-              onClick={() => setStep((prev) => (prev + 1) as any)}
-              className="px-4 py-2 bg-face-green hover:bg-face-green-dark text-white text-sm font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
-            >
-              <span>Next</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-          )}
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Print PDF Report */}
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-white dark:bg-slate-900 border border-face-line dark:border-slate-800 text-face-ink dark:text-slate-200 text-sm font-bold rounded-xl hover:bg-face-field cursor-pointer"
-          >
-            <Printer className="w-3.5 h-3.5" />
-            <span>Preview PDF Report</span>
-          </button>
-
-          {/* Save Draft */}
-          {isEditable && (
-            <button
-              type="button"
-              onClick={handleSaveDraft}
-              disabled={saveDraftMutation.isPending}
-              className="flex items-center gap-1.5 px-4 py-2 bg-face-field hover:bg-face-line dark:bg-slate-800 text-face-ink dark:text-white text-sm font-bold rounded-xl transition-all cursor-pointer disabled:opacity-50"
-            >
-              <Save className="w-3.5 h-3.5" />
-              <span>{saveDraftMutation.isPending ? "Saving..." : "Save Draft"}</span>
-            </button>
-          )}
-
-          {/* Submit / Resubmit */}
-          {isEditable && (
-            <button
-              type="button"
-              onClick={handleSubmit}
-              disabled={submitMutation.isPending}
-              className="flex items-center gap-1.5 px-5 py-2 bg-face-green hover:bg-face-green-dark text-white text-sm font-bold rounded-xl shadow-md shadow-face-green/20 transition-all cursor-pointer disabled:opacity-50"
-            >
-              <Send className="w-3.5 h-3.5" />
-              <span>
-                {submitMutation.isPending
-                  ? "Submitting..."
-                  : inspection.status === "CHANGES_REQUESTED"
-                  ? "Resubmit Inspection"
-                  : "Submit for Approval"}
-              </span>
-            </button>
-          )}
         </div>
-      </div>
+
+        {/* ── STICKY ACTION FOOTER ── */}
+        <div className="sticky bottom-4 z-30 p-4 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-2.5">
+            <input
+              type="checkbox"
+              id="accept-certification"
+              disabled={!isEditable}
+              checked={Boolean(formData.accepted)}
+              onChange={(e) => setFormData({ ...formData, accepted: e.target.checked })}
+              className="w-4 h-4 rounded text-face-green accent-face-green cursor-pointer shrink-0"
+            />
+            <label
+              htmlFor="accept-certification"
+              className="text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer select-none leading-tight"
+            >
+              I confirm and certify that all site inspection information, GPS coordinates, haulage distances, and waste specifications provided herein are accurate and reflect real ground conditions.
+            </label>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0 justify-end">
+            {/* Print PDF Report */}
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl hover:bg-slate-50 cursor-pointer"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>Preview PDF Report</span>
+            </button>
+
+            {/* Save Draft */}
+            {isEditable && (
+              <button
+                type="button"
+                onClick={handleSaveDraft}
+                disabled={saveDraftMutation.isPending}
+                className="flex items-center gap-1.5 px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs font-bold rounded-xl hover:bg-slate-200 transition-all cursor-pointer disabled:opacity-50"
+              >
+                <Save className="w-3.5 h-3.5" />
+                <span>{saveDraftMutation.isPending ? "Saving..." : "Save as Draft"}</span>
+              </button>
+            )}
+
+            {/* Submit / Resubmit */}
+            {isEditable && (
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={submitMutation.isPending}
+                className="flex items-center gap-1.5 px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-md shadow-emerald-600/20 transition-all cursor-pointer disabled:opacity-50"
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span>
+                  {submitMutation.isPending
+                    ? "Submitting..."
+                    : inspection.status === "CHANGES_REQUESTED"
+                    ? "Resubmit Inspection"
+                    : "SUBMIT INSPECTION FOR REVIEW"}
+                </span>
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* ================= DEDICATED PRINT VIEW ================= */}
