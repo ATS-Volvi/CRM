@@ -233,6 +233,25 @@ function KmStepper({
   );
 }
 
+const DEFAULT_BASES = [
+  { id: "11111111-1111-4111-a111-111111111111", code: "JUBAIL", name: "Jubail Operations Base", region: "Eastern Province", latitude: 27.0, longitude: 49.65 },
+  { id: "22222222-2222-4222-a222-222222222222", code: "JAFURAH", name: "Jafurah Operations Base", region: "Eastern Province", latitude: 25.55, longitude: 49.85 },
+  { id: "33333333-3333-4333-a333-333333333333", code: "YANBU", name: "Yanbu Operations Base", region: "Western Province", latitude: 24.09, longitude: 38.06 },
+  { id: "44444444-4444-4444-a444-444444444444", code: "RIYADH", name: "Riyadh Operations Base", region: "Central Province", latitude: 24.71, longitude: 46.68 },
+];
+
+const DEFAULT_FACILITIES = [
+  { id: "f1010000-0000-4000-a000-000000000001", serviceType: "SEWAGE", name: "Ras Tanura STP", lat: 26.65, lng: 50.15 },
+  { id: "f1020000-0000-4000-a000-000000000002", serviceType: "SEWAGE", name: "Jubail Industrial Wastewater Treatment Plant", lat: 27.02, lng: 49.58 },
+  { id: "f1030000-0000-4000-a000-000000000003", serviceType: "SEWAGE", name: "Yanbu Municipal Wastewater Facility", lat: 24.05, lng: 38.12 },
+  { id: "f2010000-0000-4000-a000-000000000001", serviceType: "GENERAL", name: "Jubail Ind. Waste Landfill #4", lat: 27.08, lng: 49.52 },
+  { id: "f2020000-0000-4000-a000-000000000002", serviceType: "GENERAL", name: "Dammam Municipal Landfill", lat: 26.35, lng: 49.98 },
+  { id: "f2030000-0000-4000-a000-000000000003", serviceType: "GENERAL", name: "Yanbu Industrial Sanitary Landfill", lat: 23.98, lng: 38.22 },
+  { id: "f3010000-0000-4000-a000-000000000001", serviceType: "HAZARDOUS", name: "Bee'ah/EDCO Hazmat Complex Jubail", lat: 26.96, lng: 49.61 },
+  { id: "f3020000-0000-4000-a000-000000000002", serviceType: "HAZARDOUS", name: "SEPCO Environmental Services Yanbu", lat: 24.12, lng: 38.02 },
+  { id: "f3030000-0000-4000-a000-000000000003", serviceType: "HAZARDOUS", name: "National Environmental Preservation Co (BEEA) Jubail", lat: 27.04, lng: 49.49 },
+];
+
 export default function SiteInspectionForm() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -271,6 +290,18 @@ export default function SiteInspectionForm() {
     queryKey: ["site-inspections-master"],
     queryFn: () => siteInspectionApi.getMasterData(),
   });
+
+  const availableBases = useMemo(() => {
+    return masterData?.bases && masterData.bases.length > 0
+      ? masterData.bases
+      : DEFAULT_BASES;
+  }, [masterData]);
+
+  const availableFacilities = useMemo(() => {
+    return masterData?.facilities && masterData.facilities.length > 0
+      ? masterData.facilities
+      : DEFAULT_FACILITIES;
+  }, [masterData]);
 
   // Fetch Site Managers for reassign
   const { data: siteManagers = [] } = useQuery({
@@ -344,12 +375,12 @@ export default function SiteInspectionForm() {
 
   // Live straight line distance calculation
   const liveBaseToSiteKm = useMemo(() => {
-    const base = masterData?.bases.find((b) => b.id === formData.baseId);
+    const base = availableBases.find((b) => b.id === formData.baseId);
     if (!base || formData.latitude == null || formData.longitude == null) {
       return formData.baseToSiteStraightKm || 0;
     }
     return haversineKm(base.latitude, base.longitude, Number(formData.latitude), Number(formData.longitude));
-  }, [masterData, formData.baseId, formData.latitude, formData.longitude, formData.baseToSiteStraightKm]);
+  }, [availableBases, formData.baseId, formData.latitude, formData.longitude, formData.baseToSiteStraightKm]);
 
   // Live metrics calculation
   const liveMetrics = useMemo(() => {
@@ -438,7 +469,7 @@ export default function SiteInspectionForm() {
 
   // Auto-detect route via Option A (OSRM) with Tier 2 Fallback (1.3× Haversine)
   const handleAutoDetectRoute = async () => {
-    const base = masterData?.bases.find((b) => b.id === formData.baseId);
+    const base = availableBases.find((b) => b.id === formData.baseId);
     if (!base) {
       setRoutingNotice({
         text: "Please select an Operations Base first.",
@@ -538,7 +569,7 @@ export default function SiteInspectionForm() {
   // Road estimate helper (Tier 2 shortcut)
   const handleApplyRoadEstimate = () => {
     if (liveBaseToSiteKm > 0) {
-      const base = masterData?.bases.find((b) => b.id === formData.baseId);
+      const base = availableBases.find((b) => b.id === formData.baseId);
       const estimated = Math.round(liveBaseToSiteKm * 1.3 * 10) / 10;
       setFormData((prev) => ({
         ...prev,
@@ -1059,7 +1090,7 @@ export default function SiteInspectionForm() {
                 className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-emerald-600"
               >
                 <option value="">Select Deploying Base...</option>
-                {(masterData?.bases || []).map((b) => (
+                {availableBases.map((b) => (
                   <option key={b.id} value={b.id}>
                     {b.name} ({b.region})
                   </option>
@@ -1475,7 +1506,7 @@ export default function SiteInspectionForm() {
             {(() => {
               const idx = services.findIndex((s) => s.serviceType === "SEWAGE");
               const svc = services[idx] || ({} as any);
-              const facilities = (masterData?.facilities || []).filter((f) => f.serviceType === "SEWAGE");
+              const facilities = availableFacilities.filter((f) => f.serviceType === "SEWAGE");
               return (
                 <div className={`border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden flex flex-col justify-between bg-white dark:bg-slate-900 shadow-2xs ${
                   !svc.isActive ? "opacity-60" : ""
@@ -1584,7 +1615,7 @@ export default function SiteInspectionForm() {
             {(() => {
               const idx = services.findIndex((s) => s.serviceType === "GENERAL");
               const svc = services[idx] || ({} as any);
-              const facilities = (masterData?.facilities || []).filter((f) => f.serviceType === "GENERAL");
+              const facilities = availableFacilities.filter((f) => f.serviceType === "GENERAL");
               return (
                 <div className={`border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden flex flex-col justify-between bg-white dark:bg-slate-900 shadow-2xs ${
                   !svc.isActive ? "opacity-60" : ""
@@ -1693,7 +1724,7 @@ export default function SiteInspectionForm() {
             {(() => {
               const idx = services.findIndex((s) => s.serviceType === "HAZARDOUS");
               const svc = services[idx] || ({} as any);
-              const facilities = (masterData?.facilities || []).filter((f) => f.serviceType === "HAZARDOUS");
+              const facilities = availableFacilities.filter((f) => f.serviceType === "HAZARDOUS");
               return (
                 <div className={`border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden flex flex-col justify-between bg-white dark:bg-slate-900 shadow-2xs ${
                   !svc.isActive ? "opacity-60" : ""
