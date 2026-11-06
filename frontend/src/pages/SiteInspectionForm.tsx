@@ -464,9 +464,9 @@ export default function SiteInspectionForm() {
     const siteName = formData.siteName || "Client Site";
 
     try {
-      // Option A: OSRM Driving Routing API (lng,lat order)
+      // Option A: OSRM Driving Routing API (lng,lat order) with 9s timeout for long cross-country routes
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 4000);
+      const timeoutId = setTimeout(() => controller.abort(), 9000);
 
       const url = `https://router.project-osrm.org/route/v1/driving/${base.longitude},${base.latitude};${lng},${lat}?overview=false&steps=true`;
       const res = await fetch(url, { signal: controller.signal });
