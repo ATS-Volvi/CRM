@@ -29,6 +29,8 @@ import {
   Camera,
   Droplets,
   PanelLeft,
+  Navigation,
+  Loader2,
 } from "lucide-react";
 import { siteInspectionApi, MasterDataResponse } from "../api/siteInspection";
 import {
@@ -257,6 +259,13 @@ export default function SiteInspectionForm() {
   // Reassign state
   const [selectedReassignUser, setSelectedReassignUser] = useState("");
 
+  // Mobilization auto-routing state
+  const [isRoutingLoading, setIsRoutingLoading] = useState(false);
+  const [routingNotice, setRoutingNotice] = useState<{
+    text: string;
+    type: "success" | "warning" | "error";
+  } | null>(null);
+
   // Fetch Master Data
   const { data: masterData } = useQuery<MasterDataResponse>({
     queryKey: ["site-inspections-master"],
@@ -427,11 +436,121 @@ export default function SiteInspectionForm() {
     );
   };
 
-  // Road estimate helper
+  // Auto-detect route via Option A (OSRM) with Tier 2 Fallback (1.3× Haversine)
+  const handleAutoDetectRoute = async () => {
+    const base = masterData?.bases.find((b) => b.id === formData.baseId);
+    if (!base) {
+      setRoutingNotice({
+        text: "Please select an Operations Base first.",
+        type: "error",
+      });
+      return;
+    }
+
+    const lat = Number(formData.latitude);
+    const lng = Number(formData.longitude);
+    if (!formData.latitude || !formData.longitude || isNaN(lat) || isNaN(lng) || (lat === 0 && lng === 0)) {
+      setRoutingNotice({
+        text: "Please enter valid GPS coordinates for the site first.",
+        type: "error",
+      });
+      return;
+    }
+
+    setIsRoutingLoading(true);
+    setRoutingNotice(null);
+
+    const baseName = base.name || "Base";
+    const siteName = formData.siteName || "Client Site";
+
+    try {
+      // Option A: OSRM Driving Routing API (lng,lat order)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
+
+      const url = `https://router.project-osrm.org/route/v1/driving/${base.longitude},${base.latitude};${lng},${lat}?overview=false&steps=true`;
+      const res = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeoutId);
+
+      if (!res.ok) {
+        throw new Error(`OSRM HTTP error status ${res.status}`);
+      }
+
+      const data = await res.json();
+      if (data.code !== "Ok" || !data.routes || data.routes.length === 0) {
+        throw new Error("No road routing path found in response");
+      }
+
+      const route = data.routes[0];
+      const distanceKm = Math.round((route.distance / 1000) * 10) / 10;
+
+      // Extract unique major road names from steps
+      const distinctRoads: string[] = [];
+      if (route.legs && route.legs[0] && route.legs[0].steps) {
+        for (const step of route.legs[0].steps) {
+          const stepName = (step.name || "").trim();
+          if (stepName && !distinctRoads.includes(stepName)) {
+            distinctRoads.push(stepName);
+          }
+        }
+      }
+
+      // Format corridor: Base -> Top Highways/Roads -> Site
+      const majorRoads = distinctRoads.slice(0, 3);
+      let corridor = `Route: ${baseName}`;
+      if (majorRoads.length > 0) {
+        corridor += ` → ${majorRoads.join(" → ")}`;
+      }
+      corridor += ` → ${siteName}`;
+
+      setFormData((prev) => ({
+        ...prev,
+        mobilizationKm: distanceKm,
+        mobilizationRoute: corridor,
+      }));
+
+      setRoutingNotice({
+        text: `Live road corridor calculated (${distanceKm} km via OpenStreetMap)`,
+        type: "success",
+      });
+    } catch (err: any) {
+      console.warn("[Auto-Route] OSRM live routing failed, applying Tier 2 fallback:", err?.message);
+      // Tier 2 Fallback: Straight-line Haversine * 1.3 curvature factor
+      const straightKm = haversineKm(base.latitude, base.longitude, lat, lng);
+      const detourKm = Math.round(straightKm * 1.3 * 10) / 10;
+      const fallbackCorridor = `Route: ${baseName} → ${siteName} (1.3× Highway Detour)`;
+
+      setFormData((prev) => ({
+        ...prev,
+        mobilizationKm: detourKm,
+        mobilizationRoute: fallbackCorridor,
+      }));
+
+      setRoutingNotice({
+        text: `Road network service unreachable. Applied standard 1.3× detour factor (${detourKm} km)`,
+        type: "warning",
+      });
+    } finally {
+      setIsRoutingLoading(false);
+    }
+  };
+
+  // Road estimate helper (Tier 2 shortcut)
   const handleApplyRoadEstimate = () => {
     if (liveBaseToSiteKm > 0) {
+      const base = masterData?.bases.find((b) => b.id === formData.baseId);
       const estimated = Math.round(liveBaseToSiteKm * 1.3 * 10) / 10;
-      setFormData((prev) => ({ ...prev, mobilizationKm: estimated }));
+      setFormData((prev) => ({
+        ...prev,
+        mobilizationKm: estimated,
+        mobilizationRoute:
+          prev.mobilizationRoute ||
+          `Route: ${base?.name || "Base"} → ${prev.siteName || "Site"} (1.3× Highway Detour)`,
+      }));
+      setRoutingNotice({
+        text: `Applied standard 1.3× highway curvature estimate (${estimated} km)`,
+        type: "warning",
+      });
     }
   };
 
@@ -1264,18 +1383,52 @@ export default function SiteInspectionForm() {
                     <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">
                       DIRECT MOBILIZATION TRACK
                     </label>
-                    <span className="text-[9px] font-bold text-slate-400 uppercase">
-                      MANDATORY
-                    </span>
+                    {isEditable && (
+                      <button
+                        type="button"
+                        onClick={handleAutoDetectRoute}
+                        disabled={isRoutingLoading}
+                        className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 disabled:opacity-50 transition-colors cursor-pointer"
+                        title="Auto-calculate real driving route & distance from road network (OSRM)"
+                      >
+                        {isRoutingLoading ? (
+                          <>
+                            <Loader2 className="w-3 h-3 animate-spin text-emerald-600" />
+                            <span>Routing...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Navigation className="w-3 h-3 text-emerald-600" />
+                            <span>⚡ Auto-Route</span>
+                          </>
+                        )}
+                      </button>
+                    )}
                   </div>
                   <input
                     type="text"
                     disabled={!isEditable}
                     value={formData.mobilizationRoute || ""}
                     onChange={(e) => setFormData({ ...formData, mobilizationRoute: e.target.value })}
-                    placeholder="Route: Base → Site Gate"
+                    placeholder="Route: Base → Highway → Site Gate"
                     className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-white"
                   />
+                  {routingNotice && (
+                    <div
+                      className={`mt-1.5 p-1.5 px-2 rounded text-[10px] flex items-center gap-1.5 leading-tight ${
+                        routingNotice.type === "success"
+                          ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
+                          : routingNotice.type === "warning"
+                          ? "bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800"
+                          : "bg-red-50 dark:bg-red-950/40 text-red-800 dark:text-red-300 border border-red-200 dark:border-red-800"
+                      }`}
+                    >
+                      {routingNotice.type === "success" && <CheckCircle2 className="w-3 h-3 shrink-0" />}
+                      {routingNotice.type === "warning" && <AlertTriangle className="w-3 h-3 shrink-0" />}
+                      {routingNotice.type === "error" && <AlertCircle className="w-3 h-3 shrink-0" />}
+                      <span className="flex-1">{routingNotice.text}</span>
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -1291,9 +1444,10 @@ export default function SiteInspectionForm() {
                     <button
                       type="button"
                       onClick={handleApplyRoadEstimate}
-                      className="text-[10px] font-bold text-emerald-700 hover:underline mt-1 block text-center w-full cursor-pointer"
+                      className="text-[10px] font-bold text-slate-500 hover:text-emerald-700 hover:underline mt-1 block text-center w-full cursor-pointer transition-colors"
+                      title="Force standard Haversine × 1.3 highway curvature calculation"
                     >
-                      Apply road estimate (×1.3 = {Math.round(liveBaseToSiteKm * 1.3)} km)
+                      Use standard detour fallback (×1.3 = {Math.round(liveBaseToSiteKm * 1.3)} km)
                     </button>
                   )}
                 </div>
