@@ -26,6 +26,9 @@ import {
   UserCheck,
   Check,
   AlertTriangle,
+  Camera,
+  Droplets,
+  PanelLeft,
 } from "lucide-react";
 import { siteInspectionApi, MasterDataResponse } from "../api/siteInspection";
 import {
@@ -179,6 +182,55 @@ const sanitizePresignedUrl = (rawUrl: string): string => {
   }
 };
 
+function KmStepper({
+  value,
+  onChange,
+  disabled,
+  step = 0.5,
+  min = 0,
+}: {
+  value: number | null | undefined;
+  onChange: (val: number | null) => void;
+  disabled?: boolean;
+  step?: number;
+  min?: number;
+}) {
+  const current = value != null ? Number(value) : 0;
+  return (
+    <div className="flex items-center border border-slate-300 dark:border-slate-700 rounded-lg overflow-hidden bg-white dark:bg-slate-900 focus-within:ring-1 focus-within:ring-slate-400">
+      <button
+        type="button"
+        disabled={disabled || current <= min}
+        onClick={() => onChange(Math.max(min, Number((current - step).toFixed(1))))}
+        className="px-2.5 py-1 text-slate-500 hover:text-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer select-none"
+      >
+        −
+      </button>
+      <input
+        type="number"
+        step={step}
+        min={min}
+        disabled={disabled}
+        value={value ?? ""}
+        onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}
+        placeholder="0.0"
+        className="w-full text-center font-black text-sm text-slate-900 dark:text-white bg-transparent focus:outline-none py-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+      />
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => onChange(Number((current + step).toFixed(1)))}
+        className="px-2.5 py-1 text-slate-500 hover:text-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer select-none"
+      >
+        +
+      </button>
+      <span className="pr-2.5 text-[10px] font-extrabold text-slate-400 uppercase select-none">
+        KM
+      </span>
+    </div>
+  );
+}
+
 export default function SiteInspectionForm() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -194,6 +246,9 @@ export default function SiteInspectionForm() {
 
   // Modal for viewing an attachment
   const [previewAttachment, setPreviewAttachment] = useState<SiteInspectionAttachmentItem | null>(null);
+
+  // GPS coordinates sub-panel visibility
+  const [showCoordinatesModal, setShowCoordinatesModal] = useState(false);
 
   // Review comment state
   const [reviewComment, setReviewComment] = useState("");
@@ -633,42 +688,39 @@ export default function SiteInspectionForm() {
       `}</style>
 
       {/* Screen Interactive View */}
-      <div className="inspection-screen-view font-sans tracking-normal max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 print:hidden">
-      {/* Top Banner Navigation */}
-      <div className="flex items-center justify-between border-b border-face-line dark:border-slate-800 pb-4">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate("/site-inspections")}
-            className="p-2 hover:bg-face-field dark:hover:bg-slate-800 rounded-xl text-face-muted cursor-pointer"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </button>
-          <div>
+      <div className="inspection-screen-view font-sans tracking-normal max-w-[1360px] mx-auto px-4 sm:px-6 py-5 space-y-4 print:hidden">
+        {/* Top Banner Navigation */}
+        <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+          <div className="flex items-center gap-2.5">
+            <button
+              onClick={() => navigate("/site-inspections")}
+              className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-500 cursor-pointer"
+              title="Back to Site Inspections"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </button>
             <div className="flex items-center gap-2">
-              <span className="font-mono text-sm font-black text-face-green dark:text-face-green-mint">
+              <PanelLeft className="w-4 h-4 text-slate-500" />
+              <h1 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
+                Site Inspection &amp; Assessment Portal
+              </h1>
+              <span className="text-slate-300 dark:text-slate-700">·</span>
+              <span className="font-mono text-xs font-semibold text-slate-500">
                 {inspection.inspectionNumber}
               </span>
-              <span className="text-face-line dark:text-slate-700">·</span>
-              <h1 className="text-lg font-extrabold uppercase tracking-tight text-face-ink dark:text-white">
-                Site Inspection & Assessment Portal
-              </h1>
             </div>
-            <span className="text-xs text-face-muted font-medium">
-              Lead: {inspection.lead?.company || inspection.clientOrganization}
+          </div>
+
+          {/* Status Badge */}
+          <div className="flex items-center gap-2">
+            <span
+              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${statusInfo.badgeBg}`}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${statusInfo.dotColor}`} />
+              {statusInfo.label} (Rev {inspection.revision || 1})
             </span>
           </div>
         </div>
-
-        {/* Status Badge */}
-        <div className="flex items-center gap-2">
-          <span
-            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-bold border ${statusInfo.badgeBg}`}
-          >
-            <span className={`w-1.5 h-1.5 rounded-full ${statusInfo.dotColor}`} />
-            {statusInfo.label} (Rev {inspection.revision || 1})
-          </span>
-        </div>
-      </div>
 
       {/* Notifications / Alerts */}
       {saveSuccessMsg && (
@@ -853,443 +905,441 @@ export default function SiteInspectionForm() {
         </div>
       )}
 
-      {/* ================= UNIFIED SINGLE-SCREEN INSPECTION DASHBOARD ================= */}
-      <div className="space-y-6">
+      {/* ================= UNIFIED SINGLE-SCREEN INSPECTION DASHBOARD (LOVABLE REPLICA) ================= */}
+      <div className="space-y-4">
 
         {/* ── 01. INSPECTION SITE & CLIENT DETAILS ── */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-          {/* Left Card: 01 INSPECTION SITE (spans 2 cols) */}
-          <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-7 shadow-[0_2px_16px_rgba(40,50,120,0.06)] border border-face-line/70 dark:border-slate-800 space-y-4">
-            <div className="flex items-center justify-between border-b border-face-line/70 dark:border-slate-800 pb-3">
-              <div className="flex items-center gap-2.5">
-                <span className="px-2.5 py-0.5 bg-emerald-600 text-white text-xs font-black rounded-lg">
-                  01
-                </span>
-                <h2 className="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
-                  INSPECTION SITE
-                </h2>
-              </div>
-              <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 px-2.5 py-0.5 rounded-full uppercase flex items-center gap-1">
-                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                STEP VERIFIED
+        <div className="bg-white dark:bg-slate-900 rounded-xl p-5 border border-slate-200 dark:border-slate-800 space-y-4 shadow-2xs">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 bg-[#065f46] text-white text-xs font-black rounded">
+                01
               </span>
+              <h2 className="text-xs sm:text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                INSPECTION SITE
+              </h2>
+            </div>
+            <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+              STEP VERIFIED
+            </span>
+          </div>
+
+          {/* Row 1: 4 Columns */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Col 1: Assigned Operations Base */}
+            <div>
+              <label className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 tracking-wider block mb-1">
+                Assigned Operations Base <span className="text-red-500">*</span>
+              </label>
+              <select
+                disabled={!isEditable}
+                value={formData.baseId || ""}
+                onChange={(e) => setFormData({ ...formData, baseId: e.target.value })}
+                className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-emerald-600"
+              >
+                <option value="">Select Deploying Base...</option>
+                {(masterData?.bases || []).map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name} ({b.region})
+                  </option>
+                ))}
+              </select>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Operations Base */}
-              <div>
-                <label className="text-[11px] uppercase font-bold text-face-muted tracking-wider block mb-1">
-                  Assigned Operations Base <span className="text-face-red">*</span>
+            {/* Col 2: Inspection Site & Coordinates */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 tracking-wider">
+                  Inspection Site &amp; Coordinates <span className="text-red-500">*</span>
                 </label>
-                <select
-                  disabled={!isEditable}
-                  value={formData.baseId || ""}
-                  onChange={(e) => setFormData({ ...formData, baseId: e.target.value })}
-                  className="w-full p-2.5 bg-face-field dark:bg-slate-800/60 border border-face-line dark:border-slate-700 rounded-xl text-xs font-semibold text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
-                >
-                  <option value="">Select Deploying Base...</option>
-                  {(masterData?.bases || []).map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.name} ({b.code} - {b.region})
-                    </option>
-                  ))}
-                </select>
+                {isEditable && (
+                  <button
+                    type="button"
+                    onClick={handleGetCurrentLocation}
+                    className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 hover:underline flex items-center gap-0.5 cursor-pointer"
+                  >
+                    <MapPin className="w-2.5 h-2.5" />
+                    <span>GPS</span>
+                  </button>
+                )}
               </div>
-
-              {/* Audit Date & Time */}
-              <div>
-                <label className="text-[11px] uppercase font-bold text-face-muted tracking-wider block mb-1">
-                  Audit Date & Time (AST) <span className="text-face-red">*</span>
-                </label>
-                <input
-                  type="datetime-local"
-                  disabled={!isEditable}
-                  value={formData.auditAt || ""}
-                  onChange={(e) => setFormData({ ...formData, auditAt: e.target.value })}
-                  className="w-full p-2.5 bg-face-field dark:bg-slate-800/60 border border-face-line dark:border-slate-700 rounded-xl text-xs font-semibold text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
-                />
-              </div>
-
-              {/* Site Name */}
-              <div>
-                <label className="text-[11px] uppercase font-bold text-face-muted tracking-wider block mb-1">
-                  Inspection Site Name <span className="text-face-red">*</span>
-                </label>
+              <div className="relative flex items-center">
+                <MapPin className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 pointer-events-none" />
                 <input
                   type="text"
                   disabled={!isEditable}
                   value={formData.siteName || ""}
                   onChange={(e) => setFormData({ ...formData, siteName: e.target.value })}
-                  placeholder="e.g. Tanajib Offshore Gas Facility - Sector 4B"
-                  className="w-full p-2.5 bg-face-field dark:bg-slate-800/60 border border-face-line dark:border-slate-700 rounded-xl text-xs font-semibold text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
+                  placeholder="e.g. Tanajib Offshore Gas Facility"
+                  className="w-full pl-8 pr-24 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-emerald-600 truncate"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowCoordinatesModal(!showCoordinatesModal)}
+                  title="Click to view/edit GPS coordinates"
+                  className="absolute right-1 px-1.5 py-0.5 text-[10px] font-mono font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 cursor-pointer shrink-0"
+                >
+                  {formData.latitude != null && formData.longitude != null
+                    ? `${formData.latitude.toFixed(2)}°, ${formData.longitude.toFixed(2)}°`
+                    : "Set GPS"}
+                </button>
               </div>
 
-              {/* Site Address */}
-              <div>
-                <label className="text-[11px] uppercase font-bold text-face-muted tracking-wider block mb-1">
-                  Physical Plot / Gate Address
-                </label>
-                <input
-                  type="text"
-                  disabled={!isEditable}
-                  value={formData.siteAddress || ""}
-                  onChange={(e) => setFormData({ ...formData, siteAddress: e.target.value })}
-                  placeholder="e.g. Gate 3, Tanajib Industrial Zone"
-                  className="w-full p-2.5 bg-face-field dark:bg-slate-800/60 border border-face-line dark:border-slate-700 rounded-xl text-xs font-semibold text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
-                />
-              </div>
-
-              {/* GPS Coordinates Box */}
-              <div className="md:col-span-2 p-3 bg-face-field dark:bg-slate-800/40 border border-face-line dark:border-slate-800 rounded-xl space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-face-ink dark:text-white">
-                    <Compass className="w-3.5 h-3.5 text-face-green" />
-                    <span>Inspection Site GPS Coordinates</span>
-                    <span className="text-face-red">*</span>
-                  </div>
-                  {isEditable && (
-                    <button
-                      type="button"
-                      onClick={handleGetCurrentLocation}
-                      className="text-[11px] font-bold text-face-green hover:text-face-green-dark dark:hover:text-face-green-mint flex items-center gap-1 cursor-pointer"
-                    >
-                      <MapPin className="w-3 h-3" />
-                      <span>Use my GPS</span>
-                    </button>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
+              {showCoordinatesModal && (
+                <div className="mt-2 p-2.5 bg-slate-50 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 rounded-lg grid grid-cols-2 gap-2 text-xs shadow-xs">
                   <div>
+                    <label className="text-[9px] uppercase font-bold text-slate-500 block mb-0.5">Latitude</label>
                     <input
                       type="number"
                       step="any"
                       disabled={!isEditable}
                       value={formData.latitude ?? ""}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          latitude: e.target.value === "" ? null : Number(e.target.value),
-                        })
-                      }
-                      placeholder="Latitude (e.g. 27.8341)"
-                      className="w-full p-2 bg-white dark:bg-slate-900 border border-face-line dark:border-slate-700 rounded-lg text-xs font-mono font-bold text-face-ink dark:text-white"
+                      onChange={(e) => setFormData({ ...formData, latitude: e.target.value === "" ? null : Number(e.target.value) })}
+                      placeholder="e.g. 27.8341"
+                      className="w-full p-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-xs font-mono"
                     />
                   </div>
                   <div>
+                    <label className="text-[9px] uppercase font-bold text-slate-500 block mb-0.5">Longitude</label>
                     <input
                       type="number"
                       step="any"
                       disabled={!isEditable}
                       value={formData.longitude ?? ""}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          longitude: e.target.value === "" ? null : Number(e.target.value),
-                        })
-                      }
-                      placeholder="Longitude (e.g. 48.8872)"
-                      className="w-full p-2 bg-white dark:bg-slate-900 border border-face-line dark:border-slate-700 rounded-lg text-xs font-mono font-bold text-face-ink dark:text-white"
+                      onChange={(e) => setFormData({ ...formData, longitude: e.target.value === "" ? null : Number(e.target.value) })}
+                      placeholder="e.g. 48.8872"
+                      className="w-full p-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-xs font-mono"
                     />
                   </div>
+                  {liveBaseToSiteKm > 0 && (
+                    <div className="col-span-2 text-[10px] text-emerald-700 font-semibold pt-0.5">
+                      Straight line: {liveBaseToSiteKm} km
+                    </div>
+                  )}
                 </div>
+              )}
+            </div>
 
-                <div className="flex items-center justify-between text-[11px] text-face-muted pt-1">
-                  <span>Calculated straight-line deployment:</span>
-                  <span className="font-extrabold text-emerald-600 dark:text-emerald-400">
-                    {liveBaseToSiteKm > 0 ? `${liveBaseToSiteKm} km straight line` : "Set base & coordinates"}
-                  </span>
-                </div>
-              </div>
+            {/* Col 3: Audit Date & Time (AST) */}
+            <div>
+              <label className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 tracking-wider block mb-1">
+                Audit Date &amp; Time (AST) <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="datetime-local"
+                disabled={!isEditable}
+                value={formData.auditAt || ""}
+                onChange={(e) => setFormData({ ...formData, auditAt: e.target.value })}
+                className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-emerald-600"
+              />
+            </div>
 
-              {/* Approved RFQ Scope Summary */}
-              <div className="md:col-span-2">
-                <label className="text-[11px] uppercase font-bold text-face-muted tracking-wider block mb-1">
-                  Approved RFQ Scope Summary (from Lead)
-                </label>
-                <input
-                  type="text"
-                  disabled={!isEditable}
-                  value={formData.scopeSummary || ""}
-                  onChange={(e) => setFormData({ ...formData, scopeSummary: e.target.value })}
-                  placeholder="e.g. Comprehensive Industrial Site Assessment for Sludge Dewatering, Hazardous Pit Action"
-                  className="w-full p-2.5 bg-face-field dark:bg-slate-800/60 border border-face-line dark:border-slate-700 rounded-xl text-xs font-semibold text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
-                />
-              </div>
+            {/* Col 4: Approved RFQ Scope Summary */}
+            <div>
+              <label className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 tracking-wider block mb-1">
+                Approved RFQ Scope Summary
+              </label>
+              <input
+                type="text"
+                disabled={!isEditable}
+                value={formData.scopeSummary || ""}
+                onChange={(e) => setFormData({ ...formData, scopeSummary: e.target.value })}
+                placeholder="Comprehensive Industrial Site Assessment..."
+                className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-emerald-600 truncate"
+              />
             </div>
           </div>
 
-          {/* Right Card: Client Details (spans 1 col) */}
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-7 shadow-[0_2px_16px_rgba(40,50,120,0.06)] border border-face-line/70 dark:border-slate-800 flex flex-col justify-between space-y-4">
-            <div className="space-y-4">
-              <div className="border-b border-face-line/70 dark:border-slate-800 pb-3">
-                <h2 className="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
-                  Client Details
-                </h2>
-              </div>
-
+          {/* Client Details Row */}
+          <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
+            <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200">
+              Client Details
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="text-[10px] uppercase font-extrabold text-face-muted block mb-1 tracking-wider">
+                <label className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 tracking-wider block mb-1">
                   RFQ Identifier
                 </label>
-                <div className="font-mono text-xs font-black text-slate-800 dark:text-slate-100 bg-slate-100 dark:bg-slate-800 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700">
-                  {formData.rfqNumber || inspection.inspectionNumber}
-                </div>
+                <input
+                  type="text"
+                  disabled
+                  value={formData.rfqNumber || inspection.inspectionNumber}
+                  className="w-full p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-mono font-bold text-slate-700 dark:text-slate-300"
+                />
               </div>
 
               <div>
-                <label className="text-[10px] uppercase font-extrabold text-face-muted block mb-1 tracking-wider">
-                  Client Organisation <span className="text-face-red">*</span>
+                <label className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 tracking-wider block mb-1">
+                  Client Organization <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   disabled={!isEditable}
                   value={formData.clientOrganization || ""}
                   onChange={(e) => setFormData({ ...formData, clientOrganization: e.target.value })}
-                  placeholder="e.g. Saudi Aramco (Vendor Code: CL-ARM101)"
-                  className="w-full p-2.5 bg-face-field dark:bg-slate-800/60 border border-face-line dark:border-slate-700 rounded-xl text-xs font-semibold text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
+                  placeholder="e.g. Saudi Aramco (Vendor Code: CL-ARM-001)"
+                  className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-emerald-600"
                 />
               </div>
 
               <div>
-                <label className="text-[10px] uppercase font-extrabold text-face-muted block mb-1 tracking-wider">
-                  Client Field Representative <span className="text-face-red">*</span>
+                <label className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 tracking-wider block mb-1">
+                  Client Field Representative <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   disabled={!isEditable}
-                  value={formData.clientRepName || ""}
-                  onChange={(e) => setFormData({ ...formData, clientRepName: e.target.value })}
-                  placeholder="e.g. Eng. Fahad Al-Zahrani"
-                  className="w-full p-2.5 bg-face-field dark:bg-slate-800/60 border border-face-line dark:border-slate-700 rounded-xl text-xs font-semibold text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
+                  value={
+                    formData.clientRepPhone
+                      ? `${formData.clientRepName || ""} (${formData.clientRepPhone})`.trim()
+                      : (formData.clientRepName || "")
+                  }
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    const match = val.match(/^(.*?)(?:\s*\((.*?)\))?$/);
+                    if (match) {
+                      setFormData({
+                        ...formData,
+                        clientRepName: match[1]?.trim() || val,
+                        clientRepPhone: match[2]?.trim() || formData.clientRepPhone || "",
+                      });
+                    } else {
+                      setFormData({ ...formData, clientRepName: val });
+                    }
+                  }}
+                  placeholder="Eng. Fahad Al-Zahrani (+966 54 112 7901)"
+                  className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-emerald-600"
                 />
               </div>
-
-              <div>
-                <label className="text-[10px] uppercase font-extrabold text-face-muted block mb-1 tracking-wider">
-                  Representative Phone / WhatsApp
-                </label>
-                <input
-                  type="text"
-                  disabled={!isEditable}
-                  value={formData.clientRepPhone || ""}
-                  onChange={(e) => setFormData({ ...formData, clientRepPhone: e.target.value })}
-                  placeholder="+966 54 112 7101"
-                  className="w-full p-2.5 bg-face-field dark:bg-slate-800/60 border border-face-line dark:border-slate-700 rounded-xl text-xs font-semibold text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green"
-                />
-              </div>
-            </div>
-
-            <div className="pt-2 border-t border-face-line dark:border-slate-800 text-[11px] text-face-muted flex items-center justify-between">
-              <span>Origin Assignment:</span>
-              <span className="font-bold text-slate-800 dark:text-slate-200">
-                {inspection.assignedTo?.name || "Assigned Inspector"}
-              </span>
             </div>
           </div>
         </div>
 
         {/* ── 02. HAULAGE DISTANCE INPUTS (KM) & ACCESSIBILITY ── */}
-        <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-7 shadow-[0_2px_16px_rgba(40,50,120,0.06)] border border-face-line/70 dark:border-slate-800 space-y-5">
-          {/* Section Header with Quick Scope Toggles */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-face-line/70 dark:border-slate-800 pb-4">
-            <div className="flex items-center gap-2.5">
-              <span className="px-2.5 py-0.5 bg-blue-600 text-white text-xs font-black rounded-lg">
-                02
-              </span>
-              <div>
-                <h2 className="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
-                  HAULAGE DISTANCE INPUTS (KM) &amp; ACCESSIBILITY
-                </h2>
-                <span className="text-[10px] font-bold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 px-2 py-0.5 rounded-md uppercase inline-block mt-0.5">
-                  {services.filter((s) => s.isActive).length} of 3 OPTIONAL SCOPES ACTIVE
-                </span>
-              </div>
-            </div>
-
-            {/* Quick scope activation pills */}
-            {isEditable && (
-              <div className="flex flex-wrap items-center gap-2">
-                {(["SEWAGE", "GENERAL", "HAZARDOUS"] as const).map((type) => {
-                  const idx = services.findIndex((s) => s.serviceType === type);
-                  const active = services[idx]?.isActive;
-                  const theme =
-                    type === "SEWAGE"
-                      ? "border-amber-600 text-amber-700 dark:text-amber-300 hover:bg-amber-50"
-                      : type === "GENERAL"
-                      ? "border-blue-600 text-blue-700 dark:text-blue-300 hover:bg-blue-50"
-                      : "border-rose-600 text-rose-700 dark:text-rose-300 hover:bg-rose-50";
-
-                  return (
-                    <button
-                      key={type}
-                      type="button"
-                      onClick={() => {
-                        const updated = [...services];
-                        if (idx >= 0) {
-                          updated[idx].isActive = !active;
-                          setServices(updated);
-                        }
-                      }}
-                      className={`px-3 py-1 text-xs font-black uppercase rounded-lg border transition-all cursor-pointer flex items-center gap-1.5 ${
-                        active
-                          ? type === "SEWAGE"
-                            ? "bg-amber-700 text-white border-amber-700"
-                            : type === "GENERAL"
-                            ? "bg-blue-600 text-white border-blue-600"
-                            : "bg-rose-600 text-white border-rose-600"
-                          : `bg-white dark:bg-slate-900 ${theme}`
-                      }`}
-                    >
-                      <span>{active ? "✓" : "+"}</span>
-                      <span>{type} WASTE</span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+        <div className="bg-white dark:bg-slate-900 rounded-xl p-5 border border-slate-200 dark:border-slate-800 space-y-4 shadow-2xs">
+          {/* Header */}
+          <div className="flex items-center gap-2">
+            <span className="px-2 py-0.5 bg-[#065f46] text-white text-xs font-black rounded">
+              02
+            </span>
+            <h2 className="text-xs sm:text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
+              HAULAGE DISTANCE INPUTS (KM) &amp; ACCESSIBILITY
+            </h2>
           </div>
 
-          {/* 4-Column Card Grid: MOBILIZATION, SEWAGE, GENERAL, HAZARDOUS */}
+          {/* Scope Services Toolbar */}
+          <div className="flex flex-wrap items-center gap-2 pt-1 border-b border-slate-100 dark:border-slate-800 pb-3">
+            <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mr-1">
+              RFQ SCOPE SERVICES:
+            </span>
+
+            {/* Mobilization Base (Mandatory) */}
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#065f46] text-white rounded-md text-[11px] font-bold">
+              <Lock className="w-3 h-3" />
+              <span>MOBILIZATION (MANDATORY BASE)</span>
+            </div>
+
+            {/* Sewage Waste Toggle */}
+            {(() => {
+              const idx = services.findIndex((s) => s.serviceType === "SEWAGE");
+              const svc = services[idx] || ({} as any);
+              return (
+                <button
+                  type="button"
+                  disabled={!isEditable}
+                  onClick={() => {
+                    const updated = [...services];
+                    if (idx >= 0) {
+                      updated[idx].isActive = !svc.isActive;
+                      setServices(updated);
+                    }
+                  }}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-[11px] font-bold border transition-all cursor-pointer ${
+                    svc.isActive
+                      ? "bg-[#fbf7f4] border-[#78350f]/30 text-[#78350f]"
+                      : "bg-slate-50 border-slate-200 text-slate-400 opacity-60"
+                  }`}
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5 text-[#78350f]" />
+                  <span>SEWAGE WASTE</span>
+                  <span
+                    className={`text-[9px] px-1.5 py-0.2 rounded font-extrabold uppercase ${
+                      svc.isActive ? "bg-[#78350f] text-white" : "bg-slate-200 text-slate-500"
+                    }`}
+                  >
+                    {svc.isActive ? "ACTIVE" : "INACTIVE"}
+                  </span>
+                </button>
+              );
+            })()}
+
+            {/* General Waste Toggle */}
+            {(() => {
+              const idx = services.findIndex((s) => s.serviceType === "GENERAL");
+              const svc = services[idx] || ({} as any);
+              return (
+                <button
+                  type="button"
+                  disabled={!isEditable}
+                  onClick={() => {
+                    const updated = [...services];
+                    if (idx >= 0) {
+                      updated[idx].isActive = !svc.isActive;
+                      setServices(updated);
+                    }
+                  }}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-[11px] font-bold border transition-all cursor-pointer ${
+                    svc.isActive
+                      ? "bg-blue-50/60 border-blue-300 text-blue-900"
+                      : "bg-slate-50 border-slate-200 text-slate-400 opacity-60"
+                  }`}
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-blue-600" />
+                  <span>GENERAL WASTE</span>
+                  <span
+                    className={`text-[9px] px-1.5 py-0.2 rounded font-extrabold uppercase ${
+                      svc.isActive ? "bg-[#1d4ed8] text-white" : "bg-slate-200 text-slate-500"
+                    }`}
+                  >
+                    {svc.isActive ? "ACTIVE" : "INACTIVE"}
+                  </span>
+                </button>
+              );
+            })()}
+
+            {/* Hazardous Waste Toggle */}
+            {(() => {
+              const idx = services.findIndex((s) => s.serviceType === "HAZARDOUS");
+              const svc = services[idx] || ({} as any);
+              return (
+                <button
+                  type="button"
+                  disabled={!isEditable}
+                  onClick={() => {
+                    const updated = [...services];
+                    if (idx >= 0) {
+                      updated[idx].isActive = !svc.isActive;
+                      setServices(updated);
+                    }
+                  }}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-[11px] font-bold border transition-all cursor-pointer ${
+                    svc.isActive
+                      ? "bg-red-50/60 border-red-300 text-red-900"
+                      : "bg-slate-50 border-slate-200 text-slate-400 opacity-60"
+                  }`}
+                >
+                  <AlertTriangle className="w-3.5 h-3.5 text-red-600" />
+                  <span>HAZARDOUS WASTE</span>
+                  <span
+                    className={`text-[9px] px-1.5 py-0.2 rounded font-extrabold uppercase ${
+                      svc.isActive ? "bg-[#b91c1c] text-white" : "bg-slate-200 text-slate-500"
+                    }`}
+                  >
+                    {svc.isActive ? "ACTIVE" : "INACTIVE"}
+                  </span>
+                </button>
+              );
+            })()}
+          </div>
+
+          {/* 4 Cards Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 items-stretch">
-            {/* 1. MOBILIZATION CARD (Emerald) */}
-            <div className="flex flex-col justify-between border-2 border-emerald-500/50 dark:border-emerald-500/40 rounded-2xl bg-emerald-50/20 dark:bg-emerald-950/10 overflow-hidden shadow-xs">
-              <div className="bg-emerald-600 text-white p-3 flex items-center justify-between">
+            {/* 1. MOBILIZATION */}
+            <div className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden flex flex-col justify-between bg-white dark:bg-slate-900 shadow-2xs">
+              <div className="bg-[#065f46] text-white px-3 py-2 flex items-center justify-between font-black text-xs">
                 <div className="flex items-center gap-2">
-                  <Truck className="w-4 h-4" />
-                  <span className="text-xs font-black uppercase tracking-wider">MOBILIZATION</span>
+                  <Truck className="w-3.5 h-3.5" />
+                  <span>MOBILIZATION</span>
                 </div>
-                <span className="text-[10px] font-extrabold bg-white/20 px-2 py-0.5 rounded-full uppercase">
-                  BASE CORRIDOR
+                <span className="text-[9px] font-extrabold uppercase tracking-wider">
+                  MANDATORY
                 </span>
               </div>
 
-              <div className="p-4 space-y-3.5 flex-1 flex flex-col justify-between">
-                {/* Route label */}
+              <div className="p-3.5 space-y-3 flex-1 flex flex-col justify-between">
                 <div>
-                  <label className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block mb-1 tracking-wider">
-                    Base → Site Logistics Corridor
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">
+                      DIRECT MOBILIZATION TRACK
+                    </label>
+                    <span className="text-[9px] font-bold text-slate-400 uppercase">
+                      MANDATORY
+                    </span>
+                  </div>
                   <input
                     type="text"
                     disabled={!isEditable}
                     value={formData.mobilizationRoute || ""}
                     onChange={(e) => setFormData({ ...formData, mobilizationRoute: e.target.value })}
-                    placeholder="e.g. Route: Al-Zour Base → Site Gate 3"
-                    className="w-full p-2 bg-white dark:bg-slate-900 border border-emerald-300 dark:border-emerald-800 rounded-lg text-xs font-medium text-slate-900 dark:text-white"
+                    placeholder="Route: Base → Site Gate"
+                    className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-white"
                   />
                 </div>
 
-                {/* Big Distance KM input */}
                 <div>
-                  <label className="text-[10px] uppercase font-extrabold text-emerald-800 dark:text-emerald-300 block mb-1 tracking-wider">
-                    One-Way Mobilization (KM) <span className="text-face-red">*</span>
+                  <label className="text-[10px] uppercase font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                    One-Way Mobilization (KM) <span className="text-red-500">*</span>
                   </label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      step="0.1"
-                      min="0"
-                      disabled={!isEditable}
-                      value={formData.mobilizationKm ?? ""}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          mobilizationKm: e.target.value === "" ? null : Number(e.target.value),
-                        })
-                      }
-                      placeholder="0.0"
-                      className="w-full text-center text-2xl font-black font-mono py-2 bg-white dark:bg-slate-900 border-2 border-emerald-500/60 rounded-xl text-emerald-950 dark:text-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-                    />
-                    <span className="absolute right-3 top-3 text-[11px] font-black text-emerald-600 dark:text-emerald-400">
-                      KM
-                    </span>
-                  </div>
+                  <KmStepper
+                    disabled={!isEditable}
+                    value={formData.mobilizationKm}
+                    onChange={(val) => setFormData({ ...formData, mobilizationKm: val })}
+                  />
                   {isEditable && liveBaseToSiteKm > 0 && (
                     <button
                       type="button"
                       onClick={handleApplyRoadEstimate}
-                      className="text-[10px] font-bold text-emerald-700 hover:text-emerald-800 dark:text-emerald-400 mt-1 block w-full text-center cursor-pointer"
+                      className="text-[10px] font-bold text-emerald-700 hover:underline mt-1 block text-center w-full cursor-pointer"
                     >
-                      Use road estimate (×1.3 = {Math.round(liveBaseToSiteKm * 1.3)} km)
+                      Apply road estimate (×1.3 = {Math.round(liveBaseToSiteKm * 1.3)} km)
                     </button>
                   )}
                 </div>
 
-                {/* Road Condition */}
                 <div>
-                  <label className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block mb-1 tracking-wider">
-                    Corridor Condition
+                  <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block mb-1">
+                    VERIFIED FLEET SPEED LIMIT
                   </label>
-                  <div className="grid grid-cols-3 gap-1">
-                    {(["Good", "Fair", "Poor"] as const).map((r) => (
-                      <button
-                        key={r}
-                        type="button"
-                        disabled={!isEditable}
-                        onClick={() => setFormData({ ...formData, mobilizationRoadCondition: r } as any)}
-                        className={`py-1 text-[11px] font-bold rounded-md border transition-all cursor-pointer ${
-                          (formData as any).mobilizationRoadCondition === r
-                            ? "bg-emerald-600 text-white border-emerald-600"
-                            : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700"
-                        }`}
-                      >
-                        {r === "Good" ? "Smooth" : r}
-                      </button>
-                    ))}
+                  <div className="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs">
+                    <span className="text-slate-600 dark:text-slate-400">Highway Heavy Speed Cap</span>
+                    <span className="font-mono font-bold text-slate-900 dark:text-white">
+                      {formData.speedLimitKmh || 80} KM/H
+                    </span>
                   </div>
                 </div>
 
-                <div className="pt-2 border-t border-emerald-500/20 text-[10px] text-emerald-800 dark:text-emerald-300 font-semibold flex items-center gap-1">
-                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-800 text-[10px] text-emerald-700 dark:text-emerald-400 font-bold flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
                   <span>Verified Transport Corridor</span>
                 </div>
               </div>
             </div>
 
-            {/* 2. SEWAGE WASTE CARD (Amber) */}
+            {/* 2. SEWAGE WASTE */}
             {(() => {
               const idx = services.findIndex((s) => s.serviceType === "SEWAGE");
               const svc = services[idx] || ({} as any);
               const facilities = (masterData?.facilities || []).filter((f) => f.serviceType === "SEWAGE");
-
               return (
-                <div
-                  className={`flex flex-col justify-between border-2 rounded-2xl overflow-hidden shadow-xs transition-all ${
-                    svc.isActive
-                      ? "border-amber-700/60 bg-amber-50/20 dark:bg-amber-950/10"
-                      : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 opacity-70"
-                  }`}
-                >
-                  <div
-                    className={`p-3 flex items-center justify-between ${
-                      svc.isActive ? "bg-amber-700 text-white" : "bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
-                    }`}
-                  >
-                    <span className="text-xs font-black uppercase tracking-wider">SEWAGE WASTE</span>
-                    <button
-                      type="button"
-                      disabled={!isEditable}
-                      onClick={() => {
-                        const updated = [...services];
-                        if (idx >= 0) {
-                          updated[idx].isActive = !svc.isActive;
-                          setServices(updated);
-                        }
-                      }}
-                      className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase cursor-pointer ${
-                        svc.isActive ? "bg-white/20 text-white" : "bg-slate-300 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
-                      }`}
-                    >
-                      {svc.isActive ? "SCOPE ACTIVE" : "INACTIVE"}
-                    </button>
+                <div className={`border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden flex flex-col justify-between bg-white dark:bg-slate-900 shadow-2xs ${
+                  !svc.isActive ? "opacity-60" : ""
+                }`}>
+                  <div className="bg-[#78350f] text-white px-3 py-2 flex items-center justify-between font-black text-xs">
+                    <div className="flex items-center gap-2">
+                      <Droplets className="w-3.5 h-3.5" />
+                      <span>SEWAGE WASTE</span>
+                    </div>
+                    <span className="text-[9px] font-extrabold uppercase tracking-wider">
+                      {svc.isActive ? "ACTIVE" : "INACTIVE"}
+                    </span>
                   </div>
 
-                  <div className="p-4 space-y-3.5 flex-1 flex flex-col justify-between">
+                  <div className="p-3.5 space-y-3 flex-1 flex flex-col justify-between">
                     <div>
-                      <label className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block mb-1 tracking-wider">
-                        Approved STP Treatment Facility <span className="text-face-red">*</span>
+                      <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block mb-1">
+                        ASSIGNED STP TREATMENT FACILITY <span className="text-red-500">*</span>
                       </label>
                       <select
                         disabled={!isEditable || !svc.isActive}
@@ -1301,7 +1351,7 @@ export default function SiteInspectionForm() {
                           updated[idx].facilityName = f?.name || "";
                           setServices(updated);
                         }}
-                        className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-white"
+                        className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-800 dark:text-slate-100"
                       >
                         <option value="">Select STP Facility...</option>
                         {facilities.map((f) => (
@@ -1313,33 +1363,23 @@ export default function SiteInspectionForm() {
                     </div>
 
                     <div>
-                      <label className="text-[10px] uppercase font-extrabold text-amber-900 dark:text-amber-300 block mb-1 tracking-wider">
-                        Haulage to Discharge (KM) <span className="text-face-red">*</span>
+                      <label className="text-[10px] uppercase font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                        Haulage to Discharge (KM) <span className="text-red-500">*</span>
                       </label>
-                      <div className="relative">
-                        <input
-                          type="number"
-                          step="0.1"
-                          min="0"
-                          disabled={!isEditable || !svc.isActive}
-                          value={svc.distanceKm ?? ""}
-                          onChange={(e) => {
-                            const updated = [...services];
-                            updated[idx].distanceKm = Number(e.target.value);
-                            setServices(updated);
-                          }}
-                          placeholder="0.0"
-                          className="w-full text-center text-2xl font-black font-mono py-2 bg-white dark:bg-slate-900 border-2 border-amber-600/50 rounded-xl text-amber-950 dark:text-amber-100 focus:outline-none"
-                        />
-                        <span className="absolute right-3 top-3 text-[11px] font-black text-amber-700 dark:text-amber-400">
-                          KM
-                        </span>
-                      </div>
+                      <KmStepper
+                        disabled={!isEditable || !svc.isActive}
+                        value={svc.distanceKm}
+                        onChange={(val) => {
+                          const updated = [...services];
+                          updated[idx].distanceKm = val ?? 0;
+                          setServices(updated);
+                        }}
+                      />
                     </div>
 
                     <div>
-                      <label className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block mb-1 tracking-wider">
-                        Road Condition
+                      <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block mb-1">
+                        APPROACH ROAD CONDITION
                       </label>
                       <div className="grid grid-cols-3 gap-1">
                         {(["Good", "Fair", "Poor"] as const).map((r) => (
@@ -1352,21 +1392,21 @@ export default function SiteInspectionForm() {
                               updated[idx].roadCondition = r;
                               setServices(updated);
                             }}
-                            className={`py-1 text-[11px] font-bold rounded-md border transition-all cursor-pointer ${
+                            className={`py-1 text-[11px] font-bold rounded border transition-all cursor-pointer ${
                               svc.roadCondition === r
-                                ? "bg-amber-700 text-white border-amber-700"
+                                ? "bg-[#78350f] text-white border-[#78350f]"
                                 : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700"
                             }`}
                           >
-                            {r === "Good" ? "Smooth" : r}
+                            {r}
                           </button>
                         ))}
                       </div>
                     </div>
 
                     <div>
-                      <label className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block mb-1 tracking-wider">
-                        Clearance Notes
+                      <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block mb-1">
+                        APPROACH LOGISTICS NOTE
                       </label>
                       <input
                         type="text"
@@ -1377,7 +1417,7 @@ export default function SiteInspectionForm() {
                           updated[idx].wasteDescription = e.target.value;
                           setServices(updated);
                         }}
-                        placeholder="e.g. Vacuum tanker access; Gate 2"
+                        placeholder="e.g. Heavy vacuum tanker access via Gate 2"
                         className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs"
                       />
                     </div>
@@ -1386,48 +1426,29 @@ export default function SiteInspectionForm() {
               );
             })()}
 
-            {/* 3. GENERAL WASTE CARD (Blue) */}
+            {/* 3. GENERAL WASTE */}
             {(() => {
               const idx = services.findIndex((s) => s.serviceType === "GENERAL");
               const svc = services[idx] || ({} as any);
               const facilities = (masterData?.facilities || []).filter((f) => f.serviceType === "GENERAL");
-
               return (
-                <div
-                  className={`flex flex-col justify-between border-2 rounded-2xl overflow-hidden shadow-xs transition-all ${
-                    svc.isActive
-                      ? "border-blue-600/60 bg-blue-50/20 dark:bg-blue-950/10"
-                      : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 opacity-70"
-                  }`}
-                >
-                  <div
-                    className={`p-3 flex items-center justify-between ${
-                      svc.isActive ? "bg-blue-600 text-white" : "bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
-                    }`}
-                  >
-                    <span className="text-xs font-black uppercase tracking-wider">GENERAL WASTE</span>
-                    <button
-                      type="button"
-                      disabled={!isEditable}
-                      onClick={() => {
-                        const updated = [...services];
-                        if (idx >= 0) {
-                          updated[idx].isActive = !svc.isActive;
-                          setServices(updated);
-                        }
-                      }}
-                      className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase cursor-pointer ${
-                        svc.isActive ? "bg-white/20 text-white" : "bg-slate-300 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
-                      }`}
-                    >
-                      {svc.isActive ? "SCOPE ACTIVE" : "INACTIVE"}
-                    </button>
+                <div className={`border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden flex flex-col justify-between bg-white dark:bg-slate-900 shadow-2xs ${
+                  !svc.isActive ? "opacity-60" : ""
+                }`}>
+                  <div className="bg-[#1d4ed8] text-white px-3 py-2 flex items-center justify-between font-black text-xs">
+                    <div className="flex items-center gap-2">
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>GENERAL WASTE</span>
+                    </div>
+                    <span className="text-[9px] font-extrabold uppercase tracking-wider">
+                      {svc.isActive ? "ACTIVE" : "INACTIVE"}
+                    </span>
                   </div>
 
-                  <div className="p-4 space-y-3.5 flex-1 flex flex-col justify-between">
+                  <div className="p-3.5 space-y-3 flex-1 flex flex-col justify-between">
                     <div>
-                      <label className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block mb-1 tracking-wider">
-                        Approved Landfill / Transfer Stn <span className="text-face-red">*</span>
+                      <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block mb-1">
+                        ASSIGNED LANDFILL / TRANSFER STN <span className="text-red-500">*</span>
                       </label>
                       <select
                         disabled={!isEditable || !svc.isActive}
@@ -1439,7 +1460,7 @@ export default function SiteInspectionForm() {
                           updated[idx].facilityName = f?.name || "";
                           setServices(updated);
                         }}
-                        className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-white"
+                        className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-800 dark:text-slate-100"
                       >
                         <option value="">Select Landfill Facility...</option>
                         {facilities.map((f) => (
@@ -1451,33 +1472,23 @@ export default function SiteInspectionForm() {
                     </div>
 
                     <div>
-                      <label className="text-[10px] uppercase font-extrabold text-blue-900 dark:text-blue-300 block mb-1 tracking-wider">
-                        Haulage to Landfill (KM) <span className="text-face-red">*</span>
+                      <label className="text-[10px] uppercase font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                        Haulage to Landfill (KM) <span className="text-red-500">*</span>
                       </label>
-                      <div className="relative">
-                        <input
-                          type="number"
-                          step="0.1"
-                          min="0"
-                          disabled={!isEditable || !svc.isActive}
-                          value={svc.distanceKm ?? ""}
-                          onChange={(e) => {
-                            const updated = [...services];
-                            updated[idx].distanceKm = Number(e.target.value);
-                            setServices(updated);
-                          }}
-                          placeholder="0.0"
-                          className="w-full text-center text-2xl font-black font-mono py-2 bg-white dark:bg-slate-900 border-2 border-blue-600/50 rounded-xl text-blue-950 dark:text-blue-100 focus:outline-none"
-                        />
-                        <span className="absolute right-3 top-3 text-[11px] font-black text-blue-600 dark:text-blue-400">
-                          KM
-                        </span>
-                      </div>
+                      <KmStepper
+                        disabled={!isEditable || !svc.isActive}
+                        value={svc.distanceKm}
+                        onChange={(val) => {
+                          const updated = [...services];
+                          updated[idx].distanceKm = val ?? 0;
+                          setServices(updated);
+                        }}
+                      />
                     </div>
 
                     <div>
-                      <label className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block mb-1 tracking-wider">
-                        Road Condition
+                      <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block mb-1">
+                        APPROACH ROAD CONDITION
                       </label>
                       <div className="grid grid-cols-3 gap-1">
                         {(["Good", "Fair", "Poor"] as const).map((r) => (
@@ -1490,21 +1501,21 @@ export default function SiteInspectionForm() {
                               updated[idx].roadCondition = r;
                               setServices(updated);
                             }}
-                            className={`py-1 text-[11px] font-bold rounded-md border transition-all cursor-pointer ${
+                            className={`py-1 text-[11px] font-bold rounded border transition-all cursor-pointer ${
                               svc.roadCondition === r
-                                ? "bg-blue-600 text-white border-blue-600"
+                                ? "bg-[#1d4ed8] text-white border-[#1d4ed8]"
                                 : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700"
                             }`}
                           >
-                            {r === "Good" ? "Smooth" : r}
+                            {r}
                           </button>
                         ))}
                       </div>
                     </div>
 
                     <div>
-                      <label className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block mb-1 tracking-wider">
-                        Clearance Notes
+                      <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block mb-1">
+                        APPROACH LOGISTICS NOTE
                       </label>
                       <input
                         type="text"
@@ -1515,7 +1526,7 @@ export default function SiteInspectionForm() {
                           updated[idx].wasteDescription = e.target.value;
                           setServices(updated);
                         }}
-                        placeholder="e.g. Double-trailer compactors accessible"
+                        placeholder="e.g. Double trailer compactor trucks accessible"
                         className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs"
                       />
                     </div>
@@ -1524,48 +1535,29 @@ export default function SiteInspectionForm() {
               );
             })()}
 
-            {/* 4. HAZARDOUS WASTE CARD (Red) */}
+            {/* 4. HAZARDOUS WASTE */}
             {(() => {
               const idx = services.findIndex((s) => s.serviceType === "HAZARDOUS");
               const svc = services[idx] || ({} as any);
               const facilities = (masterData?.facilities || []).filter((f) => f.serviceType === "HAZARDOUS");
-
               return (
-                <div
-                  className={`flex flex-col justify-between border-2 rounded-2xl overflow-hidden shadow-xs transition-all ${
-                    svc.isActive
-                      ? "border-rose-600/60 bg-rose-50/20 dark:bg-rose-950/10"
-                      : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 opacity-70"
-                  }`}
-                >
-                  <div
-                    className={`p-3 flex items-center justify-between ${
-                      svc.isActive ? "bg-rose-600 text-white" : "bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
-                    }`}
-                  >
-                    <span className="text-xs font-black uppercase tracking-wider">HAZARDOUS WASTE</span>
-                    <button
-                      type="button"
-                      disabled={!isEditable}
-                      onClick={() => {
-                        const updated = [...services];
-                        if (idx >= 0) {
-                          updated[idx].isActive = !svc.isActive;
-                          setServices(updated);
-                        }
-                      }}
-                      className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase cursor-pointer ${
-                        svc.isActive ? "bg-white/20 text-white" : "bg-slate-300 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
-                      }`}
-                    >
-                      {svc.isActive ? "SCOPE ACTIVE" : "INACTIVE"}
-                    </button>
+                <div className={`border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden flex flex-col justify-between bg-white dark:bg-slate-900 shadow-2xs ${
+                  !svc.isActive ? "opacity-60" : ""
+                }`}>
+                  <div className="bg-[#b91c1c] text-white px-3 py-2 flex items-center justify-between font-black text-xs">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="w-3.5 h-3.5" />
+                      <span>HAZARDOUS WASTE</span>
+                    </div>
+                    <span className="text-[9px] font-extrabold uppercase tracking-wider">
+                      {svc.isActive ? "ACTIVE" : "INACTIVE"}
+                    </span>
                   </div>
 
-                  <div className="p-4 space-y-3.5 flex-1 flex flex-col justify-between">
+                  <div className="p-3.5 space-y-3 flex-1 flex flex-col justify-between">
                     <div>
-                      <label className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block mb-1 tracking-wider">
-                        Certified Hazmat Complex <span className="text-face-red">*</span>
+                      <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block mb-1">
+                        CERTIFIED HAZMAT COMPLEX <span className="text-red-500">*</span>
                       </label>
                       <select
                         disabled={!isEditable || !svc.isActive}
@@ -1577,7 +1569,7 @@ export default function SiteInspectionForm() {
                           updated[idx].facilityName = f?.name || "";
                           setServices(updated);
                         }}
-                        className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-white"
+                        className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-800 dark:text-slate-100"
                       >
                         <option value="">Select Hazmat Facility...</option>
                         {facilities.map((f) => (
@@ -1589,33 +1581,23 @@ export default function SiteInspectionForm() {
                     </div>
 
                     <div>
-                      <label className="text-[10px] uppercase font-extrabold text-rose-900 dark:text-rose-300 block mb-1 tracking-wider">
-                        Haulage for Haz Treatment (KM) <span className="text-face-red">*</span>
+                      <label className="text-[10px] uppercase font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                        Haulage to Haz Treatment (KM) <span className="text-red-500">*</span>
                       </label>
-                      <div className="relative">
-                        <input
-                          type="number"
-                          step="0.1"
-                          min="0"
-                          disabled={!isEditable || !svc.isActive}
-                          value={svc.distanceKm ?? ""}
-                          onChange={(e) => {
-                            const updated = [...services];
-                            updated[idx].distanceKm = Number(e.target.value);
-                            setServices(updated);
-                          }}
-                          placeholder="0.0"
-                          className="w-full text-center text-2xl font-black font-mono py-2 bg-white dark:bg-slate-900 border-2 border-rose-600/50 rounded-xl text-rose-950 dark:text-rose-100 focus:outline-none"
-                        />
-                        <span className="absolute right-3 top-3 text-[11px] font-black text-rose-600 dark:text-rose-400">
-                          KM
-                        </span>
-                      </div>
+                      <KmStepper
+                        disabled={!isEditable || !svc.isActive}
+                        value={svc.distanceKm}
+                        onChange={(val) => {
+                          const updated = [...services];
+                          updated[idx].distanceKm = val ?? 0;
+                          setServices(updated);
+                        }}
+                      />
                     </div>
 
                     <div>
-                      <label className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block mb-1 tracking-wider">
-                        Road Condition
+                      <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block mb-1">
+                        APPROACH ROAD CONDITION
                       </label>
                       <div className="grid grid-cols-3 gap-1">
                         {(["Good", "Fair", "Poor"] as const).map((r) => (
@@ -1628,21 +1610,21 @@ export default function SiteInspectionForm() {
                               updated[idx].roadCondition = r;
                               setServices(updated);
                             }}
-                            className={`py-1 text-[11px] font-bold rounded-md border transition-all cursor-pointer ${
+                            className={`py-1 text-[11px] font-bold rounded border transition-all cursor-pointer ${
                               svc.roadCondition === r
-                                ? "bg-rose-600 text-white border-rose-600"
+                                ? "bg-[#b91c1c] text-white border-[#b91c1c]"
                                 : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700"
                             }`}
                           >
-                            {r === "Good" ? "Smooth" : r}
+                            {r}
                           </button>
                         ))}
                       </div>
                     </div>
 
                     <div>
-                      <label className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block mb-1 tracking-wider">
-                        Clearance Notes
+                      <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block mb-1">
+                        APPROACH LOGISTICS NOTE
                       </label>
                       <input
                         type="text"
@@ -1653,7 +1635,7 @@ export default function SiteInspectionForm() {
                           updated[idx].wasteDescription = e.target.value;
                           setServices(updated);
                         }}
-                        placeholder="e.g. Aramco permit Level 2 required"
+                        placeholder="e.g. Requires Aramco work permit Level 2"
                         className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs"
                       />
                     </div>
@@ -1664,41 +1646,38 @@ export default function SiteInspectionForm() {
           </div>
 
           {/* Full-Width Aggregate Operational Haulage Metrics Bar */}
-          <div className="bg-slate-900 text-white rounded-2xl p-4 sm:p-5 border border-slate-800 flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm">
+          <div className="bg-[#f8fafc] dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-lg p-3.5 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-2xs">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center shrink-0">
-                <Truck className="w-5 h-5 text-emerald-400" />
+              <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-700 flex items-center justify-center shrink-0">
+                <Truck className="w-4 h-4 text-emerald-800 dark:text-emerald-300" />
               </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs sm:text-sm font-black uppercase tracking-wider text-white">
-                    Aggregate Operational Haulage Metrics
-                  </span>
-                  <span className="text-[10px] font-black uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 px-2.5 py-0.5 rounded-full">
-                    {services.filter((s) => s.isActive).length} Scopes Active
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-400 mt-0.5">
-                  Calculated total single-cycle haulage including mobilization and facility discharge channels.
-                </p>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                  Aggregate Operational Haulage Metrics
+                </span>
+                <span className="text-[10px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded-full">
+                  {services.filter((s) => s.isActive).length === 3
+                    ? "ALL 3 SCOPES ACTIVE"
+                    : `${services.filter((s) => s.isActive).length} OF 3 SCOPES ACTIVE`}
+                </span>
               </div>
             </div>
 
-            <div className="flex items-center gap-6 sm:gap-8 shrink-0">
+            <div className="flex items-center gap-6 shrink-0">
               <div className="text-right">
-                <span className="text-2xl sm:text-3xl font-black font-mono text-emerald-400 block leading-none">
-                  {liveMetrics.totalCycleKm} KM
+                <span className="text-[9px] uppercase font-bold text-slate-500 tracking-wider block">
+                  SINGLE COMPLETE CYCLE
                 </span>
-                <span className="text-[9px] uppercase font-bold text-slate-400 tracking-wider block mt-1">
-                  Single Complete Cycle
+                <span className="text-base sm:text-lg font-black font-mono text-slate-900 dark:text-white leading-tight">
+                  {liveMetrics.totalCycleKm} KM
                 </span>
               </div>
               <div className="text-right">
-                <span className="text-2xl sm:text-3xl font-black font-mono text-sky-400 block leading-none">
-                  {liveMetrics.estFuelLitres} L
+                <span className="text-[9px] uppercase font-bold text-slate-500 tracking-wider block">
+                  EST. DIESEL FUEL BURN
                 </span>
-                <span className="text-[9px] uppercase font-bold text-slate-400 tracking-wider block mt-1">
-                  Est. Diesel Fuel Burn
+                <span className="text-base sm:text-lg font-black font-mono text-slate-900 dark:text-white leading-tight">
+                  {liveMetrics.estFuelLitres} L
                 </span>
               </div>
             </div>
@@ -1706,78 +1685,75 @@ export default function SiteInspectionForm() {
         </div>
 
         {/* ── 03. SITE OBSERVATIONS & FIELD ATTACHMENTS ── */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          {/* Left Card: Ground Observations & Operational Constraints */}
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-7 shadow-[0_2px_16px_rgba(40,50,120,0.06)] border border-face-line/70 dark:border-slate-800 space-y-3.5">
-            <div className="flex items-center justify-between border-b border-face-line/70 dark:border-slate-800 pb-3">
-              <div className="flex items-center gap-2.5">
-                <span className="px-2.5 py-0.5 bg-indigo-600 text-white text-xs font-black rounded-lg">
-                  03
-                </span>
-                <h2 className="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
-                  Site Observations &amp; Operational Constraints
-                </h2>
+        <div className="bg-white dark:bg-slate-900 rounded-xl p-5 border border-slate-200 dark:border-slate-800 space-y-3 shadow-2xs">
+          {/* Header */}
+          <div className="flex items-center gap-2">
+            <span className="px-2 py-0.5 bg-[#065f46] text-white text-xs font-black rounded">
+              03
+            </span>
+            <h2 className="text-xs sm:text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
+              SITE OBSERVATIONS
+            </h2>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Left Column: Ground Observations & Operational Constraints */}
+            <div className="space-y-2">
+              <label className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 tracking-wider block">
+                Site Observations &amp; Operational Constraints
+              </label>
+              <div className="relative">
+                <textarea
+                  disabled={!isEditable}
+                  rows={6}
+                  value={formData.observations || ""}
+                  onChange={(e) => setFormData({ ...formData, observations: e.target.value })}
+                  placeholder="Record ground conditions, crane access, load restrictions, environmental hazards, hot work restrictions..."
+                  className="w-full p-3 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-600 leading-relaxed"
+                />
               </div>
-            </div>
 
-            <textarea
-              disabled={!isEditable}
-              rows={6}
-              value={formData.observations || ""}
-              onChange={(e) => setFormData({ ...formData, observations: e.target.value })}
-              placeholder="Record ground conditions, crane access, load restrictions, environmental hazards, hot work restrictions..."
-              className="w-full p-3 bg-face-field dark:bg-slate-800/60 border border-face-line dark:border-slate-700 rounded-xl text-xs font-medium text-face-ink dark:text-white focus:outline-none focus:ring-2 focus:ring-face-green/20 focus:border-face-green leading-relaxed"
-            />
-
-            {/* Quick Insert Chips */}
-            {isEditable && (
-              <div>
-                <span className="text-[10px] uppercase font-extrabold text-face-muted block mb-1.5 tracking-wider">
-                  Quick-Insert Operational Chips:
-                </span>
-                <div className="flex flex-wrap gap-1.5">
+              {isEditable && (
+                <div className="flex flex-wrap gap-1.5 pt-1">
                   {quickChips.map((chip) => (
                     <button
                       key={chip}
                       type="button"
                       onClick={() => handleAddChip(chip)}
-                      className="px-2 py-0.5 bg-face-field dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-face-muted hover:text-emerald-700 dark:text-slate-300 dark:hover:text-emerald-300 text-[11px] font-bold rounded-md border border-face-line dark:border-slate-700 transition-all cursor-pointer"
+                      className="px-2 py-0.5 bg-slate-50 hover:bg-slate-100 text-slate-600 text-[10px] font-bold rounded border border-slate-200 transition-all cursor-pointer"
                     >
                       + {chip}
                     </button>
                   ))}
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
 
-          {/* Right Card: Field Photos & Environmental Passes */}
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-7 shadow-[0_2px_16px_rgba(40,50,120,0.06)] border border-face-line/70 dark:border-slate-800 space-y-3.5 flex flex-col justify-between">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between border-b border-face-line/70 dark:border-slate-800 pb-3">
-                <h2 className="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
+            {/* Right Column: Field Photos & Environmental Passes */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 tracking-wider">
                   Field Photos &amp; Environmental Passes
-                </h2>
-                <span className="text-xs font-bold text-face-muted">
+                </label>
+                <span className="text-[10px] font-bold text-slate-400">
                   {inspection.attachments?.length || 0} File{(inspection.attachments?.length || 0) === 1 ? "" : "s"}
                 </span>
               </div>
 
-              {/* Upload Dropzone */}
               {isEditable && (
-                <label className="border-2 border-dashed border-face-green/40 hover:border-face-green dark:border-face-green-dark bg-face-green-light/40 dark:bg-slate-800/40 hover:bg-face-green-light/60 p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all">
-                  <Upload className="w-5 h-5 text-face-green mb-1" />
-                  <span className="text-xs font-bold text-face-ink dark:text-white">
-                    {isUploading ? "Uploading..." : "Click or drag to upload field photos & permits"}
+                <label className="border-2 border-dashed border-slate-300 hover:border-slate-400 dark:border-slate-700 bg-slate-50/50 hover:bg-slate-50 dark:bg-slate-800/40 p-6 rounded-lg flex flex-col items-center justify-center text-center cursor-pointer transition-all">
+                  <Camera className="w-6 h-6 text-slate-400 mb-1.5" />
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                    {isUploading ? "Uploading..." : "Add field photos"}
                   </span>
-                  <span className="text-[10px] text-face-muted mt-0.5">
+                  <span className="text-[10px] text-slate-400 mt-0.5">
                     JPG, PNG, WEBP, or PDF up to 25MB (EXIF GPS auto-extracted)
                   </span>
                   <input
                     type="file"
                     multiple
-                    accept=".jpg,.jpeg,.png,.webp,.pdf"
-                    disabled={isUploading}
+                    accept="image/*,application/pdf"
+                    disabled={!isEditable || isUploading}
                     onChange={handleFileUpload}
                     className="hidden"
                   />
@@ -1785,65 +1761,65 @@ export default function SiteInspectionForm() {
               )}
 
               {/* Attachments List */}
-              <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                {(inspection.attachments || []).length === 0 ? (
-                  <p className="text-xs text-face-muted text-center py-4 italic">
-                    No field attachments uploaded yet. At least 1 photo is required.
-                  </p>
-                ) : (
-                  (inspection.attachments || []).map((att) => {
-                    const isPdf = att.fileName.toLowerCase().endsWith(".pdf");
-                    return (
-                      <div
-                        key={att.id}
-                        className="flex items-center justify-between p-2 bg-face-field dark:bg-slate-800 rounded-xl border border-face-line dark:border-slate-700 text-xs"
-                      >
-                        <div className="flex items-center gap-2 truncate">
-                          <span
-                            className={`px-1.5 py-0.5 text-[9px] font-black rounded uppercase ${
-                              isPdf ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"
-                            }`}
-                          >
-                            {isPdf ? "PDF" : "PHOTO"}
-                          </span>
-                          <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">
-                            {att.fileName}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => handleViewAttachment(att.id)}
-                            className="p-1 hover:text-blue-600 text-slate-400"
-                            title="View"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                          </button>
-                          {isEditable && (
-                            <button
-                              type="button"
-                              onClick={() => deleteAttMutation.mutate(att.id)}
-                              disabled={deleteAttMutation.isPending}
-                              className="p-1 hover:text-red-600 text-slate-400"
-                              title="Delete"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                        </div>
+              <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1 pt-1">
+                {(inspection.attachments || []).map((att) => (
+                  <div
+                    key={att.id}
+                    className="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                  >
+                    <div className="flex items-center gap-2 overflow-hidden">
+                      <div className="w-8 h-8 rounded bg-slate-200 overflow-hidden flex items-center justify-center shrink-0">
+                        <InspectionAttachmentThumbnail
+                          inspectionId={id!}
+                          attachmentId={att.id}
+                          fileName={att.fileName}
+                        />
                       </div>
-                    );
-                  })
-                )}
+                      <div className="truncate">
+                        <span className="font-semibold text-slate-800 dark:text-slate-200 block truncate">
+                          {att.fileName}
+                        </span>
+                        <span className="text-[10px] text-slate-400">
+                          {att.sizeBytes ? `${Math.round(att.sizeBytes / 1024)} KB` : "Attachment"}
+                          {att.latitude != null && att.longitude != null && (
+                            <span className="text-emerald-700 dark:text-emerald-400 ml-1.5 font-mono">
+                              GPS: {att.latitude.toFixed(2)}°, {att.longitude.toFixed(2)}°
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setPreviewAttachment(att)}
+                        className="p-1 hover:text-indigo-600 text-slate-400 cursor-pointer"
+                        title="View"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                      </button>
+                      {isEditable && (
+                        <button
+                          type="button"
+                          onClick={() => deleteAttMutation.mutate(att.id)}
+                          disabled={deleteAttMutation.isPending}
+                          className="p-1 hover:text-red-600 text-slate-400 cursor-pointer"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
         </div>
 
-        </div>
-
         {/* ── STICKY ACTION FOOTER ── */}
-        <div className="sticky bottom-4 z-30 p-4 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="sticky bottom-4 z-30 p-3 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-xl border border-slate-200 dark:border-slate-800 shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
             <input
               type="checkbox"
@@ -1851,47 +1827,44 @@ export default function SiteInspectionForm() {
               disabled={!isEditable}
               checked={Boolean(formData.accepted)}
               onChange={(e) => setFormData({ ...formData, accepted: e.target.checked })}
-              className="w-4 h-4 rounded text-face-green accent-face-green cursor-pointer shrink-0"
+              className="w-4 h-4 rounded text-emerald-700 accent-[#065f46] cursor-pointer shrink-0"
             />
             <label
               htmlFor="accept-certification"
-              className="text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer select-none leading-tight"
+              className="text-xs font-medium text-slate-700 dark:text-slate-300 cursor-pointer select-none leading-tight"
             >
               I confirm and certify that all site inspection information, GPS coordinates, haulage distances, and waste specifications provided herein are accurate and reflect real ground conditions.
             </label>
           </div>
 
           <div className="flex items-center gap-2 shrink-0 justify-end">
-            {/* Print PDF Report */}
             <button
               type="button"
               onClick={() => window.print()}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl hover:bg-slate-50 cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-lg hover:bg-slate-50 cursor-pointer"
             >
               <Printer className="w-3.5 h-3.5" />
               <span>Preview PDF Report</span>
             </button>
 
-            {/* Save Draft */}
             {isEditable && (
               <button
                 type="button"
                 onClick={handleSaveDraft}
                 disabled={saveDraftMutation.isPending}
-                className="flex items-center gap-1.5 px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs font-bold rounded-xl hover:bg-slate-200 transition-all cursor-pointer disabled:opacity-50"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs font-bold rounded-lg hover:bg-slate-200 transition-all cursor-pointer disabled:opacity-50"
               >
                 <Save className="w-3.5 h-3.5" />
                 <span>{saveDraftMutation.isPending ? "Saving..." : "Save as Draft"}</span>
               </button>
             )}
 
-            {/* Submit / Resubmit */}
             {isEditable && (
               <button
                 type="button"
                 onClick={handleSubmit}
                 disabled={submitMutation.isPending}
-                className="flex items-center gap-1.5 px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-md shadow-emerald-600/20 transition-all cursor-pointer disabled:opacity-50"
+                className="flex items-center gap-1.5 px-4 py-1.5 bg-[#065f46] hover:bg-[#047857] text-white text-xs font-bold uppercase tracking-wider rounded-lg shadow-sm transition-all cursor-pointer disabled:opacity-50"
               >
                 <Send className="w-3.5 h-3.5" />
                 <span>
@@ -1905,7 +1878,9 @@ export default function SiteInspectionForm() {
             )}
           </div>
         </div>
+
       </div>
+    </div>
 
       {/* ================= DEDICATED PRINT VIEW ================= */}
       <div className="inspection-print-view hidden print:block max-w-4xl mx-auto p-8 bg-white text-slate-900 font-sans space-y-6">
