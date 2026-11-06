@@ -280,6 +280,8 @@ export default function SiteInspectionForm() {
 
   // Mobilization auto-routing state
   const [isRoutingLoading, setIsRoutingLoading] = useState(false);
+  const [showRouteMapModal, setShowRouteMapModal] = useState(false);
+  const [routeSteps, setRouteSteps] = useState<Array<{ road: string; distanceKm: number }>>([]);
   const [routingNotice, setRoutingNotice] = useState<{
     text: string;
     type: "success" | "warning" | "error";
@@ -515,19 +517,25 @@ export default function SiteInspectionForm() {
       const route = data.routes[0];
       const distanceKm = Math.round((route.distance / 1000) * 10) / 10;
 
-      // Extract unique major road names from steps
-      const distinctRoads: string[] = [];
+      // Extract unique major road names and their accumulated distances from steps
+      const roadMap = new Map<string, number>();
       if (route.legs && route.legs[0] && route.legs[0].steps) {
         for (const step of route.legs[0].steps) {
           const stepName = (step.name || "").trim();
-          if (stepName && !distinctRoads.includes(stepName)) {
-            distinctRoads.push(stepName);
-          }
+          if (!stepName) continue;
+          const dKm = (step.distance || 0) / 1000;
+          roadMap.set(stepName, (roadMap.get(stepName) || 0) + dKm);
         }
       }
 
+      const extractedSteps = Array.from(roadMap.entries()).map(([road, km]) => ({
+        road,
+        distanceKm: Math.round(km * 10) / 10,
+      }));
+      setRouteSteps(extractedSteps);
+
       // Format corridor: Base -> Top Highways/Roads -> Site
-      const majorRoads = distinctRoads.slice(0, 3);
+      const majorRoads = extractedSteps.slice(0, 3).map((s) => s.road);
       let corridor = `Route: ${baseName}`;
       if (majorRoads.length > 0) {
         corridor += ` → ${majorRoads.join(" → ")}`;
@@ -551,6 +559,7 @@ export default function SiteInspectionForm() {
       const detourKm = Math.round(straightKm * 1.3 * 10) / 10;
       const fallbackCorridor = `Route: ${baseName} → ${siteName} (1.3× Highway Detour)`;
 
+      setRouteSteps([{ road: "Standard 1.3× Highway Detour Corridor", distanceKm: detourKm }]);
       setFormData((prev) => ({
         ...prev,
         mobilizationKm: detourKm,
@@ -571,6 +580,7 @@ export default function SiteInspectionForm() {
     if (liveBaseToSiteKm > 0) {
       const base = availableBases.find((b) => b.id === formData.baseId);
       const estimated = Math.round(liveBaseToSiteKm * 1.3 * 10) / 10;
+      setRouteSteps([{ road: "Standard 1.3× Highway Detour Corridor", distanceKm: estimated }]);
       setFormData((prev) => ({
         ...prev,
         mobilizationKm: estimated,
@@ -1414,27 +1424,38 @@ export default function SiteInspectionForm() {
                     <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">
                       DIRECT MOBILIZATION TRACK
                     </label>
-                    {isEditable && (
+                    <div className="flex items-center gap-1.5">
                       <button
                         type="button"
-                        onClick={handleAutoDetectRoute}
-                        disabled={isRoutingLoading}
-                        className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 disabled:opacity-50 transition-colors cursor-pointer"
-                        title="Auto-calculate real driving route & distance from road network (OSRM)"
+                        onClick={() => setShowRouteMapModal(true)}
+                        className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 transition-colors cursor-pointer"
+                        title="View interactive route corridor map & turn-by-turn highways"
                       >
-                        {isRoutingLoading ? (
-                          <>
-                            <Loader2 className="w-3 h-3 animate-spin text-emerald-600" />
-                            <span>Routing...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Navigation className="w-3 h-3 text-emerald-600" />
-                            <span>⚡ Auto-Route</span>
-                          </>
-                        )}
+                        <Compass className="w-3 h-3 text-emerald-600" />
+                        <span>Map</span>
                       </button>
-                    )}
+                      {isEditable && (
+                        <button
+                          type="button"
+                          onClick={handleAutoDetectRoute}
+                          disabled={isRoutingLoading}
+                          className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 disabled:opacity-50 transition-colors cursor-pointer"
+                          title="Auto-calculate real driving route & distance from road network (OSRM)"
+                        >
+                          {isRoutingLoading ? (
+                            <>
+                              <Loader2 className="w-3 h-3 animate-spin text-emerald-600" />
+                              <span>Routing...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Navigation className="w-3 h-3 text-emerald-600" />
+                              <span>⚡ Auto-Route</span>
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <input
                     type="text"
@@ -2066,6 +2087,188 @@ export default function SiteInspectionForm() {
 
       </div>
     </div>
+
+    {/* Route Map Modal */}
+    {showRouteMapModal && (() => {
+      const mapBase = availableBases.find((b) => b.id === formData.baseId);
+      const mapBaseLat = mapBase?.latitude || 27.0;
+      const mapBaseLng = mapBase?.longitude || 49.65;
+      const mapSiteLat = Number(formData.latitude) || mapBaseLat;
+      const mapSiteLng = Number(formData.longitude) || mapBaseLng;
+
+      const minLat = (Math.min(mapBaseLat, mapSiteLat) - 0.25).toFixed(4);
+      const maxLat = (Math.max(mapBaseLat, mapSiteLat) + 0.25).toFixed(4);
+      const minLng = (Math.min(mapBaseLng, mapSiteLng) - 0.25).toFixed(4);
+      const maxLng = (Math.max(mapBaseLng, mapSiteLng) + 0.25).toFixed(4);
+
+      const osmEmbedUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${minLng}%2C${minLat}%2C${maxLng}%2C${maxLat}&layer=mapnik&marker=${mapSiteLat}%2C${mapSiteLng}`;
+      const googleMapsDirectionsUrl = `https://www.google.com/maps/dir/?api=1&origin=${mapBaseLat},${mapBaseLng}&destination=${mapSiteLat},${mapSiteLng}&travelmode=driving`;
+      const osmDirectionsUrl = `https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route=${mapBaseLat}%2C${mapBaseLng}%3B${mapSiteLat}%2C${mapSiteLng}`;
+
+      return (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
+            {/* Modal Header */}
+            <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-800/60">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 flex items-center justify-center font-bold">
+                  <Compass className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <span>Mobilization Route Corridor Map</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-mono font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300">
+                      {formData.mobilizationKm || 0} KM
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    {mapBase?.name || "Operations Base"} → {formData.siteName || "Client Site"}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowRouteMapModal(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-700/60 rounded-lg transition-colors cursor-pointer"
+              >
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-4">
+              {/* Map View Column (7 cols) */}
+              <div className="lg:col-span-7 flex flex-col gap-2 min-h-[320px] lg:min-h-[440px]">
+                <div className="flex-1 relative rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 shadow-inner">
+                  <iframe
+                    title="Mobilization Route Corridor Map"
+                    src={osmEmbedUrl}
+                    className="w-full h-full min-h-[320px] lg:min-h-[440px] border-0"
+                    loading="lazy"
+                  />
+                </div>
+                <div className="flex items-center justify-between text-[11px] text-slate-500 px-1">
+                  <span>© OpenStreetMap contributors</span>
+                  <div className="flex items-center gap-3">
+                    <a
+                      href={googleMapsDirectionsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 dark:text-blue-400 hover:underline font-bold inline-flex items-center gap-1"
+                    >
+                      Open in Google Maps ↗
+                    </a>
+                    <a
+                      href={osmDirectionsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-emerald-600 dark:text-emerald-400 hover:underline font-bold inline-flex items-center gap-1"
+                    >
+                      Open in OpenStreetMap ↗
+                    </a>
+                  </div>
+                </div>
+              </div>
+
+              {/* Turn-by-Turn Corridor Column (5 cols) */}
+              <div className="lg:col-span-5 flex flex-col justify-between space-y-3">
+                {/* Metrics summary banner */}
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-center">
+                    <span className="text-[9px] uppercase font-bold text-slate-500 block">Total Haulage</span>
+                    <span className="text-sm font-black font-mono text-emerald-800 dark:text-emerald-300">
+                      {formData.mobilizationKm || 0} km
+                    </span>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 text-center">
+                    <span className="text-[9px] uppercase font-bold text-slate-500 block">Speed Cap</span>
+                    <span className="text-sm font-black font-mono text-blue-800 dark:text-blue-300">
+                      {formData.speedLimitKmh || 80} km/h
+                    </span>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-center">
+                    <span className="text-[9px] uppercase font-bold text-slate-500 block">Est. Drive</span>
+                    <span className="text-sm font-black font-mono text-indigo-800 dark:text-indigo-300">
+                      {Math.floor(((Number(formData.mobilizationKm) || 0) / (formData.speedLimitKmh || 80)))}h{" "}
+                      {Math.round((((Number(formData.mobilizationKm) || 0) / (formData.speedLimitKmh || 80)) % 1) * 60)}m
+                    </span>
+                  </div>
+                </div>
+
+                {/* Turn-by-Turn Corridor Breakdown */}
+                <div className="flex-1 flex flex-col min-h-0">
+                  <h4 className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-2 flex items-center justify-between">
+                    <span>Highway Corridors</span>
+                    <span className="text-[10px] text-slate-400 lowercase font-normal">
+                      {routeSteps.length > 0 ? `${routeSteps.length} segments` : "corridor view"}
+                    </span>
+                  </h4>
+                  <div className="overflow-y-auto max-h-[260px] space-y-2 pr-1 text-xs">
+                    {/* Origin */}
+                    <div className="flex items-start gap-2.5 p-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+                      <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 mt-1 shrink-0" />
+                      <div className="flex-1">
+                        <span className="font-bold text-slate-800 dark:text-slate-100 block text-[11px]">
+                          Departure: {mapBase?.name || "Assigned Base"}
+                        </span>
+                        <span className="text-[10px] text-slate-500 font-mono">
+                          {mapBaseLat.toFixed(4)}°, {mapBaseLng.toFixed(4)}°
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Steps */}
+                    {routeSteps.length > 0 ? (
+                      routeSteps.map((step, sIdx) => (
+                        <div
+                          key={sIdx}
+                          className="flex items-center justify-between p-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/60"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-mono text-slate-400 font-bold">#{sIdx + 1}</span>
+                            <span className="font-medium text-slate-700 dark:text-slate-200 text-[11px]">{step.road}</span>
+                          </div>
+                          <span className="font-mono font-bold text-slate-600 dark:text-slate-300 text-[10px] shrink-0">
+                            {step.distanceKm} km
+                          </span>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="p-3 text-center text-slate-400 text-xs italic bg-slate-50 dark:bg-slate-800/40 rounded-lg border border-slate-200 dark:border-slate-700/50">
+                        {formData.mobilizationRoute || "Direct Highway Corridor"}
+                      </div>
+                    )}
+
+                    {/* Destination */}
+                    <div className="flex items-start gap-2.5 p-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+                      <div className="w-2.5 h-2.5 rounded-full bg-red-500 mt-1 shrink-0" />
+                      <div className="flex-1">
+                        <span className="font-bold text-slate-800 dark:text-slate-100 block text-[11px]">
+                          Arrival: {formData.siteName || "Client Inspection Site"}
+                        </span>
+                        <span className="text-[10px] text-slate-500 font-mono">
+                          {mapSiteLat.toFixed(4)}°, {mapSiteLng.toFixed(4)}°
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setShowRouteMapModal(false)}
+                    className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-bold transition-all cursor-pointer"
+                  >
+                    Close Map
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    })()}
 
       {/* ================= DEDICATED PRINT VIEW ================= */}
       <div className="inspection-print-view hidden print:block max-w-4xl mx-auto p-8 bg-white text-slate-900 font-sans space-y-6">
