@@ -2,7 +2,7 @@ import { useAuth } from "../context/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
 import { useSearchParams, Link, useNavigate } from "react-router-dom";
-import { Search, PlusCircle, Trash2, Lightbulb, ZoomIn, Printer, Maximize, BarChart2, Clock, CheckCircle2, AlertTriangle, Shield, Package, Plus } from "lucide-react";
+import { Search, PlusCircle, Trash2, Lightbulb, ZoomIn, Printer, Maximize, BarChart2, Clock, CheckCircle2, AlertTriangle, Shield, Package, Plus, Truck } from "lucide-react";
 import { formatCurrency, formatCurrencyCompact } from "../utils/currency";
 import QuotationDocumentRenderer from "../components/QuotationDocumentRenderer";
 import { CatalogSearchModal } from "../components/CatalogSearchModal";
@@ -233,6 +233,78 @@ export default function QuotationBuilder() {
     },
     enabled: !!leadId
   });
+
+  const { data: leadInspectionData } = useQuery({
+    queryKey: ["leadSiteInspectionForQuote", leadId],
+    queryFn: async () => {
+      if (!leadId) return null;
+      const res = await fetch(`/api/v1/leads/${leadId}/site-inspection`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!leadId && !!token
+  });
+
+  const leadInspection = leadInspectionData?.inspection;
+  const [importedInspectionId, setImportedInspectionId] = useState<string | null>(null);
+
+  const handleImportFromSiteInspection = () => {
+    if (!leadInspection) return;
+    const newItems: any[] = [];
+
+    // 1. Heavy Fleet Mobilization line item if mobilizationKm > 0
+    const mobKm = Number(leadInspection.mobilizationKm) || 0;
+    if (mobKm > 0) {
+      const baseName = leadInspection.base?.name || leadInspection.operationsBase || "Operations Base";
+      const siteLoc = leadInspection.siteAddress || leadInspection.siteName || "Client Site";
+      newItems.push({
+        productId: "",
+        name: `Heavy Fleet Mobilization & Roundtrip Haulage (${mobKm} km)`,
+        description: `Verified mobilization corridor from ${baseName} to ${siteLoc} (${mobKm} km verified road route). Includes highway heavy permit and fleet tracking.`,
+        unit: "km",
+        uom: "km",
+        quantity: mobKm,
+        unitPrice: 15,
+        discount: 0,
+        tax: 15,
+        total: mobKm * 15,
+        isOptional: false,
+      });
+    }
+
+    // 2. Active Waste Services from inspection.services
+    const activeServices = (leadInspection.services || []).filter((s: any) => s.isActive);
+    if (activeServices.length > 0) {
+      activeServices.forEach((s: any) => {
+        const sType = s.serviceType || "WASTE";
+        const vol = Number(s.estimatedVolume) || 1;
+        const uom = s.volumeUnit || "m³";
+        const unitRate = sType === "HAZARDOUS" ? 280 : sType === "SEWAGE" ? 65 : 45;
+        const facility = s.facilityName || s.facility?.name || "Designated Facility";
+        const dist = s.distanceKm ? ` (${s.distanceKm} km haulage)` : "";
+        newItems.push({
+          productId: "",
+          name: `${sType} Waste Haulage & Compliant Disposal`,
+          description: `Disposal via ${facility}${dist}. Road condition: ${s.roadCondition || "Standard"}. ${s.logisticsNote || ""}`.trim(),
+          unit: uom,
+          uom: uom,
+          quantity: vol,
+          unitPrice: unitRate,
+          discount: 0,
+          tax: 15,
+          total: vol * unitRate,
+          isOptional: false,
+        });
+      });
+    }
+
+    if (newItems.length > 0) {
+      setItems((prev) => [...prev, ...newItems]);
+      setImportedInspectionId(leadInspection.id);
+    }
+  };
 
   const [items, setItems] = useState<any[]>([]);
   const activeProductId = items[focusedIndex]?.productId;
@@ -807,6 +879,39 @@ export default function QuotationBuilder() {
                 </>
               )}
             </div>
+
+            {/* Verified Site Inspection Import Banner */}
+            {leadInspection && (
+              <div className="p-4 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold shrink-0 shadow-xs">
+                    <Truck className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-emerald-950 dark:text-emerald-100">
+                        Verified Site Inspection Available
+                      </span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 font-mono font-bold">
+                        {leadInspection.status}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-emerald-700 dark:text-emerald-300 mt-0.5">
+                      Base: <strong>{leadInspection.base?.name || leadInspection.operationsBase || "Operations Base"}</strong> • Mobilization: <strong>{leadInspection.mobilizationKm || 0} km</strong> • Verified Scopes: <strong>{(leadInspection.services || []).filter((s: any) => s.isActive).length} active</strong>
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleImportFromSiteInspection}
+                  disabled={importedInspectionId === leadInspection.id}
+                  className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-2xs transition-colors shrink-0 cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>{importedInspectionId === leadInspection.id ? "Site Items Imported ✓" : "Import Verified Site Logistics"}</span>
+                </button>
+              </div>
+            )}
 
             {/* Line Items Table */}
             <div className="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden shadow-sm">
