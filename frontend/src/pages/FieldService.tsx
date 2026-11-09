@@ -35,7 +35,10 @@ import {
   RefreshCw,
   UserCheck,
   Send,
-  MessageSquare
+  MessageSquare,
+  Sparkles,
+  Award,
+  Briefcase
 } from "lucide-react";
 import { apiClient } from "../lib/apiClient";
 import { useAuth } from "../context/AuthContext";
@@ -109,6 +112,10 @@ interface ServiceResourceItem {
   location?: string | null;
   territory?: string | null;
   skills?: string[];
+  certifications?: string[];
+  experienceYearsWithCompany?: number;
+  previousExperience?: string | null;
+  attendanceStatus?: "On Duty" | "On Leave" | "Off Shift" | string;
   email?: string | null;
   phone?: string | null;
   averageRating?: number | null;
@@ -120,6 +127,14 @@ interface ServiceResourceItem {
     role: string;
   };
   createdAt?: string;
+}
+
+interface RecommendedTechnicianItem {
+  resource: ServiceResourceItem;
+  isAvailable: boolean;
+  conflictReason?: string | null;
+  matchScore: number;
+  matchReasons: string[];
 }
 
 interface WorkOrderNotificationItem {
@@ -335,10 +350,54 @@ export default function FieldService() {
     userId: "",
     territory: "",
     skills: "",
+    certifications: "",
+    experienceYearsWithCompany: 0,
+    previousExperience: "",
+    attendanceStatus: "On Duty",
     resourceType: "Technician",
     isActive: true,
     description: "",
   });
+
+  // Smart Recommendation States
+  const [isRecommending, setIsRecommending] = useState(false);
+  const [recommendedTechs, setRecommendedTechs] = useState<RecommendedTechnicianItem[]>([]);
+
+  // Auto-recommendation handler
+  const handleRecommendTechnician = async (isAssignModal: boolean = false) => {
+    if (!selectedWorkOrderId) return;
+    const start = isAssignModal ? assignModalData.scheduledStartTime : appointmentFormData.scheduledStartTime;
+    const end = isAssignModal ? assignModalData.scheduledEndTime : appointmentFormData.scheduledEndTime;
+
+    setIsRecommending(true);
+    try {
+      const params = new URLSearchParams();
+      if (start) params.set("startTime", start);
+      if (end) params.set("endTime", end);
+      const res = await apiClient.get<RecommendedTechnicianItem[]>(
+        `/api/v1/work-orders/${selectedWorkOrderId}/recommended-technicians?${params.toString()}`
+      );
+      const list = Array.isArray(res) ? res : (res as any)?.data || [];
+      setRecommendedTechs(list);
+      if (list.length > 0 && list[0].isAvailable) {
+        const top = list[0];
+        if (isAssignModal) {
+          setAssignModalData((prev) => ({ ...prev, serviceResourceId: top.resource.id }));
+        } else {
+          setAppointmentFormData((prev) => ({ ...prev, serviceResourceId: top.resource.id }));
+        }
+        showToast("ok", `Recommended: ${top.resource.name} (${top.matchScore}% Match Score)`);
+      } else if (list.length > 0) {
+        showToast("err", "Technicians found, but have conflicts or are on leave. Review list.");
+      } else {
+        showToast("err", "No active technicians registered.");
+      }
+    } catch (err: any) {
+      showToast("err", err.message || "Failed to recommend technicians.");
+    } finally {
+      setIsRecommending(false);
+    }
+  };
 
   const showToast = (type: "ok" | "err", msg: string) => {
     setToastMessage({ type, msg });
@@ -379,6 +438,10 @@ export default function FieldService() {
         userId: "",
         territory: "",
         skills: "",
+        certifications: "",
+        experienceYearsWithCompany: 0,
+        previousExperience: "",
+        attendanceStatus: "On Duty",
         resourceType: "Technician",
         isActive: true,
         description: "",
@@ -1224,6 +1287,11 @@ export default function FieldService() {
                             <div className="text-[10px] text-slate-400">
                               {r.email || "No email"} {r.phone ? `• ${r.phone}` : ""}
                             </div>
+                            {Boolean(r.experienceYearsWithCompany) && (
+                              <div className="text-[10px] text-slate-500 font-medium mt-0.5">
+                                {r.experienceYearsWithCompany} yrs with company
+                              </div>
+                            )}
                           </div>
                         </div>
                       </td>
@@ -1252,18 +1320,44 @@ export default function FieldService() {
                           ) : (
                             <span className="text-slate-400 text-xs italic">No skills listed</span>
                           )}
+                          {r.certifications && r.certifications.length > 0 &&
+                            r.certifications.map((cert, idx) => (
+                              <span
+                                key={`c-${idx}`}
+                                className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-200"
+                              >
+                                🏅 {cert}
+                              </span>
+                            ))}
                         </div>
                       </td>
                       <td>
-                        <span
-                          className={`enterprise-badge ${
-                            r.isActive
-                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                              : "bg-slate-100 text-slate-500 border-slate-200"
-                          }`}
-                        >
-                          {r.isActive ? "Active" : "Inactive"}
-                        </span>
+                        <div className="flex flex-col gap-1 items-start">
+                          <span
+                            className={`enterprise-badge ${
+                              r.isActive
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                : "bg-slate-100 text-slate-500 border-slate-200"
+                            }`}
+                          >
+                            {r.isActive ? "Active" : "Inactive"}
+                          </span>
+                          <span
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${
+                              r.attendanceStatus === "On Leave"
+                                ? "bg-amber-50 text-amber-700 border-amber-200"
+                                : r.attendanceStatus === "Off Shift"
+                                ? "bg-slate-100 text-slate-600 border-slate-200"
+                                : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            }`}
+                          >
+                            {r.attendanceStatus === "On Leave"
+                              ? "🟠 On Leave"
+                              : r.attendanceStatus === "Off Shift"
+                              ? "⚪ Off Shift"
+                              : "🟢 On Duty"}
+                          </span>
+                        </div>
                       </td>
                       <td>
                         {r.feedbackCount && r.feedbackCount > 0 && r.averageRating !== null && r.averageRating !== undefined ? (
@@ -1290,6 +1384,10 @@ export default function FieldService() {
                               userId: r.userId || "",
                               territory: r.territory || r.location || "",
                               skills: (r.skills || []).join(", "),
+                              certifications: (r.certifications || []).join(", "),
+                              experienceYearsWithCompany: r.experienceYearsWithCompany || 0,
+                              previousExperience: r.previousExperience || "",
+                              attendanceStatus: r.attendanceStatus || "On Duty",
                               resourceType: r.resourceType || "Technician",
                               isActive: r.isActive ?? true,
                               description: r.description || "",
@@ -1666,7 +1764,10 @@ export default function FieldService() {
                         {activeWorkOrder.serviceAppointments?.length || 0})
                       </h3>
                       <button
-                        onClick={() => setIsAppointmentModalOpen(true)}
+                        onClick={() => {
+                          setRecommendedTechs([]);
+                          setIsAppointmentModalOpen(true);
+                        }}
                         className="text-xs font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1"
                       >
                         <Plus className="w-3.5 h-3.5" /> Schedule Appointment
@@ -1780,6 +1881,7 @@ export default function FieldService() {
                                         notifyCustomer: true,
                                       });
                                       setAssignConflictError(null);
+                                      setRecommendedTechs([]);
                                       setIsAssignModalOpen(true);
                                     }}
                                     className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[11px] font-semibold flex items-center gap-1 transition-colors border border-slate-300"
@@ -2290,7 +2392,18 @@ export default function FieldService() {
               </div>
 
               <div>
-                <label className="block text-slate-700 font-semibold mb-1">Assigned Technician</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-slate-700 font-semibold">Assigned Technician</label>
+                  <button
+                    type="button"
+                    onClick={() => handleRecommendTechnician(false)}
+                    disabled={isRecommending}
+                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-purple-700 hover:text-purple-900 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-2 py-0.5 rounded cursor-pointer transition-colors shadow-2xs"
+                  >
+                    <Sparkles className="w-3 h-3 text-purple-600" />
+                    {isRecommending ? "Analyzing..." : "Auto-Recommend Tech"}
+                  </button>
+                </div>
                 <select
                   value={appointmentFormData.serviceResourceId}
                   onChange={(e) =>
@@ -2299,17 +2412,93 @@ export default function FieldService() {
                       serviceResourceId: e.target.value,
                     })
                   }
-                  className="enterprise-input w-full"
+                  className="enterprise-input w-full font-medium"
                 >
                   <option value="">-- Select Technician (Optional) --</option>
                   {serviceResources
                     .filter((r) => r.isActive)
                     .map((r) => (
                       <option key={r.id} value={r.id}>
-                        {r.name} {r.territory || r.location ? `(${r.territory || r.location})` : ""}
+                        {r.name} {r.territory || r.location ? `(${r.territory || r.location})` : ""} — {r.attendanceStatus || "On Duty"} {r.experienceYearsWithCompany ? `(${r.experienceYearsWithCompany}y exp)` : ""}
                       </option>
                     ))}
                 </select>
+
+                {/* Selected Tech Attendance Alert */}
+                {(() => {
+                  const selectedTech = serviceResources.find((r) => r.id === appointmentFormData.serviceResourceId);
+                  if (selectedTech && selectedTech.attendanceStatus && selectedTech.attendanceStatus !== "On Duty") {
+                    return (
+                      <div className="p-2 bg-amber-50 border border-amber-200 rounded text-amber-800 text-[11px] flex items-center gap-1.5 mt-1.5">
+                        <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                        <span>Warning: {selectedTech.name} is currently marked as <strong>{selectedTech.attendanceStatus}</strong>.</span>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+
+                {/* Recommendations Card */}
+                {recommendedTechs.length > 0 && (
+                  <div className="mt-2 p-2.5 bg-purple-50/70 border border-purple-200 rounded-lg text-xs space-y-1.5">
+                    <div className="flex items-center justify-between font-semibold text-purple-900">
+                      <span className="flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-purple-600" /> Smart Match Suggestions
+                      </span>
+                      <span className="text-[10px] text-purple-700 font-mono">
+                        Top Match: {recommendedTechs[0].matchScore}%
+                      </span>
+                    </div>
+                    <div className="space-y-1 mt-1">
+                      {recommendedTechs.slice(0, 3).map((rec, i) => (
+                        <div
+                          key={rec.resource.id}
+                          onClick={() => {
+                            if (rec.isAvailable) {
+                              setAppointmentFormData((prev) => ({ ...prev, serviceResourceId: rec.resource.id }));
+                            }
+                          }}
+                          className={`p-1.5 rounded border text-[11px] flex items-center justify-between transition-all ${
+                            appointmentFormData.serviceResourceId === rec.resource.id
+                              ? "bg-purple-100 border-purple-300 font-medium"
+                              : rec.isAvailable
+                              ? "bg-white border-slate-200 hover:bg-purple-50/50 cursor-pointer"
+                              : "bg-slate-100 border-slate-200 opacity-60 cursor-not-allowed"
+                          }`}
+                        >
+                          <div>
+                            <div className="font-semibold text-slate-800 flex items-center gap-1.5">
+                              <span>{i + 1}. {rec.resource.name}</span>
+                              <span className={`px-1 py-0.2 rounded text-[9px] font-medium ${
+                                rec.resource.attendanceStatus === 'On Duty' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                              }`}>
+                                {rec.resource.attendanceStatus || 'On Duty'}
+                              </span>
+                              {Boolean(rec.resource.experienceYearsWithCompany) && (
+                                <span className="text-[10px] text-slate-500 font-normal">
+                                  • {rec.resource.experienceYearsWithCompany}y exp
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[10px] text-slate-600 mt-0.5">
+                              {rec.matchReasons.join(" • ")}
+                            </div>
+                            {!rec.isAvailable && rec.conflictReason && (
+                              <div className="text-[10px] text-red-600 font-medium mt-0.5">
+                                Unavailable: {rec.conflictReason}
+                              </div>
+                            )}
+                          </div>
+                          <div className="text-right shrink-0 ml-2">
+                            <span className={`font-bold text-xs ${rec.matchScore >= 70 ? 'text-emerald-700' : 'text-purple-700'}`}>
+                              {rec.matchScore}%
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="p-3 bg-emerald-50/80 rounded-lg border border-emerald-200/90 text-xs space-y-1.5">
@@ -2475,7 +2664,18 @@ export default function FieldService() {
               )}
 
               <div>
-                <label className="block text-slate-700 font-semibold mb-1">Assigned Technician</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-slate-700 font-semibold">Assigned Technician</label>
+                  <button
+                    type="button"
+                    onClick={() => handleRecommendTechnician(true)}
+                    disabled={isRecommending}
+                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-purple-700 hover:text-purple-900 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-2 py-0.5 rounded cursor-pointer transition-colors shadow-2xs"
+                  >
+                    <Sparkles className="w-3 h-3 text-purple-600" />
+                    {isRecommending ? "Analyzing..." : "Auto-Recommend Tech"}
+                  </button>
+                </div>
                 <select
                   value={assignModalData.serviceResourceId}
                   onChange={(e) =>
@@ -2484,17 +2684,93 @@ export default function FieldService() {
                       serviceResourceId: e.target.value,
                     })
                   }
-                  className="enterprise-input w-full"
+                  className="enterprise-input w-full font-medium"
                 >
                   <option value="">-- No Technician (Unassigned) --</option>
                   {serviceResources
                     .filter((r) => r.isActive)
                     .map((r) => (
                       <option key={r.id} value={r.id}>
-                        {r.name} {r.territory || r.location ? `(${r.territory || r.location})` : ""}
+                        {r.name} {r.territory || r.location ? `(${r.territory || r.location})` : ""} — {r.attendanceStatus || "On Duty"} {r.experienceYearsWithCompany ? `(${r.experienceYearsWithCompany}y exp)` : ""}
                       </option>
                     ))}
                 </select>
+
+                {/* Selected Tech Attendance Alert */}
+                {(() => {
+                  const selectedTech = serviceResources.find((r) => r.id === assignModalData.serviceResourceId);
+                  if (selectedTech && selectedTech.attendanceStatus && selectedTech.attendanceStatus !== "On Duty") {
+                    return (
+                      <div className="p-2 bg-amber-50 border border-amber-200 rounded text-amber-800 text-[11px] flex items-center gap-1.5 mt-1.5">
+                        <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                        <span>Warning: {selectedTech.name} is currently marked as <strong>{selectedTech.attendanceStatus}</strong>.</span>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+
+                {/* Recommendations Card */}
+                {recommendedTechs.length > 0 && (
+                  <div className="mt-2 p-2.5 bg-purple-50/70 border border-purple-200 rounded-lg text-xs space-y-1.5">
+                    <div className="flex items-center justify-between font-semibold text-purple-900">
+                      <span className="flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-purple-600" /> Smart Match Suggestions
+                      </span>
+                      <span className="text-[10px] text-purple-700 font-mono">
+                        Top Match: {recommendedTechs[0].matchScore}%
+                      </span>
+                    </div>
+                    <div className="space-y-1 mt-1">
+                      {recommendedTechs.slice(0, 3).map((rec, i) => (
+                        <div
+                          key={rec.resource.id}
+                          onClick={() => {
+                            if (rec.isAvailable) {
+                              setAssignModalData((prev) => ({ ...prev, serviceResourceId: rec.resource.id }));
+                            }
+                          }}
+                          className={`p-1.5 rounded border text-[11px] flex items-center justify-between transition-all ${
+                            assignModalData.serviceResourceId === rec.resource.id
+                              ? "bg-purple-100 border-purple-300 font-medium"
+                              : rec.isAvailable
+                              ? "bg-white border-slate-200 hover:bg-purple-50/50 cursor-pointer"
+                              : "bg-slate-100 border-slate-200 opacity-60 cursor-not-allowed"
+                          }`}
+                        >
+                          <div>
+                            <div className="font-semibold text-slate-800 flex items-center gap-1.5">
+                              <span>{i + 1}. {rec.resource.name}</span>
+                              <span className={`px-1 py-0.2 rounded text-[9px] font-medium ${
+                                rec.resource.attendanceStatus === 'On Duty' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                              }`}>
+                                {rec.resource.attendanceStatus || 'On Duty'}
+                              </span>
+                              {Boolean(rec.resource.experienceYearsWithCompany) && (
+                                <span className="text-[10px] text-slate-500 font-normal">
+                                  • {rec.resource.experienceYearsWithCompany}y exp
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[10px] text-slate-600 mt-0.5">
+                              {rec.matchReasons.join(" • ")}
+                            </div>
+                            {!rec.isAvailable && rec.conflictReason && (
+                              <div className="text-[10px] text-red-600 font-medium mt-0.5">
+                                Unavailable: {rec.conflictReason}
+                              </div>
+                            )}
+                          </div>
+                          <div className="text-right shrink-0 ml-2">
+                            <span className={`font-bold text-xs ${rec.matchScore >= 70 ? 'text-emerald-700' : 'text-purple-700'}`}>
+                              {rec.matchScore}%
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="p-3 bg-emerald-50/80 rounded-lg border border-emerald-200/90 text-xs space-y-1.5">
@@ -2909,10 +3185,18 @@ export default function FieldService() {
                   .split(",")
                   .map((s) => s.trim())
                   .filter(Boolean);
+                const certsArray = resourceFormData.certifications
+                  .split(",")
+                  .map((c) => c.trim())
+                  .filter(Boolean);
                 createServiceResourceMutation.mutate({
                   userId: resourceFormData.userId,
                   territory: resourceFormData.territory.trim() || undefined,
                   skills: skillsArray,
+                  certifications: certsArray,
+                  experienceYearsWithCompany: Number(resourceFormData.experienceYearsWithCompany || 0),
+                  previousExperience: resourceFormData.previousExperience.trim() || undefined,
+                  attendanceStatus: resourceFormData.attendanceStatus,
                   resourceType: resourceFormData.resourceType,
                   isActive: resourceFormData.isActive,
                   description: resourceFormData.description.trim() || undefined,
@@ -2978,14 +3262,74 @@ export default function FieldService() {
 
               <div>
                 <label className="block text-slate-700 font-semibold mb-1">
-                  Skills (comma-separated)
+                  Skills & Specialties (comma-separated)
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. HVAC, Electrical, Plumbing, Diagnostic"
+                  placeholder="e.g. Generator, Compactor, Electrical, Hydraulics, Waste Machinery"
                   value={resourceFormData.skills}
                   onChange={(e) =>
                     setResourceFormData({ ...resourceFormData, skills: e.target.value })
+                  }
+                  className="enterprise-input w-full"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">
+                  Certifications / Licenses (comma-separated)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Wireman 415V License, Heavy Machine Specialist"
+                  value={resourceFormData.certifications}
+                  onChange={(e) =>
+                    setResourceFormData({ ...resourceFormData, certifications: e.target.value })
+                  }
+                  className="enterprise-input w-full"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Years with Company</label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="0"
+                    placeholder="e.g. 3"
+                    value={resourceFormData.experienceYearsWithCompany}
+                    onChange={(e) =>
+                      setResourceFormData({ ...resourceFormData, experienceYearsWithCompany: Number(e.target.value) })
+                    }
+                    className="enterprise-input w-full"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Attendance / Duty Status</label>
+                  <select
+                    value={resourceFormData.attendanceStatus}
+                    onChange={(e) =>
+                      setResourceFormData({ ...resourceFormData, attendanceStatus: e.target.value })
+                    }
+                    className="enterprise-input w-full"
+                  >
+                    <option value="On Duty">🟢 On Duty (Available)</option>
+                    <option value="On Leave">🟠 On Leave (Holiday/Sick)</option>
+                    <option value="Off Shift">⚪ Off Shift</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">Previous Industry Experience</label>
+                <textarea
+                  rows={2}
+                  placeholder="e.g. 5 years at Caterpillar dealership as senior mechanic..."
+                  value={resourceFormData.previousExperience}
+                  onChange={(e) =>
+                    setResourceFormData({ ...resourceFormData, previousExperience: e.target.value })
                   }
                   className="enterprise-input w-full"
                 />
@@ -3069,11 +3413,19 @@ export default function FieldService() {
                   .split(",")
                   .map((s) => s.trim())
                   .filter(Boolean);
+                const certsArray = resourceFormData.certifications
+                  .split(",")
+                  .map((c) => c.trim())
+                  .filter(Boolean);
                 updateServiceResourceMutation.mutate({
                   id: editingResource.id,
                   payload: {
                     territory: resourceFormData.territory.trim() || undefined,
                     skills: skillsArray,
+                    certifications: certsArray,
+                    experienceYearsWithCompany: Number(resourceFormData.experienceYearsWithCompany || 0),
+                    previousExperience: resourceFormData.previousExperience.trim() || undefined,
+                    attendanceStatus: resourceFormData.attendanceStatus,
                     resourceType: resourceFormData.resourceType,
                     isActive: resourceFormData.isActive,
                     description: resourceFormData.description.trim() || undefined,
@@ -3114,14 +3466,74 @@ export default function FieldService() {
 
               <div>
                 <label className="block text-slate-700 font-semibold mb-1">
-                  Skills (comma-separated)
+                  Skills & Specialties (comma-separated)
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. HVAC, Electrical, Plumbing, Diagnostic"
+                  placeholder="e.g. Generator, Compactor, Electrical, Hydraulics, Waste Machinery"
                   value={resourceFormData.skills}
                   onChange={(e) =>
                     setResourceFormData({ ...resourceFormData, skills: e.target.value })
+                  }
+                  className="enterprise-input w-full"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">
+                  Certifications / Licenses (comma-separated)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Wireman 415V License, Heavy Machine Specialist"
+                  value={resourceFormData.certifications}
+                  onChange={(e) =>
+                    setResourceFormData({ ...resourceFormData, certifications: e.target.value })
+                  }
+                  className="enterprise-input w-full"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Years with Company</label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="0"
+                    placeholder="e.g. 3"
+                    value={resourceFormData.experienceYearsWithCompany}
+                    onChange={(e) =>
+                      setResourceFormData({ ...resourceFormData, experienceYearsWithCompany: Number(e.target.value) })
+                    }
+                    className="enterprise-input w-full"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Attendance / Duty Status</label>
+                  <select
+                    value={resourceFormData.attendanceStatus}
+                    onChange={(e) =>
+                      setResourceFormData({ ...resourceFormData, attendanceStatus: e.target.value })
+                    }
+                    className="enterprise-input w-full"
+                  >
+                    <option value="On Duty">🟢 On Duty (Available)</option>
+                    <option value="On Leave">🟠 On Leave (Holiday/Sick)</option>
+                    <option value="Off Shift">⚪ Off Shift</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">Previous Industry Experience</label>
+                <textarea
+                  rows={2}
+                  placeholder="e.g. 5 years at Caterpillar dealership as senior mechanic..."
+                  value={resourceFormData.previousExperience}
+                  onChange={(e) =>
+                    setResourceFormData({ ...resourceFormData, previousExperience: e.target.value })
                   }
                   className="enterprise-input w-full"
                 />

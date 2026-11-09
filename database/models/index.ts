@@ -2011,6 +2011,10 @@ export class ServiceResource extends Model {
   public isActive!: boolean;
   public location!: string | null;
   public skills!: string[];
+  public experienceYearsWithCompany!: number;
+  public previousExperience!: string | null;
+  public certifications!: string[];
+  public attendanceStatus!: "On Duty" | "On Leave" | "Off Shift" | string;
   public email!: string | null;
   public phone!: string | null;
   public createdAt!: Date;
@@ -2027,6 +2031,10 @@ ServiceResource.init(
     isActive: { type: DataTypes.BOOLEAN, defaultValue: true },
     location: { type: DataTypes.STRING, allowNull: true },
     skills: { type: DataTypes.JSON, allowNull: true, defaultValue: [] },
+    experienceYearsWithCompany: { type: DataTypes.FLOAT, allowNull: true, defaultValue: 0 },
+    previousExperience: { type: DataTypes.TEXT, allowNull: true },
+    certifications: { type: DataTypes.JSON, allowNull: true, defaultValue: [] },
+    attendanceStatus: { type: DataTypes.STRING, allowNull: false, defaultValue: "On Duty" },
     email: { type: DataTypes.STRING, allowNull: true },
     phone: { type: DataTypes.STRING, allowNull: true },
   },
@@ -2253,6 +2261,34 @@ Account.hasMany(ServiceAppointment, { foreignKey: "accountId", as: "serviceAppoi
 
 ServiceAppointment.belongsTo(Contact, { foreignKey: "contactId", as: "contact" });
 Contact.hasMany(ServiceAppointment, { foreignKey: "contactId", as: "serviceAppointments" });
+
+export class ResourceAbsence extends Model {
+  public id!: string;
+  public serviceResourceId!: string;
+  public type!: "Vacation" | "Sick" | "Personal" | "Training" | string;
+  public startDate!: Date;
+  public endDate!: Date;
+  public reason!: string | null;
+  public status!: "Approved" | "Pending" | "Rejected" | string;
+  public createdAt!: Date;
+  public updatedAt!: Date;
+}
+
+ResourceAbsence.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    serviceResourceId: { type: DataTypes.UUID, allowNull: false },
+    type: { type: DataTypes.STRING, allowNull: false, defaultValue: "Vacation" },
+    startDate: { type: DataTypes.DATE, allowNull: false },
+    endDate: { type: DataTypes.DATE, allowNull: false },
+    reason: { type: DataTypes.TEXT, allowNull: true },
+    status: { type: DataTypes.STRING, allowNull: false, defaultValue: "Approved" },
+  },
+  { sequelize, modelName: "ResourceAbsence", tableName: "ResourceAbsences" }
+);
+
+ServiceResource.hasMany(ResourceAbsence, { foreignKey: "serviceResourceId", as: "absences" });
+ResourceAbsence.belongsTo(ServiceResource, { foreignKey: "serviceResourceId", as: "serviceResource" });
 
 export class WorkOrderNotification extends Model {
   public id!: string;

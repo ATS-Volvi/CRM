@@ -465,6 +465,28 @@ export const createWorkOrderAppointment = async (req: Request, res: Response) =>
     if (serviceResourceId && scheduledStartTime && scheduledEndTime && status !== "Canceled") {
       const start = new Date(scheduledStartTime);
       const end = new Date(scheduledEndTime);
+
+      const ResourceAbsence = sequelize.models.ResourceAbsence;
+      if (ResourceAbsence) {
+        const absence = await ResourceAbsence.findOne({
+          where: {
+            serviceResourceId,
+            status: "Approved",
+            [Op.and]: [
+              { startDate: { [Op.lt]: end } },
+              { endDate: { [Op.gt]: start } }
+            ]
+          }
+        });
+        if (absence) {
+          return res.status(409).json({
+            error: "Scheduling Conflict",
+            message: `Technician is on approved leave (${(absence as any).type || "Leave"}) during this scheduled window`,
+            conflictingAbsence: (absence as any).id
+          });
+        }
+      }
+
       const conflict = await ServiceAppointment.findOne({
         where: {
           serviceResourceId,
@@ -603,6 +625,27 @@ export const updateWorkOrderAppointment = async (req: Request, res: Response) =>
     // 4. Overlap check for technician (HTTP 409 naming conflicting appointment)
     const nextStatus = status || appointment.status;
     if (targetResourceId && effectiveStart && effectiveEnd && nextStatus !== "Canceled") {
+      const ResourceAbsence = sequelize.models.ResourceAbsence;
+      if (ResourceAbsence) {
+        const absence = await ResourceAbsence.findOne({
+          where: {
+            serviceResourceId: targetResourceId,
+            status: "Approved",
+            [Op.and]: [
+              { startDate: { [Op.lt]: effectiveEnd } },
+              { endDate: { [Op.gt]: effectiveStart } }
+            ]
+          }
+        });
+        if (absence) {
+          return res.status(409).json({
+            error: "Scheduling Conflict",
+            message: `Technician is on approved leave (${(absence as any).type || "Leave"}) during this scheduled window`,
+            conflictingAbsence: (absence as any).id
+          });
+        }
+      }
+
       const conflict = await ServiceAppointment.findOne({
         where: {
           serviceResourceId: targetResourceId,

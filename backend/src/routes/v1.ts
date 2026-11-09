@@ -192,7 +192,11 @@ import {
   getServiceResources,
   createServiceResource,
   updateServiceResource,
-  getAvailableUsersForResource
+  getAvailableUsersForResource,
+  getResourceAbsences,
+  createResourceAbsence,
+  deleteResourceAbsence,
+  getRecommendedTechnicians
 } from "../controllers/serviceResourceController";
 
 const router = Router();
@@ -1001,6 +1005,12 @@ router.get("/service-resources", authMiddleware, getServiceResources);
 router.post("/service-resources", authMiddleware, createServiceResource);
 router.put("/service-resources/:id", authMiddleware, updateServiceResource);
 router.get("/service-resources/available-users", authMiddleware, getAvailableUsersForResource);
+router.get("/service-resources/:id/absences", authMiddleware, getResourceAbsences);
+router.post("/service-resources/:id/absences", authMiddleware, createResourceAbsence);
+router.delete("/service-resources/:id/absences/:absenceId", authMiddleware, deleteResourceAbsence);
+
+// Technician Recommendation
+router.get("/work-orders/:id/recommended-technicians", authMiddleware, getRecommendedTechnicians);
 
 // ==========================================
 // VERCEL SERVERLESS CRON JOBS
