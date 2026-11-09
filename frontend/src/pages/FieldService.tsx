@@ -2312,6 +2312,16 @@ export default function FieldService() {
                 </select>
               </div>
 
+              <div className="p-3 bg-emerald-50/80 rounded-lg border border-emerald-200/90 text-xs space-y-1.5">
+                <div className="flex items-center gap-1.5 font-semibold text-emerald-900">
+                  <PhoneCall className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>Lock Date & Arrival Bracket (Confirmed via Phone Call)</span>
+                </div>
+                <p className="text-[11px] text-emerald-800 leading-relaxed">
+                  Confirm the visit date and arrival bracket with the customer over the phone before saving. Upon scheduling, an immediate confirmation email is dispatched reading: <span className="italic font-medium">"As per our phone conversation, your service appointment has been confirmed..."</span> including technician contact and site readiness checklist.
+                </p>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-slate-700 font-semibold mb-1">Start Time</label>
@@ -2485,6 +2495,16 @@ export default function FieldService() {
                       </option>
                     ))}
                 </select>
+              </div>
+
+              <div className="p-3 bg-emerald-50/80 rounded-lg border border-emerald-200/90 text-xs space-y-1.5">
+                <div className="flex items-center gap-1.5 font-semibold text-emerald-900">
+                  <PhoneCall className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>Lock Date & Arrival Bracket (Confirmed via Phone Call)</span>
+                </div>
+                <p className="text-[11px] text-emerald-800 leading-relaxed">
+                  Confirm the visit date and arrival bracket with the customer over the phone before saving. Upon scheduling, an immediate confirmation email is dispatched reading: <span className="italic font-medium">"As per our phone conversation, your service appointment has been confirmed..."</span> including technician contact and site readiness checklist.
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-3">

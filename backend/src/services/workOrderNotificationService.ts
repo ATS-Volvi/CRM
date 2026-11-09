@@ -505,21 +505,21 @@ export async function deliverWorkOrderNotification(notificationId: string): Prom
       if (hasTechnician) {
         rawSubject = "Your Technician Appointment: {{technician_name}} will visit on {{scheduled_date}}";
         rawBody =
-          "Hello {{customer_name}},\n\nYour service appointment for Work Order #{{work_order_number}} has been scheduled.\n\nTechnician: {{technician_name}}\n{{technician_phone_line}}Visit Window: {{scheduled_date}} ({{scheduled_time_window}})\nAddress: {{service_address}}\n\nNeed to make changes? Contact us at {{company_support_phone}} or reply to this email.\n\nBest regards,\n{{company_name}}";
+          "Hello {{customer_name}},\n\nAs per our phone conversation, your service appointment for Work Order #{{work_order_number}} has been confirmed.\n\nTechnician: {{technician_name}}\n{{technician_phone_line}}Visit Window: {{scheduled_date}} ({{scheduled_time_window}})\nAddress: {{service_address}}\n\nPlease ensure the following are arranged prior to technician arrival:\n• Site gate entry permit / access pass is arranged\n• Required utility / power hookup is accessible\n• Authorized representative is present on site\n\nNeed to make changes? Contact us at {{company_support_phone}} or reply to this email.\n\nBest regards,\n{{company_name}}";
       } else {
         rawSubject = "Your Service Appointment for Work Order #{{work_order_number}} on {{scheduled_date}}";
         rawBody =
-          "Hello {{customer_name}},\n\nYour service appointment for Work Order #{{work_order_number}} has been scheduled.\n\nA technician will be confirmed shortly prior to your visit.\nVisit Window: {{scheduled_date}} ({{scheduled_time_window}})\nAddress: {{service_address}}\n\nNeed to make changes? Contact us at {{company_support_phone}} or reply to this email.\n\nBest regards,\n{{company_name}}";
+          "Hello {{customer_name}},\n\nAs per our phone conversation, your service appointment for Work Order #{{work_order_number}} has been confirmed.\n\nA technician will be confirmed shortly prior to your visit.\nVisit Window: {{scheduled_date}} ({{scheduled_time_window}})\nAddress: {{service_address}}\n\nPlease ensure the following are arranged prior to technician arrival:\n• Site gate entry permit / access pass is arranged\n• Required utility / power hookup is accessible\n• Authorized representative is present on site\n\nNeed to make changes? Contact us at {{company_support_phone}} or reply to this email.\n\nBest regards,\n{{company_name}}";
       }
     } else if (notification.type === "VISIT_UPDATED") {
       if (hasTechnician) {
         rawSubject = "Update: Your Service Appointment for Work Order #{{work_order_number}}";
         rawBody =
-          "Hello {{customer_name}},\n\nThere is an update to your service appointment for Work Order #{{work_order_number}}.\n\nTechnician: {{technician_name}}\n{{technician_phone_line}}Visit Window: {{scheduled_date}} ({{scheduled_time_window}})\nAddress: {{service_address}}\n\nIf you have questions, please reach out to {{company_support_phone}}.\n\nBest regards,\n{{company_name}}";
+          "Hello {{customer_name}},\n\nAs per our phone conversation, there is an update to your service appointment for Work Order #{{work_order_number}}.\n\nTechnician: {{technician_name}}\n{{technician_phone_line}}Visit Window: {{scheduled_date}} ({{scheduled_time_window}})\nAddress: {{service_address}}\n\nPlease ensure the following are arranged prior to technician arrival:\n• Site gate entry permit / access pass is arranged\n• Required utility / power hookup is accessible\n• Authorized representative is present on site\n\nIf you have questions, please reach out to {{company_support_phone}} or reply to this email.\n\nBest regards,\n{{company_name}}";
       } else {
         rawSubject = "Update: Your Service Appointment for Work Order #{{work_order_number}}";
         rawBody =
-          "Hello {{customer_name}},\n\nThere is an update to your service appointment for Work Order #{{work_order_number}}.\n\nA technician will be assigned shortly.\nVisit Window: {{scheduled_date}} ({{scheduled_time_window}})\nAddress: {{service_address}}\n\nIf you have questions, please reach out to {{company_support_phone}}.\n\nBest regards,\n{{company_name}}";
+          "Hello {{customer_name}},\n\nAs per our phone conversation, there is an update to your service appointment for Work Order #{{work_order_number}}.\n\nA technician will be assigned shortly.\nVisit Window: {{scheduled_date}} ({{scheduled_time_window}})\nAddress: {{service_address}}\n\nPlease ensure the following are arranged prior to technician arrival:\n• Site gate entry permit / access pass is arranged\n• Required utility / power hookup is accessible\n• Authorized representative is present on site\n\nIf you have questions, please reach out to {{company_support_phone}} or reply to this email.\n\nBest regards,\n{{company_name}}";
       }
     } else if (notification.type === "VISIT_CANCELLED") {
       rawSubject = "Cancelled: Your Service Appointment for Work Order #{{work_order_number}}";

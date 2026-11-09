@@ -11,7 +11,7 @@ module.exports = {
         triggerEvent: 'work_order_technician_assigned',
         channel: 'email',
         subject: 'Your Technician Appointment: {{technician_name}} will visit on {{scheduled_date}}',
-        body: 'Hello {{customer_name}},\n\nYour service appointment for Work Order #{{work_order_number}} has been scheduled.\n\nTechnician: {{technician_name}}\n{{technician_phone_line}}Visit Window: {{scheduled_date}} ({{scheduled_time_window}})\nAddress: {{service_address}}\n\nNeed to make changes? Contact us at {{company_support_phone}} or reply to this email.\n\nBest regards,\n{{company_name}}',
+        body: 'Hello {{customer_name}},\n\nAs per our phone conversation, your service appointment for Work Order #{{work_order_number}} has been confirmed.\n\nTechnician: {{technician_name}}\n{{technician_phone_line}}Visit Window: {{scheduled_date}} ({{scheduled_time_window}})\nAddress: {{service_address}}\n\nPlease ensure the following are arranged prior to technician arrival:\n• Site gate entry permit / access pass is arranged\n• Required utility / power hookup is accessible\n• Authorized representative is present on site\n\nNeed to make changes? Contact us at {{company_support_phone}} or reply to this email.\n\nBest regards,\n{{company_name}}',
         isActive: true,
       },
       {
@@ -19,7 +19,7 @@ module.exports = {
         triggerEvent: 'work_order_visit_updated',
         channel: 'email',
         subject: 'Update: Your Service Appointment for Work Order #{{work_order_number}}',
-        body: 'Hello {{customer_name}},\n\nThere is an update to your service appointment for Work Order #{{work_order_number}}.\n\nTechnician: {{technician_name}}\n{{technician_phone_line}}Visit Window: {{scheduled_date}} ({{scheduled_time_window}})\nAddress: {{service_address}}\n\nIf you have questions, please reach out to {{company_support_phone}}.\n\nBest regards,\n{{company_name}}',
+        body: 'Hello {{customer_name}},\n\nAs per our phone conversation, there is an update to your service appointment for Work Order #{{work_order_number}}.\n\nTechnician: {{technician_name}}\n{{technician_phone_line}}Visit Window: {{scheduled_date}} ({{scheduled_time_window}})\nAddress: {{service_address}}\n\nPlease ensure the following are arranged prior to technician arrival:\n• Site gate entry permit / access pass is arranged\n• Required utility / power hookup is accessible\n• Authorized representative is present on site\n\nIf you have questions, please reach out to {{company_support_phone}} or reply to this email.\n\nBest regards,\n{{company_name}}',
         isActive: true,
       },
       {
