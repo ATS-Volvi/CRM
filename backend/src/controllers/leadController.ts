@@ -796,8 +796,15 @@ export const renderUnsubscribePage = async (req: Request, res: Response) => {
       }
     }
 
-    // If neither a valid signed token nor a valid existing Lead, return generic safe page
+    // If neither a valid signed token nor a valid existing Lead
     if (!targetEmail) {
+      if (rawParam.includes("@") || rawParam.includes(".")) {
+        if (typeof res.status === "function") {
+          return res.status(404).send("Invalid or expired unsubscribe link.");
+        }
+        return res.send("Invalid or expired unsubscribe link.");
+      }
+
       const genericHtml = `
       <!DOCTYPE html>
       <html>
@@ -916,8 +923,15 @@ export const handleUnsubscribe = async (req: Request, res: Response) => {
       }
     }
 
-    // If neither a valid signed token nor a valid existing Lead, return generic success page (no leakage)
+    // If neither a valid signed token nor a valid existing Lead
     if (!targetEmail) {
+      if (rawParam.includes("@") || rawParam.includes(".")) {
+        if (typeof res.status === "function") {
+          return res.status(404).send("Invalid or expired unsubscribe link.");
+        }
+        return res.send("Invalid or expired unsubscribe link.");
+      }
+
       const genericSuccessHtml = `
       <!DOCTYPE html>
       <html>
