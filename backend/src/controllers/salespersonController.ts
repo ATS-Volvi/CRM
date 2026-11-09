@@ -376,6 +376,14 @@ export const getOrgChartEmployees = async (req: Request, res: Response) => {
           model: sequelize.models.User,
           as: "teamMembers",
           attributes: ["id", "name", "email", "role", "tier", "dealValueCutoff", "department", "team", "phone", "hireDate"]
+        },
+        {
+          model: sequelize.models.ServiceResource,
+          as: "serviceResource",
+          attributes: [
+            "id", "skills", "certifications", "experienceYearsWithCompany",
+            "previousExperience", "attendanceStatus", "resourceType", "location", "isActive"
+          ]
         }
       ],
       order: [["name", "ASC"]]
@@ -459,11 +467,51 @@ export const createSalesperson = async (req: Request, res: Response) => {
       createdByUserId: caller.id
     }) as any;
 
+    // Automatically create linked ServiceResource if user is technician or has technician qualifications
+    if (targetRole === "technician" || req.body.skills || req.body.certifications) {
+      const ServiceResource = sequelize.models.ServiceResource;
+      if (ServiceResource) {
+        let skills = req.body.skills || [];
+        if (typeof skills === "string") {
+          skills = skills.split(",").map((s: string) => s.trim()).filter(Boolean);
+        }
+        let certifications = req.body.certifications || [];
+        if (typeof certifications === "string") {
+          certifications = certifications.split(",").map((c: string) => c.trim()).filter(Boolean);
+        }
+
+        await ServiceResource.create({
+          id: crypto.randomUUID(),
+          name: user.name,
+          userId: user.id,
+          resourceType: "Technician",
+          location: territory || user.territory || null,
+          skills,
+          certifications,
+          experienceYearsWithCompany: Number(req.body.experienceYearsWithCompany || 0),
+          previousExperience: req.body.previousExperience || null,
+          attendanceStatus: req.body.attendanceStatus || "On Duty",
+          email: user.email,
+          phone: user.phone || null,
+          isActive: isAvailable ?? true,
+          description: req.body.description || null,
+        });
+      }
+    }
+
     const createdUserWithAssoc = await sequelize.models.User.findByPk(user.id, {
       attributes: ["id", "name", "email", "role", "tier", "dealValueCutoff", "maxOpenLeads", "isAvailable", "hireDate", "phone", "createdByUserId", "createdAt"],
       include: [
         { model: sequelize.models.User, as: "createdByUser", attributes: ["id", "name", "email"] },
-        { model: sequelize.models.User, as: "manager", attributes: ["id", "name", "email", "role"] }
+        { model: sequelize.models.User, as: "manager", attributes: ["id", "name", "email", "role"] },
+        {
+          model: sequelize.models.ServiceResource,
+          as: "serviceResource",
+          attributes: [
+            "id", "skills", "certifications", "experienceYearsWithCompany",
+            "previousExperience", "attendanceStatus", "resourceType", "location", "isActive"
+          ]
+        }
       ]
     });
 
@@ -825,6 +873,67 @@ export const updateSalespersonCapacity = async (req: Request, res: Response) => 
     if (maxOpenDeals !== undefined) updates.maxOpenDeals = maxOpenDeals;
 
     await user.update(updates);
+
+    // Sync with ServiceResource if technician qualifications or attendance updated
+    const ServiceResource = sequelize.models.ServiceResource;
+    if (
+      ServiceResource &&
+      (user.role === "technician" ||
+        req.body.skills !== undefined ||
+        req.body.attendanceStatus !== undefined ||
+        req.body.certifications !== undefined ||
+        req.body.experienceYearsWithCompany !== undefined ||
+        req.body.previousExperience !== undefined)
+    ) {
+      const existingRes = await ServiceResource.findOne({ where: { userId: user.id } });
+      const resUpdates: any = {};
+
+      if (req.body.skills !== undefined) {
+        let skills = req.body.skills;
+        if (typeof skills === "string") skills = skills.split(",").map((s: string) => s.trim()).filter(Boolean);
+        resUpdates.skills = skills;
+      }
+      if (req.body.certifications !== undefined) {
+        let certifications = req.body.certifications;
+        if (typeof certifications === "string") certifications = certifications.split(",").map((c: string) => c.trim()).filter(Boolean);
+        resUpdates.certifications = certifications;
+      }
+      if (req.body.experienceYearsWithCompany !== undefined) {
+        resUpdates.experienceYearsWithCompany = Number(req.body.experienceYearsWithCompany);
+      }
+      if (req.body.previousExperience !== undefined) {
+        resUpdates.previousExperience = req.body.previousExperience ? String(req.body.previousExperience).trim() : null;
+      }
+      if (req.body.attendanceStatus !== undefined) {
+        resUpdates.attendanceStatus = req.body.attendanceStatus;
+      }
+      if (req.body.territory !== undefined || user.territory) {
+        resUpdates.location = req.body.territory || user.territory;
+      }
+      if (isAvailable !== undefined) {
+        resUpdates.isActive = !!isAvailable;
+      }
+
+      if (existingRes) {
+        await existingRes.update(resUpdates);
+      } else if (user.role === "technician" || req.body.skills) {
+        await ServiceResource.create({
+          id: crypto.randomUUID(),
+          name: user.name,
+          userId: user.id,
+          resourceType: "Technician",
+          location: user.territory || null,
+          skills: resUpdates.skills || [],
+          certifications: resUpdates.certifications || [],
+          experienceYearsWithCompany: resUpdates.experienceYearsWithCompany || 0,
+          previousExperience: resUpdates.previousExperience || null,
+          attendanceStatus: resUpdates.attendanceStatus || "On Duty",
+          email: user.email,
+          phone: user.phone || null,
+          isActive: isAvailable ?? true,
+        });
+      }
+    }
 
     // If marked unavailable / absent / on leave, auto-reassign open workload
     let reassignmentSummary = null;

@@ -34,7 +34,8 @@ export const ALLOWED_USER_ROLES = [
   "director",
   "admin",
   "site_manager",
-  "ops_manager"
+  "ops_manager",
+  "technician"
 ] as const;
 
 export type UserRole = (typeof ALLOWED_USER_ROLES)[number] | "viewer";
@@ -109,6 +110,14 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canViewInternalCost: false,
     canApproveQuotes: false,
     canEditDiscount: true,
+    canManageSettings: false,
+    canReassignLeads: false,
+    canViewAllAccounts: false,
+  },
+  technician: {
+    canViewInternalCost: false,
+    canApproveQuotes: false,
+    canEditDiscount: false,
     canManageSettings: false,
     canReassignLeads: false,
     canViewAllAccounts: false,

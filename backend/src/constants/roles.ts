@@ -6,7 +6,8 @@ export const ALLOWED_USER_ROLES = [
   "director",
   "admin",
   "site_manager",
-  "ops_manager"
+  "ops_manager",
+  "technician"
 ] as const;
 
 export type UserRole = (typeof ALLOWED_USER_ROLES)[number];
@@ -20,6 +21,7 @@ export const ROLE_HIERARCHY: Record<UserRole, number> = {
   site_manager: 30,
   senior_ae: 20,
   sales_rep: 10,
+  technician: 10,
 };
 
 export interface RoleValidationResult {

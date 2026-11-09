@@ -289,4 +289,77 @@ describe("Technician Skills, Experience, Absence & Smart Recommendation E2E Test
     expect(tech3Rec.isAvailable).toBe(false);
     expect(tech3Rec.conflictReason).toContain("On Leave");
   });
+
+  it("6. Business Users API: Creates employee with role 'technician' and auto-provisions ServiceResource", async () => {
+    const newTechEmail = `biz_tech_${Date.now()}@test.com`;
+    const res = await request(app)
+      .post("/api/v1/salespersons")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        name: "Yousef Al-Ghamdi",
+        email: newTechEmail,
+        password: "password123",
+        role: "technician",
+        department: "Field Service",
+        territory: "Dammam",
+        skills: ["Waste Machinery", "Hydraulics", "Compactor"],
+        certifications: ["Heavy Equipment Master"],
+        experienceYearsWithCompany: 2.5,
+        previousExperience: "4 years hydraulic press maintenance",
+        attendanceStatus: "On Duty",
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.name).toBe("Yousef Al-Ghamdi");
+    expect(res.body.role).toBe("technician");
+
+    // Verify linked ServiceResource was automatically created
+    const serviceResource = await sequelize.models.ServiceResource.findOne({
+      where: { userId: res.body.id }
+    });
+    expect(serviceResource).toBeDefined();
+    expect((serviceResource as any).skills).toEqual(expect.arrayContaining(["Waste Machinery", "Hydraulics"]));
+    expect((serviceResource as any).experienceYearsWithCompany).toBe(2.5);
+    expect((serviceResource as any).attendanceStatus).toBe("On Duty");
+
+    // Clean up
+    if (serviceResource) await serviceResource.destroy().catch(() => {});
+    await sequelize.models.User.destroy({ where: { id: res.body.id } }).catch(() => {});
+  });
+
+  it("7. Business Users API: Updates technician duty status and skills via capacity endpoint", async () => {
+    // Create a technician user first
+    const techUser: any = await sequelize.models.User.create({
+      id: crypto.randomUUID(),
+      name: "Sami Al-Nasser",
+      email: `sami_${Date.now()}@test.com`,
+      password: "password123",
+      role: "technician",
+      department: "Field Service",
+      territory: "Jeddah",
+    });
+
+    const res = await request(app)
+      .put(`/api/v1/salespersons/${techUser.id}/capacity`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        attendanceStatus: "On Leave",
+        skills: ["Generator", "Electrical"],
+        experienceYearsWithCompany: 3,
+      });
+
+    expect(res.status).toBe(200);
+
+    // Verify ServiceResource reflects the new status
+    const linkedRes = await sequelize.models.ServiceResource.findOne({
+      where: { userId: techUser.id }
+    });
+    expect(linkedRes).toBeDefined();
+    expect((linkedRes as any).attendanceStatus).toBe("On Leave");
+    expect((linkedRes as any).experienceYearsWithCompany).toBe(3);
+
+    // Clean up
+    if (linkedRes) await linkedRes.destroy().catch(() => {});
+    await techUser.destroy().catch(() => {});
+  });
 });
