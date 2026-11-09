@@ -567,13 +567,23 @@ export default function OpportunityDetail() {
           {!opp?.isViewOnly && (
             <div className="flex items-center gap-2 flex-wrap shrink-0">
               {status === "OPEN" && (
-                <button
-                  onClick={() => setShowLossModal(true)}
-                  className="px-3 py-1.5 bg-white dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
-                >
-                  <X className="w-3.5 h-3.5" />
-                  <span>Close as Lost</span>
-                </button>
+                <>
+                  <button
+                    onClick={() => setShowWonModal(true)}
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Mark as Won</span>
+                  </button>
+
+                  <button
+                    onClick={() => setShowLossModal(true)}
+                    className="px-3 py-1.5 bg-white dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    <span>Close as Lost</span>
+                  </button>
+                </>
               )}
 
               <button

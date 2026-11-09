@@ -70,6 +70,8 @@ export default function Opportunities() {
 
   const [wonModalOpp, setWonModalOpp] = useState<any | null>(null);
   const [wonReason, setWonReason] = useState<string>("QUOTE_ACCEPTED");
+  const [createWorkOrderOnWon, setCreateWorkOrderOnWon] = useState(false);
+  const [workOrderNotes, setWorkOrderNotes] = useState<string>("");
 
   // Fetch opportunities from backend
   const { data: oppsData, isLoading } = useQuery({
@@ -105,12 +107,29 @@ export default function Opportunities() {
     .reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
 
   const markWonMutation = useMutation({
-    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
-      return apiClient.post(`/api/v1/opportunities/${id}/mark-won`, { reason });
+    mutationFn: async ({
+      id,
+      reason,
+      createInstallationWorkOrder,
+      workOrderNotes
+    }: {
+      id: string;
+      reason: string;
+      createInstallationWorkOrder?: boolean;
+      workOrderNotes?: string;
+    }) => {
+      return apiClient.post(`/api/v1/opportunities/${id}/mark-won`, {
+        reason,
+        createInstallationWorkOrder,
+        workOrderNotes
+      });
     },
     onSuccess: () => {
       setWonModalOpp(null);
+      setCreateWorkOrderOnWon(false);
+      setWorkOrderNotes("");
       queryClient.invalidateQueries({ queryKey: ["opportunities-master-list"] });
+      queryClient.invalidateQueries({ queryKey: ["work-orders"] });
     }
   });
 
@@ -660,6 +679,38 @@ export default function Opportunities() {
               </select>
             </div>
 
+            <div className="pt-2 border-t border-slate-100 space-y-2">
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={createWorkOrderOnWon}
+                  onChange={(e) => setCreateWorkOrderOnWon(e.target.checked)}
+                  className="mt-0.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                />
+                <div className="text-xs">
+                  <span className="font-semibold text-slate-800">Create Installation & Delivery Work Order</span>
+                  <p className="text-[11px] text-slate-500">
+                    Auto-drafts a Field Service Work Order for machinery/rental delivery. Leave unchecked for Waste Disposal / Pure Brokerage deals.
+                  </p>
+                </div>
+              </label>
+
+              {createWorkOrderOnWon && (
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Installation Notes / Site Instructions
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={workOrderNotes}
+                    onChange={(e) => setWorkOrderNotes(e.target.value)}
+                    placeholder="e.g. Needs flatbed truck and site gate pass..."
+                    className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-1 focus:ring-emerald-500"
+                  />
+                </div>
+              )}
+            </div>
+
             <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
               <button
                 onClick={() => setWonModalOpp(null)}
@@ -671,7 +722,9 @@ export default function Opportunities() {
                 onClick={() =>
                   markWonMutation.mutate({
                     id: wonModalOpp.id,
-                    reason: wonReason
+                    reason: wonReason,
+                    createInstallationWorkOrder: createWorkOrderOnWon,
+                    workOrderNotes
                   })
                 }
                 disabled={markWonMutation.isPending}
