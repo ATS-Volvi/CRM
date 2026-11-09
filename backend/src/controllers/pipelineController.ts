@@ -772,7 +772,21 @@ export const postOpportunityEvent = async (req: Request, res: Response) => {
 export const markOpportunityWon = async (req: Request, res: Response) => {
   try {
     const opportunityId = String(req.params.id);
-    const { quoteId, reason, transitionType } = req.body;
+    const {
+      quoteId,
+      reason,
+      transitionType,
+      createInstallationWorkOrder,
+      workOrderPriority,
+      workOrderNotes,
+      installationDate,
+      assetId,
+      street,
+      city,
+      state,
+      postalCode,
+      country
+    } = req.body;
     const userId = (req as any).user?.id || "mock-user";
     const userRole = (req as any).user?.role || "sales_rep";
 
@@ -805,7 +819,17 @@ export const markOpportunityWon = async (req: Request, res: Response) => {
       payload: {
         quoteId,
         wonReason: reason || "MANUAL_CONFIRMATION",
-        transitionType: transitionType || "STANDARD"
+        transitionType: transitionType || "STANDARD",
+        createInstallationWorkOrder: !!createInstallationWorkOrder,
+        workOrderPriority,
+        workOrderNotes,
+        installationDate,
+        assetId,
+        street,
+        city,
+        state,
+        postalCode,
+        country
       }
     });
 

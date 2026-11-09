@@ -216,6 +216,8 @@ export default function OpportunityDetail() {
 
   const [showWonModal, setShowWonModal] = useState(false);
   const [wonReason, setWonReason] = useState<string>("QUOTE_ACCEPTED");
+  const [createWorkOrderOnWon, setCreateWorkOrderOnWon] = useState(false);
+  const [workOrderNotes, setWorkOrderNotes] = useState<string>("");
 
   // Reassign Modal & Auto-Assign Banner States
   const [isReassignModalOpen, setIsReassignModalOpen] = useState(false);
@@ -363,14 +365,27 @@ export default function OpportunityDetail() {
 
   // Mark Won Mutation
   const markWonMutation = useMutation({
-    mutationFn: async ({ reason }: { reason: string }) => {
-      return apiClient.post(`/api/v1/opportunities/${id}/mark-won`, { reason });
+    mutationFn: async ({
+      reason,
+      createInstallationWorkOrder,
+      workOrderNotes
+    }: {
+      reason: string;
+      createInstallationWorkOrder?: boolean;
+      workOrderNotes?: string;
+    }) => {
+      return apiClient.post(`/api/v1/opportunities/${id}/mark-won`, {
+        reason,
+        createInstallationWorkOrder,
+        workOrderNotes
+      });
     },
     onSuccess: () => {
       setShowWonModal(false);
       queryClient.invalidateQueries({ queryKey: ["opportunity-detail", id] });
       queryClient.invalidateQueries({ queryKey: ["opportunity-timeline", id] });
       queryClient.invalidateQueries({ queryKey: ["opportunities-master-list"] });
+      queryClient.invalidateQueries({ queryKey: ["work-orders"] });
     }
   });
 
@@ -1820,6 +1835,38 @@ export default function OpportunityDetail() {
               </select>
             </div>
 
+            {/* Field Service: Optional Installation Work Order */}
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
+              <label className="flex items-start gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={createWorkOrderOnWon}
+                  onChange={(e) => setCreateWorkOrderOnWon(e.target.checked)}
+                  className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                />
+                <div className="text-xs">
+                  <span className="font-bold text-slate-800 dark:text-slate-200 block">
+                    Create Installation & Delivery Work Order
+                  </span>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400 block leading-tight">
+                    Draft a Field Service job to send a worker to the customer's site for machine setup & commissioning. Leave unchecked for Waste Disposal or services not requiring technician dispatch.
+                  </span>
+                </div>
+              </label>
+
+              {createWorkOrderOnWon && (
+                <div className="pl-6 pt-1">
+                  <input
+                    type="text"
+                    placeholder="Optional notes for installation crew..."
+                    value={workOrderNotes}
+                    onChange={(e) => setWorkOrderNotes(e.target.value)}
+                    className="w-full text-xs px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200"
+                  />
+                </div>
+              )}
+            </div>
+
             <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
               <button
                 onClick={() => setShowWonModal(false)}
@@ -1828,7 +1875,13 @@ export default function OpportunityDetail() {
                 Cancel
               </button>
               <button
-                onClick={() => markWonMutation.mutate({ reason: wonReason })}
+                onClick={() =>
+                  markWonMutation.mutate({
+                    reason: wonReason,
+                    createInstallationWorkOrder: createWorkOrderOnWon,
+                    workOrderNotes: workOrderNotes.trim() || undefined,
+                  })
+                }
                 disabled={markWonMutation.isPending}
                 className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
               >

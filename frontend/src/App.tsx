@@ -63,6 +63,7 @@ import { Navigate, Outlet } from "react-router-dom";
 
 import QuoteDetail from "./pages/QuoteDetail";
 import PublicQuoteReview from "./pages/PublicQuoteReview";
+import PublicFeedback from "./pages/PublicFeedback";
 import SiteInspections from "./pages/SiteInspections";
 import SiteInspectionForm from "./pages/SiteInspectionForm";
 import HeldEmails from "./pages/HeldEmails";
@@ -104,6 +105,7 @@ function App() {
         <Routes>
           <Route path="/quote" element={<PublicQuoteRequest />} />
           <Route path="/q/:token" element={<PublicQuoteReview />} />
+          <Route path="/feedback/:token" element={<PublicFeedback />} />
           <Route path="/login" element={<Login />} />
           
           <Route element={<ProtectedRoute />}>

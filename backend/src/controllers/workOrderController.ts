@@ -14,10 +14,18 @@ import {
   PriceBookEntry,
   ApprovalRequest,
   DiscountPolicy,
+  WorkOrderNotification,
+  WorkOrderFeedback,
   sequelize
 } from "@nexus-crm/database";
 import crypto from "crypto";
 import { Op } from "sequelize";
+import { normalizeRole } from "../middleware/auth";
+import {
+  handleWorkOrderStatusChange,
+  handleAppointmentNoticeTrigger,
+  resendWorkOrderNotification,
+} from "../services/workOrderNotificationService";
 
 /**
  * Helper to resolve read-only primary phone number and source label for a Work Order
@@ -126,6 +134,7 @@ export const createWorkOrder = async (req: Request, res: Response) => {
   try {
     const {
       subject,
+      workOrderType = "Installation",
       description,
       status = "New",
       priority = "Medium",
@@ -170,6 +179,7 @@ export const createWorkOrder = async (req: Request, res: Response) => {
     const workOrder = await WorkOrder.create({
       id,
       workOrderNumber,
+      workOrderType,
       subject,
       description: description || null,
       status,
@@ -290,6 +300,7 @@ export const updateWorkOrder = async (req: Request, res: Response) => {
     const {
       status,
       priority,
+      workOrderType,
       subject,
       description,
       accountId,
@@ -305,8 +316,11 @@ export const updateWorkOrder = async (req: Request, res: Response) => {
       alternatePhone
     } = req.body;
 
+    const previousStatus = workOrder.status;
+
     if (status !== undefined) workOrder.set("status", status);
     if (priority !== undefined) workOrder.set("priority", priority);
+    if (workOrderType !== undefined) workOrder.set("workOrderType", workOrderType);
     if (subject !== undefined) workOrder.set("subject", subject);
     if (description !== undefined) workOrder.set("description", description);
     if (accountId !== undefined) workOrder.set("accountId", accountId || null);
@@ -322,6 +336,10 @@ export const updateWorkOrder = async (req: Request, res: Response) => {
     if (alternatePhone !== undefined) workOrder.set("alternatePhone", alternatePhone || null);
 
     await workOrder.save();
+
+    if (status && status !== previousStatus) {
+      await handleWorkOrderStatusChange(id, status);
+    }
 
     const updated = await WorkOrder.findByPk(id, {
       include: [
@@ -410,8 +428,65 @@ export const createWorkOrderAppointment = async (req: Request, res: Response) =>
       city,
       state,
       postalCode,
-      country
+      country,
+      notifyCustomer
     } = req.body;
+
+    // 1. Role check if assigning technician
+    if (serviceResourceId) {
+      const userRole = normalizeRole((req as any).user?.role);
+      const ALLOWED_ROLES = ["admin", "director", "manager", "sales_manager"];
+      if (!ALLOWED_ROLES.includes(userRole)) {
+        return res.status(403).json({ error: "Forbidden: admin or manager role required" });
+      }
+    }
+
+    // 2. Validate technician existence & active status
+    if (serviceResourceId) {
+      const resource = await ServiceResource.findByPk(serviceResourceId);
+      if (!resource) {
+        return res.status(404).json({ message: "Selected service resource not found" });
+      }
+      if (resource.isActive === false) {
+        return res.status(400).json({ message: "Selected technician is inactive" });
+      }
+    }
+
+    // 3. Validate scheduled time order (end must be after start)
+    if (scheduledStartTime && scheduledEndTime) {
+      const start = new Date(scheduledStartTime);
+      const end = new Date(scheduledEndTime);
+      if (end <= start) {
+        return res.status(400).json({ message: "Scheduled end time must be after scheduled start time" });
+      }
+    }
+
+    // 4. Overlap check for same technician (HTTP 409 naming conflicting appointment)
+    if (serviceResourceId && scheduledStartTime && scheduledEndTime && status !== "Canceled") {
+      const start = new Date(scheduledStartTime);
+      const end = new Date(scheduledEndTime);
+      const conflict = await ServiceAppointment.findOne({
+        where: {
+          serviceResourceId,
+          status: { [Op.notIn]: ["Canceled"] },
+          scheduledStartTime: { [Op.ne]: null },
+          scheduledEndTime: { [Op.ne]: null },
+          [Op.and]: [
+            { scheduledStartTime: { [Op.lt]: end } },
+            { scheduledEndTime: { [Op.gt]: start } }
+          ]
+        }
+      });
+
+      if (conflict) {
+        const conflictNumber = conflict.appointmentNumber || conflict.id;
+        return res.status(409).json({
+          message: `Technician has an overlapping appointment (${conflictNumber})`,
+          conflictingAppointment: conflictNumber,
+          conflictingAppointmentNumber: conflictNumber
+        });
+      }
+    }
 
     const count = await ServiceAppointment.count();
     const appointmentNumber = `SA-${String(count + 1).padStart(5, "0")}`;
@@ -441,6 +516,11 @@ export const createWorkOrderAppointment = async (req: Request, res: Response) =>
       country: country || (workOrder as any).country || null
     });
 
+    // 5. Trigger customer notification check
+    await handleAppointmentNoticeTrigger(appointmentId, {
+      notifyCustomer: notifyCustomer !== false
+    });
+
     const created = await ServiceAppointment.findByPk(appointmentId, {
       include: [
         { model: ServiceResource, as: "serviceResource" },
@@ -457,7 +537,8 @@ export const createWorkOrderAppointment = async (req: Request, res: Response) =>
 
 /**
  * PUT /api/v1/work-orders/:id/appointments/:appointmentId
- * Update service appointment, including Check In and Check Out actions
+ * Update service appointment, including Check In and Check Out actions,
+ * reassigning technician, rescheduling, and status updates.
  */
 export const updateWorkOrderAppointment = async (req: Request, res: Response) => {
   try {
@@ -478,10 +559,78 @@ export const updateWorkOrderAppointment = async (req: Request, res: Response) =>
       actualStartTime,
       actualEndTime,
       serviceResourceId,
+      scheduledStartTime,
+      scheduledEndTime,
       description,
       subject,
-      action
+      action,
+      notifyCustomer
     } = req.body;
+
+    // 1. Role check if assigning / reassigning technician
+    if (serviceResourceId !== undefined) {
+      const userRole = normalizeRole((req as any).user?.role);
+      const ALLOWED_ROLES = ["admin", "director", "manager", "sales_manager"];
+      if (!ALLOWED_ROLES.includes(userRole)) {
+        return res.status(403).json({ error: "Forbidden: admin or manager role required" });
+      }
+    }
+
+    // 2. Validate technician existence & active status
+    const targetResourceId = serviceResourceId !== undefined ? (serviceResourceId || null) : appointment.serviceResourceId;
+    if (serviceResourceId !== undefined && targetResourceId) {
+      const resource = await ServiceResource.findByPk(targetResourceId);
+      if (!resource) {
+        return res.status(404).json({ message: "Selected service resource not found" });
+      }
+      if (resource.isActive === false) {
+        return res.status(400).json({ message: "Selected technician is inactive" });
+      }
+    }
+
+    // 3. Validate scheduled times order
+    const effectiveStart = scheduledStartTime !== undefined
+      ? (scheduledStartTime ? new Date(scheduledStartTime) : null)
+      : appointment.scheduledStartTime ? new Date(appointment.scheduledStartTime) : null;
+    const effectiveEnd = scheduledEndTime !== undefined
+      ? (scheduledEndTime ? new Date(scheduledEndTime) : null)
+      : appointment.scheduledEndTime ? new Date(appointment.scheduledEndTime) : null;
+
+    if (effectiveStart && effectiveEnd && effectiveEnd <= effectiveStart) {
+      return res.status(400).json({ message: "Scheduled end time must be after scheduled start time" });
+    }
+
+    // 4. Overlap check for technician (HTTP 409 naming conflicting appointment)
+    const nextStatus = status || appointment.status;
+    if (targetResourceId && effectiveStart && effectiveEnd && nextStatus !== "Canceled") {
+      const conflict = await ServiceAppointment.findOne({
+        where: {
+          serviceResourceId: targetResourceId,
+          status: { [Op.notIn]: ["Canceled"] },
+          id: { [Op.ne]: appointmentId },
+          scheduledStartTime: { [Op.ne]: null },
+          scheduledEndTime: { [Op.ne]: null },
+          [Op.and]: [
+            { scheduledStartTime: { [Op.lt]: effectiveEnd } },
+            { scheduledEndTime: { [Op.gt]: effectiveStart } }
+          ]
+        }
+      });
+
+      if (conflict) {
+        const conflictNumber = conflict.appointmentNumber || conflict.id;
+        return res.status(409).json({
+          message: `Technician has an overlapping appointment (${conflictNumber})`,
+          conflictingAppointment: conflictNumber,
+          conflictingAppointmentNumber: conflictNumber
+        });
+      }
+    }
+
+    // Capture previous state for notice trigger
+    const previousResourceId = appointment.serviceResourceId;
+    const previousStartTime = appointment.scheduledStartTime;
+    const previousStatus = appointment.status;
 
     const now = new Date();
 
@@ -521,6 +670,12 @@ export const updateWorkOrderAppointment = async (req: Request, res: Response) =>
     if (serviceResourceId !== undefined) {
       appointment.serviceResourceId = serviceResourceId || null;
     }
+    if (scheduledStartTime !== undefined) {
+      appointment.scheduledStartTime = scheduledStartTime ? new Date(scheduledStartTime) : null;
+    }
+    if (scheduledEndTime !== undefined) {
+      appointment.scheduledEndTime = scheduledEndTime ? new Date(scheduledEndTime) : null;
+    }
     if (description !== undefined) {
       appointment.description = description;
     }
@@ -529,6 +684,14 @@ export const updateWorkOrderAppointment = async (req: Request, res: Response) =>
     }
 
     await appointment.save();
+
+    // 5. Trigger notice check
+    await handleAppointmentNoticeTrigger(appointment.id, {
+      previousResourceId,
+      previousStartTime,
+      previousStatus,
+      notifyCustomer: notifyCustomer !== false
+    });
 
     const reloaded = await ServiceAppointment.findByPk(appointmentId, {
       include: [
@@ -691,4 +854,63 @@ export const deleteWorkOrderLineItem = async (req: Request, res: Response) => {
     return res.status(500).json({ message: "Internal server error", error: error.message });
   }
 };
+
+/**
+ * GET /api/v1/work-orders/:id/notifications
+ * List notification history for a work order
+ */
+export const getWorkOrderNotifications = async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const notifications = await WorkOrderNotification.findAll({
+      where: { workOrderId: id },
+      order: [["createdAt", "DESC"]]
+    });
+    return res.status(200).json(notifications);
+  } catch (error: any) {
+    console.error("Error fetching work order notifications:", error);
+    return res.status(500).json({ message: "Internal server error", error: error.message });
+  }
+};
+
+/**
+ * POST /api/v1/work-orders/:id/notifications/:notificationId/resend
+ * Resend a notification with an explicit manual-resend key (authorized users only)
+ */
+export const resendWorkOrderNotificationEndpoint = async (req: Request, res: Response) => {
+  try {
+    const userRole = normalizeRole((req as any).user?.role);
+    const ALLOWED_ROLES = ["admin", "director", "manager", "sales_manager"];
+    if (!ALLOWED_ROLES.includes(userRole)) {
+      return res.status(403).json({ error: "Forbidden: admin or manager role required" });
+    }
+
+    const notificationId = String(req.params.notificationId);
+    const resent = await resendWorkOrderNotification(notificationId);
+    return res.status(200).json(resent);
+  } catch (error: any) {
+    console.error("Error resending notification:", error);
+    return res.status(500).json({ message: error.message || "Failed to resend notification" });
+  }
+};
+
+/**
+ * GET /api/v1/work-orders/:id/feedback
+ * List feedback submissions for a work order
+ */
+export const getWorkOrderFeedbacks = async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const feedbacks = await WorkOrderFeedback.findAll({
+      where: { workOrderId: id },
+      include: [{ model: ServiceResource, as: "serviceResource" }],
+      order: [["createdAt", "DESC"]]
+    });
+    return res.status(200).json(feedbacks);
+  } catch (error: any) {
+    console.error("Error fetching work order feedbacks:", error);
+    return res.status(500).json({ message: "Internal server error", error: error.message });
+  }
+};
+
 

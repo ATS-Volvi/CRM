@@ -71,6 +71,11 @@ const startServer = async () => {
       // Start Site Inspection Stage B Automation Scanner
       const { startAutomationScheduler } = require("./src/services/siteInspectionAutomationScanner");
       startAutomationScheduler();
+
+      // Start Work Order Notification Poller Scheduler (60s)
+      const { startWorkOrderNotificationScheduler, validateWorkOrderNotificationConfigOnStartup } = require("./src/services/workOrderNotificationService");
+      validateWorkOrderNotificationConfigOnStartup();
+      startWorkOrderNotificationScheduler();
     });
   } catch (error) {
     console.error("Failed to start server:", error);

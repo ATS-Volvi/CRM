@@ -179,8 +179,15 @@ import {
   createWorkOrderAppointment,
   updateWorkOrderAppointment,
   createWorkOrderLineItem,
-  deleteWorkOrderLineItem
+  deleteWorkOrderLineItem,
+  getWorkOrderNotifications,
+  resendWorkOrderNotificationEndpoint,
+  getWorkOrderFeedbacks
 } from "../controllers/workOrderController";
+import {
+  getPublicFeedbackByToken,
+  submitPublicFeedbackByToken
+} from "../controllers/workOrderFeedbackController";
 import {
   getServiceResources,
   createServiceResource,
@@ -320,6 +327,10 @@ router.get("/public/quotes/by-token/:token", getPublicQuoteByToken);
 router.post("/public/quotes/by-token/:token/accept", acceptPublicQuoteByToken);
 router.post("/public/quotes/by-token/:token/request-changes", requestPublicQuoteChanges);
 router.post("/public/quotes/by-token/:token/express-interest", expressPublicQuoteInterest);
+
+// Customer-Facing Token-Based Service Feedback Portal
+router.get("/public/feedback/:token", rateLimiter, getPublicFeedbackByToken);
+router.post("/public/feedback/:token", rateLimiter, submitPublicFeedbackByToken);
 
 // ==========================================
 // QUOTE TEMPLATES & AI VISION PARSER
@@ -587,8 +598,6 @@ router.patch("/fulfillments/items/:itemId", authMiddleware, updateFulfillmentIte
 router.get("/approvals", authMiddleware, getApprovals);
 router.post("/approvals", authMiddleware, createApproval);
 router.put("/approvals/:id", authMiddleware, updateApproval);
-router.get("/approval-policy", authMiddleware, getAdminApprovalPolicy);
-router.put("/approval-policy", authMiddleware, updateAdminApprovalPolicy);
 
 // ADMIN APPROVAL POLICY — strictly restricted to role: admin (UI and API)
 router.get("/approval-policy", authMiddleware, requireAdmin, getAdminApprovalPolicy);
@@ -981,6 +990,9 @@ router.post("/work-orders/:id/appointments", authMiddleware, createWorkOrderAppo
 router.put("/work-orders/:id/appointments/:appointmentId", authMiddleware, updateWorkOrderAppointment);
 router.post("/work-orders/:id/line-items", authMiddleware, createWorkOrderLineItem);
 router.delete("/work-orders/:id/line-items/:lineItemId", authMiddleware, deleteWorkOrderLineItem);
+router.get("/work-orders/:id/notifications", authMiddleware, getWorkOrderNotifications);
+router.post("/work-orders/:id/notifications/:notificationId/resend", authMiddleware, requireAdminOrManager, resendWorkOrderNotificationEndpoint);
+router.get("/work-orders/:id/feedback", authMiddleware, getWorkOrderFeedbacks);
 
 // ==========================================
 // SERVICE RESOURCES

@@ -1,12 +1,12 @@
 import { Request, Response } from "express";
-import { ServiceResource, User } from "@nexus-crm/database";
+import { ServiceResource, User, WorkOrderFeedback } from "@nexus-crm/database";
 import crypto from "crypto";
 import { Op } from "sequelize";
 
 /**
  * Format a ServiceResource record to include friendly territory and parsed skills array
  */
-function formatServiceResource(resRecord: any) {
+function formatServiceResource(resRecord: any, ratingStats?: { total: number; count: number }) {
   const json = resRecord.toJSON ? resRecord.toJSON() : { ...resRecord };
   let skills = json.skills || [];
   if (typeof skills === "string") {
@@ -20,10 +20,15 @@ function formatServiceResource(resRecord: any) {
     skills = [];
   }
 
+  const count = ratingStats?.count || 0;
+  const averageRating = count > 0 ? Number((ratingStats!.total / count).toFixed(1)) : null;
+
   return {
     ...json,
     territory: json.location || null,
-    skills
+    skills,
+    averageRating,
+    feedbackCount: count,
   };
 }
 
@@ -64,7 +69,25 @@ export const getServiceResources = async (req: Request, res: Response) => {
       order: [["createdAt", "DESC"]]
     });
 
-    return res.status(200).json(resources.map(formatServiceResource));
+    const feedbacks = await WorkOrderFeedback.findAll({
+      where: { rating: { [Op.ne]: null } },
+      attributes: ["serviceResourceId", "rating"]
+    });
+
+    const ratingMap: Record<string, { total: number; count: number }> = {};
+    for (const fb of feedbacks) {
+      const sId = (fb as any).serviceResourceId;
+      const r = Number((fb as any).rating);
+      if (sId && !isNaN(r)) {
+        if (!ratingMap[sId]) {
+          ratingMap[sId] = { total: 0, count: 0 };
+        }
+        ratingMap[sId].total += r;
+        ratingMap[sId].count += 1;
+      }
+    }
+
+    return res.status(200).json(resources.map((r) => formatServiceResource(r, ratingMap[r.id])));
   } catch (error: any) {
     console.error("Error fetching service resources:", error);
     return res.status(500).json({ message: "Internal server error", error: error.message });

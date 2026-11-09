@@ -2036,6 +2036,7 @@ ServiceResource.init(
 export class WorkOrder extends Model {
   public id!: string;
   public workOrderNumber!: string | null;
+  public workOrderType!: "Installation" | "Repair" | "Maintenance" | "Return" | string;
   public status!: WorkOrderStatus;
   public priority!: WorkOrderPriority;
   public subject!: string | null;
@@ -2070,6 +2071,7 @@ WorkOrder.init(
   {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
     workOrderNumber: { type: DataTypes.STRING, allowNull: true },
+    workOrderType: { type: DataTypes.STRING, allowNull: false, defaultValue: "Installation" },
     status: { type: DataTypes.STRING, allowNull: false, defaultValue: "New" },
     priority: { type: DataTypes.STRING, allowNull: false, defaultValue: "Medium" },
     subject: { type: DataTypes.STRING, allowNull: true },
@@ -2251,6 +2253,121 @@ Account.hasMany(ServiceAppointment, { foreignKey: "accountId", as: "serviceAppoi
 
 ServiceAppointment.belongsTo(Contact, { foreignKey: "contactId", as: "contact" });
 Contact.hasMany(ServiceAppointment, { foreignKey: "contactId", as: "serviceAppointments" });
+
+export class WorkOrderNotification extends Model {
+  public id!: string;
+  public workOrderId!: string;
+  public appointmentId!: string | null;
+  public type!: string;
+  public recipientEmail!: string | null;
+  public recipientSource!: string | null;
+  public status!: "Pending" | "Sent" | "Failed" | "Skipped" | "DryRun" | "Processing";
+  public skipReason!: string | null;
+  public dedupeKey!: string;
+  public attempts!: number;
+  public lastError!: string | null;
+  public scheduledFor!: Date | null;
+  public sentAt!: Date | null;
+  public createdAt!: Date;
+  public updatedAt!: Date;
+}
+
+WorkOrderNotification.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    workOrderId: { type: DataTypes.UUID, allowNull: false },
+    appointmentId: { type: DataTypes.UUID, allowNull: true },
+    type: { type: DataTypes.STRING, allowNull: false },
+    recipientEmail: { type: DataTypes.STRING, allowNull: true },
+    recipientSource: { type: DataTypes.STRING, allowNull: true },
+    status: { type: DataTypes.STRING, allowNull: false, defaultValue: "Pending" },
+    skipReason: { type: DataTypes.STRING, allowNull: true },
+    dedupeKey: { type: DataTypes.STRING, allowNull: false, unique: true },
+    attempts: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+    lastError: { type: DataTypes.TEXT, allowNull: true },
+    scheduledFor: { type: DataTypes.DATE, allowNull: true },
+    sentAt: { type: DataTypes.DATE, allowNull: true },
+  },
+  { sequelize, modelName: "WorkOrderNotification", tableName: "WorkOrderNotifications" }
+);
+
+export class WorkOrderFeedback extends Model {
+  public id!: string;
+  public workOrderId!: string;
+  public appointmentId!: string | null;
+  public serviceResourceId!: string | null;
+  public rating!: number | null;
+  public comment!: string | null;
+  public tokenHash!: string;
+  public tokenVersion!: number;
+  public tokenExpiresAt!: Date;
+  public submittedAt!: Date | null;
+  public createdAt!: Date;
+  public updatedAt!: Date;
+}
+
+WorkOrderFeedback.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    workOrderId: { type: DataTypes.UUID, allowNull: false },
+    appointmentId: { type: DataTypes.UUID, allowNull: true },
+    serviceResourceId: { type: DataTypes.UUID, allowNull: true },
+    rating: { type: DataTypes.INTEGER, allowNull: true },
+    comment: { type: DataTypes.TEXT, allowNull: true },
+    tokenHash: { type: DataTypes.STRING, allowNull: false, unique: true },
+    tokenVersion: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },
+    tokenExpiresAt: { type: DataTypes.DATE, allowNull: false },
+    submittedAt: { type: DataTypes.DATE, allowNull: true },
+  },
+  { sequelize, modelName: "WorkOrderFeedback", tableName: "WorkOrderFeedback" }
+);
+
+// Associations for WorkOrderNotification & WorkOrderFeedback
+WorkOrder.hasMany(WorkOrderNotification, { foreignKey: "workOrderId", as: "notifications" });
+WorkOrderNotification.belongsTo(WorkOrder, { foreignKey: "workOrderId", as: "workOrder" });
+
+ServiceAppointment.hasMany(WorkOrderNotification, { foreignKey: "appointmentId", as: "notifications" });
+WorkOrderNotification.belongsTo(ServiceAppointment, { foreignKey: "appointmentId", as: "appointment" });
+
+WorkOrder.hasMany(WorkOrderFeedback, { foreignKey: "workOrderId", as: "feedbacks" });
+WorkOrderFeedback.belongsTo(WorkOrder, { foreignKey: "workOrderId", as: "workOrder" });
+
+ServiceResource.hasMany(WorkOrderFeedback, { foreignKey: "serviceResourceId", as: "feedbacks" });
+WorkOrderFeedback.belongsTo(ServiceResource, { foreignKey: "serviceResourceId", as: "serviceResource" });
+
+ServiceAppointment.hasMany(WorkOrderFeedback, { foreignKey: "appointmentId", as: "feedbacks" });
+WorkOrderFeedback.belongsTo(ServiceAppointment, { foreignKey: "appointmentId", as: "appointment" });
+
+export class EmailSuppression extends Model {
+  public id!: string;
+  public email!: string;
+  public reason!: string | null;
+  public source!: string | null;
+  public createdAt!: Date;
+  public updatedAt!: Date;
+}
+
+EmailSuppression.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    email: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      unique: true,
+      set(val: string) {
+        this.setDataValue("email", String(val || "").toLowerCase().trim());
+      },
+    },
+    reason: { type: DataTypes.STRING, allowNull: true },
+    source: { type: DataTypes.STRING, allowNull: true },
+  },
+  {
+    sequelize,
+    modelName: "EmailSuppression",
+    tableName: "EmailSuppressions",
+    indexes: [{ unique: true, fields: ["email"] }],
+  }
+);
 
 export class LeadContact extends Model {
   public id!: string;

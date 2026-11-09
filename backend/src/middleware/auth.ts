@@ -26,10 +26,15 @@ export const authMiddleware = (req: Request, res: Response, next: NextFunction) 
   }
 };
 
+export const normalizeRole = (role?: string | null): string => {
+  return String(role ?? "").toLowerCase().trim();
+};
+
 /**
  * requireAdminOrManager — must be used AFTER authMiddleware.
  * Permits access only to users with role: admin | director | manager | sales_manager.
  * sales_rep, senior_ae, team_lead receive 403 Forbidden.
+ * Case-insensitive via normalizeRole.
  *
  * Roles audited from backend/src and database/models:
  *   admin         → full system access
@@ -41,7 +46,7 @@ export const authMiddleware = (req: Request, res: Response, next: NextFunction) 
  *   team_lead     → scoped lead management — excluded
  */
 export const requireAdminOrManager = (req: Request, res: Response, next: NextFunction) => {
-  const role: string = (req as any).user?.role ?? "";
+  const role = normalizeRole((req as any).user?.role);
   const ALLOWED_ROLES = ["admin", "director", "manager", "sales_manager"];
   if (!ALLOWED_ROLES.includes(role)) {
     res.status(403).json({ error: "Forbidden: admin or manager role required" });
@@ -57,7 +62,7 @@ export const requireAdminOrManager = (req: Request, res: Response, next: NextFun
  * Used for admin-ceiling-only endpoints such as PUT /approval-policy.
  */
 export const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
-  const role: string = (req as any).user?.role ?? "";
+  const role = normalizeRole((req as any).user?.role);
   if (role !== "admin") {
     res.status(403).json({ error: "Forbidden: admin role required" });
     return;

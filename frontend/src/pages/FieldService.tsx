@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Wrench,
@@ -28,9 +29,16 @@ import {
   AlertTriangle,
   BookOpen,
   Info,
-  Check
+  Check,
+  Star,
+  Mail,
+  RefreshCw,
+  UserCheck,
+  Send,
+  MessageSquare
 } from "lucide-react";
 import { apiClient } from "../lib/apiClient";
+import { useAuth } from "../context/AuthContext";
 
 interface AccountSummary {
   id: string;
@@ -87,6 +95,7 @@ interface ServiceAppointment {
     id: string;
     name: string;
     resourceType?: string;
+    phone?: string | null;
   };
 }
 
@@ -102,6 +111,8 @@ interface ServiceResourceItem {
   skills?: string[];
   email?: string | null;
   phone?: string | null;
+  averageRating?: number | null;
+  feedbackCount?: number;
   user?: {
     id: string;
     name: string;
@@ -111,9 +122,41 @@ interface ServiceResourceItem {
   createdAt?: string;
 }
 
+interface WorkOrderNotificationItem {
+  id: string;
+  workOrderId: string;
+  appointmentId?: string | null;
+  type: string;
+  recipientEmail?: string | null;
+  recipientSource?: string | null;
+  status: "Pending" | "Sent" | "Failed" | "Skipped" | "DryRun";
+  skipReason?: string | null;
+  attempts: number;
+  lastError?: string | null;
+  scheduledFor?: string | null;
+  sentAt?: string | null;
+  createdAt: string;
+}
+
+interface WorkOrderFeedbackItem {
+  id: string;
+  workOrderId: string;
+  appointmentId?: string | null;
+  serviceResourceId?: string | null;
+  rating?: number | null;
+  comment?: string | null;
+  submittedAt?: string | null;
+  createdAt: string;
+  serviceResource?: {
+    id: string;
+    name: string;
+  };
+}
+
 interface WorkOrder {
   id: string;
   workOrderNumber: string;
+  workOrderType?: string;
   subject: string;
   description?: string;
   status: "New" | "In Progress" | "On Hold" | "Completed" | "Cannot Complete" | "Closed" | "Canceled" | string;
@@ -187,6 +230,8 @@ export default function FieldService() {
   const [priorityFilter, setPriorityFilter] = useState<string>("ALL");
   const [search, setSearch] = useState<string>("");
 
+  const [searchParams] = useSearchParams();
+
   // Modals & Drawers
   const [selectedWorkOrderId, setSelectedWorkOrderId] = useState<string | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -197,10 +242,13 @@ export default function FieldService() {
   // New Work Order Form State
   const [formData, setFormData] = useState({
     subject: "",
+    workOrderType: "Installation",
     priority: "Medium",
     status: "New",
     accountId: "",
     contactId: "",
+    dealId: "",
+    assetId: "",
     description: "",
     startDate: "",
     endDate: "",
@@ -209,6 +257,22 @@ export default function FieldService() {
     state: "",
     postalCode: "",
   });
+
+  // Automatically open and pre-populate if directed from Asset or Deal with query params
+  useEffect(() => {
+    const action = searchParams.get("action");
+    if (action === "new") {
+      setFormData((prev) => ({
+        ...prev,
+        subject: searchParams.get("subject") || prev.subject,
+        workOrderType: searchParams.get("type") || "Repair",
+        accountId: searchParams.get("accountId") || prev.accountId,
+        assetId: searchParams.get("assetId") || prev.assetId,
+        dealId: searchParams.get("dealId") || prev.dealId,
+      }));
+      setIsCreateModalOpen(true);
+    }
+  }, [searchParams]);
 
   // New Line Item Form State
   const [lineItemFormData, setLineItemFormData] = useState<{
@@ -229,6 +293,23 @@ export default function FieldService() {
   const [selectedCatalogItem, setSelectedCatalogItem] = useState<any>(null);
   const [catalogSearch, setCatalogSearch] = useState<string>("");
 
+  const { user } = useAuth();
+  const isManagerOrAdmin = ["admin", "director", "manager", "sales_manager"].includes(
+    String(user?.role || "").toLowerCase()
+  );
+
+  // Assign / Reassign Modal State
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [selectedAppointmentForAssign, setSelectedAppointmentForAssign] = useState<any>(null);
+  const [assignModalData, setAssignModalData] = useState({
+    serviceResourceId: "",
+    scheduledStartTime: "",
+    scheduledEndTime: "",
+    notifyCustomer: true,
+  });
+  const [assignConflictError, setAssignConflictError] = useState<string | null>(null);
+  const [appointmentConflictError, setAppointmentConflictError] = useState<string | null>(null);
+
   // New Appointment Form State
   const [appointmentFormData, setAppointmentFormData] = useState({
     subject: "",
@@ -238,6 +319,7 @@ export default function FieldService() {
     dueDate: "",
     description: "",
     serviceResourceId: "",
+    notifyCustomer: true,
   });
 
   // Active Tab: "work-orders" | "service-resources"
@@ -413,8 +495,11 @@ export default function FieldService() {
     mutationFn: async (newWO: typeof formData) => {
       return apiClient.post("/api/v1/work-orders", {
         ...newWO,
+        workOrderType: newWO.workOrderType || "Installation",
         accountId: newWO.accountId || null,
         contactId: newWO.contactId || null,
+        dealId: newWO.dealId || null,
+        assetId: newWO.assetId || null,
       });
     },
     onSuccess: () => {
@@ -422,9 +507,12 @@ export default function FieldService() {
       setIsCreateModalOpen(false);
       setFormData({
         subject: "",
+        workOrderType: "Installation",
         description: "",
         accountId: "",
         contactId: "",
+        dealId: "",
+        assetId: "",
         status: "New",
         priority: "Medium",
         startDate: "",
@@ -482,12 +570,15 @@ export default function FieldService() {
       return apiClient.post(`/api/v1/work-orders/${selectedWorkOrderId}/appointments`, {
         ...payload,
         serviceResourceId: payload.serviceResourceId || null,
+        notifyCustomer: payload.notifyCustomer !== false,
       });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["work-orders"] });
       queryClient.invalidateQueries({ queryKey: ["work-order-detail", selectedWorkOrderId] });
+      queryClient.invalidateQueries({ queryKey: ["work-order-notifications", selectedWorkOrderId] });
       setIsAppointmentModalOpen(false);
+      setAppointmentConflictError(null);
       setAppointmentFormData({
         subject: "",
         status: "New",
@@ -496,13 +587,92 @@ export default function FieldService() {
         dueDate: "",
         description: "",
         serviceResourceId: "",
+        notifyCustomer: true,
       });
       showToast("ok", "Appointment scheduled successfully!");
     },
     onError: (err: any) => {
-      showToast("err", err.message || "Failed to schedule appointment.");
+      const msg = err.response?.data?.message || err.message || "Failed to schedule appointment.";
+      setAppointmentConflictError(msg);
+      showToast("err", msg);
     },
   });
+
+  // Assign / Reassign Appointment Mutation
+  const assignAppointmentMutation = useMutation({
+    mutationFn: async ({ workOrderId, appointmentId, payload }: any) => {
+      return apiClient.put(`/api/v1/work-orders/${workOrderId}/appointments/${appointmentId}`, payload);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["work-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["work-order-detail", selectedWorkOrderId] });
+      queryClient.invalidateQueries({ queryKey: ["work-order-notifications", selectedWorkOrderId] });
+      setIsAssignModalOpen(false);
+      setSelectedAppointmentForAssign(null);
+      setAssignConflictError(null);
+      showToast("ok", "Technician assignment updated successfully!");
+    },
+    onError: (err: any) => {
+      const msg = err.response?.data?.message || err.message || "Failed to update technician assignment.";
+      setAssignConflictError(msg);
+      showToast("err", msg);
+    },
+  });
+
+  // Query Customer Notifications for Drawer
+  const { data: workOrderNotifications = [] } = useQuery({
+    queryKey: ["work-order-notifications", selectedWorkOrderId],
+    queryFn: async () => {
+      if (!selectedWorkOrderId) return [];
+      const res = await apiClient.get<WorkOrderNotificationItem[]>(
+        `/api/v1/work-orders/${selectedWorkOrderId}/notifications`
+      );
+      return Array.isArray(res) ? res : [];
+    },
+    enabled: !!selectedWorkOrderId,
+  });
+
+  // Resend Notification Mutation
+  const resendNotificationMutation = useMutation({
+    mutationFn: async ({ workOrderId, notificationId }: any) => {
+      return apiClient.post(
+        `/api/v1/work-orders/${workOrderId}/notifications/${notificationId}/resend`,
+        {}
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["work-order-notifications", selectedWorkOrderId] });
+      showToast("ok", "Notification resent successfully!");
+    },
+    onError: (err: any) => {
+      showToast("err", err.response?.data?.message || err.message || "Failed to resend notification.");
+    },
+  });
+
+  // Query Customer Feedbacks for Drawer
+  const { data: workOrderFeedbacks = [] } = useQuery({
+    queryKey: ["work-order-feedbacks", selectedWorkOrderId],
+    queryFn: async () => {
+      if (!selectedWorkOrderId) return [];
+      const res = await apiClient.get<WorkOrderFeedbackItem[]>(
+        `/api/v1/work-orders/${selectedWorkOrderId}/feedback`
+      );
+      return Array.isArray(res) ? res : [];
+    },
+    enabled: !!selectedWorkOrderId,
+  });
+
+  // Customer email resolution for active work order
+  const customerEmailResolved = useMemo(() => {
+    if (!activeWorkOrder) return null;
+    if (activeWorkOrder.contact?.email && activeWorkOrder.contact.email.trim() !== "") {
+      return { email: activeWorkOrder.contact.email.trim(), source: "contact" };
+    }
+    if (activeWorkOrder.account?.email && activeWorkOrder.account.email.trim() !== "") {
+      return { email: activeWorkOrder.account.email.trim(), source: "account" };
+    }
+    return null;
+  }, [activeWorkOrder]);
 
   // Add Line Item Mutation
   const addLineItemMutation = useMutation({
@@ -855,7 +1025,10 @@ export default function FieldService() {
                       <div className="font-mono font-bold text-xs text-blue-600">
                         {wo.workOrderNumber || `WO-${wo.id.slice(0, 5)}`}
                       </div>
-                      <div className="text-[10px] text-slate-400">
+                      <span className="inline-block mt-0.5 text-[9px] font-bold px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 border border-slate-200">
+                        {wo.workOrderType || "Installation"}
+                      </span>
+                      <div className="text-[10px] text-slate-400 mt-0.5">
                         {new Date(wo.createdAt).toLocaleDateString()}
                       </div>
                     </td>
@@ -1019,13 +1192,14 @@ export default function FieldService() {
                   <th>Territory</th>
                   <th>Skills</th>
                   <th>Status</th>
+                  <th>Customer Rating</th>
                   <th className="text-right">Action</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredResources.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="text-center py-12 text-slate-400">
+                    <td colSpan={7} className="text-center py-12 text-slate-400">
                       <div className="flex flex-col items-center gap-2">
                         <Users className="w-8 h-8 text-slate-300" />
                         <p className="font-semibold text-slate-600">No service resources found</p>
@@ -1091,6 +1265,23 @@ export default function FieldService() {
                           {r.isActive ? "Active" : "Inactive"}
                         </span>
                       </td>
+                      <td>
+                        {r.feedbackCount && r.feedbackCount > 0 && r.averageRating !== null && r.averageRating !== undefined ? (
+                          <div className="flex items-center gap-1.5">
+                            <div className="flex items-center text-amber-500">
+                              <Star className="w-3.5 h-3.5 fill-current" />
+                              <span className="ml-1 text-xs font-semibold text-slate-800">
+                                {Number(r.averageRating).toFixed(1)}
+                              </span>
+                            </div>
+                            <span className="text-[10px] text-slate-400">
+                              ({r.feedbackCount} {r.feedbackCount === 1 ? "review" : "reviews"})
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-slate-400 italic">No ratings yet</span>
+                        )}
+                      </td>
                       <td className="text-right">
                         <button
                           onClick={() => {
@@ -1141,13 +1332,18 @@ export default function FieldService() {
                         {activeWorkOrder?.workOrderNumber || "Work Order Details"}
                       </h2>
                       {activeWorkOrder && (
-                        <span
-                          className={`enterprise-badge ${
-                            STATUS_PILLS[activeWorkOrder.status] || "bg-slate-100 text-slate-700"
-                          }`}
-                        >
-                          {activeWorkOrder.status}
-                        </span>
+                        <>
+                          <span
+                            className={`enterprise-badge ${
+                              STATUS_PILLS[activeWorkOrder.status] || "bg-slate-100 text-slate-700"
+                            }`}
+                          >
+                            {activeWorkOrder.status}
+                          </span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                            {activeWorkOrder.workOrderType || "Installation"}
+                          </span>
+                        </>
                       )}
                     </div>
                     <p className="text-xs text-slate-500 mt-0.5">
@@ -1522,9 +1718,17 @@ export default function FieldService() {
                                 </div>
                               )}
                               {sa.serviceResource ? (
-                                <div className="flex items-center gap-1 font-medium text-slate-700 bg-slate-100 px-2 py-0.5 rounded">
-                                  <User className="w-3 h-3 text-blue-500" />
-                                  <span>{sa.serviceResource.name}</span>
+                                <div className="flex items-center gap-2">
+                                  <div className="flex items-center gap-1 font-medium text-slate-700 bg-slate-100 px-2 py-0.5 rounded">
+                                    <User className="w-3 h-3 text-blue-500" />
+                                    <span>{sa.serviceResource.name}</span>
+                                  </div>
+                                  {!sa.serviceResource.phone && (
+                                    <span className="flex items-center gap-1 text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200" title="Technician has no phone on file">
+                                      <AlertTriangle className="w-2.5 h-2.5 text-amber-500" />
+                                      No phone
+                                    </span>
+                                  )}
                                 </div>
                               ) : (
                                 <span className="text-slate-400 italic">No technician assigned</span>
@@ -1564,6 +1768,28 @@ export default function FieldService() {
                               </div>
 
                               <div className="flex items-center gap-1.5">
+                                {isManagerOrAdmin && sa.status !== "Completed" && sa.status !== "Canceled" && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedAppointmentForAssign(sa);
+                                      setAssignModalData({
+                                        serviceResourceId: sa.serviceResource?.id || "",
+                                        scheduledStartTime: sa.scheduledStartTime ? sa.scheduledStartTime.slice(0, 16) : "",
+                                        scheduledEndTime: sa.scheduledEndTime ? sa.scheduledEndTime.slice(0, 16) : "",
+                                        notifyCustomer: true,
+                                      });
+                                      setAssignConflictError(null);
+                                      setIsAssignModalOpen(true);
+                                    }}
+                                    className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[11px] font-semibold flex items-center gap-1 transition-colors border border-slate-300"
+                                    title="Assign or reassign technician"
+                                  >
+                                    <UserCheck className="w-3 h-3 text-slate-600" />
+                                    <span>{sa.serviceResource ? "Reassign" : "Assign"}</span>
+                                  </button>
+                                )}
+
                                 {/* Check In button */}
                                 {!sa.checkedInAt && sa.status !== "Completed" && sa.status !== "Canceled" && (
                                   <button
@@ -1616,6 +1842,194 @@ export default function FieldService() {
                     ) : (
                       <div className="p-4 bg-slate-50 rounded-lg text-center text-xs text-slate-400 border border-slate-200/80">
                         No service appointments scheduled yet.
+                      </div>
+                    )}
+                  </div>
+
+                  {/* SECTION 3: CUSTOMER NOTIFICATIONS */}
+                  <div className="space-y-2.5 pt-3 border-t border-slate-200">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                        <Mail className="w-4 h-4 text-blue-600" /> Customer Notifications (
+                        {workOrderNotifications.length})
+                      </h3>
+                    </div>
+
+                    {/* Resolved customer email banner */}
+                    <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 text-xs flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-slate-500 font-medium">Recipient Target:</span>
+                        {customerEmailResolved ? (
+                          <span className="font-semibold text-slate-800">
+                            {customerEmailResolved.email}{" "}
+                            <span className="text-[10px] text-slate-400 font-normal">
+                              (via {customerEmailResolved.source})
+                            </span>
+                          </span>
+                        ) : (
+                          <span className="text-amber-600 font-medium flex items-center gap-1">
+                            <AlertTriangle className="w-3.5 h-3.5" /> No customer email on file
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {workOrderNotifications.length > 0 ? (
+                      <div className="space-y-2">
+                        {workOrderNotifications.map((n) => {
+                          const statusColors: Record<string, string> = {
+                            Sent: "bg-emerald-50 text-emerald-700 border-emerald-200",
+                            Pending: "bg-blue-50 text-blue-700 border-blue-200",
+                            Skipped: "bg-slate-100 text-slate-600 border-slate-200",
+                            Failed: "bg-red-50 text-red-700 border-red-200",
+                            DryRun: "bg-purple-50 text-purple-700 border-purple-200",
+                          };
+                          return (
+                            <div
+                              key={n.id}
+                              className="p-3 bg-white rounded-lg border border-slate-200 shadow-2xs space-y-1.5"
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono text-xs font-bold text-slate-800">
+                                    {n.type}
+                                  </span>
+                                  <span
+                                    className={`px-1.5 py-0.5 rounded text-[10px] font-semibold border ${
+                                      statusColors[n.status] || "bg-slate-100 text-slate-600 border-slate-200"
+                                    }`}
+                                  >
+                                    {n.status}
+                                  </span>
+                                </div>
+                                {isManagerOrAdmin && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      resendNotificationMutation.mutate({
+                                        workOrderId: activeWorkOrder.id,
+                                        notificationId: n.id,
+                                      })
+                                    }
+                                    disabled={resendNotificationMutation.isPending}
+                                    className="px-2 py-0.5 text-[10px] font-semibold text-blue-600 hover:text-blue-800 border border-blue-200 hover:border-blue-400 rounded bg-blue-50 flex items-center gap-1 transition-colors cursor-pointer"
+                                    title="Resend notification"
+                                  >
+                                    <RefreshCw className="w-2.5 h-2.5" />
+                                    Resend
+                                  </button>
+                                )}
+                              </div>
+
+                              <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-500">
+                                <span>To: {n.recipientEmail || "None"}</span>
+                                {n.sentAt && (
+                                  <span>
+                                    Sent: {new Date(n.sentAt).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                                  </span>
+                                )}
+                                {!n.sentAt && n.scheduledFor && (
+                                  <span>
+                                    Scheduled: {new Date(n.scheduledFor).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                                  </span>
+                                )}
+                              </div>
+
+                              {n.skipReason && (
+                                <div className="text-[10px] text-slate-500 italic bg-slate-50 px-2 py-1 rounded">
+                                  Skip reason: {n.skipReason}
+                                </div>
+                              )}
+                              {n.lastError && (
+                                <div className="text-[10px] text-red-600 bg-red-50 p-1.5 rounded border border-red-200">
+                                  Error: {n.lastError}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="p-3 bg-slate-50 rounded-lg text-center text-xs text-slate-400 border border-slate-200/80">
+                        No notifications generated yet.
+                      </div>
+                    )}
+                  </div>
+
+                  {/* SECTION 4: CUSTOMER FEEDBACK */}
+                  <div className="space-y-2.5 pt-3 border-t border-slate-200">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                        <Star className="w-4 h-4 text-amber-500" /> Customer Feedback (
+                        {workOrderFeedbacks.length})
+                      </h3>
+                    </div>
+
+                    {workOrderFeedbacks.length > 0 ? (
+                      <div className="space-y-2">
+                        {workOrderFeedbacks.map((f) => (
+                          <div
+                            key={f.id}
+                            className={`p-3 rounded-lg border shadow-2xs space-y-1.5 ${
+                              f.rating !== null && f.rating !== undefined && f.rating <= 2
+                                ? "bg-red-50/50 border-red-200"
+                                : "bg-white border-slate-200"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-1.5">
+                                <div className="flex items-center text-amber-500">
+                                  {[1, 2, 3, 4, 5].map((star) => (
+                                    <Star
+                                      key={star}
+                                      className={`w-3.5 h-3.5 ${
+                                        f.rating && star <= f.rating
+                                          ? "fill-current text-amber-500"
+                                          : "text-slate-300"
+                                      }`}
+                                    />
+                                  ))}
+                                </div>
+                                <span className="font-bold text-xs text-slate-800">
+                                  {f.rating}/5
+                                </span>
+                              </div>
+                              <span className="text-[10px] text-slate-400">
+                                {f.submittedAt
+                                  ? new Date(f.submittedAt).toLocaleDateString([], {
+                                      month: "short",
+                                      day: "numeric",
+                                      year: "numeric",
+                                    })
+                                  : "Pending"}
+                              </span>
+                            </div>
+
+                            {f.rating !== null && f.rating !== undefined && f.rating <= 2 && (
+                              <div className="flex items-center gap-1 text-[10px] font-semibold text-red-700 bg-red-100/70 px-2 py-0.5 rounded border border-red-300">
+                                <AlertTriangle className="w-3 h-3 text-red-600" />
+                                Low Rating Alert: Manager and Director notifications triggered
+                              </div>
+                            )}
+
+                            {f.comment && (
+                              <p className="text-xs text-slate-700 bg-slate-50/70 p-2 rounded italic border border-slate-200/60">
+                                "{f.comment}"
+                              </p>
+                            )}
+
+                            {f.serviceResource && (
+                              <div className="text-[11px] text-slate-500 flex items-center gap-1">
+                                <User className="w-3 h-3 text-blue-500" />
+                                Technician: <span className="font-medium text-slate-700">{f.serviceResource.name}</span>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="p-3 bg-slate-50 rounded-lg text-center text-xs text-slate-400 border border-slate-200/80">
+                        No feedback received yet. Feedback request is sent upon work order completion.
                       </div>
                     )}
                   </div>
@@ -1709,6 +2123,20 @@ export default function FieldService() {
                     ))}
                   </select>
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">Work Order Type</label>
+                <select
+                  value={formData.workOrderType}
+                  onChange={(e) => setFormData({ ...formData, workOrderType: e.target.value })}
+                  className="enterprise-input w-full"
+                >
+                  <option value="Installation">Installation & Setup (Machine Delivery)</option>
+                  <option value="Repair">Repair & Maintenance (Breakdown Fix)</option>
+                  <option value="Maintenance">Preventive Maintenance (Scheduled Servicing)</option>
+                  <option value="Return">De-installation & Return (Contract End)</option>
+                </select>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -1838,6 +2266,16 @@ export default function FieldService() {
             </div>
 
             <form onSubmit={handleAppointmentSubmit} className="p-5 space-y-4 text-xs">
+              {appointmentConflictError && (
+                <div className="p-3 bg-red-50 text-red-700 rounded-lg border border-red-200 flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-500" />
+                  <div>
+                    <div className="font-semibold text-xs">Scheduling Conflict</div>
+                    <div className="text-[11px] mt-0.5">{appointmentConflictError}</div>
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="block text-slate-700 font-semibold mb-1">Appointment Subject</label>
                 <input
@@ -1906,6 +2344,29 @@ export default function FieldService() {
                 </div>
               </div>
 
+              <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-2">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-slate-600 font-medium">Customer Email:</span>
+                  <span className="font-mono text-slate-800 font-semibold">
+                    {customerEmailResolved?.email || "None on file (notification will be skipped)"}
+                  </span>
+                </div>
+                <label className="flex items-center gap-2 text-[11px] text-slate-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={appointmentFormData.notifyCustomer}
+                    onChange={(e) =>
+                      setAppointmentFormData({
+                        ...appointmentFormData,
+                        notifyCustomer: e.target.checked,
+                      })
+                    }
+                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span>Notify customer via email upon scheduling</span>
+                </label>
+              </div>
+
               <div>
                 <label className="block text-slate-700 font-semibold mb-1">Notes / Instructions</label>
                 <textarea
@@ -1936,6 +2397,169 @@ export default function FieldService() {
                   className="enterprise-btn-primary"
                 >
                   {createAppointmentMutation.isPending ? "Scheduling..." : "Confirm Schedule"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ASSIGN / REASSIGN TECHNICIAN MODAL */}
+      {isAssignModalOpen && selectedAppointmentForAssign && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div
+            className="w-full max-w-md bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden animate-fade-in"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <UserCheck className="w-4 h-4 text-blue-600" /> Assign / Reassign Technician
+              </h3>
+              <button
+                onClick={() => {
+                  setIsAssignModalOpen(false);
+                  setSelectedAppointmentForAssign(null);
+                  setAssignConflictError(null);
+                }}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!activeWorkOrder || !selectedAppointmentForAssign) return;
+                setAssignConflictError(null);
+                assignAppointmentMutation.mutate({
+                  workOrderId: activeWorkOrder.id,
+                  appointmentId: selectedAppointmentForAssign.id,
+                  payload: {
+                    serviceResourceId: assignModalData.serviceResourceId || null,
+                    scheduledStartTime: assignModalData.scheduledStartTime || undefined,
+                    scheduledEndTime: assignModalData.scheduledEndTime || undefined,
+                    notifyCustomer: assignModalData.notifyCustomer,
+                  },
+                });
+              }}
+              className="p-5 space-y-4 text-xs"
+            >
+              <div className="p-2.5 bg-blue-50/60 rounded-lg border border-blue-200/60 text-xs">
+                <div className="font-semibold text-blue-900">
+                  {selectedAppointmentForAssign.appointmentNumber || "Appointment"}
+                </div>
+                <div className="text-[11px] text-blue-700">
+                  {selectedAppointmentForAssign.subject || "Service Appointment"}
+                </div>
+              </div>
+
+              {assignConflictError && (
+                <div className="p-3 bg-red-50 text-red-700 rounded-lg border border-red-200 flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-500" />
+                  <div>
+                    <div className="font-semibold text-xs">Scheduling Conflict</div>
+                    <div className="text-[11px] mt-0.5">{assignConflictError}</div>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">Assigned Technician</label>
+                <select
+                  value={assignModalData.serviceResourceId}
+                  onChange={(e) =>
+                    setAssignModalData({
+                      ...assignModalData,
+                      serviceResourceId: e.target.value,
+                    })
+                  }
+                  className="enterprise-input w-full"
+                >
+                  <option value="">-- No Technician (Unassigned) --</option>
+                  {serviceResources
+                    .filter((r) => r.isActive)
+                    .map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.name} {r.territory || r.location ? `(${r.territory || r.location})` : ""}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Start Time</label>
+                  <input
+                    type="datetime-local"
+                    value={assignModalData.scheduledStartTime}
+                    onChange={(e) =>
+                      setAssignModalData({
+                        ...assignModalData,
+                        scheduledStartTime: e.target.value,
+                      })
+                    }
+                    className="enterprise-input w-full"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">End Time</label>
+                  <input
+                    type="datetime-local"
+                    value={assignModalData.scheduledEndTime}
+                    onChange={(e) =>
+                      setAssignModalData({
+                        ...assignModalData,
+                        scheduledEndTime: e.target.value,
+                      })
+                    }
+                    className="enterprise-input w-full"
+                  />
+                </div>
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-2">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-slate-600 font-medium">Customer Email:</span>
+                  <span className="font-mono text-slate-800 font-semibold">
+                    {customerEmailResolved?.email || "None on file (notification will be skipped)"}
+                  </span>
+                </div>
+                <label className="flex items-center gap-2 text-[11px] text-slate-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={assignModalData.notifyCustomer}
+                    onChange={(e) =>
+                      setAssignModalData({
+                        ...assignModalData,
+                        notifyCustomer: e.target.checked,
+                      })
+                    }
+                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span>Notify customer via email upon assignment / reschedule</span>
+                </label>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAssignModalOpen(false);
+                    setSelectedAppointmentForAssign(null);
+                    setAssignConflictError(null);
+                  }}
+                  className="enterprise-btn-secondary"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={assignAppointmentMutation.isPending}
+                  className="enterprise-btn-primary"
+                >
+                  {assignAppointmentMutation.isPending ? "Saving..." : "Save Assignment"}
                 </button>
               </div>
             </form>

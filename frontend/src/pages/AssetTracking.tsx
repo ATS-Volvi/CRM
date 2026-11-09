@@ -392,6 +392,24 @@ export default function AssetTracking() {
                     <td className="py-3.5 px-4 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <button
+                          onClick={() => {
+                            const params = new URLSearchParams({
+                              action: "new",
+                              type: "Repair",
+                              assetId: asset.id,
+                              accountId: asset.customerId || asset.customer?.id || "",
+                              subject: `Repair & Service: ${asset.name} (${asset.serialNumber || "Machine"})`,
+                            });
+                            navigate(`/field-service?${params.toString()}`);
+                          }}
+                          className="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                          title="Dispatch technician to fix / repair this machine"
+                        >
+                          <Wrench className="w-3.5 h-3.5 text-amber-600" />
+                          <span>Dispatch</span>
+                        </button>
+
+                        <button
                           onClick={() => fetchAssetHistory(asset.id)}
                           className="p-1.5 hover:bg-slate-100 text-slate-600 rounded-lg text-xs font-bold transition-all cursor-pointer"
                           title="View status history log"

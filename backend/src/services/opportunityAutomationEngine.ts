@@ -518,6 +518,63 @@ export async function processOpportunityEvent(event: OpportunityEvent): Promise<
         }
       }
 
+      // Field Service: Gated Installation Work Order creation
+      // Created ONLY if specifically requested (e.g. for Machine Rental / Installation deals)
+      // Never created blindly or for Waste Disposal deals!
+      let createdWorkOrderId: string | undefined;
+      if (payload.createInstallationWorkOrder && sequelize.models.WorkOrder) {
+        try {
+          const count = await sequelize.models.WorkOrder.count();
+          const workOrderNumber = `WO-${String(count + 1).padStart(5, "0")}`;
+          const woId = crypto.randomUUID();
+
+          let primaryContactId = d.contactId || null;
+          if (!primaryContactId && d.accountId && sequelize.models.Contact) {
+            const contact: any = await sequelize.models.Contact.findOne({ where: { accountId: d.accountId } });
+            if (contact) primaryContactId = contact.id;
+          }
+
+          const account = d.account;
+
+          await sequelize.models.WorkOrder.create({
+            id: woId,
+            workOrderNumber,
+            workOrderType: "Installation",
+            status: "New",
+            priority: payload.workOrderPriority || "Medium",
+            subject: `Installation & Setup: ${d.name || "Equipment Rental"}`,
+            description: `On-site equipment delivery & installation for Opportunity #${d.dealNumber || d.name || d.id}. Notes: ${payload.workOrderNotes || "Created upon deal closed won."}`,
+            accountId: d.accountId || null,
+            contactId: primaryContactId,
+            dealId: d.id,
+            assetId: payload.assetId || null,
+            street: payload.street || account?.address || null,
+            city: payload.city || null,
+            state: payload.state || null,
+            postalCode: payload.postalCode || null,
+            country: payload.country || null,
+            ownerId: toValidUuid(actorId) || toValidUuid(d.ownerId) || null,
+            startDate: payload.installationDate ? new Date(payload.installationDate) : null,
+          });
+
+          createdWorkOrderId = woId;
+
+          await sequelize.models.Activity.create({
+            id: crypto.randomUUID(),
+            leadId: d.leadId || null,
+            customerId: d.accountId || null,
+            type: "note",
+            outcome: `Field Service Work Order #${workOrderNumber} drafted for equipment delivery & installation.`,
+            mentioned_user_ids: "[]",
+            pinned: true,
+            createdById: toValidUuid(actorId) || toValidUuid(d.ownerId) || null,
+            direction: "internal"
+          });
+        } catch (woErr: any) {
+          console.warn("Work Order auto-draft notice:", woErr.message);
+        }
+      }
+
       // Notify Sales Rep and Team Leads
       if (d.ownerId) {
         await createNotification({

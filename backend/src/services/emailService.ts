@@ -129,17 +129,19 @@ export const sendEmail = async (
   subject: string,
   htmlContent: string,
   cc?: string[],
-  headers?: Record<string, string>
+  replyToOrHeaders?: string | Record<string, string>
 ) => {
   const apiKey = cleanEnv("MAILGUN_API_KEY", "dummy-key");
   const isDummyKey = !apiKey || apiKey === "dummy-key" || apiKey.startsWith("your_");
 
   const ccSuffix = cc && cc.length > 0 ? `, cc: [${cc.join(", ")}]` : "";
+  const replyTo = typeof replyToOrHeaders === "string" ? replyToOrHeaders : replyToOrHeaders?.["Reply-To"];
+  const replyToSuffix = replyTo ? `, reply-to: "${replyTo}"` : "";
 
   if (isDummyKey) {
     const rawFrom = process.env.MAILGUN_FROM || '"Nexus CRM" <no-reply@inbound.volvitech.com>';
     const from = buildFromHeader(rawFrom);
-    console.log(`[Email Service - Simulated] Dispatching email to: ${to}${ccSuffix}, from: "${from}", subject: "${subject}"`);
+    console.log(`[Email Service - Simulated] Dispatching email to: ${to}${ccSuffix}${replyToSuffix}, from: "${from}", subject: "${subject}"`);
     return {
       id: `<simulated_${Date.now()}@nexus-crm.local>`,
       message: "Queued (simulated/dev mode)",
@@ -159,8 +161,12 @@ export const sendEmail = async (
       html: htmlContent,
     };
     if (cc && cc.length > 0) payload.cc = cc;
-    if (headers) {
-      for (const [k, v] of Object.entries(headers)) {
+    if (typeof replyToOrHeaders === "string") {
+      if (replyToOrHeaders.trim()) {
+        payload["h:Reply-To"] = replyToOrHeaders.trim();
+      }
+    } else if (replyToOrHeaders && typeof replyToOrHeaders === "object") {
+      for (const [k, v] of Object.entries(replyToOrHeaders)) {
         payload[`h:${k}`] = v;
       }
     }

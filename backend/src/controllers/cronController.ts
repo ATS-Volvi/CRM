@@ -10,6 +10,7 @@ import {
 } from "../services/expiryScheduler";
 import { runTemperatureSweep } from "../services/temperatureScheduler";
 import { checkAndSendWeeklyReport } from "../services/scheduledReportService";
+import { processPendingWorkOrderNotifications } from "../services/workOrderNotificationService";
 
 function isAuthorized(req: Request): boolean {
   const cronSecret = process.env.CRON_SECRET;
@@ -38,11 +39,13 @@ export async function runHourlyCron(req: Request, res: Response): Promise<void> 
     const emailsResult = await processScheduledEmails().catch((err: any) => ({ error: err.message }));
     const followUpsResult = await processQuoteFollowUps().catch((err: any) => ({ error: err.message }));
     const connectorsResult = await runPolledConnectors().catch((err: any) => ({ error: err.message }));
+    const workOrderNotifsResult = await processPendingWorkOrderNotifications().catch((err: any) => ({ error: err.message }));
 
     results.checkOverdueTasks = overdueResult || "ok";
     results.processScheduledEmails = emailsResult || "ok";
     results.processQuoteFollowUps = followUpsResult || "ok";
     results.runPolledConnectors = connectorsResult || "ok";
+    results.processWorkOrderNotifications = workOrderNotifsResult || "ok";
 
     res.json({
       status: "success",
@@ -70,11 +73,13 @@ export async function runDailyCron(req: Request, res: Response): Promise<void> {
     const emailsResult = await processScheduledEmails().catch((err: any) => ({ error: err.message }));
     const followUpsResult = await processQuoteFollowUps().catch((err: any) => ({ error: err.message }));
     const connectorsResult = await runPolledConnectors().catch((err: any) => ({ error: err.message }));
+    const workOrderNotifsResult = await processPendingWorkOrderNotifications().catch((err: any) => ({ error: err.message }));
 
     results.checkOverdueTasks = overdueResult || "ok";
     results.processScheduledEmails = emailsResult || "ok";
     results.processQuoteFollowUps = followUpsResult || "ok";
     results.runPolledConnectors = connectorsResult || "ok";
+    results.processWorkOrderNotifications = workOrderNotifsResult || "ok";
 
     // 2. Expirations, Escalations, POs & Reports
     await checkExpiredQuotes().catch((err: any) => { results.checkExpiredQuotes = { error: err.message }; });

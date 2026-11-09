@@ -7,6 +7,7 @@ import { ingestLead } from "../services/leadIngestion";
 import { updateLeadTemperature } from "../services/leadTemperatureService";
 import { autoAssignDeal } from "../services/dealAssignmentEngine";
 import { getLeadAccessLevel } from "../services/handoffAccessService";
+import { verifySignedOptOutToken } from "../services/workOrderNotificationService";
 import crypto from "crypto";
 
 export function buildCampaignAttributionSummary(
@@ -761,8 +762,42 @@ export const deleteLead = async (req: Request, res: Response) => {
 export const renderUnsubscribePage = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const lead = await sequelize.models.Lead.findByPk(String(id));
-    if (!lead) {
+    const rawParam = decodeURIComponent(String(id || "")).trim();
+    if (!rawParam) {
+      return res.status(400).send("Invalid unsubscribe request.");
+    }
+
+    // 1. Check if token is a valid signed opt-out token
+    const tokenEmail = verifySignedOptOutToken(rawParam);
+
+    let targetEmail: string | null = null;
+    let isAlreadyOptedOut = false;
+
+    if (tokenEmail) {
+      targetEmail = tokenEmail;
+      // Check suppression status
+      const EmailSuppression = sequelize.models.EmailSuppression;
+      if (EmailSuppression) {
+        const supp = await EmailSuppression.findOne({ where: { email: targetEmail } });
+        if (supp) isAlreadyOptedOut = true;
+      }
+      const existingLead = await sequelize.models.Lead.findOne({ where: { email: targetEmail } });
+      if (existingLead && (existingLead as any).optedOutEmail) {
+        isAlreadyOptedOut = true;
+      }
+    } else {
+      // 2. Check if valid existing Lead by PK (for backward compatibility with campaign emails)
+      const lead = await sequelize.models.Lead.findByPk(rawParam);
+      if (lead) {
+        targetEmail = (lead as any).email;
+        if ((lead as any).optedOutEmail) {
+          isAlreadyOptedOut = true;
+        }
+      }
+    }
+
+    // If neither a valid signed token nor a valid existing Lead, return generic safe page
+    if (!targetEmail) {
       const genericHtml = `
       <!DOCTYPE html>
       <html>
@@ -788,15 +823,13 @@ export const renderUnsubscribePage = async (req: Request, res: Response) => {
       return res.send(genericHtml);
     }
 
-    const l = lead as any;
-    const emailEscaped = (l.email || "")
+    const emailEscaped = targetEmail
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;");
-    const idEscaped = encodeURIComponent(String(l.id || id || ""))
-      .replace(/["'<>]/g, "");
+    const idEscaped = encodeURIComponent(rawParam).replace(/["'<>]/g, "");
 
-    if (l.optedOutEmail) {
+    if (isAlreadyOptedOut) {
       const alreadyHtml = `
       <!DOCTYPE html>
       <html>
@@ -849,17 +882,42 @@ export const renderUnsubscribePage = async (req: Request, res: Response) => {
       </body>
     </html>
     `;
-    res.send(html);
+    return res.send(html);
   } catch (error: any) {
-    res.status(500).send("An error occurred loading the page.");
+    if (typeof res.status === "function") {
+      return res.status(500).send("An error occurred loading the page.");
+    }
+    return res.send("An error occurred loading the page.");
   }
 };
 
 export const handleUnsubscribe = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const lead = await sequelize.models.Lead.findByPk(String(id));
-    if (!lead) {
+    const rawParam = decodeURIComponent(String(id || "")).trim();
+    if (!rawParam) {
+      return res.status(400).send("Invalid unsubscribe request.");
+    }
+
+    // 1. Check if token is a valid signed opt-out token
+    const tokenEmail = verifySignedOptOutToken(rawParam);
+
+    let targetEmail: string | null = null;
+    let lead: any = null;
+
+    if (tokenEmail) {
+      targetEmail = tokenEmail;
+      lead = await sequelize.models.Lead.findOne({ where: { email: targetEmail } });
+    } else {
+      // 2. Check if valid existing Lead by PK
+      lead = await sequelize.models.Lead.findByPk(rawParam);
+      if (lead) {
+        targetEmail = (lead as any).email;
+      }
+    }
+
+    // If neither a valid signed token nor a valid existing Lead, return generic success page (no leakage)
+    if (!targetEmail) {
       const genericSuccessHtml = `
       <!DOCTYPE html>
       <html>
@@ -885,18 +943,31 @@ export const handleUnsubscribe = async (req: Request, res: Response) => {
       return res.send(genericSuccessHtml);
     }
 
-    const l = lead as any;
-    if (!l.optedOutEmail) {
-      l.optedOutEmail = true;
-      await l.save();
+    // Record suppression in EmailSuppressions table
+    const EmailSuppression = sequelize.models.EmailSuppression;
+    if (EmailSuppression) {
+      await EmailSuppression.findOrCreate({
+        where: { email: targetEmail.toLowerCase() },
+        defaults: {
+          id: crypto.randomUUID(),
+          email: targetEmail.toLowerCase(),
+          reason: "customer_opt_out",
+          source: tokenEmail ? "work_order_feedback" : "lead_unsubscribe",
+        },
+      });
+    }
+
+    if (lead && !lead.optedOutEmail) {
+      lead.optedOutEmail = true;
+      await lead.save();
 
       try {
         await sequelize.models.Activity.create({
           id: crypto.randomUUID(),
-          leadId: l.id,
+          leadId: lead.id,
           type: "email",
           notes: "Client confirmed Unsubscribe. All future marketing/templated emails are now blocked.",
-          direction: "internal"
+          direction: "internal",
         });
       } catch (actErr: any) {
         console.error("Error logging unsubscribe activity:", actErr);
@@ -904,10 +975,10 @@ export const handleUnsubscribe = async (req: Request, res: Response) => {
     }
 
     // Update any CampaignRecipients for this lead with unsubscribedAt timestamp
-    if (sequelize.models.CampaignRecipient) {
+    if (lead && sequelize.models.CampaignRecipient) {
       await sequelize.models.CampaignRecipient.update(
         { unsubscribedAt: new Date() },
-        { where: { leadId: l.id, unsubscribedAt: null } }
+        { where: { leadId: lead.id, unsubscribedAt: null } }
       ).catch((err: any) => console.error("Error updating campaign recipients unsubscribe:", err));
     }
 
@@ -932,10 +1003,13 @@ export const handleUnsubscribe = async (req: Request, res: Response) => {
       </body>
     </html>
     `;
-    res.send(html);
+    return res.send(html);
   } catch (error: any) {
     console.error("Error handling unsubscribe:", error);
-    res.status(500).send("An error occurred processing your request.");
+    if (typeof res.status === "function") {
+      return res.status(500).send("An error occurred processing your request.");
+    }
+    return res.send("An error occurred processing your request.");
   }
 };
 
