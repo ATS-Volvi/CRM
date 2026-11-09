@@ -125,6 +125,7 @@ export default function SalespersonTracker() {
   const [filterKpiTeam, setFilterKpiTeam] = useState<string>("All");
 
   const [orgSearch, setOrgSearch] = useState("");
+  const [orgRoleFilter, setOrgRoleFilter] = useState<"all" | "tech" | "sales" | "management">("all");
   const [selectedEmployee, setSelectedEmployee] = useState<any | null>(null);
 
   const [expandedTeams, setExpandedTeams] = useState<Set<string>>(new Set());
@@ -373,15 +374,39 @@ export default function SalespersonTracker() {
   };
 
   const filteredOrgEmployees = useMemo(() => {
-    const q = orgSearch.toLowerCase();
-    if (!q) return orgChartEmployees;
-    return orgChartEmployees.filter((e: any) =>
-      e.name.toLowerCase().includes(q) ||
-      (e.email || "").toLowerCase().includes(q) ||
-      (e.role || "").toLowerCase().includes(q) ||
-      (e.department || "").toLowerCase().includes(q)
-    );
-  }, [orgChartEmployees, orgSearch]);
+    const q = orgSearch.toLowerCase().trim();
+    return orgChartEmployees.filter((e: any) => {
+      // Role filter pill
+      if (orgRoleFilter === "tech") {
+        const isTech = e.role === "technician" || Boolean(e.serviceResource);
+        if (!isTech) return false;
+      } else if (orgRoleFilter === "sales") {
+        if (!["sales_rep", "senior_ae"].includes(e.role)) return false;
+      } else if (orgRoleFilter === "management") {
+        if (!["admin", "director", "manager", "sales_manager", "ops_manager", "site_manager"].includes(e.role)) return false;
+      }
+
+      if (!q) return true;
+
+      const techSkills: string[] = e.serviceResource?.skills || [];
+      const techCerts: string[] = e.serviceResource?.certifications || [];
+      const techType = e.serviceResource?.resourceType || "";
+      const techAttendance = e.serviceResource?.attendanceStatus || "";
+
+      return (
+        e.name.toLowerCase().includes(q) ||
+        (e.email || "").toLowerCase().includes(q) ||
+        (e.role || "").toLowerCase().includes(q) ||
+        (ROLE_LABELS[e.role] || "").toLowerCase().includes(q) ||
+        (e.department || "").toLowerCase().includes(q) ||
+        (e.territory || "").toLowerCase().includes(q) ||
+        techType.toLowerCase().includes(q) ||
+        techAttendance.toLowerCase().includes(q) ||
+        techSkills.some((sk: string) => sk.toLowerCase().includes(q)) ||
+        techCerts.some((c: string) => c.toLowerCase().includes(q))
+      );
+    });
+  }, [orgChartEmployees, orgSearch, orgRoleFilter]);
 
   const orgTree = useMemo(() => {
     const empMap = new Map<string, any>();
@@ -1080,19 +1105,72 @@ export default function SalespersonTracker() {
       {/* TAB 2: ORG CHART & DIRECTORY */}
       {activeTab === "orgchart" && (
         <div className="space-y-6">
-          <div className="flex flex-wrap gap-3 items-center justify-between bg-surface-container-lowest border border-outline rounded-xl p-4 shadow-2xs">
-            <div className="relative flex-1 min-w-[240px]">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant w-4 h-4" />
-              <input
-                type="text"
-                value={orgSearch}
-                onChange={e => setOrgSearch(e.target.value)}
-                placeholder="Search employees by name, role, department or email..."
-                className="w-full pl-10 pr-4 py-2 bg-surface border border-outline rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-primary/40"
-              />
+          <div className="bg-surface-container-lowest border border-outline rounded-xl p-4 shadow-2xs space-y-3">
+            <div className="flex flex-wrap gap-3 items-center justify-between">
+              <div className="relative flex-1 min-w-[240px]">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant w-4 h-4" />
+                <input
+                  type="text"
+                  value={orgSearch}
+                  onChange={e => setOrgSearch(e.target.value)}
+                  placeholder="Search employees by name, role, skills, equipment or email..."
+                  className="w-full pl-10 pr-4 py-2 bg-surface border border-outline rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-primary/40"
+                />
+              </div>
+              <div className="text-xs text-on-surface-variant font-medium">
+                Showing <strong>{filteredOrgEmployees.length}</strong> of <strong>{orgChartEmployees.length}</strong> total employees
+              </div>
             </div>
-            <div className="text-xs text-on-surface-variant font-medium">
-              Showing <strong>{filteredOrgEmployees.length}</strong> of <strong>{orgChartEmployees.length}</strong> total employees
+
+            <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-outline-variant/60">
+              <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mr-1">Filter by Role:</span>
+              <button
+                type="button"
+                onClick={() => setOrgRoleFilter("all")}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  orgRoleFilter === "all"
+                    ? "bg-slate-900 text-white shadow-2xs"
+                    : "bg-surface text-on-surface-variant hover:bg-surface-container-low border border-outline-variant"
+                }`}
+              >
+                All ({orgChartEmployees.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setOrgRoleFilter("tech")}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  orgRoleFilter === "tech"
+                    ? "bg-indigo-600 text-white shadow-2xs"
+                    : "bg-surface text-indigo-700 hover:bg-indigo-50 border border-indigo-200"
+                }`}
+              >
+                <Wrench className="w-3.5 h-3.5" />
+                Field Technicians (
+                {orgChartEmployees.filter((e: any) => e.role === "technician" || Boolean(e.serviceResource)).length}
+                )
+              </button>
+              <button
+                type="button"
+                onClick={() => setOrgRoleFilter("sales")}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  orgRoleFilter === "sales"
+                    ? "bg-blue-600 text-white shadow-2xs"
+                    : "bg-surface text-on-surface-variant hover:bg-surface-container-low border border-outline-variant"
+                }`}
+              >
+                Sales Reps
+              </button>
+              <button
+                type="button"
+                onClick={() => setOrgRoleFilter("management")}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  orgRoleFilter === "management"
+                    ? "bg-purple-600 text-white shadow-2xs"
+                    : "bg-surface text-on-surface-variant hover:bg-surface-container-low border border-outline-variant"
+                }`}
+              >
+                Managers & Admins
+              </button>
             </div>
           </div>
 
@@ -1487,6 +1565,12 @@ function OrgTreeNode({ node, level = 0, onSelect }: { node: any; level?: number;
               <span className="px-2.5 py-0.5 text-[10px] font-extrabold rounded-full bg-purple-100 text-purple-700 border border-purple-200 uppercase tracking-wider">
                 {roleLabel(node.role, node.tier)}
               </span>
+              {(node.role === "technician" || node.serviceResource) && (
+                <span className="px-2 py-0.5 text-[9px] font-extrabold rounded-full bg-indigo-100 text-indigo-800 border border-indigo-200 flex items-center gap-1">
+                  <Wrench className="w-2.5 h-2.5 text-indigo-600" />
+                  {node.serviceResource?.attendanceStatus ? `Tech: ${node.serviceResource.attendanceStatus}` : "Technician"}
+                </span>
+              )}
               {hasChildren && (
                 <span className="px-2 py-0.5 text-[9px] font-bold bg-primary/10 text-primary rounded-full">
                   {node.children.length} Report{node.children.length !== 1 ? "s" : ""}
