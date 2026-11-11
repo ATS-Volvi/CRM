@@ -6,7 +6,8 @@ import { useAuth } from "../context/AuthContext";
 import {
   Users, Search, Plus, X, MapPin, Building2, ChevronDown, Crown,
   UserCheck, BarChart3, ChevronRight, Mail, UserPlus,
-  ShieldCheck, Target, Wrench, ClipboardCheck, Briefcase
+  ShieldCheck, Target, Wrench, ClipboardCheck, Briefcase,
+  Calendar, CalendarDays, Trash2, Edit3, Save, Clock, ExternalLink
 } from "lucide-react";
 import { formatCurrency } from "../utils/currency";
 import KpiAttainmentTable from "../components/KpiAttainmentTable";
@@ -152,6 +153,26 @@ export default function SalespersonTracker() {
   const [orgRoleFilter, setOrgRoleFilter] = useState<DivisionCategory>("all");
   const [selectedEmployee, setSelectedEmployee] = useState<any | null>(null);
 
+  // In-drawer technician qualifications edit mode
+  const [isEditingQualifications, setIsEditingQualifications] = useState(false);
+  const [qualForm, setQualForm] = useState({
+    skills: "",
+    certifications: "",
+    experienceYears: 0,
+    previousExperience: "",
+    territory: "",
+    attendanceStatus: "On Duty"
+  });
+
+  // In-drawer planned absence / leave scheduler
+  const [isAddingLeave, setIsAddingLeave] = useState(false);
+  const [leaveForm, setLeaveForm] = useState({
+    startDate: "",
+    endDate: "",
+    leaveType: "Vacation",
+    leaveReason: ""
+  });
+
   const [expandedTeams, setExpandedTeams] = useState<Set<string>>(new Set());
   const [teamSubTabs, setTeamSubTabs] = useState<Record<string, "members" | "kpi">>({});
 
@@ -253,6 +274,130 @@ export default function SalespersonTracker() {
     } catch (err) {
       console.error(err);
       queryClient.invalidateQueries({ queryKey: ["salespersonsPerformance"] });
+    }
+  };
+
+  useEffect(() => {
+    if (selectedEmployee) {
+      setIsEditingQualifications(false);
+      setIsAddingLeave(false);
+      const res = selectedEmployee.serviceResource;
+      setQualForm({
+        skills: Array.isArray(res?.skills) ? res.skills.join(", ") : "",
+        certifications: Array.isArray(res?.certifications) ? res.certifications.join(", ") : "",
+        experienceYears: res?.experienceYearsWithCompany || 0,
+        previousExperience: res?.previousExperience || "",
+        territory: res?.location || selectedEmployee.territory || "",
+        attendanceStatus: res?.attendanceStatus || "On Duty"
+      });
+      setLeaveForm({
+        startDate: "",
+        endDate: "",
+        leaveType: "Vacation",
+        leaveReason: ""
+      });
+    }
+  }, [selectedEmployee]);
+
+  const handleSaveQualifications = async () => {
+    if (!selectedEmployee) return;
+    try {
+      await apiClient(`/api/v1/salespersons/${selectedEmployee.id}/capacity`, {
+        method: "PUT",
+        body: JSON.stringify({
+          skills: qualForm.skills,
+          certifications: qualForm.certifications,
+          experienceYearsWithCompany: Number(qualForm.experienceYears),
+          previousExperience: qualForm.previousExperience,
+          territory: qualForm.territory,
+          attendanceStatus: qualForm.attendanceStatus
+        })
+      });
+      setSelectedEmployee((prev: any) => ({
+        ...prev,
+        territory: qualForm.territory,
+        serviceResource: {
+          ...(prev?.serviceResource || {}),
+          skills: qualForm.skills.split(",").map(s => s.trim()).filter(Boolean),
+          certifications: qualForm.certifications.split(",").map(c => c.trim()).filter(Boolean),
+          experienceYearsWithCompany: Number(qualForm.experienceYears),
+          previousExperience: qualForm.previousExperience,
+          location: qualForm.territory,
+          attendanceStatus: qualForm.attendanceStatus
+        }
+      }));
+      setIsEditingQualifications(false);
+      queryClient.invalidateQueries({ queryKey: ["orgChartEmployees"] });
+    } catch (err: any) {
+      alert("Failed to save qualifications: " + err.message);
+    }
+  };
+
+  const handleScheduleLeave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedEmployee || !leaveForm.startDate || !leaveForm.endDate) return;
+    try {
+      await apiClient(`/api/v1/salespersons/${selectedEmployee.id}/capacity`, {
+        method: "PUT",
+        body: JSON.stringify({
+          leaveStartDate: leaveForm.startDate,
+          leaveEndDate: leaveForm.endDate,
+          leaveType: leaveForm.leaveType,
+          leaveReason: leaveForm.leaveReason
+        })
+      });
+      setIsAddingLeave(false);
+      setLeaveForm({ startDate: "", endDate: "", leaveType: "Vacation", leaveReason: "" });
+      const res = await apiClient("/api/v1/salespersons/org-chart");
+      if (res.ok) {
+        const list = await res.json();
+        const found = list.find((e: any) => e.id === selectedEmployee.id);
+        if (found) setSelectedEmployee(found);
+      }
+      queryClient.invalidateQueries({ queryKey: ["orgChartEmployees"] });
+    } catch (err: any) {
+      alert("Failed to schedule leave: " + err.message);
+    }
+  };
+
+  const handleDeleteAbsence = async (absenceId: string) => {
+    if (!selectedEmployee) return;
+    try {
+      await apiClient(`/api/v1/salespersons/${selectedEmployee.id}/capacity`, {
+        method: "PUT",
+        body: JSON.stringify({ removeAbsenceId: absenceId })
+      });
+      setSelectedEmployee((prev: any) => ({
+        ...prev,
+        serviceResource: {
+          ...(prev?.serviceResource || {}),
+          absences: (prev?.serviceResource?.absences || []).filter((a: any) => a.id !== absenceId)
+        }
+      }));
+      queryClient.invalidateQueries({ queryKey: ["orgChartEmployees"] });
+    } catch (err: any) {
+      alert("Failed to remove absence: " + err.message);
+    }
+  };
+
+  const handleClearInspectorLeave = async () => {
+    if (!selectedEmployee) return;
+    try {
+      await apiClient(`/api/v1/salespersons/${selectedEmployee.id}/capacity`, {
+        method: "PUT",
+        body: JSON.stringify({ clearInspectorLeave: true })
+      });
+      setSelectedEmployee((prev: any) => ({
+        ...prev,
+        inspectorProfile: {
+          ...(prev?.inspectorProfile || {}),
+          onLeaveFrom: null,
+          onLeaveTo: null
+        }
+      }));
+      queryClient.invalidateQueries({ queryKey: ["orgChartEmployees"] });
+    } catch (err: any) {
+      alert("Failed to clear leave: " + err.message);
     }
   };
 
@@ -1437,214 +1582,589 @@ export default function SalespersonTracker() {
 
               {/* Field Service Qualifications & Duty Status Section (For Technicians) */}
               {(selectedEmployee.role === "technician" || selectedEmployee.serviceResource) && (
-                <div className="space-y-3 bg-gradient-to-br from-indigo-50/90 to-purple-50/70 p-4 rounded-xl border border-indigo-200">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-[10px] font-extrabold uppercase text-indigo-900 tracking-wider flex items-center gap-1.5">
-                      <Wrench className="w-3.5 h-3.5 text-indigo-600" /> Field Service Qualifications
-                    </h4>
-                    <span className={`px-2 py-0.5 text-[9px] font-extrabold rounded uppercase ${
-                      selectedEmployee.serviceResource?.attendanceStatus === "On Leave"
-                        ? "bg-amber-100 text-amber-800 border border-amber-300"
-                        : selectedEmployee.serviceResource?.attendanceStatus === "Off Shift"
-                        ? "bg-slate-100 text-slate-700 border border-slate-300"
-                        : "bg-emerald-100 text-emerald-800 border border-emerald-300"
-                    }`}>
-                      {selectedEmployee.serviceResource?.attendanceStatus === "On Leave"
-                        ? "🟠 On Leave"
-                        : selectedEmployee.serviceResource?.attendanceStatus === "Off Shift"
-                        ? "⚪ Off Shift"
-                        : "🟢 On Duty"}
-                    </span>
-                  </div>
-
-                  {/* Skills badges */}
-                  <div className="space-y-1">
-                    <div className="text-[10px] font-bold text-slate-600 uppercase">Certified Skills</div>
-                    <div className="flex flex-wrap gap-1">
-                      {selectedEmployee.serviceResource?.skills && selectedEmployee.serviceResource.skills.length > 0 ? (
-                        selectedEmployee.serviceResource.skills.map((sk: string, i: number) => (
-                          <span key={i} className="px-2 py-0.5 rounded text-[10px] font-bold bg-white text-indigo-800 border border-indigo-200">
-                            {sk}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="text-[11px] text-slate-400 italic">No skills recorded</span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Certifications badges */}
-                  {selectedEmployee.serviceResource?.certifications && selectedEmployee.serviceResource.certifications.length > 0 && (
-                    <div className="space-y-1">
-                      <div className="text-[10px] font-bold text-slate-600 uppercase">Certifications & Licenses</div>
-                      <div className="flex flex-wrap gap-1">
-                        {selectedEmployee.serviceResource.certifications.map((cert: string, i: number) => (
-                          <span key={i} className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-900 border border-indigo-300">
-                            🏅 {cert}
-                          </span>
-                        ))}
+                <div className="space-y-4">
+                  {/* Qualifications Card */}
+                  <div className="space-y-3 bg-gradient-to-br from-indigo-50/90 to-purple-50/70 p-4 rounded-xl border border-indigo-200">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-[10px] font-extrabold uppercase text-indigo-900 tracking-wider flex items-center gap-1.5">
+                        <Wrench className="w-3.5 h-3.5 text-indigo-600" /> Field Service Qualifications
+                      </h4>
+                      <div className="flex items-center gap-2">
+                        {["admin", "director", "manager"].includes(currentUser?.role || "") && (
+                          <button
+                            type="button"
+                            onClick={() => setIsEditingQualifications(!isEditingQualifications)}
+                            className="px-2 py-0.5 text-[10px] font-bold rounded bg-indigo-100 text-indigo-800 hover:bg-indigo-200 flex items-center gap-1 transition-colors"
+                          >
+                            <Edit3 className="w-2.5 h-2.5" />
+                            {isEditingQualifications ? "Cancel" : "Edit"}
+                          </button>
+                        )}
+                        <span className={`px-2 py-0.5 text-[9px] font-extrabold rounded uppercase ${
+                          selectedEmployee.serviceResource?.attendanceStatus === "On Leave"
+                            ? "bg-amber-100 text-amber-800 border border-amber-300"
+                            : selectedEmployee.serviceResource?.attendanceStatus === "Off Shift"
+                            ? "bg-slate-100 text-slate-700 border border-slate-300"
+                            : "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                        }`}>
+                          {selectedEmployee.serviceResource?.attendanceStatus === "On Leave"
+                            ? "🟠 On Leave"
+                            : selectedEmployee.serviceResource?.attendanceStatus === "Off Shift"
+                            ? "⚪ Off Shift"
+                            : "🟢 On Duty"}
+                        </span>
                       </div>
                     </div>
-                  )}
 
-                  <div className="grid grid-cols-2 gap-2 pt-1 text-xs text-slate-700">
-                    <div>
-                      <span className="text-[10px] text-slate-500 uppercase font-bold block">Company Experience</span>
-                      <span className="font-semibold text-slate-800">
-                        {selectedEmployee.serviceResource?.experienceYearsWithCompany || 0} years
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-slate-500 uppercase font-bold block">Operating Territory</span>
-                      <span className="font-semibold text-slate-800">
-                        {selectedEmployee.serviceResource?.location || selectedEmployee.territory || "Unassigned"}
-                      </span>
-                    </div>
+                    {isEditingQualifications ? (
+                      <div className="space-y-3 pt-2 bg-white/80 p-3 rounded-lg border border-indigo-200 text-xs">
+                        <div>
+                          <label className="block text-[10px] font-bold text-indigo-900 uppercase mb-1">
+                            Skills & Specialties (comma-separated)
+                          </label>
+                          <input
+                            type="text"
+                            value={qualForm.skills}
+                            onChange={(e) => setQualForm({ ...qualForm, skills: e.target.value })}
+                            className="w-full bg-white border border-indigo-200 rounded p-1.5 font-medium"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-indigo-900 uppercase mb-1">
+                            Certifications / Licenses (comma-separated)
+                          </label>
+                          <input
+                            type="text"
+                            value={qualForm.certifications}
+                            onChange={(e) => setQualForm({ ...qualForm, certifications: e.target.value })}
+                            className="w-full bg-white border border-indigo-200 rounded p-1.5 font-medium"
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-[10px] font-bold text-indigo-900 uppercase mb-1">
+                              Years Experience
+                            </label>
+                            <input
+                              type="number"
+                              step="0.5"
+                              value={qualForm.experienceYears}
+                              onChange={(e) => setQualForm({ ...qualForm, experienceYears: Number(e.target.value) })}
+                              className="w-full bg-white border border-indigo-200 rounded p-1.5 font-medium"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-indigo-900 uppercase mb-1">
+                              Duty Status
+                            </label>
+                            <select
+                              value={qualForm.attendanceStatus}
+                              onChange={(e) => setQualForm({ ...qualForm, attendanceStatus: e.target.value })}
+                              className="w-full bg-white border border-indigo-200 rounded p-1.5 font-medium cursor-pointer"
+                            >
+                              <option value="On Duty">🟢 On Duty</option>
+                              <option value="On Leave">🟠 On Leave</option>
+                              <option value="Off Shift">⚪ Off Shift</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-indigo-900 uppercase mb-1">
+                            Territory / Service Zone
+                          </label>
+                          <input
+                            type="text"
+                            value={qualForm.territory}
+                            onChange={(e) => setQualForm({ ...qualForm, territory: e.target.value })}
+                            placeholder="e.g. North Zone, Dubai"
+                            className="w-full bg-white border border-indigo-200 rounded p-1.5 font-medium"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-indigo-900 uppercase mb-1">
+                            Previous Background
+                          </label>
+                          <textarea
+                            rows={2}
+                            value={qualForm.previousExperience}
+                            onChange={(e) => setQualForm({ ...qualForm, previousExperience: e.target.value })}
+                            className="w-full bg-white border border-indigo-200 rounded p-1.5 font-medium"
+                          />
+                        </div>
+                        <div className="flex justify-end gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => setIsEditingQualifications(false)}
+                            className="px-3 py-1 text-xs border border-indigo-200 rounded text-indigo-800"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleSaveQualifications}
+                            className="px-3 py-1 text-xs font-bold bg-indigo-600 text-white rounded flex items-center gap-1 shadow-xs hover:bg-indigo-700"
+                          >
+                            <Save className="w-3 h-3" /> Save Changes
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        {/* Skills badges */}
+                        <div className="space-y-1">
+                          <div className="text-[10px] font-bold text-slate-600 uppercase">Certified Skills</div>
+                          <div className="flex flex-wrap gap-1">
+                            {selectedEmployee.serviceResource?.skills && selectedEmployee.serviceResource.skills.length > 0 ? (
+                              selectedEmployee.serviceResource.skills.map((sk: string, i: number) => (
+                                <span key={i} className="px-2 py-0.5 rounded text-[10px] font-bold bg-white text-indigo-800 border border-indigo-200">
+                                  {sk}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-[11px] text-slate-400 italic">No skills recorded</span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Certifications badges */}
+                        {selectedEmployee.serviceResource?.certifications && selectedEmployee.serviceResource.certifications.length > 0 && (
+                          <div className="space-y-1">
+                            <div className="text-[10px] font-bold text-slate-600 uppercase">Certifications & Licenses</div>
+                            <div className="flex flex-wrap gap-1">
+                              {selectedEmployee.serviceResource.certifications.map((cert: string, i: number) => (
+                                <span key={i} className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-900 border border-indigo-300">
+                                  🏅 {cert}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-2 gap-2 pt-1 text-xs text-slate-700">
+                          <div>
+                            <span className="text-[10px] text-slate-500 uppercase font-bold block">Company Experience</span>
+                            <span className="font-semibold text-slate-800">
+                              {selectedEmployee.serviceResource?.experienceYearsWithCompany || 0} years
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-slate-500 uppercase font-bold block">Operating Territory</span>
+                            <span className="font-semibold text-slate-800">
+                              {selectedEmployee.serviceResource?.location || selectedEmployee.territory || "Unassigned"}
+                            </span>
+                          </div>
+                        </div>
+
+                        {selectedEmployee.serviceResource?.previousExperience && (
+                          <div className="pt-1">
+                            <span className="text-[10px] text-slate-500 uppercase font-bold block">Previous Background</span>
+                            <p className="text-[11px] text-slate-700 italic bg-white/70 p-2 rounded border border-indigo-100 mt-0.5">
+                              {selectedEmployee.serviceResource.previousExperience}
+                            </p>
+                          </div>
+                        )}
+                      </>
+                    )}
                   </div>
 
-                  {selectedEmployee.serviceResource?.previousExperience && (
-                    <div className="pt-1">
-                      <span className="text-[10px] text-slate-500 uppercase font-bold block">Previous Background</span>
-                      <p className="text-[11px] text-slate-700 italic bg-white/70 p-2 rounded border border-indigo-100 mt-0.5">
-                        {selectedEmployee.serviceResource.previousExperience}
-                      </p>
+                  {/* Planned Leaves & Holidays Calendar Section */}
+                  <div className="space-y-2 bg-gradient-to-br from-indigo-50/50 to-blue-50/50 p-4 rounded-xl border border-indigo-200">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-[10px] font-extrabold uppercase text-indigo-900 tracking-wider flex items-center gap-1.5">
+                        <CalendarDays className="w-3.5 h-3.5 text-indigo-600" /> Planned Leaves & Absence Window
+                      </h4>
+                      {["admin", "director", "manager"].includes(currentUser?.role || "") && (
+                        <button
+                          type="button"
+                          onClick={() => setIsAddingLeave(!isAddingLeave)}
+                          className="px-2 py-0.5 text-[10px] font-bold rounded bg-indigo-100 text-indigo-800 hover:bg-indigo-200 transition-colors"
+                        >
+                          {isAddingLeave ? "Cancel" : "+ Schedule Leave"}
+                        </button>
+                      )}
                     </div>
-                  )}
 
-                  {/* Manager Controls: Quick Toggle Attendance / Duty Status */}
-                  {["admin", "director", "manager"].includes(currentUser?.role || "") && (
-                    <div className="pt-2 border-t border-indigo-200/60 space-y-2">
-                      <label className="block text-[10px] font-bold text-indigo-950 uppercase">Update Duty / Attendance Status</label>
-                      <select
-                        value={selectedEmployee.serviceResource?.attendanceStatus || "On Duty"}
-                        onChange={async (e) => {
-                          const newStatus = e.target.value;
-                          try {
-                            await apiClient(`/api/v1/salespersons/${selectedEmployee.id}/capacity`, {
-                              method: "PUT",
-                              body: JSON.stringify({ attendanceStatus: newStatus })
-                            });
-                            setSelectedEmployee({
-                              ...selectedEmployee,
-                              serviceResource: {
-                                ...(selectedEmployee.serviceResource || {}),
-                                attendanceStatus: newStatus
-                              }
-                            });
-                            queryClient.invalidateQueries({ queryKey: ["orgChartEmployees"] });
-                          } catch (err: any) {
-                            alert("Failed to update status: " + err.message);
-                          }
-                        }}
-                        className="w-full bg-white border border-indigo-200 rounded-lg p-2 text-xs font-bold cursor-pointer"
+                    {/* Active Absences List */}
+                    {selectedEmployee.serviceResource?.absences && selectedEmployee.serviceResource.absences.length > 0 ? (
+                      <div className="space-y-1.5 pt-1">
+                        {selectedEmployee.serviceResource.absences.map((abs: any) => (
+                          <div key={abs.id} className="flex items-center justify-between p-2 rounded-lg bg-white border border-indigo-100 text-xs">
+                            <div>
+                              <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                                <span className="px-1.5 py-0.2 text-[9px] bg-amber-100 text-amber-800 rounded font-semibold uppercase">
+                                  {abs.type || "Leave"}
+                                </span>
+                                <span>
+                                  {new Date(abs.startDate).toLocaleDateString([], { month: "short", day: "numeric" })} – {new Date(abs.endDate).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}
+                                </span>
+                              </div>
+                              {abs.reason && <p className="text-[11px] text-slate-500 mt-0.5 italic">{abs.reason}</p>}
+                            </div>
+                            {["admin", "director", "manager"].includes(currentUser?.role || "") && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteAbsence(abs.id)}
+                                title="Remove Leave Record"
+                                className="p-1 text-slate-400 hover:text-error transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-slate-400 italic">No scheduled upcoming leaves recorded. Available for auto-dispatch.</p>
+                    )}
+
+                    {/* Schedule Leave Form */}
+                    {isAddingLeave && (
+                      <form onSubmit={handleScheduleLeave} className="space-y-2 pt-2 bg-white/90 p-3 rounded-lg border border-indigo-200 text-xs">
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-[10px] font-bold text-indigo-900 uppercase mb-1">Start Date *</label>
+                            <input
+                              type="date"
+                              required
+                              value={leaveForm.startDate}
+                              onChange={(e) => setLeaveForm({ ...leaveForm, startDate: e.target.value })}
+                              className="w-full bg-white border border-indigo-200 rounded p-1 text-xs"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-indigo-900 uppercase mb-1">End Date *</label>
+                            <input
+                              type="date"
+                              required
+                              value={leaveForm.endDate}
+                              onChange={(e) => setLeaveForm({ ...leaveForm, endDate: e.target.value })}
+                              className="w-full bg-white border border-indigo-200 rounded p-1 text-xs"
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-[10px] font-bold text-indigo-900 uppercase mb-1">Leave Type</label>
+                            <select
+                              value={leaveForm.leaveType}
+                              onChange={(e) => setLeaveForm({ ...leaveForm, leaveType: e.target.value })}
+                              className="w-full bg-white border border-indigo-200 rounded p-1 text-xs"
+                            >
+                              <option value="Vacation">Vacation / Annual</option>
+                              <option value="Sick">Sick / Medical</option>
+                              <option value="Personal">Personal Leave</option>
+                              <option value="Training">Field Training</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-indigo-900 uppercase mb-1">Reason / Notes</label>
+                            <input
+                              type="text"
+                              value={leaveForm.leaveReason}
+                              onChange={(e) => setLeaveForm({ ...leaveForm, leaveReason: e.target.value })}
+                              placeholder="e.g. Annual holiday"
+                              className="w-full bg-white border border-indigo-200 rounded p-1 text-xs"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex justify-end gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => setIsAddingLeave(false)}
+                            className="px-2.5 py-1 text-xs border border-indigo-200 rounded text-indigo-800"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="submit"
+                            className="px-3 py-1 text-xs font-bold bg-indigo-600 text-white rounded shadow-xs hover:bg-indigo-700"
+                          >
+                            Save Leave
+                          </button>
+                        </div>
+                      </form>
+                    )}
+                  </div>
+
+                  {/* Active Dispatches & Service Appointments Card */}
+                  <div className="space-y-2 bg-gradient-to-br from-indigo-50/50 to-purple-50/50 p-4 rounded-xl border border-indigo-200">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-[10px] font-extrabold uppercase text-indigo-900 tracking-wider flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-indigo-600" /> Active Dispatches ({selectedEmployee.serviceResource?.activeAppointments?.length || 0})
+                      </h4>
+                      <button
+                        type="button"
+                        onClick={() => navigate("/work-orders")}
+                        className="text-[10px] font-bold text-indigo-600 hover:underline flex items-center gap-1"
                       >
-                        <option value="On Duty">🟢 On Duty (Available for Dispatch)</option>
-                        <option value="On Leave">🟠 On Leave (Holiday / Medical)</option>
-                        <option value="Off Shift">⚪ Off Shift</option>
-                      </select>
+                        All Work Orders <ExternalLink className="w-2.5 h-2.5" />
+                      </button>
                     </div>
-                  )}
+
+                    {selectedEmployee.serviceResource?.activeAppointments && selectedEmployee.serviceResource.activeAppointments.length > 0 ? (
+                      <div className="space-y-2 pt-1">
+                        {selectedEmployee.serviceResource.activeAppointments.map((apt: any) => (
+                          <div
+                            key={apt.id}
+                            onClick={() => navigate("/work-orders")}
+                            className="p-2.5 bg-white rounded-lg border border-indigo-100 hover:border-indigo-400 transition-all cursor-pointer text-xs"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-indigo-900">
+                                {apt.appointmentNumber || "Service Appointment"}
+                              </span>
+                              <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-indigo-100 text-indigo-800 uppercase">
+                                {apt.status}
+                              </span>
+                            </div>
+                            {apt.workOrder && (
+                              <p className="text-[11px] text-slate-700 font-medium mt-1 truncate">
+                                <strong>{apt.workOrder.workOrderNumber}:</strong> {apt.workOrder.subject}
+                              </p>
+                            )}
+                            {apt.scheduledStartTime && (
+                              <p className="text-[10px] text-slate-500 mt-0.5 flex items-center gap-1">
+                                <Calendar className="w-2.5 h-2.5 text-indigo-500" />
+                                {new Date(apt.scheduledStartTime).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-slate-400 italic">No active dispatched service appointments currently assigned.</p>
+                    )}
+                  </div>
                 </div>
               )}
 
               {/* Field Inspector & Site Feasibility Section */}
               {(selectedEmployee.role === "site_manager" || Boolean(selectedEmployee.inspectorProfile)) && (
-                <div className="space-y-3 bg-gradient-to-br from-amber-50/90 to-orange-50/70 p-4 rounded-xl border border-amber-200">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-[10px] font-extrabold uppercase text-amber-950 tracking-wider flex items-center gap-1.5">
-                      <ClipboardCheck className="w-3.5 h-3.5 text-amber-600" /> Site Feasibility & Inspection
-                    </h4>
-                    <span className={`px-2 py-0.5 text-[9px] font-extrabold rounded uppercase ${
-                      selectedEmployee.inspectorProfile?.isAvailable !== false
-                        ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
-                        : "bg-amber-100 text-amber-800 border border-amber-300"
-                    }`}>
-                      {selectedEmployee.inspectorProfile?.isAvailable !== false ? "🟢 Available" : "🟠 Unavailable"}
-                    </span>
-                  </div>
+                <div className="space-y-4">
+                  <div className="space-y-3 bg-gradient-to-br from-amber-50/90 to-orange-50/70 p-4 rounded-xl border border-amber-200">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-[10px] font-extrabold uppercase text-amber-950 tracking-wider flex items-center gap-1.5">
+                        <ClipboardCheck className="w-3.5 h-3.5 text-amber-600" /> Site Feasibility & Inspection
+                      </h4>
+                      <span className={`px-2 py-0.5 text-[9px] font-extrabold rounded uppercase ${
+                        selectedEmployee.inspectorProfile?.isAvailable !== false
+                          ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                          : "bg-amber-100 text-amber-800 border border-amber-300"
+                      }`}>
+                        {selectedEmployee.inspectorProfile?.isAvailable !== false ? "🟢 Available" : "🟠 Unavailable"}
+                      </span>
+                    </div>
 
-                  <div className="grid grid-cols-3 gap-2 pt-1 text-center">
-                    <div className="bg-white/80 p-2 rounded-lg border border-amber-200/60">
-                      <span className="text-[9px] text-amber-800 uppercase font-bold block">Max Open</span>
-                      <span className="font-mono font-bold text-amber-950 text-sm">
-                        {selectedEmployee.inspectorProfile?.maxOpenInspections ?? 5}
-                      </span>
+                    <div className="grid grid-cols-3 gap-2 pt-1 text-center">
+                      <div className="bg-white/80 p-2 rounded-lg border border-amber-200/60">
+                        <span className="text-[9px] text-amber-800 uppercase font-bold block">Max Open</span>
+                        <span className="font-mono font-bold text-amber-950 text-sm">
+                          {selectedEmployee.inspectorProfile?.maxOpenInspections ?? 5}
+                        </span>
+                      </div>
+                      <div className="bg-white/80 p-2 rounded-lg border border-amber-200/60">
+                        <span className="text-[9px] text-amber-800 uppercase font-bold block">Visits / Day</span>
+                        <span className="font-mono font-bold text-amber-950 text-sm">
+                          {selectedEmployee.inspectorProfile?.maxVisitsPerDay ?? 3}
+                        </span>
+                      </div>
+                      <div className="bg-white/80 p-2 rounded-lg border border-amber-200/60">
+                        <span className="text-[9px] text-amber-800 uppercase font-bold block">Radius</span>
+                        <span className="font-mono font-bold text-amber-950 text-sm">
+                          {selectedEmployee.inspectorProfile?.maxDistanceKm ?? 50} km
+                        </span>
+                      </div>
                     </div>
-                    <div className="bg-white/80 p-2 rounded-lg border border-amber-200/60">
-                      <span className="text-[9px] text-amber-800 uppercase font-bold block">Visits / Day</span>
-                      <span className="font-mono font-bold text-amber-950 text-sm">
-                        {selectedEmployee.inspectorProfile?.maxVisitsPerDay ?? 3}
-                      </span>
-                    </div>
-                    <div className="bg-white/80 p-2 rounded-lg border border-amber-200/60">
-                      <span className="text-[9px] text-amber-800 uppercase font-bold block">Radius</span>
-                      <span className="font-mono font-bold text-amber-950 text-sm">
-                        {selectedEmployee.inspectorProfile?.maxDistanceKm ?? 50} km
-                      </span>
-                    </div>
-                  </div>
 
-                  {/* Certifications badges */}
-                  {(() => {
-                    const certs = Array.isArray(selectedEmployee.inspectorProfile?.certifications)
-                      ? selectedEmployee.inspectorProfile.certifications
-                      : typeof selectedEmployee.inspectorProfile?.certifications === "string"
-                      ? (()=>{ try { return JSON.parse(selectedEmployee.inspectorProfile.certifications || "[]"); } catch { return []; } })()
-                      : [];
-                    if (certs.length === 0) return null;
-                    return (
-                      <div className="space-y-1">
-                        <div className="text-[10px] font-bold text-amber-900 uppercase">Inspection Certifications</div>
-                        <div className="flex flex-wrap gap-1">
-                          {certs.map((c: string, idx: number) => (
-                            <span key={idx} className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
-                              📜 {c}
-                            </span>
+                    {/* Certifications badges */}
+                    {(() => {
+                      const certs = Array.isArray(selectedEmployee.inspectorProfile?.certifications)
+                        ? selectedEmployee.inspectorProfile.certifications
+                        : typeof selectedEmployee.inspectorProfile?.certifications === "string"
+                        ? (()=>{ try { return JSON.parse(selectedEmployee.inspectorProfile.certifications || "[]"); } catch { return []; } })()
+                        : [];
+                      if (certs.length === 0) return null;
+                      return (
+                        <div className="space-y-1">
+                          <div className="text-[10px] font-bold text-amber-900 uppercase">Inspection Certifications</div>
+                          <div className="flex flex-wrap gap-1">
+                            {certs.map((c: string, idx: number) => (
+                              <span key={idx} className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                                📜 {c}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Manager Controls: Quick Adjust Limits */}
+                    {["admin", "director", "manager"].includes(currentUser?.role || "") && (
+                      <div className="pt-2 border-t border-amber-200/60 space-y-2">
+                        <label className="block text-[10px] font-bold text-amber-950 uppercase">Update Max Daily Visits</label>
+                        <div className="flex items-center gap-2">
+                          {[1, 2, 3, 4, 5].map((num) => (
+                            <button
+                              key={num}
+                              type="button"
+                              onClick={async () => {
+                                try {
+                                  await apiClient(`/api/v1/salespersons/${selectedEmployee.id}/capacity`, {
+                                    method: "PUT",
+                                    body: JSON.stringify({ maxVisitsPerDay: num })
+                                  });
+                                  setSelectedEmployee({
+                                    ...selectedEmployee,
+                                    inspectorProfile: {
+                                      ...(selectedEmployee.inspectorProfile || {}),
+                                      maxVisitsPerDay: num
+                                    }
+                                  });
+                                  queryClient.invalidateQueries({ queryKey: ["orgChartEmployees"] });
+                                } catch (err: any) {
+                                  alert("Failed to update visits limit: " + err.message);
+                                }
+                              }}
+                              className={`flex-1 py-1 rounded text-xs font-bold transition-all ${
+                                (selectedEmployee.inspectorProfile?.maxVisitsPerDay ?? 3) === num
+                                  ? "bg-amber-600 text-white shadow-xs"
+                                  : "bg-white text-amber-900 hover:bg-amber-100 border border-amber-200"
+                              }`}
+                            >
+                              {num}/day
+                            </button>
                           ))}
                         </div>
                       </div>
-                    );
-                  })()}
+                    )}
+                  </div>
 
-                  {/* Manager Controls: Quick Adjust Limits */}
-                  {["admin", "director", "manager"].includes(currentUser?.role || "") && (
-                    <div className="pt-2 border-t border-amber-200/60 space-y-2">
-                      <label className="block text-[10px] font-bold text-amber-950 uppercase">Update Max Daily Visits</label>
-                      <div className="flex items-center gap-2">
-                        {[1, 2, 3, 4, 5].map((num) => (
+                  {/* Inspector Scheduled Leave Window */}
+                  <div className="space-y-2 bg-gradient-to-br from-amber-50/50 to-orange-50/50 p-4 rounded-xl border border-amber-200">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-[10px] font-extrabold uppercase text-amber-950 tracking-wider flex items-center gap-1.5">
+                        <CalendarDays className="w-3.5 h-3.5 text-amber-600" /> Planned Leave Window
+                      </h4>
+                      {["admin", "director", "manager"].includes(currentUser?.role || "") && (
+                        <button
+                          type="button"
+                          onClick={() => setIsAddingLeave(!isAddingLeave)}
+                          className="px-2 py-0.5 text-[10px] font-bold rounded bg-amber-100 text-amber-800 hover:bg-amber-200 transition-colors"
+                        >
+                          {isAddingLeave ? "Cancel" : "+ Set Leave"}
+                        </button>
+                      )}
+                    </div>
+
+                    {selectedEmployee.inspectorProfile?.onLeaveFrom ? (
+                      <div className="flex items-center justify-between p-2 rounded-lg bg-white border border-amber-200 text-xs">
+                        <div>
+                          <p className="font-bold text-amber-950">
+                            On Leave: {new Date(selectedEmployee.inspectorProfile.onLeaveFrom).toLocaleDateString([], { month: "short", day: "numeric" })} – {new Date(selectedEmployee.inspectorProfile.onLeaveTo).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}
+                          </p>
+                          <span className="text-[10px] text-amber-700 italic">Excluded from auto-dispatch during this period</span>
+                        </div>
+                        {["admin", "director", "manager"].includes(currentUser?.role || "") && (
                           <button
-                            key={num}
                             type="button"
-                            onClick={async () => {
-                              try {
-                                await apiClient(`/api/v1/salespersons/${selectedEmployee.id}/capacity`, {
-                                  method: "PUT",
-                                  body: JSON.stringify({ maxVisitsPerDay: num })
-                                });
-                                setSelectedEmployee({
-                                  ...selectedEmployee,
-                                  inspectorProfile: {
-                                    ...(selectedEmployee.inspectorProfile || {}),
-                                    maxVisitsPerDay: num
-                                  }
-                                });
-                                queryClient.invalidateQueries({ queryKey: ["orgChartEmployees"] });
-                              } catch (err: any) {
-                                alert("Failed to update visits limit: " + err.message);
-                              }
-                            }}
-                            className={`flex-1 py-1 rounded text-xs font-bold transition-all ${
-                              (selectedEmployee.inspectorProfile?.maxVisitsPerDay ?? 3) === num
-                                ? "bg-amber-600 text-white shadow-xs"
-                                : "bg-white text-amber-900 hover:bg-amber-100 border border-amber-200"
-                            }`}
+                            onClick={handleClearInspectorLeave}
+                            className="px-2 py-0.5 text-[10px] font-bold text-red-600 hover:bg-red-50 rounded border border-red-200 transition-colors"
                           >
-                            {num}/day
+                            Clear Leave
                           </button>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-slate-400 italic">No scheduled leave. Available for site survey routing.</p>
+                    )}
+
+                    {isAddingLeave && (
+                      <form onSubmit={handleScheduleLeave} className="space-y-2 pt-2 bg-white/90 p-3 rounded-lg border border-amber-200 text-xs">
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-[10px] font-bold text-amber-900 uppercase mb-1">Start Date *</label>
+                            <input
+                              type="date"
+                              required
+                              value={leaveForm.startDate}
+                              onChange={(e) => setLeaveForm({ ...leaveForm, startDate: e.target.value })}
+                              className="w-full bg-white border border-amber-200 rounded p-1 text-xs"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-amber-900 uppercase mb-1">End Date *</label>
+                            <input
+                              type="date"
+                              required
+                              value={leaveForm.endDate}
+                              onChange={(e) => setLeaveForm({ ...leaveForm, endDate: e.target.value })}
+                              className="w-full bg-white border border-amber-200 rounded p-1 text-xs"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex justify-end gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => setIsAddingLeave(false)}
+                            className="px-2.5 py-1 text-xs border border-amber-200 rounded text-amber-800"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="submit"
+                            className="px-3 py-1 text-xs font-bold bg-amber-600 text-white rounded shadow-xs hover:bg-amber-700"
+                          >
+                            Save Leave Window
+                          </button>
+                        </div>
+                      </form>
+                    )}
+                  </div>
+
+                  {/* Active Site Inspections Card */}
+                  <div className="space-y-2 bg-gradient-to-br from-amber-50/50 to-orange-50/50 p-4 rounded-xl border border-amber-200">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-[10px] font-extrabold uppercase text-amber-950 tracking-wider flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-amber-600" /> Assigned Site Surveys ({selectedEmployee.activeSiteInspections?.length || 0})
+                      </h4>
+                      <button
+                        type="button"
+                        onClick={() => navigate("/site-inspections")}
+                        className="text-[10px] font-bold text-amber-700 hover:underline flex items-center gap-1"
+                      >
+                        All Inspections <ExternalLink className="w-2.5 h-2.5" />
+                      </button>
+                    </div>
+
+                    {selectedEmployee.activeSiteInspections && selectedEmployee.activeSiteInspections.length > 0 ? (
+                      <div className="space-y-2 pt-1">
+                        {selectedEmployee.activeSiteInspections.map((insp: any) => (
+                          <div
+                            key={insp.id}
+                            onClick={() => navigate("/site-inspections")}
+                            className="p-2.5 bg-white rounded-lg border border-amber-100 hover:border-amber-400 transition-all cursor-pointer text-xs"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-amber-950">
+                                {insp.city || "Site Survey"} {insp.locationDescription ? `· ${insp.locationDescription}` : ""}
+                              </span>
+                              <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800 uppercase">
+                                {insp.status}
+                              </span>
+                            </div>
+                            {insp.scheduledAt && (
+                              <p className="text-[10px] text-slate-500 mt-1 flex items-center gap-1">
+                                <Calendar className="w-2.5 h-2.5 text-amber-500" />
+                                {new Date(insp.scheduledAt).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                              </p>
+                            )}
+                          </div>
                         ))}
                       </div>
-                    </div>
-                  )}
+                    ) : (
+                      <p className="text-[11px] text-slate-400 italic">No open site feasibility inspections currently assigned.</p>
+                    )}
+                  </div>
                 </div>
               )}
 

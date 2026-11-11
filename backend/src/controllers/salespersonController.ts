@@ -383,6 +383,14 @@ export const getOrgChartEmployees = async (req: Request, res: Response) => {
           attributes: [
             "id", "skills", "certifications", "experienceYearsWithCompany",
             "previousExperience", "attendanceStatus", "resourceType", "location", "isActive"
+          ],
+          include: [
+            {
+              model: sequelize.models.ResourceAbsence,
+              as: "absences",
+              attributes: ["id", "type", "startDate", "endDate", "reason", "status"],
+              required: false
+            }
           ]
         },
         {
@@ -397,7 +405,62 @@ export const getOrgChartEmployees = async (req: Request, res: Response) => {
       order: [["name", "ASC"]]
     });
 
-    res.json(employees);
+    const userIds = employees.map((e: any) => e.id);
+    const resourceIds = employees.map((e: any) => e.serviceResource?.id).filter(Boolean);
+
+    // Active Service Appointments for Technicians
+    let appointmentMap: Record<string, any[]> = {};
+    if (resourceIds.length > 0 && sequelize.models.ServiceAppointment) {
+      const appointments = await sequelize.models.ServiceAppointment.findAll({
+        where: {
+          serviceResourceId: { [Op.in]: resourceIds },
+          status: { [Op.notIn]: ["Canceled", "Completed"] }
+        },
+        attributes: ["id", "serviceResourceId", "appointmentNumber", "status", "scheduledStartTime", "scheduledEndTime", "workOrderId"],
+        include: [
+          {
+            model: sequelize.models.WorkOrder,
+            as: "workOrder",
+            attributes: ["id", "workOrderNumber", "subject", "status", "priority"]
+          }
+        ],
+        order: [["scheduledStartTime", "ASC"]],
+        limit: 50
+      });
+      appointments.forEach((apt: any) => {
+        if (!appointmentMap[apt.serviceResourceId]) appointmentMap[apt.serviceResourceId] = [];
+        appointmentMap[apt.serviceResourceId].push(apt);
+      });
+    }
+
+    // Active Site Inspections for Inspectors
+    let inspectionMap: Record<string, any[]> = {};
+    if (userIds.length > 0 && sequelize.models.SiteInspection) {
+      const inspections = await sequelize.models.SiteInspection.findAll({
+        where: {
+          assignedToId: { [Op.in]: userIds },
+          status: { [Op.notIn]: ["completed", "cancelled", "rejected"] }
+        },
+        attributes: ["id", "assignedToId", "status", "scheduledAt", "city", "locationDescription", "urgency"],
+        order: [["scheduledAt", "ASC"]],
+        limit: 50
+      });
+      inspections.forEach((insp: any) => {
+        if (!inspectionMap[insp.assignedToId]) inspectionMap[insp.assignedToId] = [];
+        inspectionMap[insp.assignedToId].push(insp);
+      });
+    }
+
+    const payload = employees.map((e: any) => {
+      const plain = e.toJSON();
+      if (plain.serviceResource) {
+        plain.serviceResource.activeAppointments = appointmentMap[plain.serviceResource.id] || [];
+      }
+      plain.activeSiteInspections = inspectionMap[plain.id] || [];
+      return plain;
+    });
+
+    res.json(payload);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -953,8 +1016,32 @@ export const updateSalespersonCapacity = async (req: Request, res: Response) => 
 
       if (existingRes) {
         await existingRes.update(resUpdates);
+
+        // Schedule new absence/leave for technician if requested
+        const ResourceAbsence = sequelize.models.ResourceAbsence;
+        if (ResourceAbsence && req.body.leaveStartDate && req.body.leaveEndDate) {
+          await ResourceAbsence.create({
+            id: crypto.randomUUID(),
+            serviceResourceId: (existingRes as any).id,
+            type: req.body.leaveType || "Vacation",
+            startDate: new Date(req.body.leaveStartDate),
+            endDate: new Date(req.body.leaveEndDate),
+            reason: req.body.leaveReason || "Scheduled Leave",
+            status: "Approved"
+          });
+        }
+
+        // Delete an existing absence record if requested
+        if (ResourceAbsence && req.body.removeAbsenceId) {
+          await ResourceAbsence.destroy({
+            where: {
+              id: req.body.removeAbsenceId,
+              serviceResourceId: (existingRes as any).id
+            }
+          });
+        }
       } else if (user.role === "technician" || req.body.skills) {
-        await ServiceResource.create({
+        const createdRes: any = await ServiceResource.create({
           id: crypto.randomUUID(),
           name: user.name,
           userId: user.id,
@@ -969,6 +1056,19 @@ export const updateSalespersonCapacity = async (req: Request, res: Response) => 
           phone: user.phone || null,
           isActive: isAvailable ?? true,
         });
+
+        const ResourceAbsence = sequelize.models.ResourceAbsence;
+        if (ResourceAbsence && req.body.leaveStartDate && req.body.leaveEndDate) {
+          await ResourceAbsence.create({
+            id: crypto.randomUUID(),
+            serviceResourceId: createdRes.id,
+            type: req.body.leaveType || "Vacation",
+            startDate: new Date(req.body.leaveStartDate),
+            endDate: new Date(req.body.leaveEndDate),
+            reason: req.body.leaveReason || "Scheduled Leave",
+            status: "Approved"
+          });
+        }
       }
     }
 
@@ -979,7 +1079,9 @@ export const updateSalespersonCapacity = async (req: Request, res: Response) => 
       (user.role === "site_manager" ||
         req.body.maxOpenInspections !== undefined ||
         req.body.maxVisitsPerDay !== undefined ||
-        req.body.maxDistanceKm !== undefined)
+        req.body.maxDistanceKm !== undefined ||
+        req.body.leaveStartDate !== undefined ||
+        req.body.clearInspectorLeave !== undefined)
     ) {
       const inspProfile = await SiteInspectorProfile.findOne({ where: { userId: user.id } });
       const inspUpdates: any = {};
@@ -987,6 +1089,13 @@ export const updateSalespersonCapacity = async (req: Request, res: Response) => 
       if (req.body.maxVisitsPerDay !== undefined) inspUpdates.maxVisitsPerDay = Number(req.body.maxVisitsPerDay);
       if (req.body.maxDistanceKm !== undefined) inspUpdates.maxDistanceKm = Number(req.body.maxDistanceKm);
       if (isAvailable !== undefined) inspUpdates.isAvailable = !!isAvailable;
+      if (req.body.leaveStartDate && req.body.leaveEndDate) {
+        inspUpdates.onLeaveFrom = new Date(req.body.leaveStartDate);
+        inspUpdates.onLeaveTo = new Date(req.body.leaveEndDate);
+      } else if (req.body.clearInspectorLeave) {
+        inspUpdates.onLeaveFrom = null;
+        inspUpdates.onLeaveTo = null;
+      }
       if (inspProfile) {
         await inspProfile.update(inspUpdates);
       } else if (user.role === "site_manager") {
@@ -999,6 +1108,8 @@ export const updateSalespersonCapacity = async (req: Request, res: Response) => 
           maxDistanceKm: 50,
           certifications: "[]",
           languages: JSON.stringify(["English", "Arabic"]),
+          onLeaveFrom: req.body.leaveStartDate ? new Date(req.body.leaveStartDate) : null,
+          onLeaveTo: req.body.leaveEndDate ? new Date(req.body.leaveEndDate) : null,
         });
       }
     }
