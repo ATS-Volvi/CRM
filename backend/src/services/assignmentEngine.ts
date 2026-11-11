@@ -599,12 +599,10 @@ export async function scoreAndRankCandidates(
 
       const att = todayAttendances.find((a: any) => a.userId === rep.id);
       if (att) {
-        if (att.currentBreakStart) {
-          evalResult.finalScore = Math.max(0, evalResult.finalScore - 20);
-          evalResult.explanationText = `${evalResult.explanationText || ""} (Break penalty: -20 pts)`.trim();
-        } else if (att.checkInTime && !att.checkOutTime) {
+        if (att.checkInTime && !att.checkOutTime) {
           evalResult.finalScore = Math.min(100, evalResult.finalScore + 15);
-          evalResult.explanationText = `${evalResult.explanationText || ""} (Active duty bonus: +15 pts)`.trim();
+          const breakStatus = att.currentBreakStart ? " (On break - assigned normally)" : "";
+          evalResult.explanationText = `${evalResult.explanationText || ""} (Active shift bonus: +15 pts${breakStatus})`.trim();
         }
       }
 
