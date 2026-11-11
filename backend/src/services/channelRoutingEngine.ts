@@ -190,13 +190,50 @@ export async function routeChannelLead(input: RoutingInput): Promise<RoutingResu
   // Priority 4: Criteria-Based Assignment Rules Engine
   // -------------------------------------------------------------
   if (!assignedToId) {
+    let extractedTerritory: string | undefined = undefined;
+    const knownLocations: Record<string, string> = {
+      "jubail": "Jubail",
+      "al jubail": "Jubail",
+      "dammam": "Dammam",
+      "al khobar": "Khobar",
+      "khobar": "Khobar",
+      "riyadh": "Riyadh",
+      "jeddah": "Jeddah",
+      "yanbu": "Yanbu",
+      "jafurah": "Jafurah",
+      "ras tanura": "Ras Tanura",
+      "dubai": "Dubai",
+      "eastern province": "Eastern Province",
+      "western province": "Western Province",
+      "central province": "Central Province"
+    };
+
+    for (const [key, val] of Object.entries(knownLocations)) {
+      const locRegex = new RegExp(`\\b${key}\\b`, "i");
+      if (locRegex.test(combinedText)) {
+        extractedTerritory = val;
+        break;
+      }
+    }
+
+    if (!extractedTerritory) {
+      const branchMatch = combinedText.match(/(?:in|at|for|branch|location|site|project in)\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)/i);
+      if (branchMatch && branchMatch[1]) {
+        const candidate = branchMatch[1].trim();
+        if (!/^(the|a|an|my|our|this|that|your|some|any|all|our company|site|project|office)$/i.test(candidate)) {
+          extractedTerritory = candidate.charAt(0).toUpperCase() + candidate.slice(1);
+        }
+      }
+    }
+
     const rulesRes = await assignLead({
       firstName: leadData.firstName,
       lastName: leadData.lastName,
       email: leadData.email || "",
       phone: leadData.phone || "",
       company: leadData.company || "",
-      source: leadData.source
+      source: leadData.source,
+      territory: extractedTerritory
     });
     if (rulesRes.assignedToId) {
       assignedToId = rulesRes.assignedToId;

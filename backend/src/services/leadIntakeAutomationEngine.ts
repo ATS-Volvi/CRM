@@ -22,6 +22,7 @@ export interface IntakeEvent {
     email?: string;
     phone?: string;
     requirement?: string;
+    territory?: string;
     preferredCommunicationChannel?: string;
   };
   attribution?: {
@@ -38,6 +39,7 @@ export interface IntakeEvent {
     utmContent?: string;
     referrer?: string;
     landingPage?: string;
+    territory?: string;
   };
 }
 
@@ -231,12 +233,12 @@ export function generateCollectionMessage(
 
   if (channel === "whatsapp") {
     if (needsEmail) {
-      return `${greeting} Thanks for contacting Nexus. All quotations and proposals are delivered via email. Could you please share your email address and phone number (as well as ${labels.filter(l => l !== "email address" && l !== "phone number").join(" and ") || "your requirements"}) so we can send your quote?`;
+      return `${greeting} Thanks for contacting Nexus. All quotations and proposals are delivered via email. Could you please share your email address and city or branch (as well as ${labels.filter(l => l !== "email address" && l !== "phone number").join(" and ") || "your requirements"}) so we can send your quote?`;
     }
     if (missingFields.length === 1 && missingFields[0] === "requirement") {
-      return `${greeting} Thanks for reaching out. Could you share what product or service requirements you are looking for so we can connect you with the right specialist?`;
+      return `${greeting} Thanks for reaching out. Could you share what product or service requirements you are looking for, and your project city or branch (e.g., Jubail, Dammam, Riyadh), so we can connect you with the right specialist?`;
     }
-    return `${greeting} Thanks for contacting us. To help us process your quotation and connect you with a specialist, could you please share ${formattedList}?`;
+    return `${greeting} Thanks for contacting us. To help us process your quotation and connect you with the nearest branch specialist, could you please share ${formattedList}?`;
   }
 
   if (channel === "email") {
@@ -413,6 +415,7 @@ export async function processInboundIntakeEvent(event: IntakeEvent): Promise<{
   const effectivePhone = event.formData?.phone || parsed.phone || event.senderPhone || "";
   const effectiveCompany = event.formData?.company || parsed.companyName || "";
   const effectiveRequirement = event.formData?.requirement || parsed.requirement || event.message || "";
+  const effectiveTerritory = event.formData?.territory || event.attribution?.territory || "";
 
   // 3. Identity Resolution (Find existing Contact & Account)
   let contact: any = null;
@@ -514,7 +517,8 @@ export async function processInboundIntakeEvent(event: IntakeEvent): Promise<{
       extractedRequirement: {
         item: parsed.requirement || effectiveRequirement,
         quantity: parsed.quantity || 1,
-        context: parsed.context || null
+        context: parsed.context || null,
+        ...(effectiveTerritory ? { territory: effectiveTerritory } : {})
       }
     });
   } else {
@@ -630,6 +634,7 @@ export async function processInboundIntakeEvent(event: IntakeEvent): Promise<{
     await lead.update({ intakeStatus: "READY_FOR_ASSIGNMENT" });
 
     // Run Lead Assignment Engine
+    const targetTerritory = effectiveTerritory || (lead.extractedRequirement as any)?.territory || undefined;
     const assignedUserId = lead.assignedToId || await assignDeal({
       firstName: lead.firstName,
       lastName: lead.lastName,
@@ -638,7 +643,8 @@ export async function processInboundIntakeEvent(event: IntakeEvent): Promise<{
       company: lead.company,
       leadScore: lead.leadScore || 50,
       source: lead.source || "Inbound",
-      industry: lead.industry || "General"
+      industry: lead.industry || "General",
+      territory: targetTerritory
     });
 
     await lead.update({
@@ -724,6 +730,7 @@ export async function processInboundIntakeEvent(event: IntakeEvent): Promise<{
       // Max intake requests exceeded -> Fallback to Sales Rep
       await lead.update({ intakeStatus: "INCOMPLETE" });
 
+      const fallbackTerritory = effectiveTerritory || (lead.extractedRequirement as any)?.territory || undefined;
       const assignedUserId = lead.assignedToId || await assignDeal({
         firstName: lead.firstName,
         lastName: lead.lastName,
@@ -732,7 +739,8 @@ export async function processInboundIntakeEvent(event: IntakeEvent): Promise<{
         company: lead.company || "Incomplete Profile",
         leadScore: lead.leadScore || 40,
         source: lead.source || "Inbound",
-        industry: lead.industry || "General"
+        industry: lead.industry || "General",
+        territory: fallbackTerritory
       });
 
       await lead.update({ assignedToId: assignedUserId });

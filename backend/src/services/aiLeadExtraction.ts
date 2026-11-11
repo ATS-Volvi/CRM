@@ -8,6 +8,7 @@ export interface ExtractedLeadDetails {
   subject?: string;
   industry?: string;
   budgetRange?: string;
+  territory?: string;
 }
 
 /**
@@ -40,7 +41,7 @@ export async function extractLeadDetailsFromText(text: string): Promise<Extracte
           messages: [
             {
               role: "system",
-              content: "You are a lead detail extraction assistant. Return ONLY a raw JSON object with keys: firstName, lastName, email, phone, company, message, subject, industry, budgetRange."
+              content: "You are a lead detail extraction assistant. Return ONLY a raw JSON object with keys: firstName, lastName, email, phone, company, message, subject, industry, budgetRange, territory."
             },
             {
               role: "user",
@@ -70,7 +71,7 @@ export async function extractLeadDetailsFromText(text: string): Promise<Extracte
         body: JSON.stringify({
           contents: [{
             parts: [{
-              text: `Extract lead details from this text and return ONLY valid JSON with keys: firstName, lastName, email, phone, company, message, subject, industry, budgetRange. Text: "${text}"`
+              text: `Extract lead details from this text and return ONLY valid JSON with keys: firstName, lastName, email, phone, company, message, subject, industry, budgetRange, territory. Text: "${text}"`
             }]
           }],
           generationConfig: { responseMimeType: "application/json" }
@@ -106,7 +107,7 @@ export async function extractLeadDetailsFromText(text: string): Promise<Extracte
           messages: [
             {
               role: "system",
-              content: "You are a lead detail extraction assistant. Return ONLY a raw JSON object with keys: firstName, lastName, email, phone, company, message, subject, industry, budgetRange."
+              content: "You are a lead detail extraction assistant. Return ONLY a raw JSON object with keys: firstName, lastName, email, phone, company, message, subject, industry, budgetRange, territory."
             },
             {
               role: "user",
@@ -210,6 +211,43 @@ export async function extractLeadDetailsFromText(text: string): Promise<Extracte
     industry = "Oil & Gas";
   }
 
+  // 4E. Territory / Branch / City Detection
+  let territory: string | undefined = undefined;
+  const knownLocations: Record<string, string> = {
+    "jubail": "Jubail",
+    "al jubail": "Jubail",
+    "dammam": "Dammam",
+    "al khobar": "Khobar",
+    "khobar": "Khobar",
+    "riyadh": "Riyadh",
+    "jeddah": "Jeddah",
+    "yanbu": "Yanbu",
+    "jafurah": "Jafurah",
+    "ras tanura": "Ras Tanura",
+    "dubai": "Dubai",
+    "eastern province": "Eastern Province",
+    "western province": "Western Province",
+    "central province": "Central Province"
+  };
+
+  for (const [key, val] of Object.entries(knownLocations)) {
+    const locRegex = new RegExp(`\\b${key}\\b`, "i");
+    if (locRegex.test(text)) {
+      territory = val;
+      break;
+    }
+  }
+
+  if (!territory) {
+    const branchMatch = text.match(/(?:in|at|for|branch|location|site|project in)\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)/i);
+    if (branchMatch && branchMatch[1]) {
+      const candidate = branchMatch[1].trim();
+      if (!/^(the|a|an|my|our|this|that|your|some|any|all|our company|site|project|office)$/i.test(candidate)) {
+        territory = candidate.charAt(0).toUpperCase() + candidate.slice(1);
+      }
+    }
+  }
+
   let subject = text.length > 60 ? text.slice(0, 57) + "..." : text;
 
   return {
@@ -221,6 +259,7 @@ export async function extractLeadDetailsFromText(text: string): Promise<Extracte
     message: text,
     subject,
     industry,
-    budgetRange
+    budgetRange,
+    territory
   };
 }

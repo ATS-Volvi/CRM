@@ -825,10 +825,15 @@ export const handleIncomingWebhook = async (req: Request, res: Response) => {
         senderPhone: from,
         senderName: senderName || undefined,
         message: msgBody,
+        formData: {
+          requirement: msgBody,
+          territory: extractedAI.territory
+        },
         attribution: {
           source: "WhatsApp",
           sourceChannel: "whatsapp",
-          sourceDetail: `WhatsApp Message ID: ${metaMessageId}`
+          sourceDetail: `WhatsApp Message ID: ${metaMessageId}`,
+          territory: extractedAI.territory
         }
       });
       if (intakeRes.leadId) {
@@ -849,6 +854,7 @@ export const handleIncomingWebhook = async (req: Request, res: Response) => {
           sourceDetail: `WhatsApp Message ID: ${metaMessageId}`,
           industry: extractedAI.industry || "General",
           budgetRange: extractedAI.budgetRange || "N/A",
+          territory: extractedAI.territory,
           message: msgBody,
           rawPayload: { from, senderName, firstMessage: msgBody, metaMessageId, extractedAI }
         });

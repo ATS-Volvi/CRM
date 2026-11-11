@@ -48,6 +48,7 @@ export interface LeadPayload {
   message?: string;
   assignedToId?: string;
   rawPayload?: any;
+  territory?: string;
   budgetRange?: string;
   categoriesData?: any;
   whatsappConsent?: boolean;
@@ -169,7 +170,8 @@ export async function ingestLead(rawPayload: LeadPayload) {
       phone: payload.phone,
       company: companyName,
       source: payload.source,
-      industry: payload.industry
+      industry: payload.industry,
+      territory: payload.territory
     });
 
     if (!assignedToId) {
@@ -200,6 +202,10 @@ export async function ingestLead(rawPayload: LeadPayload) {
       rawPayloadData.isPossibleDuplicate = true;
       rawPayloadData.duplicateOfLeadNumber = duplicateLead.leadNumber;
       rawPayloadData.duplicateOfLeadId = duplicateLead.id;
+    }
+    if (payload.territory) {
+      if (!rawPayloadData) rawPayloadData = {};
+      rawPayloadData.territory = payload.territory;
     }
 
     let newLead: any = null;
