@@ -70,3 +70,4 @@ module.exports = {
     await queryInterface.dropTable('TeamBreakPolicies').catch(() => {});
   }
 };
+

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "../lib/apiClient";
 import {
-  Clock, CheckCircle2, Play, Square, Coffee, ChevronDown,
+  Clock, CheckCircle2, Play, Square, Coffee, ChevronDown, ChevronRight,
   AlertCircle, Loader2, Sparkles, Sliders, Shield, X
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
@@ -219,7 +219,7 @@ export function AttendanceClockWidget({ variant = "header" }: { variant?: "heade
 
   if (isLoading) {
     return (
-      <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 rounded-full border border-slate-200 text-[11px] text-slate-500 font-medium">
+      <div className={`flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 rounded-xl border border-slate-200 text-[11px] text-slate-500 font-medium ${variant === "sidebar" ? "w-full justify-center" : ""}`}>
         <Loader2 className="w-3 h-3 animate-spin text-slate-400" />
         <span>Syncing...</span>
       </div>
@@ -228,7 +228,30 @@ export function AttendanceClockWidget({ variant = "header" }: { variant?: "heade
 
   // Render Pill Trigger Button based on status
   const renderTrigger = () => {
+    const isSidebar = variant === "sidebar";
+
     if (isOnBreak) {
+      if (isSidebar) {
+        return (
+          <button
+            type="button"
+            onClick={() => setIsOpen(!isOpen)}
+            className="w-full flex items-center justify-between px-3 py-2 bg-amber-50 hover:bg-amber-100/90 text-amber-950 border border-amber-300 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer group"
+            title="On Break — Click to open shift details"
+          >
+            <div className="flex items-center gap-2">
+              <Coffee className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+              <span className="font-mono font-black">{formatTimer(elapsedBreakSec)}</span>
+              <span className="text-[10px] uppercase font-extrabold text-amber-700 bg-amber-200/60 px-1.5 py-0.2 rounded">Break</span>
+            </div>
+            <div className="flex items-center gap-1 text-[10px] text-amber-800 font-semibold">
+              <span>{totalBreakUsedMinutes}m / {maxBreakMinutes}m</span>
+              <ChevronRight className={`w-3.5 h-3.5 text-amber-600 transition-transform ${isOpen ? "rotate-90" : ""}`} />
+            </div>
+          </button>
+        );
+      }
+
       return (
         <button
           type="button"
@@ -249,6 +272,30 @@ export function AttendanceClockWidget({ variant = "header" }: { variant?: "heade
     }
 
     if (isClockedIn && record) {
+      if (isSidebar) {
+        return (
+          <button
+            type="button"
+            onClick={() => setIsOpen(!isOpen)}
+            className="w-full flex items-center justify-between px-3 py-2 bg-emerald-50/90 hover:bg-emerald-100/90 text-emerald-950 border border-emerald-200/80 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer group"
+            title="Active Shift — Click to open shift details"
+          >
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-2 w-2 shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              <span className="font-mono font-black">{formatTimer(elapsedWorkSec)}</span>
+              <span className="text-[10px] text-emerald-700 font-bold bg-emerald-100 px-1.5 py-0.2 rounded">On Duty</span>
+            </div>
+            <div className="flex items-center gap-1 text-[10px] text-emerald-800 font-medium">
+              <span>☕ {totalBreakUsedMinutes}m</span>
+              <ChevronRight className={`w-3.5 h-3.5 text-emerald-600 transition-transform ${isOpen ? "rotate-90" : ""}`} />
+            </div>
+          </button>
+        );
+      }
+
       return (
         <button
           type="button"
@@ -275,6 +322,25 @@ export function AttendanceClockWidget({ variant = "header" }: { variant?: "heade
       const hrs = Math.floor(netMin / 60);
       const mins = netMin % 60;
 
+      if (isSidebar) {
+        return (
+          <button
+            type="button"
+            onClick={() => setIsOpen(!isOpen)}
+            className="w-full flex items-center justify-between px-3 py-2 bg-slate-100 hover:bg-slate-200/80 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold transition-all shadow-2xs cursor-pointer"
+            title="Shift Completed — Click to view summary"
+          >
+            <div className="flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+              <span className="text-[11px] font-bold text-slate-800">
+                Shift Done: {hrs > 0 ? `${hrs}h ` : ""}{mins}m
+              </span>
+            </div>
+            <ChevronRight className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isOpen ? "rotate-90" : ""}`} />
+          </button>
+        );
+      }
+
       return (
         <button
           type="button"
@@ -292,6 +358,25 @@ export function AttendanceClockWidget({ variant = "header" }: { variant?: "heade
     }
 
     // Not Clocked In Yet
+    if (isSidebar) {
+      return (
+        <button
+          type="button"
+          disabled={clockInMutation.isPending}
+          onClick={() => clockInMutation.mutate()}
+          className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-white hover:bg-emerald-50 border border-slate-300 hover:border-emerald-500 text-slate-700 hover:text-emerald-900 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer group"
+          title="Start Today's Shift"
+        >
+          {clockInMutation.isPending ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600" />
+          ) : (
+            <Clock className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-600" />
+          )}
+          <span>Clock In for Today</span>
+        </button>
+      );
+    }
+
     return (
       <button
         type="button"
@@ -316,176 +401,190 @@ export function AttendanceClockWidget({ variant = "header" }: { variant?: "heade
 
       {/* Floating Micro-Card Popover */}
       {isOpen && (
-        <div className={`absolute ${variant === "sidebar" ? "bottom-full left-0 mb-2" : "top-full right-0 mt-2"} w-84 bg-white border border-slate-200 rounded-2xl shadow-2xl p-4.5 z-50 animate-in fade-in zoom-in-95 space-y-3.5 select-none text-slate-900`}>
-          {/* Header */}
-          <div className="flex items-start justify-between border-b border-slate-100 pb-3">
-            <div>
-              <div className="flex items-center gap-2">
-                <h4 className="text-xs font-extrabold text-slate-900">{user?.name || "My Shift"}</h4>
-                <span className="text-[10px] font-bold px-2 py-0.2 rounded-full bg-slate-100 text-slate-600">
-                  {data?.userTeam || user?.team || "General"}
-                </span>
-              </div>
-              <p className="text-[10px] text-slate-500 font-medium capitalize mt-0.5">
-                {user?.role?.replace("_", " ") || "Salesperson"} • {new Date().toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}
-              </p>
-            </div>
-            <button
-              onClick={() => { setIsOpen(false); setShowConfirmClockOut(false); }}
-              className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
+        <>
+          {/* Invisible dismiss backdrop */}
+          <div
+            className="fixed inset-0 z-40 bg-transparent"
+            onClick={() => { setIsOpen(false); setShowConfirmClockOut(false); }}
+          />
 
-          {/* Shift Timeline Stats */}
-          {record && (
-            <div className="bg-slate-50/80 border border-slate-200/80 rounded-xl p-3 space-y-2.5">
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Clocked In</span>
-                  <span className="font-mono font-bold text-slate-800">{formatTimeStr(record.checkInTime)}</span>
-                </div>
-                <div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                    {record.checkOutTime ? "Shift Ended" : "Current Status"}
-                  </span>
-                  <span className={`font-bold inline-flex items-center gap-1 ${
-                    isOnBreak ? "text-amber-700" : isClockedIn ? "text-emerald-700" : "text-slate-700"
-                  }`}>
-                    {isOnBreak ? "☕ On Break" : isClockedIn ? "🟢 On Duty" : "Completed"}
+          <div
+            className={`absolute ${
+              variant === "sidebar"
+                ? "left-full bottom-0 ml-3"
+                : "top-full right-0 mt-2"
+            } w-80 bg-white border border-slate-200 rounded-2xl shadow-2xl p-4.5 z-50 animate-in fade-in zoom-in-95 space-y-3.5 select-none text-slate-900`}
+          >
+            {/* Header */}
+            <div className="flex items-start justify-between border-b border-slate-100 pb-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h4 className="text-xs font-extrabold text-slate-900">{user?.name || "My Shift"}</h4>
+                  <span className="text-[10px] font-bold px-2 py-0.2 rounded-full bg-slate-100 text-slate-600">
+                    {data?.userTeam || user?.team || "General"}
                   </span>
                 </div>
-              </div>
-
-              {/* Break Allowance Bar */}
-              <div className="pt-2 border-t border-slate-200/60 space-y-1.5">
-                <div className="flex items-center justify-between text-[11px]">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                    <Coffee className="w-3 h-3 text-amber-600" />
-                    Daily Break Usage
-                  </span>
-                  <span className={`font-mono font-extrabold ${isOverBreak ? "text-rose-600" : "text-slate-700"}`}>
-                    {totalBreakUsedMinutes}m / {maxBreakMinutes}m
-                    {isOverBreak && <span className="text-[9px] text-rose-600 ml-1 font-bold">(Over by +{totalBreakUsedMinutes - maxBreakMinutes}m)</span>}
-                  </span>
-                </div>
-
-                <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full transition-all duration-300 rounded-full ${
-                      isOverBreak
-                        ? "bg-rose-500"
-                        : breakPercentage > 75
-                        ? "bg-amber-500"
-                        : "bg-emerald-500"
-                    }`}
-                    style={{ width: `${breakPercentage}%` }}
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Action Buttons */}
-          <div className="space-y-2 pt-1">
-            {isOnBreak ? (
-              <button
-                type="button"
-                disabled={endBreakMutation.isPending}
-                onClick={() => endBreakMutation.mutate()}
-                className="w-full flex items-center justify-center gap-2 py-2 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black transition-all shadow-sm cursor-pointer"
-              >
-                {endBreakMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5 fill-current" />}
-                <span>Resume Work (End Break)</span>
-              </button>
-            ) : isClockedIn ? (
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  disabled={startBreakMutation.isPending}
-                  onClick={() => startBreakMutation.mutate()}
-                  className="flex items-center justify-center gap-1.5 py-2 px-3 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold transition-all cursor-pointer"
-                  title="Pause productive shift for meal or tea break"
-                >
-                  {startBreakMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Coffee className="w-3.5 h-3.5 text-amber-700" />}
-                  <span>Take Break</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmClockOut(true)}
-                  className="flex items-center justify-center gap-1.5 py-2 px-3 bg-slate-100 hover:bg-rose-50 hover:text-rose-700 border border-slate-300 hover:border-rose-300 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
-                  title="End today's work shift"
-                >
-                  <Square className="w-3 h-3 text-slate-500" />
-                  <span>Clock Out</span>
-                </button>
-              </div>
-            ) : record?.checkOutTime ? (
-              <button
-                type="button"
-                disabled={clockInMutation.isPending}
-                onClick={() => clockInMutation.mutate()}
-                className="w-full flex items-center justify-center gap-2 py-2 px-4 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 rounded-xl text-xs font-bold transition-all cursor-pointer"
-              >
-                {clockInMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5 fill-current" />}
-                <span>Resume / Re-enter Shift</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                disabled={clockInMutation.isPending}
-                onClick={() => clockInMutation.mutate()}
-                className="w-full flex items-center justify-center gap-2 py-2 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black transition-all shadow-sm cursor-pointer"
-              >
-                {clockInMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5 fill-current" />}
-                <span>Clock In for Today</span>
-              </button>
-            )}
-
-            {/* Confirm Clock Out Dialog inside Popover */}
-            {showConfirmClockOut && (
-              <div className="bg-rose-50/80 border border-rose-200 rounded-xl p-3 space-y-2 animate-in fade-in">
-                <p className="text-[11px] font-bold text-rose-900 leading-tight">
-                  Are you ready to end your shift for today?
+                <p className="text-[10px] text-slate-500 font-medium capitalize mt-0.5">
+                  {user?.role?.replace("_", " ") || "Salesperson"} • {new Date().toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}
                 </p>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    disabled={clockOutMutation.isPending}
-                    onClick={() => clockOutMutation.mutate()}
-                    className="flex-1 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
-                  >
-                    {clockOutMutation.isPending ? "Ending..." : "Yes, Clock Out"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmClockOut(false)}
-                    className="py-1.5 px-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
-                  >
-                    Cancel
-                  </button>
+              </div>
+              <button
+                onClick={() => { setIsOpen(false); setShowConfirmClockOut(false); }}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* Shift Timeline Stats */}
+            {record && (
+              <div className="bg-slate-50/80 border border-slate-200/80 rounded-xl p-3 space-y-2.5">
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Clocked In</span>
+                    <span className="font-mono font-bold text-slate-800">{formatTimeStr(record.checkInTime)}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                      {record.checkOutTime ? "Shift Ended" : "Current Status"}
+                    </span>
+                    <span className={`font-bold inline-flex items-center gap-1 ${
+                      isOnBreak ? "text-amber-700" : isClockedIn ? "text-emerald-700" : "text-slate-700"
+                    }`}>
+                      {isOnBreak ? "☕ On Break" : isClockedIn ? "🟢 On Duty" : "Completed"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Break Allowance Bar */}
+                <div className="pt-2 border-t border-slate-200/60 space-y-1.5">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                      <Coffee className="w-3 h-3 text-amber-600" />
+                      Daily Break Usage
+                    </span>
+                    <span className={`font-mono font-extrabold ${isOverBreak ? "text-rose-600" : "text-slate-700"}`}>
+                      {totalBreakUsedMinutes}m / {maxBreakMinutes}m
+                      {isOverBreak && <span className="text-[9px] text-rose-600 ml-1 font-bold">(Over +{totalBreakUsedMinutes - maxBreakMinutes}m)</span>}
+                    </span>
+                  </div>
+
+                  <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full transition-all duration-300 rounded-full ${
+                        isOverBreak
+                          ? "bg-rose-500"
+                          : breakPercentage > 75
+                          ? "bg-amber-500"
+                          : "bg-emerald-500"
+                      }`}
+                      style={{ width: `${breakPercentage}%` }}
+                    />
+                  </div>
                 </div>
               </div>
             )}
-          </div>
 
-          {/* Team Lead / Admin Break Policy Quick Link */}
-          {isManagerOrAdmin && (
-            <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-              <span className="text-[10px] text-slate-400 font-medium">Team Policy: {maxBreakMinutes}m</span>
-              <button
-                type="button"
-                onClick={() => setShowPolicyModal(true)}
-                className="flex items-center gap-1 text-[10px] font-bold text-primary hover:underline cursor-pointer"
-              >
-                <Sliders className="w-3 h-3" />
-                <span>Adjust Policy</span>
-              </button>
+            {/* Action Buttons */}
+            <div className="space-y-2 pt-1">
+              {isOnBreak ? (
+                <button
+                  type="button"
+                  disabled={endBreakMutation.isPending}
+                  onClick={() => endBreakMutation.mutate()}
+                  className="w-full flex items-center justify-center gap-2 py-2 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black transition-all shadow-sm cursor-pointer"
+                >
+                  {endBreakMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5 fill-current" />}
+                  <span>Resume Work (End Break)</span>
+                </button>
+              ) : isClockedIn ? (
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    disabled={startBreakMutation.isPending}
+                    onClick={() => startBreakMutation.mutate()}
+                    className="flex items-center justify-center gap-1.5 py-2 px-3 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                    title="Pause productive shift for meal or tea break"
+                  >
+                    {startBreakMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Coffee className="w-3.5 h-3.5 text-amber-700" />}
+                    <span>Take Break</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmClockOut(true)}
+                    className="flex items-center justify-center gap-1.5 py-2 px-3 bg-slate-100 hover:bg-rose-50 hover:text-rose-700 border border-slate-300 hover:border-rose-300 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                    title="End today's work shift"
+                  >
+                    <Square className="w-3 h-3 text-slate-500" />
+                    <span>Clock Out</span>
+                  </button>
+                </div>
+              ) : record?.checkOutTime ? (
+                <button
+                  type="button"
+                  disabled={clockInMutation.isPending}
+                  onClick={() => clockInMutation.mutate()}
+                  className="w-full flex items-center justify-center gap-2 py-2 px-4 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                >
+                  {clockInMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5 fill-current" />}
+                  <span>Resume / Re-enter Shift</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={clockInMutation.isPending}
+                  onClick={() => clockInMutation.mutate()}
+                  className="w-full flex items-center justify-center gap-2 py-2 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black transition-all shadow-sm cursor-pointer"
+                >
+                  {clockInMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5 fill-current" />}
+                  <span>Clock In for Today</span>
+                </button>
+              )}
+
+              {/* Confirm Clock Out Dialog inside Popover */}
+              {showConfirmClockOut && (
+                <div className="bg-rose-50/80 border border-rose-200 rounded-xl p-3 space-y-2 animate-in fade-in">
+                  <p className="text-[11px] font-bold text-rose-900 leading-tight">
+                    Are you ready to end your shift for today?
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      disabled={clockOutMutation.isPending}
+                      onClick={() => clockOutMutation.mutate()}
+                      className="flex-1 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                    >
+                      {clockOutMutation.isPending ? "Ending..." : "Yes, Clock Out"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmClockOut(false)}
+                      className="py-1.5 px-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
-          )}
-        </div>
+
+            {/* Team Lead / Admin Break Policy Quick Link */}
+            {isManagerOrAdmin && (
+              <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                <span className="text-[10px] text-slate-400 font-medium">Team Policy: {maxBreakMinutes}m</span>
+                <button
+                  type="button"
+                  onClick={() => setShowPolicyModal(true)}
+                  className="flex items-center gap-1 text-[10px] font-bold text-primary hover:underline cursor-pointer"
+                >
+                  <Sliders className="w-3 h-3" />
+                  <span>Adjust Policy</span>
+                </button>
+              </div>
+            )}
+          </div>
+        </>
       )}
 
       {/* Break Policy Modal */}
@@ -504,7 +603,7 @@ export function AttendanceClockWidget({ variant = "header" }: { variant?: "heade
               </div>
               <button
                 onClick={() => setShowPolicyModal(false)}
-                className="text-slate-400 hover:text-slate-600 p-1"
+                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
