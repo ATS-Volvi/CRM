@@ -772,6 +772,92 @@ export default function SalespersonTracker() {
     return roots;
   }, [filteredOrgEmployees]);
 
+  const formatYMD = (d: Date) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const scheduleDays = useMemo(() => {
+    const days: Date[] = [];
+    const count = scheduleViewMode === "week" ? 7 : scheduleViewMode === "2weeks" ? 14 : 30;
+    const base = new Date();
+    base.setHours(0, 0, 0, 0);
+    base.setDate(base.getDate() + scheduleOffsetDays);
+
+    for (let i = 0; i < count; i++) {
+      const d = new Date(base);
+      d.setDate(base.getDate() + i);
+      days.push(d);
+    }
+    return days;
+  }, [scheduleViewMode, scheduleOffsetDays]);
+
+  const filteredScheduleEmployees = useMemo(() => {
+    const q = scheduleSearch.toLowerCase().trim();
+    return orgChartEmployees.filter((emp: any) => {
+      if (scheduleRoleFilter !== "all" && getEmployeeDivisionCategory(emp) !== scheduleRoleFilter) {
+        return false;
+      }
+      if (!q) return true;
+      return (
+        (emp.name || "").toLowerCase().includes(q) ||
+        (emp.email || "").toLowerCase().includes(q) ||
+        (emp.role || "").toLowerCase().includes(q) ||
+        (emp.territory || "").toLowerCase().includes(q) ||
+        (emp.department || "").toLowerCase().includes(q)
+      );
+    });
+  }, [orgChartEmployees, scheduleRoleFilter, scheduleSearch]);
+
+  const scheduleStats = useMemo(() => {
+    const todayStr = formatYMD(new Date());
+    let onDuty = 0;
+    let plannedLeave = 0;
+    let suddenSick = 0;
+
+    orgChartEmployees.forEach((emp: any) => {
+      if (emp.isSuddenAbsence) {
+        suddenSick++;
+        return;
+      }
+
+      const allAbs = [...(emp.absences || []), ...(emp.serviceResource?.absences || [])];
+      const match = allAbs.find((a: any) => {
+        const s = formatYMD(new Date(a.startDate));
+        const e = formatYMD(new Date(a.endDate));
+        return todayStr >= s && todayStr <= e;
+      });
+
+      if (match) {
+        const isSudden = match.status === "Sudden" ||
+          match.type?.toLowerCase().includes("sick") ||
+          match.type?.toLowerCase().includes("emergency");
+        if (isSudden) suddenSick++;
+        else plannedLeave++;
+        return;
+      }
+
+      if (emp.isAvailable === false || emp.serviceResource?.attendanceStatus === "On Leave") {
+        plannedLeave++;
+        return;
+      }
+
+      onDuty++;
+    });
+
+    const upcomingHolidays = (holidays || []).filter((h: any) => h.date >= todayStr && h.isActive !== false);
+
+    return {
+      total: orgChartEmployees.length,
+      onDuty,
+      plannedLeave,
+      suddenSick,
+      upcomingHoliday: upcomingHolidays[0] || null
+    };
+  }, [orgChartEmployees, holidays]);
+
   return (
     <div className="max-w-[1200px] mx-auto p-8 space-y-6 animate-fade-in">
 
@@ -824,6 +910,21 @@ export default function SalespersonTracker() {
           Org Chart & Directory
           <span className="px-2 py-0.5 text-[10px] bg-primary/10 text-primary rounded-full font-bold">
             {orgChartEmployees.length}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab("schedule")}
+          className={`flex items-center gap-2 px-5 py-3 text-xs font-bold transition-all border-b-2 ${
+            activeTab === "schedule"
+              ? "border-primary text-primary bg-primary/5 rounded-t-lg"
+              : "border-transparent text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low/50"
+          }`}
+        >
+          <CalendarDays className="w-4 h-4" />
+          Team Schedule & Availability
+          <span className="px-2 py-0.5 text-[10px] bg-emerald-100 text-emerald-800 rounded-full font-bold">
+            Live
           </span>
         </button>
       </div>
@@ -1624,6 +1725,408 @@ export default function SalespersonTracker() {
         </div>
       )}
 
+      {/* TAB 3: TEAM SCHEDULE & AVAILABILITY */}
+      {activeTab === "schedule" && (
+        <div className="space-y-6">
+
+          {/* Top Operational Status Summary Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            <div className="p-3.5 bg-surface-container-lowest border border-outline rounded-xl">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant block">Total Team</span>
+              <span className="text-xl font-black text-on-surface">{scheduleStats.total}</span>
+              <span className="text-[10px] text-on-surface-variant block">Registered members</span>
+            </div>
+
+            <div className="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-xl">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 block">🟢 On Duty Today</span>
+              <span className="text-xl font-black text-emerald-900">{scheduleStats.onDuty}</span>
+              <span className="text-[10px] text-emerald-700 block">Available for routing</span>
+            </div>
+
+            <div className="p-3.5 bg-indigo-50/70 border border-indigo-200 rounded-xl">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-800 block">🟦 Planned Leave</span>
+              <span className="text-xl font-black text-indigo-900">{scheduleStats.plannedLeave}</span>
+              <span className="text-[10px] text-indigo-700 block">Approved vacation/training</span>
+            </div>
+
+            <div className="p-3.5 bg-rose-50/70 border border-rose-200 rounded-xl">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-rose-800 block">🚨 Out on Sick/Sudden</span>
+              <span className="text-xl font-black text-rose-900">{scheduleStats.suddenSick}</span>
+              <span className="text-[10px] text-rose-700 block">Workload auto-rerouted</span>
+            </div>
+
+            <div className="p-3.5 bg-amber-50/70 border border-amber-200 rounded-xl col-span-2 sm:col-span-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 block">🟨 Next Holiday</span>
+              <span className="text-xs font-bold text-amber-950 block truncate mt-1">
+                {scheduleStats.upcomingHoliday ? scheduleStats.upcomingHoliday.name : "None upcoming"}
+              </span>
+              <span className="text-[10px] text-amber-700 block">
+                {scheduleStats.upcomingHoliday ? scheduleStats.upcomingHoliday.date : "Standard business week"}
+              </span>
+            </div>
+          </div>
+
+          {/* Controls Bar: Navigation, Workweek Standard, Range, and Role Filters */}
+          <div className="bg-surface-container-lowest border border-outline rounded-xl p-4 shadow-2xs space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              {/* Date Navigation */}
+              <div className="flex items-center gap-2">
+                <div className="flex items-center bg-surface border border-outline rounded-lg p-0.5 shadow-2xs">
+                  <button
+                    type="button"
+                    onClick={() => setScheduleOffsetDays(prev => prev - (scheduleViewMode === "week" ? 7 : scheduleViewMode === "2weeks" ? 14 : 30))}
+                    className="p-1.5 hover:bg-surface-container-low rounded text-on-surface-variant transition-colors cursor-pointer"
+                    title="Previous Period"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setScheduleOffsetDays(0)}
+                    className="px-2.5 py-1 text-xs font-bold text-primary hover:bg-primary/5 rounded transition-colors cursor-pointer"
+                  >
+                    Today
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setScheduleOffsetDays(prev => prev + (scheduleViewMode === "week" ? 7 : scheduleViewMode === "2weeks" ? 14 : 30))}
+                    className="p-1.5 hover:bg-surface-container-low rounded text-on-surface-variant transition-colors cursor-pointer"
+                    title="Next Period"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <span className="text-xs font-bold text-on-surface">
+                  {scheduleDays[0]?.toLocaleDateString([], { month: "short", day: "numeric" })} – {scheduleDays[scheduleDays.length - 1]?.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}
+                </span>
+              </div>
+
+              {/* View Range & Work Week Standards */}
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Workweek Standard Toggle */}
+                <div className="flex items-center bg-surface-container-low p-1 rounded-lg border border-outline-variant text-[11px] font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setWorkWeekStandard("gcc")}
+                    className={`px-2.5 py-1 rounded transition-all cursor-pointer ${
+                      workWeekStandard === "gcc"
+                        ? "bg-primary text-white shadow-2xs"
+                        : "text-on-surface-variant hover:text-on-surface"
+                    }`}
+                  >
+                    Middle East (Sun–Thu)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setWorkWeekStandard("global")}
+                    className={`px-2.5 py-1 rounded transition-all cursor-pointer ${
+                      workWeekStandard === "global"
+                        ? "bg-primary text-white shadow-2xs"
+                        : "text-on-surface-variant hover:text-on-surface"
+                    }`}
+                  >
+                    Global (Mon–Fri)
+                  </button>
+                </div>
+
+                {/* Timeline Range */}
+                <div className="flex items-center bg-surface-container-low p-1 rounded-lg border border-outline-variant text-[11px] font-bold">
+                  {(["week", "2weeks", "month"] as const).map(mode => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setScheduleViewMode(mode)}
+                      className={`px-2.5 py-1 rounded transition-all capitalize cursor-pointer ${
+                        scheduleViewMode === mode
+                          ? "bg-surface-container-highest text-primary shadow-2xs font-extrabold"
+                          : "text-on-surface-variant hover:text-on-surface"
+                      }`}
+                    >
+                      {mode === "week" ? "7 Days" : mode === "2weeks" ? "14 Days" : "30 Days"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Search and Role Filter Pills */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-outline-variant/60">
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant w-3.5 h-3.5" />
+                <input
+                  type="text"
+                  value={scheduleSearch}
+                  onChange={e => setScheduleSearch(e.target.value)}
+                  placeholder="Filter schedule by employee name, role or territory..."
+                  className="w-full pl-9 pr-3 py-1.5 bg-surface border border-outline rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-primary/40"
+                />
+              </div>
+
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setScheduleRoleFilter("all")}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                    scheduleRoleFilter === "all"
+                      ? "bg-slate-900 text-white shadow-2xs"
+                      : "bg-surface text-on-surface-variant hover:bg-surface-container-low border border-outline-variant"
+                  }`}
+                >
+                  All ({categoryCounts.all})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setScheduleRoleFilter("presales")}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                    scheduleRoleFilter === "presales"
+                      ? "bg-sky-600 text-white shadow-2xs"
+                      : "bg-surface text-sky-700 hover:bg-sky-50 border border-sky-200"
+                  }`}
+                >
+                  <Target className="w-3 h-3" /> Pre-Sales ({categoryCounts.presales})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setScheduleRoleFilter("sales")}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                    scheduleRoleFilter === "sales"
+                      ? "bg-blue-600 text-white shadow-2xs"
+                      : "bg-surface text-blue-700 hover:bg-blue-50 border border-blue-200"
+                  }`}
+                >
+                  <Briefcase className="w-3 h-3" /> Sales Closers ({categoryCounts.sales})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setScheduleRoleFilter("inspector")}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                    scheduleRoleFilter === "inspector"
+                      ? "bg-amber-600 text-white shadow-2xs"
+                      : "bg-surface text-amber-700 hover:bg-amber-50 border border-amber-200"
+                  }`}
+                >
+                  <ClipboardCheck className="w-3 h-3" /> Inspectors ({categoryCounts.inspector})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setScheduleRoleFilter("tech")}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                    scheduleRoleFilter === "tech"
+                      ? "bg-indigo-600 text-white shadow-2xs"
+                      : "bg-surface text-indigo-700 hover:bg-indigo-50 border border-indigo-200"
+                  }`}
+                >
+                  <Wrench className="w-3 h-3" /> Technicians ({categoryCounts.tech})
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Interactive Roster & Availability Timeline Matrix */}
+          <div className="bg-surface-container-lowest border border-outline rounded-xl shadow-2xs overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-surface-container-low/70 border-b border-outline-variant">
+                    <th className="p-3 font-extrabold uppercase text-[10px] text-on-surface-variant sticky left-0 bg-surface-container-low z-20 min-w-[200px] border-r border-outline-variant">
+                      Team Member & Role
+                    </th>
+                    {scheduleDays.map((day, idx) => {
+                      const isToday = formatYMD(day) === formatYMD(new Date());
+                      const dayName = day.toLocaleDateString([], { weekday: "short" });
+                      const dayNum = day.getDate();
+                      const holiday = (holidays || []).find((h: any) => h.date === formatYMD(day) && h.isActive !== false);
+
+                      return (
+                        <th
+                          key={idx}
+                          className={`p-2.5 text-center min-w-[90px] border-r border-outline-variant/50 transition-colors ${
+                            isToday ? "bg-primary/10 border-b-2 border-b-primary font-black" : ""
+                          }`}
+                        >
+                          <div className="text-[10px] uppercase font-bold text-on-surface-variant">{dayName}</div>
+                          <div className={`text-xs font-black ${isToday ? "text-primary" : "text-on-surface"}`}>{dayNum}</div>
+                          {isToday && (
+                            <span className="inline-block mt-0.5 px-1.5 py-0.2 text-[8px] font-black uppercase rounded bg-primary text-white">
+                              Today
+                            </span>
+                          )}
+                          {holiday && (
+                            <div className="text-[8px] font-bold text-amber-700 truncate max-w-[85px] mx-auto mt-0.5" title={holiday.name}>
+                              ★ {holiday.name}
+                            </div>
+                          )}
+                        </th>
+                      );
+                    })}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-outline-variant/60">
+                  {filteredScheduleEmployees.length === 0 ? (
+                    <tr>
+                      <td colSpan={scheduleDays.length + 1} className="p-8 text-center text-xs text-on-surface-variant italic">
+                        No team members match the search and role filter criteria.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredScheduleEmployees.map((emp: any) => {
+                      return (
+                        <tr key={emp.id} className="hover:bg-surface-container-low/30 transition-colors">
+                          {/* Member Sticky Left Cell */}
+                          <td
+                            onClick={() => setSelectedEmployee(emp)}
+                            className="p-3 sticky left-0 bg-surface-container-lowest z-10 border-r border-outline-variant cursor-pointer group hover:bg-surface-container-low/60 transition-colors"
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-xs shadow-2xs flex-shrink-0">
+                                {getInitials(emp.name)}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="font-bold text-xs text-on-surface truncate group-hover:text-primary transition-colors">
+                                  {emp.name}
+                                </p>
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                  <span className="text-[9px] font-semibold text-on-surface-variant uppercase truncate">
+                                    {emp.role?.replace("_", " ")}
+                                  </span>
+                                  {emp.isSuddenAbsence ? (
+                                    <span className="px-1.5 py-0.2 rounded text-[8px] font-extrabold bg-rose-100 text-rose-800 border border-rose-300 animate-pulse">
+                                      🚨 SICK
+                                    </span>
+                                  ) : !emp.isAvailable ? (
+                                    <span className="px-1.5 py-0.2 rounded text-[8px] font-extrabold bg-slate-100 text-slate-700">
+                                      OOO
+                                    </span>
+                                  ) : (
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Day Status Cells */}
+                          {scheduleDays.map((day, dIdx) => {
+                            const dateStr = formatYMD(day);
+                            const isToday = dateStr === formatYMD(new Date());
+                            const holiday = (holidays || []).find((h: any) => h.date === dateStr && h.isActive !== false);
+
+                            const dayOfWeek = day.getDay();
+                            const isWeekend = workWeekStandard === "gcc"
+                              ? (dayOfWeek === 5 || dayOfWeek === 6)
+                              : (dayOfWeek === 0 || dayOfWeek === 6);
+
+                            const allAbs = [...(emp.absences || []), ...(emp.serviceResource?.absences || [])];
+                            const matchingAbsence = allAbs.find((a: any) => {
+                              const s = formatYMD(new Date(a.startDate));
+                              const e = formatYMD(new Date(a.endDate));
+                              return dateStr >= s && dateStr <= e;
+                            });
+
+                            const isInspectorLeave = emp.inspectorProfile?.onLeaveFrom && emp.inspectorProfile?.onLeaveTo && (() => {
+                              const s = formatYMD(new Date(emp.inspectorProfile.onLeaveFrom));
+                              const e = formatYMD(new Date(emp.inspectorProfile.onLeaveTo));
+                              return dateStr >= s && dateStr <= e;
+                            })();
+
+                            const isSudden = (isToday && emp.isSuddenAbsence) ||
+                              (matchingAbsence && (
+                                matchingAbsence.status === "Sudden" ||
+                                matchingAbsence.type?.toLowerCase().includes("sick") ||
+                                matchingAbsence.type?.toLowerCase().includes("emergency")
+                              ));
+
+                            return (
+                              <td
+                                key={dIdx}
+                                onClick={() => setSelectedEmployee(emp)}
+                                className={`p-1.5 text-center border-r border-outline-variant/40 cursor-pointer transition-colors ${
+                                  isToday ? "bg-primary/5" : ""
+                                }`}
+                              >
+                                {isSudden ? (
+                                  <div
+                                    title={`🚨 Sudden Absence: ${matchingAbsence?.reason || emp.activeAbsence?.reason || "Sick/Emergency Leave"}`}
+                                    className="p-1 rounded bg-rose-100 text-rose-800 border border-rose-300 font-extrabold text-[9px] leading-tight shadow-2xs hover:scale-105 transition-transform"
+                                  >
+                                    🚨 SICK
+                                  </div>
+                                ) : matchingAbsence ? (
+                                  <div
+                                    title={`🟦 Planned Leave: ${matchingAbsence.reason || matchingAbsence.type}`}
+                                    className="p-1 rounded bg-indigo-100 text-indigo-900 border border-indigo-300 font-bold text-[9px] leading-tight shadow-2xs hover:scale-105 transition-transform truncate"
+                                  >
+                                    🟦 {matchingAbsence.type?.slice(0, 7) || "LEAVE"}
+                                  </div>
+                                ) : isInspectorLeave ? (
+                                  <div
+                                    title="Site Inspector Approved Absence"
+                                    className="p-1 rounded bg-amber-100 text-amber-900 border border-amber-300 font-bold text-[9px] leading-tight shadow-2xs hover:scale-105 transition-transform truncate"
+                                  >
+                                    📋 LEAVE
+                                  </div>
+                                ) : holiday ? (
+                                  <div
+                                    title={`🟨 Company Holiday: ${holiday.name}`}
+                                    className="p-1 rounded bg-amber-50 text-amber-800 border border-amber-200 font-bold text-[9px] leading-tight truncate"
+                                  >
+                                    ★ HOLIDAY
+                                  </div>
+                                ) : isWeekend ? (
+                                  <div className="p-1 rounded bg-slate-100/70 text-slate-500 text-[9px] font-semibold">
+                                    Off
+                                  </div>
+                                ) : (
+                                  <div
+                                    title="Regular Working Day: 8:00 AM – 5:00 PM"
+                                    className="p-1 rounded bg-emerald-50 text-emerald-800 border border-emerald-100 text-[9px] font-bold flex items-center justify-center gap-1 hover:bg-emerald-100 transition-colors"
+                                  >
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+                                    <span>8h</span>
+                                  </div>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Bottom Color-Coded Status Legend */}
+            <div className="p-3 bg-surface-container-low/70 border-t border-outline-variant flex flex-wrap items-center justify-between gap-3 text-[11px]">
+              <span className="font-bold text-on-surface-variant uppercase text-[10px]">Schedule Status Legend:</span>
+              <div className="flex items-center gap-4 flex-wrap font-medium">
+                <span className="flex items-center gap-1 text-emerald-800">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                  Regular Working Shift (8h)
+                </span>
+                <span className="flex items-center gap-1 text-slate-600">
+                  <span className="w-2.5 h-2.5 rounded bg-slate-300" />
+                  Weekend / Off Day
+                </span>
+                <span className="flex items-center gap-1 text-amber-800">
+                  <span className="w-2.5 h-2.5 rounded bg-amber-400" />
+                  Company / Public Holiday
+                </span>
+                <span className="flex items-center gap-1 text-indigo-800">
+                  <span className="w-2.5 h-2.5 rounded bg-indigo-500" />
+                  Approved Planned Leave
+                </span>
+                <span className="flex items-center gap-1 text-rose-800 font-bold">
+                  <span className="w-2.5 h-2.5 rounded bg-rose-500 animate-pulse" />
+                  🚨 Sudden Absence / Sick (Auto-Rerouted)
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* EMPLOYEE DETAIL DRAWER / MODAL */}
       {selectedEmployee && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex justify-end animate-fade-in">
@@ -1649,9 +2152,17 @@ export default function SalespersonTracker() {
                       {roleLabel(selectedEmployee.role, selectedEmployee.tier)}
                     </span>
                     <span className={`px-2.5 py-0.5 text-[10px] font-bold rounded-full ${
-                      selectedEmployee.isAvailable ? "bg-emerald-100 text-emerald-700 border border-emerald-200" : "bg-slate-100 text-slate-600 border border-slate-200"
+                      selectedEmployee.isSuddenAbsence
+                        ? "bg-rose-100 text-rose-800 border border-rose-300 animate-pulse font-extrabold"
+                        : selectedEmployee.isAvailable
+                        ? "bg-emerald-100 text-emerald-700 border border-emerald-200"
+                        : "bg-slate-100 text-slate-600 border border-slate-200"
                     }`}>
-                      {selectedEmployee.isAvailable ? "● Available" : "○ OOO"}
+                      {selectedEmployee.isSuddenAbsence
+                        ? "🚨 Sudden Sick Leave"
+                        : selectedEmployee.isAvailable
+                        ? "● Available"
+                        : "○ OOO"}
                     </span>
                   </div>
                 </div>
@@ -1660,6 +2171,137 @@ export default function SalespersonTracker() {
 
             {/* Drawer Body */}
             <div className="p-6 space-y-6 flex-1">
+
+              {/* Emergency Banner if on Sudden Absence */}
+              {selectedEmployee.isSuddenAbsence && (
+                <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center justify-between gap-3 shadow-2xs">
+                  <div className="flex items-center gap-2.5">
+                    <AlertTriangle className="w-5 h-5 text-rose-600 animate-pulse flex-shrink-0" />
+                    <div>
+                      <p className="text-xs font-bold text-rose-900">🚨 Sudden Absence Active</p>
+                      <p className="text-[11px] text-rose-700">
+                        {selectedEmployee.activeAbsence?.reason || "Emergency absence reported today. Workload auto-rerouted."}
+                      </p>
+                    </div>
+                  </div>
+                  {["admin", "director", "manager"].includes(currentUser?.role || "") && (
+                    <button
+                      type="button"
+                      disabled={suddenLoading}
+                      onClick={handleEndSuddenAbsence}
+                      className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded-lg shadow-xs transition-all flex items-center gap-1 flex-shrink-0 cursor-pointer"
+                    >
+                      <CheckCircle2 className="w-3 h-3" />
+                      {suddenLoading ? "Updating..." : "Return to Duty"}
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Attendance & Emergency Absence Section (All Employees) */}
+              <div className="p-4 bg-gradient-to-br from-rose-50/60 to-amber-50/40 rounded-xl border border-rose-200 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-[10px] font-extrabold uppercase text-rose-950 tracking-wider flex items-center gap-1.5">
+                    <AlertCircle className="w-3.5 h-3.5 text-rose-600" /> Attendance & Emergency Absence
+                  </h4>
+                  <span className={`px-2 py-0.5 text-[9px] font-extrabold rounded uppercase ${
+                    selectedEmployee.isSuddenAbsence
+                      ? "bg-rose-100 text-rose-800 border border-rose-300 animate-pulse"
+                      : selectedEmployee.isAvailable
+                      ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                      : "bg-slate-100 text-slate-700 border border-slate-300"
+                  }`}>
+                    {selectedEmployee.isSuddenAbsence ? "🚨 Sudden Leave" : selectedEmployee.isAvailable ? "🟢 On Duty" : "⚪ Off / OOO"}
+                  </span>
+                </div>
+
+                <p className="text-[11px] text-rose-900/80">
+                  {selectedEmployee.isSuddenAbsence
+                    ? "Employee is currently out on sudden absence. Auto-routing is paused and active workload has been protected."
+                    : "Need to report sudden sickness or emergency leave for today? This will automatically pause dispatching and route open items to available teammates."}
+                </p>
+
+                {["admin", "director", "manager"].includes(currentUser?.role || "") && !selectedEmployee.isSuddenAbsence && !isSuddenAbsenceOpen && (
+                  <button
+                    type="button"
+                    onClick={() => setIsSuddenAbsenceOpen(true)}
+                    className="w-full py-2 px-3 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
+                  >
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                    Report Sudden Absence / Call Out Today
+                  </button>
+                )}
+
+                {isSuddenAbsenceOpen && (
+                  <div className="pt-2 space-y-2.5 bg-white p-3 rounded-lg border border-rose-200 text-xs animate-slide-down">
+                    <div>
+                      <label className="block text-[10px] font-bold text-rose-950 uppercase mb-1">Reason for Sudden Absence *</label>
+                      <select
+                        value={suddenReason}
+                        onChange={(e) => setSuddenReason(e.target.value)}
+                        className="w-full bg-white border border-rose-200 rounded p-1.5 font-bold text-xs"
+                      >
+                        <option value="Sudden Illness / Medical (Sick Leave)">🤒 Sudden Illness / Medical (Sick Leave)</option>
+                        <option value="Family Emergency">🚨 Family / Urgent Emergency</option>
+                        <option value="Personal Emergency">⚠️ Personal Emergency</option>
+                        <option value="Transport / Travel Delay">🚗 Transport / Travel Issue</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-rose-950 uppercase mb-1">Notes (Optional)</label>
+                      <input
+                        type="text"
+                        value={suddenNotes}
+                        onChange={(e) => setSuddenNotes(e.target.value)}
+                        placeholder="e.g. High fever, doctor visit scheduled"
+                        className="w-full bg-white border border-rose-200 rounded p-1.5 text-xs font-medium"
+                      />
+                    </div>
+
+                    <label className="flex items-center gap-2 cursor-pointer pt-1">
+                      <input
+                        type="checkbox"
+                        checked={reassignWorkload}
+                        onChange={(e) => setReassignWorkload(e.target.checked)}
+                        className="rounded text-rose-600 focus:ring-rose-500"
+                      />
+                      <span className="text-[11px] font-semibold text-slate-700">
+                        Auto-reassign open leads & opportunities to teammates
+                      </span>
+                    </label>
+
+                    <div className="flex justify-end gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setIsSuddenAbsenceOpen(false)}
+                        className="px-2.5 py-1 text-xs border border-rose-200 rounded text-rose-800 cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        disabled={suddenLoading}
+                        onClick={handleTriggerSuddenAbsence}
+                        className="px-3 py-1 text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white rounded shadow-xs cursor-pointer"
+                      >
+                        {suddenLoading ? "Processing..." : "Confirm Sudden Absence"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {suddenReassignSummary && (
+                  <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-900 space-y-1">
+                    <p className="font-bold flex items-center gap-1 text-emerald-800">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Workload Protection Executed
+                    </p>
+                    <p className="text-[11px]">
+                      {suddenReassignSummary.reassignedLeadsCount} leads and {suddenReassignSummary.reassignedDealsCount} deals automatically transferred to active teammates.
+                    </p>
+                  </div>
+                )}
+              </div>
 
               {/* Rep Tier & Closing Authority Section (For Sales Reps) */}
               {selectedEmployee.role === "sales_rep" && (
@@ -2509,6 +3151,11 @@ function OrgTreeNode({ node, level = 0, onSelect }: { node: any; level?: number;
                 }
                 return null;
               })()}
+              {node.isSuddenAbsence && (
+                <span className="px-2 py-0.5 text-[9px] font-black rounded-full bg-rose-100 text-rose-800 border border-rose-300 flex items-center gap-1 animate-pulse">
+                  <AlertTriangle className="w-2.5 h-2.5 text-rose-600" /> SICK / SUDDEN
+                </span>
+              )}
               {hasChildren && (
                 <span className="px-2 py-0.5 text-[9px] font-bold bg-primary/10 text-primary rounded-full">
                   {node.children.length} Report{node.children.length !== 1 ? "s" : ""}
