@@ -24,6 +24,9 @@ const startServer = async () => {
     if (sequelize.models.SiteInspectorProfile) {
       await sequelize.models.SiteInspectorProfile.sync().catch(err => console.warn("SiteInspectorProfile sync warning:", err));
     }
+    if (sequelize.models.SiteHoliday) {
+      await sequelize.models.SiteHoliday.sync().catch(err => console.warn("SiteHoliday sync warning:", err));
+    }
     await sequelize.query("ALTER TABLE Deals ADD COLUMN originalOwnerId TEXT;").catch(() => {});
     await sequelize.query('ALTER TABLE "Users" ADD COLUMN IF NOT EXISTS "teamType" VARCHAR(255);').catch(() => {});
     await sequelize.query('ALTER TABLE Users ADD COLUMN teamType TEXT;').catch(() => {});

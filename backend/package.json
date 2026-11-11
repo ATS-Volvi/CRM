@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "dev": "ts-node-dev index.ts",
+    "dev": "ts-node-dev --respawn --transpile-only --ignore-watch node_modules index.ts",
     "check:parity": "ts-node scripts/checkModelMigrationParity.ts",
     "build": "tsc",
     "start": "node -e \"const fs = require('fs'); const p = fs.existsSync('./build/backend/index.js') ? './build/backend/index.js' : './build/index.js'; require(p);\"",

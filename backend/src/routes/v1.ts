@@ -1074,6 +1074,7 @@ router.get("/site-inspections/master", authMiddleware, getMasterData);
 router.get("/site-inspections/site-managers", authMiddleware, requireInspectionApprover, getSiteManagers);
 
 // Phase 2 Settings, Holidays, Profiles, and Audit Logs
+router.get("/company-holidays", authMiddleware, listSiteHolidays);
 router.get("/site-inspections/settings", authMiddleware, getSiteInspectionSettings);
 router.put("/site-inspections/settings", authMiddleware, updateSiteInspectionSettings);
 router.get("/site-inspections/holidays", authMiddleware, listSiteHolidays);

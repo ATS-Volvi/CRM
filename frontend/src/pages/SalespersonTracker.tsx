@@ -7,7 +7,8 @@ import {
   Users, Search, Plus, X, MapPin, Building2, ChevronDown, Crown,
   UserCheck, BarChart3, ChevronRight, Mail, UserPlus,
   ShieldCheck, Target, Wrench, ClipboardCheck, Briefcase,
-  Calendar, CalendarDays, Trash2, Edit3, Save, Clock, ExternalLink
+  Calendar, CalendarDays, Trash2, Edit3, Save, Clock, ExternalLink,
+  AlertTriangle, AlertCircle, Sun, CheckCircle2, ChevronLeft, RefreshCw, Palmtree, UserX
 } from "lucide-react";
 import { formatCurrency } from "../utils/currency";
 import KpiAttainmentTable from "../components/KpiAttainmentTable";
@@ -140,7 +141,7 @@ export default function SalespersonTracker() {
   const deepLinkTeamId = searchParams.get("teamId");
   const deepLinkView = searchParams.get("view");
 
-  const [activeTab, setActiveTab] = useState<"performance" | "orgchart">("performance");
+  const [activeTab, setActiveTab] = useState<"performance" | "orgchart" | "schedule">("performance");
   const [perfSubTab, setPerfSubTab] = useState<"overview" | "kpi">("overview");
   const [search, setSearch] = useState("");
   const [filterDept, setFilterDept] = useState("All");
@@ -172,6 +173,21 @@ export default function SalespersonTracker() {
     leaveType: "Vacation",
     leaveReason: ""
   });
+
+  // Sudden Absence in-drawer modal/state
+  const [isSuddenAbsenceOpen, setIsSuddenAbsenceOpen] = useState(false);
+  const [suddenReason, setSuddenReason] = useState("Sudden Illness / Medical (Sick Leave)");
+  const [suddenNotes, setSuddenNotes] = useState("");
+  const [reassignWorkload, setReassignWorkload] = useState(true);
+  const [suddenLoading, setSuddenLoading] = useState(false);
+  const [suddenReassignSummary, setSuddenReassignSummary] = useState<any | null>(null);
+
+  // Team Schedule & Availability View States
+  const [scheduleViewMode, setScheduleViewMode] = useState<"week" | "2weeks" | "month">("2weeks");
+  const [workWeekStandard, setWorkWeekStandard] = useState<"gcc" | "global">("gcc");
+  const [scheduleOffsetDays, setScheduleOffsetDays] = useState(0);
+  const [scheduleSearch, setScheduleSearch] = useState("");
+  const [scheduleRoleFilter, setScheduleRoleFilter] = useState<DivisionCategory>("all");
 
   const [expandedTeams, setExpandedTeams] = useState<Set<string>>(new Set());
   const [teamSubTabs, setTeamSubTabs] = useState<Record<string, "members" | "kpi">>({});
@@ -276,6 +292,18 @@ export default function SalespersonTracker() {
       return (list || []).filter((u: any) => u.role === "manager" || u.role === "admin" || u.role === "director");
     },
     staleTime: 5 * 60 * 1000
+  });
+
+  const { data: holidays = [] } = useQuery<any[]>({
+    queryKey: ["companyHolidays"],
+    queryFn: async () => {
+      try {
+        const res = await apiClient("/api/v1/company-holidays");
+        if (res.ok) return res.json();
+      } catch (err) {}
+      return [];
+    },
+    staleTime: 10 * 60 * 1000
   });
 
   const availableManagers = useMemo(() => {
@@ -425,6 +453,91 @@ export default function SalespersonTracker() {
       queryClient.invalidateQueries({ queryKey: ["orgChartEmployees"] });
     } catch (err: any) {
       alert("Failed to clear leave: " + err.message);
+    }
+  };
+
+  const handleTriggerSuddenAbsence = async () => {
+    if (!selectedEmployee) return;
+    setSuddenLoading(true);
+    try {
+      const fullReason = `${suddenReason}${suddenNotes.trim() ? " — " + suddenNotes.trim() : ""}`;
+      const res = await apiClient(`/api/v1/salespersons/${selectedEmployee.id}/capacity`, {
+        method: "PUT",
+        body: JSON.stringify({
+          suddenAbsence: true,
+          leaveType: "Sudden Sick Leave",
+          leaveReason: fullReason,
+          reassignWorkload
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to report sudden absence");
+
+      setSuddenReassignSummary(data.reassignmentSummary || null);
+      setIsSuddenAbsenceOpen(false);
+      setSuddenNotes("");
+
+      setSelectedEmployee((prev: any) => ({
+        ...prev,
+        isAvailable: false,
+        isSuddenAbsence: true,
+        activeAbsence: {
+          type: "Sudden Sick Leave",
+          reason: fullReason,
+          startDate: new Date().toISOString(),
+          endDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+          status: "Sudden"
+        },
+        serviceResource: {
+          ...(prev?.serviceResource || {}),
+          attendanceStatus: "On Leave",
+          isActive: false
+        }
+      }));
+
+      queryClient.invalidateQueries({ queryKey: ["orgChartEmployees"] });
+      queryClient.invalidateQueries({ queryKey: ["salespersonsPerformance"] });
+    } catch (err: any) {
+      alert("Error reporting sudden absence: " + err.message);
+    } finally {
+      setSuddenLoading(false);
+    }
+  };
+
+  const handleEndSuddenAbsence = async () => {
+    if (!selectedEmployee) return;
+    setSuddenLoading(true);
+    try {
+      const res = await apiClient(`/api/v1/salespersons/${selectedEmployee.id}/capacity`, {
+        method: "PUT",
+        body: JSON.stringify({
+          endSuddenAbsence: true,
+          returnToDuty: true,
+          isAvailable: true
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to return to duty");
+
+      setSuddenReassignSummary(null);
+      setSelectedEmployee((prev: any) => ({
+        ...prev,
+        isAvailable: true,
+        isSuddenAbsence: false,
+        activeAbsence: null,
+        serviceResource: {
+          ...(prev?.serviceResource || {}),
+          attendanceStatus: "On Duty",
+          isActive: true
+        }
+      }));
+
+      queryClient.invalidateQueries({ queryKey: ["orgChartEmployees"] });
+      queryClient.invalidateQueries({ queryKey: ["salespersonsPerformance"] });
+    } catch (err: any) {
+      alert("Error returning to duty: " + err.message);
+    } finally {
+      setSuddenLoading(false);
     }
   };
 

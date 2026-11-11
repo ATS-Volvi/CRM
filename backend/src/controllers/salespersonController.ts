@@ -493,6 +493,26 @@ export const getOrgChartEmployees = async (req: Request, res: Response) => {
       }
       plain.inspectorProfile = inspectorMap[plain.id] || null;
       plain.activeSiteInspections = inspectionMap[plain.id] || [];
+
+      // Unified absence and sudden leave resolution for all employee roles
+      const now = new Date();
+      const userAbsences = plain.serviceResource?.absences || [];
+      const activeAbsenceToday = userAbsences.find((a: any) => {
+        const start = new Date(a.startDate);
+        const end = new Date(a.endDate);
+        // Include start and end of respective days
+        start.setHours(0, 0, 0, 0);
+        end.setHours(23, 59, 59, 999);
+        return now >= start && now <= end;
+      });
+
+      plain.absences = userAbsences;
+      plain.activeAbsence = activeAbsenceToday || null;
+      plain.isSuddenAbsence = Boolean(
+        activeAbsenceToday?.status === "Sudden" ||
+        activeAbsenceToday?.type?.toLowerCase().includes("sick") ||
+        activeAbsenceToday?.type?.toLowerCase().includes("emergency")
+      );
       return plain;
     });
 
@@ -1023,10 +1043,23 @@ export const updateSalespersonCapacity = async (req: Request, res: Response) => 
     if (dealValueCutoff !== undefined) updates.dealValueCutoff = dealValueCutoff;
     if (maxOpenDeals !== undefined) updates.maxOpenDeals = maxOpenDeals;
 
+    // Handle sudden absence / emergency leave trigger
+    if (req.body.suddenAbsence) {
+      updates.isAvailable = false;
+      updates.status = "On Leave";
+      updates.onLeave = true;
+    } else if (req.body.endSuddenAbsence || req.body.returnToDuty) {
+      updates.isAvailable = true;
+      updates.status = "Active";
+      updates.onLeave = false;
+    }
+
     await user.update(updates);
 
-    // Sync with ServiceResource if technician qualifications or attendance updated
+    // Sync with ServiceResource & ResourceAbsence for any employee (technicians, sales reps, pre-sales, inspectors)
     const ServiceResource = sequelize.models.ServiceResource;
+    const ResourceAbsence = sequelize.models.ResourceAbsence;
+
     if (
       ServiceResource &&
       (user.role === "technician" ||
@@ -1034,9 +1067,14 @@ export const updateSalespersonCapacity = async (req: Request, res: Response) => 
         req.body.attendanceStatus !== undefined ||
         req.body.certifications !== undefined ||
         req.body.experienceYearsWithCompany !== undefined ||
-        req.body.previousExperience !== undefined)
+        req.body.previousExperience !== undefined ||
+        req.body.leaveStartDate !== undefined ||
+        req.body.removeAbsenceId !== undefined ||
+        req.body.suddenAbsence !== undefined ||
+        req.body.endSuddenAbsence !== undefined ||
+        req.body.returnToDuty !== undefined)
     ) {
-      const existingRes = await ServiceResource.findOne({ where: { userId: user.id } });
+      let existingRes: any = await ServiceResource.findOne({ where: { userId: user.id } });
       const resUpdates: any = {};
 
       if (req.body.skills !== undefined) {
@@ -1065,60 +1103,72 @@ export const updateSalespersonCapacity = async (req: Request, res: Response) => 
         resUpdates.isActive = !!isAvailable;
       }
 
-      if (existingRes) {
-        await existingRes.update(resUpdates);
+      // If sudden absence reported, mark resource on leave
+      if (req.body.suddenAbsence) {
+        resUpdates.attendanceStatus = "On Leave";
+        resUpdates.isActive = false;
+      } else if (req.body.endSuddenAbsence || req.body.returnToDuty) {
+        resUpdates.attendanceStatus = "On Duty";
+        resUpdates.isActive = true;
+      }
 
-        // Schedule new absence/leave for technician if requested
-        const ResourceAbsence = sequelize.models.ResourceAbsence;
-        if (ResourceAbsence && req.body.leaveStartDate && req.body.leaveEndDate) {
-          await ResourceAbsence.create({
-            id: crypto.randomUUID(),
-            serviceResourceId: (existingRes as any).id,
-            type: req.body.leaveType || "Vacation",
-            startDate: new Date(req.body.leaveStartDate),
-            endDate: new Date(req.body.leaveEndDate),
-            reason: req.body.leaveReason || "Scheduled Leave",
-            status: "Approved"
-          });
-        }
-
-        // Delete an existing absence record if requested
-        if (ResourceAbsence && req.body.removeAbsenceId) {
-          await ResourceAbsence.destroy({
-            where: {
-              id: req.body.removeAbsenceId,
-              serviceResourceId: (existingRes as any).id
-            }
-          });
-        }
-      } else if (user.role === "technician" || req.body.skills) {
-        const createdRes: any = await ServiceResource.create({
+      if (!existingRes) {
+        // Create ServiceResource record so absences can be tracked across any role
+        existingRes = await ServiceResource.create({
           id: crypto.randomUUID(),
           name: user.name,
           userId: user.id,
-          resourceType: "Technician",
+          resourceType: user.role === "technician" ? "Technician" : user.role === "site_manager" ? "Inspector" : "Sales Representative",
           location: user.territory || null,
           skills: resUpdates.skills || [],
           certifications: resUpdates.certifications || [],
           experienceYearsWithCompany: resUpdates.experienceYearsWithCompany || 0,
           previousExperience: resUpdates.previousExperience || null,
-          attendanceStatus: resUpdates.attendanceStatus || "On Duty",
+          attendanceStatus: resUpdates.attendanceStatus || (req.body.suddenAbsence ? "On Leave" : "On Duty"),
           email: user.email,
           phone: user.phone || null,
-          isActive: isAvailable ?? true,
+          isActive: req.body.suddenAbsence ? false : (isAvailable ?? true),
         });
+      } else {
+        await existingRes.update(resUpdates);
+      }
 
-        const ResourceAbsence = sequelize.models.ResourceAbsence;
-        if (ResourceAbsence && req.body.leaveStartDate && req.body.leaveEndDate) {
-          await ResourceAbsence.create({
-            id: crypto.randomUUID(),
-            serviceResourceId: createdRes.id,
-            type: req.body.leaveType || "Vacation",
-            startDate: new Date(req.body.leaveStartDate),
-            endDate: new Date(req.body.leaveEndDate),
-            reason: req.body.leaveReason || "Scheduled Leave",
-            status: "Approved"
-          });
+      // Schedule new absence/leave (planned or sudden)
+      if (ResourceAbsence && (req.body.leaveStartDate || req.body.suddenAbsence)) {
+        const startDate = req.body.leaveStartDate ? new Date(req.body.leaveStartDate) : new Date();
+        const endDate = req.body.leaveEndDate ? new Date(req.body.leaveEndDate) : new Date(Date.now() + 24 * 60 * 60 * 1000);
+        await ResourceAbsence.create({
+          id: crypto.randomUUID(),
+          serviceResourceId: existingRes.id,
+          type: req.body.leaveType || (req.body.suddenAbsence ? "Sudden Sick Leave" : "Vacation"),
+          startDate,
+          endDate,
+          reason: req.body.leaveReason || (req.body.suddenAbsence ? "Sudden illness / emergency absence" : "Scheduled Leave"),
+          status: req.body.suddenAbsence ? "Sudden" : "Approved"
+        });
+      }
+
+      // Delete an existing absence record if requested
+      if (ResourceAbsence && req.body.removeAbsenceId) {
+        await ResourceAbsence.destroy({
+          where: {
+            id: req.body.removeAbsenceId,
+            serviceResourceId: existingRes.id
+          }
+        });
+      }
+
+      // If returning to duty, remove any open sudden absence for today
+      if (ResourceAbsence && (req.body.endSuddenAbsence || req.body.returnToDuty)) {
+        const today = new Date();
+        const allSudden = await ResourceAbsence.findAll({
+          where: {
+            serviceResourceId: existingRes.id,
+            status: "Sudden"
+          }
+        });
+        for (const s of allSudden) {
+          await s.destroy();
         }
       }
     }
@@ -1132,6 +1182,9 @@ export const updateSalespersonCapacity = async (req: Request, res: Response) => 
         req.body.maxVisitsPerDay !== undefined ||
         req.body.maxDistanceKm !== undefined ||
         req.body.leaveStartDate !== undefined ||
+        req.body.suddenAbsence !== undefined ||
+        req.body.endSuddenAbsence !== undefined ||
+        req.body.returnToDuty !== undefined ||
         req.body.clearInspectorLeave !== undefined)
     ) {
       const inspProfile = await SiteInspectorProfile.findOne({ where: { userId: user.id } });
@@ -1140,12 +1193,17 @@ export const updateSalespersonCapacity = async (req: Request, res: Response) => 
       if (req.body.maxVisitsPerDay !== undefined) inspUpdates.maxVisitsPerDay = Number(req.body.maxVisitsPerDay);
       if (req.body.maxDistanceKm !== undefined) inspUpdates.maxDistanceKm = Number(req.body.maxDistanceKm);
       if (isAvailable !== undefined) inspUpdates.isAvailable = !!isAvailable;
-      if (req.body.leaveStartDate && req.body.leaveEndDate) {
-        inspUpdates.onLeaveFrom = new Date(req.body.leaveStartDate);
-        inspUpdates.onLeaveTo = new Date(req.body.leaveEndDate);
-      } else if (req.body.clearInspectorLeave) {
+      if (req.body.suddenAbsence) {
+        inspUpdates.isAvailable = false;
+        inspUpdates.onLeaveFrom = new Date();
+        inspUpdates.onLeaveTo = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      } else if (req.body.endSuddenAbsence || req.body.returnToDuty || req.body.clearInspectorLeave) {
+        inspUpdates.isAvailable = true;
         inspUpdates.onLeaveFrom = null;
         inspUpdates.onLeaveTo = null;
+      } else if (req.body.leaveStartDate && req.body.leaveEndDate) {
+        inspUpdates.onLeaveFrom = new Date(req.body.leaveStartDate);
+        inspUpdates.onLeaveTo = new Date(req.body.leaveEndDate);
       }
       if (inspProfile) {
         await inspProfile.update(inspUpdates);
@@ -1153,23 +1211,30 @@ export const updateSalespersonCapacity = async (req: Request, res: Response) => 
         await SiteInspectorProfile.create({
           id: crypto.randomUUID(),
           userId: user.id,
-          isAvailable: isAvailable ?? true,
+          isAvailable: req.body.suddenAbsence ? false : (isAvailable ?? true),
           maxOpenInspections: 5,
           maxVisitsPerDay: 3,
           maxDistanceKm: 50,
           certifications: "[]",
           languages: JSON.stringify(["English", "Arabic"]),
-          onLeaveFrom: req.body.leaveStartDate ? new Date(req.body.leaveStartDate) : null,
-          onLeaveTo: req.body.leaveEndDate ? new Date(req.body.leaveEndDate) : null,
+          onLeaveFrom: req.body.suddenAbsence ? new Date() : (req.body.leaveStartDate ? new Date(req.body.leaveStartDate) : null),
+          onLeaveTo: req.body.suddenAbsence ? new Date(Date.now() + 24 * 60 * 60 * 1000) : (req.body.leaveEndDate ? new Date(req.body.leaveEndDate) : null),
         });
       }
     }
 
-    // If marked unavailable / absent / on leave, auto-reassign open workload
+    // If marked unavailable / absent / on leave or sudden leave reported, auto-reassign open workload
     let reassignmentSummary = null;
-    if (updates.isAvailable === false || updates.onLeave === true || updates.status === "On Leave" || updates.status === "OOO") {
+    if (
+      updates.isAvailable === false ||
+      updates.onLeave === true ||
+      updates.status === "On Leave" ||
+      updates.status === "OOO" ||
+      req.body.suddenAbsence === true
+    ) {
       const { reassignAbsentRepWorkload } = require("../services/absenceReassignmentService");
-      reassignmentSummary = await reassignAbsentRepWorkload(id);
+      const reason = req.body.leaveReason || (req.body.suddenAbsence ? "Sudden absence / sick leave reported" : "Employee on leave");
+      reassignmentSummary = await reassignAbsentRepWorkload(id, reason);
     }
 
     res.json({
