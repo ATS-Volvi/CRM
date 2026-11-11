@@ -8,6 +8,16 @@ const PORT = parseInt(process.env.PORT || "5506", 10);
 
 const app = createServer();
 
+// Start HTTP server immediately so cloud platforms (Render, Railway, etc.) detect open port right away without port scan timeouts
+const server = app.listen(PORT, "0.0.0.0", () => {
+  console.log(`[STARTUP] Nexus CRM backend successfully listening on 0.0.0.0:${PORT}`);
+});
+
+server.on("error", (err: any) => {
+  console.error(`[STARTUP ERROR] Server failed to bind to port ${PORT}:`, err);
+  process.exit(1);
+});
+
 const startServer = async () => {
   try {
     await Database.createConnection();
@@ -53,48 +63,44 @@ const startServer = async () => {
     const { logInboundAuthStartupWarning } = require("./src/controllers/emailController");
     logInboundAuthStartupWarning();
 
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log(`Nexus CRM backend running on port ${PORT}`);
-      // Setup simple cron job for checking overdue tasks every hour
-      // (Using 1 hour = 3600000 ms)
-      setInterval(() => {
-        checkOverdueTasks().catch(console.error);
-        processScheduledEmails().catch(console.error);
-        processQuoteFollowUps().catch(console.error);
-      }, 3600000);
+    // Setup simple cron job for checking overdue tasks every hour
+    // (Using 1 hour = 3600000 ms)
+    setInterval(() => {
+      checkOverdueTasks().catch(console.error);
+      processScheduledEmails().catch(console.error);
+      processQuoteFollowUps().catch(console.error);
+    }, 3600000);
 
-      // Start Quote Expiry Scheduler
-      const { startExpiryScheduler } = require("./src/services/expiryScheduler");
-      startExpiryScheduler();
-      
-      // Start Scheduled Weekly Snapshot Reports
-      const { startReportScheduler } = require("./src/services/scheduledReportService");
-      startReportScheduler();
+    // Start Quote Expiry Scheduler
+    const { startExpiryScheduler } = require("./src/services/expiryScheduler");
+    startExpiryScheduler();
+    
+    // Start Scheduled Weekly Snapshot Reports
+    const { startReportScheduler } = require("./src/services/scheduledReportService");
+    startReportScheduler();
 
-      // Start Lead Connector Scheduler
-      const { startConnectorScheduler } = require("./src/services/connectorScheduler");
-      startConnectorScheduler();
+    // Start Lead Connector Scheduler
+    const { startConnectorScheduler } = require("./src/services/connectorScheduler");
+    startConnectorScheduler();
 
-      // Start Temperature Scheduler
-      const { startTemperatureScheduler } = require("./src/services/temperatureScheduler");
-      startTemperatureScheduler();
+    // Start Temperature Scheduler
+    const { startTemperatureScheduler } = require("./src/services/temperatureScheduler");
+    startTemperatureScheduler();
 
-      // Start Campaign Message Scheduler
-      const { startCampaignMessageScheduler } = require("./src/services/campaignMessageScheduler");
-      startCampaignMessageScheduler();
+    // Start Campaign Message Scheduler
+    const { startCampaignMessageScheduler } = require("./src/services/campaignMessageScheduler");
+    startCampaignMessageScheduler();
 
-      // Start Site Inspection Stage B Automation Scanner
-      const { startAutomationScheduler } = require("./src/services/siteInspectionAutomationScanner");
-      startAutomationScheduler();
+    // Start Site Inspection Stage B Automation Scanner
+    const { startAutomationScheduler } = require("./src/services/siteInspectionAutomationScanner");
+    startAutomationScheduler();
 
-      // Start Work Order Notification Poller Scheduler (60s)
-      const { startWorkOrderNotificationScheduler, validateWorkOrderNotificationConfigOnStartup } = require("./src/services/workOrderNotificationService");
-      validateWorkOrderNotificationConfigOnStartup();
-      startWorkOrderNotificationScheduler();
-    });
+    // Start Work Order Notification Poller Scheduler (60s)
+    const { startWorkOrderNotificationScheduler, validateWorkOrderNotificationConfigOnStartup } = require("./src/services/workOrderNotificationService");
+    validateWorkOrderNotificationConfigOnStartup();
+    startWorkOrderNotificationScheduler();
   } catch (error) {
-    console.error("Failed to start server:", error);
-    process.exit(1);
+    console.error("Failed during background startup tasks:", error);
   }
 };
 
