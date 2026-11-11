@@ -223,6 +223,16 @@ export default function SalespersonTracker() {
   const [scheduleOffsetDays, setScheduleOffsetDays] = useState(0);
   const [scheduleSearch, setScheduleSearch] = useState("");
   const [scheduleRoleFilter, setScheduleRoleFilter] = useState<DivisionCategory>("all");
+  const [scheduleAttendanceFilter, setScheduleAttendanceFilter] = useState<"all" | "clocked_in" | "on_break" | "not_clocked_in" | "over_break">("all");
+
+  const [regularizeModalOpen, setRegularizeModalOpen] = useState(false);
+  const [regularizeForm, setRegularizeForm] = useState({
+    checkInTime: "09:00",
+    checkOutTime: "18:00",
+    totalBreakMinutes: 0,
+    notes: ""
+  });
+  const [regularizeSubmitting, setRegularizeSubmitting] = useState(false);
 
   const [expandedTeams, setExpandedTeams] = useState<Set<string>>(new Set());
   const [teamSubTabs, setTeamSubTabs] = useState<Record<string, "members" | "kpi">>({});
@@ -632,6 +642,58 @@ export default function SalespersonTracker() {
     }
   };
 
+  const handleOpenRegularize = () => {
+    if (!selectedEmployee) return;
+    const todayStr = formatYMD(new Date());
+    const selAtt = (attendanceData?.attendances || []).find((a: any) => a.userId === selectedEmployee.id);
+    setRegularizeForm({
+      checkInTime: selAtt?.checkInTime ? new Date(selAtt.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : "09:00",
+      checkOutTime: selAtt?.checkOutTime ? new Date(selAtt.checkOutTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : "18:00",
+      totalBreakMinutes: selAtt?.totalBreakMinutes || 0,
+      notes: ""
+    });
+    setRegularizeModalOpen(true);
+  };
+
+  const handleRegularizeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedEmployee) return;
+    setRegularizeSubmitting(true);
+    try {
+      const todayStr = formatYMD(new Date());
+      const selAtt = (attendanceData?.attendances || []).find((a: any) => a.userId === selectedEmployee.id);
+      
+      const inDate = regularizeForm.checkInTime ? new Date(`${todayStr}T${regularizeForm.checkInTime}:00`) : null;
+      const outDate = regularizeForm.checkOutTime ? new Date(`${todayStr}T${regularizeForm.checkOutTime}:00`) : null;
+
+      const res = await apiClient("/api/v1/attendance/regularize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          attendanceId: selAtt?.id,
+          userId: selectedEmployee.id,
+          date: todayStr,
+          checkInTime: inDate ? inDate.toISOString() : null,
+          checkOutTime: outDate ? outDate.toISOString() : null,
+          totalBreakMinutes: Number(regularizeForm.totalBreakMinutes || 0),
+          notes: regularizeForm.notes || "Regularized by manager"
+        })
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to regularize attendance");
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ["attendanceRoster"] });
+      setRegularizeModalOpen(false);
+    } catch (err: any) {
+      alert("Error regularizing attendance: " + err.message);
+    } finally {
+      setRegularizeSubmitting(false);
+    }
+  };
+
   const handleEndSuddenAbsence = async () => {
     if (!selectedEmployee) return;
     setSuddenLoading(true);
@@ -922,12 +984,63 @@ export default function SalespersonTracker() {
     return days;
   }, [scheduleViewMode, scheduleOffsetDays]);
 
+  const attendanceCounts = useMemo(() => {
+    let clockedIn = 0;
+    let onBreak = 0;
+    let notClockedIn = 0;
+    let overBreak = 0;
+
+    orgChartEmployees.forEach((emp: any) => {
+      const todayAtt = (attendanceData?.attendances || []).find((a: any) => a.userId === emp.id);
+      const teamPolicy = (attendanceData?.policies || []).find((p: any) => p.teamName === emp.team)
+        || (attendanceData?.policies || []).find((p: any) => p.teamName === 'All');
+      const maxBreak = teamPolicy?.maxBreakMinutes ?? 60;
+
+      if (!todayAtt || !todayAtt.checkInTime) {
+        notClockedIn++;
+      } else {
+        if (todayAtt.currentBreakStart) {
+          onBreak++;
+        } else if (!todayAtt.checkOutTime) {
+          clockedIn++;
+        }
+        if ((todayAtt.totalBreakMinutes || 0) > maxBreak) {
+          overBreak++;
+        }
+      }
+    });
+
+    return {
+      all: orgChartEmployees.length,
+      clockedIn,
+      onBreak,
+      notClockedIn,
+      overBreak
+    };
+  }, [orgChartEmployees, attendanceData]);
+
   const filteredScheduleEmployees = useMemo(() => {
     const q = scheduleSearch.toLowerCase().trim();
     return orgChartEmployees.filter((emp: any) => {
       if (scheduleRoleFilter !== "all" && getEmployeeDivisionCategory(emp) !== scheduleRoleFilter) {
         return false;
       }
+
+      const todayAtt = (attendanceData?.attendances || []).find((a: any) => a.userId === emp.id);
+      const teamPolicy = (attendanceData?.policies || []).find((p: any) => p.teamName === emp.team)
+        || (attendanceData?.policies || []).find((p: any) => p.teamName === 'All');
+      const maxBreak = teamPolicy?.maxBreakMinutes ?? 60;
+
+      if (scheduleAttendanceFilter === "clocked_in") {
+        if (!todayAtt || !todayAtt.checkInTime || todayAtt.checkOutTime || todayAtt.currentBreakStart) return false;
+      } else if (scheduleAttendanceFilter === "on_break") {
+        if (!todayAtt || !todayAtt.currentBreakStart) return false;
+      } else if (scheduleAttendanceFilter === "not_clocked_in") {
+        if (todayAtt && todayAtt.checkInTime) return false;
+      } else if (scheduleAttendanceFilter === "over_break") {
+        if (!todayAtt || (todayAtt.totalBreakMinutes || 0) <= maxBreak) return false;
+      }
+
       if (!q) return true;
       return (
         (emp.name || "").toLowerCase().includes(q) ||
@@ -937,7 +1050,7 @@ export default function SalespersonTracker() {
         (emp.department || "").toLowerCase().includes(q)
       );
     });
-  }, [orgChartEmployees, scheduleRoleFilter, scheduleSearch]);
+  }, [orgChartEmployees, scheduleRoleFilter, scheduleAttendanceFilter, scheduleSearch, attendanceData]);
 
   const scheduleStats = useMemo(() => {
     const todayStr = formatYMD(new Date());
@@ -2367,6 +2480,74 @@ export default function SalespersonTracker() {
                 </button>
               </div>
             </div>
+
+            {/* Attendance Live Status Filter Pills */}
+            <div className="flex items-center gap-1.5 flex-wrap pt-2 border-t border-outline-variant/40">
+              <span className="text-[10px] font-extrabold uppercase text-slate-400 mr-1 flex items-center gap-1">
+                <Clock className="w-3 h-3 text-slate-500" /> Attendance:
+              </span>
+              <button
+                type="button"
+                onClick={() => setScheduleAttendanceFilter("all")}
+                className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold transition-all cursor-pointer ${
+                  scheduleAttendanceFilter === "all"
+                    ? "bg-slate-800 text-white shadow-2xs"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+              >
+                All ({attendanceCounts.all})
+              </button>
+              <button
+                type="button"
+                onClick={() => setScheduleAttendanceFilter("clocked_in")}
+                className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                  scheduleAttendanceFilter === "clocked_in"
+                    ? "bg-emerald-600 text-white shadow-2xs"
+                    : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
+                }`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+                Active On Duty ({attendanceCounts.clockedIn})
+              </button>
+              <button
+                type="button"
+                onClick={() => setScheduleAttendanceFilter("on_break")}
+                className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                  scheduleAttendanceFilter === "on_break"
+                    ? "bg-amber-600 text-white shadow-2xs"
+                    : "bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200"
+                }`}
+              >
+                <span>☕</span>
+                On Break ({attendanceCounts.onBreak})
+              </button>
+              <button
+                type="button"
+                onClick={() => setScheduleAttendanceFilter("not_clocked_in")}
+                className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                  scheduleAttendanceFilter === "not_clocked_in"
+                    ? "bg-rose-600 text-white shadow-2xs"
+                    : "bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200"
+                }`}
+              >
+                <span>⚠️</span>
+                Not Clocked In ({attendanceCounts.notClockedIn})
+              </button>
+              {attendanceCounts.overBreak > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setScheduleAttendanceFilter("over_break")}
+                  className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                    scheduleAttendanceFilter === "over_break"
+                      ? "bg-red-700 text-white shadow-2xs"
+                      : "bg-red-50 text-red-700 hover:bg-red-100 border border-red-300 animate-pulse"
+                  }`}
+                >
+                  <span>🚨</span>
+                  Over Break ({attendanceCounts.overBreak})
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Interactive Roster & Availability Timeline Matrix */}
@@ -2750,6 +2931,17 @@ export default function SalespersonTracker() {
                         </span>
                       );
                     })()}
+                    {["admin", "director", "manager", "team_lead", "ops_manager"].includes(currentUser?.role || "") && (
+                      <button
+                        type="button"
+                        onClick={handleOpenRegularize}
+                        className="px-2.5 py-0.5 text-[10px] font-bold rounded-lg bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                        title="Adjust or regularize clock-in/out times"
+                      >
+                        <Edit3 className="w-2.5 h-2.5 text-primary" />
+                        <span>Regularize Shift</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -3636,6 +3828,105 @@ export default function SalespersonTracker() {
                 Close View
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Regularize Shift Modal */}
+      {regularizeModalOpen && selectedEmployee && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-md w-full border border-slate-200 dark:border-slate-800 shadow-2xl p-6 space-y-4 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div>
+                <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-primary" />
+                  Regularize Employee Attendance
+                </h3>
+                <p className="text-xs text-slate-500 font-medium mt-0.5">
+                  {selectedEmployee.name} • {selectedEmployee.role?.replace("_", " ")} ({formatYMD(new Date())})
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRegularizeModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleRegularizeSubmit} className="space-y-3.5 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-extrabold uppercase text-slate-500 mb-1">
+                    Clock-In Time
+                  </label>
+                  <input
+                    type="time"
+                    required
+                    value={regularizeForm.checkInTime}
+                    onChange={e => setRegularizeForm({ ...regularizeForm, checkInTime: e.target.value })}
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-mono font-bold focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-extrabold uppercase text-slate-500 mb-1">
+                    Clock-Out Time
+                  </label>
+                  <input
+                    type="time"
+                    value={regularizeForm.checkOutTime}
+                    onChange={e => setRegularizeForm({ ...regularizeForm, checkOutTime: e.target.value })}
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-mono font-bold focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-extrabold uppercase text-slate-500 mb-1">
+                  Total Break Taken (Minutes)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="480"
+                  value={regularizeForm.totalBreakMinutes}
+                  onChange={e => setRegularizeForm({ ...regularizeForm, totalBreakMinutes: Number(e.target.value) })}
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-extrabold uppercase text-slate-500 mb-1">
+                  Regularization Reason / Audit Note *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Approved site client meeting / Missed punch-in"
+                  value={regularizeForm.notes}
+                  onChange={e => setRegularizeForm({ ...regularizeForm, notes: e.target.value })}
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setRegularizeModalOpen(false)}
+                  className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold hover:bg-slate-100 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={regularizeSubmitting}
+                  className="px-4 py-1.5 rounded-xl bg-primary text-white font-bold hover:opacity-90 transition-opacity flex items-center gap-1.5 shadow-sm"
+                >
+                  {regularizeSubmitting ? "Saving..." : "Save Regularization"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

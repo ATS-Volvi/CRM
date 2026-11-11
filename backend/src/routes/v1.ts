@@ -70,7 +70,8 @@ import {
   endBreak,
   getDailyAttendanceRoster,
   getTeamBreakPolicies,
-  updateTeamBreakPolicy
+  updateTeamBreakPolicy,
+  regularizeAttendance
 } from '../controllers/attendanceController';
 import {
   getRequirements, createRequirement, updateRequirement, deleteRequirement,
@@ -673,6 +674,7 @@ router.post("/attendance/break-end", authMiddleware, endBreak);
 router.get("/attendance/roster", authMiddleware, getDailyAttendanceRoster);
 router.get("/attendance/break-policies", authMiddleware, getTeamBreakPolicies);
 router.put("/attendance/break-policy", authMiddleware, updateTeamBreakPolicy);
+router.post("/attendance/regularize", authMiddleware, regularizeAttendance);
 
 // KPI Target Management
 router.get("/salespersons/kpis", authMiddleware, getTeamKpis);

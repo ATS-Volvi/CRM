@@ -28,6 +28,35 @@ async function resolveMaxBreakMinutes(userTeam?: string | null): Promise<number>
   return 60; // 60 minutes default
 }
 
+// Helper to auto-close unpunched stale shifts from previous days
+async function autoCloseStaleShifts(userId: string, todayStr: string, UserAttendance: any) {
+  try {
+    const staleRecords = await UserAttendance.findAll({
+      where: {
+        userId,
+        date: { [Op.lt]: todayStr },
+        checkOutTime: null
+      }
+    });
+    for (const rec of staleRecords) {
+      const endOfDay = new Date(`${rec.date}T23:59:59.000Z`);
+      const checkIn = new Date(rec.checkInTime);
+      const rawDur = Math.max(0, Math.floor((endOfDay.getTime() - checkIn.getTime()) / 60000));
+      const cappedDur = Math.min(rawDur, 720); // Cap at 12 hours
+      const netDur = Math.max(0, cappedDur - (rec.totalBreakMinutes || 0));
+      await rec.update({
+        checkOutTime: endOfDay,
+        durationMinutes: cappedDur,
+        netDurationMinutes: netDur,
+        currentBreakStart: null,
+        notes: (rec.notes ? `${rec.notes} | ` : "") + "Auto-closed at day boundary"
+      });
+    }
+  } catch (err) {
+    console.error("[autoCloseStaleShifts] Error:", err);
+  }
+}
+
 export const getMyTodayAttendance = async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
@@ -38,6 +67,9 @@ export const getMyTodayAttendance = async (req: Request, res: Response) => {
     if (!UserAttendance) {
       return res.json({ record: null, isClockedIn: false, isOnBreak: false, maxBreakMinutes: 60 });
     }
+
+    // Auto-close any lingering shift from previous days
+    await autoCloseStaleShifts(user.id, today, UserAttendance);
 
     const record = await UserAttendance.findOne({
       where: { userId: user.id, date: today }
@@ -79,6 +111,9 @@ export const clockIn = async (req: Request, res: Response) => {
     if (!UserAttendance) {
       return res.status(500).json({ error: "Attendance model unavailable" });
     }
+
+    // Auto-close any unclosed shift from earlier dates before clocking in today
+    await autoCloseStaleShifts(user.id, today, UserAttendance);
 
     let record = await UserAttendance.findOne({
       where: { userId: user.id, date: today }
@@ -381,6 +416,71 @@ export const updateTeamBreakPolicy = async (req: Request, res: Response) => {
     res.json({ success: true, policy });
   } catch (error: any) {
     console.error("[updateTeamBreakPolicy] Error:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const regularizeAttendance = async (req: Request, res: Response) => {
+  try {
+    const caller = (req as any).user;
+    if (!caller) return res.status(401).json({ error: "Unauthorized" });
+
+    const isPrivileged = ["admin", "manager", "team_lead"].includes(caller.role);
+    if (!isPrivileged) {
+      return res.status(403).json({ error: "Only admins, managers, or team leads can regularize attendance records." });
+    }
+
+    const { attendanceId, userId, date, checkInTime, checkOutTime, totalBreakMinutes, notes } = req.body;
+    const UserAttendance = (sequelize.models.UserAttendance as any);
+    if (!UserAttendance) {
+      return res.status(500).json({ error: "Attendance model unavailable" });
+    }
+
+    let record: any = null;
+    if (attendanceId) {
+      record = await UserAttendance.findByPk(attendanceId);
+    } else if (userId && date) {
+      record = await UserAttendance.findOne({ where: { userId, date } });
+    }
+
+    if (!record) {
+      if (!userId || !date) {
+        return res.status(400).json({ error: "Either attendanceId or both userId and date are required" });
+      }
+      record = await UserAttendance.create({
+        id: crypto.randomUUID(),
+        userId,
+        date,
+        status: "Present",
+        totalBreakMinutes: 0
+      });
+    }
+
+    const updates: any = {};
+    if (checkInTime !== undefined) updates.checkInTime = checkInTime ? new Date(checkInTime) : null;
+    if (checkOutTime !== undefined) updates.checkOutTime = checkOutTime ? new Date(checkOutTime) : null;
+    if (totalBreakMinutes !== undefined) updates.totalBreakMinutes = Math.max(0, Number(totalBreakMinutes));
+
+    const finalIn = updates.checkInTime !== undefined ? updates.checkInTime : record.checkInTime;
+    const finalOut = updates.checkOutTime !== undefined ? updates.checkOutTime : record.checkOutTime;
+    const finalBreak = updates.totalBreakMinutes !== undefined ? updates.totalBreakMinutes : (record.totalBreakMinutes || 0);
+
+    if (finalIn && finalOut) {
+      const dur = Math.max(0, Math.floor((new Date(finalOut).getTime() - new Date(finalIn).getTime()) / 60000));
+      updates.durationMinutes = dur;
+      updates.netDurationMinutes = Math.max(0, dur - finalBreak);
+      updates.currentBreakStart = null;
+    }
+
+    const auditNote = `[Regularized by ${caller.name || caller.role} on ${new Date().toISOString().split("T")[0]}: ${notes || "Adjusted shift times"}]`;
+    updates.notes = record.notes ? `${record.notes} | ${auditNote}` : auditNote;
+    updates.status = "Present";
+
+    await record.update(updates);
+
+    res.json({ success: true, record, message: "Attendance record regularized successfully" });
+  } catch (error: any) {
+    console.error("[regularizeAttendance] Error:", error);
     res.status(500).json({ error: error.message });
   }
 };

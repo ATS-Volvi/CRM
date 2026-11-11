@@ -506,6 +506,31 @@ export const getRecommendedTechnicians = async (req: Request, res: Response) => 
         conflictReason = "Off Shift today";
       }
 
+      // Check daily live digital attendance if available
+      try {
+        const UserAttendance = (sequelize.models.UserAttendance as any);
+        if (UserAttendance && r.userId) {
+          const todayStr = new Date().toISOString().split("T")[0];
+          const att = await UserAttendance.findOne({
+            where: { userId: r.userId, date: todayStr }
+          });
+          if (att) {
+            if (att.checkOutTime) {
+              isAvailable = false;
+              conflictReason = "Clocked out / Shift ended for today";
+            } else if (att.currentBreakStart) {
+              matchReasons.push("Technician currently on break");
+              matchScore = Math.max(0, matchScore - 15);
+            } else if (att.checkInTime) {
+              matchScore += 10;
+              matchReasons.push("Actively clocked in on duty (+10 pts)");
+            }
+          }
+        }
+      } catch (attErr) {
+        // Safe fallback
+      }
+
       // 2. Scheduled Absence / Holiday check
       if (start && end && ResourceAbsence) {
         const absence = await ResourceAbsence.findOne({

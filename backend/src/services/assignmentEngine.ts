@@ -502,6 +502,23 @@ async function checkRepEligibility(userId: string): Promise<boolean> {
     // Safe fallback if tables not yet populated
   }
 
+  // Check daily attendance status: if the rep clocked out / ended their shift for today, exclude from new leads
+  try {
+    const UserAttendance = sequelize.models.UserAttendance;
+    if (UserAttendance) {
+      const todayStr = new Date().toISOString().split("T")[0];
+      const todayAtt: any = await UserAttendance.findOne({
+        where: { userId, date: todayStr }
+      });
+      if (todayAtt && todayAtt.checkOutTime) {
+        console.log(`[ELIGIBILITY] Rep ${user.name} (${userId}) excluded: already clocked out for today.`);
+        return false;
+      }
+    }
+  } catch (attErr) {
+    // Non-fatal safe fallback
+  }
+
   const openCount = await sequelize.models.Lead.count({
     where: {
       assignedToId: userId,
@@ -559,10 +576,39 @@ export async function scoreAndRankCandidates(
   priorityDetails: LeadPriorityDetails,
   policyWeights: any
 ): Promise<CandidateEvaluationResult[]> {
+  const UserAttendance = sequelize.models.UserAttendance;
+  const todayStr = new Date().toISOString().split("T")[0];
+  let todayAttendances: any[] = [];
+  if (UserAttendance && candidates.length > 0) {
+    try {
+      todayAttendances = await UserAttendance.findAll({
+        where: {
+          userId: { [Op.in]: candidates.map(c => c.id) },
+          date: todayStr
+        }
+      });
+    } catch (e) {
+      // non-fatal fallback
+    }
+  }
+
   const evaluations: CandidateEvaluationResult[] = await Promise.all(
     candidates.map(async (rep) => {
       const profile = await calculateRepPerformanceProfile(rep.id);
-      return calculateRepSuitabilityScore(profile, leadContext, policyWeights, priorityDetails);
+      const evalResult = calculateRepSuitabilityScore(profile, leadContext, policyWeights, priorityDetails);
+
+      const att = todayAttendances.find((a: any) => a.userId === rep.id);
+      if (att) {
+        if (att.currentBreakStart) {
+          evalResult.finalScore = Math.max(0, evalResult.finalScore - 20);
+          evalResult.explanationText = `${evalResult.explanationText || ""} (Break penalty: -20 pts)`.trim();
+        } else if (att.checkInTime && !att.checkOutTime) {
+          evalResult.finalScore = Math.min(100, evalResult.finalScore + 15);
+          evalResult.explanationText = `${evalResult.explanationText || ""} (Active duty bonus: +15 pts)`.trim();
+        }
+      }
+
+      return evalResult;
     })
   );
   evaluations.sort((a, b) => b.finalScore - a.finalScore);
@@ -715,6 +761,18 @@ export async function assignOpportunityCloser(
       if (rep.dealValueCutoff !== null && rep.dealValueCutoff !== undefined) {
         if (expectedVal > Number(rep.dealValueCutoff)) continue;
       }
+
+      // Daily attendance check: if the rep clocked out / ended shift for today, exclude from new deals
+      try {
+        const UserAttendance = sequelize.models.UserAttendance;
+        if (UserAttendance) {
+          const todayStr = new Date().toISOString().split("T")[0];
+          const todayAtt: any = await UserAttendance.findOne({
+            where: { userId: rep.id, date: todayStr }
+          });
+          if (todayAtt && todayAtt.checkOutTime) continue;
+        }
+      } catch (e) {}
 
       // Open deals capacity check
       if (rep.maxOpenDeals !== null && rep.maxOpenDeals !== undefined) {
