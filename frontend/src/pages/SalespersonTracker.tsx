@@ -8,7 +8,7 @@ import {
   UserCheck, BarChart3, ChevronRight, Mail, UserPlus,
   ShieldCheck, Target, Wrench, ClipboardCheck, Briefcase,
   Calendar, CalendarDays, Trash2, Edit3, Save, Clock, ExternalLink,
-  AlertTriangle, AlertCircle, Sun, CheckCircle2, ChevronLeft, RefreshCw, Palmtree, UserX, Download
+  AlertTriangle, AlertCircle, Sun, CheckCircle2, ChevronLeft, RefreshCw, Palmtree, UserX, Download, Coffee
 } from "lucide-react";
 import { formatCurrency } from "../utils/currency";
 import KpiAttainmentTable from "../components/KpiAttainmentTable";
@@ -211,6 +211,12 @@ export default function SalespersonTracker() {
   const [holidayForm, setHolidayForm] = useState({ name: "", date: "" });
   const [holidaySubmitting, setHolidaySubmitting] = useState(false);
 
+  // Team Break Policy Management State
+  const [isBreakPolicyModalOpen, setIsBreakPolicyModalOpen] = useState(false);
+  const [breakPolicyTeam, setBreakPolicyTeam] = useState("All");
+  const [breakPolicyMinutes, setBreakPolicyMinutes] = useState(60);
+  const [breakPolicySubmitting, setBreakPolicySubmitting] = useState(false);
+
   // Team Schedule & Availability View States
   const [scheduleViewMode, setScheduleViewMode] = useState<"week" | "2weeks" | "month">("2weeks");
   const [workWeekStandard, setWorkWeekStandard] = useState<"gcc" | "global" | "auto">("auto");
@@ -344,7 +350,14 @@ export default function SalespersonTracker() {
       checkInTime: string;
       checkOutTime: string | null;
       durationMinutes: number | null;
+      currentBreakStart: string | null;
+      totalBreakMinutes: number;
+      netDurationMinutes: number | null;
       status: string;
+    }>;
+    policies?: Array<{
+      teamName: string;
+      maxBreakMinutes: number;
     }>;
   }>({
     queryKey: ["attendanceRoster"],
@@ -353,7 +366,7 @@ export default function SalespersonTracker() {
         const res = await apiClient("/api/v1/attendance/roster");
         if (res.ok) return res.json();
       } catch (err) {}
-      return { date: new Date().toISOString().split("T")[0], attendances: [] };
+      return { date: new Date().toISOString().split("T")[0], attendances: [], policies: [] };
     },
     refetchInterval: 30000
   });
@@ -592,6 +605,30 @@ export default function SalespersonTracker() {
       await queryClient.invalidateQueries({ queryKey: ["companyHolidays"] });
     } catch (err: any) {
       alert("Error deleting holiday: " + err.message);
+    }
+  };
+
+  const handleSaveBreakPolicy = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!breakPolicyTeam) return;
+    setBreakPolicySubmitting(true);
+    try {
+      const res = await apiClient("/api/v1/attendance/break-policy", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ teamName: breakPolicyTeam, maxBreakMinutes: Number(breakPolicyMinutes) })
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to update break policy");
+      }
+      setIsBreakPolicyModalOpen(false);
+      await queryClient.invalidateQueries({ queryKey: ["attendanceRoster"] });
+      await queryClient.invalidateQueries({ queryKey: ["myTodayAttendance"] });
+    } catch (err: any) {
+      alert("Error saving break policy: " + err.message);
+    } finally {
+      setBreakPolicySubmitting(false);
     }
   };
 
@@ -990,11 +1027,16 @@ export default function SalespersonTracker() {
         const isToday = dateStr === formatYMD(new Date());
         const todayAtt = isToday ? (attendanceData?.attendances || []).find((a: any) => a.userId === emp.id) : null;
         if (isToday && todayAtt) {
+          if (todayAtt.currentBreakStart) {
+            const breakElapsed = Math.floor((Date.now() - new Date(todayAtt.currentBreakStart).getTime()) / 60000);
+            return `On Break (${(todayAtt.totalBreakMinutes || 0) + breakElapsed}m)`;
+          }
           if (todayAtt.checkInTime && !todayAtt.checkOutTime) {
-            return `Clocked In (${new Date(todayAtt.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`;
+            return `Clocked In (${new Date(todayAtt.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}, Break: ${todayAtt.totalBreakMinutes || 0}m)`;
           }
           if (todayAtt.checkOutTime) {
-            return `Shift Ended (${Math.floor((todayAtt.durationMinutes || 0) / 60)}h ${(todayAtt.durationMinutes || 0) % 60}m)`;
+            const netM = todayAtt.netDurationMinutes ?? todayAtt.durationMinutes ?? 0;
+            return `Shift Ended (${Math.floor(netM / 60)}h ${netM % 60}m net, Break: ${todayAtt.totalBreakMinutes || 0}m)`;
           }
         }
 
@@ -2058,6 +2100,18 @@ export default function SalespersonTracker() {
                     <Plus className="w-3.5 h-3.5 text-amber-700" /> Holiday Manager
                   </button>
                 )}
+
+                {/* Team Break Policy Action */}
+                {["admin", "director", "manager", "ops_manager"].includes(currentUser?.role || "") && (
+                  <button
+                    type="button"
+                    onClick={() => setIsBreakPolicyModalOpen(true)}
+                    className="px-2.5 py-1.5 text-[11px] font-bold rounded-lg bg-emerald-500/10 text-emerald-900 border border-emerald-500/30 hover:bg-emerald-500/20 transition-all flex items-center gap-1 cursor-pointer"
+                    title="Configure team-specific daily break allowances"
+                  >
+                    <Coffee className="w-3.5 h-3.5 text-emerald-700" /> Break Policy
+                  </button>
+                )}
               </div>
             </div>
 
@@ -2142,6 +2196,103 @@ export default function SalespersonTracker() {
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Team Break Policy Configuration Modal */}
+            {isBreakPolicyModalOpen && (
+              <div className="p-4 bg-emerald-50/90 border border-emerald-200 rounded-xl text-xs animate-slide-down space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-extrabold uppercase text-[10px] text-emerald-950 tracking-wider flex items-center gap-1.5">
+                    <Coffee className="w-3.5 h-3.5 text-emerald-700" />
+                    Team Daily Break Policy Management
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={() => setIsBreakPolicyModalOpen(false)}
+                    className="text-emerald-800 hover:text-emerald-950 font-bold p-1 cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <form onSubmit={handleSaveBreakPolicy} className="flex flex-wrap items-end gap-3 bg-white/80 p-3 rounded-lg border border-emerald-200">
+                  <div className="flex-1 min-w-[180px]">
+                    <label className="block text-[10px] font-bold uppercase text-emerald-950 mb-1">Target Team *</label>
+                    <select
+                      value={breakPolicyTeam}
+                      onChange={e => setBreakPolicyTeam(e.target.value)}
+                      className="w-full bg-white border border-emerald-200 rounded-lg p-1.5 text-xs font-semibold"
+                    >
+                      <option value="All">All Teams (Company-Wide Default)</option>
+                      <option value="Aces">Aces (Commercial Closers)</option>
+                      <option value="Velocity">Velocity (Enterprise Sales)</option>
+                      <option value="Global">Global Division</option>
+                      <option value="Hawks">Hawks (Pre-Sales / SDR)</option>
+                      <option value="Phoenix">Phoenix (Inside Sales)</option>
+                      <option value="Field Service">Field Service (Technicians & Inspectors)</option>
+                    </select>
+                  </div>
+                  <div className="w-[140px]">
+                    <label className="block text-[10px] font-bold uppercase text-emerald-950 mb-1">Daily Break (Mins) *</label>
+                    <input
+                      type="number"
+                      required
+                      min="0"
+                      max="240"
+                      value={breakPolicyMinutes}
+                      onChange={e => setBreakPolicyMinutes(Number(e.target.value))}
+                      className="w-full bg-white border border-emerald-200 rounded-lg p-1.5 text-xs font-mono font-bold"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {[30, 45, 60, 75].map(p => (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => setBreakPolicyMinutes(p)}
+                        className={`px-2 py-1 rounded text-[10px] font-bold border transition-colors cursor-pointer ${
+                          breakPolicyMinutes === p ? "bg-emerald-700 text-white border-emerald-700" : "bg-white text-emerald-900 border-emerald-200 hover:bg-emerald-50"
+                        }`}
+                      >
+                        {p}m
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsBreakPolicyModalOpen(false)}
+                      className="px-3 py-1.5 rounded-lg border border-emerald-200 text-emerald-900 hover:bg-emerald-100 transition-colors font-bold text-xs"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={breakPolicySubmitting}
+                      className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors shadow-xs"
+                    >
+                      {breakPolicySubmitting ? "Saving..." : "Save Policy"}
+                    </button>
+                  </div>
+                </form>
+
+                {/* Existing Policies List */}
+                {attendanceData?.policies && attendanceData.policies.length > 0 && (
+                  <div className="space-y-1.5 pt-1">
+                    <span className="block text-[10px] font-extrabold uppercase text-emerald-950">
+                      Configured Policies ({attendanceData.policies.length})
+                    </span>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                      {attendanceData.policies.map((p: any) => (
+                        <div key={p.teamName} className="p-2 rounded-lg bg-white border border-emerald-200 text-xs flex justify-between items-center">
+                          <span className="font-bold text-slate-800">{p.teamName}</span>
+                          <span className="font-mono font-black text-emerald-700">{p.maxBreakMinutes}m / day</span>
                         </div>
                       ))}
                     </div>
@@ -2433,9 +2584,31 @@ export default function SalespersonTracker() {
                                   <div className="p-1 rounded bg-slate-100/70 text-slate-500 text-[9px] font-semibold">
                                     Off
                                   </div>
-                                ) : isToday && todayAtt?.checkInTime && !todayAtt.checkOutTime ? (
+                                ) : isToday && todayAtt?.currentBreakStart ? (() => {
+                                  const breakStartMs = new Date(todayAtt.currentBreakStart).getTime();
+                                  const currentBreakMin = Math.max(0, Math.floor((Date.now() - breakStartMs) / 60000));
+                                  const totalBreakSoFar = (todayAtt.totalBreakMinutes || 0) + currentBreakMin;
+                                  const teamPolicy = (attendanceData?.policies || []).find((p: any) => p.teamName === emp.team)
+                                    || (attendanceData?.policies || []).find((p: any) => p.teamName === 'All')
+                                    || { maxBreakMinutes: 60 };
+                                  const isExceeded = totalBreakSoFar > teamPolicy.maxBreakMinutes;
+
+                                  return (
+                                    <div
+                                      title={`☕ On Break (Elapsed: ${currentBreakMin}m, Total today: ${totalBreakSoFar}m / Allotted: ${teamPolicy.maxBreakMinutes}m)${isExceeded ? ' ⚠️ Break Allowance Exceeded' : ''}`}
+                                      className={`p-1 rounded font-black text-[9px] leading-tight shadow-2xs hover:scale-105 transition-transform flex items-center justify-center gap-1 ${
+                                        isExceeded
+                                          ? "bg-rose-100 text-rose-950 border border-rose-300 animate-pulse"
+                                          : "bg-amber-100 text-amber-950 border border-amber-300"
+                                      }`}
+                                    >
+                                      <span>☕</span>
+                                      <span>{isExceeded ? `+${totalBreakSoFar - teamPolicy.maxBreakMinutes}m` : `${totalBreakSoFar}m`}</span>
+                                    </div>
+                                  );
+                                })() : isToday && todayAtt?.checkInTime && !todayAtt.checkOutTime ? (
                                   <div
-                                    title={`🟢 Clocked In at ${new Date(todayAtt.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} (Active On Duty)`}
+                                    title={`🟢 Clocked In at ${new Date(todayAtt.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} (Active On Duty, Break Taken: ${todayAtt.totalBreakMinutes || 0}m)`}
                                     className="p-1 rounded bg-emerald-100 text-emerald-950 border border-emerald-300 font-black text-[9px] leading-tight shadow-2xs hover:scale-105 transition-transform flex items-center justify-center gap-1"
                                   >
                                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -2443,10 +2616,10 @@ export default function SalespersonTracker() {
                                   </div>
                                 ) : isToday && todayAtt?.checkOutTime ? (
                                   <div
-                                    title={`⏹️ Shift Completed: ${Math.floor((todayAtt.durationMinutes || 0) / 60)}h ${(todayAtt.durationMinutes || 0) % 60}m (${new Date(todayAtt.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} – ${new Date(todayAtt.checkOutTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`}
+                                    title={`⏹️ Shift Completed: ${(todayAtt.netDurationMinutes != null) ? `${Math.floor(todayAtt.netDurationMinutes / 60)}h ${todayAtt.netDurationMinutes % 60}m net` : `${Math.floor((todayAtt.durationMinutes || 0) / 60)}h ${(todayAtt.durationMinutes || 0) % 60}m gross`} (Break: ${todayAtt.totalBreakMinutes || 0}m)`}
                                     className="p-1 rounded bg-slate-100 text-slate-800 border border-slate-300 font-bold text-[9px] leading-tight shadow-2xs hover:scale-105 transition-transform truncate"
                                   >
-                                    OUT {Math.floor((todayAtt.durationMinutes || 0) / 60)}h{(todayAtt.durationMinutes || 0) % 60}m
+                                    OUT {Math.floor((todayAtt.netDurationMinutes ?? todayAtt.durationMinutes ?? 0) / 60)}h{(todayAtt.netDurationMinutes ?? todayAtt.durationMinutes ?? 0) % 60}m
                                   </div>
                                 ) : isToday && !todayAtt ? (
                                   <div
@@ -2544,18 +2717,29 @@ export default function SalespersonTracker() {
                     {(() => {
                       const selAtt = (attendanceData?.attendances || []).find((a: any) => a.userId === selectedEmployee.id);
                       if (selAtt) {
+                        if (selAtt.currentBreakStart) {
+                          const breakElapsed = Math.floor((Date.now() - new Date(selAtt.currentBreakStart).getTime()) / 60000);
+                          const totalBreak = (selAtt.totalBreakMinutes || 0) + breakElapsed;
+                          return (
+                            <span className="px-2.5 py-0.5 text-[10px] font-black rounded-full bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1 shadow-2xs">
+                              <span>☕</span>
+                              On Break: {totalBreak}m today
+                            </span>
+                          );
+                        }
                         if (selAtt.checkInTime && !selAtt.checkOutTime) {
                           return (
                             <span className="px-2.5 py-0.5 text-[10px] font-black rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1 shadow-2xs">
                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                              Clocked In Today: {new Date(selAtt.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              Clocked In Today: {new Date(selAtt.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} (☕ {selAtt.totalBreakMinutes || 0}m break)
                             </span>
                           );
                         }
                         if (selAtt.checkOutTime) {
+                          const netM = selAtt.netDurationMinutes ?? selAtt.durationMinutes ?? 0;
                           return (
                             <span className="px-2.5 py-0.5 text-[10px] font-bold rounded-full bg-slate-100 text-slate-700 border border-slate-300">
-                              Shift Completed: {Math.floor((selAtt.durationMinutes || 0) / 60)}h {(selAtt.durationMinutes || 0) % 60}m
+                              Shift Ended: {Math.floor(netM / 60)}h {netM % 60}m net (☕ {selAtt.totalBreakMinutes || 0}m break)
                             </span>
                           );
                         }

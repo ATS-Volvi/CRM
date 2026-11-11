@@ -40,6 +40,15 @@ const startServer = async () => {
     if (sequelize.models.UserAttendance) {
       await sequelize.models.UserAttendance.sync().catch(err => console.warn("UserAttendance sync warning:", err));
     }
+    if (sequelize.models.TeamBreakPolicy) {
+      await sequelize.models.TeamBreakPolicy.sync().catch(err => console.warn("TeamBreakPolicy sync warning:", err));
+    }
+    await sequelize.query('ALTER TABLE "UserAttendances" ADD COLUMN IF NOT EXISTS "currentBreakStart" TIMESTAMP;').catch(() => {});
+    await sequelize.query('ALTER TABLE "UserAttendances" ADD COLUMN IF NOT EXISTS "totalBreakMinutes" INTEGER DEFAULT 0;').catch(() => {});
+    await sequelize.query('ALTER TABLE "UserAttendances" ADD COLUMN IF NOT EXISTS "netDurationMinutes" INTEGER;').catch(() => {});
+    await sequelize.query('ALTER TABLE UserAttendances ADD COLUMN currentBreakStart DATETIME;').catch(() => {});
+    await sequelize.query('ALTER TABLE UserAttendances ADD COLUMN totalBreakMinutes INTEGER DEFAULT 0;').catch(() => {});
+    await sequelize.query('ALTER TABLE UserAttendances ADD COLUMN netDurationMinutes INTEGER;').catch(() => {});
     await sequelize.query("ALTER TABLE Deals ADD COLUMN originalOwnerId TEXT;").catch(() => {});
     await sequelize.query('ALTER TABLE "Users" ADD COLUMN IF NOT EXISTS "teamType" VARCHAR(255);').catch(() => {});
     await sequelize.query('ALTER TABLE Users ADD COLUMN teamType TEXT;').catch(() => {});

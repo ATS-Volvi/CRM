@@ -9,6 +9,8 @@ interface User {
   email: string;
   role: string;
   territory?: string;
+  team?: string;
+  department?: string;
 }
 
 interface AuthContextType {

@@ -66,7 +66,11 @@ import {
   getMyTodayAttendance,
   clockIn,
   clockOut,
-  getDailyAttendanceRoster
+  startBreak,
+  endBreak,
+  getDailyAttendanceRoster,
+  getTeamBreakPolicies,
+  updateTeamBreakPolicy
 } from '../controllers/attendanceController';
 import {
   getRequirements, createRequirement, updateRequirement, deleteRequirement,
@@ -660,11 +664,15 @@ router.put("/salespersons/:id/team-type", authMiddleware, updateRepTeamType);
 router.get("/manager/team", authMiddleware, getManagerDirectTeam);
 router.get("/manager/stuck-deals", authMiddleware, getManagerStuckDeals);
 
-// Daily Attendance Clock-in & Roster
+// Daily Attendance Clock-in, Break Punching & Team Policies
 router.get("/attendance/today", authMiddleware, getMyTodayAttendance);
 router.post("/attendance/clock-in", authMiddleware, clockIn);
 router.post("/attendance/clock-out", authMiddleware, clockOut);
+router.post("/attendance/break-start", authMiddleware, startBreak);
+router.post("/attendance/break-end", authMiddleware, endBreak);
 router.get("/attendance/roster", authMiddleware, getDailyAttendanceRoster);
+router.get("/attendance/break-policies", authMiddleware, getTeamBreakPolicies);
+router.put("/attendance/break-policy", authMiddleware, updateTeamBreakPolicy);
 
 // KPI Target Management
 router.get("/salespersons/kpis", authMiddleware, getTeamKpis);

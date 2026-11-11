@@ -227,11 +227,6 @@ export function Sidebar({
               </button>
             )}
           </div>
-
-          {/* Daily Attendance Clock In / Out Widget */}
-          <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800/80">
-            <AttendanceClockWidget />
-          </div>
         </div>
       </div>
 
@@ -347,8 +342,13 @@ export function Sidebar({
         })}
       </div>
 
-      {/* Sidebar Footer User Info */}
-      <div className="p-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
+      {/* Sidebar Footer User Info & Shift Status */}
+      <div className="p-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 space-y-2">
+        {!isCollapsed && (
+          <div className="pb-1">
+            <AttendanceClockWidget variant="sidebar" />
+          </div>
+        )}
         {!isCollapsed ? (
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2.5 min-w-0">

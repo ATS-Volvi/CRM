@@ -3821,7 +3821,10 @@ export class UserAttendance extends Model {
   public checkInTime!: Date;
   public checkOutTime!: Date | null;
   public durationMinutes!: number | null;
-  public status!: "Present" | "Late" | "Half Day" | "Left Early" | string;
+  public currentBreakStart!: Date | null;
+  public totalBreakMinutes!: number;
+  public netDurationMinutes!: number | null;
+  public status!: "Present" | "On Break" | "Late" | "Half Day" | "Left Early" | string;
   public notes!: string | null;
   public ipAddress!: string | null;
   public userAgent!: string | null;
@@ -3837,6 +3840,9 @@ UserAttendance.init(
     checkInTime: { type: DataTypes.DATE, allowNull: false },
     checkOutTime: { type: DataTypes.DATE, allowNull: true },
     durationMinutes: { type: DataTypes.INTEGER, allowNull: true },
+    currentBreakStart: { type: DataTypes.DATE, allowNull: true },
+    totalBreakMinutes: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+    netDurationMinutes: { type: DataTypes.INTEGER, allowNull: true },
     status: { type: DataTypes.STRING, allowNull: false, defaultValue: "Present" },
     notes: { type: DataTypes.TEXT, allowNull: true },
     ipAddress: { type: DataTypes.STRING, allowNull: true },
@@ -3851,6 +3857,29 @@ UserAttendance.init(
 
 User.hasMany(UserAttendance, { foreignKey: "userId", as: "attendances", constraints: false });
 UserAttendance.belongsTo(User, { foreignKey: "userId", as: "user", constraints: false });
+
+export class TeamBreakPolicy extends Model {
+  public id!: string;
+  public teamName!: string;
+  public maxBreakMinutes!: number;
+  public updatedByUserId!: string | null;
+  public createdAt!: Date;
+  public updatedAt!: Date;
+}
+
+TeamBreakPolicy.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    teamName: { type: DataTypes.STRING, allowNull: false, unique: true },
+    maxBreakMinutes: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 60 },
+    updatedByUserId: { type: DataTypes.UUID, allowNull: true },
+  },
+  {
+    sequelize,
+    modelName: "TeamBreakPolicy",
+    tableName: "TeamBreakPolicies",
+  }
+);
 
 export { sequelize };
 
