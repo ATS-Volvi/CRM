@@ -79,6 +79,7 @@ describe("Site Inspection Gate & Workflows", () => {
       status: "Contacted",
       leadNumber: "LD-" + Date.now() + "-" + Math.floor(Math.random() * 100000),
       siteInspectionStatus: "NOT_REQUESTED",
+      requiresSiteInspection: true,
       });
     } catch (err: any) {
       console.error("LEAD_CREATE_ERROR:", err.message, err.parent?.message, err.name);

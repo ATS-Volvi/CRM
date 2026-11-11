@@ -1703,6 +1703,48 @@ export default function SiteInspectionForm() {
                       </div>
                     </div>
 
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block mb-1">
+                          EST. VOLUME / CAPACITY
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="any"
+                          disabled={!isEditable || !svc.isActive}
+                          value={svc.estimatedVolume ?? ""}
+                          onChange={(e) => {
+                            const updated = [...services];
+                            updated[idx].estimatedVolume = e.target.value ? parseFloat(e.target.value) : null;
+                            setServices(updated);
+                          }}
+                          placeholder="e.g. 30"
+                          className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-semibold"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block mb-1">
+                          VOLUME UNIT
+                        </label>
+                        <select
+                          disabled={!isEditable || !svc.isActive}
+                          value={svc.volumeUnit || "m³"}
+                          onChange={(e) => {
+                            const updated = [...services];
+                            updated[idx].volumeUnit = e.target.value;
+                            setServices(updated);
+                          }}
+                          className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-semibold"
+                        >
+                          <option value="m³">m³ (Cubic Meters)</option>
+                          <option value="Liters">Liters</option>
+                          <option value="Tanker Loads">Tanker Loads (10,000L)</option>
+                          <option value="Gallons">Gallons</option>
+                        </select>
+                      </div>
+                    </div>
+
                     <div>
                       <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block mb-1">
                         APPROACH LOGISTICS NOTE
@@ -1812,6 +1854,48 @@ export default function SiteInspectionForm() {
                       </div>
                     </div>
 
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block mb-1">
+                          EST. VOLUME / CAPACITY
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="any"
+                          disabled={!isEditable || !svc.isActive}
+                          value={svc.estimatedVolume ?? ""}
+                          onChange={(e) => {
+                            const updated = [...services];
+                            updated[idx].estimatedVolume = e.target.value ? parseFloat(e.target.value) : null;
+                            setServices(updated);
+                          }}
+                          placeholder="e.g. 30"
+                          className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-semibold"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block mb-1">
+                          VOLUME UNIT
+                        </label>
+                        <select
+                          disabled={!isEditable || !svc.isActive}
+                          value={svc.volumeUnit || "m³"}
+                          onChange={(e) => {
+                            const updated = [...services];
+                            updated[idx].volumeUnit = e.target.value;
+                            setServices(updated);
+                          }}
+                          className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-semibold"
+                        >
+                          <option value="m³">m³ (Skip Bin Size)</option>
+                          <option value="Tons">Tons</option>
+                          <option value="Compactor Bins">Compactor Bins (20m³)</option>
+                          <option value="Trips">Trips / Loads</option>
+                        </select>
+                      </div>
+                    </div>
+
                     <div>
                       <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block mb-1">
                         APPROACH LOGISTICS NOTE
@@ -1918,6 +2002,49 @@ export default function SiteInspectionForm() {
                             {r}
                           </button>
                         ))}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block mb-1">
+                          EST. VOLUME / CAPACITY
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="any"
+                          disabled={!isEditable || !svc.isActive}
+                          value={svc.estimatedVolume ?? ""}
+                          onChange={(e) => {
+                            const updated = [...services];
+                            updated[idx].estimatedVolume = e.target.value ? parseFloat(e.target.value) : null;
+                            setServices(updated);
+                          }}
+                          placeholder="e.g. 30"
+                          className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-semibold"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block mb-1">
+                          VOLUME UNIT
+                        </label>
+                        <select
+                          disabled={!isEditable || !svc.isActive}
+                          value={svc.volumeUnit || "m³"}
+                          onChange={(e) => {
+                            const updated = [...services];
+                            updated[idx].volumeUnit = e.target.value;
+                            setServices(updated);
+                          }}
+                          className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-semibold"
+                        >
+                          <option value="m³">m³ (Industrial Sludge)</option>
+                          <option value="Tons">Tons (Contaminated Solid)</option>
+                          <option value="IBC Totes">IBC Totes (1000L)</option>
+                          <option value="200L Drums">200L Steel Drums</option>
+                          <option value="Tanker Loads">Dedicated Vacuum Tanker</option>
+                        </select>
                       </div>
                     </div>
 

@@ -39,7 +39,7 @@ export interface SiteInspectionServiceItem {
   logisticsNote?: string;
   wasteDescription?: string;
   estimatedVolume?: number | null;
-  volumeUnit?: "L" | "m3" | "ton" | "loads" | "";
+  volumeUnit?: "L" | "m3" | "m³" | "ton" | "Tons" | "loads" | "Compactor Bins" | "Trips" | "IBC Totes" | "200L Drums" | "Tanker Loads" | "Liters" | "Gallons" | string | "";
   facility?: SiteFacility;
 }
 
