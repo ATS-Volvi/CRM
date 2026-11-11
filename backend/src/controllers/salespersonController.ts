@@ -355,6 +355,7 @@ export const getSalespersonsPerformance = async (req: Request, res: Response) =>
 
 export const getOrgChartEmployees = async (req: Request, res: Response) => {
   try {
+    // 1. Core query - always succeeds regardless of optional extension tables
     const employees = await sequelize.models.User.findAll({
       attributes: [
         "id", "name", "email", "role", "tier", "dealValueCutoff", "phone", "hireDate",
@@ -384,22 +385,7 @@ export const getOrgChartEmployees = async (req: Request, res: Response) => {
             "id", "skills", "certifications", "experienceYearsWithCompany",
             "previousExperience", "attendanceStatus", "resourceType", "location", "isActive"
           ],
-          include: [
-            {
-              model: sequelize.models.ResourceAbsence,
-              as: "absences",
-              attributes: ["id", "type", "startDate", "endDate", "reason", "status"],
-              required: false
-            }
-          ]
-        },
-        {
-          model: sequelize.models.SiteInspectorProfile,
-          as: "inspectorProfile",
-          attributes: [
-            "id", "isAvailable", "maxOpenInspections", "maxVisitsPerDay", "maxDistanceKm",
-            "certifications", "languages", "onLeaveFrom", "onLeaveTo"
-          ]
+          required: false
         }
       ],
       order: [["name", "ASC"]]
@@ -408,61 +394,124 @@ export const getOrgChartEmployees = async (req: Request, res: Response) => {
     const userIds = employees.map((e: any) => e.id);
     const resourceIds = employees.map((e: any) => e.serviceResource?.id).filter(Boolean);
 
-    // Active Service Appointments for Technicians
-    let appointmentMap: Record<string, any[]> = {};
-    if (resourceIds.length > 0 && sequelize.models.ServiceAppointment) {
-      const appointments = await sequelize.models.ServiceAppointment.findAll({
-        where: {
-          serviceResourceId: { [Op.in]: resourceIds },
-          status: { [Op.notIn]: ["Canceled", "Completed"] }
-        },
-        attributes: ["id", "serviceResourceId", "appointmentNumber", "status", "scheduledStartTime", "scheduledEndTime", "workOrderId"],
-        include: [
-          {
-            model: sequelize.models.WorkOrder,
-            as: "workOrder",
-            attributes: ["id", "workOrderNumber", "subject", "status", "priority"]
-          }
-        ],
-        order: [["scheduledStartTime", "ASC"]],
-        limit: 50
-      });
-      appointments.forEach((apt: any) => {
-        if (!appointmentMap[apt.serviceResourceId]) appointmentMap[apt.serviceResourceId] = [];
-        appointmentMap[apt.serviceResourceId].push(apt);
-      });
+    // 2. Safe Inspector Profile Enrichment
+    let inspectorMap: Record<string, any> = {};
+    try {
+      const SiteInspectorProfile = sequelize.models.SiteInspectorProfile;
+      if (SiteInspectorProfile && userIds.length > 0) {
+        const inspProfiles = await SiteInspectorProfile.findAll({
+          where: { userId: { [Op.in]: userIds } },
+          attributes: [
+            "id", "userId", "isAvailable", "maxOpenInspections", "maxVisitsPerDay", "maxDistanceKm",
+            "certifications", "languages", "onLeaveFrom", "onLeaveTo"
+          ]
+        });
+        inspProfiles.forEach((ip: any) => {
+          inspectorMap[ip.userId] = ip.toJSON ? ip.toJSON() : ip;
+        });
+      }
+    } catch (e: any) {
+      console.warn("[getOrgChartEmployees] Safe fallback: SiteInspectorProfile not queried:", e.message);
     }
 
-    // Active Site Inspections for Inspectors
+    // 3. Safe Resource Absence Enrichment
+    let absenceMap: Record<string, any[]> = {};
+    try {
+      const ResourceAbsence = sequelize.models.ResourceAbsence;
+      if (ResourceAbsence && resourceIds.length > 0) {
+        const absences = await ResourceAbsence.findAll({
+          where: { serviceResourceId: { [Op.in]: resourceIds } },
+          attributes: ["id", "serviceResourceId", "type", "startDate", "endDate", "reason", "status"],
+          order: [["startDate", "ASC"]]
+        });
+        absences.forEach((a: any) => {
+          if (!absenceMap[a.serviceResourceId]) absenceMap[a.serviceResourceId] = [];
+          absenceMap[a.serviceResourceId].push(a.toJSON ? a.toJSON() : a);
+        });
+      }
+    } catch (e: any) {
+      console.warn("[getOrgChartEmployees] Safe fallback: ResourceAbsence not queried:", e.message);
+    }
+
+    // 4. Safe Active Service Appointments for Technicians
+    let appointmentMap: Record<string, any[]> = {};
+    try {
+      const ServiceAppointment = sequelize.models.ServiceAppointment;
+      if (resourceIds.length > 0 && ServiceAppointment) {
+        const appointments = await ServiceAppointment.findAll({
+          where: {
+            serviceResourceId: { [Op.in]: resourceIds },
+            status: { [Op.notIn]: ["Canceled", "Completed"] }
+          },
+          attributes: ["id", "serviceResourceId", "appointmentNumber", "status", "scheduledStartTime", "scheduledEndTime", "workOrderId"],
+          include: [
+            {
+              model: sequelize.models.WorkOrder,
+              as: "workOrder",
+              attributes: ["id", "workOrderNumber", "subject", "status", "priority"],
+              required: false
+            }
+          ],
+          limit: 50
+        });
+        appointments.forEach((apt: any) => {
+          if (!appointmentMap[apt.serviceResourceId]) appointmentMap[apt.serviceResourceId] = [];
+          appointmentMap[apt.serviceResourceId].push(apt.toJSON ? apt.toJSON() : apt);
+        });
+      }
+    } catch (e: any) {
+      console.warn("[getOrgChartEmployees] Safe fallback: ServiceAppointment not queried:", e.message);
+    }
+
+    // 5. Safe Active Site Inspections for Inspectors
     let inspectionMap: Record<string, any[]> = {};
-    if (userIds.length > 0 && sequelize.models.SiteInspection) {
-      const inspections = await sequelize.models.SiteInspection.findAll({
-        where: {
-          assignedToId: { [Op.in]: userIds },
-          status: { [Op.notIn]: ["completed", "cancelled", "rejected"] }
-        },
-        attributes: ["id", "assignedToId", "status", "scheduledAt", "city", "locationDescription", "urgency"],
-        order: [["scheduledAt", "ASC"]],
-        limit: 50
-      });
-      inspections.forEach((insp: any) => {
-        if (!inspectionMap[insp.assignedToId]) inspectionMap[insp.assignedToId] = [];
-        inspectionMap[insp.assignedToId].push(insp);
-      });
+    try {
+      const SiteInspection = sequelize.models.SiteInspection;
+      if (userIds.length > 0 && SiteInspection) {
+        const inspections = await SiteInspection.findAll({
+          where: {
+            assignedToId: { [Op.in]: userIds },
+            status: { [Op.notIn]: ["completed", "cancelled", "rejected"] }
+          },
+          attributes: ["id", "assignedToId", "status", "scheduledAt", "city", "locationDescription", "urgency"],
+          limit: 50
+        });
+        inspections.forEach((insp: any) => {
+          if (!inspectionMap[insp.assignedToId]) inspectionMap[insp.assignedToId] = [];
+          inspectionMap[insp.assignedToId].push(insp.toJSON ? insp.toJSON() : insp);
+        });
+      }
+    } catch (e: any) {
+      console.warn("[getOrgChartEmployees] Safe fallback: SiteInspection not queried:", e.message);
     }
 
     const payload = employees.map((e: any) => {
-      const plain = e.toJSON();
+      const plain = e.toJSON ? e.toJSON() : e;
       if (plain.serviceResource) {
+        plain.serviceResource.absences = absenceMap[plain.serviceResource.id] || [];
         plain.serviceResource.activeAppointments = appointmentMap[plain.serviceResource.id] || [];
       }
+      plain.inspectorProfile = inspectorMap[plain.id] || null;
       plain.activeSiteInspections = inspectionMap[plain.id] || [];
       return plain;
     });
 
     res.json(payload);
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    console.error("Critical error in getOrgChartEmployees:", error);
+    try {
+      const fallbackUsers = await sequelize.models.User.findAll({
+        attributes: [
+          "id", "name", "email", "role", "tier", "dealValueCutoff", "phone", "hireDate",
+          "managerId", "createdByUserId", "department", "territory", "team",
+          "isAvailable", "maxOpenLeads", "createdAt"
+        ],
+        order: [["name", "ASC"]]
+      });
+      return res.json(fallbackUsers);
+    } catch (fallbackErr: any) {
+      return res.status(500).json({ error: error.message });
+    }
   }
 };
 
@@ -572,48 +621,50 @@ export const createSalesperson = async (req: Request, res: Response) => {
 
     // Automatically create linked SiteInspectorProfile if user is site inspector
     if (targetRole === "site_manager" || req.body.isInspector) {
-      const SiteInspectorProfile = sequelize.models.SiteInspectorProfile;
-      if (SiteInspectorProfile) {
-        let certs = req.body.inspectorCertifications || req.body.certifications || [];
-        if (typeof certs === "string") {
-          certs = certs.split(",").map((c: string) => c.trim()).filter(Boolean);
+      try {
+        const SiteInspectorProfile = sequelize.models.SiteInspectorProfile;
+        if (SiteInspectorProfile) {
+          let certs = req.body.inspectorCertifications || req.body.certifications || [];
+          if (typeof certs === "string") {
+            certs = certs.split(",").map((c: string) => c.trim()).filter(Boolean);
+          }
+          await SiteInspectorProfile.create({
+            id: crypto.randomUUID(),
+            userId: user.id,
+            isAvailable: isAvailable ?? true,
+            maxOpenInspections: Number(req.body.maxOpenInspections || 5),
+            maxVisitsPerDay: Number(req.body.maxVisitsPerDay || 3),
+            maxDistanceKm: Number(req.body.maxDistanceKm || 50),
+            certifications: JSON.stringify(certs),
+            languages: JSON.stringify(req.body.languages || ["English", "Arabic"]),
+          });
         }
-        await SiteInspectorProfile.create({
-          id: crypto.randomUUID(),
-          userId: user.id,
-          isAvailable: isAvailable ?? true,
-          maxOpenInspections: Number(req.body.maxOpenInspections || 5),
-          maxVisitsPerDay: Number(req.body.maxVisitsPerDay || 3),
-          maxDistanceKm: Number(req.body.maxDistanceKm || 50),
-          certifications: JSON.stringify(certs),
-          languages: JSON.stringify(req.body.languages || ["English", "Arabic"]),
-        });
+      } catch (e: any) {
+        console.warn("SiteInspectorProfile creation warning:", e.message);
       }
     }
 
-    const createdUserWithAssoc = await sequelize.models.User.findByPk(user.id, {
-      attributes: ["id", "name", "email", "role", "tier", "dealValueCutoff", "maxOpenLeads", "isAvailable", "hireDate", "phone", "createdByUserId", "createdAt"],
-      include: [
-        { model: sequelize.models.User, as: "createdByUser", attributes: ["id", "name", "email"] },
-        { model: sequelize.models.User, as: "manager", attributes: ["id", "name", "email", "role"] },
-        {
-          model: sequelize.models.ServiceResource,
-          as: "serviceResource",
-          attributes: [
-            "id", "skills", "certifications", "experienceYearsWithCompany",
-            "previousExperience", "attendanceStatus", "resourceType", "location", "isActive"
-          ]
-        },
-        {
-          model: sequelize.models.SiteInspectorProfile,
-          as: "inspectorProfile",
-          attributes: [
-            "id", "isAvailable", "maxOpenInspections", "maxVisitsPerDay", "maxDistanceKm",
-            "certifications", "languages", "onLeaveFrom", "onLeaveTo"
-          ]
-        }
-      ]
-    });
+    let createdUserWithAssoc: any = null;
+    try {
+      createdUserWithAssoc = await sequelize.models.User.findByPk(user.id, {
+        attributes: ["id", "name", "email", "role", "tier", "dealValueCutoff", "maxOpenLeads", "isAvailable", "hireDate", "phone", "createdByUserId", "createdAt"],
+        include: [
+          { model: sequelize.models.User, as: "createdByUser", attributes: ["id", "name", "email"] },
+          { model: sequelize.models.User, as: "manager", attributes: ["id", "name", "email", "role"] },
+          {
+            model: sequelize.models.ServiceResource,
+            as: "serviceResource",
+            attributes: [
+              "id", "skills", "certifications", "experienceYearsWithCompany",
+              "previousExperience", "attendanceStatus", "resourceType", "location", "isActive"
+            ],
+            required: false
+          }
+        ]
+      });
+    } catch (e) {
+      createdUserWithAssoc = user;
+    }
 
     res.status(201).json(createdUserWithAssoc || user);
   } catch (error: any) {

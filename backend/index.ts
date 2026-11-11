@@ -11,9 +11,18 @@ const app = createServer();
 const startServer = async () => {
   try {
     await Database.createConnection();
-    // Models are synced via Sequelize migrations. Safely sync WhatsAppLog table if needed.
+    // Models are synced via Sequelize migrations. Safely sync tables if needed.
     if (sequelize.models.WhatsAppLog) {
       await sequelize.models.WhatsAppLog.sync().catch(err => console.error("Failed to sync WhatsAppLog model:", err));
+    }
+    if (sequelize.models.ServiceResource) {
+      await sequelize.models.ServiceResource.sync().catch(err => console.warn("ServiceResource sync warning:", err));
+    }
+    if (sequelize.models.ResourceAbsence) {
+      await sequelize.models.ResourceAbsence.sync().catch(err => console.warn("ResourceAbsence sync warning:", err));
+    }
+    if (sequelize.models.SiteInspectorProfile) {
+      await sequelize.models.SiteInspectorProfile.sync().catch(err => console.warn("SiteInspectorProfile sync warning:", err));
     }
     await sequelize.query("ALTER TABLE Deals ADD COLUMN originalOwnerId TEXT;").catch(() => {});
     await sequelize.query('ALTER TABLE "Users" ADD COLUMN IF NOT EXISTS "teamType" VARCHAR(255);').catch(() => {});

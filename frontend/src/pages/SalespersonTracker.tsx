@@ -233,9 +233,36 @@ export default function SalespersonTracker() {
   const { data: orgChartEmployees = [] } = useQuery<any[]>({
     queryKey: ["orgChartEmployees"],
     queryFn: async () => {
-      const res = await apiClient("/api/v1/salespersons/org-chart");
-      if (!res.ok) return [];
-      return res.json();
+      try {
+        const res = await apiClient("/api/v1/salespersons/org-chart");
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0) {
+            return data;
+          }
+        }
+      } catch (err) {
+        console.warn("Failed to load org-chart employees, trying fallback:", err);
+      }
+
+      // Fallback to /api/v1/salespersons so the directory NEVER stays blank
+      try {
+        const fallbackRes = await apiClient("/api/v1/salespersons");
+        if (fallbackRes.ok) {
+          const fallbackData = await fallbackRes.json();
+          if (Array.isArray(fallbackData)) {
+            return fallbackData.map((u: any) => ({
+              ...u,
+              serviceResource: u.serviceResource || null,
+              inspectorProfile: u.inspectorProfile || null,
+              teamMembers: u.teamMembers || []
+            }));
+          }
+        }
+      } catch (err) {
+        console.error("Fallback query to /api/v1/salespersons also failed:", err);
+      }
+      return [];
     },
     staleTime: 2 * 60 * 1000
   });
