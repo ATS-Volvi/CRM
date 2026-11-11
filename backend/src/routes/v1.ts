@@ -63,6 +63,12 @@ import {
   getOrgChartEmployees, updateRepTeamType, getManagerDirectTeam, getManagerStuckDeals
 } from '../controllers/salespersonController';
 import {
+  getMyTodayAttendance,
+  clockIn,
+  clockOut,
+  getDailyAttendanceRoster
+} from '../controllers/attendanceController';
+import {
   getRequirements, createRequirement, updateRequirement, deleteRequirement,
   getLineItems, createLineItem, updateLineItem, deleteLineItem,
   getConstructionItems, createConstructionItem, updateConstructionItem, deleteConstructionItem,
@@ -653,6 +659,12 @@ router.patch("/salespersons/:id/team-type", authMiddleware, updateRepTeamType);
 router.put("/salespersons/:id/team-type", authMiddleware, updateRepTeamType);
 router.get("/manager/team", authMiddleware, getManagerDirectTeam);
 router.get("/manager/stuck-deals", authMiddleware, getManagerStuckDeals);
+
+// Daily Attendance Clock-in & Roster
+router.get("/attendance/today", authMiddleware, getMyTodayAttendance);
+router.post("/attendance/clock-in", authMiddleware, clockIn);
+router.post("/attendance/clock-out", authMiddleware, clockOut);
+router.get("/attendance/roster", authMiddleware, getDailyAttendanceRoster);
 
 // KPI Target Management
 router.get("/salespersons/kpis", authMiddleware, getTeamKpis);

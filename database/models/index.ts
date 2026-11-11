@@ -3814,6 +3814,44 @@ SiteInspectionAlert.belongsTo(SiteInspection, { foreignKey: "inspectionId", as: 
 SiteInspectionAlert.belongsTo(User, { foreignKey: "recipientId", as: "recipient", constraints: false });
 SiteInspection.hasMany(SiteInspectionAlert, { foreignKey: "inspectionId", as: "alerts", constraints: false });
 
+export class UserAttendance extends Model {
+  public id!: string;
+  public userId!: string;
+  public date!: string;
+  public checkInTime!: Date;
+  public checkOutTime!: Date | null;
+  public durationMinutes!: number | null;
+  public status!: "Present" | "Late" | "Half Day" | "Left Early" | string;
+  public notes!: string | null;
+  public ipAddress!: string | null;
+  public userAgent!: string | null;
+  public createdAt!: Date;
+  public updatedAt!: Date;
+}
+
+UserAttendance.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    userId: { type: DataTypes.UUID, allowNull: false },
+    date: { type: DataTypes.STRING, allowNull: false },
+    checkInTime: { type: DataTypes.DATE, allowNull: false },
+    checkOutTime: { type: DataTypes.DATE, allowNull: true },
+    durationMinutes: { type: DataTypes.INTEGER, allowNull: true },
+    status: { type: DataTypes.STRING, allowNull: false, defaultValue: "Present" },
+    notes: { type: DataTypes.TEXT, allowNull: true },
+    ipAddress: { type: DataTypes.STRING, allowNull: true },
+    userAgent: { type: DataTypes.STRING, allowNull: true },
+  },
+  {
+    sequelize,
+    modelName: "UserAttendance",
+    tableName: "UserAttendances",
+  }
+);
+
+User.hasMany(UserAttendance, { foreignKey: "userId", as: "attendances", constraints: false });
+UserAttendance.belongsTo(User, { foreignKey: "userId", as: "user", constraints: false });
+
 export { sequelize };
 
 

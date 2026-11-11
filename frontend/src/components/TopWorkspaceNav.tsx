@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { formatCurrencyCompact } from "../utils/currency";
+import { AttendanceClockWidget } from "./AttendanceClockWidget";
 
 export function TopWorkspaceNav({
   onOpenSearch,
@@ -197,6 +198,8 @@ export function TopWorkspaceNav({
 
         {/* Omnibar Global Search (Ctrl + K) & Profile */}
         <div className="flex items-center gap-3 shrink-0">
+          <AttendanceClockWidget />
+
           <button
             onClick={onOpenSearch}
             className="flex items-center gap-2.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 px-3.5 py-1.5 rounded-full text-xs text-[#6B7280] transition-all group"

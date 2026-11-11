@@ -335,6 +335,29 @@ export default function SalespersonTracker() {
     staleTime: 10 * 60 * 1000
   });
 
+  const { data: attendanceData } = useQuery<{
+    date: string;
+    attendances: Array<{
+      id: string;
+      userId: string;
+      date: string;
+      checkInTime: string;
+      checkOutTime: string | null;
+      durationMinutes: number | null;
+      status: string;
+    }>;
+  }>({
+    queryKey: ["attendanceRoster"],
+    queryFn: async () => {
+      try {
+        const res = await apiClient("/api/v1/attendance/roster");
+        if (res.ok) return res.json();
+      } catch (err) {}
+      return { date: new Date().toISOString().split("T")[0], attendances: [] };
+    },
+    refetchInterval: 30000
+  });
+
   const availableManagers = useMemo(() => {
     if (!currentUser) return managers;
     if (currentUser.role === "manager") {
@@ -965,6 +988,16 @@ export default function SalespersonTracker() {
         });
 
         const isToday = dateStr === formatYMD(new Date());
+        const todayAtt = isToday ? (attendanceData?.attendances || []).find((a: any) => a.userId === emp.id) : null;
+        if (isToday && todayAtt) {
+          if (todayAtt.checkInTime && !todayAtt.checkOutTime) {
+            return `Clocked In (${new Date(todayAtt.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`;
+          }
+          if (todayAtt.checkOutTime) {
+            return `Shift Ended (${Math.floor((todayAtt.durationMinutes || 0) / 60)}h ${(todayAtt.durationMinutes || 0) % 60}m)`;
+          }
+        }
+
         const isSudden = (isToday && emp.isSuddenAbsence) ||
           (matchingAbsence && (
             matchingAbsence.status === "Sudden" ||
@@ -2359,6 +2392,8 @@ export default function SalespersonTracker() {
                                 matchingAbsence.type?.toLowerCase().includes("emergency")
                               ));
 
+                            const todayAtt = isToday ? (attendanceData?.attendances || []).find((a: any) => a.userId === emp.id) : null;
+
                             return (
                               <td
                                 key={dIdx}
@@ -2397,6 +2432,28 @@ export default function SalespersonTracker() {
                                 ) : isWeekend ? (
                                   <div className="p-1 rounded bg-slate-100/70 text-slate-500 text-[9px] font-semibold">
                                     Off
+                                  </div>
+                                ) : isToday && todayAtt?.checkInTime && !todayAtt.checkOutTime ? (
+                                  <div
+                                    title={`🟢 Clocked In at ${new Date(todayAtt.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} (Active On Duty)`}
+                                    className="p-1 rounded bg-emerald-100 text-emerald-950 border border-emerald-300 font-black text-[9px] leading-tight shadow-2xs hover:scale-105 transition-transform flex items-center justify-center gap-1"
+                                  >
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                    <span>IN {new Date(todayAtt.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                  </div>
+                                ) : isToday && todayAtt?.checkOutTime ? (
+                                  <div
+                                    title={`⏹️ Shift Completed: ${Math.floor((todayAtt.durationMinutes || 0) / 60)}h ${(todayAtt.durationMinutes || 0) % 60}m (${new Date(todayAtt.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} – ${new Date(todayAtt.checkOutTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`}
+                                    className="p-1 rounded bg-slate-100 text-slate-800 border border-slate-300 font-bold text-[9px] leading-tight shadow-2xs hover:scale-105 transition-transform truncate"
+                                  >
+                                    OUT {Math.floor((todayAtt.durationMinutes || 0) / 60)}h{(todayAtt.durationMinutes || 0) % 60}m
+                                  </div>
+                                ) : isToday && !todayAtt ? (
+                                  <div
+                                    title="Scheduled to work today, but has not clocked in yet"
+                                    className="p-1 rounded bg-amber-50 text-amber-900 border border-amber-300 font-bold text-[9px] leading-tight shadow-2xs hover:scale-105 transition-transform truncate"
+                                  >
+                                    ⏱️ NOT IN
                                   </div>
                                 ) : (
                                   <div
@@ -2484,6 +2541,31 @@ export default function SalespersonTracker() {
                           ? "● Available"
                           : "○ OOO"}
                     </span>
+                    {(() => {
+                      const selAtt = (attendanceData?.attendances || []).find((a: any) => a.userId === selectedEmployee.id);
+                      if (selAtt) {
+                        if (selAtt.checkInTime && !selAtt.checkOutTime) {
+                          return (
+                            <span className="px-2.5 py-0.5 text-[10px] font-black rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1 shadow-2xs">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                              Clocked In Today: {new Date(selAtt.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          );
+                        }
+                        if (selAtt.checkOutTime) {
+                          return (
+                            <span className="px-2.5 py-0.5 text-[10px] font-bold rounded-full bg-slate-100 text-slate-700 border border-slate-300">
+                              Shift Completed: {Math.floor((selAtt.durationMinutes || 0) / 60)}h {(selAtt.durationMinutes || 0) % 60}m
+                            </span>
+                          );
+                        }
+                      }
+                      return (
+                        <span className="px-2.5 py-0.5 text-[10px] font-semibold rounded-full bg-amber-50 text-amber-800 border border-amber-200">
+                          Not Clocked In Today
+                        </span>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>

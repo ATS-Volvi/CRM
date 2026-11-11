@@ -9,6 +9,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
 import { leadFilterApi } from "../api";
+import { AttendanceClockWidget } from "./AttendanceClockWidget";
 
 interface NavSubItem {
   label: string;
@@ -225,6 +226,11 @@ export function Sidebar({
                 <Bell className="w-4 h-4" />
               </button>
             )}
+          </div>
+
+          {/* Daily Attendance Clock In / Out Widget */}
+          <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800/80">
+            <AttendanceClockWidget />
           </div>
         </div>
       </div>
