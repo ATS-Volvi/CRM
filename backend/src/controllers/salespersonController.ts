@@ -1195,8 +1195,8 @@ export const updateSalespersonCapacity = async (req: Request, res: Response) => 
       if (isAvailable !== undefined) inspUpdates.isAvailable = !!isAvailable;
       if (req.body.suddenAbsence) {
         inspUpdates.isAvailable = false;
-        inspUpdates.onLeaveFrom = new Date();
-        inspUpdates.onLeaveTo = new Date(Date.now() + 24 * 60 * 60 * 1000);
+        inspUpdates.onLeaveFrom = req.body.leaveStartDate ? new Date(req.body.leaveStartDate) : new Date();
+        inspUpdates.onLeaveTo = req.body.leaveEndDate ? new Date(req.body.leaveEndDate) : new Date(Date.now() + 24 * 60 * 60 * 1000);
       } else if (req.body.endSuddenAbsence || req.body.returnToDuty || req.body.clearInspectorLeave) {
         inspUpdates.isAvailable = true;
         inspUpdates.onLeaveFrom = null;

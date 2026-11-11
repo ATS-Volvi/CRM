@@ -476,6 +476,32 @@ async function checkRepEligibility(userId: string): Promise<boolean> {
     return false;
   }
 
+  // Check active planned or sudden absences
+  try {
+    const ServiceResource = sequelize.models.ServiceResource;
+    const ResourceAbsence = sequelize.models.ResourceAbsence;
+    if (ServiceResource && ResourceAbsence) {
+      const res: any = await ServiceResource.findOne({ where: { userId }, attributes: ["id"] });
+      if (res) {
+        const now = new Date();
+        const activeAbsence: any = await ResourceAbsence.findOne({
+          where: {
+            serviceResourceId: res.id,
+            startDate: { [Op.lte]: now },
+            endDate: { [Op.gte]: now },
+            status: { [Op.notIn]: ["Rejected", "Canceled"] }
+          }
+        });
+        if (activeAbsence) {
+          console.log(`[ELIGIBILITY] Rep ${user.name} (${userId}) excluded: active absence recorded (${activeAbsence.type || 'Leave'}).`);
+          return false;
+        }
+      }
+    }
+  } catch (absErr) {
+    // Safe fallback if tables not yet populated
+  }
+
   const openCount = await sequelize.models.Lead.count({
     where: {
       assignedToId: userId,
@@ -663,6 +689,27 @@ export async function assignOpportunityCloser(
       if (rep.isAvailable === false) continue;
       if (rep.onLeave) continue;
       if (rep.status === "On Leave" || rep.status === "Offline" || rep.status === "Suspended") continue;
+
+      // Active planned or sudden absence check
+      try {
+        const ServiceResource = sequelize.models.ServiceResource;
+        const ResourceAbsence = sequelize.models.ResourceAbsence;
+        if (ServiceResource && ResourceAbsence) {
+          const res: any = await ServiceResource.findOne({ where: { userId: rep.id }, attributes: ["id"] });
+          if (res) {
+            const now = new Date();
+            const activeAbsence = await ResourceAbsence.findOne({
+              where: {
+                serviceResourceId: res.id,
+                startDate: { [Op.lte]: now },
+                endDate: { [Op.gte]: now },
+                status: { [Op.notIn]: ["Rejected", "Canceled"] }
+              }
+            });
+            if (activeAbsence) continue;
+          }
+        }
+      } catch (e) {}
 
       // Deal value cutoff check (hard gate before scoring)
       if (rep.dealValueCutoff !== null && rep.dealValueCutoff !== undefined) {
