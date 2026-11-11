@@ -8,7 +8,7 @@ import {
   UserCheck, BarChart3, ChevronRight, Mail, UserPlus,
   ShieldCheck, Target, Wrench, ClipboardCheck, Briefcase,
   Calendar, CalendarDays, Trash2, Edit3, Save, Clock, ExternalLink,
-  AlertTriangle, AlertCircle, Sun, CheckCircle2, ChevronLeft, RefreshCw, Palmtree, UserX
+  AlertTriangle, AlertCircle, Sun, CheckCircle2, ChevronLeft, RefreshCw, Palmtree, UserX, Download
 } from "lucide-react";
 import { formatCurrency } from "../utils/currency";
 import KpiAttainmentTable from "../components/KpiAttainmentTable";
@@ -39,6 +39,12 @@ interface Salesperson {
   createdByUser?: { id: string; name: string; email: string } | null;
   manager?: { id: string; name: string; email: string; role: string } | null;
   teamMembers?: any[];
+  isSuddenAbsence?: boolean;
+  onLeave?: boolean;
+  activeAbsence?: any;
+  absences?: any[];
+  serviceResource?: any;
+  inspectorProfile?: any;
 }
 
 function ProgressRing({ pct, size = 56, stroke = 4, color = "var(--color-primary, #6366f1)" }: {
@@ -132,6 +138,23 @@ const DEPARTMENTS = ["All", "Sales", "Enterprise", "Commercial", "SMB", "Inside 
 const TERRITORIES = ["All", "EMEA", "APAC", "Americas", "Dubai", "MEA", "South Asia"];
 const TEAMS = ["All", "Aces", "Velocity", "Global", "Hawks", "Phoenix"];
 
+export function isGccTerritory(t: string = ""): boolean {
+  const s = String(t || "").toLowerCase();
+  return (
+    s.includes("emea") ||
+    s.includes("gcc") ||
+    s.includes("middle") ||
+    s.includes("uae") ||
+    s.includes("dubai") ||
+    s.includes("saudi") ||
+    s.includes("qatar") ||
+    s.includes("kuwait") ||
+    s.includes("bahrain") ||
+    s.includes("oman") ||
+    s.includes("mea")
+  );
+}
+
 export default function SalespersonTracker() {
   const { user: currentUser } = useAuth();
   const navigate = useNavigate();
@@ -190,7 +213,7 @@ export default function SalespersonTracker() {
 
   // Team Schedule & Availability View States
   const [scheduleViewMode, setScheduleViewMode] = useState<"week" | "2weeks" | "month">("2weeks");
-  const [workWeekStandard, setWorkWeekStandard] = useState<"gcc" | "global">("gcc");
+  const [workWeekStandard, setWorkWeekStandard] = useState<"gcc" | "global" | "auto">("auto");
   const [scheduleOffsetDays, setScheduleOffsetDays] = useState(0);
   const [scheduleSearch, setScheduleSearch] = useState("");
   const [scheduleRoleFilter, setScheduleRoleFilter] = useState<DivisionCategory>("all");
@@ -532,6 +555,20 @@ export default function SalespersonTracker() {
       alert("Error creating holiday: " + err.message);
     } finally {
       setHolidaySubmitting(false);
+    }
+  };
+
+  const handleDeleteHoliday = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this company holiday?")) return;
+    try {
+      const res = await apiClient(`/api/v1/company-holidays/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to delete holiday");
+      }
+      await queryClient.invalidateQueries({ queryKey: ["companyHolidays"] });
+    } catch (err: any) {
+      alert("Error deleting holiday: " + err.message);
     }
   };
 
@@ -888,6 +925,79 @@ export default function SalespersonTracker() {
       upcomingHoliday: upcomingHolidays[0] || null
     };
   }, [orgChartEmployees, holidays]);
+
+  const handleScheduleCellClick = (emp: any, day: Date) => {
+    setSelectedEmployee(emp);
+    const dateStr = formatYMD(day);
+    setLeaveForm(prev => ({
+      ...prev,
+      startDate: dateStr,
+      endDate: dateStr
+    }));
+  };
+
+  const handleExportScheduleCSV = () => {
+    if (!filteredScheduleEmployees || filteredScheduleEmployees.length === 0) {
+      alert("No employee records to export.");
+      return;
+    }
+    const headerRow = ["Name", "Role", "Department", "Territory", ...scheduleDays.map(d => formatYMD(d))];
+    const dataRows = filteredScheduleEmployees.map((emp: any) => {
+      const isGCC = workWeekStandard === "auto" ? isGccTerritory(emp.territory) : workWeekStandard === "gcc";
+      const dailyStates = scheduleDays.map(day => {
+        const dayOfWeek = day.getDay();
+        const isWeekend = isGCC ? (dayOfWeek === 5 || dayOfWeek === 6) : (dayOfWeek === 0 || dayOfWeek === 6);
+        const dateStr = formatYMD(day);
+        const holiday = (holidays || []).find((h: any) => h.date === dateStr && h.isActive !== false);
+        if (holiday) return `Holiday (${holiday.name})`;
+
+        const isInspectorLeave = emp.inspectorProfile?.onLeaveFrom && emp.inspectorProfile?.onLeaveTo && (() => {
+          const s = formatYMD(new Date(emp.inspectorProfile.onLeaveFrom));
+          const e = formatYMD(new Date(emp.inspectorProfile.onLeaveTo));
+          return dateStr >= s && dateStr <= e;
+        })();
+
+        const allAbs = [...(emp.absences || []), ...(emp.serviceResource?.absences || [])];
+        const matchingAbsence = allAbs.find((a: any) => {
+          const s = formatYMD(new Date(a.startDate));
+          const e = formatYMD(new Date(a.endDate));
+          return dateStr >= s && dateStr <= e;
+        });
+
+        const isToday = dateStr === formatYMD(new Date());
+        const isSudden = (isToday && emp.isSuddenAbsence) ||
+          (matchingAbsence && (
+            matchingAbsence.status === "Sudden" ||
+            matchingAbsence.type?.toLowerCase().includes("sick") ||
+            matchingAbsence.type?.toLowerCase().includes("emergency")
+          ));
+
+        if (isSudden) return "Sudden Sick Leave";
+        if (matchingAbsence) return `Leave (${matchingAbsence.type || 'Approved'})`;
+        if (isInspectorLeave) return "Survey Leave";
+        if (isWeekend) return "Weekend Off";
+        return "On Duty";
+      });
+
+      return [
+        `"${emp.name || ''}"`,
+        `"${roleLabel(emp.role, emp.tier)}"`,
+        `"${emp.department || 'Sales'}"`,
+        `"${emp.territory || 'Unassigned'}"`,
+        ...dailyStates.map(s => `"${s}"`)
+      ].join(",");
+    });
+
+    const csvContent = [headerRow.join(","), ...dataRows].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `team_schedule_${scheduleViewMode}_${formatYMD(new Date())}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   return (
     <div className="max-w-[1200px] mx-auto p-8 space-y-6 animate-fade-in">
@@ -1461,7 +1571,18 @@ export default function SalespersonTracker() {
                                     </div>
 
                                     <div className="flex-1 min-w-0">
-                                      <p className="font-bold text-on-surface text-sm truncate group-hover:text-primary transition-colors">{teamLead.name}</p>
+                                      <div className="flex items-center gap-1.5">
+                                        <p className="font-bold text-on-surface text-sm truncate group-hover:text-primary transition-colors">{teamLead.name}</p>
+                                        {teamLead.isSuddenAbsence ? (
+                                          <span className="px-1.5 py-0.2 rounded text-[8px] font-extrabold bg-rose-100 text-rose-800 border border-rose-300 animate-pulse">
+                                            🚨 SICK
+                                          </span>
+                                        ) : teamLead.onLeave ? (
+                                          <span className="px-1.5 py-0.2 rounded text-[8px] font-extrabold bg-indigo-100 text-indigo-800">
+                                            🌴 LEAVE
+                                          </span>
+                                        ) : null}
+                                      </div>
                                       <p className="text-[10px] text-on-surface-variant font-semibold">{roleLabel(teamLead.role, teamLead.tier)} · {teamLead.department || "Sales"} · {teamLead.territory || "EMEA"}</p>
                                       {teamLead.email && <p className="text-[10px] font-mono text-primary truncate">{teamLead.email}</p>}
                                     </div>
@@ -1527,7 +1648,18 @@ export default function SalespersonTracker() {
                                             </div>
 
                                             <div className="flex-1 min-w-0">
-                                              <p className="font-bold text-on-surface text-xs truncate group-hover:text-primary transition-colors">{rep.name}</p>
+                                              <div className="flex items-center gap-1.5">
+                                                <p className="font-bold text-on-surface text-xs truncate group-hover:text-primary transition-colors">{rep.name}</p>
+                                                {rep.isSuddenAbsence ? (
+                                                  <span className="px-1.5 py-0.2 rounded text-[8px] font-extrabold bg-rose-100 text-rose-800 border border-rose-300 animate-pulse">
+                                                    🚨 SICK
+                                                  </span>
+                                                ) : rep.onLeave ? (
+                                                  <span className="px-1.5 py-0.2 rounded text-[8px] font-extrabold bg-indigo-100 text-indigo-800">
+                                                    🌴 LEAVE
+                                                  </span>
+                                                ) : null}
+                                              </div>
                                               <p className="text-[10px] text-on-surface-variant font-medium truncate">{roleLabel(rep.role, rep.tier)}</p>
                                               {rep.email && <p className="text-[9px] font-mono text-on-surface-variant truncate opacity-80">{rep.email}</p>}
                                             </div>
@@ -1825,8 +1957,19 @@ export default function SalespersonTracker() {
                 <div className="flex items-center bg-surface-container-low p-1 rounded-lg border border-outline-variant text-[11px] font-bold">
                   <button
                     type="button"
+                    onClick={() => setWorkWeekStandard("auto")}
+                    className={`px-2 py-1 rounded transition-all cursor-pointer ${workWeekStandard === "auto"
+                        ? "bg-primary text-white shadow-2xs"
+                        : "text-on-surface-variant hover:text-on-surface"
+                      }`}
+                    title="Automatically set weekend based on employee operating territory"
+                  >
+                    Auto (Territory)
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => setWorkWeekStandard("gcc")}
-                    className={`px-2.5 py-1 rounded transition-all cursor-pointer ${workWeekStandard === "gcc"
+                    className={`px-2 py-1 rounded transition-all cursor-pointer ${workWeekStandard === "gcc"
                         ? "bg-primary text-white shadow-2xs"
                         : "text-on-surface-variant hover:text-on-surface"
                       }`}
@@ -1836,7 +1979,7 @@ export default function SalespersonTracker() {
                   <button
                     type="button"
                     onClick={() => setWorkWeekStandard("global")}
-                    className={`px-2.5 py-1 rounded transition-all cursor-pointer ${workWeekStandard === "global"
+                    className={`px-2 py-1 rounded transition-all cursor-pointer ${workWeekStandard === "global"
                         ? "bg-primary text-white shadow-2xs"
                         : "text-on-surface-variant hover:text-on-surface"
                       }`}
@@ -1862,6 +2005,16 @@ export default function SalespersonTracker() {
                   ))}
                 </div>
 
+                {/* Export Schedule to CSV */}
+                <button
+                  type="button"
+                  onClick={handleExportScheduleCSV}
+                  className="px-2.5 py-1.5 text-[11px] font-bold rounded-lg bg-surface border border-outline hover:bg-surface-container-low transition-all flex items-center gap-1 cursor-pointer"
+                  title="Export current roster and availability matrix to CSV"
+                >
+                  <Download className="w-3.5 h-3.5 text-primary" /> Export CSV
+                </button>
+
                 {/* Company Holiday Action */}
                 {["admin", "director", "manager", "ops_manager"].includes(currentUser?.role || "") && (
                   <button
@@ -1869,16 +2022,29 @@ export default function SalespersonTracker() {
                     onClick={() => setIsAddHolidayOpen(true)}
                     className="px-2.5 py-1.5 text-[11px] font-bold rounded-lg bg-amber-500/10 text-amber-900 border border-amber-500/30 hover:bg-amber-500/20 transition-all flex items-center gap-1 cursor-pointer"
                   >
-                    <Plus className="w-3.5 h-3.5 text-amber-700" /> + Holiday
+                    <Plus className="w-3.5 h-3.5 text-amber-700" /> Holiday Manager
                   </button>
                 )}
               </div>
             </div>
 
-            {/* Add Company Holiday Modal */}
+            {/* Company Holiday Management Modal */}
             {isAddHolidayOpen && (
-              <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-xl text-xs animate-slide-down">
-                <form onSubmit={handleAddHoliday} className="flex flex-wrap items-end gap-3">
+              <div className="p-4 bg-amber-50/80 border border-amber-200 rounded-xl text-xs animate-slide-down space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-extrabold uppercase text-[10px] text-amber-950 tracking-wider">
+                    Company Holiday Manager
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddHolidayOpen(false)}
+                    className="text-amber-800 hover:text-amber-950 font-bold p-1 cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <form onSubmit={handleAddHoliday} className="flex flex-wrap items-end gap-3 bg-white/70 p-3 rounded-lg border border-amber-200">
                   <div className="flex-1 min-w-[180px]">
                     <label className="block text-[10px] font-bold uppercase text-amber-950 mb-1">Holiday Name *</label>
                     <input
@@ -1917,6 +2083,37 @@ export default function SalespersonTracker() {
                     </button>
                   </div>
                 </form>
+
+                {/* Existing Holidays List with Delete */}
+                {holidays && holidays.length > 0 && (
+                  <div className="space-y-1.5 pt-1">
+                    <span className="block text-[10px] font-extrabold uppercase text-amber-950">
+                      Configured Company Holidays ({holidays.length})
+                    </span>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                      {holidays.map((h: any) => (
+                        <div key={h.id} className="flex items-center justify-between p-2 rounded-lg bg-white border border-amber-200 text-xs">
+                          <div>
+                            <p className="font-bold text-amber-950">{h.name}</p>
+                            <p className="text-[10px] text-amber-700">
+                              {new Date(h.date).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}
+                            </p>
+                          </div>
+                          {["admin", "director", "manager", "ops_manager"].includes(currentUser?.role || "") && (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteHoliday(h.id)}
+                              className="p-1 text-slate-400 hover:text-error transition-colors cursor-pointer"
+                              title="Delete Holiday"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1997,6 +2194,9 @@ export default function SalespersonTracker() {
                     <th className="p-3 font-extrabold uppercase text-[10px] text-on-surface-variant sticky left-0 bg-surface-container-low z-20 min-w-[200px] border-r border-outline-variant">
                       Team Member & Role
                     </th>
+                    <th className="p-2 text-center min-w-[110px] border-r border-outline-variant font-extrabold uppercase text-[10px] text-on-surface-variant bg-surface-container-low">
+                      Period Duty
+                    </th>
                     {scheduleDays.map((day, idx) => {
                       const isToday = formatYMD(day) === formatYMD(new Date());
                       const dayName = day.toLocaleDateString([], { weekday: "short" });
@@ -2029,12 +2229,53 @@ export default function SalespersonTracker() {
                 <tbody className="divide-y divide-outline-variant/60">
                   {filteredScheduleEmployees.length === 0 ? (
                     <tr>
-                      <td colSpan={scheduleDays.length + 1} className="p-8 text-center text-xs text-on-surface-variant italic">
+                      <td colSpan={scheduleDays.length + 2} className="p-8 text-center text-xs text-on-surface-variant italic">
                         No team members match the search and role filter criteria.
                       </td>
                     </tr>
                   ) : (
                     filteredScheduleEmployees.map((emp: any) => {
+                      const isGCC = workWeekStandard === "auto" ? isGccTerritory(emp.territory) : workWeekStandard === "gcc";
+                      let onDutyCount = 0;
+                      let leaveCount = 0;
+                      let sickCount = 0;
+                      let workingDaysCount = 0;
+
+                      scheduleDays.forEach(day => {
+                        const dStr = formatYMD(day);
+                        const hol = (holidays || []).find((h: any) => h.date === dStr && h.isActive !== false);
+                        if (hol) return;
+
+                        const dow = day.getDay();
+                        const isWknd = isGCC ? (dow === 5 || dow === 6) : (dow === 0 || dow === 6);
+                        if (isWknd) return;
+
+                        workingDaysCount++;
+
+                        const isInspLeave = emp.inspectorProfile?.onLeaveFrom && emp.inspectorProfile?.onLeaveTo && (() => {
+                          const s = formatYMD(new Date(emp.inspectorProfile.onLeaveFrom));
+                          const e = formatYMD(new Date(emp.inspectorProfile.onLeaveTo));
+                          return dStr >= s && dStr <= e;
+                        })();
+
+                        const allAbs = [...(emp.absences || []), ...(emp.serviceResource?.absences || [])];
+                        const match = allAbs.find((a: any) => {
+                          const s = formatYMD(new Date(a.startDate));
+                          const e = formatYMD(new Date(a.endDate));
+                          return dStr >= s && dStr <= e;
+                        });
+
+                        const isTod = dStr === formatYMD(new Date());
+                        const isSud = (isTod && emp.isSuddenAbsence) ||
+                          (match && (match.status === "Sudden" || match.type?.toLowerCase().includes("sick") || match.type?.toLowerCase().includes("emergency")));
+
+                        if (isSud) { sickCount++; return; }
+                        if (match || isInspLeave) { leaveCount++; return; }
+                        onDutyCount++;
+                      });
+
+                      const dutyPct = workingDaysCount > 0 ? Math.round((onDutyCount / workingDaysCount) * 100) : 100;
+
                       return (
                         <tr key={emp.id} className="hover:bg-surface-container-low/30 transition-colors">
                           {/* Member Sticky Left Cell */}
@@ -2070,6 +2311,23 @@ export default function SalespersonTracker() {
                             </div>
                           </td>
 
+                          {/* Duty Summary Column */}
+                          <td
+                            onClick={() => setSelectedEmployee(emp)}
+                            className="p-2 text-center border-r border-outline-variant/60 cursor-pointer bg-surface/50"
+                          >
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black ${
+                              dutyPct >= 80 ? "bg-emerald-100 text-emerald-800 border border-emerald-200" :
+                              dutyPct >= 50 ? "bg-amber-100 text-amber-800 border border-amber-200" :
+                              "bg-rose-100 text-rose-800 border border-rose-200"
+                            }`}>
+                              {onDutyCount}/{workingDaysCount}d ({dutyPct}%)
+                            </span>
+                            <span className="block text-[8px] font-semibold text-on-surface-variant mt-0.5">
+                              {sickCount > 0 ? `${sickCount} sick · ` : ""}{leaveCount > 0 ? `${leaveCount} leave` : "Full Active"}
+                            </span>
+                          </td>
+
                           {/* Day Status Cells */}
                           {scheduleDays.map((day, dIdx) => {
                             const dateStr = formatYMD(day);
@@ -2077,7 +2335,7 @@ export default function SalespersonTracker() {
                             const holiday = (holidays || []).find((h: any) => h.date === dateStr && h.isActive !== false);
 
                             const dayOfWeek = day.getDay();
-                            const isWeekend = workWeekStandard === "gcc"
+                            const isWeekend = isGCC
                               ? (dayOfWeek === 5 || dayOfWeek === 6)
                               : (dayOfWeek === 0 || dayOfWeek === 6);
 
@@ -2104,7 +2362,7 @@ export default function SalespersonTracker() {
                             return (
                               <td
                                 key={dIdx}
-                                onClick={() => setSelectedEmployee(emp)}
+                                onClick={() => handleScheduleCellClick(emp, day)}
                                 className={`p-1.5 text-center border-r border-outline-variant/40 cursor-pointer transition-colors ${isToday ? "bg-primary/5" : ""
                                   }`}
                               >

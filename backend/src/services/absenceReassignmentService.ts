@@ -266,11 +266,30 @@ export async function reassignAbsentRepWorkload(
                   newResourceName: alternateResource.name || "Alternate Technician"
                 });
               } else {
-                // No alternate technician available: flag appointment as needing reschedule
+                // No alternate technician available: flag appointment as needing reschedule and alert ops
                 await appt.update({
                   status: "Needs Reschedule",
                   notes: `${appt.notes || ""}\n[Urgent] Primary technician ${resource.name} is absent. No alternate available; rescheduling required.`.trim()
                 });
+
+                try {
+                  const opsManagers = await User.findAll({
+                    where: {
+                      role: { [Op.in]: ["admin", "ops_manager", "manager", "director"] },
+                      isAvailable: true
+                    },
+                    attributes: ["id"]
+                  });
+                  for (const mgr of opsManagers) {
+                    await createNotification(
+                      mgr.id,
+                      "warning",
+                      "Urgent: Unassigned Service Appointment",
+                      `Technician ${resource.name} is absent and appointment ${appt.appointmentNumber || appt.id} has no alternate technician available. Manual reschedule required.`,
+                      `/work-orders`
+                    );
+                  }
+                } catch (notifErr) {}
               }
             }
           }
@@ -333,6 +352,26 @@ export async function reassignAbsentRepWorkload(
                 newInspectorId: altInspector.id,
                 newInspectorName: altInspector.name
               });
+            } else {
+              // No alternate inspector available: notify ops
+              try {
+                const opsManagers = await User.findAll({
+                  where: {
+                    role: { [Op.in]: ["admin", "ops_manager", "manager", "director"] },
+                    isAvailable: true
+                  },
+                  attributes: ["id"]
+                });
+                for (const mgr of opsManagers) {
+                  await createNotification(
+                    mgr.id,
+                    "warning",
+                    "Urgent: Unassigned Site Survey",
+                    `Inspector ${absentUserName} is absent and site survey "${insp.companyName || insp.id}" has no available alternate inspector. Manual action required.`,
+                    `/site-inspections`
+                  );
+                }
+              } catch (notifErr) {}
             }
           }
         }
