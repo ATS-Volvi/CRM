@@ -384,6 +384,14 @@ export const getOrgChartEmployees = async (req: Request, res: Response) => {
             "id", "skills", "certifications", "experienceYearsWithCompany",
             "previousExperience", "attendanceStatus", "resourceType", "location", "isActive"
           ]
+        },
+        {
+          model: sequelize.models.SiteInspectorProfile,
+          as: "inspectorProfile",
+          attributes: [
+            "id", "isAvailable", "maxOpenInspections", "maxVisitsPerDay", "maxDistanceKm",
+            "certifications", "languages", "onLeaveFrom", "onLeaveTo"
+          ]
         }
       ],
       order: [["name", "ASC"]]
@@ -499,6 +507,27 @@ export const createSalesperson = async (req: Request, res: Response) => {
       }
     }
 
+    // Automatically create linked SiteInspectorProfile if user is site inspector
+    if (targetRole === "site_manager" || req.body.isInspector) {
+      const SiteInspectorProfile = sequelize.models.SiteInspectorProfile;
+      if (SiteInspectorProfile) {
+        let certs = req.body.inspectorCertifications || req.body.certifications || [];
+        if (typeof certs === "string") {
+          certs = certs.split(",").map((c: string) => c.trim()).filter(Boolean);
+        }
+        await SiteInspectorProfile.create({
+          id: crypto.randomUUID(),
+          userId: user.id,
+          isAvailable: isAvailable ?? true,
+          maxOpenInspections: Number(req.body.maxOpenInspections || 5),
+          maxVisitsPerDay: Number(req.body.maxVisitsPerDay || 3),
+          maxDistanceKm: Number(req.body.maxDistanceKm || 50),
+          certifications: JSON.stringify(certs),
+          languages: JSON.stringify(req.body.languages || ["English", "Arabic"]),
+        });
+      }
+    }
+
     const createdUserWithAssoc = await sequelize.models.User.findByPk(user.id, {
       attributes: ["id", "name", "email", "role", "tier", "dealValueCutoff", "maxOpenLeads", "isAvailable", "hireDate", "phone", "createdByUserId", "createdAt"],
       include: [
@@ -510,6 +539,14 @@ export const createSalesperson = async (req: Request, res: Response) => {
           attributes: [
             "id", "skills", "certifications", "experienceYearsWithCompany",
             "previousExperience", "attendanceStatus", "resourceType", "location", "isActive"
+          ]
+        },
+        {
+          model: sequelize.models.SiteInspectorProfile,
+          as: "inspectorProfile",
+          attributes: [
+            "id", "isAvailable", "maxOpenInspections", "maxVisitsPerDay", "maxDistanceKm",
+            "certifications", "languages", "onLeaveFrom", "onLeaveTo"
           ]
         }
       ]
@@ -931,6 +968,37 @@ export const updateSalespersonCapacity = async (req: Request, res: Response) => 
           email: user.email,
           phone: user.phone || null,
           isActive: isAvailable ?? true,
+        });
+      }
+    }
+
+    // Sync with SiteInspectorProfile if site inspector capacity/availability updated
+    const SiteInspectorProfile = sequelize.models.SiteInspectorProfile;
+    if (
+      SiteInspectorProfile &&
+      (user.role === "site_manager" ||
+        req.body.maxOpenInspections !== undefined ||
+        req.body.maxVisitsPerDay !== undefined ||
+        req.body.maxDistanceKm !== undefined)
+    ) {
+      const inspProfile = await SiteInspectorProfile.findOne({ where: { userId: user.id } });
+      const inspUpdates: any = {};
+      if (req.body.maxOpenInspections !== undefined) inspUpdates.maxOpenInspections = Number(req.body.maxOpenInspections);
+      if (req.body.maxVisitsPerDay !== undefined) inspUpdates.maxVisitsPerDay = Number(req.body.maxVisitsPerDay);
+      if (req.body.maxDistanceKm !== undefined) inspUpdates.maxDistanceKm = Number(req.body.maxDistanceKm);
+      if (isAvailable !== undefined) inspUpdates.isAvailable = !!isAvailable;
+      if (inspProfile) {
+        await inspProfile.update(inspUpdates);
+      } else if (user.role === "site_manager") {
+        await SiteInspectorProfile.create({
+          id: crypto.randomUUID(),
+          userId: user.id,
+          isAvailable: isAvailable ?? true,
+          maxOpenInspections: 5,
+          maxVisitsPerDay: 3,
+          maxDistanceKm: 50,
+          certifications: "[]",
+          languages: JSON.stringify(["English", "Arabic"]),
         });
       }
     }

@@ -6,7 +6,7 @@ import { useAuth } from "../context/AuthContext";
 import {
   Users, Search, Plus, X, MapPin, Building2, ChevronDown, Crown,
   UserCheck, BarChart3, ChevronRight, Mail, UserPlus,
-  ShieldCheck, Target, Wrench
+  ShieldCheck, Target, Wrench, ClipboardCheck, Briefcase
 } from "lucide-react";
 import { formatCurrency } from "../utils/currency";
 import KpiAttainmentTable from "../components/KpiAttainmentTable";
@@ -77,20 +77,44 @@ export const ROLE_LABELS: Record<string, string> = {
   sales_manager: "Sales Manager (Operational)",
   director: "Director",
   admin: "Administrator",
-  site_manager: "Site Manager",
+  site_manager: "Field Inspector / Site Surveyor",
   ops_manager: "Operations Manager",
   technician: "Field Service Technician",
 };
 
+export type DivisionCategory = "all" | "presales" | "sales" | "inspector" | "tech" | "management";
+
+export function getEmployeeDivisionCategory(e: any): "presales" | "sales" | "inspector" | "tech" | "management" {
+  if (!e) return "presales";
+  if (["admin", "director", "manager", "sales_manager", "ops_manager"].includes(e.role)) {
+    return "management";
+  }
+  if (e.role === "technician" || Boolean(e.serviceResource)) {
+    return "tech";
+  }
+  if (e.role === "site_manager" || Boolean(e.inspectorProfile) || (e.department && String(e.department).toLowerCase().includes("inspect"))) {
+    return "inspector";
+  }
+  if (e.role === "senior_ae" || (e.role === "sales_rep" && e.tier === "executive") || (e.department && (String(e.department).toLowerCase().includes("commercial") || String(e.department).toLowerCase().includes("enterprise")))) {
+    return "sales";
+  }
+  return "presales"; // Default for sales_rep (agent) / inside sales / SDR
+}
+
 function roleLabel(role: string, tier?: string | null) {
   if (role === "sales_rep") {
-    return tier === "executive" ? "Sales Rep (Executive)" : "Sales Rep (Agent)";
+    return tier === "executive" ? "Sales Closer (Executive AE)" : "Pre-Sales / SDR (Agent)";
+  }
+  if (role === "senior_ae") {
+    return "Senior Account Executive (Closer)";
+  }
+  if (role === "site_manager") {
+    return "Field Inspector (Site Feasibility)";
   }
   if (role === "technician") {
     return "Field Service Technician";
   }
-  return role === "senior_ae" ? "Senior AE"
-    : ROLE_LABELS[role] || role;
+  return ROLE_LABELS[role] || role;
 }
 
 const AVATAR_GRADIENTS = [
@@ -125,7 +149,7 @@ export default function SalespersonTracker() {
   const [filterKpiTeam, setFilterKpiTeam] = useState<string>("All");
 
   const [orgSearch, setOrgSearch] = useState("");
-  const [orgRoleFilter, setOrgRoleFilter] = useState<"all" | "tech" | "sales" | "management">("all");
+  const [orgRoleFilter, setOrgRoleFilter] = useState<DivisionCategory>("all");
   const [selectedEmployee, setSelectedEmployee] = useState<any | null>(null);
 
   const [expandedTeams, setExpandedTeams] = useState<Set<string>>(new Set());
@@ -140,7 +164,8 @@ export default function SalespersonTracker() {
     managerId: "", department: "Sales", territory: "EMEA", team: "Aces",
     hireDate: new Date().toISOString().split("T")[0], phone: "",
     skills: "", certifications: "", experienceYearsWithCompany: 0,
-    previousExperience: "", attendanceStatus: "On Duty"
+    previousExperience: "", attendanceStatus: "On Duty",
+    maxOpenInspections: 5, maxVisitsPerDay: 3, maxDistanceKm: 50, inspectorCertifications: ""
   });
 
   const { data: salespersons = [] } = useQuery<Salesperson[]>({
@@ -268,7 +293,8 @@ export default function SalespersonTracker() {
           department: "Sales", territory: "EMEA", team: "Aces",
           hireDate: new Date().toISOString().split("T")[0], phone: "",
           skills: "", certifications: "", experienceYearsWithCompany: 0,
-          previousExperience: "", attendanceStatus: "On Duty"
+          previousExperience: "", attendanceStatus: "On Duty",
+          maxOpenInspections: 5, maxVisitsPerDay: 3, maxDistanceKm: 50, inspectorCertifications: ""
         });
         await queryClient.invalidateQueries({ queryKey: ["salespersonsPerformance"] });
         await queryClient.invalidateQueries({ queryKey: ["orgChartEmployees"] });
@@ -373,17 +399,30 @@ export default function SalespersonTracker() {
     return `SAR ${val.toLocaleString()}`;
   };
 
+  const categoryCounts = useMemo(() => {
+    const counts = {
+      all: orgChartEmployees.length,
+      presales: 0,
+      sales: 0,
+      inspector: 0,
+      tech: 0,
+      management: 0
+    };
+    orgChartEmployees.forEach((e: any) => {
+      const cat = getEmployeeDivisionCategory(e);
+      if (counts[cat] !== undefined) {
+        counts[cat]++;
+      }
+    });
+    return counts;
+  }, [orgChartEmployees]);
+
   const filteredOrgEmployees = useMemo(() => {
     const q = orgSearch.toLowerCase().trim();
     return orgChartEmployees.filter((e: any) => {
       // Role filter pill
-      if (orgRoleFilter === "tech") {
-        const isTech = e.role === "technician" || Boolean(e.serviceResource);
-        if (!isTech) return false;
-      } else if (orgRoleFilter === "sales") {
-        if (!["sales_rep", "senior_ae"].includes(e.role)) return false;
-      } else if (orgRoleFilter === "management") {
-        if (!["admin", "director", "manager", "sales_manager", "ops_manager", "site_manager"].includes(e.role)) return false;
+      if (orgRoleFilter !== "all" && getEmployeeDivisionCategory(e) !== orgRoleFilter) {
+        return false;
       }
 
       if (!q) return true;
@@ -392,6 +431,23 @@ export default function SalespersonTracker() {
       const techCerts: string[] = e.serviceResource?.certifications || [];
       const techType = e.serviceResource?.resourceType || "";
       const techAttendance = e.serviceResource?.attendanceStatus || "";
+      const inspectorCerts: string[] = Array.isArray(e.inspectorProfile?.certifications)
+        ? e.inspectorProfile.certifications
+        : typeof e.inspectorProfile?.certifications === "string"
+        ? (()=>{ try { return JSON.parse(e.inspectorProfile.certifications || "[]"); } catch { return []; } })()
+        : [];
+      const inspectorLanguages: string[] = Array.isArray(e.inspectorProfile?.languages)
+        ? e.inspectorProfile.languages
+        : typeof e.inspectorProfile?.languages === "string"
+        ? (()=>{ try { return JSON.parse(e.inspectorProfile.languages || "[]"); } catch { return []; } })()
+        : [];
+
+      const category = getEmployeeDivisionCategory(e);
+      const categoryKeywords = category === "presales" ? "pre sales inside sales inbound sdr agent"
+        : category === "sales" ? "sales closer account executive ae deal"
+        : category === "inspector" ? "field inspector site inspection feasibility surveyor survey"
+        : category === "tech" ? "field technician technician service repair maintenance mechanic"
+        : "manager administration director management lead supervisor";
 
       return (
         e.name.toLowerCase().includes(q) ||
@@ -400,10 +456,14 @@ export default function SalespersonTracker() {
         (ROLE_LABELS[e.role] || "").toLowerCase().includes(q) ||
         (e.department || "").toLowerCase().includes(q) ||
         (e.territory || "").toLowerCase().includes(q) ||
+        (e.tier || "").toLowerCase().includes(q) ||
+        categoryKeywords.includes(q) ||
         techType.toLowerCase().includes(q) ||
         techAttendance.toLowerCase().includes(q) ||
         techSkills.some((sk: string) => sk.toLowerCase().includes(q)) ||
-        techCerts.some((c: string) => c.toLowerCase().includes(q))
+        techCerts.some((c: string) => c.toLowerCase().includes(q)) ||
+        inspectorCerts.some((c: string) => c.toLowerCase().includes(q)) ||
+        inspectorLanguages.some((l: string) => l.toLowerCase().includes(q))
       );
     });
   }, [orgChartEmployees, orgSearch, orgRoleFilter]);
@@ -653,6 +713,69 @@ export default function SalespersonTracker() {
                     onChange={(e) => setForm({ ...form, previousExperience: e.target.value })}
                     placeholder="e.g. 6 years as lead heavy equipment mechanic at Caterpillar dealership..."
                     className="w-full bg-white border border-indigo-200 rounded-lg p-2.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Field Inspector Configuration - Only for Site Managers / Inspectors */}
+            {form.role === "site_manager" && (
+              <div className="md:col-span-3 p-4 bg-amber-50/70 border border-amber-200/80 rounded-xl space-y-3">
+                <div className="flex items-center gap-2 font-bold text-amber-900 text-xs">
+                  <ClipboardCheck className="w-4 h-4 text-amber-600" />
+                  <span>Site Feasibility & Inspection Dispatch Settings</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-bold text-amber-900 uppercase tracking-wider mb-1">
+                      Max Open Inspections
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="20"
+                      value={form.maxOpenInspections}
+                      onChange={(e) => setForm({ ...form, maxOpenInspections: Number(e.target.value) || 5 })}
+                      className="w-full bg-white border border-amber-200 rounded-lg p-2.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-amber-900 uppercase tracking-wider mb-1">
+                      Max Visits Per Day
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="10"
+                      value={form.maxVisitsPerDay}
+                      onChange={(e) => setForm({ ...form, maxVisitsPerDay: Number(e.target.value) || 3 })}
+                      className="w-full bg-white border border-amber-200 rounded-lg p-2.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-amber-900 uppercase tracking-wider mb-1">
+                      Max Travel Distance (km)
+                    </label>
+                    <input
+                      type="number"
+                      min="5"
+                      max="500"
+                      value={form.maxDistanceKm}
+                      onChange={(e) => setForm({ ...form, maxDistanceKm: Number(e.target.value) || 50 })}
+                      className="w-full bg-white border border-amber-200 rounded-lg p-2.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-amber-900 uppercase tracking-wider mb-1">
+                    Safety & Inspection Certifications (comma-separated)
+                  </label>
+                  <input
+                    type="text"
+                    value={form.inspectorCertifications}
+                    onChange={(e) => setForm({ ...form, inspectorCertifications: e.target.value })}
+                    placeholder="e.g. OSHA 30, Civil Feasibility Survey, High-Voltage Safety"
+                    className="w-full bg-white border border-amber-200 rounded-lg p-2.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-amber-500"
                   />
                 </div>
               </div>
@@ -1133,7 +1256,43 @@ export default function SalespersonTracker() {
                     : "bg-surface text-on-surface-variant hover:bg-surface-container-low border border-outline-variant"
                 }`}
               >
-                All ({orgChartEmployees.length})
+                All ({categoryCounts.all})
+              </button>
+              <button
+                type="button"
+                onClick={() => setOrgRoleFilter("presales")}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  orgRoleFilter === "presales"
+                    ? "bg-sky-600 text-white shadow-2xs"
+                    : "bg-surface text-sky-700 hover:bg-sky-50 border border-sky-200"
+                }`}
+              >
+                <Target className="w-3.5 h-3.5" />
+                Pre-Sales ({categoryCounts.presales})
+              </button>
+              <button
+                type="button"
+                onClick={() => setOrgRoleFilter("sales")}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  orgRoleFilter === "sales"
+                    ? "bg-blue-600 text-white shadow-2xs"
+                    : "bg-surface text-blue-700 hover:bg-blue-50 border border-blue-200"
+                }`}
+              >
+                <Briefcase className="w-3.5 h-3.5" />
+                Sales Closers ({categoryCounts.sales})
+              </button>
+              <button
+                type="button"
+                onClick={() => setOrgRoleFilter("inspector")}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  orgRoleFilter === "inspector"
+                    ? "bg-amber-600 text-white shadow-2xs"
+                    : "bg-surface text-amber-700 hover:bg-amber-50 border border-amber-200"
+                }`}
+              >
+                <ClipboardCheck className="w-3.5 h-3.5" />
+                Field Inspectors ({categoryCounts.inspector})
               </button>
               <button
                 type="button"
@@ -1145,31 +1304,19 @@ export default function SalespersonTracker() {
                 }`}
               >
                 <Wrench className="w-3.5 h-3.5" />
-                Field Technicians (
-                {orgChartEmployees.filter((e: any) => e.role === "technician" || Boolean(e.serviceResource)).length}
-                )
-              </button>
-              <button
-                type="button"
-                onClick={() => setOrgRoleFilter("sales")}
-                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  orgRoleFilter === "sales"
-                    ? "bg-blue-600 text-white shadow-2xs"
-                    : "bg-surface text-on-surface-variant hover:bg-surface-container-low border border-outline-variant"
-                }`}
-              >
-                Sales Reps
+                Field Technicians ({categoryCounts.tech})
               </button>
               <button
                 type="button"
                 onClick={() => setOrgRoleFilter("management")}
-                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                   orgRoleFilter === "management"
                     ? "bg-purple-600 text-white shadow-2xs"
-                    : "bg-surface text-on-surface-variant hover:bg-surface-container-low border border-outline-variant"
+                    : "bg-surface text-purple-700 hover:bg-purple-50 border border-purple-200"
                 }`}
               >
-                Managers & Admins
+                <Crown className="w-3.5 h-3.5" />
+                Managers & Admins ({categoryCounts.management})
               </button>
             </div>
           </div>
@@ -1400,6 +1547,107 @@ export default function SalespersonTracker() {
                 </div>
               )}
 
+              {/* Field Inspector & Site Feasibility Section */}
+              {(selectedEmployee.role === "site_manager" || Boolean(selectedEmployee.inspectorProfile)) && (
+                <div className="space-y-3 bg-gradient-to-br from-amber-50/90 to-orange-50/70 p-4 rounded-xl border border-amber-200">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-[10px] font-extrabold uppercase text-amber-950 tracking-wider flex items-center gap-1.5">
+                      <ClipboardCheck className="w-3.5 h-3.5 text-amber-600" /> Site Feasibility & Inspection
+                    </h4>
+                    <span className={`px-2 py-0.5 text-[9px] font-extrabold rounded uppercase ${
+                      selectedEmployee.inspectorProfile?.isAvailable !== false
+                        ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                        : "bg-amber-100 text-amber-800 border border-amber-300"
+                    }`}>
+                      {selectedEmployee.inspectorProfile?.isAvailable !== false ? "🟢 Available" : "🟠 Unavailable"}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 pt-1 text-center">
+                    <div className="bg-white/80 p-2 rounded-lg border border-amber-200/60">
+                      <span className="text-[9px] text-amber-800 uppercase font-bold block">Max Open</span>
+                      <span className="font-mono font-bold text-amber-950 text-sm">
+                        {selectedEmployee.inspectorProfile?.maxOpenInspections ?? 5}
+                      </span>
+                    </div>
+                    <div className="bg-white/80 p-2 rounded-lg border border-amber-200/60">
+                      <span className="text-[9px] text-amber-800 uppercase font-bold block">Visits / Day</span>
+                      <span className="font-mono font-bold text-amber-950 text-sm">
+                        {selectedEmployee.inspectorProfile?.maxVisitsPerDay ?? 3}
+                      </span>
+                    </div>
+                    <div className="bg-white/80 p-2 rounded-lg border border-amber-200/60">
+                      <span className="text-[9px] text-amber-800 uppercase font-bold block">Radius</span>
+                      <span className="font-mono font-bold text-amber-950 text-sm">
+                        {selectedEmployee.inspectorProfile?.maxDistanceKm ?? 50} km
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Certifications badges */}
+                  {(() => {
+                    const certs = Array.isArray(selectedEmployee.inspectorProfile?.certifications)
+                      ? selectedEmployee.inspectorProfile.certifications
+                      : typeof selectedEmployee.inspectorProfile?.certifications === "string"
+                      ? (()=>{ try { return JSON.parse(selectedEmployee.inspectorProfile.certifications || "[]"); } catch { return []; } })()
+                      : [];
+                    if (certs.length === 0) return null;
+                    return (
+                      <div className="space-y-1">
+                        <div className="text-[10px] font-bold text-amber-900 uppercase">Inspection Certifications</div>
+                        <div className="flex flex-wrap gap-1">
+                          {certs.map((c: string, idx: number) => (
+                            <span key={idx} className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                              📜 {c}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Manager Controls: Quick Adjust Limits */}
+                  {["admin", "director", "manager"].includes(currentUser?.role || "") && (
+                    <div className="pt-2 border-t border-amber-200/60 space-y-2">
+                      <label className="block text-[10px] font-bold text-amber-950 uppercase">Update Max Daily Visits</label>
+                      <div className="flex items-center gap-2">
+                        {[1, 2, 3, 4, 5].map((num) => (
+                          <button
+                            key={num}
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                await apiClient(`/api/v1/salespersons/${selectedEmployee.id}/capacity`, {
+                                  method: "PUT",
+                                  body: JSON.stringify({ maxVisitsPerDay: num })
+                                });
+                                setSelectedEmployee({
+                                  ...selectedEmployee,
+                                  inspectorProfile: {
+                                    ...(selectedEmployee.inspectorProfile || {}),
+                                    maxVisitsPerDay: num
+                                  }
+                                });
+                                queryClient.invalidateQueries({ queryKey: ["orgChartEmployees"] });
+                              } catch (err: any) {
+                                alert("Failed to update visits limit: " + err.message);
+                              }
+                            }}
+                            className={`flex-1 py-1 rounded text-xs font-bold transition-all ${
+                              (selectedEmployee.inspectorProfile?.maxVisitsPerDay ?? 3) === num
+                                ? "bg-amber-600 text-white shadow-xs"
+                                : "bg-white text-amber-900 hover:bg-amber-100 border border-amber-200"
+                            }`}
+                          >
+                            {num}/day
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Contact Information */}
               <div className="space-y-3 bg-surface-container-low/40 p-4 rounded-xl border border-outline-variant/60">
                 <h4 className="text-[10px] font-extrabold uppercase text-on-surface-variant tracking-wider flex items-center gap-1.5">
@@ -1565,12 +1813,42 @@ function OrgTreeNode({ node, level = 0, onSelect }: { node: any; level?: number;
               <span className="px-2.5 py-0.5 text-[10px] font-extrabold rounded-full bg-purple-100 text-purple-700 border border-purple-200 uppercase tracking-wider">
                 {roleLabel(node.role, node.tier)}
               </span>
-              {(node.role === "technician" || node.serviceResource) && (
-                <span className="px-2 py-0.5 text-[9px] font-extrabold rounded-full bg-indigo-100 text-indigo-800 border border-indigo-200 flex items-center gap-1">
-                  <Wrench className="w-2.5 h-2.5 text-indigo-600" />
-                  {node.serviceResource?.attendanceStatus ? `Tech: ${node.serviceResource.attendanceStatus}` : "Technician"}
-                </span>
-              )}
+              {(() => {
+                const category = getEmployeeDivisionCategory(node);
+                if (category === "tech") {
+                  return (
+                    <span className="px-2 py-0.5 text-[9px] font-extrabold rounded-full bg-indigo-100 text-indigo-800 border border-indigo-200 flex items-center gap-1">
+                      <Wrench className="w-2.5 h-2.5 text-indigo-600" />
+                      {node.serviceResource?.attendanceStatus ? `Tech: ${node.serviceResource.attendanceStatus}` : "Technician"}
+                    </span>
+                  );
+                }
+                if (category === "inspector") {
+                  return (
+                    <span className="px-2 py-0.5 text-[9px] font-extrabold rounded-full bg-amber-100 text-amber-800 border border-amber-200 flex items-center gap-1">
+                      <ClipboardCheck className="w-2.5 h-2.5 text-amber-600" />
+                      Field Inspector
+                    </span>
+                  );
+                }
+                if (category === "sales") {
+                  return (
+                    <span className="px-2 py-0.5 text-[9px] font-extrabold rounded-full bg-blue-100 text-blue-800 border border-blue-200 flex items-center gap-1">
+                      <Briefcase className="w-2.5 h-2.5 text-blue-600" />
+                      Sales Closer
+                    </span>
+                  );
+                }
+                if (category === "presales") {
+                  return (
+                    <span className="px-2 py-0.5 text-[9px] font-extrabold rounded-full bg-sky-100 text-sky-800 border border-sky-200 flex items-center gap-1">
+                      <Target className="w-2.5 h-2.5 text-sky-600" />
+                      Pre-Sales
+                    </span>
+                  );
+                }
+                return null;
+              })()}
               {hasChildren && (
                 <span className="px-2 py-0.5 text-[9px] font-bold bg-primary/10 text-primary rounded-full">
                   {node.children.length} Report{node.children.length !== 1 ? "s" : ""}
