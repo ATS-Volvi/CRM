@@ -22,12 +22,15 @@ import {
   Send,
   X,
   Compass,
+  Navigation,
+  MessageSquare,
 } from "lucide-react";
 import { siteInspectionApi } from "../api/siteInspection";
 import { getStatusStyle, getInspectionRag, SiteInspectionRecord, APPROVER_ROLES } from "../lib/siteInspection";
 import { useAuth } from "../context/AuthContext";
 import { SiteInspectionSettingsModal } from "../components/SiteInspectionSettingsModal";
 import { SiteInspectionRouteModal } from "../components/SiteInspectionRouteModal";
+import { SiteInspectionLocationModal } from "../components/SiteInspectionLocationModal";
 
 type TabType = "todo" | "awaiting_approval" | "approved" | "unassigned" | "all";
 
@@ -45,6 +48,7 @@ export default function SiteInspections() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isRouteModalOpen, setIsRouteModalOpen] = useState(false);
   const [appliedSequenceMap, setAppliedSequenceMap] = useState<Map<string, number>>(new Map());
+  const [locationModalInspection, setLocationModalInspection] = useState<SiteInspectionRecord | null>(null);
 
   // Manual Reassignment Modal State
   const [reassignModalInspection, setReassignModalInspection] = useState<SiteInspectionRecord | null>(null);
@@ -442,10 +446,52 @@ export default function SiteInspections() {
                     <h3 className="text-base font-black text-face-ink dark:text-white group-hover:text-face-green transition-colors line-clamp-1">
                       {ins.clientOrganization || ins.lead?.company || "Unnamed Client"}
                     </h3>
-                    <p className="text-sm text-face-muted font-medium line-clamp-1 flex items-center gap-1 mt-0.5">
-                      <MapPin className="w-3.5 h-3.5 text-face-muted shrink-0" />
-                      <span>{ins.siteAreaName || ins.siteName || "Location not set"}</span>
-                    </p>
+
+                    {(() => {
+                      const clientLabel = (ins.clientOrganization || ins.lead?.company || "").toLowerCase().trim();
+                      const areaLabel = (ins.siteAreaName || "").toLowerCase().trim();
+                      const siteLabel = (ins.siteName || "").toLowerCase().trim();
+                      const isBogusArea = !areaLabel || areaLabel === clientLabel || areaLabel === siteLabel || areaLabel === "location not set" || areaLabel === "client site";
+                      const displayArea = isBogusArea ? (ins.siteAddress || null) : ins.siteAreaName;
+                      const hasGps = ins.latitude != null && ins.longitude != null;
+
+                      if (displayArea) {
+                        return (
+                          <button
+                            type="button"
+                            onClick={() => setLocationModalInspection(ins)}
+                            className="text-xs font-semibold text-face-ink dark:text-slate-200 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors flex items-center gap-1.5 mt-1 text-left cursor-pointer group/loc"
+                            title="Click to view or edit site location pin"
+                          >
+                            <MapPin className={`w-3.5 h-3.5 shrink-0 ${hasGps ? "text-emerald-600" : "text-face-muted"}`} />
+                            <span className="truncate">{displayArea}</span>
+                            {hasGps ? (
+                              <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300">
+                                GPS
+                              </span>
+                            ) : (
+                              <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-500">
+                                Area
+                              </span>
+                            )}
+                          </button>
+                        );
+                      }
+
+                      return (
+                        <div className="mt-1">
+                          <button
+                            type="button"
+                            onClick={() => setLocationModalInspection(ins)}
+                            className="inline-flex items-center gap-1.5 text-xs font-black text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 px-2.5 py-1 rounded-xl border border-amber-300 dark:border-amber-800 hover:bg-amber-100 transition-colors cursor-pointer"
+                            title="Location missing: Click to select industrial zone or paste Google Maps pin"
+                          >
+                            <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                            <span>Location Needed — Set Pin</span>
+                          </button>
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Disqualification / Assignment Reason if unassigned */}
@@ -531,6 +577,34 @@ export default function SiteInspections() {
                   </div>
 
                   <div className="flex items-center gap-1.5">
+                    {/* 1-Tap Google Maps Driving Navigation */}
+                    {ins.latitude != null && ins.longitude != null && (
+                      <a
+                        href={`https://www.google.com/maps/dir/?api=1&destination=${ins.latitude},${ins.longitude}&travelmode=driving`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-2 text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 rounded-xl transition-all shadow-xs shrink-0"
+                        title="Open direct Google Maps driving navigation to site"
+                      >
+                        <Navigation className="w-3.5 h-3.5" />
+                      </a>
+                    )}
+
+                    {/* 1-Tap WhatsApp Client Rep */}
+                    {ins.clientRepPhone && (
+                      <a
+                        href={`https://wa.me/${ins.clientRepPhone.replace(/\D/g, "")}?text=${encodeURIComponent(
+                          `Hello ${ins.clientRepName || "Client"}, I am the Nexus site inspector assigned for inspection ${ins.inspectionNumber}. Could you please share your site gate number or WhatsApp live location pin?`
+                        )}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-2 text-emerald-600 hover:text-emerald-700 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 rounded-xl transition-all shadow-xs shrink-0"
+                        title={`WhatsApp client (${ins.clientRepPhone}) for gate directions or live pin`}
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" />
+                      </a>
+                    )}
+
                     {/* Reassign button for approver */}
                     {isApprover && (
                       <button
@@ -651,6 +725,14 @@ export default function SiteInspections() {
           setAppliedSequenceMap(map);
           setActiveTab("todo");
         }}
+      />
+
+      {/* Quick Location & GPS Pin Modal */}
+      <SiteInspectionLocationModal
+        isOpen={Boolean(locationModalInspection)}
+        inspection={locationModalInspection}
+        onClose={() => setLocationModalInspection(null)}
+        onSaved={() => queryClient.invalidateQueries({ queryKey: ["site-inspections"] })}
       />
     </div>
   );

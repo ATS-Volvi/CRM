@@ -225,7 +225,7 @@ export async function requestSiteInspection(
     baseId: null,
     baseName: null,
     siteName: lead.company || clientName || "Client Site",
-    siteAddress: null,
+    siteAddress: payloadOptions.siteAddress || null,
     latitude: null,
     longitude: null,
     auditAt: null,
@@ -245,11 +245,74 @@ export async function requestSiteInspection(
     revision: 1,
   };
 
+  // Smart location & coordinates resolution
+  try {
+    const { parseLocationInput } = require("../utils/siteLocationParser");
+    let initialArea: string | null = payloadOptions.siteAreaName || null;
+    let initialLat: number | null = payloadOptions.siteLatitudeHint ? Number(payloadOptions.siteLatitudeHint) : null;
+    let initialLng: number | null = payloadOptions.siteLongitudeHint ? Number(payloadOptions.siteLongitudeHint) : null;
+    let initialSource: string = "MANUAL";
+
+    if (payloadOptions.locationInput && typeof payloadOptions.locationInput === "string") {
+      const parsed = parseLocationInput(payloadOptions.locationInput);
+      if (parsed.latitude != null && parsed.longitude != null) {
+        initialLat = parsed.latitude;
+        initialLng = parsed.longitude;
+      }
+      if (!initialArea) initialArea = parsed.areaName;
+      initialSource = parsed.source;
+    } else if (initialArea) {
+      const parsed = parseLocationInput(initialArea);
+      if (parsed.latitude != null && parsed.longitude != null && (initialLat == null || initialLng == null)) {
+        initialLat = parsed.latitude;
+        initialLng = parsed.longitude;
+      }
+      initialSource = parsed.source;
+    } else if (lead.city || lead.territory || lead.address) {
+      const candidate = [lead.city, lead.territory, lead.address].filter(Boolean).join(" ");
+      const parsed = parseLocationInput(candidate);
+      if (parsed.latitude != null && parsed.longitude != null) {
+        initialLat = parsed.latitude;
+        initialLng = parsed.longitude;
+        initialArea = parsed.areaName;
+        initialSource = "LEAD_RECORD";
+      } else if (lead.city || lead.territory) {
+        initialArea = lead.city || lead.territory;
+        initialSource = "LEAD_RECORD";
+      }
+    }
+
+    if ((initialLat == null || initialLng == null) && lead.latitude != null && lead.longitude != null) {
+      initialLat = Number(lead.latitude);
+      initialLng = Number(lead.longitude);
+      if (!initialArea) initialArea = "Lead GPS Pin";
+    }
+
+    createFields.latitude = initialLat;
+    createFields.longitude = initialLng;
+
+    if (isPhase2SchemaReady) {
+      createFields.siteAreaName = initialArea;
+      createFields.siteLatitudeHint = initialLat;
+      createFields.siteLongitudeHint = initialLng;
+      createFields.siteLocationSource = initialSource;
+    }
+  } catch (locParseErr) {
+    console.warn("[requestSiteInspection] Location parsing fallback:", locParseErr);
+  }
+
   if (isPhase2SchemaReady && (SiteInspection as any).rawAttributes?.priority) {
     createFields.priority = priority;
     createFields.priorityReason = payloadOptions.priorityReason || null;
-    createFields.siteAreaName = payloadOptions.siteAreaName || null;
-    createFields.siteLatitudeHint = payloadOptions.siteLatitudeHint || null;
+    if (createFields.siteAreaName === undefined) {
+      createFields.siteAreaName = payloadOptions.siteAreaName || null;
+    }
+    if (createFields.siteLatitudeHint === undefined) {
+      createFields.siteLatitudeHint = payloadOptions.siteLatitudeHint || null;
+    }
+    if (createFields.siteLongitudeHint === undefined) {
+      createFields.siteLongitudeHint = payloadOptions.siteLongitudeHint || null;
+    }
   }
 
   // Create with retry in case of transient database locks or collisions

@@ -282,4 +282,17 @@ export const siteInspectionApi = {
   }): Promise<any> {
     return apiClient.post<any>("/api/v1/site-inspections/optimize-route", params);
   },
+
+  async updateLocation(
+    id: string,
+    payload: {
+      locationInput?: string;
+      siteAreaName?: string;
+      siteAddress?: string;
+      latitude?: number | null;
+      longitude?: number | null;
+    }
+  ): Promise<any> {
+    return apiClient.patch<any>(`/api/v1/site-inspections/${id}/location`, payload);
+  },
 };

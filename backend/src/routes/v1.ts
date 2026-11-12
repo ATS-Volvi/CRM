@@ -1091,6 +1091,7 @@ import {
   overrideDueDateHandler,
   getAutomationHealthHandler,
   optimizeSiteInspectionRouteHandler,
+  updateSiteInspectionLocationHandler,
 } from "../controllers/siteInspectionController";
 
 router.get("/site-inspections/master", authMiddleware, getMasterData);
@@ -1121,6 +1122,8 @@ router.put("/site-facilities/:id", authMiddleware, requireInspectionApprover, up
 
 router.get("/site-inspections", authMiddleware, listSiteInspections);
 router.post("/site-inspections/optimize-route", authMiddleware, optimizeSiteInspectionRouteHandler);
+router.patch("/site-inspections/:id/location", authMiddleware, updateSiteInspectionLocationHandler);
+router.post("/site-inspections/:id/location", authMiddleware, updateSiteInspectionLocationHandler);
 router.get("/site-inspections/:id", authMiddleware, getSiteInspectionById);
 router.put("/site-inspections/:id", authMiddleware, saveSiteInspectionDraft);
 router.get("/site-inspections/:id/completeness", authMiddleware, checkCompleteness);

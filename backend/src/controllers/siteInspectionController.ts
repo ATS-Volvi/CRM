@@ -1338,5 +1338,83 @@ export const optimizeSiteInspectionRouteHandler = async (req: Request, res: Resp
   }
 };
 
+export const updateSiteInspectionLocationHandler = async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+
+    const id = req.params.id as string;
+    const { locationInput, siteAreaName, latitude, longitude, siteAddress } = req.body || {};
+
+    const inspection = await SiteInspection.findByPk(id);
+    if (!inspection) {
+      return res.status(404).json({ error: "Site inspection not found" });
+    }
+
+    const { parseLocationInput } = require("../utils/siteLocationParser");
+
+    let finalLat: number | null = (latitude != null && !isNaN(Number(latitude))) ? Number(latitude) : null;
+    let finalLng: number | null = (longitude != null && !isNaN(Number(longitude))) ? Number(longitude) : null;
+    let finalArea: string | null = siteAreaName ? String(siteAreaName).trim() : null;
+    let source: string = "MANUAL_INPUT";
+
+    if (locationInput && typeof locationInput === "string" && locationInput.trim()) {
+      const parsed = parseLocationInput(locationInput.trim());
+      if (parsed.latitude != null && parsed.longitude != null) {
+        finalLat = parsed.latitude;
+        finalLng = parsed.longitude;
+      }
+      if (!finalArea || finalArea === "Location not set" || finalArea === "Location Unspecified") {
+        finalArea = parsed.areaName;
+      }
+      source = parsed.source;
+    }
+
+    const updateFields: any = {
+      siteLocationSource: source
+    };
+
+    if (finalArea) {
+      updateFields.siteAreaName = finalArea;
+    }
+    if (siteAddress) {
+      updateFields.siteAddress = String(siteAddress).trim();
+    }
+    if (finalLat != null && finalLng != null) {
+      updateFields.latitude = finalLat;
+      updateFields.longitude = finalLng;
+      updateFields.siteLatitudeHint = finalLat;
+      updateFields.siteLongitudeHint = finalLng;
+    }
+
+    await inspection.update(updateFields);
+
+    // Also update associated Lead coordinates if set
+    if (inspection.leadId && finalLat != null && finalLng != null) {
+      await Lead.update(
+        { latitude: finalLat, longitude: finalLng },
+        { where: { id: inspection.leadId } }
+      ).catch(() => {});
+    }
+
+    res.json({
+      success: true,
+      message: "Location updated successfully",
+      inspection: {
+        id: inspection.id,
+        inspectionNumber: inspection.inspectionNumber,
+        siteAreaName: inspection.siteAreaName,
+        siteAddress: inspection.siteAddress,
+        latitude: inspection.latitude,
+        longitude: inspection.longitude,
+        siteLocationSource: inspection.siteLocationSource
+      }
+    });
+  } catch (error: any) {
+    console.error("[updateSiteInspectionLocationHandler] Error:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
 
 

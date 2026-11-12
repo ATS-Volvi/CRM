@@ -90,6 +90,24 @@ apiClient.put = async function <T = any>(path: string, body?: any, options: ApiO
   return res.json();
 };
 
+apiClient.patch = async function <T = any>(path: string, body?: any, options: ApiOptions = {}): Promise<T> {
+  const res = await apiClient(path, { ...options, method: "PATCH", body: body ? JSON.stringify(body) : undefined });
+  if (!res.ok) {
+    let errorText = `Request failed (${res.status})`;
+    try {
+      const errData = await res.json();
+      errorText = errData.error || errData.message || errorText;
+    } catch {
+      try {
+        const text = await res.text();
+        if (text) errorText = text;
+      } catch {}
+    }
+    throw new Error(errorText);
+  }
+  return res.json();
+};
+
 apiClient.delete = async function <T = any>(path: string, options: ApiOptions = {}): Promise<T> {
   const res = await apiClient(path, { ...options, method: "DELETE" });
   if (!res.ok) return null as any;

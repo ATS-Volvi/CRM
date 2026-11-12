@@ -18,6 +18,7 @@ import {
 } from "../services/whatsappLogger";
 import { Op } from "sequelize";
 import crypto from "crypto";
+import { parseLocationInput } from "../utils/siteLocationParser";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -879,6 +880,82 @@ export const handleIncomingWebhook = async (req: Request, res: Response) => {
       createdById: adminId,
       direction: "inbound"
     } as any);
+
+    // ── INBOUND LOCATION PIN & MAPS LINK PROCESSING ─────────────────────────
+    try {
+      const inLat = req.body?.Latitude ? parseFloat(req.body.Latitude) : null;
+      const inLng = req.body?.Longitude ? parseFloat(req.body.Longitude) : null;
+      const inAddress = req.body?.Address || req.body?.Label || null;
+
+      // Also check if text message body has a Google Maps link or coordinates
+      const textParsed = parseLocationInput(msgBody);
+      const finalLat = (inLat != null && !isNaN(inLat)) ? inLat : (textParsed.confidence === "EXACT" ? textParsed.latitude : null);
+      const finalLng = (inLng != null && !isNaN(inLng)) ? inLng : (textParsed.confidence === "EXACT" ? textParsed.longitude : null);
+
+      if (finalLat != null && finalLng != null && targetLeadId) {
+        const { SiteInspection, Lead } = require("@nexus-crm/database");
+        
+        // Update Lead coordinates if lead exists
+        await Lead.update(
+          {
+            latitude: finalLat,
+            longitude: finalLng,
+          },
+          { where: { id: targetLeadId } }
+        ).catch(() => {});
+
+        // Find active site inspection for this lead
+        const liveInspection = await SiteInspection.findOne({
+          where: {
+            leadId: targetLeadId,
+            status: { [Op.in]: ["REQUESTED", "DRAFT", "CHANGES_REQUESTED"] },
+          },
+          order: [["createdAt", "DESC"]],
+        });
+
+        if (liveInspection) {
+          const areaLabel = inAddress
+            ? `WhatsApp: ${inAddress}`
+            : (textParsed.confidence === "EXACT" && textParsed.areaName ? textParsed.areaName : "Customer WhatsApp Pin");
+
+          await liveInspection.update({
+            latitude: finalLat,
+            longitude: finalLng,
+            siteLatitudeHint: finalLat,
+            siteLongitudeHint: finalLng,
+            siteAreaName: liveInspection.siteAreaName || areaLabel,
+            siteAddress: liveInspection.siteAddress || inAddress || "Customer Shared WhatsApp Location Pin",
+            siteLocationSource: inLat != null ? "WHATSAPP_PIN" : textParsed.source,
+          });
+
+          // Log in-app activity for site inspection pin capture
+          await sequelize.models.Activity.create({
+            id: crypto.randomUUID(),
+            leadId: targetLeadId,
+            dealId: targetDealId || null,
+            type: "site_inspection",
+            outcome: `Site Location Pin Received (${liveInspection.inspectionNumber})`,
+            notes: `Customer shared location coordinates via WhatsApp: ${finalLat.toFixed(4)}° N, ${finalLng.toFixed(4)}° E. Inspection is now GPS-ready.`,
+            createdById: adminId,
+            direction: "inbound",
+          }).catch(() => {});
+
+          // Notify assigned inspector if assigned
+          if (liveInspection.assignedToId) {
+            const { createNotification } = require("../services/notificationService");
+            await createNotification(
+              liveInspection.assignedToId,
+              "site_inspection",
+              `📍 Site Pin Received: ${liveInspection.inspectionNumber}`,
+              `Customer shared location coordinates (${finalLat.toFixed(4)}°, ${finalLng.toFixed(4)}°). Direct route navigation is ready.`,
+              `/site-inspections/${liveInspection.id}`
+            ).catch(() => {});
+          }
+        }
+      }
+    } catch (locErr: any) {
+      console.warn("[WhatsApp Inbound] Non-blocking location pin capture warning:", locErr?.message);
+    }
 
     // Check for positive quote acceptance intent in inbound WhatsApp message
     try {
