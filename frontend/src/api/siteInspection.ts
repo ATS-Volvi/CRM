@@ -273,4 +273,13 @@ export const siteInspectionApi = {
   async getAutomationHealth(): Promise<any> {
     return apiClient.get<any>("/api/v1/site-inspections/automation/health");
   },
+
+  async optimizeRoute(params: {
+    inspectionIds?: string[];
+    startLocation?: { name: string; latitude: number; longitude: number };
+    returnToBase?: boolean;
+    mode?: "SHORTEST_DISTANCE" | "SLA_GUARDED";
+  }): Promise<any> {
+    return apiClient.post<any>("/api/v1/site-inspections/optimize-route", params);
+  },
 };

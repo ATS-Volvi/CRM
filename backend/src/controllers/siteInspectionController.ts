@@ -1246,4 +1246,97 @@ export const getAutomationHealthHandler = async (req: Request, res: Response) =>
   }
 };
 
+export const optimizeSiteInspectionRouteHandler = async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+
+    const { inspectionIds, startLocation, returnToBase, mode } = req.body || {};
+
+    let targetInspections: any[] = [];
+
+    if (Array.isArray(inspectionIds) && inspectionIds.length > 0) {
+      targetInspections = await SiteInspection.findAll({
+        where: { id: { [Op.in]: inspectionIds } },
+        include: [{ model: sequelize.models.Lead, as: "lead", required: false }]
+      });
+    } else {
+      // Default: fetch the active inspections assigned to this user (or all if manager/admin)
+      const whereClause: any = {
+        status: { [Op.in]: ["REQUESTED", "DRAFT", "SCHEDULED", "CHANGES_REQUESTED"] }
+      };
+      if (user.role === "site_manager" || req.query.mine === "true") {
+        whereClause.assignedToId = user.id;
+      }
+      targetInspections = await SiteInspection.findAll({
+        where: whereClause,
+        include: [{ model: sequelize.models.Lead, as: "lead", required: false }],
+        order: [["dueAt", "ASC"]],
+        limit: 15
+      });
+    }
+
+    if (targetInspections.length === 0) {
+      return res.status(200).json({
+        success: true,
+        optimizedOrder: [],
+        legs: [],
+        totalDistanceKm: 0,
+        totalEstimatedMinutes: 0,
+        estimatedFuelLitres: 0,
+        unoptimizedDistanceKm: 0,
+        distanceSavedKm: 0,
+        timeSavedMinutes: 0,
+        fuelSavedLitres: 0,
+        googleMapsUrl: "",
+        unresolvedCount: 0,
+        modeUsed: mode || "SHORTEST_DISTANCE"
+      });
+    }
+
+    // Determine startLocation if not provided
+    let resolvedStart = startLocation;
+    if (!resolvedStart && targetInspections[0]?.baseId) {
+      const base: any = await SiteBase.findByPk(targetInspections[0].baseId);
+      if (base && base.latitude && base.longitude) {
+        resolvedStart = {
+          name: base.name || "Operations Base",
+          latitude: Number(base.latitude),
+          longitude: Number(base.longitude)
+        };
+      }
+    }
+
+    if (!resolvedStart) {
+      const defaultBase: any = await SiteBase.findOne();
+      if (defaultBase && defaultBase.latitude && defaultBase.longitude) {
+        resolvedStart = {
+          name: defaultBase.name || "Operations Base",
+          latitude: Number(defaultBase.latitude),
+          longitude: Number(defaultBase.longitude)
+        };
+      } else {
+        resolvedStart = {
+          name: "Operations Base",
+          latitude: 25.55,
+          longitude: 49.85
+        };
+      }
+    }
+
+    const { optimizeDailyRoute } = require("../services/siteInspectionRouteOptimizer");
+    const result = optimizeDailyRoute(targetInspections, {
+      startLocation: resolvedStart,
+      returnToBase: returnToBase !== false,
+      mode: mode || "SHORTEST_DISTANCE"
+    });
+
+    res.json({ success: true, ...result });
+  } catch (error: any) {
+    console.error("[optimizeSiteInspectionRouteHandler] Error:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+
 

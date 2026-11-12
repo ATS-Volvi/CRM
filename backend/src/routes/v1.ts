@@ -1090,6 +1090,7 @@ import {
   resumeFromWaitingOnClientHandler,
   overrideDueDateHandler,
   getAutomationHealthHandler,
+  optimizeSiteInspectionRouteHandler,
 } from "../controllers/siteInspectionController";
 
 router.get("/site-inspections/master", authMiddleware, getMasterData);
@@ -1119,6 +1120,7 @@ router.post("/site-facilities", authMiddleware, requireInspectionApprover, creat
 router.put("/site-facilities/:id", authMiddleware, requireInspectionApprover, updateSiteFacility);
 
 router.get("/site-inspections", authMiddleware, listSiteInspections);
+router.post("/site-inspections/optimize-route", authMiddleware, optimizeSiteInspectionRouteHandler);
 router.get("/site-inspections/:id", authMiddleware, getSiteInspectionById);
 router.put("/site-inspections/:id", authMiddleware, saveSiteInspectionDraft);
 router.get("/site-inspections/:id/completeness", authMiddleware, checkCompleteness);

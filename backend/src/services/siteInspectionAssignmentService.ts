@@ -32,7 +32,7 @@ export interface RequestInspectionPayload {
 }
 
 // Known coordinates for major Saudi industrial regions and bases
-const REGION_COORDINATES: Record<string, { lat: number; lng: number }> = {
+export const REGION_COORDINATES: Record<string, { lat: number; lng: number }> = {
   jubail: { lat: 27.0, lng: 49.65 },
   jafurah: { lat: 25.55, lng: 49.85 },
   yanbu: { lat: 24.09, lng: 38.06 },

@@ -21,11 +21,13 @@ import {
   Layers,
   Send,
   X,
+  Compass,
 } from "lucide-react";
 import { siteInspectionApi } from "../api/siteInspection";
 import { getStatusStyle, getInspectionRag, SiteInspectionRecord, APPROVER_ROLES } from "../lib/siteInspection";
 import { useAuth } from "../context/AuthContext";
 import { SiteInspectionSettingsModal } from "../components/SiteInspectionSettingsModal";
+import { SiteInspectionRouteModal } from "../components/SiteInspectionRouteModal";
 
 type TabType = "todo" | "awaiting_approval" | "approved" | "unassigned" | "all";
 
@@ -41,6 +43,8 @@ export default function SiteInspections() {
   const [activeTab, setActiveTab] = useState<TabType>("todo");
   const [searchQuery, setSearchQuery] = useState("");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isRouteModalOpen, setIsRouteModalOpen] = useState(false);
+  const [appliedSequenceMap, setAppliedSequenceMap] = useState<Map<string, number>>(new Map());
 
   // Manual Reassignment Modal State
   const [reassignModalInspection, setReassignModalInspection] = useState<SiteInspectionRecord | null>(null);
@@ -79,8 +83,8 @@ export default function SiteInspections() {
     }).length;
   }, [inspections]);
 
-  const filteredInspections = useMemo(() => {
-    return inspections.filter((ins) => {
+  const filteredInspections = useMemo<SiteInspectionRecord[]>(() => {
+    const list = inspections.filter((ins: SiteInspectionRecord) => {
       // Tab filter
       if (activeTab === "todo") {
         if (!["REQUESTED", "DRAFT", "CHANGES_REQUESTED"].includes(ins.status)) return false;
@@ -112,7 +116,17 @@ export default function SiteInspections() {
 
       return true;
     });
-  }, [inspections, activeTab, searchQuery]);
+
+    if (appliedSequenceMap.size > 0 && activeTab === "todo") {
+      return [...list].sort((a: SiteInspectionRecord, b: SiteInspectionRecord) => {
+        const orderA = appliedSequenceMap.get(a.id) ?? 999;
+        const orderB = appliedSequenceMap.get(b.id) ?? 999;
+        return orderA - orderB;
+      });
+    }
+
+    return list;
+  }, [inspections, activeTab, searchQuery, appliedSequenceMap]);
 
   // Open Reassign Modal
   const openReassignModal = async (ins: SiteInspectionRecord) => {
@@ -219,6 +233,16 @@ export default function SiteInspections() {
           <div className="px-3 py-1.5 rounded-xl bg-face-field dark:bg-slate-800 text-face-ink dark:text-slate-300 text-sm font-bold border border-face-line dark:border-slate-700">
             Total: {inspections.length}
           </div>
+
+          {/* Route Optimization Button */}
+          <button
+            onClick={() => setIsRouteModalOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-xl shadow-xs transition-all cursor-pointer"
+            title="Optimize daily visit sequence to minimize travel kilometers and save fuel"
+          >
+            <Compass className="w-3.5 h-3.5" />
+            <span>Plan Route</span>
+          </button>
 
           {/* Engine Settings button for approvers / ops managers */}
           {isApprover && (
@@ -377,6 +401,11 @@ export default function SiteInspections() {
                       <span className="font-mono text-sm font-black text-face-green dark:text-face-green-mint">
                         {ins.inspectionNumber}
                       </span>
+                      {appliedSequenceMap.has(ins.id) && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-600 text-white shadow-xs">
+                          #{appliedSequenceMap.get(ins.id)} Stop
+                        </span>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-1.5">
@@ -611,6 +640,18 @@ export default function SiteInspections() {
           </div>
         </div>
       )}
+      {/* Route Optimization Itinerary Modal */}
+      <SiteInspectionRouteModal
+        isOpen={isRouteModalOpen}
+        onClose={() => setIsRouteModalOpen(false)}
+        inspections={inspections}
+        onApplySequence={(sortedIds) => {
+          const map = new Map<string, number>();
+          sortedIds.forEach((id, idx) => map.set(id, idx + 1));
+          setAppliedSequenceMap(map);
+          setActiveTab("todo");
+        }}
+      />
     </div>
   );
 }
