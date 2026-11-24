@@ -156,6 +156,12 @@ export default function FieldInspectorMobile() {
   const [scheduleModalItem, setScheduleModalItem] = useState<SiteInspectionRecord | null>(null);
   const [scheduledDateTime, setScheduledDateTime] = useState("");
 
+  // Post-Submission Approval Waiting Modal
+  const [submissionSuccessModal, setSubmissionSuccessModal] = useState<{
+    inspectionNumber: string;
+    clientOrganization: string;
+  } | null>(null);
+
   // Full Screen Mobile Survey Stepper State
   const [activeSurveyInspection, setActiveSurveyInspection] = useState<SiteInspectionRecord | null>(null);
   const [surveyStep, setSurveyStep] = useState<number>(1);
@@ -391,12 +397,14 @@ export default function FieldInspectorMobile() {
     mutationFn: ({ id, data }: { id: string; data: any }) =>
       siteInspectionApi.submitInspection(id, data),
     onSuccess: () => {
-      setSurveyFeedback({ text: "Inspection successfully submitted for approval!", type: "success" });
       queryClient.invalidateQueries({ queryKey: ["site-inspections"] });
-      setTimeout(() => {
-        setActiveSurveyInspection(null);
-        setSurveyFeedback(null);
-      }, 1500);
+      const current = activeSurveyInspection;
+      setActiveSurveyInspection(null);
+      setSurveyFeedback(null);
+      setSubmissionSuccessModal({
+        inspectionNumber: current?.inspectionNumber || "Inspection",
+        clientOrganization: current?.clientOrganization || current?.siteName || "Client Plant",
+      });
     },
     onError: (err: any) => {
       setSurveyFeedback({ text: err.message || "Failed to submit inspection.", type: "error" });
@@ -1332,6 +1340,55 @@ export default function FieldInspectorMobile() {
                 {scheduleMutation.isPending ? "Saving..." : "Confirm Schedule"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Post-Submission Approval Waiting Modal ──────────────────────────── */}
+      {submissionSuccessModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-sm p-6 space-y-4 shadow-2xl text-center">
+            {/* Success Icon */}
+            <div className="w-16 h-16 rounded-3xl bg-emerald-50 border-2 border-emerald-200 text-emerald-600 flex items-center justify-center mx-auto shadow-sm">
+              <CheckCircle2 className="w-9 h-9 text-emerald-600" />
+            </div>
+
+            {/* Title & Badge */}
+            <div className="space-y-1">
+              <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200">
+                Response Submitted
+              </span>
+              <h3 className="text-base font-black text-slate-900">
+                Feasibility Audit Submitted
+              </h3>
+              <p className="font-mono text-xs font-bold text-[#17614A]">
+                {submissionSuccessModal.inspectionNumber}
+              </p>
+            </div>
+
+            {/* Explanatory Waiting Notice */}
+            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-left space-y-2">
+              <div className="flex items-center gap-2 text-xs font-black text-amber-700">
+                <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>Waiting for Approval</span>
+              </div>
+              <p className="text-[11px] text-slate-600 leading-relaxed font-medium">
+                Your site ground feasibility survey has been submitted and locked. It is now awaiting review and validation by your <strong className="text-slate-800 font-bold">Manager</strong> or <strong className="text-slate-800 font-bold">Team Lead</strong> before final commercial quotation release.
+              </p>
+            </div>
+
+            {/* Next Step Action */}
+            <button
+              onClick={() => {
+                setSubmissionSuccessModal(null);
+                setActiveTab("in_review");
+                setBottomNav("duties");
+              }}
+              className="w-full py-3 bg-[#17614A] hover:bg-[#0F4A38] text-white text-xs font-black rounded-xl shadow-md transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
+            >
+              <span>View in Awaiting Approval</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
       )}
