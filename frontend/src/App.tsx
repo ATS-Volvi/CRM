@@ -67,6 +67,7 @@ import PublicFeedback from "./pages/PublicFeedback";
 import SiteInspections from "./pages/SiteInspections";
 import SiteInspectionForm from "./pages/SiteInspectionForm";
 import HeldEmails from "./pages/HeldEmails";
+import FieldInspectorMobile from "./pages/mobile/FieldInspectorMobile";
 
 const ProtectedRoute = () => {
   const { isAuthenticated } = useAuth();
@@ -81,7 +82,10 @@ const RoleBasedLayout = () => {
 /** Redirect / to initial landing dashboard (My Work / Operational Dashboard) */
 const RoleBasedHome = () => {
   const { user } = useAuth();
-  if (user?.role === "site_manager" || user?.role === "ops_manager") {
+  if (user?.role === "site_manager") {
+    return <Navigate to="/inspector/mobile" replace />;
+  }
+  if (user?.role === "ops_manager") {
     return <Navigate to="/site-inspections" replace />;
   }
   return <MyDashboard />;
@@ -90,7 +94,10 @@ const RoleBasedHome = () => {
 /** Restricts sales data, user management, and admin pages from inspection-only roles */
 const NonInspectionGuard = () => {
   const { user } = useAuth();
-  if (user?.role === "site_manager" || user?.role === "ops_manager") {
+  if (user?.role === "site_manager") {
+    return <Navigate to="/inspector/mobile" replace />;
+  }
+  if (user?.role === "ops_manager") {
     return <Navigate to="/site-inspections" replace />;
   }
   return <Outlet />;
@@ -109,6 +116,10 @@ function App() {
           <Route path="/login" element={<Login />} />
           
           <Route element={<ProtectedRoute />}>
+            {/* Dedicated Mobile View for Field Inspectors */}
+            <Route path="/inspector/mobile" element={<FieldInspectorMobile />} />
+            <Route path="/field-inspector" element={<FieldInspectorMobile />} />
+
             <Route element={<RoleBasedLayout />}>
               <Route path="/" element={<RoleBasedHome />} />
               
