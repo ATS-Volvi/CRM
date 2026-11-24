@@ -43,6 +43,13 @@ async function seedEssentialUsers() {
       role: "sales_manager",
       department: "Sales Management",
       territory: "North America"
+    },
+    {
+      name: "Field Inspector",
+      email: "site_manager@nexus.com",
+      role: "site_manager",
+      department: "Field Feasibility & Audit",
+      territory: "Eastern Province"
     }
   ];
 
