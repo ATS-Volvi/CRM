@@ -483,18 +483,28 @@ export default function FieldInspectorMobile() {
 
     setSurveyFormData(loadedFormData);
 
-    const defaultFacility = facilities[0];
     const types: Array<"SEWAGE" | "GENERAL" | "HAZARDOUS"> = ["SEWAGE", "GENERAL", "HAZARDOUS"];
     const existing = loadedServices || inspection.services || [];
     const hasAnyActive = existing.some((s) => s.isActive);
     const merged = types.map((st, i) => {
+      const matchedFacility = facilities.find((f) => f.serviceType === st);
       const found = existing.find((s) => s.serviceType === st);
-      if (found) return found;
+      if (found) {
+        const curFac = facilities.find((f) => f.id === found.facilityId);
+        if (!curFac || curFac.serviceType !== st) {
+          return {
+            ...found,
+            facilityId: matchedFacility?.id || "",
+            facilityName: matchedFacility?.name || "",
+          };
+        }
+        return found;
+      }
       return {
         serviceType: st,
         isActive: !hasAnyActive && i === 0, // default first service active
-        facilityId: defaultFacility?.id || "fac-1",
-        facilityName: defaultFacility?.name || "Central Treatment Facility",
+        facilityId: matchedFacility?.id || "",
+        facilityName: matchedFacility?.name || "",
         distanceKm: 25,
         roadCondition: "Good" as const,
         wasteDescription: "Industrial site operational effluent",
@@ -656,6 +666,21 @@ export default function FieldInspectorMobile() {
     }
   };
 
+  const sanitizeServicesForSubmission = (services: SiteInspectionServiceItem[]) => {
+    return services.map((s) => {
+      const matchingFac = facilities.find((f) => f.serviceType === s.serviceType);
+      const curFac = facilities.find((f) => f.id === s.facilityId);
+      const validFacility = curFac && curFac.serviceType === s.serviceType ? curFac : matchingFac;
+      return {
+        ...s,
+        facilityId: validFacility?.id || s.facilityId || matchingFac?.id,
+        facilityName: validFacility?.name || s.facilityName || matchingFac?.name,
+        distanceKm: s.distanceKm || 25,
+        roadCondition: s.roadCondition || "Good",
+      };
+    });
+  };
+
   // Completeness & Pre-Submit Check
   const handleValidateAndSubmit = async () => {
     if (!activeSurveyInspection) return;
@@ -696,13 +721,7 @@ export default function FieldInspectorMobile() {
       mobilizationKm: surveyFormData.mobilizationKm || surveyFormData.baseToSiteStraightKm || 24,
       totalCycleKm: surveyFormData.totalCycleKm || 48,
       estFuelLitres: surveyFormData.estFuelLitres || 18,
-      services: surveyServices.map(s => ({
-        ...s,
-        facilityId: s.facilityId || facilities[0]?.id,
-        facilityName: s.facilityName || facilities[0]?.name || "Central Treatment Facility",
-        distanceKm: s.distanceKm || 25,
-        roadCondition: s.roadCondition || "Good",
-      })),
+      services: sanitizeServicesForSubmission(surveyServices),
       accepted: true,
     };
     submitSurveyMutation.mutate({ id: activeSurveyInspection.id, data: payload });
@@ -1350,7 +1369,7 @@ export default function FieldInspectorMobile() {
                 onClick={() =>
                   saveDraftMutation.mutate({
                     id: activeSurveyInspection.id,
-                    data: { ...surveyFormData, services: surveyServices },
+                    data: { ...surveyFormData, services: sanitizeServicesForSubmission(surveyServices) },
                   })
                 }
                 disabled={saveDraftMutation.isPending}
@@ -1975,12 +1994,12 @@ export default function FieldInspectorMobile() {
               {/* ── 03. FIELD OBSERVATIONS, EVIDENCE & SIGN-OFF ── */}
               <div id="sec-evidence" className="space-y-3.5 scroll-mt-2">
                 <div className="bg-white border border-slate-200/90 rounded-2xl p-4 space-y-3 shadow-sm">
-                    <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                      <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
-                        <Camera className="w-4 h-4 text-emerald-600" />
-                        <span>On-Site Photographic Evidence</span>
+                    <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-100">
+                      <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 flex items-center gap-1.5 min-w-0">
+                        <Camera className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span className="truncate">On-Site Photographic Evidence</span>
                       </h3>
-                      <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 whitespace-nowrap shrink-0">
                         Audit Certified
                       </span>
                     </div>
@@ -2202,7 +2221,7 @@ export default function FieldInspectorMobile() {
                 onClick={() =>
                   saveDraftMutation.mutate({
                     id: activeSurveyInspection.id,
-                    data: { ...surveyFormData, services: surveyServices },
+                    data: { ...surveyFormData, services: sanitizeServicesForSubmission(surveyServices) },
                   })
                 }
                 disabled={saveDraftMutation.isPending}
