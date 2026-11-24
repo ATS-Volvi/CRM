@@ -59,6 +59,27 @@
   }
 }
 
+/* Mobile Dynamic Viewport & iOS Safe Area Standards */
+@layer utilities {
+  .safe-top {
+    padding-top: max(env(safe-area-inset-top, 0px), 12px);
+  }
+  .safe-bottom {
+    padding-bottom: max(env(safe-area-inset-bottom, 0px), 16px);
+  }
+  .safe-bottom-bar {
+    padding-bottom: max(env(safe-area-inset-bottom, 0px), 24px);
+  }
+  .mobile-dvh {
+    height: 100vh;
+    height: 100dvh;
+  }
+  .mobile-min-dvh {
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+}
+
 @layer utilities {
   .enterprise-card {
     background-color: hsl(var(--card));

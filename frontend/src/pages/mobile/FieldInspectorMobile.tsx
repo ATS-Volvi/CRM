@@ -709,8 +709,8 @@ export default function FieldInspectorMobile() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100/90 flex justify-center sm:py-6">
-      <div className="w-full max-w-md min-h-screen sm:min-h-[880px] sm:h-[880px] bg-[#F8FAFC] text-slate-900 flex flex-col font-sans pb-24 select-none sm:rounded-[44px] shadow-2xl sm:shadow-[0_25px_70px_-15px_rgba(0,0,0,0.25),0_0_0_10px_#0F172A] border-x sm:border border-slate-200/90 relative overflow-hidden">
+    <div className="mobile-min-dvh bg-slate-100/90 flex justify-center sm:py-6">
+      <div className="w-full max-w-md mobile-min-dvh sm:min-h-[880px] sm:h-[880px] bg-[#F8FAFC] text-slate-900 flex flex-col font-sans select-none sm:rounded-[44px] shadow-2xl sm:shadow-[0_25px_70px_-15px_rgba(0,0,0,0.25),0_0_0_10px_#0F172A] border-x sm:border border-slate-200/90 relative overflow-hidden">
         {/* Dynamic Island Notch for Desktop Preview */}
         <div className="hidden sm:flex justify-center pt-2.5 pb-1 bg-white shrink-0">
           <div className="w-24 h-4 bg-slate-950 rounded-full flex items-center justify-end pr-2.5 shadow-inner">
@@ -719,7 +719,7 @@ export default function FieldInspectorMobile() {
         </div>
 
         {/* ─── Top Mobile App Bar ──────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-4 py-3 shadow-xs">
+      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-4 safe-top pb-3 shadow-xs">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-[#1B4332] to-[#2D6A4F] flex items-center justify-center text-white shadow-sm">
@@ -811,7 +811,7 @@ export default function FieldInspectorMobile() {
 
       {/* ─── Main Content Views ──────────────────────────────────────────────── */}
       {bottomNav === "duties" && (
-        <main className="px-4 py-3 space-y-3">
+        <main className="px-4 py-3 space-y-3 pb-36 overflow-y-auto flex-1">
           {/* Refined Segmented Pill Strip */}
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
             <button
@@ -1183,7 +1183,7 @@ export default function FieldInspectorMobile() {
       )}
 
       {/* ─── Bottom Mobile Navigation Bar ───────────────────────────────────── */}
-      <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/80 py-2 px-8 flex items-center justify-around shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
+      <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/80 pt-2 safe-bottom-bar px-8 flex items-center justify-around shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
         <button
           onClick={() => {
             setBottomNav("duties");
@@ -1319,9 +1319,9 @@ export default function FieldInspectorMobile() {
 
       {/* ─── Full-Screen Mobile Survey Stepper Modal ─────────────────────────── */}
       {activeSurveyInspection && (
-        <div className="fixed inset-0 sm:absolute sm:inset-0 z-50 bg-[#F8FAFC] flex flex-col overflow-hidden sm:rounded-[44px] animate-fade-in">
+        <div className="fixed inset-0 sm:absolute sm:inset-0 z-50 mobile-dvh sm:h-full bg-[#F8FAFC] flex flex-col overflow-hidden sm:rounded-[44px] animate-fade-in">
           {/* Top Wizard Bar */}
-          <div className="bg-white border-b border-slate-200/90 px-4 py-3 shrink-0 shadow-xs">
+          <div className="bg-white border-b border-slate-200/90 px-4 safe-top pb-3 shrink-0 shadow-xs">
             <div className="flex items-center justify-between pb-2.5">
               <div className="flex items-center gap-2">
                 <button
@@ -1361,7 +1361,7 @@ export default function FieldInspectorMobile() {
             </div>
 
             {/* Quick Section Jump Navigation Pills (Instant Thumb Navigation with Active Highlight) */}
-            <div className="grid grid-cols-3 gap-2 pt-1">
+            <div className="grid grid-cols-3 gap-1.5 pt-1">
               {[
                 { id: "sec-site", num: "01", label: "Site & Gate" },
                 { id: "sec-scopes", num: "02", label: "Scopes" },
@@ -1373,13 +1373,13 @@ export default function FieldInspectorMobile() {
                     key={s.id}
                     type="button"
                     onClick={() => scrollToSection(s.id)}
-                    className={`py-2 px-1 text-center rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs active:scale-95 flex items-center justify-center gap-1.5 ${
+                    className={`py-1.5 px-1 text-center rounded-xl text-[11px] font-bold transition-all cursor-pointer shadow-2xs active:scale-95 flex items-center justify-center gap-1 ${
                       isActive
-                        ? "bg-[#17614A] text-white font-extrabold shadow-sm ring-2 ring-[#17614A]/25"
+                        ? "bg-[#17614A] text-white font-extrabold shadow-xs ring-2 ring-[#17614A]/25"
                         : "bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200"
                     }`}
                   >
-                    <span className={`text-[10px] font-black ${isActive ? "text-emerald-200" : "text-slate-400"}`}>{s.num}</span>
+                    <span className={`text-[9px] font-black ${isActive ? "text-emerald-200" : "text-slate-400"}`}>{s.num}</span>
                     <span className="truncate">{s.label}</span>
                   </button>
                 );
@@ -1404,7 +1404,7 @@ export default function FieldInspectorMobile() {
             <div
               ref={scrollContainerRef}
               onScroll={handleScroll}
-              className="flex-1 overflow-y-auto p-3.5 space-y-4"
+              className="flex-1 overflow-y-auto p-3.5 sm:p-4 space-y-4 pb-12"
             >
               {/* ── 01. INSPECTION SITE & GATE COORDINATES ── */}
               <div id="sec-site" className="space-y-3.5 scroll-mt-2">
@@ -1494,7 +1494,7 @@ export default function FieldInspectorMobile() {
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                       <div>
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Representative Name</label>
                         <input
@@ -2196,7 +2196,7 @@ export default function FieldInspectorMobile() {
                 </div>
               </div>
 
-            <div className="bg-white border-t border-slate-200/90 p-3.5 flex items-center gap-2.5 shrink-0 shadow-lg">
+            <div className="bg-white border-t border-slate-200/90 px-4 pt-3 safe-bottom-bar flex items-center gap-2.5 shrink-0 shadow-xl z-30">
               <button
                 type="button"
                 onClick={() =>
@@ -2206,7 +2206,7 @@ export default function FieldInspectorMobile() {
                   })
                 }
                 disabled={saveDraftMutation.isPending}
-                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
+                className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer transition-colors shadow-2xs shrink-0"
               >
                 <span>{saveDraftMutation.isPending ? "Saving..." : "Save Draft"}</span>
               </button>
@@ -2215,7 +2215,7 @@ export default function FieldInspectorMobile() {
                 type="button"
                 onClick={handleValidateAndSubmit}
                 disabled={submitSurveyMutation.isPending}
-                className="flex-1 py-2.5 bg-gradient-to-r from-[#17614A] to-emerald-700 hover:from-[#0F4A38] hover:to-emerald-800 text-white text-xs font-black rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-900/20 disabled:opacity-50 transition-all active:scale-95"
+                className="flex-1 py-3 bg-gradient-to-r from-[#17614A] to-emerald-700 hover:from-[#0F4A38] hover:to-emerald-800 text-white text-xs font-black rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-900/20 disabled:opacity-50 transition-all active:scale-95"
               >
                 <Send className="w-4 h-4" />
                 <span>{submitSurveyMutation.isPending ? "Submitting..." : "Submit Feasibility Audit"}</span>
