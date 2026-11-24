@@ -994,12 +994,12 @@ export default function FieldInspectorMobile() {
                     </div>
 
                     {/* SLA Timer Chip */}
-                    <div className={`flex items-center justify-between px-3 py-1.5 rounded-xl border ${rag.badgeBg} text-xs font-bold`}>
-                      <div className="flex items-center gap-1.5">
-                        <span className={`w-1.5 h-1.5 rounded-full ${rag.dotColor}`} />
-                        <span>{rag.label}</span>
+                    <div className={`flex items-center justify-between px-3.5 py-2 rounded-xl border ${rag.badgeBg} text-xs font-bold shadow-2xs`}>
+                      <div className="flex items-center gap-2">
+                        <span className={`w-2 h-2 rounded-full ${rag.dotColor}`} />
+                        <span className="font-extrabold">{rag.label}</span>
                       </div>
-                      <span className="font-mono text-[11px] font-black">{rag.countdown}</span>
+                      <span className="font-mono text-[11px] font-black tracking-tight">{rag.countdown}</span>
                     </div>
 
                     {/* Desktop-Style Dual Column Logistics Box */}
