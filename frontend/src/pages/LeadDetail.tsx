@@ -995,9 +995,7 @@ export default function LeadDetail() {
         {/* SIDEBAR (Right/Left): AI Copilot + Customer Metadata + Tasks */}
         <div className="col-span-12 lg:col-span-4 flex flex-col gap-5">
           {/* Site Inspection Card */}
-          {requiresSiteInspection && (
-            <SiteInspectionCard leadId={id!} leadStatus={lead?.status} />
-          )}
+          <SiteInspectionCard leadId={id!} leadStatus={lead?.status} />
 
           {/* AI Sales Copilot Card */}
           <div className="bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-900/60 rounded-2xl p-5 shadow-xs space-y-3 relative overflow-hidden">
