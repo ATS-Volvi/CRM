@@ -306,6 +306,18 @@ export default function FieldInspectorMobile() {
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [showRouteMap, setShowRouteMap] = useState(true);
 
+  // Quick live GPS position helper for on-the-road mid-journey routing
+  const getLivePosition = (): Promise<{ latitude: number; longitude: number } | null> => {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) return resolve(null);
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+        () => resolve(null),
+        { timeout: 3500, maximumAge: 60000 }
+      );
+    });
+  };
+
   const handleOptimizeRoute = async () => {
     // Only optimize active/pending inspections that have not been cancelled
     const activeCandidates = inspections.filter(
@@ -318,11 +330,21 @@ export default function FieldInspectorMobile() {
     }
     setIsOptimizing(true);
     try {
-      const startLocation = {
+      let startLocation = {
         name: bases[0]?.name || "Operations Base",
         latitude: bases[0]?.latitude ?? 27.0,
         longitude: bases[0]?.longitude ?? 49.65,
       };
+
+      // Check if phone live GPS is available (e.g., inspector is already on the road)
+      const livePos = await getLivePosition();
+      if (livePos) {
+        startLocation = {
+          name: "Current GPS Location",
+          latitude: Number(livePos.latitude.toFixed(6)),
+          longitude: Number(livePos.longitude.toFixed(6)),
+        };
+      }
 
       let result: ClientRouteResult;
       try {
@@ -399,6 +421,16 @@ export default function FieldInspectorMobile() {
 
     return list;
   }, [inspections, activeTab, searchQuery, sequenceMap]);
+
+  // Detected unrouted newly accepted inspections while route is active
+  const activeUnroutedCount = useMemo(() => {
+    if (!routeResult?.optimizedOrder) return 0;
+    const currentActiveIds = new Set(routeResult.optimizedOrder.map((s) => s.id));
+    const newActive = filteredInspections.filter(
+      (i) => !["APPROVED", "CANCELLED", "SUBMITTED"].includes(i.status) && !currentActiveIds.has(i.id)
+    );
+    return newActive.length;
+  }, [routeResult, filteredInspections]);
 
   // Metrics
   const stats = useMemo(() => {
@@ -1063,6 +1095,27 @@ export default function FieldInspectorMobile() {
                 </div>
               </div>
 
+              {/* Dynamic Mid-Journey Incoming Inquiry Alert */}
+              {activeUnroutedCount > 0 && (
+                <div className="p-2.5 bg-amber-50 border border-amber-300 rounded-xl flex items-center justify-between gap-2 shadow-2xs animate-fade-in">
+                  <div className="flex items-center gap-1.5 min-w-0 text-amber-900">
+                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span className="text-[11px] font-black truncate">
+                      +{activeUnroutedCount} New Site Inquiry Accepted!
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleOptimizeRoute}
+                    disabled={isOptimizing}
+                    className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-black rounded-lg shadow-2xs shrink-0 cursor-pointer flex items-center gap-1 active:scale-95 transition-all disabled:opacity-50"
+                  >
+                    <Zap className="w-3 h-3" />
+                    <span>{isOptimizing ? "Updating..." : "Re-Route with Live GPS"}</span>
+                  </button>
+                </div>
+              )}
+
               {/* Interactive OpenStreetMap Route View */}
               {showRouteMap && (() => {
                 const startLoc = {
@@ -1103,7 +1156,7 @@ export default function FieldInspectorMobile() {
                         <div className="w-4 h-4 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center text-[9px] font-black shrink-0">
                           0
                         </div>
-                        <span className="truncate">Base: {bases[0]?.name || "Operations Base"}</span>
+                        <span className="truncate">Start: {routeResult.legs[0]?.fromName || (bases[0]?.name || "Operations Base")}</span>
                       </div>
                       {routeResult.optimizedOrder.map((stop, idx) => (
                         <div key={stop.id} className="flex items-center justify-between gap-2 px-1 text-[11px]">
