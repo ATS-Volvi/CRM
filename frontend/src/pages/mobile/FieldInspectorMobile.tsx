@@ -306,12 +306,13 @@ export default function FieldInspectorMobile() {
   const [isOptimizing, setIsOptimizing] = useState(false);
 
   const handleOptimizeRoute = async () => {
-    // Only optimize active/pending inspections that have not been approved/cancelled
-    const candidates = inspections.filter(
-      (ins) => !["APPROVED", "CANCELLED", "SUBMITTED"].includes(ins.status) && ins.assignmentState !== "DECLINED"
+    // Only optimize active/pending inspections that have not been cancelled
+    const activeCandidates = inspections.filter(
+      (ins) => !["APPROVED", "CANCELLED"].includes(ins.status) && ins.assignmentState !== "DECLINED"
     );
-    if (candidates.length === 0) {
-      alert("No active inspections in queue to optimize.");
+    const targetInspections = activeCandidates.length >= 2 ? activeCandidates : filteredInspections;
+    if (targetInspections.length < 2) {
+      alert("At least 2 inspections are required to calculate an optimal driving route.");
       return;
     }
     setIsOptimizing(true);
@@ -325,14 +326,14 @@ export default function FieldInspectorMobile() {
       let result: ClientRouteResult;
       try {
         const serverRes = await siteInspectionApi.optimizeRoute({
-          inspectionIds: candidates.map((c) => c.id),
+          inspectionIds: targetInspections.map((c) => c.id),
           startLocation,
           returnToBase: true,
           mode: "SLA_GUARDED",
         });
         result = serverRes.data || serverRes;
       } catch (err) {
-        result = clientOptimizeDailyRoute(candidates, {
+        result = clientOptimizeDailyRoute(targetInspections, {
           startLocation,
           returnToBase: true,
           mode: "SLA_GUARDED",
@@ -996,7 +997,7 @@ export default function FieldInspectorMobile() {
           </div>
 
           {/* ─── Smart Route Optimization Widget ────────────────────────────── */}
-          {stats.activeCount >= 2 && !routeResult && (
+          {((stats.activeCount + stats.pendingCount) >= 2 || filteredInspections.length >= 2) && !routeResult && (
             <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 border border-emerald-200/90 rounded-2xl p-3 flex items-center justify-between gap-2 shadow-2xs">
               <div className="flex items-center gap-2 min-w-0">
                 <div className="w-8 h-8 rounded-xl bg-emerald-700 text-white flex items-center justify-center shrink-0 shadow-xs">
