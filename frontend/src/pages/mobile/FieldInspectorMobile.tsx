@@ -146,7 +146,7 @@ export default function FieldInspectorMobile() {
 
   const [activeTab, setActiveTab] = useState<TabFilter>("today");
   const [searchQuery, setSearchQuery] = useState("");
-  const [bottomNav, setBottomNav] = useState<"duties" | "active" | "profile">("duties");
+  const [bottomNav, setBottomNav] = useState<"duties" | "profile">("duties");
 
   // Decline Modal
   const [declineModalItem, setDeclineModalItem] = useState<SiteInspectionRecord | null>(null);
@@ -1210,7 +1210,7 @@ export default function FieldInspectorMobile() {
       )}
 
       {/* ─── Bottom Mobile Navigation Bar ───────────────────────────────────── */}
-      <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/80 pt-2 safe-bottom-bar px-8 flex items-center justify-around shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
+      <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/80 pt-2 safe-bottom-bar px-12 flex items-center justify-around shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
         <button
           onClick={() => {
             setBottomNav("duties");
@@ -1226,26 +1226,6 @@ export default function FieldInspectorMobile() {
             <ClipboardCheck className="w-5 h-5" />
           </div>
           <span className="text-[10px] tracking-tight">Duties</span>
-        </button>
-
-        <button
-          onClick={() => {
-            if (currentlyOnSiteInspection) {
-              openSurveyForm(currentlyOnSiteInspection);
-            } else {
-              alert("No visit is currently in progress. Start a visit from your duties list.");
-            }
-          }}
-          className={`flex flex-col items-center gap-1 cursor-pointer transition-all ${
-            currentlyOnSiteInspection || activeSurveyInspection
-              ? "text-[#1B4332] font-black scale-105"
-              : "text-slate-400 font-medium hover:text-slate-700"
-          }`}
-        >
-          <div className={`p-1 rounded-xl ${currentlyOnSiteInspection || activeSurveyInspection ? "bg-emerald-50" : ""}`}>
-            <MapPin className="w-5 h-5" />
-          </div>
-          <span className="text-[10px] tracking-tight">On-Site</span>
         </button>
 
         <button
