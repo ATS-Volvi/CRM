@@ -34,8 +34,11 @@ import {
   AlertCircle,
   Wifi,
   WifiOff,
+  Zap,
+  Route,
 } from "lucide-react";
 import { siteInspectionApi, MasterDataResponse } from "../../api/siteInspection";
+import { clientOptimizeDailyRoute, ClientRouteResult } from "../../utils/routeOptimizer";
 import {
   saveOfflinePhoto,
   getOfflinePhotosForInspection,
@@ -298,9 +301,69 @@ export default function FieldInspectorMobile() {
     );
   }, [inspections]);
 
-  // Tab Filtering
+  // Route Optimization State
+  const [routeResult, setRouteResult] = useState<ClientRouteResult | null>(null);
+  const [isOptimizing, setIsOptimizing] = useState(false);
+
+  const handleOptimizeRoute = async () => {
+    // Only optimize active/pending inspections that have not been approved/cancelled
+    const candidates = inspections.filter(
+      (ins) => !["APPROVED", "CANCELLED", "SUBMITTED"].includes(ins.status) && ins.assignmentState !== "DECLINED"
+    );
+    if (candidates.length === 0) {
+      alert("No active inspections in queue to optimize.");
+      return;
+    }
+    setIsOptimizing(true);
+    try {
+      const startLocation = {
+        name: bases[0]?.name || "Operations Base",
+        latitude: bases[0]?.latitude ?? 27.0,
+        longitude: bases[0]?.longitude ?? 49.65,
+      };
+
+      let result: ClientRouteResult;
+      try {
+        const serverRes = await siteInspectionApi.optimizeRoute({
+          inspectionIds: candidates.map((c) => c.id),
+          startLocation,
+          returnToBase: true,
+          mode: "SLA_GUARDED",
+        });
+        result = serverRes.data || serverRes;
+      } catch (err) {
+        result = clientOptimizeDailyRoute(candidates, {
+          startLocation,
+          returnToBase: true,
+          mode: "SLA_GUARDED",
+        });
+      }
+      setRouteResult(result);
+    } catch (e: any) {
+      console.error("Route optimization failed:", e);
+    } finally {
+      setIsOptimizing(false);
+    }
+  };
+
+  // Applied sequence map from route optimization: inspectionId -> { stopNumber, distanceKm, minutes }
+  const sequenceMap = useMemo(() => {
+    if (!routeResult?.optimizedOrder) return new Map<string, { stopNumber: number; distanceKm?: number; minutes?: number }>();
+    const map = new Map<string, { stopNumber: number; distanceKm?: number; minutes?: number }>();
+    routeResult.optimizedOrder.forEach((wp, idx) => {
+      const leg = routeResult.legs?.find((l) => l.toInspectionId === wp.id || l.toName.includes(wp.siteName) || l.toName.includes(wp.clientName));
+      map.set(wp.id, {
+        stopNumber: idx + 1,
+        distanceKm: leg?.distanceKm,
+        minutes: leg?.estimatedMinutes,
+      });
+    });
+    return map;
+  }, [routeResult]);
+
+  // Tab Filtering & Optimal Sequence Ordering
   const filteredInspections = useMemo(() => {
-    return inspections.filter((ins) => {
+    const list = inspections.filter((ins) => {
       // Tab filter
       if (activeTab === "today") {
         if (["APPROVED", "CANCELLED"].includes(ins.status)) return false;
@@ -323,7 +386,17 @@ export default function FieldInspectorMobile() {
       }
       return true;
     });
-  }, [inspections, activeTab, searchQuery]);
+
+    if (sequenceMap.size > 0) {
+      return [...list].sort((a, b) => {
+        const seqA = sequenceMap.get(a.id)?.stopNumber ?? 999;
+        const seqB = sequenceMap.get(b.id)?.stopNumber ?? 999;
+        return seqA - seqB;
+      });
+    }
+
+    return list;
+  }, [inspections, activeTab, searchQuery, sequenceMap]);
 
   // Metrics
   const stats = useMemo(() => {
@@ -922,6 +995,78 @@ export default function FieldInspectorMobile() {
             </button>
           </div>
 
+          {/* ─── Smart Route Optimization Widget ────────────────────────────── */}
+          {stats.activeCount >= 2 && !routeResult && (
+            <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 border border-emerald-200/90 rounded-2xl p-3 flex items-center justify-between gap-2 shadow-2xs">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-emerald-700 text-white flex items-center justify-center shrink-0 shadow-xs">
+                  <Zap className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <h4 className="text-xs font-black text-slate-900 truncate">Smart Route Optimization</h4>
+                  <p className="text-[10px] text-slate-500 truncate">Auto-sequence {stats.activeCount} stops by shortest driving circuit</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleOptimizeRoute}
+                disabled={isOptimizing}
+                className="px-3 py-1.5 bg-gradient-to-r from-[#17614A] to-emerald-700 hover:from-[#0F4A38] hover:to-emerald-800 text-white text-[11px] font-black rounded-xl shadow-xs shrink-0 flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+              >
+                {isOptimizing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
+                <span>{isOptimizing ? "Optimizing..." : "Optimize"}</span>
+              </button>
+            </div>
+          )}
+
+          {routeResult && (
+            <div className="bg-white border-2 border-emerald-600 rounded-2xl p-3.5 space-y-2.5 shadow-sm">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-xs font-black uppercase tracking-wider text-emerald-900">
+                    Optimal Daily Sequence Applied
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setRouteResult(null)}
+                  className="text-[11px] font-bold text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+                >
+                  Reset Order
+                </button>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 py-1 text-center bg-slate-50 rounded-xl p-2 border border-slate-100">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Total Circuit</span>
+                  <span className="text-xs font-black text-slate-900 block mt-0.5">{routeResult.totalDistanceKm} km</span>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Est. Drive</span>
+                  <span className="text-xs font-black text-slate-900 block mt-0.5">~{routeResult.totalEstimatedMinutes} mins</span>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-emerald-600 block">Distance Saved</span>
+                  <span className="text-xs font-black text-emerald-700 block mt-0.5">+{routeResult.distanceSavedKm} km</span>
+                </div>
+              </div>
+
+              {routeResult.googleMapsUrl && (
+                <a
+                  href={routeResult.googleMapsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-2 bg-[#1B4332] hover:bg-[#2D6A4F] text-white text-xs font-black rounded-xl flex items-center justify-center gap-2 shadow-xs transition-all active:scale-95"
+                >
+                  <Navigation className="w-3.5 h-3.5" />
+                  <span>Start Multi-Stop Route in Google Maps ({routeResult.optimizedOrder.length} Stops)</span>
+                  <ExternalLink className="w-3 h-3 text-emerald-300" />
+                </a>
+              )}
+            </div>
+          )}
+
           {/* Duties Card List */}
           {isLoading ? (
             <div className="py-16 text-center text-xs text-slate-500">
@@ -955,7 +1100,22 @@ export default function FieldInspectorMobile() {
                   >
                     {/* Card Header: Inspection #, Priority, Status */}
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {sequenceMap.has(ins.id) && (
+                          <span
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-black border ${
+                              sequenceMap.get(ins.id)!.stopNumber === 1
+                                ? "bg-emerald-600 text-white border-emerald-700 shadow-2xs"
+                                : "bg-emerald-50 text-emerald-800 border-emerald-300"
+                            }`}
+                          >
+                            <Route className="w-3 h-3" />
+                            Stop #{sequenceMap.get(ins.id)!.stopNumber}
+                            {sequenceMap.get(ins.id)!.stopNumber === 1 && (
+                              <span className="bg-white text-emerald-800 px-1 rounded text-[8px] font-black ml-0.5">NEXT</span>
+                            )}
+                          </span>
+                        )}
                         <span className="font-mono text-sm font-black text-[#17614A]">
                           {ins.inspectionNumber}
                         </span>
