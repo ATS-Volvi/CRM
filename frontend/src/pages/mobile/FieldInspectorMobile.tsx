@@ -304,6 +304,7 @@ export default function FieldInspectorMobile() {
   // Route Optimization State
   const [routeResult, setRouteResult] = useState<ClientRouteResult | null>(null);
   const [isOptimizing, setIsOptimizing] = useState(false);
+  const [showRouteMap, setShowRouteMap] = useState(true);
 
   const handleOptimizeRoute = async () => {
     // Only optimize active/pending inspections that have not been cancelled
@@ -1021,7 +1022,7 @@ export default function FieldInspectorMobile() {
           )}
 
           {routeResult && (
-            <div className="bg-white border-2 border-emerald-600 rounded-2xl p-3.5 space-y-2.5 shadow-sm">
+            <div className="bg-white border-2 border-emerald-600 rounded-2xl p-3.5 space-y-3 shadow-sm">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -1029,13 +1030,22 @@ export default function FieldInspectorMobile() {
                     Optimal Daily Sequence Applied
                   </span>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setRouteResult(null)}
-                  className="text-[11px] font-bold text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
-                >
-                  Reset Order
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowRouteMap((prev) => !prev)}
+                    className="text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded-md border border-emerald-200 transition-colors cursor-pointer"
+                  >
+                    {showRouteMap ? "Hide Map" : "Show Map"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRouteResult(null)}
+                    className="text-[11px] font-bold text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+                  >
+                    Reset
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-3 gap-2 py-1 text-center bg-slate-50 rounded-xl p-2 border border-slate-100">
@@ -1053,12 +1063,75 @@ export default function FieldInspectorMobile() {
                 </div>
               </div>
 
+              {/* Interactive OpenStreetMap Route View */}
+              {showRouteMap && (() => {
+                const startLoc = {
+                  latitude: bases[0]?.latitude ?? 27.0,
+                  longitude: bases[0]?.longitude ?? 49.65,
+                };
+                const validStops = routeResult.optimizedOrder.filter(
+                  (s) => s.latitude !== null && s.longitude !== null
+                );
+                const allLats = [startLoc.latitude, ...validStops.map((s) => s.latitude!)];
+                const allLngs = [startLoc.longitude, ...validStops.map((s) => s.longitude!)];
+                const minLat = (Math.min(...allLats) - 0.15).toFixed(4);
+                const maxLat = (Math.max(...allLats) + 0.15).toFixed(4);
+                const minLng = (Math.min(...allLngs) - 0.15).toFixed(4);
+                const maxLng = (Math.max(...allLngs) + 0.15).toFixed(4);
+                const centerLat = ((Math.min(...allLats) + Math.max(...allLats)) / 2).toFixed(4);
+                const centerLng = ((Math.min(...allLngs) + Math.max(...allLngs)) / 2).toFixed(4);
+                const mapEmbedUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${minLng}%2C${minLat}%2C${maxLng}%2C${maxLat}&layer=mapnik&marker=${centerLat}%2C${centerLng}`;
+
+                return (
+                  <div className="rounded-xl overflow-hidden border border-slate-200 shadow-2xs space-y-2">
+                    <div className="relative h-44 w-full bg-slate-100">
+                      <iframe
+                        title="Daily Circuit Map"
+                        src={mapEmbedUrl}
+                        className="w-full h-full border-0 pointer-events-auto"
+                        loading="lazy"
+                      />
+                      <div className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-white/90 backdrop-blur-xs text-[10px] font-black text-slate-800 shadow-xs border border-slate-200 flex items-center gap-1">
+                        <MapPin className="w-3 h-3 text-emerald-600" />
+                        <span>Live Route Map ({validStops.length} Waypoints)</span>
+                      </div>
+                    </div>
+
+                    {/* Step Sequence Timeline */}
+                    <div className="p-2 space-y-1.5 bg-slate-50/70 rounded-b-xl border-t border-slate-100 text-xs">
+                      <div className="flex items-center gap-2 text-[11px] font-bold text-slate-600 px-1">
+                        <div className="w-4 h-4 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center text-[9px] font-black shrink-0">
+                          0
+                        </div>
+                        <span className="truncate">Base: {bases[0]?.name || "Operations Base"}</span>
+                      </div>
+                      {routeResult.optimizedOrder.map((stop, idx) => (
+                        <div key={stop.id} className="flex items-center justify-between gap-2 px-1 text-[11px]">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className="w-4 h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[9px] font-black shrink-0">
+                              {idx + 1}
+                            </div>
+                            <span className="font-extrabold text-slate-900 truncate">{stop.clientName}</span>
+                            <span className="text-slate-400 text-[10px] truncate">({stop.areaName || stop.siteName})</span>
+                          </div>
+                          {routeResult.legs[idx] && (
+                            <span className="text-[10px] text-emerald-700 font-mono font-bold shrink-0">
+                              ~{routeResult.legs[idx].distanceKm} km
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+
               {routeResult.googleMapsUrl && (
                 <a
                   href={routeResult.googleMapsUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-full py-2 bg-[#1B4332] hover:bg-[#2D6A4F] text-white text-xs font-black rounded-xl flex items-center justify-center gap-2 shadow-xs transition-all active:scale-95"
+                  className="w-full py-2.5 bg-[#1B4332] hover:bg-[#2D6A4F] text-white text-xs font-black rounded-xl flex items-center justify-center gap-2 shadow-xs transition-all active:scale-95"
                 >
                   <Navigation className="w-3.5 h-3.5" />
                   <span>Start Multi-Stop Route in Google Maps ({routeResult.optimizedOrder.length} Stops)</span>
