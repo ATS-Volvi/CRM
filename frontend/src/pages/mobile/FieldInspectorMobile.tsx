@@ -709,17 +709,17 @@ export default function FieldInspectorMobile() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100/90 dark:bg-slate-950 flex justify-center sm:py-6">
-      <div className="w-full max-w-md min-h-screen sm:min-h-[880px] sm:h-[880px] bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans pb-24 select-none sm:rounded-[44px] shadow-2xl sm:shadow-[0_25px_70px_-15px_rgba(0,0,0,0.25),0_0_0_10px_#0F172A] border-x sm:border border-slate-200/90 dark:border-slate-800 relative overflow-hidden">
+    <div className="min-h-screen bg-slate-100/90 flex justify-center sm:py-6">
+      <div className="w-full max-w-md min-h-screen sm:min-h-[880px] sm:h-[880px] bg-[#F8FAFC] text-slate-900 flex flex-col font-sans pb-24 select-none sm:rounded-[44px] shadow-2xl sm:shadow-[0_25px_70px_-15px_rgba(0,0,0,0.25),0_0_0_10px_#0F172A] border-x sm:border border-slate-200/90 relative overflow-hidden">
         {/* Dynamic Island Notch for Desktop Preview */}
-        <div className="hidden sm:flex justify-center pt-2.5 pb-1 bg-white dark:bg-slate-900 shrink-0">
+        <div className="hidden sm:flex justify-center pt-2.5 pb-1 bg-white shrink-0">
           <div className="w-24 h-4 bg-slate-950 rounded-full flex items-center justify-end pr-2.5 shadow-inner">
             <div className="w-2 h-2 rounded-full bg-slate-800 border border-slate-700/60" />
           </div>
         </div>
 
         {/* ─── Top Mobile App Bar ──────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 px-4 py-3 shadow-xs">
+      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-4 py-3 shadow-xs">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-[#1B4332] to-[#2D6A4F] flex items-center justify-center text-white shadow-sm">
@@ -727,13 +727,13 @@ export default function FieldInspectorMobile() {
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <h1 className="text-sm font-black tracking-tight text-slate-900 dark:text-white">
+                <h1 className="text-sm font-black tracking-tight text-slate-900">
                   Field Inspector
                 </h1>
                 <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
                   isOnline
-                    ? "bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800"
-                    : "bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-200/80 dark:border-amber-800"
+                    ? "bg-emerald-100 text-emerald-800 border border-emerald-200/80"
+                    : "bg-amber-100 text-amber-800 border border-amber-200/80"
                 }`}>
                   <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? "bg-emerald-500 animate-pulse" : "bg-amber-500"}`} />
                   {isOnline ? "On Duty" : "Offline"}
@@ -747,21 +747,21 @@ export default function FieldInspectorMobile() {
 
           <div className="flex items-center gap-1.5">
             {stats.overdueCount > 0 && (
-              <span className="hidden xs:inline-flex items-center gap-1 px-2 py-1 rounded-xl text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-800">
+              <span className="hidden xs:inline-flex items-center gap-1 px-2 py-1 rounded-xl text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
                 <AlertTriangle className="w-3 h-3 text-rose-500" />
                 <span>{stats.overdueCount} Overdue</span>
               </span>
             )}
             <button
               onClick={() => refetch()}
-              className="p-2 rounded-xl text-slate-500 hover:text-slate-900 dark:hover:text-white bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 transition-colors cursor-pointer"
+              className="p-2 rounded-xl text-slate-500 hover:text-slate-900:text-white bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer"
               title="Refresh duties"
             >
               <RefreshCw className={`w-4 h-4 ${isRefetching ? "animate-spin text-emerald-600" : ""}`} />
             </button>
             <Link
               to="/site-inspections"
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-200 transition-colors"
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200 transition-colors"
               title="Switch to Desktop CRM"
             >
               <Monitor className="w-3.5 h-3.5" />
@@ -778,7 +778,7 @@ export default function FieldInspectorMobile() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search inspection #, client, area..."
-            className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 rounded-2xl text-xs font-medium text-slate-900 dark:text-white placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-emerald-600/20 focus:border-emerald-600 transition-all"
+            className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-medium text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-emerald-600/20 focus:border-emerald-600 transition-all"
           />
         </div>
       </header>
@@ -819,12 +819,12 @@ export default function FieldInspectorMobile() {
               className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
                 activeTab === "today"
                   ? "bg-[#1B4332] text-white shadow-xs"
-                  : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:bg-slate-50"
+                  : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
               }`}
             >
               <span>To do</span>
               <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-black ${
-                activeTab === "today" ? "bg-white/20 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
+                activeTab === "today" ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"
               }`}>
                 {stats.activeCount}
               </span>
@@ -835,12 +835,12 @@ export default function FieldInspectorMobile() {
               className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
                 activeTab === "pending"
                   ? "bg-amber-600 text-white shadow-xs"
-                  : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:bg-slate-50"
+                  : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
               }`}
             >
               <span>New Orders</span>
               <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-black ${
-                activeTab === "pending" ? "bg-white/20 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
+                activeTab === "pending" ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"
               }`}>
                 {stats.pendingCount}
               </span>
@@ -851,12 +851,12 @@ export default function FieldInspectorMobile() {
               className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
                 activeTab === "in_review"
                   ? "bg-blue-600 text-white shadow-xs"
-                  : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:bg-slate-50"
+                  : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
               }`}
             >
               <span>Awaiting Approval</span>
               <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-black ${
-                activeTab === "in_review" ? "bg-white/20 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
+                activeTab === "in_review" ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"
               }`}>
                 {stats.inReviewCount}
               </span>
@@ -867,12 +867,12 @@ export default function FieldInspectorMobile() {
               className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
                 activeTab === "approved"
                   ? "bg-emerald-600 text-white shadow-xs"
-                  : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:bg-slate-50"
+                  : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
               }`}
             >
               <span>Approved</span>
               <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-black ${
-                activeTab === "approved" ? "bg-white/20 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
+                activeTab === "approved" ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"
               }`}>
                 {inspections.filter((i) => i.status === "APPROVED").length}
               </span>
@@ -883,12 +883,12 @@ export default function FieldInspectorMobile() {
               className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
                 activeTab === "all"
                   ? "bg-slate-800 text-white shadow-xs"
-                  : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:bg-slate-50"
+                  : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
               }`}
             >
               <span>All</span>
               <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-black ${
-                activeTab === "all" ? "bg-white/20 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
+                activeTab === "all" ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"
               }`}>
                 {inspections.length}
               </span>
@@ -902,11 +902,11 @@ export default function FieldInspectorMobile() {
               Loading assigned duties...
             </div>
           ) : filteredInspections.length === 0 ? (
-            <div className="py-14 text-center bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 space-y-2 shadow-xs">
-              <div className="w-10 h-10 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-500 flex items-center justify-center mx-auto">
+            <div className="py-14 text-center bg-white rounded-3xl border border-slate-200 p-6 space-y-2 shadow-xs">
+              <div className="w-10 h-10 rounded-2xl bg-slate-100 text-slate-500 flex items-center justify-center mx-auto">
                 <CheckCircle2 className="w-5 h-5 text-emerald-500" />
               </div>
-              <h3 className="text-sm font-black text-slate-900 dark:text-white">All caught up!</h3>
+              <h3 className="text-sm font-black text-slate-900">All caught up!</h3>
               <p className="text-xs text-slate-500 max-w-xs mx-auto">
                 No inspections currently pending in this view.
               </p>
@@ -924,20 +924,20 @@ export default function FieldInspectorMobile() {
                 return (
                   <div
                     key={ins.id}
-                    className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-3xl p-4 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] space-y-3 transition-all hover:border-slate-300"
+                    className="bg-white border border-slate-200/90 rounded-3xl p-4 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] space-y-3 transition-all hover:border-slate-300"
                   >
                     {/* Card Header: Inspection #, Priority, Status */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5">
-                        <span className="font-mono text-sm font-black text-[#17614A] dark:text-emerald-400">
+                        <span className="font-mono text-sm font-black text-[#17614A]">
                           {ins.inspectionNumber}
                         </span>
                         {ins.priority && ins.priority !== "NORMAL" && (
                           <span
                             className={`px-1.5 py-0.2 rounded text-[9px] font-black uppercase ${
                               ins.priority === "URGENT"
-                                ? "bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200/80 dark:border-rose-800"
-                                : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
+                                ? "bg-rose-100 text-rose-700 border border-rose-200/80"
+                                : "bg-slate-100 text-slate-600"
                             }`}
                           >
                             {ins.priority}
@@ -957,7 +957,7 @@ export default function FieldInspectorMobile() {
 
                     {/* Client & Site Info */}
                     <div>
-                      <h2 className="text-sm font-black text-slate-900 dark:text-white line-clamp-1">
+                      <h2 className="text-sm font-black text-slate-900 line-clamp-1">
                         {ins.clientOrganization || ins.lead?.company || "Unnamed Client"}
                       </h2>
                       <div className="flex items-center gap-1 text-xs text-slate-500 mt-0.5">
@@ -976,12 +976,12 @@ export default function FieldInspectorMobile() {
                     </div>
 
                     {/* Desktop-Style Dual Column Logistics Box */}
-                    <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80">
+                    <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-2.5 rounded-2xl border border-slate-200/80">
                       <div>
                         <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
                           Base / Distance
                         </span>
-                        <span className="font-extrabold text-slate-900 dark:text-white block mt-0.5 text-sm">
+                        <span className="font-extrabold text-slate-900 block mt-0.5 text-sm">
                           {ins.baseToSiteStraightKm != null ? `${ins.baseToSiteStraightKm} km` : ins.latitude ? "24 km" : "Pending GPS"}
                         </span>
                         <span className="text-[10px] text-slate-500 truncate block">
@@ -993,7 +993,7 @@ export default function FieldInspectorMobile() {
                         <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
                           Roundtrip Cycle
                         </span>
-                        <span className="font-extrabold text-slate-900 dark:text-white block mt-0.5 text-sm">
+                        <span className="font-extrabold text-slate-900 block mt-0.5 text-sm">
                           {ins.totalCycleKm != null ? `${ins.totalCycleKm} km` : ins.latitude ? "48 km" : "0 km"}
                         </span>
                         <span className="text-[10px] text-slate-500 block">
@@ -1008,17 +1008,17 @@ export default function FieldInspectorMobile() {
                         activeScopes.map((s) => (
                           <span
                             key={s.serviceType}
-                            className="px-2.5 py-0.5 bg-emerald-50 dark:bg-emerald-950/60 text-[#17614A] dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-xs font-semibold rounded-md uppercase tracking-wider"
+                            className="px-2.5 py-0.5 bg-emerald-50 text-[#17614A] border border-emerald-200 text-xs font-semibold rounded-md uppercase tracking-wider"
                           >
                             {s.serviceType}
                           </span>
                         ))
                       ) : (
                         <>
-                          <span className="px-2.5 py-0.5 bg-emerald-50 dark:bg-emerald-950/60 text-[#17614A] dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-xs font-semibold rounded-md uppercase tracking-wider">
+                          <span className="px-2.5 py-0.5 bg-emerald-50 text-[#17614A] border border-emerald-200 text-xs font-semibold rounded-md uppercase tracking-wider">
                             SEWAGE
                           </span>
-                          <span className="px-2.5 py-0.5 bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 text-xs font-semibold rounded-md uppercase tracking-wider">
+                          <span className="px-2.5 py-0.5 bg-amber-50 text-amber-800 border border-amber-200 text-xs font-semibold rounded-md uppercase tracking-wider">
                             HAZARDOUS
                           </span>
                         </>
@@ -1026,7 +1026,7 @@ export default function FieldInspectorMobile() {
                     </div>
 
                     {/* Quick Action Navigation / WhatsApp & Primary CTA Buttons */}
-                    <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-2">
+                    <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
                       <div className="flex items-center gap-1.5 shrink-0">
                         {/* 1-Tap Google Maps Navigation */}
                         {ins.latitude != null && ins.longitude != null ? (
@@ -1034,14 +1034,14 @@ export default function FieldInspectorMobile() {
                             href={`https://www.google.com/maps/dir/?api=1&destination=${ins.latitude},${ins.longitude}&travelmode=driving`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="p-2 text-blue-600 bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 rounded-xl transition-all shadow-2xs hover:bg-blue-100"
+                            className="p-2 text-blue-600 bg-blue-50 border border-blue-200 rounded-xl transition-all shadow-2xs hover:bg-blue-100"
                             title="Navigate in Google Maps"
                           >
                             <Navigation className="w-4 h-4" />
                           </a>
                         ) : (
                           <span
-                            className="p-2 text-slate-300 bg-slate-50 dark:bg-slate-800/50 border border-slate-200/50 rounded-xl cursor-not-allowed"
+                            className="p-2 text-slate-300 bg-slate-50 border border-slate-200/50 rounded-xl cursor-not-allowed"
                             title="No coordinates set"
                           >
                             <Navigation className="w-4 h-4" />
@@ -1056,7 +1056,7 @@ export default function FieldInspectorMobile() {
                             )}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="p-2 text-emerald-600 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 rounded-xl transition-all shadow-2xs hover:bg-emerald-100"
+                            className="p-2 text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-xl transition-all shadow-2xs hover:bg-emerald-100"
                             title="Chat with Client on WhatsApp"
                           >
                             <MessageSquare className="w-4 h-4" />
@@ -1070,7 +1070,7 @@ export default function FieldInspectorMobile() {
                           <>
                             <button
                               onClick={() => setDeclineModalItem(ins)}
-                              className="px-3 py-2 rounded-xl border border-rose-200 dark:border-rose-900/60 text-rose-600 dark:text-rose-400 bg-rose-50/60 dark:bg-rose-950/40 text-xs font-bold transition-all hover:bg-rose-100 cursor-pointer"
+                              className="px-3 py-2 rounded-xl border border-rose-200 text-rose-600 bg-rose-50/60 text-xs font-bold transition-all hover:bg-rose-100 cursor-pointer"
                             >
                               Decline
                             </button>
@@ -1090,7 +1090,7 @@ export default function FieldInspectorMobile() {
                                 setScheduleModalItem(ins);
                                 setScheduledDateTime(new Date().toISOString().slice(0, 16));
                               }}
-                              className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 border border-slate-200 dark:border-slate-700 transition-all cursor-pointer"
+                              className="p-2 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200 transition-all cursor-pointer"
                               title="Schedule Visit"
                             >
                               <Calendar className="w-4 h-4" />
@@ -1126,13 +1126,13 @@ export default function FieldInspectorMobile() {
       {/* ─── Profile & Shift Tab ────────────────────────────────────────────── */}
       {bottomNav === "profile" && (
         <main className="px-4 py-4 space-y-4 animate-fade-in">
-          <div className="bg-white dark:bg-slate-900 border border-face-line dark:border-slate-800 rounded-3xl p-5 shadow-xs space-y-3">
+          <div className="bg-white border border-face-line rounded-3xl p-5 shadow-xs space-y-3">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-2xl bg-face-green flex items-center justify-center text-white font-black text-lg">
                 {user?.name?.slice(0, 2).toUpperCase() || "FI"}
               </div>
               <div>
-                <h3 className="text-base font-black text-face-ink dark:text-white">{user?.name}</h3>
+                <h3 className="text-base font-black text-face-ink">{user?.name}</h3>
                 <p className="text-xs text-face-muted">{user?.email}</p>
                 <span className="inline-block mt-1 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800">
                   Role: Field Site Inspector
@@ -1140,33 +1140,33 @@ export default function FieldInspectorMobile() {
               </div>
             </div>
 
-            <div className="pt-3 border-t border-face-line dark:border-slate-800 grid grid-cols-2 gap-2 text-xs">
-              <div className="bg-face-field dark:bg-slate-800/60 p-2.5 rounded-xl">
+            <div className="pt-3 border-t border-face-line grid grid-cols-2 gap-2 text-xs">
+              <div className="bg-face-field p-2.5 rounded-xl">
                 <span className="text-[10px] uppercase font-bold text-face-muted block">Status</span>
                 <span className="font-extrabold text-emerald-600 block mt-0.5">🟢 Active On Duty</span>
               </div>
-              <div className="bg-face-field dark:bg-slate-800/60 p-2.5 rounded-xl">
+              <div className="bg-face-field p-2.5 rounded-xl">
                 <span className="text-[10px] uppercase font-bold text-face-muted block">Base Depot</span>
-                <span className="font-extrabold text-face-ink dark:text-white block mt-0.5">
+                <span className="font-extrabold text-face-ink block mt-0.5">
                   {bases[0]?.name || "Operations Base"}
                 </span>
               </div>
             </div>
           </div>
 
-          <div className="bg-white dark:bg-slate-900 border border-face-line dark:border-slate-800 rounded-3xl p-4 shadow-xs space-y-2 text-xs">
-            <h4 className="font-black text-face-ink dark:text-white uppercase tracking-wider text-[11px]">
+          <div className="bg-white border border-face-line rounded-3xl p-4 shadow-xs space-y-2 text-xs">
+            <h4 className="font-black text-face-ink uppercase tracking-wider text-[11px]">
               Offline Field Capabilities
             </h4>
-            <div className="flex items-center justify-between p-2 rounded-xl bg-face-field dark:bg-slate-800">
+            <div className="flex items-center justify-between p-2 rounded-xl bg-face-field">
               <span className="font-bold text-face-muted">Local Inspection Drafts</span>
               <span className="font-mono font-bold text-emerald-600">Cached (Ready)</span>
             </div>
-            <div className="flex items-center justify-between p-2 rounded-xl bg-face-field dark:bg-slate-800">
+            <div className="flex items-center justify-between p-2 rounded-xl bg-face-field">
               <span className="font-bold text-face-muted">Camera Hardware Access</span>
               <span className="font-mono font-bold text-emerald-600">Enabled</span>
             </div>
-            <div className="flex items-center justify-between p-2 rounded-xl bg-face-field dark:bg-slate-800">
+            <div className="flex items-center justify-between p-2 rounded-xl bg-face-field">
               <span className="font-bold text-face-muted">GPS Stamping</span>
               <span className="font-mono font-bold text-emerald-600">Active</span>
             </div>
@@ -1174,7 +1174,7 @@ export default function FieldInspectorMobile() {
 
           <button
             onClick={() => navigate("/site-inspections")}
-            className="w-full py-3 bg-face-field hover:bg-face-line dark:bg-slate-800 text-face-ink dark:text-white text-xs font-bold rounded-2xl flex items-center justify-center gap-2 cursor-pointer transition-colors"
+            className="w-full py-3 bg-face-field hover:bg-face-line text-face-ink text-xs font-bold rounded-2xl flex items-center justify-center gap-2 cursor-pointer transition-colors"
           >
             <Monitor className="w-4 h-4" />
             <span>Switch to Desktop CRM Workspace</span>
@@ -1183,7 +1183,7 @@ export default function FieldInspectorMobile() {
       )}
 
       {/* ─── Bottom Mobile Navigation Bar ───────────────────────────────────── */}
-      <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200/80 dark:border-slate-800 py-2 px-8 flex items-center justify-around shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
+      <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/80 py-2 px-8 flex items-center justify-around shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
         <button
           onClick={() => {
             setBottomNav("duties");
@@ -1191,11 +1191,11 @@ export default function FieldInspectorMobile() {
           }}
           className={`flex flex-col items-center gap-1 cursor-pointer transition-all ${
             bottomNav === "duties" && !activeSurveyInspection
-              ? "text-[#1B4332] dark:text-emerald-400 font-black scale-105"
+              ? "text-[#1B4332] font-black scale-105"
               : "text-slate-400 font-medium hover:text-slate-700"
           }`}
         >
-          <div className={`p-1 rounded-xl ${bottomNav === "duties" && !activeSurveyInspection ? "bg-emerald-50 dark:bg-emerald-950/60" : ""}`}>
+          <div className={`p-1 rounded-xl ${bottomNav === "duties" && !activeSurveyInspection ? "bg-emerald-50" : ""}`}>
             <ClipboardCheck className="w-5 h-5" />
           </div>
           <span className="text-[10px] tracking-tight">Duties</span>
@@ -1211,11 +1211,11 @@ export default function FieldInspectorMobile() {
           }}
           className={`flex flex-col items-center gap-1 cursor-pointer transition-all ${
             currentlyOnSiteInspection || activeSurveyInspection
-              ? "text-[#1B4332] dark:text-emerald-400 font-black scale-105"
+              ? "text-[#1B4332] font-black scale-105"
               : "text-slate-400 font-medium hover:text-slate-700"
           }`}
         >
-          <div className={`p-1 rounded-xl ${currentlyOnSiteInspection || activeSurveyInspection ? "bg-emerald-50 dark:bg-emerald-950/60" : ""}`}>
+          <div className={`p-1 rounded-xl ${currentlyOnSiteInspection || activeSurveyInspection ? "bg-emerald-50" : ""}`}>
             <MapPin className="w-5 h-5" />
           </div>
           <span className="text-[10px] tracking-tight">On-Site</span>
@@ -1228,11 +1228,11 @@ export default function FieldInspectorMobile() {
           }}
           className={`flex flex-col items-center gap-1 cursor-pointer transition-all ${
             bottomNav === "profile"
-              ? "text-[#1B4332] dark:text-emerald-400 font-black scale-105"
+              ? "text-[#1B4332] font-black scale-105"
               : "text-slate-400 font-medium hover:text-slate-700"
           }`}
         >
-          <div className={`p-1 rounded-xl ${bottomNav === "profile" ? "bg-emerald-50 dark:bg-emerald-950/60" : ""}`}>
+          <div className={`p-1 rounded-xl ${bottomNav === "profile" ? "bg-emerald-50" : ""}`}>
             <User className="w-5 h-5" />
           </div>
           <span className="text-[10px] tracking-tight">Profile</span>
@@ -1242,8 +1242,8 @@ export default function FieldInspectorMobile() {
       {/* ─── Decline Reason Modal ────────────────────────────────────────────── */}
       {declineModalItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white dark:bg-slate-900 border border-face-line dark:border-slate-800 rounded-3xl w-full max-w-sm p-5 space-y-4 shadow-2xl">
-            <h3 className="text-sm font-black text-face-ink dark:text-white">
+          <div className="bg-white border border-face-line rounded-3xl w-full max-w-sm p-5 space-y-4 shadow-2xl">
+            <h3 className="text-sm font-black text-face-ink">
               Decline Inspection: {declineModalItem.inspectionNumber}
             </h3>
             <p className="text-xs text-face-muted">
@@ -1254,7 +1254,7 @@ export default function FieldInspectorMobile() {
               onChange={(e) => setDeclineReason(e.target.value)}
               placeholder="Mandatory decline reason..."
               rows={3}
-              className="w-full p-2.5 bg-face-field dark:bg-slate-800 border border-face-line dark:border-slate-700 rounded-xl text-xs text-face-ink dark:text-white focus:outline-hidden"
+              className="w-full p-2.5 bg-face-field border border-face-line rounded-xl text-xs text-face-ink focus:outline-hidden"
             />
             <div className="flex items-center gap-2 justify-end">
               <button
@@ -1280,8 +1280,8 @@ export default function FieldInspectorMobile() {
       {/* ─── Schedule Visit Modal ────────────────────────────────────────────── */}
       {scheduleModalItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white dark:bg-slate-900 border border-face-line dark:border-slate-800 rounded-3xl w-full max-w-sm p-5 space-y-4 shadow-2xl">
-            <h3 className="text-sm font-black text-face-ink dark:text-white">
+          <div className="bg-white border border-face-line rounded-3xl w-full max-w-sm p-5 space-y-4 shadow-2xl">
+            <h3 className="text-sm font-black text-face-ink">
               Schedule Visit: {scheduleModalItem.inspectionNumber}
             </h3>
             <p className="text-xs text-face-muted">
@@ -1291,7 +1291,7 @@ export default function FieldInspectorMobile() {
               type="datetime-local"
               value={scheduledDateTime}
               onChange={(e) => setScheduledDateTime(e.target.value)}
-              className="w-full p-2.5 bg-face-field dark:bg-slate-800 border border-face-line dark:border-slate-700 rounded-xl text-xs font-bold text-face-ink dark:text-white focus:outline-hidden"
+              className="w-full p-2.5 bg-face-field border border-face-line rounded-xl text-xs font-bold text-face-ink focus:outline-hidden"
             />
             <div className="flex items-center gap-2 justify-end">
               <button
@@ -1319,21 +1319,21 @@ export default function FieldInspectorMobile() {
 
       {/* ─── Full-Screen Mobile Survey Stepper Modal ─────────────────────────── */}
       {activeSurveyInspection && (
-        <div className="fixed inset-0 sm:absolute sm:inset-0 z-50 bg-[#F8FAFC] dark:bg-slate-950 flex flex-col overflow-hidden sm:rounded-[44px] animate-fade-in">
+        <div className="fixed inset-0 sm:absolute sm:inset-0 z-50 bg-[#F8FAFC] flex flex-col overflow-hidden sm:rounded-[44px] animate-fade-in">
           {/* Top Wizard Bar */}
-          <div className="bg-white dark:bg-slate-900 border-b border-slate-200/90 dark:border-slate-800 px-4 py-3 shrink-0 shadow-xs">
+          <div className="bg-white border-b border-slate-200/90 px-4 py-3 shrink-0 shadow-xs">
             <div className="flex items-center justify-between pb-2.5">
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setActiveSurveyInspection(null)}
-                  className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                  className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100:bg-slate-800 transition-colors cursor-pointer"
                   title="Close Cockpit"
                 >
                   <X className="w-5 h-5" />
                 </button>
                 <div>
                   <div className="flex items-center gap-1.5">
-                    <span className="font-mono text-xs font-black text-[#17614A] dark:text-emerald-400">
+                    <span className="font-mono text-xs font-black text-[#17614A]">
                       {activeSurveyInspection.inspectionNumber}
                     </span>
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
@@ -1354,18 +1354,18 @@ export default function FieldInspectorMobile() {
                   })
                 }
                 disabled={saveDraftMutation.isPending}
-                className="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
+                className="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition-colors cursor-pointer"
               >
                 {saveDraftMutation.isPending ? "Saving..." : "Save Draft"}
               </button>
             </div>
 
             {/* Quick Section Jump Navigation Pills (Instant Thumb Navigation with Active Highlight) */}
-            <div className="grid grid-cols-3 gap-1.5 pt-1">
+            <div className="grid grid-cols-3 gap-2 pt-1">
               {[
-                { id: "sec-site", label: "01 Site & Gate" },
-                { id: "sec-scopes", label: "02 Scopes & Route" },
-                { id: "sec-evidence", label: "03 Evidence & Sign-Off" },
+                { id: "sec-site", num: "01", label: "Site & Gate" },
+                { id: "sec-scopes", num: "02", label: "Scopes" },
+                { id: "sec-evidence", num: "03", label: "Evidence" },
               ].map((s) => {
                 const isActive = activeSection === s.id;
                 return (
@@ -1373,13 +1373,14 @@ export default function FieldInspectorMobile() {
                     key={s.id}
                     type="button"
                     onClick={() => scrollToSection(s.id)}
-                    className={`py-1.5 px-1 text-center rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer truncate shadow-2xs active:scale-95 ${
+                    className={`py-2 px-1 text-center rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs active:scale-95 flex items-center justify-center gap-1.5 ${
                       isActive
-                        ? "bg-[#17614A] text-white shadow-xs ring-1 ring-[#17614A] border border-[#17614A]"
-                        : "bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200/80 hover:border-slate-300"
+                        ? "bg-[#17614A] text-white font-extrabold shadow-sm ring-2 ring-[#17614A]/25"
+                        : "bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200"
                     }`}
                   >
-                    {s.label}
+                    <span className={`text-[10px] font-black ${isActive ? "text-emerald-200" : "text-slate-400"}`}>{s.num}</span>
+                    <span className="truncate">{s.label}</span>
                   </button>
                 );
               })}
@@ -1391,8 +1392,8 @@ export default function FieldInspectorMobile() {
               <div
                 className={`px-4 py-2 text-xs font-bold flex items-center justify-center gap-1.5 ${
                   surveyFeedback.type === "success"
-                    ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
-                    : "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300"
+                    ? "bg-emerald-100 text-emerald-800"
+                    : "bg-rose-100 text-rose-800"
                 }`}
               >
                 {surveyFeedback.text}
@@ -1407,9 +1408,9 @@ export default function FieldInspectorMobile() {
             >
               {/* ── 01. INSPECTION SITE & GATE COORDINATES ── */}
               <div id="sec-site" className="space-y-3.5 scroll-mt-2">
-                <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-4 space-y-3 shadow-sm">
-                    <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-                      <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white flex items-center gap-1.5">
+                <div className="bg-white border border-slate-200/90 rounded-2xl p-4 space-y-3 shadow-sm">
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                      <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
                         <MapPin className="w-4 h-4 text-emerald-600" />
                         <span>Site Location & Gate Coordinates</span>
                       </h3>
@@ -1423,7 +1424,7 @@ export default function FieldInspectorMobile() {
                       type="button"
                       onClick={handleAutoCaptureGps}
                       disabled={isCapturingGps}
-                      className="w-full py-2.5 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 rounded-xl text-xs font-black flex items-center justify-center gap-2 cursor-pointer shadow-2xs transition-all active:scale-[0.99]"
+                      className="w-full py-2.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-black flex items-center justify-center gap-2 cursor-pointer shadow-2xs transition-all active:scale-[0.99]"
                     >
                       <Compass className={`w-4 h-4 ${isCapturingGps ? "animate-spin text-emerald-600" : ""}`} />
                       <span>{isCapturingGps ? "Capturing Device Coordinates..." : "📍 Capture Live GPS Pin at Gate"}</span>
@@ -1440,7 +1441,7 @@ export default function FieldInspectorMobile() {
                             setSurveyFormData((p) => ({ ...p, latitude: e.target.value ? Number(e.target.value) : null }))
                           }
                           placeholder="25.080000"
-                          className="w-full p-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-[#17614A]/20 focus:border-[#17614A] shadow-2xs"
+                          className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-[#17614A]/20 focus:border-[#17614A] shadow-2xs"
                         />
                       </div>
                       <div>
@@ -1453,7 +1454,7 @@ export default function FieldInspectorMobile() {
                             setSurveyFormData((p) => ({ ...p, longitude: e.target.value ? Number(e.target.value) : null }))
                           }
                           placeholder="48.020000"
-                          className="w-full p-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-[#17614A]/20 focus:border-[#17614A] shadow-2xs"
+                          className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-[#17614A]/20 focus:border-[#17614A] shadow-2xs"
                         />
                       </div>
                     </div>
@@ -1465,7 +1466,7 @@ export default function FieldInspectorMobile() {
                         value={surveyFormData.siteAreaName ?? ""}
                         onChange={(e) => setSurveyFormData((p) => ({ ...p, siteAreaName: e.target.value }))}
                         placeholder="Eastern Province - Khurais Industrial Zone"
-                        className="w-full p-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-[#17614A]/20 focus:border-[#17614A] shadow-2xs"
+                        className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-[#17614A]/20 focus:border-[#17614A] shadow-2xs"
                       />
                     </div>
 
@@ -1476,15 +1477,15 @@ export default function FieldInspectorMobile() {
                         value={surveyFormData.siteAddress ?? ""}
                         onChange={(e) => setSurveyFormData((p) => ({ ...p, siteAddress: e.target.value }))}
                         placeholder="Khurais Main Gate 3, Eastern Province"
-                        className="w-full p-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-[#17614A]/20 focus:border-[#17614A] shadow-2xs"
+                        className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-[#17614A]/20 focus:border-[#17614A] shadow-2xs"
                       />
                     </div>
                   </div>
 
                   {/* Client Contact Rep */}
-                  <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-4 space-y-3 shadow-sm">
-                    <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-                      <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white flex items-center gap-1.5">
+                  <div className="bg-white border border-slate-200/90 rounded-2xl p-4 space-y-3 shadow-sm">
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                      <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
                         <User className="w-4 h-4 text-emerald-600" />
                         <span>Client Plant Contact</span>
                       </h3>
@@ -1501,7 +1502,7 @@ export default function FieldInspectorMobile() {
                           value={surveyFormData.clientRepName ?? ""}
                           onChange={(e) => setSurveyFormData((p) => ({ ...p, clientRepName: e.target.value }))}
                           placeholder="Eng. Mansoor Al-Ghamdi"
-                          className="w-full p-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-[#17614A]/20 focus:border-[#17614A] shadow-2xs"
+                          className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-[#17614A]/20 focus:border-[#17614A] shadow-2xs"
                         />
                       </div>
                       <div>
@@ -1511,7 +1512,7 @@ export default function FieldInspectorMobile() {
                           value={surveyFormData.clientRepPhone ?? ""}
                           onChange={(e) => setSurveyFormData((p) => ({ ...p, clientRepPhone: e.target.value }))}
                           placeholder="+966551234567"
-                          className="w-full p-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-[#17614A]/20 focus:border-[#17614A] shadow-2xs"
+                          className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-[#17614A]/20 focus:border-[#17614A] shadow-2xs"
                         />
                       </div>
                     </div>
@@ -1522,16 +1523,16 @@ export default function FieldInspectorMobile() {
               {/* Thin Phase Divider: 01 Site -> 02 Scopes */}
               <div className="relative py-2 flex items-center justify-center">
                 <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-slate-200 dark:border-slate-800" />
+                  <div className="w-full border-t border-slate-200" />
                 </div>
-                <span className="relative bg-[#F8FAFC] dark:bg-slate-950 px-3 text-[10px] font-black uppercase tracking-wider text-slate-400">
+                <span className="relative bg-[#F8FAFC] px-3 text-[10px] font-black uppercase tracking-wider text-slate-400">
                   Phase 02 • Route &amp; Technical Scopes
                 </span>
               </div>
 
               {/* ── 02. HAULAGE CORRIDOR & TECHNICAL SCOPES ── */}
               <div id="sec-scopes" className="space-y-3.5 scroll-mt-2">
-                <div className="bg-white dark:bg-slate-900 border-2 border-emerald-600/50 rounded-2xl overflow-hidden shadow-xs">
+                <div className="bg-white border-2 border-emerald-600/50 rounded-2xl overflow-hidden shadow-xs">
                   {/* Desktop Mobilization Header Bar */}
                   <div className="bg-[#17614A] text-white px-3.5 py-2.5 flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -1545,12 +1546,12 @@ export default function FieldInspectorMobile() {
 
                     <div className="p-3.5 space-y-3.5">
                       {/* Dual Column Logistics Box (Exact Desktop Design) */}
-                      <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-700/80">
+                      <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-200/80">
                         <div>
                           <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
                             Base / Distance
                           </span>
-                          <span className="font-extrabold text-slate-900 dark:text-white block mt-0.5 text-sm">
+                          <span className="font-extrabold text-slate-900 block mt-0.5 text-sm">
                             {surveyFormData.baseToSiteStraightKm || 24} km
                           </span>
                           <span className="text-[10px] text-slate-500 truncate block">
@@ -1562,7 +1563,7 @@ export default function FieldInspectorMobile() {
                           <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
                             Roundtrip Cycle
                           </span>
-                          <span className="font-extrabold text-slate-900 dark:text-white block mt-0.5 text-sm">
+                          <span className="font-extrabold text-slate-900 block mt-0.5 text-sm">
                             {surveyFormData.totalCycleKm || 48} km
                           </span>
                           <span className="text-[10px] text-slate-500 block">
@@ -1572,7 +1573,7 @@ export default function FieldInspectorMobile() {
                       </div>
 
                       <div>
-                        <label className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block mb-1 tracking-wider">
+                        <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1 tracking-wider">
                           Origin Operations Hub <span className="text-rose-500">*</span>
                         </label>
                         <select
@@ -1585,7 +1586,7 @@ export default function FieldInspectorMobile() {
                               baseName: b?.name || "",
                             }));
                           }}
-                          className="w-full p-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-900 dark:text-white focus:ring-2 focus:ring-[#17614A]/15 focus:border-[#17614A] shadow-2xs cursor-pointer"
+                          className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-[#17614A]/15 focus:border-[#17614A] shadow-2xs cursor-pointer"
                         >
                           <option value="">Select Base...</option>
                           {bases.map((b) => (
@@ -1596,39 +1597,40 @@ export default function FieldInspectorMobile() {
                         </select>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-2.5">
-                        <div>
-                          <label className="text-[10px] uppercase font-extrabold text-emerald-900 dark:text-emerald-300 block mb-1 tracking-wider">
-                            One-Way Distance <span className="text-rose-500">*</span>
-                          </label>
-                          <div className="relative">
-                            <input
-                              type="number"
-                              step="0.1"
-                              min="0"
-                              value={surveyFormData.baseToSiteStraightKm ?? 24}
-                              onChange={(e) =>
-                                setSurveyFormData((p) => ({
-                                  ...p,
-                                  baseToSiteStraightKm: Number(e.target.value),
-                                  totalCycleKm: Number(e.target.value) * 2,
-                                  estFuelLitres: Math.round(Number(e.target.value) * 2 * 0.35),
-                                }))
-                              }
-                              className="w-full text-center text-xl font-black font-mono py-2 bg-white dark:bg-slate-800 border-2 border-emerald-500/60 rounded-xl text-emerald-950 dark:text-emerald-100 focus:ring-2 focus:ring-[#17614A]/15 focus:border-[#17614A]"
-                            />
-                            <span className="absolute right-2.5 top-2.5 text-[10px] font-black text-emerald-600">
-                              KM
-                            </span>
-                          </div>
+                      <div>
+                        <label className="text-[10px] uppercase font-extrabold text-emerald-900 block mb-1 tracking-wider">
+                          One-Way Distance <span className="text-rose-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            value={surveyFormData.baseToSiteStraightKm ?? 24}
+                            onChange={(e) =>
+                              setSurveyFormData((p) => ({
+                                ...p,
+                                baseToSiteStraightKm: Number(e.target.value),
+                                totalCycleKm: Number(e.target.value) * 2,
+                                estFuelLitres: Math.round(Number(e.target.value) * 2 * 0.35),
+                              }))
+                            }
+                            className="w-full text-center text-xl font-black font-mono py-2.5 bg-white border-2 border-emerald-500/60 rounded-xl text-emerald-950 focus:ring-2 focus:ring-[#17614A]/15 focus:border-[#17614A]"
+                          />
+                          <span className="absolute right-3 top-3 text-xs font-black text-emerald-700">
+                            KM
+                          </span>
                         </div>
+                      </div>
 
-                        <div>
-                          <label className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block mb-1 tracking-wider">
-                            Corridor Condition
-                          </label>
-                          <div className="grid grid-cols-3 gap-1">
-                            {(["Good", "Fair", "Poor"] as const).map((r) => (
+                      <div>
+                        <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1.5 tracking-wider">
+                          Corridor Road Condition
+                        </label>
+                        <div className="grid grid-cols-3 gap-2">
+                          {(["Good", "Fair", "Poor"] as const).map((r) => {
+                            const isSelected = (surveyFormData.mobilizationRoute || "").includes(r);
+                            return (
                               <button
                                 key={r}
                                 type="button"
@@ -1638,17 +1640,21 @@ export default function FieldInspectorMobile() {
                                     mobilizationRoute: p.mobilizationRoute ? `${p.mobilizationRoute} (${r} corridor)` : `${r} corridor`,
                                   }))
                                 }
-                                className="py-2 text-[10px] font-black rounded-lg border bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 hover:bg-slate-50 transition-all cursor-pointer"
+                                className={`py-2.5 text-xs font-bold rounded-xl border transition-all cursor-pointer ${
+                                  isSelected
+                                    ? "bg-[#17614A] text-white border-[#17614A] shadow-xs font-black ring-1 ring-[#17614A]"
+                                    : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                                }`}
                               >
                                 {r}
                               </button>
-                            ))}
-                          </div>
+                            );
+                          })}
                         </div>
                       </div>
 
                       <div>
-                        <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
                           Base → Site Logistics Corridor & Notes
                         </label>
                         <textarea
@@ -1656,11 +1662,11 @@ export default function FieldInspectorMobile() {
                           onChange={(e) => setSurveyFormData((p) => ({ ...p, mobilizationRoute: e.target.value }))}
                           placeholder="Highway 613 paved dual carriageway. Security checkpoint at Gate #3 requires Aramco badge."
                           rows={2}
-                          className="w-full p-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-[#17614A]/15 focus:border-[#17614A] shadow-2xs"
+                          className="w-full p-2 bg-white border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:ring-2 focus:ring-[#17614A]/15 focus:border-[#17614A] shadow-2xs"
                         />
                       </div>
 
-                      <div className="pt-2 border-t border-emerald-500/20 text-[10px] text-emerald-800 dark:text-emerald-300 font-bold flex items-center gap-1.5">
+                      <div className="pt-2 border-t border-emerald-500/20 text-[10px] text-emerald-800 font-bold flex items-center gap-1.5">
                         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                         <span>Verified Heavy Mobilization Transport Corridor</span>
                       </div>
@@ -1668,12 +1674,12 @@ export default function FieldInspectorMobile() {
                   </div>
 
                   {/* Top Scope Summary Bar (Exact Desktop Header) */}
-                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3 flex items-center justify-between shadow-2xs">
+                  <div className="bg-white border border-slate-200 rounded-2xl p-3 flex items-center justify-between shadow-2xs">
                     <div>
                       <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">
                         RFQ Scope Services
                       </span>
-                      <span className="text-xs font-black text-slate-900 dark:text-white">
+                      <span className="text-xs font-black text-slate-900">
                         HAULAGE DISTANCE INPUTS (KM)
                       </span>
                     </div>
@@ -1694,7 +1700,7 @@ export default function FieldInspectorMobile() {
                           headerBg: "bg-[#78350F]",
                           badgeBg: "bg-amber-800/80",
                           buttonActive: "bg-[#78350F] text-white border-[#78350F]",
-                          accentText: "text-amber-900 dark:text-amber-300",
+                          accentText: "text-amber-900",
                           icon: "💧",
                           title: "SEWAGE WASTE",
                           facilityLabel: "Approved STP Treatment Facility",
@@ -1707,7 +1713,7 @@ export default function FieldInspectorMobile() {
                           headerBg: "bg-[#1D4ED8]",
                           badgeBg: "bg-blue-800/80",
                           buttonActive: "bg-[#1D4ED8] text-white border-[#1D4ED8]",
-                          accentText: "text-blue-900 dark:text-blue-300",
+                          accentText: "text-blue-900",
                           icon: "📦",
                           title: "GENERAL WASTE",
                           facilityLabel: "Approved Landfill / Transfer Stn",
@@ -1719,7 +1725,7 @@ export default function FieldInspectorMobile() {
                           headerBg: "bg-[#991B1B]",
                           badgeBg: "bg-rose-800/80",
                           buttonActive: "bg-[#991B1B] text-white border-[#991B1B]",
-                          accentText: "text-rose-900 dark:text-rose-300",
+                          accentText: "text-rose-900",
                           icon: "☣️",
                           title: "HAZARDOUS WASTE",
                           facilityLabel: "Certified Hazmat Complex",
@@ -1731,14 +1737,14 @@ export default function FieldInspectorMobile() {
                         key={svc.serviceType}
                         className={`border-2 rounded-2xl overflow-hidden shadow-xs transition-all ${
                           svc.isActive
-                            ? `${theme.border} ${theme.bg} bg-white dark:bg-slate-900`
-                            : "border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/40 opacity-70"
+                            ? `${theme.border} ${theme.bg} bg-white`
+                            : "border-slate-200 bg-slate-50/60 opacity-70"
                         }`}
                       >
                         {/* Desktop-Style Solid Colored Header Banner */}
                         <div
                           className={`px-3.5 py-2.5 flex items-center justify-between text-white transition-colors ${
-                            svc.isActive ? theme.headerBg : "bg-slate-300 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
+                            svc.isActive ? theme.headerBg : "bg-slate-300 text-slate-700"
                           }`}
                         >
                           <div className="flex items-center gap-2">
@@ -1757,7 +1763,7 @@ export default function FieldInspectorMobile() {
                               className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase cursor-pointer transition-all ${
                                 svc.isActive
                                   ? "bg-white/20 text-white hover:bg-white/30"
-                                  : "bg-slate-400/80 dark:bg-slate-700 text-white"
+                                  : "bg-slate-400/80 text-white"
                               }`}
                             >
                               {svc.isActive ? "ACTIVE" : "INACTIVE"}
@@ -1782,10 +1788,10 @@ export default function FieldInspectorMobile() {
 
                         {/* Card Body if Scope is Active */}
                         {svc.isActive ? (
-                          <div className="p-3.5 space-y-3 bg-white dark:bg-slate-900">
+                          <div className="p-3.5 space-y-3 bg-white">
                             {/* Disposal Facility Dropdown */}
                             <div>
-                              <label className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block mb-1 tracking-wider">
+                              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1 tracking-wider">
                                 {theme.facilityLabel} <span className="text-rose-500">*</span>
                               </label>
                               <select
@@ -1800,7 +1806,7 @@ export default function FieldInspectorMobile() {
                                   };
                                   setSurveyServices(updated);
                                 }}
-                                className="w-full p-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-900 dark:text-white focus:ring-2 focus:ring-[#17614A]/15 focus:border-[#17614A] shadow-2xs cursor-pointer"
+                                className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-[#17614A]/15 focus:border-[#17614A] shadow-2xs cursor-pointer"
                               >
                                 <option value="">{theme.facilityPlaceholder}</option>
                                 {facilities
@@ -1813,8 +1819,8 @@ export default function FieldInspectorMobile() {
                               </select>
                             </div>
 
-                            {/* Distance KM Stepper & Approach Road Condition (Exact Desktop Cards) */}
-                            <div className="grid grid-cols-2 gap-2.5">
+                            {/* Haulage to Discharge & Volume Row */}
+                            <div className="grid grid-cols-2 gap-3">
                               <div>
                                 <label className={`text-[10px] uppercase font-extrabold ${theme.accentText} block mb-1 tracking-wider`}>
                                   Haulage to Discharge <span className="text-rose-500">*</span>
@@ -1834,7 +1840,7 @@ export default function FieldInspectorMobile() {
                                       setSurveyServices(updated);
                                     }}
                                     placeholder="25.0"
-                                    className="w-full text-center text-xl font-black font-mono py-2 bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:ring-2 focus:ring-[#17614A]/15 focus:border-[#17614A]"
+                                    className="w-full text-center text-xl font-black font-mono py-2 bg-white border-2 border-slate-300 rounded-xl text-slate-900 focus:ring-2 focus:ring-[#17614A]/15 focus:border-[#17614A]"
                                   />
                                   <span className="absolute right-2.5 top-2.5 text-[10px] font-black text-slate-400">
                                     KM
@@ -1843,79 +1849,74 @@ export default function FieldInspectorMobile() {
                               </div>
 
                               <div>
-                                <label className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block mb-1 tracking-wider">
-                                  Approach Road
+                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                                  Est. Volume
                                 </label>
-                                <div className="grid grid-cols-3 gap-1">
-                                  {(["Good", "Fair", "Poor"] as const).map((r) => (
-                                    <button
-                                      key={r}
-                                      type="button"
-                                      onClick={() => {
-                                        const updated = [...surveyServices];
-                                        updated[idx] = { ...svc, roadCondition: r };
-                                        setSurveyServices(updated);
-                                      }}
-                                      className={`py-2 text-[10px] font-black rounded-lg border transition-all cursor-pointer ${
-                                        svc.roadCondition === r
-                                          ? `${theme.buttonActive} shadow-xs`
-                                          : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50"
-                                      }`}
-                                    >
-                                      {r}
-                                    </button>
-                                  ))}
+                                <div className="flex gap-1.5">
+                                  <input
+                                    type="number"
+                                    value={svc.estimatedVolume ?? 50}
+                                    onChange={(e) => {
+                                      const updated = [...surveyServices];
+                                      updated[idx] = {
+                                        ...svc,
+                                        estimatedVolume: e.target.value ? Number(e.target.value) : null,
+                                      };
+                                      setSurveyServices(updated);
+                                    }}
+                                    placeholder="50"
+                                    className="w-16 p-2 text-center bg-white border border-slate-300 rounded-xl text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-[#17614A]/15 focus:border-[#17614A] shadow-2xs"
+                                  />
+                                  <select
+                                    value={svc.volumeUnit ?? "m3"}
+                                    onChange={(e) => {
+                                      const updated = [...surveyServices];
+                                      updated[idx] = { ...svc, volumeUnit: e.target.value as any };
+                                      setSurveyServices(updated);
+                                    }}
+                                    className="flex-1 min-w-0 p-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-[#17614A]/15 focus:border-[#17614A] shadow-2xs cursor-pointer"
+                                  >
+                                    <option value="m3">m³</option>
+                                    <option value="L">Liters</option>
+                                    <option value="ton">Tons</option>
+                                    <option value="Tanker Loads">Loads</option>
+                                    <option value="Compactor Bins">Bins</option>
+                                    <option value="IBC Totes">Totes</option>
+                                  </select>
                                 </div>
                               </div>
                             </div>
 
-                            {/* Volume & Unit Inputs */}
-                            <div className="grid grid-cols-2 gap-2.5">
-                              <div>
-                                <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1">
-                                  Est. Volume / Capacity
-                                </label>
-                                <input
-                                  type="number"
-                                  value={svc.estimatedVolume ?? 50}
-                                  onChange={(e) => {
-                                    const updated = [...surveyServices];
-                                    updated[idx] = {
-                                      ...svc,
-                                      estimatedVolume: e.target.value ? Number(e.target.value) : null,
-                                    };
-                                    setSurveyServices(updated);
-                                  }}
-                                  placeholder="50"
-                                  className="w-full p-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-[#17614A]/15 focus:border-[#17614A] shadow-2xs"
-                                />
-                              </div>
-                              <div>
-                                <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1">
-                                  Volume Unit
-                                </label>
-                                <select
-                                  value={svc.volumeUnit ?? "m3"}
-                                  onChange={(e) => {
-                                    const updated = [...surveyServices];
-                                    updated[idx] = { ...svc, volumeUnit: e.target.value as any };
-                                    setSurveyServices(updated);
-                                  }}
-                                  className="w-full p-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-900 dark:text-white focus:ring-2 focus:ring-[#17614A]/15 focus:border-[#17614A] shadow-2xs cursor-pointer"
-                                >
-                                  <option value="m3">m³ (Cubic Meters)</option>
-                                  <option value="L">Liters</option>
-                                  <option value="ton">Tons</option>
-                                  <option value="Tanker Loads">Tanker Loads</option>
-                                  <option value="Compactor Bins">Compactor Bins</option>
-                                  <option value="IBC Totes">IBC Totes</option>
-                                </select>
+                            {/* Approach Road Condition - Dedicated Full-Width Row */}
+                            <div>
+                              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1.5 tracking-wider">
+                                Approach Road Condition
+                              </label>
+                              <div className="grid grid-cols-3 gap-2">
+                                {(["Good", "Fair", "Poor"] as const).map((r) => (
+                                  <button
+                                    key={r}
+                                    type="button"
+                                    onClick={() => {
+                                      const updated = [...surveyServices];
+                                      updated[idx] = { ...svc, roadCondition: r };
+                                      setSurveyServices(updated);
+                                    }}
+                                    className={`py-2.5 text-xs font-bold rounded-xl border transition-all cursor-pointer ${
+                                      svc.roadCondition === r
+                                        ? `${theme.buttonActive} shadow-xs font-black ring-1 ring-current`
+                                        : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                                    }`}
+                                  >
+                                    {r}
+                                  </button>
+                                ))}
                               </div>
                             </div>
 
                             {/* Approach Logistics Note */}
                             <div>
-                              <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1">
+                              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
                                 Approach Logistics Note
                               </label>
                               <input
@@ -1927,12 +1928,12 @@ export default function FieldInspectorMobile() {
                                   setSurveyServices(updated);
                                 }}
                                 placeholder="e.g. Vacuum tanker access; Gate 2"
-                                className="w-full p-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-[#17614A]/15 focus:border-[#17614A] shadow-2xs"
+                                className="w-full p-2 bg-white border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:ring-2 focus:ring-[#17614A]/15 focus:border-[#17614A] shadow-2xs"
                               />
                             </div>
                           </div>
                         ) : (
-                          <div className="p-3 text-center bg-slate-50/50 dark:bg-slate-900/30">
+                          <div className="p-3 text-center bg-slate-50/50">
                             <span className="text-[11px] font-semibold text-slate-400">
                               Tap switch or "INACTIVE" button above to activate this scope
                             </span>
@@ -1943,7 +1944,7 @@ export default function FieldInspectorMobile() {
                   })}
 
                   {/* Aggregate Haulage Metrics Bar (Exact Desktop Bottom Inset) */}
-                  <div className="bg-slate-50 dark:bg-slate-900/80 rounded-2xl p-3 border border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs shadow-2xs">
+                  <div className="bg-slate-50 rounded-2xl p-3 border border-slate-200 flex items-center justify-between text-xs shadow-2xs">
                     <div className="flex items-center gap-2">
                       <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase bg-emerald-100 text-[#17614A] border border-emerald-300">
                         {surveyServices.filter((s) => s.isActive).length} of 3 Scopes Active
@@ -1953,7 +1954,7 @@ export default function FieldInspectorMobile() {
                       <span className="text-[9px] uppercase font-bold text-slate-400 block tracking-wider">
                         Roundtrip Cycle & Fuel
                       </span>
-                      <span className="font-extrabold text-slate-900 dark:text-white text-xs">
+                      <span className="font-extrabold text-slate-900 text-xs">
                         {surveyFormData.totalCycleKm || 198} km · ~{surveyFormData.estFuelLitres || 79.2}L Diesel
                       </span>
                     </div>
@@ -1964,18 +1965,18 @@ export default function FieldInspectorMobile() {
               {/* Thin Phase Divider: 02 Scopes -> 03 Evidence */}
               <div className="relative py-2 flex items-center justify-center">
                 <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-slate-200 dark:border-slate-800" />
+                  <div className="w-full border-t border-slate-200" />
                 </div>
-                <span className="relative bg-[#F8FAFC] dark:bg-slate-950 px-3 text-[10px] font-black uppercase tracking-wider text-slate-400">
+                <span className="relative bg-[#F8FAFC] px-3 text-[10px] font-black uppercase tracking-wider text-slate-400">
                   Phase 03 • Evidence &amp; Sign-Off
                 </span>
               </div>
 
               {/* ── 03. FIELD OBSERVATIONS, EVIDENCE & SIGN-OFF ── */}
               <div id="sec-evidence" className="space-y-3.5 scroll-mt-2">
-                <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-4 space-y-3 shadow-sm">
-                    <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-                      <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white flex items-center gap-1.5">
+                <div className="bg-white border border-slate-200/90 rounded-2xl p-4 space-y-3 shadow-sm">
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                      <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
                         <Camera className="w-4 h-4 text-emerald-600" />
                         <span>On-Site Photographic Evidence</span>
                       </h3>
@@ -1998,7 +1999,7 @@ export default function FieldInspectorMobile() {
                             className={`px-3 py-1 rounded-xl text-[10px] font-bold shrink-0 cursor-pointer transition-all ${
                               selectedPhotoTag === tag
                                 ? "bg-[#17614A] text-white shadow-xs"
-                                : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200"
+                                : "bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200"
                             }`}
                           >
                             {tag}
@@ -2030,7 +2031,7 @@ export default function FieldInspectorMobile() {
                       <button
                         type="button"
                         onClick={handleAddDemoPhoto}
-                        className="py-3 px-2 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition-all active:scale-95"
+                        className="py-3 px-2 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-800 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition-all active:scale-95"
                       >
                         <span>📸 Add Sample Photo</span>
                       </button>
@@ -2038,8 +2039,8 @@ export default function FieldInspectorMobile() {
 
                     {/* Offline Queue Sync Indicator */}
                     {offlinePhotos.length > 0 && (
-                      <div className="flex items-center justify-between p-2.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl text-xs">
-                        <span className="font-bold text-amber-800 dark:text-amber-300">
+                      <div className="flex items-center justify-between p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-xs">
+                        <span className="font-bold text-amber-800">
                           📦 {offlinePhotos.length} photo(s) stored in offline cache
                         </span>
                         <button
@@ -2059,7 +2060,7 @@ export default function FieldInspectorMobile() {
                       {(activeSurveyInspection.attachments || []).map((att) => (
                         <div
                           key={att.id}
-                          className="relative rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-900 overflow-hidden aspect-square flex flex-col justify-end p-2 text-[9px] font-bold text-white shadow-xs"
+                          className="relative rounded-xl border border-slate-200 bg-slate-900 overflow-hidden aspect-square flex flex-col justify-end p-2 text-[9px] font-bold text-white shadow-xs"
                         >
                           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent z-10" />
                           <span className="relative z-20 truncate">{att.tag || att.fileName}</span>
@@ -2080,8 +2081,8 @@ export default function FieldInspectorMobile() {
                   </div>
 
                   {/* Field Notes Textarea */}
-                  <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-4 space-y-2 shadow-sm">
-                    <label className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white block">
+                  <div className="bg-white border border-slate-200/90 rounded-2xl p-4 space-y-2 shadow-sm">
+                    <label className="text-xs font-black uppercase tracking-wider text-slate-900 block">
                       Site Observations &amp; Operational Constraints
                     </label>
                     <textarea
@@ -2089,12 +2090,12 @@ export default function FieldInspectorMobile() {
                       onChange={(e) => setSurveyFormData((p) => ({ ...p, observations: e.target.value }))}
                       placeholder="Access road is paved. Ground compaction verified >=150 kPa. Gate entrance requires visitor badge."
                       rows={2}
-                      className="w-full p-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-[#17614A]/20 focus:border-[#17614A] shadow-2xs"
+                      className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:ring-2 focus:ring-[#17614A]/20 focus:border-[#17614A] shadow-2xs"
                     />
                   </div>
 
                   {/* Operational Constraints Quick Selection (Exact Desktop Section 03 Tags) */}
-                  <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-3.5 space-y-3 shadow-2xs">
+                  <div className="bg-white border border-slate-200/90 rounded-2xl p-3.5 space-y-3 shadow-2xs">
                     <div>
                       <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1.5">
                         Permits &amp; Safety (PTW)
@@ -2122,7 +2123,7 @@ export default function FieldInspectorMobile() {
                               className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer flex items-center gap-1 ${
                                 isSelected
                                   ? "bg-[#17614A] text-white border-[#17614A] shadow-xs"
-                                  : "bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100"
+                                  : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
                               }`}
                             >
                               <span>{isSelected ? "✓" : "+"}</span>
@@ -2160,7 +2161,7 @@ export default function FieldInspectorMobile() {
                               className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer flex items-center gap-1 ${
                                 isSelected
                                   ? "bg-[#17614A] text-white border-[#17614A] shadow-xs"
-                                  : "bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100"
+                                  : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
                               }`}
                             >
                               <span>{isSelected ? "✓" : "+"}</span>
@@ -2173,14 +2174,14 @@ export default function FieldInspectorMobile() {
                   </div>
 
                   {/* Joint Field Verification Sign-off Checkbox */}
-                  <label className="flex items-start gap-2.5 p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-[10px] text-slate-600 dark:text-slate-300 cursor-pointer">
+                  <label className="flex items-start gap-2.5 p-3 bg-slate-50 border border-slate-200 rounded-xl text-[10px] text-slate-600 cursor-pointer">
                     <input type="checkbox" defaultChecked className="mt-0.5 rounded accent-[#17614A]" />
                     <span>I confirm and certify that all site inspection information, GPS coordinates, haulage distances, and waste specifications provided herein are accurate and reflect real ground conditions.</span>
                   </label>
 
                   {/* Validation Checklist / Errors */}
                   {completenessErrors.length > 0 && (
-                    <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-2xl text-xs text-rose-800 dark:text-rose-200 space-y-1">
+                    <div className="p-3 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-800 space-y-1">
                       <div className="flex items-center gap-1.5 font-black">
                         <AlertCircle className="w-4 h-4 text-rose-600" />
                         <span>Required items before submission:</span>
@@ -2195,7 +2196,7 @@ export default function FieldInspectorMobile() {
                 </div>
               </div>
 
-            <div className="bg-white dark:bg-slate-900 border-t border-slate-200/90 dark:border-slate-800 p-3.5 flex items-center gap-2.5 shrink-0 shadow-lg">
+            <div className="bg-white border-t border-slate-200/90 p-3.5 flex items-center gap-2.5 shrink-0 shadow-lg">
               <button
                 type="button"
                 onClick={() =>
@@ -2205,7 +2206,7 @@ export default function FieldInspectorMobile() {
                   })
                 }
                 disabled={saveDraftMutation.isPending}
-                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
               >
                 <span>{saveDraftMutation.isPending ? "Saving..." : "Save Draft"}</span>
               </button>
