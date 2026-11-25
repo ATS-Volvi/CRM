@@ -25,6 +25,7 @@ import { SiteInspectionCard, useLeadSiteInspection } from "../components/SiteIns
 import { getStatusStyle } from "../lib/siteInspection";
 import { ContactCustomerModal } from "../components/ContactCustomerModal";
 import { SiteInspectionAuditGateModal } from "../components/SiteInspectionAuditGateModal";
+import { LeadRequirementModal } from "../components/LeadRequirementModal";
 
 export default function LeadDetail() {
   const { id } = useParams();
@@ -58,6 +59,7 @@ export default function LeadDetail() {
   const [statusErrorMessage, setStatusErrorMessage] = useState<string | null>(null);
   const [isContactModalOpen, setIsContactModalOpen] = useState(() => searchParams.get("contact") === "true" || searchParams.get("openCallGuide") === "true");
   const [isGateModalOpen, setIsGateModalOpen] = useState(false);
+  const [isRequirementModalOpen, setIsRequirementModalOpen] = useState(false);
   const [isSubmittingContact, setIsSubmittingContact] = useState(false);
   const { gate, inspection, requestInspection } = useLeadSiteInspection(id);
 
@@ -1024,7 +1026,7 @@ export default function LeadDetail() {
                   }
                   return;
                 }
-                if (stage.key === "QUALIFIED" || stage.key === "CONVERTED") {
+                if (stage.key === "QUALIFIED") {
                   if (requiresSiteInspection && (!inspection || inspection.status !== "APPROVED")) {
                     setIsGateModalOpen(true);
                     return;
@@ -1034,6 +1036,13 @@ export default function LeadDetail() {
                     setIsGateModalOpen(true);
                     return;
                   }
+                  // Mandatory: Pre-sales rep fills in requirements in pop-up to qualify
+                  setIsRequirementModalOpen(true);
+                  return;
+                }
+                if (stage.key === "CONVERTED") {
+                  setIsConversionModalOpen(true);
+                  return;
                 }
                 setStatusErrorMessage(null);
                 updateStatusMutation.mutate(stage.key);
@@ -2634,6 +2643,21 @@ export default function LeadDetail() {
             queryClient.invalidateQueries({ queryKey: ["lead", id] });
             queryClient.invalidateQueries({ queryKey: ["lead-site-inspection", id] });
             setGateBlockedBanner(null);
+          }}
+        />
+      )}
+
+      {/* Mandatory Customer Requirements Documentation Modal to Qualify */}
+      {lead && (
+        <LeadRequirementModal
+          isOpen={isRequirementModalOpen}
+          onClose={() => setIsRequirementModalOpen(false)}
+          lead={lead}
+          token={token}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ["lead", id] });
+            queryClient.invalidateQueries({ queryKey: ["leadActivities", id] });
+            queryClient.invalidateQueries({ queryKey: ["leads"] });
           }}
         />
       )}

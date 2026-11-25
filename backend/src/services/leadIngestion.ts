@@ -333,7 +333,7 @@ export async function ingestLead(rawPayload: LeadPayload) {
           leadId: leadId,
           customerId: account ? (account as any).id : null,
           outcome: "Possible Duplicate Lead Detected",
-          notes: `Possible duplicate of lead ${duplicateLead.leadNumber} (matched by phone: ${payload.phone})`,
+          notes: `Possible duplicate of lead ${duplicateLead.leadNumber || duplicateLead.company || duplicateLead.id.slice(0, 8)} (matched by phone: ${payload.phone})`,
           mentioned_user_ids: "[]",
           pinned: true,
           isCompleted: true,
