@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Sparkles,
   RefreshCw,
@@ -12,7 +12,15 @@ import {
   Phone,
   CheckCircle2,
   AlertTriangle,
-  Bot
+  Bot,
+  Check,
+  Wrench,
+  Droplets,
+  Truck,
+  Building2,
+  Save,
+  FileCheck2,
+  HelpCircle
 } from "lucide-react";
 import { apiClient } from "../lib/apiClient";
 
@@ -65,8 +73,87 @@ export const LeadIntelligenceHub: React.FC<LeadIntelligenceHubProps> = ({
   onLogCallClick,
   className = ""
 }) => {
+  const queryClient = useQueryClient();
   const [internalTab, setInternalTab] = useState<IntelligenceTab>("scope");
   const currentTab = externalTab !== undefined ? externalTab : internalTab;
+
+  // Selected technical scoping chips for zero-callback discovery
+  const [selectedSpecs, setSelectedSpecs] = useState<string[]>([]);
+  const [customDiscoveryNotes, setCustomDiscoveryNotes] = useState<string>("");
+  const [isSavingSpecs, setIsSavingSpecs] = useState<boolean>(false);
+  const [specsSavedFeedback, setSpecsSavedFeedback] = useState<boolean>(false);
+
+  const toggleSpecChip = (spec: string) => {
+    setSelectedSpecs((prev) =>
+      prev.includes(spec) ? prev.filter((s) => s !== spec) : [...prev, spec]
+    );
+  };
+
+  const handleSaveDiscoverySpecs = async () => {
+    if (!leadId) return;
+    setIsSavingSpecs(true);
+    try {
+      const divisionLabels: Record<string, string> = {
+        industrial_hydrojetting: "Industrial Services & High-Pressure Hydrojetting (40,000 PSI)",
+        wms_waste_management: "Waste Management Solutions (WMS - NCEC HazMat & Recycling)",
+        heavy_equipment: "Heavy & Light Equipment Rental (Cranes, Super Suckers, Rig Fleet)",
+        tcf_modular_camp: "Temporary Construction Facilities (TCF & Modular Units)",
+        industrial_chem_tank: "Chemical Cleaning & Industrial Tank Decon"
+      };
+
+      const facilityLabels: Record<string, string> = {
+        aramco_restricted: "Saudi Aramco Facility (Restricted Zone - 48h Advance Pass)",
+        sabic_rcjy: "SABIC / Royal Commission (Jubail / Yanbu - EHS Badge Mandated)",
+        modon_industrial: "MODON Industrial City / Secondary Zone",
+        neom_remote: "NEOM / Red Sea / Remote Project Site (Self-Sustained Dispatch)",
+        commercial_open: "Commercial / Municipal Infrastructure"
+      };
+
+      const urgencyLabels: Record<string, string> = {
+        emergency_shutdown: "Emergency Outage (< 24h Rapid Mobilization)",
+        scheduled_tam: "Scheduled Turnaround / TAM (2–4 Weeks Notice)",
+        recurring_contract: "Ongoing Operations (Monthly / Annual Framework)",
+        spot_project: "Spot Job / Pre-Commissioning Phase"
+      };
+
+      const divisionName = divisionLabels[discoveryService] || discoveryService;
+      const facilityName = facilityLabels[discoveryFacility] || discoveryFacility;
+      const urgencyName = urgencyLabels[discoveryUrgency] || discoveryUrgency;
+
+      const lines = [
+        `📋 **5-MIN DISCOVERY CALL TECHNICAL SPECIFICATIONS**`,
+        `• **Service Division:** ${divisionName}`,
+        `• **Plant Access & Permits:** ${facilityName}`,
+        `• **Mobilization Window:** ${urgencyName}`,
+        `• **Verified Protocols:** SOW/MSDS Verified: ${discoverySowCheck ? "YES" : "NO"} | Site Utilities Verified: ${discoveryUtilitiesCheck ? "YES" : "NO"}`,
+        "",
+        `🔍 **Engineering & Operational Scoping (Zero-Callback Parameters):**`,
+        selectedSpecs.length > 0
+          ? selectedSpecs.map((s) => `  - [✓] ${s}`).join("\n")
+          : "  - Standard commercial catalogue specifications apply",
+        ""
+      ];
+
+      if (customDiscoveryNotes.trim()) {
+        lines.push(`📝 **Client Specific Notes & Additional Requirements:**\n${customDiscoveryNotes.trim()}`);
+      }
+
+      await apiClient.post(`/api/v1/leads/${leadId}/activities`, {
+        type: "note",
+        title: `Discovery Specs: ${divisionName.split("(")[0].trim()}`,
+        notes: lines.join("\n")
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["leadActivities", leadId] });
+      queryClient.invalidateQueries({ queryKey: ["lead", leadId] });
+      setSpecsSavedFeedback(true);
+      setTimeout(() => setSpecsSavedFeedback(false), 4000);
+    } catch (err: any) {
+      alert("Error saving discovery specifications: " + (err.message || "Failed to save specs"));
+    } finally {
+      setIsSavingSpecs(false);
+    }
+  };
 
   const handleTabSelect = (tab: IntelligenceTab) => {
     if (onTabChange) {
@@ -260,10 +347,11 @@ export const LeadIntelligenceHub: React.FC<LeadIntelligenceHubProps> = ({
               </span>
             </div>
             <span className="text-[10px] text-amber-700 dark:text-amber-400 font-medium hidden sm:inline">
-              Verify division, gate clearances &amp; readiness
+              Zero-Callback Verification • Technical Scope, Gate Access &amp; Fleet Readiness
             </span>
           </div>
 
+          {/* 3 Top-Level Gatekeeping Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {/* Question 1: Service Division */}
             <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-amber-200/70 dark:border-amber-800/50 space-y-1.5 shadow-2xs">
@@ -275,18 +363,18 @@ export const LeadIntelligenceHub: React.FC<LeadIntelligenceHubProps> = ({
                 onChange={(e: any) => setDiscoveryService(e.target.value)}
                 className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-1.5 text-xs text-slate-900 dark:text-white font-medium"
               >
-                <option value="industrial_hydrojetting">Industrial • UHP Hydrojetting (15k–40k PSI)</option>
-                <option value="industrial_chem_tank">Industrial • Chemical Cleaning &amp; Decon</option>
-                <option value="wms_waste_management">Waste Management • Hazardous Sludge (WMS)</option>
-                <option value="tcf_modular_camp">Modular • Camp Cabins &amp; Toilets (TCF)</option>
-                <option value="heavy_equipment">Heavy Equipment • Cranes &amp; Vacuum Fleet</option>
+                <option value="industrial_hydrojetting">Industrial Services &amp; High-Pressure Hydrojetting (40,000 PSI)</option>
+                <option value="wms_waste_management">Waste Management Solutions (WMS - NCEC HazMat &amp; Recycling)</option>
+                <option value="heavy_equipment">Heavy &amp; Light Equipment Rental (Cranes, Super Suckers, Rig Fleet)</option>
+                <option value="tcf_modular_camp">Temporary Construction Facilities (TCF &amp; Modular Units)</option>
+                <option value="industrial_chem_tank">Chemical Cleaning &amp; Industrial Tank Decon</option>
               </select>
               <p className="text-[10px] text-slate-600 dark:text-slate-400 leading-tight">
                 {discoveryService === "industrial_hydrojetting" && "➔ Hydrojetting: Confirm line diameter, scale hardness & water point (40k PSI certified lance)."}
-                {discoveryService === "industrial_chem_tank" && "➔ Chemical / Decon: Verify metallurgy, volume & H₂S purge standards."}
-                {discoveryService === "wms_waste_management" && "➔ WMS Sludge: Confirm waste classification (Hazardous/RCJY) & manifest."}
+                {discoveryService === "wms_waste_management" && "➔ WMS Sludge: Confirm waste classification (Hazardous/RCJY) & NCEC manifest."}
+                {discoveryService === "heavy_equipment" && "➔ Heavy Equipment: Confirm load tonnage chart, boom radius & Aramco/TUV operator certs."}
                 {discoveryService === "tcf_modular_camp" && "➔ Modular / TCF: Confirm workforce headcount & sewage pumping schedule."}
-                {discoveryService === "heavy_equipment" && "➔ Heavy Equipment: Confirm load tonnage chart & Aramco/TUV operator certs."}
+                {discoveryService === "industrial_chem_tank" && "➔ Chemical / Decon: Verify metallurgy, volume & H₂S purge standards."}
               </p>
             </div>
 
@@ -368,6 +456,818 @@ export const LeadIntelligenceHub: React.FC<LeadIntelligenceHubProps> = ({
                     ✓ Utilities verified at site battery limit
                   </span>
                 </label>
+              </div>
+            </div>
+          </div>
+
+          {/* ── DYNAMIC TECHNICAL SCOPING CHECKLIST (ZERO-CALLBACK QUESTIONNAIRE) ── */}
+          <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-amber-300/80 dark:border-amber-800/60 shadow-xs space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-2.5">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-lg bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0">
+                  {discoveryService === "industrial_hydrojetting" && <Droplets className="w-3.5 h-3.5" />}
+                  {discoveryService === "wms_waste_management" && <Truck className="w-3.5 h-3.5" />}
+                  {discoveryService === "heavy_equipment" && <Wrench className="w-3.5 h-3.5" />}
+                  {discoveryService === "tcf_modular_camp" && <Building2 className="w-3.5 h-3.5" />}
+                  {discoveryService === "industrial_chem_tank" && <Droplets className="w-3.5 h-3.5" />}
+                </div>
+                <div>
+                  <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
+                    Operational Technical Discovery
+                    <span className="text-[9px] font-bold px-1.5 py-0.2 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 rounded border border-emerald-300/50">
+                      Eliminates 2nd Calls
+                    </span>
+                  </h4>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                    Pre-sales rep must ask these specific engineering questions to formulate an immediate commercial quote.
+                  </p>
+                </div>
+              </div>
+
+              {/* Counter Pill */}
+              <div className="flex items-center gap-1.5 self-start sm:self-center">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                  {selectedSpecs.length} specs captured
+                </span>
+                {selectedSpecs.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedSpecs([])}
+                    className="text-[10px] text-slate-400 hover:text-rose-500 underline cursor-pointer"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Division-Specific Question Blocks */}
+            {/* 1. INDUSTRIAL SERVICES & HIGH-PRESSURE HYDROJETTING (40,000 PSI) */}
+            {discoveryService === "industrial_hydrojetting" && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {/* Q1 */}
+                <div className="p-2.5 rounded-lg bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-800 space-y-1.5">
+                  <div className="flex items-baseline justify-between gap-1">
+                    <span className="text-[11px] font-bold text-slate-900 dark:text-white">
+                      1. Target Asset &amp; Fouling Hardness
+                    </span>
+                    <span className="text-[9px] text-amber-700 dark:text-amber-400 font-semibold shrink-0">
+                      Determines PSI &amp; Pump
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 leading-tight">
+                    "What asset are we jetting, and what is the fouling material (polymer coke vs scale)?"
+                  </p>
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {[
+                      "Asset: Shell & Tube Exchanger",
+                      "Asset: Process Piping / Headers",
+                      "Asset: Storage Tank Shell",
+                      "Asset: Boiler / Economizer Tubes",
+                      "Fouling: Baked Coke / Polymer (Mandates 40,000 PSI UHP)",
+                      "Fouling: Hard Mineral Scale (25k–35k PSI)",
+                      "Fouling: Soft Sludge / Wax (15k PSI)"
+                    ].map((opt) => {
+                      const isSelected = selectedSpecs.includes(opt);
+                      return (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => toggleSpecChip(opt)}
+                          className={`text-[10px] font-medium px-2 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1 border ${
+                            isSelected
+                              ? "bg-emerald-600 text-white border-emerald-600 shadow-2xs font-bold"
+                              : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-emerald-400"
+                          }`}
+                        >
+                          {isSelected && <Check className="w-2.5 h-2.5" />}
+                          <span>{opt}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Q2 */}
+                <div className="p-2.5 rounded-lg bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-800 space-y-1.5">
+                  <div className="flex items-baseline justify-between gap-1">
+                    <span className="text-[11px] font-bold text-slate-900 dark:text-white">
+                      2. Line Diameter &amp; Lance System Tooling
+                    </span>
+                    <span className="text-[9px] text-cyan-700 dark:text-cyan-400 font-semibold shrink-0">
+                      Nozzle Metallurgy
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 leading-tight">
+                    "What is internal pipe/tube ID, and do we need automated 2-lance / 3-lance indexers?"
+                  </p>
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {[
+                      "Exchanger Tubes: 1/2\" to 1\" ID",
+                      "Process Pipe: 2\" to 6\" ID",
+                      "Main Header: 8\" to 24\" ID",
+                      "Tooling: Automated 2/3-Lance Indexer",
+                      "Tooling: Rigid Lance Machine",
+                      "Tooling: Flexible High-Pressure Hose"
+                    ].map((opt) => {
+                      const isSelected = selectedSpecs.includes(opt);
+                      return (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => toggleSpecChip(opt)}
+                          className={`text-[10px] font-medium px-2 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1 border ${
+                            isSelected
+                              ? "bg-emerald-600 text-white border-emerald-600 shadow-2xs font-bold"
+                              : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-emerald-400"
+                          }`}
+                        >
+                          {isSelected && <Check className="w-2.5 h-2.5" />}
+                          <span>{opt}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Q3 */}
+                <div className="p-2.5 rounded-lg bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-800 space-y-1.5">
+                  <div className="flex items-baseline justify-between gap-1">
+                    <span className="text-[11px] font-bold text-slate-900 dark:text-white">
+                      3. Site Water Supply (Utility Point)
+                    </span>
+                    <span className="text-[9px] text-blue-700 dark:text-blue-400 font-semibold shrink-0">
+                      Stops Idle Charges
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 leading-tight">
+                    "Is continuous fresh water available within 50m, or must we mobilize water tanker shuttles?"
+                  </p>
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {[
+                      "Continuous Fresh Water Supply Available on Site (< 50m)",
+                      "Contractor Water Tanker Shuttle Required (Supplied by Us)",
+                      "Closed-Loop Effluent Recycling Filter Required"
+                    ].map((opt) => {
+                      const isSelected = selectedSpecs.includes(opt);
+                      return (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => toggleSpecChip(opt)}
+                          className={`text-[10px] font-medium px-2 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1 border ${
+                            isSelected
+                              ? "bg-emerald-600 text-white border-emerald-600 shadow-2xs font-bold"
+                              : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-emerald-400"
+                          }`}
+                        >
+                          {isSelected && <Check className="w-2.5 h-2.5" />}
+                          <span>{opt}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Q4 */}
+                <div className="p-2.5 rounded-lg bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-800 space-y-1.5">
+                  <div className="flex items-baseline justify-between gap-1">
+                    <span className="text-[11px] font-bold text-slate-900 dark:text-white">
+                      4. Effluent Washout &amp; Vacuum Evacuation
+                    </span>
+                    <span className="text-[9px] text-purple-700 dark:text-purple-400 font-semibold shrink-0">
+                      Waste Containment
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 leading-tight">
+                    "Can washout water drain into plant trench, or is a Super Sucker vacuum truck needed in tandem?"
+                  </p>
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {[
+                      "Washout Drains into Plant Effluent Trench",
+                      "Super Sucker Tandem Evacuation Required (Concurrent Vacuum)",
+                      "Poly Containment Berm Required"
+                    ].map((opt) => {
+                      const isSelected = selectedSpecs.includes(opt);
+                      return (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => toggleSpecChip(opt)}
+                          className={`text-[10px] font-medium px-2 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1 border ${
+                            isSelected
+                              ? "bg-emerald-600 text-white border-emerald-600 shadow-2xs font-bold"
+                              : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-emerald-400"
+                          }`}
+                        >
+                          {isSelected && <Check className="w-2.5 h-2.5" />}
+                          <span>{opt}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 2. WASTE MANAGEMENT SOLUTIONS (WMS - NCEC HAZMAT & RECYCLING) */}
+            {discoveryService === "wms_waste_management" && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {/* Q1 */}
+                <div className="p-2.5 rounded-lg bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-800 space-y-1.5">
+                  <div className="flex items-baseline justify-between gap-1">
+                    <span className="text-[11px] font-bold text-slate-900 dark:text-white">
+                      1. Physical State &amp; Storage Containment
+                    </span>
+                    <span className="text-[9px] text-amber-700 dark:text-amber-400 font-semibold shrink-0">
+                      Vehicle Selection
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 leading-tight">
+                    "Is waste pumpable liquid, thick sludge, or solid cake? In sumps, IBCs, or drums?"
+                  </p>
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {[
+                      "State: Pumpable Liquid / Slurry",
+                      "State: Viscous Heavy Sludge",
+                      "State: Dry Solid / Centrifuge Cake",
+                      "Storage: Underground Sump / Concrete Pit",
+                      "Storage: 1,000L Intermediate Bulk Containers (IBC)",
+                      "Storage: 55-Gallon UN Steel Drums"
+                    ].map((opt) => {
+                      const isSelected = selectedSpecs.includes(opt);
+                      return (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => toggleSpecChip(opt)}
+                          className={`text-[10px] font-medium px-2 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1 border ${
+                            isSelected
+                              ? "bg-emerald-600 text-white border-emerald-600 shadow-2xs font-bold"
+                              : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-emerald-400"
+                          }`}
+                        >
+                          {isSelected && <Check className="w-2.5 h-2.5" />}
+                          <span>{opt}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Q2 */}
+                <div className="p-2.5 rounded-lg bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-800 space-y-1.5">
+                  <div className="flex items-baseline justify-between gap-1">
+                    <span className="text-[11px] font-bold text-slate-900 dark:text-white">
+                      2. Hazard Classification &amp; MSDS Lab Report
+                    </span>
+                    <span className="text-[9px] text-rose-700 dark:text-rose-400 font-semibold shrink-0">
+                      Mandatory Gate Pass
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 leading-tight">
+                    "Do you have an MSDS or lab assay? Is it hydrocarbon, acidic/caustic, or toxic H2S?"
+                  </p>
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {[
+                      "MSDS / Certified Lab Assay Available",
+                      "Hazard: Hydrocarbon / Heavy Oily Sludge",
+                      "Hazard: Acidic / Caustic Corrosive Waste",
+                      "Hazard: High H2S / Toxic Volatiles Present",
+                      "Non-Hazardous Industrial Waste"
+                    ].map((opt) => {
+                      const isSelected = selectedSpecs.includes(opt);
+                      return (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => toggleSpecChip(opt)}
+                          className={`text-[10px] font-medium px-2 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1 border ${
+                            isSelected
+                              ? "bg-emerald-600 text-white border-emerald-600 shadow-2xs font-bold"
+                              : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-emerald-400"
+                          }`}
+                        >
+                          {isSelected && <Check className="w-2.5 h-2.5" />}
+                          <span>{opt}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Q3 */}
+                <div className="p-2.5 rounded-lg bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-800 space-y-1.5">
+                  <div className="flex items-baseline justify-between gap-1">
+                    <span className="text-[11px] font-bold text-slate-900 dark:text-white">
+                      3. Total Volume &amp; Removal Frequency
+                    </span>
+                    <span className="text-[9px] text-blue-700 dark:text-blue-400 font-semibold shrink-0">
+                      Fleet Logistics
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 leading-tight">
+                    "What is total quantity (m³ or tons), and is it a 1-time emergency or recurring hauling?"
+                  </p>
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {[
+                      "Volume: 10 to 50 m³",
+                      "Volume: 50 to 200 m³",
+                      "Volume: 200+ m³ Large Batch Project",
+                      "Cadence: One-Time Rapid Clearance (< 48h)",
+                      "Cadence: Recurring Scheduled Hauling Contract"
+                    ].map((opt) => {
+                      const isSelected = selectedSpecs.includes(opt);
+                      return (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => toggleSpecChip(opt)}
+                          className={`text-[10px] font-medium px-2 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1 border ${
+                            isSelected
+                              ? "bg-emerald-600 text-white border-emerald-600 shadow-2xs font-bold"
+                              : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-emerald-400"
+                          }`}
+                        >
+                          {isSelected && <Check className="w-2.5 h-2.5" />}
+                          <span>{opt}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Q4 */}
+                <div className="p-2.5 rounded-lg bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-800 space-y-1.5">
+                  <div className="flex items-baseline justify-between gap-1">
+                    <span className="text-[11px] font-bold text-slate-900 dark:text-white">
+                      4. Disposal Facility &amp; Destruction Certificate
+                    </span>
+                    <span className="text-[9px] text-emerald-700 dark:text-emerald-400 font-semibold shrink-0">
+                      NCEC Compliance
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 leading-tight">
+                    "Do you require certified NCEC Green Manifests, and is disposal mandated at Bee'ah or EDCO?"
+                  </p>
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {[
+                      "NCEC Green Manifest & Certificate of Destruction Required",
+                      "Mandated Facility: Bee'ah Jubail",
+                      "Mandated Facility: EDCO Dammam/Jubail",
+                      "Mandated Facility: SEPCO Yanbu / Western Province"
+                    ].map((opt) => {
+                      const isSelected = selectedSpecs.includes(opt);
+                      return (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => toggleSpecChip(opt)}
+                          className={`text-[10px] font-medium px-2 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1 border ${
+                            isSelected
+                              ? "bg-emerald-600 text-white border-emerald-600 shadow-2xs font-bold"
+                              : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-emerald-400"
+                          }`}
+                        >
+                          {isSelected && <Check className="w-2.5 h-2.5" />}
+                          <span>{opt}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 3. HEAVY & LIGHT EQUIPMENT RENTAL (CRANES, SUPER SUCKERS, RIG FLEET) */}
+            {discoveryService === "heavy_equipment" && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {/* Q1 */}
+                <div className="p-2.5 rounded-lg bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-800 space-y-1.5">
+                  <div className="flex items-baseline justify-between gap-1">
+                    <span className="text-[11px] font-bold text-slate-900 dark:text-white">
+                      1. Single Lift Weight &amp; Working Radius
+                    </span>
+                    <span className="text-[9px] text-amber-700 dark:text-amber-400 font-semibold shrink-0">
+                      Load Chart Sizing
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 leading-tight">
+                    "What is max single lift weight (tons) AND working radius (meters from crane center)?"
+                  </p>
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {[
+                      "Single Lift Weight: < 15 Metric Tons",
+                      "Single Lift Weight: 15 to 45 Metric Tons",
+                      "Single Lift Weight: 50 to 100+ Metric Tons",
+                      "Working Radius: < 12m from Center Pin",
+                      "Working Radius: 15 to 30 Meters",
+                      "Boom Tip Height: 20 to 50+ Meters"
+                    ].map((opt) => {
+                      const isSelected = selectedSpecs.includes(opt);
+                      return (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => toggleSpecChip(opt)}
+                          className={`text-[10px] font-medium px-2 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1 border ${
+                            isSelected
+                              ? "bg-emerald-600 text-white border-emerald-600 shadow-2xs font-bold"
+                              : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-emerald-400"
+                          }`}
+                        >
+                          {isSelected && <Check className="w-2.5 h-2.5" />}
+                          <span>{opt}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Q2 */}
+                <div className="p-2.5 rounded-lg bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-800 space-y-1.5">
+                  <div className="flex items-baseline justify-between gap-1">
+                    <span className="text-[11px] font-bold text-slate-900 dark:text-white">
+                      2. Third-Party Inspection &amp; Operator Badging
+                    </span>
+                    <span className="text-[9px] text-purple-700 dark:text-purple-400 font-semibold shrink-0">
+                      Gate Rejection Risk
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 leading-tight">
+                    "Does machine and operator require Aramco-approved cards, TUV, or SABIC plant stickers?"
+                  </p>
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {[
+                      "Saudi Aramco Certified Operator & Machine Sticker",
+                      "TUV Third-Party Certified & Valid Sticker",
+                      "SABIC Plant Security Entry Induction Badge",
+                      "Standard Commercial Civil Contractor Induction"
+                    ].map((opt) => {
+                      const isSelected = selectedSpecs.includes(opt);
+                      return (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => toggleSpecChip(opt)}
+                          className={`text-[10px] font-medium px-2 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1 border ${
+                            isSelected
+                              ? "bg-emerald-600 text-white border-emerald-600 shadow-2xs font-bold"
+                              : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-emerald-400"
+                          }`}
+                        >
+                          {isSelected && <Check className="w-2.5 h-2.5" />}
+                          <span>{opt}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Q3 */}
+                <div className="p-2.5 rounded-lg bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-800 space-y-1.5">
+                  <div className="flex items-baseline justify-between gap-1">
+                    <span className="text-[11px] font-bold text-slate-900 dark:text-white">
+                      3. Ground Compaction &amp; Outrigger Pad Area
+                    </span>
+                    <span className="text-[9px] text-slate-700 dark:text-slate-400 font-semibold shrink-0">
+                      Civil Ground Safety
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 leading-tight">
+                    "Is ground paved concrete/asphalt, or uncompacted desert soil requiring steel outrigger mats?"
+                  </p>
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {[
+                      "Setup Ground: Paved Concrete / Heavy Asphalt",
+                      "Setup Ground: Uncompacted Soil (Steel Spreader Mats Required)",
+                      "Overhead Power Line / Underground Utility Clearance Confirmed"
+                    ].map((opt) => {
+                      const isSelected = selectedSpecs.includes(opt);
+                      return (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => toggleSpecChip(opt)}
+                          className={`text-[10px] font-medium px-2 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1 border ${
+                            isSelected
+                              ? "bg-emerald-600 text-white border-emerald-600 shadow-2xs font-bold"
+                              : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-emerald-400"
+                          }`}
+                        >
+                          {isSelected && <Check className="w-2.5 h-2.5" />}
+                          <span>{opt}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Q4 */}
+                <div className="p-2.5 rounded-lg bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-800 space-y-1.5">
+                  <div className="flex items-baseline justify-between gap-1">
+                    <span className="text-[11px] font-bold text-slate-900 dark:text-white">
+                      4. Rental Terms &amp; Operating Shift Schedule
+                    </span>
+                    <span className="text-[9px] text-emerald-700 dark:text-emerald-400 font-semibold shrink-0">
+                      Commercial Rate Basis
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 leading-tight">
+                    "Is rate 'Wet' (operator + fuel included) or 'Dry', and is it single shift vs 24/7 continuous?"
+                  </p>
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {[
+                      "Wet Rate (Certified Operator + Fuel + Maintenance Included)",
+                      "Dry Rate (Bare Equipment Only - Client Supplies Fuel & Driver)",
+                      "Shift: Single Shift (10 Hours / Day)",
+                      "Shift: 24/7 Continuous Double Shift"
+                    ].map((opt) => {
+                      const isSelected = selectedSpecs.includes(opt);
+                      return (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => toggleSpecChip(opt)}
+                          className={`text-[10px] font-medium px-2 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1 border ${
+                            isSelected
+                              ? "bg-emerald-600 text-white border-emerald-600 shadow-2xs font-bold"
+                              : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-emerald-400"
+                          }`}
+                        >
+                          {isSelected && <Check className="w-2.5 h-2.5" />}
+                          <span>{opt}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 4. TEMPORARY CONSTRUCTION FACILITIES (TCF & MODULAR UNITS) */}
+            {discoveryService === "tcf_modular_camp" && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {/* Q1 */}
+                <div className="p-2.5 rounded-lg bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-800 space-y-1.5">
+                  <div className="flex items-baseline justify-between gap-1">
+                    <span className="text-[11px] font-bold text-slate-900 dark:text-white">
+                      1. Unit Type &amp; Floor Plan Configuration
+                    </span>
+                    <span className="text-[9px] text-indigo-700 dark:text-indigo-400 font-semibold shrink-0">
+                      Civil Blueprint
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 leading-tight">
+                    "What specific modular layout is needed (12x3m office, ensuite executive, ablution block, guard house)?"
+                  </p>
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {[
+                      "Layout: 12m x 3m Open Workstation Office",
+                      "Layout: Executive Site Cabin with Ensuite Restroom",
+                      "Layout: 40-Man Ablution / Restroom Block",
+                      "Layout: Workforce Dining Mess Hall & Kitchen",
+                      "Layout: Security Guard House & Gate Office"
+                    ].map((opt) => {
+                      const isSelected = selectedSpecs.includes(opt);
+                      return (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => toggleSpecChip(opt)}
+                          className={`text-[10px] font-medium px-2 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1 border ${
+                            isSelected
+                              ? "bg-emerald-600 text-white border-emerald-600 shadow-2xs font-bold"
+                              : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-emerald-400"
+                          }`}
+                        >
+                          {isSelected && <Check className="w-2.5 h-2.5" />}
+                          <span>{opt}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Q2 */}
+                <div className="p-2.5 rounded-lg bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-800 space-y-1.5">
+                  <div className="flex items-baseline justify-between gap-1">
+                    <span className="text-[11px] font-bold text-slate-900 dark:text-white">
+                      2. Power Generation &amp; Electrical Distribution
+                    </span>
+                    <span className="text-[9px] text-amber-700 dark:text-amber-400 font-semibold shrink-0">
+                      HVAC &amp; Generator
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 leading-tight">
+                    "Is grid power available at boundary, or do we provide a diesel generator + fuel tanker package?"
+                  </p>
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {[
+                      "Dedicated Diesel Generator + Fuel Tanker Service Required",
+                      "Synchronized Generator Package with Main DB Distribution",
+                      "Grid Power Hookup Available at Site Boundary"
+                    ].map((opt) => {
+                      const isSelected = selectedSpecs.includes(opt);
+                      return (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => toggleSpecChip(opt)}
+                          className={`text-[10px] font-medium px-2 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1 border ${
+                            isSelected
+                              ? "bg-emerald-600 text-white border-emerald-600 shadow-2xs font-bold"
+                              : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-emerald-400"
+                          }`}
+                        >
+                          {isSelected && <Check className="w-2.5 h-2.5" />}
+                          <span>{opt}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Q3 */}
+                <div className="p-2.5 rounded-lg bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-800 space-y-1.5">
+                  <div className="flex items-baseline justify-between gap-1">
+                    <span className="text-[11px] font-bold text-slate-900 dark:text-white">
+                      3. Potable Water &amp; Sewage Servicing Cycle
+                    </span>
+                    <span className="text-[9px] text-cyan-700 dark:text-cyan-400 font-semibold shrink-0">
+                      Recurring Service
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 leading-tight">
+                    "Do you require external water booster tanks &amp; sewage holding tanks with scheduled vacuum pumping?"
+                  </p>
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {[
+                      "Potable Water Booster Tank + Scheduled Refill Service",
+                      "Underground Sewage Holding Tank + Scheduled Vacuum Pumping",
+                      "Client Self-Manages Utilities & Sanitary Drainage"
+                    ].map((opt) => {
+                      const isSelected = selectedSpecs.includes(opt);
+                      return (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => toggleSpecChip(opt)}
+                          className={`text-[10px] font-medium px-2 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1 border ${
+                            isSelected
+                              ? "bg-emerald-600 text-white border-emerald-600 shadow-2xs font-bold"
+                              : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-emerald-400"
+                          }`}
+                        >
+                          {isSelected && <Check className="w-2.5 h-2.5" />}
+                          <span>{opt}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Q4 */}
+                <div className="p-2.5 rounded-lg bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-800 space-y-1.5">
+                  <div className="flex items-baseline justify-between gap-1">
+                    <span className="text-[11px] font-bold text-slate-900 dark:text-white">
+                      4. Site Pad Grading &amp; Crane Offloading
+                    </span>
+                    <span className="text-[9px] text-slate-700 dark:text-slate-400 font-semibold shrink-0">
+                      Rigging &amp; Placement
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 leading-tight">
+                    "Is pad leveled/compacted, and will site crane offload flatbeds or do we mobilize a boom truck?"
+                  </p>
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {[
+                      "Pad is Leveled & Compacted Gravel/Concrete (Client Offloads)",
+                      "Mobilize Contractor Boom Truck / Mobile Crane for Placement",
+                      "Aramco Camp Security Fence & Lighting Required"
+                    ].map((opt) => {
+                      const isSelected = selectedSpecs.includes(opt);
+                      return (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => toggleSpecChip(opt)}
+                          className={`text-[10px] font-medium px-2 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1 border ${
+                            isSelected
+                              ? "bg-emerald-600 text-white border-emerald-600 shadow-2xs font-bold"
+                              : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-emerald-400"
+                          }`}
+                        >
+                          {isSelected && <Check className="w-2.5 h-2.5" />}
+                          <span>{opt}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 5. CHEMICAL CLEANING & INDUSTRIAL TANK DECON (BACKWARD COMPATIBLE) */}
+            {discoveryService === "industrial_chem_tank" && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="p-2.5 rounded-lg bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-800 space-y-1.5">
+                  <span className="text-[11px] font-bold text-slate-900 dark:text-white block">
+                    1. System Metallurgy &amp; Chemical Loop
+                  </span>
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {[
+                      "Metallurgy: Carbon Steel Loop",
+                      "Metallurgy: Stainless Steel 304/316",
+                      "Target: H2S Scavenging & Degassing",
+                      "Target: Pyrophoric Iron Sulfide Neutralization",
+                      "Target: Pickling & Passivation"
+                    ].map((opt) => {
+                      const isSelected = selectedSpecs.includes(opt);
+                      return (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => toggleSpecChip(opt)}
+                          className={`text-[10px] font-medium px-2 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1 border ${
+                            isSelected
+                              ? "bg-emerald-600 text-white border-emerald-600 shadow-2xs font-bold"
+                              : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-emerald-400"
+                          }`}
+                        >
+                          {isSelected && <Check className="w-2.5 h-2.5" />}
+                          <span>{opt}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="p-2.5 rounded-lg bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-800 space-y-1.5">
+                  <span className="text-[11px] font-bold text-slate-900 dark:text-white block">
+                    2. Chemical Waste &amp; Safety Permits
+                  </span>
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {[
+                      "Effluent Neutralization Required on Site",
+                      "Off-Site Acid/Caustic HazMat Hauling to EDCO/Bee'ah",
+                      "Confined Space Entry (CSE) with Breathing Air Trailer",
+                      "Aramco Hot/Cold Work Permit Verified"
+                    ].map((opt) => {
+                      const isSelected = selectedSpecs.includes(opt);
+                      return (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => toggleSpecChip(opt)}
+                          className={`text-[10px] font-medium px-2 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1 border ${
+                            isSelected
+                              ? "bg-emerald-600 text-white border-emerald-600 shadow-2xs font-bold"
+                              : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-emerald-400"
+                          }`}
+                        >
+                          {isSelected && <Check className="w-2.5 h-2.5" />}
+                          <span>{opt}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Custom Notes Input & Sync Button */}
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
+              <input
+                type="text"
+                value={customDiscoveryNotes}
+                onChange={(e) => setCustomDiscoveryNotes(e.target.value)}
+                placeholder="Additional client details (e.g., tube bundle OD 32mm, 420 tubes, requires 48h emergency mobilization)..."
+                className="w-full text-xs p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-amber-500/30"
+              />
+
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1">
+                <div className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                  <FileCheck2 className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Saves directly to <strong>Activity Timeline &amp; Internal Notes</strong> for Commercial Estimators</span>
+                </div>
+
+                <div className="flex items-center gap-2 self-end sm:self-center">
+                  {specsSavedFeedback && (
+                    <span className="text-[11px] font-bold text-emerald-600 flex items-center gap-1 animate-fade-in">
+                      <Check className="w-3.5 h-3.5" /> Specs Saved to Timeline!
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleSaveDiscoverySpecs}
+                    disabled={isSavingSpecs}
+                    className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50"
+                  >
+                    <Save className={`w-3.5 h-3.5 ${isSavingSpecs ? "animate-spin" : ""}`} />
+                    <span>{isSavingSpecs ? "Saving Specs..." : "Save Specs to Lead Timeline"}</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>

@@ -289,11 +289,11 @@ export const OpportunityIntelligenceHub: React.FC<OpportunityIntelligenceHubProp
                 onChange={(e) => setExecutionDivision(e.target.value)}
                 className="w-full text-xs font-semibold p-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-hidden focus:ring-1 focus:ring-emerald-500"
               >
-                <option value="UHP Hydrojetting 40k PSI">UHP Hydrojetting (40,000 PSI)</option>
+                <option value="UHP Hydrojetting 40k PSI">Industrial Services &amp; High-Pressure Hydrojetting (40,000 PSI)</option>
+                <option value="Hazardous Waste Sludge">Waste Management Solutions (WMS - NCEC HazMat &amp; Recycling)</option>
+                <option value="Heavy Equipment Rental">Heavy &amp; Light Equipment Rental (Cranes, Super Suckers, Rig Fleet)</option>
+                <option value="Modular TCF Facilities">Temporary Construction Facilities (TCF &amp; Modular Units)</option>
                 <option value="Chemical & Tank Decon">Chemical &amp; Tank Decontamination</option>
-                <option value="Hazardous Waste Sludge">Hazardous Waste &amp; Sludge Logistics</option>
-                <option value="Modular TCF Facilities">Modular TCF Camp / Site Facilities</option>
-                <option value="Heavy Equipment Rental">Heavy Construction Equipment Rental</option>
               </select>
               <p className="text-[10px] text-slate-500 dark:text-slate-400">
                 Operating pressure, flow rate (GPM), and required chemical compatibility verified.

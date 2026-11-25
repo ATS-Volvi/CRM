@@ -203,12 +203,12 @@ export const LeadRequirementModal: React.FC<LeadRequirementModalProps> = ({
             {/* Quick Chips for Industrial Services */}
             <div className="flex flex-wrap gap-1.5 pt-1">
               {[
-                "UHP Hydrojetting 40,000 PSI",
-                "Chemical Tank Decon",
-                "Aramco Restricted Area Gate Pass",
-                "Hazardous Sludge Disposal",
-                "Modular TCF Hookup",
-                "Mobilization < 14 Days"
+                "Hydrojetting (40,000 PSI)",
+                "Waste Management (NCEC HazMat)",
+                "Equipment Rental (Cranes & Fleet)",
+                "Modular Units & TCF Cabins",
+                "Aramco Restricted Gate Pass",
+                "SABIC / RCJY Environmental Permit"
               ].map((chip) => (
                 <button
                   key={chip}
