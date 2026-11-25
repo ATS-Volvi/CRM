@@ -53,37 +53,20 @@ export function createServer(): Express {
       },
     })
   );
-  const defaultAllowedOrigins = [
-    "http://localhost:5173",
-    "http://localhost:3000",
-    "https://crm-k8g4.onrender.com",
-    "https://faceweb-v5g0.onrender.com",
-    "https://faceweb.vercel.app",
-  ];
-  const configuredOrigins = process.env.CORS_ORIGIN
-    ? process.env.CORS_ORIGIN.split(",").map((o) => o.trim())
-    : [];
-  const allowedOrigins = Array.from(new Set([...defaultAllowedOrigins, ...configuredOrigins]));
-
-  app.use(
-    cors({
-      origin: (origin, callback) => {
-        if (!origin) return callback(null, true);
-        if (
-          allowedOrigins.includes(origin) ||
-          origin.includes("onrender.com") ||
-          origin.includes("vercel.app") ||
-          origin.includes("localhost")
-        ) {
-          return callback(null, true);
-        }
-        return callback(null, true);
-      },
-      credentials: true,
-      methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-      allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"],
-    })
-  );
+  // Universal Cross-Origin Resource Sharing (CORS) handler for FaceWeb & external forms
+  app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    if (origin) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+      res.setHeader("Access-Control-Allow-Credentials", "true");
+      res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin");
+    }
+    if (req.method === "OPTIONS") {
+      return res.status(204).end();
+    }
+    next();
+  });
   app.use(express.json({ verify: (req: any, _res, buf) => { req.rawBody = buf; } }));
   app.use(express.urlencoded({ extended: true }));
   app.use(cookieParser());
