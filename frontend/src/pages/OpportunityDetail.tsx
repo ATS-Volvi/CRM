@@ -204,6 +204,7 @@ export default function OpportunityDetail() {
 
   const [activeTab, setActiveTab] = useState<"timeline" | "quotes" | "splits" | "history" | "handoff_chat">("timeline");
   const [timelineFilter, setTimelineFilter] = useState<"all" | "note" | "communication" | "quote">("all");
+  const [showSystemAudit, setShowSystemAudit] = useState(false);
   const [noteText, setNoteText] = useState("");
   const [viewQuoteId, setViewQuoteId] = useState<string | null>(null);
   const [rejectModalQuoteId, setRejectModalQuoteId] = useState<string | null>(null);
@@ -499,8 +500,27 @@ export default function OpportunityDetail() {
   const dealRisk = computeDealRisk(opp, quotes, activities);
   const recommendedAction = computeRecommendedAction(opp, quotes);
 
+  // Filter out automated robot audit clutter from customer & human sales notes
+  const isSystemAuditLog = (act: any) => {
+    if (act.type === "stage_change") return true;
+    if (act.type === "site_inspection") return true;
+    const content = `${act.notes || ""} ${act.outcome || ""}`.trim();
+    if (content.toLowerCase().includes("[verified]") || content.toLowerCase().includes("[automated]")) return true;
+    if (content.startsWith("Opportunity created:")) return true;
+    if (content.startsWith("Stage automatically updated")) return true;
+    if (content.toLowerCase().includes("site inspection requested")) return true;
+    if (act.type === "call" && content.includes("Site inspection:")) return true;
+    if (act.type === "note" && (content.startsWith("Inbound Inquiry Captured via") || content.startsWith("Lead captured from"))) return true;
+    if (content.toLowerCase().includes("possible duplicate of lead") || content.toLowerCase().includes("duplicate lead")) return true;
+    return false;
+  };
+
+  const humanActivities = activities.filter((act: any) => !isSystemAuditLog(act));
+  const systemAuditActivities = activities.filter((act: any) => isSystemAuditLog(act));
+
   // Filtered timeline activities
-  const filteredActivities = activities.filter((act) => {
+  const baseActivities = showSystemAudit ? activities : humanActivities;
+  const filteredActivities = baseActivities.filter((act) => {
     if (timelineFilter === "all") return true;
     if (timelineFilter === "note") return act.type === "note" || !act.type;
     if (timelineFilter === "communication") return ["call", "email", "whatsapp", "meeting"].includes(act.type);
@@ -1313,7 +1333,7 @@ export default function OpportunityDetail() {
                     : "border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
                 }`}
               >
-                Activity &amp; Notes ({activities.length})
+                Activity &amp; Notes ({humanActivities.length})
               </button>
               <button
                 onClick={() => setActiveTab("quotes")}
@@ -1343,7 +1363,7 @@ export default function OpportunityDetail() {
                     : "border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
                 }`}
               >
-                Audit History
+                Audit History{systemAuditActivities.length > 0 ? ` (${systemAuditActivities.length})` : ""}
               </button>
               <button
                 onClick={() => setActiveTab("handoff_chat")}
@@ -1426,7 +1446,9 @@ export default function OpportunityDetail() {
 
                   {filteredActivities.length === 0 ? (
                     <div className="p-8 text-center border border-dashed border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-400">
-                      No activity records match the selected filter.
+                      {timelineFilter !== "all"
+                        ? "No activity records match the selected filter."
+                        : "No commercial notes recorded yet. Use the composer above to log an interaction."}
                     </div>
                   ) : (
                     <div className="relative pl-6 space-y-6 before:content-[''] before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[2px] before:bg-slate-200 dark:before:bg-slate-800">
@@ -1452,11 +1474,34 @@ export default function OpportunityDetail() {
                               </span>
                             </div>
                             <p className="text-slate-800 dark:text-slate-200 whitespace-pre-wrap leading-relaxed">
-                              {act.outcome || act.notes || "Activity recorded."}
+                              {(act.outcome || act.notes || "Activity recorded.").replace(/₹/g, "SAR ")}
                             </p>
                           </div>
                         </div>
                       ))}
+                    </div>
+                  )}
+
+                  {/* System Audit Trail Toggle */}
+                  {systemAuditActivities.length > 0 && (
+                    <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                      <button
+                        onClick={() => setShowSystemAudit(!showSystemAudit)}
+                        className="text-[11px] font-semibold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 flex items-center gap-1.5 transition-colors cursor-pointer"
+                      >
+                        <History className="w-3.5 h-3.5 text-slate-400" />
+                        <span>
+                          {showSystemAudit
+                            ? "Hide system automation logs"
+                            : `View system automation & audit logs (${systemAuditActivities.length})`}
+                        </span>
+                      </button>
+                      <button
+                        onClick={() => setActiveTab("history")}
+                        className="text-[11px] font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 cursor-pointer"
+                      >
+                        Open Full Audit Trail &rarr;
+                      </button>
                     </div>
                   )}
                 </div>
@@ -1693,8 +1738,47 @@ export default function OpportunityDetail() {
 
             {/* TAB 4: AUDIT HISTORY */}
             {activeTab === "history" && (
-              <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-xs">
-                <DealReassignmentHistorySection dealId={opp.id} />
+              <div className="space-y-4">
+                <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-xs">
+                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 mb-4">
+                    Deal Stage &amp; System Transition Logs
+                  </h3>
+                  {systemAuditActivities.length === 0 ? (
+                    <p className="text-xs text-slate-400">No automated audit logs recorded for this deal.</p>
+                  ) : (
+                    <div className="relative pl-6 space-y-4 before:content-[''] before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[2px] before:bg-slate-200 dark:before:bg-slate-800">
+                      {systemAuditActivities.map((act) => (
+                        <div key={act.id} className="relative group text-xs">
+                          <div className="absolute -left-[23px] top-1 w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 border-2 border-slate-400 flex items-center justify-center text-slate-500 z-10 shadow-2xs">
+                            <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />
+                          </div>
+                          <div className="bg-slate-50/70 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200/80 dark:border-slate-700/80 space-y-1">
+                            <div className="flex items-center justify-between text-[11px]">
+                              <span className="font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                                {act.type || "System Log"}
+                              </span>
+                              <span className="text-slate-400">
+                                {new Date(act.createdAt).toLocaleString([], {
+                                  month: "short",
+                                  day: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit"
+                                })}
+                              </span>
+                            </div>
+                            <p className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">
+                              {(act.outcome || act.notes || "Audit event recorded.").replace(/₹/g, "SAR ")}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-xs">
+                  <DealReassignmentHistorySection dealId={opp.id} />
+                </div>
               </div>
             )}
 

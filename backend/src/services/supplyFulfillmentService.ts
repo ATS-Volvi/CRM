@@ -188,7 +188,7 @@ export async function createOrderFromFinalQuote(
         leadId: null,
         customerId: accountId,
         type: "note",
-        outcome: `Order ${orderNumber} created from Quote ${q.quoteNumber || q.id} v${q.version} (Amount: ₹${Number(q.totalAmount).toLocaleString()}). Fulfillment PENDING created.`,
+        outcome: `Order ${orderNumber} created from Quote ${q.quoteNumber || q.id} v${q.version} (Amount: SAR ${Number(q.totalAmount).toLocaleString()}). Fulfillment PENDING created.`,
         mentioned_user_ids: "[]",
         pinned: true,
         createdById: userId || salesOwnerId || null,
@@ -205,7 +205,7 @@ export async function createOrderFromFinalQuote(
         (adminUser as any).id,
         "ORDER_FULFILLMENT_READY",
         `New Order Ready for Fulfillment: ${orderNumber}`,
-        `Order ${orderNumber} (₹${Number(q.totalAmount).toLocaleString()}) has been confirmed and is awaiting supply fulfillment planning.`,
+        `Order ${orderNumber} (SAR ${Number(q.totalAmount).toLocaleString()}) has been confirmed and is awaiting supply fulfillment planning.`,
         `/supply/queue`
       ).catch(e => console.error("Supply notification error:", e));
     }

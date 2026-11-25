@@ -170,7 +170,7 @@ export async function qualifyLeadWorkflow(leadId: string, qualificationData: Qua
     id: crypto.randomUUID(),
     leadId: l.id,
     type: "Note",
-    notes: `🎯 Lead Qualified! Requirement: "${qualificationData.requirement || 'N/A'}", Est. Value: ₹${estimatedValue.toLocaleString('en-IN')}, Timeline: ${qualificationData.timeline || 'N/A'}. Opportunity auto-created.`,
+    notes: `🎯 Lead Qualified! Requirement: "${qualificationData.requirement || 'N/A'}", Est. Value: SAR ${estimatedValue.toLocaleString()}, Timeline: ${qualificationData.timeline || 'N/A'}. Opportunity auto-created.`,
     createdById: userId || l.assignedToId,
     direction: "internal"
   });

@@ -281,7 +281,7 @@ export async function processOpportunityEvent(event: OpportunityEvent): Promise<
         leadId: d.leadId || null,
         customerId: d.accountId || null,
         type: "note",
-        outcome: `Opportunity created: ${d.name} (Value: ₹${Number(d.amount || 0).toLocaleString()})`,
+        outcome: `Opportunity created: ${d.name} (Value: SAR ${Number(d.amount || 0).toLocaleString()})`,
         mentioned_user_ids: "[]",
         pinned: true,
         createdById: toValidUuid(actorId) || toValidUuid(d.ownerId) || null,
@@ -312,7 +312,7 @@ export async function processOpportunityEvent(event: OpportunityEvent): Promise<
         leadId: d.leadId || null,
         customerId: d.accountId || null,
         type: "note",
-        outcome: `Commercial Quote #${qNumber} (v${version}) prepared for ₹${Number(payload.totalAmount || d.amount || 0).toLocaleString()}`,
+        outcome: `Commercial Quote #${qNumber} (v${version}) prepared for SAR ${Number(payload.totalAmount || d.amount || 0).toLocaleString()}`,
         mentioned_user_ids: "[]",
         pinned: false,
         createdById: toValidUuid(actorId) || toValidUuid(d.ownerId) || null,
@@ -593,7 +593,7 @@ export async function processOpportunityEvent(event: OpportunityEvent): Promise<
           userId: (mgr as any).id,
           type: "OPPORTUNITY_WON",
           title: "Opportunity Closed Won",
-          message: `Opportunity '${d.name}' (₹${Number(d.amount || 0).toLocaleString()}) won by ${d.owner?.name || "Rep"}.`
+          message: `Opportunity '${d.name}' (SAR ${Number(d.amount || 0).toLocaleString()}) won by ${d.owner?.name || "Rep"}.`
         });
       }
       break;

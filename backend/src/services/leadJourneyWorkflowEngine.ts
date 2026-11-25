@@ -573,7 +573,7 @@ export async function convertLeadToOpportunity(
       userId: finalAssignedToId,
       type: "LEAD_QUALIFIED",
       title: "Lead Qualified & Opportunity Created",
-      message: `Lead '${l.firstName} ${l.lastName}' has been converted. Opportunity created with value ₹${validQual.estimatedValue.toLocaleString()}.`
+      message: `Lead '${l.firstName} ${l.lastName}' has been converted. Opportunity created with value SAR ${validQual.estimatedValue.toLocaleString()}.`
     });
   }
 
