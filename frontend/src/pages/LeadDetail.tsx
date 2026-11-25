@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useState, useEffect } from "react";
 import { 
@@ -8,7 +8,7 @@ import {
   Users, TrendingUp, MessageSquare, CheckSquare, AlertCircle, Sparkles, Send, Upload, Plus,
   FilePlus, Award, ShieldAlert, CheckCircle2, Clock, MapPin, Video, ExternalLink, Pin,
   FileEdit, Landmark, Inbox, User, Receipt, AlertTriangle, Target, Lock, XCircle,
-  Copy, Search, RefreshCw, Briefcase
+  Copy, Search, RefreshCw, Briefcase, PhoneCall
 } from "lucide-react";
 import { formatCurrency } from "../utils/currency";
 import { formatDistanceToNow } from "date-fns";
@@ -23,10 +23,13 @@ import { DossierSmartStack } from "../components/DossierSmartStack";
 import { LeadCampaignBadge } from "../components/LeadCampaignBadge";
 import { SiteInspectionCard, useLeadSiteInspection } from "../components/SiteInspectionCard";
 import { getStatusStyle } from "../lib/siteInspection";
+import { ContactCustomerModal } from "../components/ContactCustomerModal";
+import { SiteInspectionAuditGateModal } from "../components/SiteInspectionAuditGateModal";
 
 export default function LeadDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { token, user } = useAuth();
   const queryClient = useQueryClient();
 
@@ -53,7 +56,72 @@ export default function LeadDetail() {
   const [isQualifyDrawerOpen, setIsQualifyDrawerOpen] = useState(false);
   const [gateBlockedBanner, setGateBlockedBanner] = useState<string | null>(null);
   const [statusErrorMessage, setStatusErrorMessage] = useState<string | null>(null);
-  const { gate, inspection } = useLeadSiteInspection(id);
+  const [isContactModalOpen, setIsContactModalOpen] = useState(() => searchParams.get("contact") === "true" || searchParams.get("openCallGuide") === "true");
+  const [isGateModalOpen, setIsGateModalOpen] = useState(false);
+  const [isSubmittingContact, setIsSubmittingContact] = useState(false);
+  const { gate, inspection, requestInspection } = useLeadSiteInspection(id);
+
+  const handleContactConfirm = async (options: {
+    notes: string;
+    requiresSiteInspection: boolean;
+  }) => {
+    setIsSubmittingContact(true);
+    try {
+      // 1. Update lead status to CONTACTED and set requiresSiteInspection
+      const res = await fetch(`/api/v1/leads/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({
+          status: "CONTACTED",
+          requiresSiteInspection: options.requiresSiteInspection
+        })
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => null);
+        throw new Error(errorData?.error || "Failed to update lead status");
+      }
+
+      // 2. If requiresSiteInspection is true and no inspection exists yet, request site inspection
+      if (options.requiresSiteInspection && (!inspection || !inspection.id)) {
+        try {
+          if (requestInspection) {
+            await requestInspection({
+              notes: options.notes,
+              siteAddress: lead?.city || lead?.state || "Client Site"
+            });
+          }
+        } catch (inspErr) {
+          console.warn("[LeadDetail] Auto request inspection error:", inspErr);
+        }
+      }
+
+      // 3. Log Call Activity in timeline
+      try {
+        await fetch(`/api/v1/leads/${id}/activities`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+          body: JSON.stringify({
+            type: "call",
+            direction: "outbound",
+            outcome: `Client contacted via phone (${lead?.phone || "CX"}). Site inspection: ${options.requiresSiteInspection ? "YES (Required)" : "NO (Standard)"}.`,
+            notes: options.notes
+          })
+        });
+      } catch (actErr) {
+        console.warn("[LeadDetail] Log call activity error:", actErr);
+      }
+
+      // 4. Invalidate queries
+      queryClient.invalidateQueries({ queryKey: ["lead", id] });
+      queryClient.invalidateQueries({ queryKey: ["leadActivities", id] });
+      queryClient.invalidateQueries({ queryKey: ["lead-site-inspection", id] });
+      setIsContactModalOpen(false);
+    } catch (err: any) {
+      alert("Error updating lead outreach: " + (err.message || "Unknown error"));
+    } finally {
+      setIsSubmittingContact(false);
+    }
+  };
 
   // Activity Timeline Filter & Note States
   const [activityFilter, setActivityFilter] = useState<string>("all");
@@ -887,14 +955,25 @@ export default function LeadDetail() {
             const workflowStages = requiresSiteInspection
               ? [
                   { key: "NEW",             num: "1", label: "New Enquiry",     desc: "Ingested & Assigned" },
-                  { key: "CONTACTED",       num: "2", label: "Contacted",       desc: "Outreach in Progress" },
-                  { key: "SITE_INSPECTION", num: "3", label: "Site Inspection", desc: inspection?.status === "APPROVED" ? "Approved" : inspection?.status ? getStatusStyle(inspection.status).label : "Gate Required" },
+                  { key: "CONTACTED",       num: "2", label: "Contacted",       desc: "Client Outreach & CX Call" },
+                  { 
+                    key: "SITE_INSPECTION", 
+                    num: "3", 
+                    label: "Site Inspection", 
+                    desc: inspection?.status === "APPROVED" 
+                      ? "Approved by TL" 
+                      : inspection?.status === "SUBMITTED"
+                      ? "Awaiting TL Approval"
+                      : inspection?.status
+                      ? getStatusStyle(inspection.status).label
+                      : "Audit Required"
+                  },
                   { key: "QUALIFIED",       num: "4", label: "Qualified",       desc: "Needs & Budget Set" },
                   { key: "CONVERTED",       num: "5", label: "Converted",       desc: "Deal Auto-Created" },
                 ]
               : [
                   { key: "NEW",       num: "1", label: "New Enquiry", desc: "Ingested & Assigned" },
-                  { key: "CONTACTED", num: "2", label: "Contacted",   desc: "Outreach in Progress" },
+                  { key: "CONTACTED", num: "2", label: "Contacted",   desc: "Client Outreach & CX Call" },
                   { key: "QUALIFIED", num: "3", label: "Qualified",   desc: "Needs & Budget Set" },
                   { key: "CONVERTED", num: "4", label: "Converted",   desc: "Deal Auto-Created" },
                 ];
@@ -914,8 +993,13 @@ export default function LeadDetail() {
                 isCurrent = currentStatus === "NEW";
                 isPast = currentStatus !== "NEW" && !isNotConverted;
               } else if (stage.key === "CONTACTED") {
-                isCurrent = currentStatus === "CONTACTED" && !isApproved;
-                isPast = ["QUALIFIED", "CONVERTED"].includes(currentStatus) || (currentStatus === "CONTACTED" && isApproved);
+                if (requiresSiteInspection) {
+                  isCurrent = currentStatus === "CONTACTED" && !inspection?.id && !isApproved;
+                  isPast = currentStatus !== "NEW" && !isNotConverted && (Boolean(inspection?.id) || isApproved || ["QUALIFIED", "CONVERTED"].includes(currentStatus));
+                } else {
+                  isCurrent = currentStatus === "CONTACTED";
+                  isPast = ["QUALIFIED", "CONVERTED"].includes(currentStatus);
+                }
               } else if (stage.key === "SITE_INSPECTION") {
                 isCurrent = currentStatus === "CONTACTED" && !isApproved;
                 isPast = isApproved || ["QUALIFIED", "CONVERTED"].includes(currentStatus);
@@ -928,15 +1012,28 @@ export default function LeadDetail() {
               }
 
               const handleStageClick = () => {
+                if (stage.key === "CONTACTED") {
+                  setIsContactModalOpen(true);
+                  return;
+                }
                 if (stage.key === "SITE_INSPECTION") {
                   if (inspection?.id) {
                     navigate(`/site-inspections/${inspection.id}`);
+                  } else {
+                    setIsGateModalOpen(true);
                   }
                   return;
                 }
-                if ((stage.key === "QUALIFIED" || stage.key === "CONVERTED") && gate && !gate.allowed) {
-                  setGateBlockedBanner(gate.message);
-                  return;
+                if (stage.key === "QUALIFIED" || stage.key === "CONVERTED") {
+                  if (requiresSiteInspection && (!inspection || inspection.status !== "APPROVED")) {
+                    setIsGateModalOpen(true);
+                    return;
+                  }
+                  if (gate && !gate.allowed) {
+                    setGateBlockedBanner(gate.message);
+                    setIsGateModalOpen(true);
+                    return;
+                  }
                 }
                 setStatusErrorMessage(null);
                 updateStatusMutation.mutate(stage.key);
@@ -2510,6 +2607,33 @@ export default function LeadDetail() {
             queryClient.invalidateQueries({ queryKey: ["lead", id] });
             queryClient.invalidateQueries({ queryKey: ["pipeline"] });
             queryClient.invalidateQueries({ queryKey: ["opportunities"] });
+          }}
+        />
+      )}
+
+      {/* Client Outreach & Technical Scoping Modal */}
+      {lead && (
+        <ContactCustomerModal
+          isOpen={isContactModalOpen}
+          onClose={() => setIsContactModalOpen(false)}
+          lead={lead}
+          onConfirm={handleContactConfirm}
+          isSubmitting={isSubmittingContact}
+        />
+      )}
+
+      {/* Site Inspection Audit Gate Blocked Modal */}
+      {lead && (
+        <SiteInspectionAuditGateModal
+          isOpen={isGateModalOpen}
+          onClose={() => setIsGateModalOpen(false)}
+          lead={lead}
+          inspection={inspection}
+          gateMessage={gateBlockedBanner || gate?.message}
+          onAuditApproved={() => {
+            queryClient.invalidateQueries({ queryKey: ["lead", id] });
+            queryClient.invalidateQueries({ queryKey: ["lead-site-inspection", id] });
+            setGateBlockedBanner(null);
           }}
         />
       )}
