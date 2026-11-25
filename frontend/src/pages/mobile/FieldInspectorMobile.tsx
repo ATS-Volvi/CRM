@@ -53,6 +53,7 @@ import {
   SiteInspectionAttachmentItem,
 } from "../../lib/siteInspection";
 import { useAuth } from "../../context/AuthContext";
+import { apiClient } from "../../lib/apiClient";
 
 type TabFilter = "today" | "pending" | "in_review" | "approved" | "all";
 
@@ -142,6 +143,130 @@ async function compressImageFile(file: File): Promise<File> {
   });
 }
 
+interface MobilePreviewPhoto {
+  inspectionId?: string;
+  attachmentId?: string;
+  blob?: Blob;
+  fileName: string;
+  tag?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  takenAt?: string | null;
+  isOffline?: boolean;
+}
+
+function MobileAttachmentThumbnail({
+  inspectionId,
+  attachmentId,
+  blob,
+  fileName,
+  className = "w-full h-full object-cover",
+}: {
+  inspectionId?: string;
+  attachmentId?: string;
+  blob?: Blob;
+  fileName: string;
+  className?: string;
+}) {
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [hasError, setHasError] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    let createdUrl: string | null = null;
+
+    if (blob) {
+      createdUrl = URL.createObjectURL(blob);
+      setBlobUrl(createdUrl);
+      setLoading(false);
+      return () => {
+        if (createdUrl) URL.revokeObjectURL(createdUrl);
+      };
+    }
+
+    if (!inspectionId || !attachmentId) {
+      setLoading(false);
+      return;
+    }
+
+    async function fetchAttachmentBlob() {
+      try {
+        setLoading(true);
+        setHasError(false);
+        const res = await apiClient(
+          `/api/v1/site-inspections/${inspectionId}/attachments/${attachmentId}/file`,
+          { headers: { Accept: "application/json, image/*, */*" } }
+        );
+
+        if (!res.ok) {
+          if (active) setHasError(true);
+          return;
+        }
+
+        const contentType = res.headers.get("content-type") || "";
+        let finalBlob: Blob;
+
+        if (contentType.includes("application/json")) {
+          const data = await res.json();
+          const s3Res = await fetch(data.url);
+          if (!s3Res.ok) {
+            if (active) setHasError(true);
+            return;
+          }
+          finalBlob = await s3Res.blob();
+        } else {
+          finalBlob = await res.blob();
+        }
+
+        if (active) {
+          createdUrl = URL.createObjectURL(finalBlob);
+          setBlobUrl(createdUrl);
+        }
+      } catch {
+        if (active) setHasError(true);
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+
+    fetchAttachmentBlob();
+
+    return () => {
+      active = false;
+      if (createdUrl) {
+        URL.revokeObjectURL(createdUrl);
+      }
+    };
+  }, [inspectionId, attachmentId, blob]);
+
+  if (hasError) {
+    return (
+      <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900 text-slate-400 p-1 text-center">
+        <Camera className="w-5 h-5 opacity-40 mb-1 text-slate-500" />
+        <span className="text-[9px] text-slate-400 font-mono truncate max-w-full">Preview</span>
+      </div>
+    );
+  }
+
+  if (loading || !blobUrl) {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-slate-900/90 animate-pulse">
+        <Camera className="w-5 h-5 text-slate-500/70 animate-pulse" />
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={blobUrl}
+      alt={fileName}
+      className={className}
+      onError={() => setHasError(true)}
+    />
+  );
+}
+
 export default function FieldInspectorMobile() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -176,6 +301,7 @@ export default function FieldInspectorMobile() {
   const [selectedPhotoTag, setSelectedPhotoTag] = useState<string>("Gate / Access Point");
   const [isCapturingGps, setIsCapturingGps] = useState(false);
   const [completenessErrors, setCompletenessErrors] = useState<string[]>([]);
+  const [previewPhoto, setPreviewPhoto] = useState<MobilePreviewPhoto | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Network Online / Offline Detection
@@ -559,6 +685,14 @@ export default function FieldInspectorMobile() {
     setSurveyFeedback(null);
     setCompletenessErrors([]);
     loadOfflinePhotos(inspection.id);
+
+    // Fetch full inspection record with complete attachments array
+    siteInspectionApi
+      .getInspection(inspection.id)
+      .then((fresh) => {
+        if (fresh) setActiveSurveyInspection(fresh);
+      })
+      .catch(() => {});
 
     const draftKey = `si_local_draft_${inspection.id}`;
     const defaultBase = bases[0];
@@ -2399,28 +2533,89 @@ export default function FieldInspectorMobile() {
                     )}
 
                     {/* Photos Grid */}
-                    <div className="grid grid-cols-3 gap-2 mt-2">
-                      {(activeSurveyInspection.attachments || []).map((att) => (
-                        <div
-                          key={att.id}
-                          className="relative rounded-xl border border-slate-200 bg-slate-900 overflow-hidden aspect-square flex flex-col justify-end p-2 text-[9px] font-bold text-white shadow-xs"
-                        >
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent z-10" />
-                          <span className="relative z-20 truncate">{att.tag || att.fileName}</span>
-                        </div>
-                      ))}
-                      {offlinePhotos.map((off) => (
-                        <div
-                          key={off.id}
-                          className="relative rounded-xl border-2 border-dashed border-amber-400 bg-amber-900/60 overflow-hidden aspect-square flex flex-col justify-between p-2 text-[9px] font-bold text-white shadow-xs"
-                        >
-                          <span className="px-1 py-0.2 rounded bg-amber-500 text-black font-black uppercase text-[8px] w-fit">
-                            Offline
-                          </span>
-                          <span className="truncate">{off.tag || off.fileName}</span>
-                        </div>
-                      ))}
-                    </div>
+                    {((activeSurveyInspection.attachments && activeSurveyInspection.attachments.length > 0) || offlinePhotos.length > 0) ? (
+                      <div className="grid grid-cols-3 gap-2 mt-2">
+                        {(activeSurveyInspection.attachments || []).map((att) => (
+                          <div
+                            key={att.id}
+                            onClick={() =>
+                              setPreviewPhoto({
+                                inspectionId: activeSurveyInspection.id,
+                                attachmentId: att.id,
+                                fileName: att.fileName,
+                                tag: att.tag || undefined,
+                                latitude: att.latitude,
+                                longitude: att.longitude,
+                                takenAt: att.takenAt,
+                                isOffline: false,
+                              })
+                            }
+                            className="group relative rounded-xl border border-slate-200/90 bg-slate-900 overflow-hidden aspect-square flex flex-col justify-end p-2 cursor-pointer shadow-xs active:scale-95 transition-all hover:ring-2 hover:ring-emerald-500"
+                            title="Tap to view photo"
+                          >
+                            <div className="absolute inset-0">
+                              <MobileAttachmentThumbnail
+                                inspectionId={activeSurveyInspection.id}
+                                attachmentId={att.id}
+                                fileName={att.fileName}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                              />
+                            </div>
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent z-10 pointer-events-none" />
+                            <div className="relative z-20 flex flex-col gap-0.5">
+                              <span className="text-[9px] font-bold text-white truncate drop-shadow">
+                                {att.tag || att.fileName}
+                              </span>
+                              <div className="flex items-center justify-between text-[8px] text-emerald-300">
+                                <span className="truncate uppercase font-mono">{att.fileName.split(".").pop() || "IMG"}</span>
+                                <span className="font-semibold text-white/90">Tap to view</span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                        {offlinePhotos.map((off) => (
+                          <div
+                            key={off.id}
+                            onClick={() =>
+                              setPreviewPhoto({
+                                blob: off.blob,
+                                fileName: off.fileName,
+                                tag: off.tag,
+                                isOffline: true,
+                                takenAt: off.createdAt,
+                              })
+                            }
+                            className="group relative rounded-xl border-2 border-dashed border-amber-400 bg-amber-950/80 overflow-hidden aspect-square flex flex-col justify-between p-2 cursor-pointer shadow-xs active:scale-95 transition-all hover:ring-2 hover:ring-amber-400"
+                            title="Tap to view offline photo"
+                          >
+                            <div className="absolute inset-0">
+                              <MobileAttachmentThumbnail
+                                blob={off.blob}
+                                fileName={off.fileName}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                              />
+                            </div>
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent z-10 pointer-events-none" />
+                            <span className="relative z-20 px-1.5 py-0.5 rounded bg-amber-500 text-black font-black uppercase text-[8px] w-fit shadow-xs">
+                              Offline
+                            </span>
+                            <div className="relative z-20 flex flex-col gap-0.5">
+                              <span className="text-[9px] font-bold text-white truncate drop-shadow">
+                                {off.tag || off.fileName}
+                              </span>
+                              <span className="text-[8px] text-amber-300 font-semibold">Tap to view</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-4 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/60 mt-2">
+                        <Camera className="w-6 h-6 text-slate-300 mx-auto mb-1" />
+                        <p className="text-[11px] font-medium text-slate-500">
+                          No photos attached yet. Tap <span className="font-bold text-slate-700">Take Photo</span> or <span className="font-bold text-emerald-700">Add Sample Photo</span> above.
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   {/* Field Notes Textarea */}
@@ -2565,6 +2760,103 @@ export default function FieldInspectorMobile() {
               </button>
             </div>
           </div>
+      )}
+
+      {/* ─── Mobile Photo Preview Lightbox Modal ─── */}
+      {previewPhoto && (
+        <div
+          className="fixed inset-0 z-50 flex flex-col justify-between bg-slate-950/95 backdrop-blur-md animate-fade-in p-4 safe-top safe-bottom-bar"
+          onClick={() => setPreviewPhoto(null)}
+        >
+          {/* Header */}
+          <div
+            className="flex items-center justify-between gap-3 pb-3 border-b border-slate-800 text-white"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black truncate max-w-[200px]">
+                  {previewPhoto.fileName}
+                </span>
+                {previewPhoto.isOffline ? (
+                  <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-500 text-black">
+                    Offline Queued
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                    Audit Verified
+                  </span>
+                )}
+              </div>
+              <p className="text-[10px] text-slate-400 font-medium truncate mt-0.5">
+                {previewPhoto.tag ? `Evidence Tag: ${previewPhoto.tag}` : "Field Audit Ground Evidence"}
+                {previewPhoto.takenAt ? ` • ${new Date(previewPhoto.takenAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : ""}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setPreviewPhoto(null)}
+              className="w-10 h-10 rounded-full bg-slate-800 hover:bg-slate-700 active:scale-90 flex items-center justify-center text-slate-200 transition-all shrink-0 cursor-pointer shadow-lg"
+              title="Close Preview"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Center High-Res Photo View */}
+          <div
+            className="flex-1 my-3 flex items-center justify-center overflow-hidden min-h-0"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <MobileAttachmentThumbnail
+              inspectionId={previewPhoto.inspectionId}
+              attachmentId={previewPhoto.attachmentId}
+              blob={previewPhoto.blob}
+              fileName={previewPhoto.fileName}
+              className="max-h-[68vh] max-w-full w-auto object-contain rounded-2xl shadow-2xl border border-slate-800"
+            />
+          </div>
+
+          {/* Footer Info & Actions */}
+          <div
+            className="pt-3 border-t border-slate-800 space-y-2.5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {previewPhoto.latitude != null && previewPhoto.longitude != null ? (
+              <div className="flex items-center justify-between bg-slate-900/90 border border-slate-800 rounded-xl p-2.5 text-xs">
+                <div className="flex items-center gap-2 min-w-0">
+                  <MapPin className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span className="font-mono text-[11px] text-emerald-300 font-bold truncate">
+                    {previewPhoto.latitude.toFixed(6)}°N, {previewPhoto.longitude.toFixed(6)}°E
+                  </span>
+                </div>
+                <a
+                  href={`https://www.google.com/maps?q=${previewPhoto.latitude},${previewPhoto.longitude}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold rounded-lg shrink-0 transition-colors"
+                >
+                  <span>Open Maps</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+            ) : null}
+
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10px] text-slate-400">
+                Nexus Field Engineering Mobile Suite
+              </span>
+              <button
+                type="button"
+                onClick={() => setPreviewPhoto(null)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-white font-bold text-xs rounded-xl transition-all cursor-pointer shadow-xs"
+              >
+                Close Preview
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   </div>
