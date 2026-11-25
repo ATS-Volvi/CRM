@@ -42,6 +42,17 @@ import { apiClient } from "../lib/apiClient";
 import { formatCurrency, formatCurrencyCompact } from "../utils/currency";
 import { normalizeStageName } from "../utils/pipelineStages";
 
+function formatDateSafe(dateVal: any, pattern: string = "MMM d", fallback: string = "Recent"): string {
+  if (!dateVal) return fallback;
+  try {
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return fallback;
+    return format(d, pattern);
+  } catch {
+    return fallback;
+  }
+}
+
 export default function MyDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -146,10 +157,13 @@ export default function MyDashboard() {
 
   // Sales target quota calculations (Quarterly target benchmark)
   const targetQuota = 2500000; // SAR / standard unit 25 Lakhs / 2.5M
-  const targetPct = Math.min(100, Math.round((totalWonRevenue / targetQuota) * 100)) || 74; // Fallback to 74% if baseline demo
+  const validWonRevenue = Number(totalWonRevenue) || 0;
+  const targetPct = Math.min(100, Math.max(0, Math.round((validWonRevenue / targetQuota) * 100))) || 74;
+  const strokeDash = 125.66;
+  const strokeOffset = Math.max(0, Math.min(strokeDash, strokeDash - (strokeDash * (targetPct / 100))));
   const closedCount = wonOpps.length + lostOpps.length;
   const winRate = closedCount > 0 ? Math.round((wonOpps.length / closedCount) * 100) : 68;
-  const avgDealSize = wonOpps.length > 0 ? Math.round(totalWonRevenue / wonOpps.length) : opportunities.length > 0 ? Math.round(totalPipelineValue / opportunities.length) : 340000;
+  const avgDealSize = wonOpps.length > 0 ? Math.round(validWonRevenue / wonOpps.length) : opportunities.length > 0 ? Math.round(totalPipelineValue / opportunities.length) : 340000;
 
   // Construct Focus / Action Queue Items
   const focusItems: {
@@ -191,7 +205,7 @@ export default function MyDashboard() {
       badge: "Action Required",
       badgeColor: "bg-blue-50 text-blue-700 border-blue-200",
       url: `/leads/${l.id}`,
-      date: l.createdAt ? format(new Date(l.createdAt), "MMM d") : "Today"
+      date: formatDateSafe(l.createdAt, "MMM d", "Today")
     });
   });
 
@@ -213,7 +227,7 @@ export default function MyDashboard() {
         badgeColor: s === "Negotiation" ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-emerald-50 text-emerald-700 border-emerald-200",
         amount: Number(o.amount || o.estimatedValue || 0),
         url: `/opportunities/${o.id}`,
-        date: o.updatedAt ? format(new Date(o.updatedAt), "MMM d") : "Yesterday"
+        date: formatDateSafe(o.updatedAt, "MMM d", "Yesterday")
       });
     });
 
@@ -472,7 +486,7 @@ export default function MyDashboard() {
                   strokeWidth="8"
                   strokeLinecap="round"
                   strokeDasharray="125.66"
-                  strokeDashoffset={125.66 - (125.66 * (targetPct / 100))}
+                  strokeDashoffset={strokeOffset}
                   className="transition-all duration-1000 ease-out"
                 />
               </svg>
@@ -679,7 +693,7 @@ export default function MyDashboard() {
                         {opp.name}
                       </div>
                       <div className="text-[11px] text-slate-400 truncate">
-                        {opp.account?.name || "Corporate Client"} • {opp.stage || "In Negotiation"}
+                        {opp.account?.name || "Corporate Client"} • {getStageName(opp) || "In Negotiation"}
                       </div>
                     </div>
                   </div>
@@ -689,7 +703,7 @@ export default function MyDashboard() {
                       {formatCurrency(opp.amount || opp.estimatedValue || 0)}
                     </div>
                     <div className="text-[10px] font-semibold text-emerald-600">
-                      Target: {opp.expectedCloseDate ? format(new Date(opp.expectedCloseDate), "MMM d") : "Dec 2026"}
+                      Target: {formatDateSafe(opp.expectedCloseDate, "MMM d", "Dec 2026")}
                     </div>
                   </div>
                 </div>

@@ -15,6 +15,7 @@ import { DemoStoryGuide } from "./DemoStoryGuide";
 import { TopWorkspaceNav } from "./TopWorkspaceNav";
 import { Sidebar } from "./Sidebar";
 import { WorkspaceTransition } from "./WorkspaceTransition";
+import { ErrorBoundary } from "./ErrorBoundary";
 import { OrbitProvider } from "../context/OrbitContext";
 import { useVolviAssist } from "../context/VolviAssistContext";
 import { useBrand } from "../context/BrandContext";
@@ -135,9 +136,11 @@ export function Layout() {
             onOpenNotifications={() => setIsNotificationsOpen(true)}
           />
           <main className="flex-1 overflow-y-auto relative">
-            <WorkspaceTransition>
-              <Outlet />
-            </WorkspaceTransition>
+            <ErrorBoundary>
+              <WorkspaceTransition>
+                <Outlet />
+              </WorkspaceTransition>
+            </ErrorBoundary>
           </main>
         </div>
 
