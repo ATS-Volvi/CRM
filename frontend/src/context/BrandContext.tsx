@@ -66,7 +66,7 @@ export const BrandProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     primaryColor: isGreen ? "#059669" : "#2563EB",
     badgeText: "NX",
     badgeGradient: isGreen
-      ? "bg-gradient-to-tr from-emerald-600 to-teal-600 shadow-emerald-500/20"
+      ? "bg-gradient-to-r from-[#1D4ED8] via-[#0D9488] to-[#10B981] shadow-emerald-500/20"
       : "bg-gradient-to-tr from-blue-600 to-indigo-600 shadow-blue-500/20",
   };
 

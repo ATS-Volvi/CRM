@@ -150,31 +150,21 @@ export function Sidebar({
       <div className="p-4 border-b border-slate-100 dark:border-slate-800 space-y-3">
         <div className="flex items-center justify-between">
           {!isCollapsed && <div className="flex items-center gap-2.5">
-                <div className={`w-8 h-8 rounded-xl text-white flex items-center justify-center font-black text-xs shadow-md ${
-                  userRole === "sales_rep" 
-                    ? "bg-gradient-to-tr from-purple-600 via-indigo-600 to-emerald-500 shadow-purple-500/30" 
-                    : "bg-gradient-to-tr from-blue-600 to-indigo-600 shadow-blue-500/20"
-                }`}>
+                <div className="w-8 h-8 rounded-xl text-white flex items-center justify-center font-black text-xs shadow-md bg-gradient-to-r from-[#1D4ED8] via-[#0D9488] to-[#10B981] shadow-emerald-500/20">
                   NX
                 </div>
                 <div>
                   <span className="font-extrabold text-sm tracking-tight text-slate-900 dark:text-white block leading-none">
                     NEXUS CRM
                   </span>
-                  <span className={`text-[10px] font-bold block ${
-                    userRole === "sales_rep" ? "text-purple-600 dark:text-purple-400" : "text-blue-600 dark:text-blue-400"
-                  }`}>
+                  <span className="text-[10px] font-bold block text-[#059669] dark:text-emerald-400">
                     {userRole === "sales_rep" ? "Sales OS Rep" : "Workspace OS"}
                   </span>
                 </div>
               </div>
             }
             {isCollapsed && (
-              <div className={`w-8 h-8 rounded-xl text-white flex items-center justify-center font-black text-xs mx-auto shadow-md ${
-                userRole === "sales_rep"
-                  ? "bg-gradient-to-tr from-purple-600 to-emerald-500 shadow-purple-500/30"
-                  : "bg-gradient-to-tr from-blue-600 to-indigo-600 shadow-blue-500/20"
-              }`}>
+              <div className="w-8 h-8 rounded-xl text-white flex items-center justify-center font-black text-xs mx-auto shadow-md bg-gradient-to-r from-[#1D4ED8] via-[#0D9488] to-[#10B981] shadow-emerald-500/20">
                 NX
               </div>
             )}
@@ -242,7 +232,7 @@ export function Sidebar({
       </div>
 
       {/* 5 Core Pillars Navigation List */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-1.5 no-scrollbar">
+      <div className="flex-1 overflow-y-auto p-3 space-y-2 no-scrollbar">
         {primaryNavItems.map((item) => {
           const Icon = item.icon;
           const hasSubItems = item.subItems && item.subItems.length > 0;
@@ -254,7 +244,10 @@ export function Sidebar({
 
           if (hasSubItems) {
             return (
-              <div key={item.label} className="space-y-1">
+              <div 
+                key={item.label} 
+                className="rounded-2xl transition-all duration-200 bg-[var(--crm-sidebar-panel-bg,#FFFFFF)] dark:bg-slate-900 border border-[var(--crm-sidebar-panel-border,#D8EEE1)] dark:border-slate-800 shadow-[0_2px_8px_-2px_rgba(5,150,105,0.04)] p-1.5 space-y-1"
+              >
                 <button
                   type="button"
                   onClick={() => {
@@ -263,30 +256,34 @@ export function Sidebar({
                     }
                     toggleDropdown(item.label);
                   }}
-                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-bold text-xs transition-all group cursor-pointer ${
+                  className={`w-full flex items-center justify-between px-2.5 py-2 rounded-xl font-bold text-xs transition-all group cursor-pointer ${
                     isItemActive
-                      ? "bg-primary/10 text-primary dark:bg-primary/20"
-                      : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100"
+                      ? "bg-gradient-to-r from-[#1D4ED8] via-[#0D9488] to-[#10B981] text-white shadow-xs font-black"
+                      : "text-slate-700 dark:text-slate-200 hover:bg-[#EAF7F0] dark:hover:bg-emerald-950/40 hover:text-[#059669] dark:hover:text-emerald-300"
                   }`}
                   title={isCollapsed ? item.label : undefined}
                 >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className={`p-1 rounded-lg transition-colors ${
-                      isItemActive ? "text-primary font-black" : "text-slate-500 dark:text-slate-400 group-hover:text-slate-800 dark:group-hover:text-white"
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className={`p-1.5 rounded-lg transition-colors ${
+                      isItemActive 
+                        ? "bg-white/20 text-white" 
+                        : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 group-hover:text-[#059669] group-hover:bg-emerald-100/60"
                     }`}>
-                      <Icon className="w-4 h-4" />
+                      <Icon className="w-3.5 h-3.5" />
                     </div>
                     {!isCollapsed && <span className="truncate">{item.label}</span>}
                   </div>
 
                   {!isCollapsed && (
-                    <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${isDropdownOpen ? "rotate-0" : "-rotate-90"}`} />
+                    <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                      isItemActive ? "text-white" : "text-slate-400 group-hover:text-[#059669]"
+                    } ${isDropdownOpen ? "rotate-0" : "-rotate-90"}`} />
                   )}
                 </button>
 
                 {/* Sub-items list */}
                 {isDropdownOpen && !isCollapsed && (
-                  <div className="pl-4 pr-1 py-1 space-y-1 ml-3 border-l-2 border-slate-200 dark:border-slate-800">
+                  <div className="mt-1 space-y-0.5 p-1 rounded-xl bg-slate-50/70 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
                     {item.subItems!.map((sub) => {
                       const SubIcon = sub.icon;
                       const isSubActive = location.pathname === sub.path || (sub.path !== "/" && location.pathname.startsWith(sub.path));
@@ -295,19 +292,21 @@ export function Sidebar({
                         <Link
                           key={sub.path}
                           to={sub.path}
-                          className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                          className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
                             isSubActive
-                              ? "bg-primary text-white shadow-2xs font-bold"
-                              : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900"
+                              ? "bg-gradient-to-r from-[#1D4ED8] via-[#0D9488] to-[#10B981] text-white shadow-2xs font-black"
+                              : "text-slate-600 dark:text-slate-300 hover:bg-[#EAF7F0] dark:hover:bg-emerald-950/40 hover:text-[#059669] dark:hover:text-emerald-300"
                           }`}
                         >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <SubIcon className="w-3.5 h-3.5 shrink-0" />
+                          <div className="flex items-center gap-2 min-w-0">
+                            <SubIcon className={`w-3.5 h-3.5 shrink-0 ${
+                              isSubActive ? "text-white" : "text-slate-400 group-hover:text-[#059669]"
+                            }`} />
                             <span className="truncate">{sub.label}</span>
                           </div>
                           {sub.badge && (
                             <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded-full ${
-                              isSubActive ? "bg-white text-primary" : "bg-amber-500 text-white"
+                              isSubActive ? "bg-white text-[#059669]" : "bg-emerald-500 text-white"
                             }`}>
                               {sub.badge}
                             </span>
@@ -322,33 +321,43 @@ export function Sidebar({
           }
 
           return (
-            <Link
+            <div
               key={item.path}
-              to={item.path!}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl font-bold text-xs transition-all group relative ${
-                isItemActive
-                  ? "bg-primary text-white shadow-xs"
-                  : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100"
-              }`}
-              title={isCollapsed ? item.label : undefined}
+              className="rounded-2xl transition-all duration-200 bg-[var(--crm-sidebar-panel-bg,#FFFFFF)] dark:bg-slate-900 border border-[var(--crm-sidebar-panel-border,#D8EEE1)] dark:border-slate-800 shadow-[0_2px_8px_-2px_rgba(5,150,105,0.04)] overflow-hidden"
             >
-              <div className={`p-1 rounded-lg transition-colors ${
-                isItemActive ? "text-white" : "text-slate-500 dark:text-slate-400 group-hover:text-slate-800 dark:group-hover:text-white"
-              }`}>
-                <Icon className="w-4 h-4" />
-              </div>
-
-              {!isCollapsed && (
-                <div className="flex-1 flex items-center justify-between">
-                  <span className="truncate">{item.label}</span>
-                  {item.badge && (
-                    <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                      {item.badge}
-                    </span>
-                  )}
+              <Link
+                to={item.path!}
+                className={`flex items-center gap-2.5 px-3 py-2.5 font-bold text-xs transition-all group relative cursor-pointer ${
+                  isItemActive
+                    ? "bg-gradient-to-r from-[#1D4ED8] via-[#0D9488] to-[#10B981] text-white shadow-xs font-black"
+                    : "text-slate-700 dark:text-slate-200 hover:bg-[#EAF7F0] dark:hover:bg-emerald-950/40 hover:text-[#059669] dark:hover:text-emerald-300"
+                }`}
+                title={isCollapsed ? item.label : undefined}
+              >
+                <div className={`p-1.5 rounded-lg transition-colors ${
+                  isItemActive 
+                    ? "bg-white/20 text-white" 
+                    : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 group-hover:text-[#059669] group-hover:bg-emerald-100/60"
+                }`}>
+                  <Icon className="w-3.5 h-3.5" />
                 </div>
-              )}
-            </Link>
+
+                {!isCollapsed && (
+                  <div className="flex-1 flex items-center justify-between">
+                    <span className="truncate">{item.label}</span>
+                    {item.badge && (
+                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                        isItemActive
+                          ? "bg-white/20 text-white"
+                          : "bg-emerald-100 dark:bg-emerald-950 text-[#059669] dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
+                      }`}>
+                        {item.badge}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </Link>
+            </div>
           );
         })}
       </div>

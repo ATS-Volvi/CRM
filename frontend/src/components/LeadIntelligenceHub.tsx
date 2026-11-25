@@ -11,10 +11,8 @@ import {
   FileText,
   Phone,
   CheckCircle2,
-  ShieldCheck,
   AlertTriangle,
-  Flame,
-  ArrowRight
+  Bot
 } from "lucide-react";
 import { apiClient } from "../lib/apiClient";
 
@@ -24,6 +22,8 @@ interface LeadIntelligenceHubProps {
   leadId: string;
   lead: any;
   user?: any;
+  winProbability?: number | null | string;
+  riskIndicator?: { label: string; reason?: string } | null;
   activeTab?: IntelligenceTab;
   onTabChange?: (tab: IntelligenceTab) => void;
   // Discovery call checklist state
@@ -47,6 +47,8 @@ export const LeadIntelligenceHub: React.FC<LeadIntelligenceHubProps> = ({
   leadId,
   lead,
   user,
+  winProbability,
+  riskIndicator,
   activeTab: externalTab,
   onTabChange,
   discoveryService,
@@ -76,7 +78,7 @@ export const LeadIntelligenceHub: React.FC<LeadIntelligenceHubProps> = ({
 
   const endpoint = `/api/v1/leads/${leadId}/ai-summary`;
 
-  const { data, isLoading, isFetching, refetch } = useQuery<any>({
+  const { data, isFetching, refetch } = useQuery<any>({
     queryKey: ["ai-requirement-summary", "lead", leadId],
     queryFn: async () => {
       return await apiClient.get<any>(endpoint);
@@ -93,14 +95,14 @@ export const LeadIntelligenceHub: React.FC<LeadIntelligenceHubProps> = ({
   const specTier = specs[0] || "Standard Commercial Tier Specifications";
   const scopeVolume = deliverables[0] || (lead?.body ? lead.body.slice(0, 50) + "..." : "Commercial Quotation Scope");
   const rawQuote = data?.coreRequest || data?.rawSummaryText || lead?.body || "Client is requesting official pricing for industrial scope.";
-  const recommendedAction = data?.recommendedAction || "Prepare and review quotation package based on customer scope.";
+  const recommendedAction = data?.recommendedAction || (lead?.firstName ? `Schedule product demo & confirm quote parameters with ${lead.firstName}.` : "Prepare and review quotation package based on customer scope.");
 
   return (
     <div className={`bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-[20px] p-4 sm:p-5 shadow-[0_8px_24px_-4px_rgba(5,150,105,0.06)] text-slate-900 dark:text-slate-100 relative overflow-hidden transition-all duration-200 ${className}`}>
-      {/* ── Top Header Bar: Title + Segmented Navigation Switcher + Intent Pill ── */}
+      {/* ── Top Header Bar: Title + Segmented Switcher + Intent & Win Prob Pills ── */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 mb-3.5 border-b border-slate-100 dark:border-slate-800">
         <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-[#059669] dark:text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-200/80 dark:border-emerald-800 shadow-2xs">
+          <div className="w-7 h-7 rounded-xl bg-gradient-to-r from-[#1D4ED8] via-[#0D9488] to-[#10B981] text-white flex items-center justify-center shrink-0 shadow-2xs">
             <Sparkles className="w-3.5 h-3.5" />
           </div>
           <div>
@@ -109,16 +111,16 @@ export const LeadIntelligenceHub: React.FC<LeadIntelligenceHubProps> = ({
                 Lead Intelligence &amp; Playbook Hub
               </h3>
               <span className="text-[9px] font-black uppercase tracking-wider bg-emerald-50 dark:bg-emerald-950 text-[#059669] dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-900/60 px-2 py-0.5 rounded-full font-mono">
-                AI Powered
+                AI Copilot
               </span>
             </div>
             <p className="text-[10px] text-slate-400 hidden sm:block">
-              Synthesized scope, 5-minute qualification guide &amp; sales playbooks in one unified view.
+              Synthesized commercial scope, 5-minute technical discovery &amp; copilot guidance.
             </p>
           </div>
         </div>
 
-        {/* ── Segmented Pill Switcher & Intent Badge ── */}
+        {/* ── Segmented Pill Switcher & Metrics ── */}
         <div className="flex items-center gap-2 flex-wrap">
           {/* Segmented Switcher */}
           <div className="bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl flex items-center gap-1 border border-slate-200/80 dark:border-slate-700/80">
@@ -127,7 +129,7 @@ export const LeadIntelligenceHub: React.FC<LeadIntelligenceHubProps> = ({
               onClick={() => handleTabSelect("scope")}
               className={`flex items-center gap-1.5 py-1 px-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 currentTab === "scope"
-                  ? "bg-[#059669] text-white shadow-xs"
+                  ? "bg-gradient-to-r from-[#1D4ED8] via-[#0D9488] to-[#10B981] text-white shadow-xs font-black"
                   : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60"
               }`}
             >
@@ -140,7 +142,7 @@ export const LeadIntelligenceHub: React.FC<LeadIntelligenceHubProps> = ({
               onClick={() => handleTabSelect("discovery")}
               className={`flex items-center gap-1.5 py-1 px-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 currentTab === "discovery"
-                  ? "bg-[#059669] text-white shadow-xs"
+                  ? "bg-gradient-to-r from-[#1D4ED8] via-[#0D9488] to-[#10B981] text-white shadow-xs font-black"
                   : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60"
               }`}
             >
@@ -154,20 +156,30 @@ export const LeadIntelligenceHub: React.FC<LeadIntelligenceHubProps> = ({
               onClick={() => handleTabSelect("playbook")}
               className={`flex items-center gap-1.5 py-1 px-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 currentTab === "playbook"
-                  ? "bg-[#059669] text-white shadow-xs"
+                  ? "bg-gradient-to-r from-[#1D4ED8] via-[#0D9488] to-[#10B981] text-white shadow-xs font-black"
                   : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60"
               }`}
             >
-              <FileText className="w-3.5 h-3.5" />
-              <span>Next Best Step</span>
+              <Bot className="w-3.5 h-3.5" />
+              <span>AI Copilot &amp; Next Step</span>
             </button>
           </div>
 
+          {/* Win Probability Pill */}
+          {winProbability !== undefined && winProbability !== null && (
+            <div className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-200 dark:border-emerald-800 text-xs font-bold text-emerald-800 dark:text-emerald-200">
+              <span className="text-[10px] text-slate-400 font-semibold">Win Prob:</span>
+              <strong className="font-extrabold text-[#059669]">
+                {typeof winProbability === "number" ? `${winProbability}%` : winProbability}
+              </strong>
+            </div>
+          )}
+
           {/* Intent Pill */}
-          <div className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-200 dark:border-emerald-800 text-xs font-bold text-emerald-800 dark:text-emerald-200">
-            <TrendingUp className="w-3.5 h-3.5 text-[#059669]" />
+          <div className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-blue-50 dark:bg-blue-950/70 border border-blue-200 dark:border-blue-800 text-xs font-bold text-blue-800 dark:text-blue-200">
+            <TrendingUp className="w-3.5 h-3.5 text-[#1D4ED8]" />
             <span className="text-[11px]">
-              Intent: <strong className="font-extrabold text-[#059669]">{intentScore !== null ? `${intentScore}%` : "85%"}</strong>
+              Intent: <strong className="font-extrabold text-[#1D4ED8]">{intentScore !== null ? `${intentScore}%` : "85%"}</strong>
             </span>
           </div>
         </div>
@@ -362,9 +374,48 @@ export const LeadIntelligenceHub: React.FC<LeadIntelligenceHubProps> = ({
         </div>
       )}
 
-      {/* ── Active Tab View 3: Next Best Step & Sales Playbook ── */}
+      {/* ── Active Tab View 3: AI Sales Copilot & Next Best Step ── */}
       {currentTab === "playbook" && (
         <div className="space-y-3.5 animate-fade-in">
+          {/* AI Sales Copilot Card Contents */}
+          <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200/80 dark:border-slate-700/80 space-y-2.5">
+            <div className="flex items-center justify-between border-b border-slate-200/70 dark:border-slate-700/70 pb-2">
+              <span className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                <Bot className="w-4 h-4 text-[#059669]" /> AI Sales Copilot &amp; Deal Guidance
+              </span>
+              <span className="text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950 text-[#059669] dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 rounded-full">
+                Real-time
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div className="p-2.5 bg-white dark:bg-slate-900 rounded-lg border border-slate-200/70 dark:border-slate-700/70 flex justify-between items-center">
+                <div>
+                  <span className="text-slate-500 font-medium block">Win Probability:</span>
+                  <span className="text-[10px] text-slate-400">Score-based estimate</span>
+                </div>
+                <span className="font-extrabold text-emerald-600 bg-emerald-50 dark:bg-emerald-950 px-2.5 py-1 rounded-full border border-emerald-200 dark:border-emerald-800 text-xs">
+                  {winProbability !== undefined && winProbability !== null ? (typeof winProbability === "number" ? `${winProbability}%` : winProbability) : "95%"}
+                </span>
+              </div>
+
+              <div className="p-2.5 bg-white dark:bg-slate-900 rounded-lg border border-slate-200/70 dark:border-slate-700/70">
+                <span className="text-slate-500 font-semibold block mb-0.5">Recommended Action:</span>
+                <p className="font-medium text-slate-800 dark:text-slate-200 text-[11px] leading-snug">
+                  {recommendedAction}
+                </p>
+              </div>
+            </div>
+
+            {riskIndicator && (
+              <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 flex items-center gap-2 text-xs text-amber-800 dark:text-amber-300">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span className="text-[11px] font-medium">{riskIndicator.label}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Action Recommendations Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
             <div className="p-3 bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-xl space-y-1">
               <span className="font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
@@ -375,11 +426,11 @@ export const LeadIntelligenceHub: React.FC<LeadIntelligenceHubProps> = ({
               </p>
             </div>
 
-            <div className="p-3 bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 rounded-xl space-y-1">
-              <span className="font-bold text-indigo-800 dark:text-indigo-300 flex items-center gap-1.5">
-                <FileText className="w-4 h-4 text-indigo-600" /> Quote Readiness
+            <div className="p-3 bg-blue-50/60 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-xl space-y-1">
+              <span className="font-bold text-blue-800 dark:text-blue-300 flex items-center gap-1.5">
+                <FileText className="w-4 h-4 text-blue-600" /> Quote Readiness
               </span>
-              <p className="text-indigo-950 dark:text-indigo-200 font-medium leading-relaxed">
+              <p className="text-blue-950 dark:text-blue-200 font-medium leading-relaxed">
                 Inbound request captured via {lead?.source || "website form"}. Review specs and prepare itemized pricing.
               </p>
             </div>
@@ -392,7 +443,7 @@ export const LeadIntelligenceHub: React.FC<LeadIntelligenceHubProps> = ({
         <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 min-w-0">
           <Sparkles className="w-3.5 h-3.5 text-[#059669] shrink-0" />
           <span className="truncate">
-            <strong className="text-slate-900 dark:text-white">Recommended Action:</strong>{" "}
+            <strong className="text-slate-900 dark:text-white">Recommended:</strong>{" "}
             {recommendedAction}
           </span>
         </div>
@@ -421,7 +472,7 @@ export const LeadIntelligenceHub: React.FC<LeadIntelligenceHubProps> = ({
           <button
             type="button"
             onClick={() => onActionClick && onActionClick(recommendedAction)}
-            className="px-3.5 py-1 rounded-lg bg-[#059669] hover:bg-[#047857] text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
+            className="px-3.5 py-1 rounded-lg bg-gradient-to-r from-[#1D4ED8] via-[#0D9488] to-[#10B981] text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
           >
             <FileText className="w-3.5 h-3.5" />
             <span>Generate All Quotes</span>

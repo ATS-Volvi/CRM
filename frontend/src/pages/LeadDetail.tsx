@@ -1040,6 +1040,14 @@ export default function LeadDetail() {
         leadId={id!}
         lead={lead}
         user={user}
+        winProbability={hasActivities ? Math.min(95, Math.max(30, Math.round((lead.leadScore || 50) * 1.3))) : null}
+        riskIndicator={
+          !hasActivities || !lastContactDate
+            ? { label: "No direct contact logged yet" }
+            : daysSinceLastContact !== null && daysSinceLastContact > 7
+            ? { label: `No direct contact in ${daysSinceLastContact} days. Follow up required.` }
+            : null
+        }
         activeTab={intelligenceTab}
         onTabChange={setIntelligenceTab}
         discoveryService={discoveryService}
@@ -1092,55 +1100,6 @@ export default function LeadDetail() {
               return "";
             })()}
           />
-
-          {/* AI Sales Copilot Card */}
-          <div className="bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-900/60 rounded-2xl p-5 shadow-xs space-y-3 relative overflow-hidden">
-            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-2.5">
-              <h3 className="text-xs font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400" /> AI Sales Copilot & Insights
-              </h3>
-              <span className="text-[10px] font-bold bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 px-2 py-0.5 rounded-full">
-                Real-time
-              </span>
-            </div>
-            <div className="space-y-2.5 text-xs">
-              <div className="flex justify-between items-center">
-                <div className="flex flex-col">
-                  <span className="text-slate-500 font-medium">Win Probability:</span>
-                  <span className="text-[10px] text-slate-400 font-normal">Score-based estimate</span>
-                </div>
-                {hasActivities ? (
-                  <span className="font-extrabold text-emerald-600 bg-emerald-50 dark:bg-emerald-950 px-2.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
-                    {Math.min(95, Math.max(30, Math.round((lead.leadScore || 50) * 1.3)))}%
-                  </span>
-                ) : (
-                  <span className="font-medium text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 rounded-full border border-slate-200 dark:border-slate-700 text-[11px]">
-                    Pending interaction
-                  </span>
-                )}
-              </div>
-              <div>
-                <span className="text-slate-500 font-semibold block mb-1">Recommended Action:</span>
-                <p className="font-medium text-slate-800 dark:text-slate-200 bg-slate-50 dark:bg-slate-800 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-700">
-                  Schedule product demo & confirm quote parameters with {lead.firstName || "customer"}.
-                </p>
-              </div>
-              {(!hasActivities || !lastContactDate || (daysSinceLastContact !== null && daysSinceLastContact > 7)) && (
-                <div>
-                  <span className="text-slate-500 font-semibold block mb-1">Risk Indicator:</span>
-                  {!hasActivities || !lastContactDate ? (
-                    <p className="text-[11px] text-slate-600 dark:text-slate-400 font-medium bg-slate-50 dark:bg-slate-800/80 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-700">
-                      No contact logged yet
-                    </p>
-                  ) : (
-                    <p className="text-[11px] text-amber-700 dark:text-amber-300 font-medium bg-amber-50 dark:bg-amber-950/40 p-2.5 rounded-xl border border-amber-200 dark:border-amber-900/60">
-                      No direct contact in {daysSinceLastContact} days. Follow up required.
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
 
           {/* ── BUNDLED DOSSIER SMART STACK (Swipeable Card Bundle) ── */}
           {/* Bundles Customer Details, Campaign Attribution, and Company Intelligence into an expandable, swipeable stack */}
@@ -1477,6 +1436,40 @@ export default function LeadDetail() {
                 )
               },
               {
+                id: "tasks",
+                label: "Action Tasks",
+                shortLabel: "Tasks",
+                icon: <CheckSquare className="w-3.5 h-3.5" />,
+                badge: tasks.filter((t: any) => t.status !== "Completed").length,
+                badgeColor: "bg-emerald-100 text-[#059669] dark:bg-emerald-950 dark:text-emerald-300",
+                content: (
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-2">
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                        <CheckSquare className="w-4 h-4 text-[#059669]" /> Open Tasks ({tasks.filter((t: any) => t.status !== "Completed").length})
+                      </span>
+                      <button onClick={() => setActiveModal("task")} className="text-[#059669] font-bold text-xs hover:underline flex items-center gap-1 cursor-pointer">
+                        <Plus className="w-3.5 h-3.5" /> Add Task
+                      </button>
+                    </div>
+                    {tasks.length === 0 ? (
+                      <p className="text-xs text-slate-400 italic py-4 text-center">No pending tasks for this lead.</p>
+                    ) : (
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {tasks.map((task: any) => (
+                          <div key={task.id} className="p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 rounded-xl flex justify-between items-start text-xs">
+                            <div>
+                              <p className="font-bold text-slate-900 dark:text-white">{task.title}</p>
+                              <p className="text-[10px] text-slate-400 mt-0.5">Priority: {task.priority} | Status: {task.status}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              },
+              {
                 id: "attribution",
                 label: "Campaign Attribution",
                 shortLabel: "Attribution",
@@ -1634,32 +1627,6 @@ export default function LeadDetail() {
               }
             ]}
           />
-
-          {/* Quick Tasks Widget */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3">
-            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-2">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
-                <CheckSquare className="w-4 h-4 text-blue-600" /> Open Tasks ({tasks.filter((t: any) => t.status !== "Completed").length})
-              </h3>
-              <button onClick={() => setActiveModal("task")} className="text-blue-600 font-bold text-xs hover:underline flex items-center gap-1">
-                <Plus className="w-3.5 h-3.5" /> Add
-              </button>
-            </div>
-            {tasks.length === 0 ? (
-              <p className="text-xs text-slate-400 italic">No pending tasks for this lead.</p>
-            ) : (
-              <div className="space-y-2 max-h-48 overflow-y-auto">
-                {tasks.map((task: any) => (
-                  <div key={task.id} className="p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 rounded-xl flex justify-between items-start text-xs">
-                    <div>
-                      <p className="font-bold text-slate-900 dark:text-white">{task.title}</p>
-                      <p className="text-[10px] text-slate-400 mt-0.5">Priority: {task.priority} | Status: {task.status}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
 
         </div>
 
