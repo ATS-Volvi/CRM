@@ -78,9 +78,6 @@ export async function getSenderContext(
   }
 
   // 3. Check Open Lead
-  const attachWindowDays = parseInt(process.env.INTENT_ATTACH_WINDOW_DAYS || '60', 10);
-  const attachWindowDate = new Date(Date.now() - attachWindowDays * 24 * 60 * 60 * 1000);
-
   if (Lead && senderEmail) {
     try {
       const isSqlite = typeof (sequelize as any).getDialect === 'function' && (sequelize as any).getDialect() === 'sqlite';
@@ -91,11 +88,6 @@ export async function getSenderContext(
           status: {
             [Op.notIn]: TERMINAL_LEAD_STATUSES,
           },
-          [Op.or]: [
-            { createdAt: { [Op.gte]: attachWindowDate } },
-            { lastInboundAt: { [Op.gte]: attachWindowDate } },
-            { updatedAt: { [Op.gte]: attachWindowDate } },
-          ],
         },
         order: [['updatedAt', 'DESC'], ['createdAt', 'DESC']],
       });

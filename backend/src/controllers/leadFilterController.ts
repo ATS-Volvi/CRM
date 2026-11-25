@@ -199,12 +199,29 @@ export const promoteHeldEmail = async (req: Request, res: Response) => {
     let newLeadId: string | null = null;
     try {
       // If sender has an existing open lead, attach directly as activity instead of creating a duplicate lead!
-      const { getSenderContext } = require('../lead-security-layer/intentFilter/senderContext');
-      const senderCtx = await getSenderContext(email);
-      if (senderCtx.openLeadId) {
+      const { Lead } = sequelize.models;
+      const isSqlite = typeof (sequelize as any).getDialect === 'function' && (sequelize as any).getDialect() === 'sqlite';
+      const likeOp = isSqlite ? Op.like : Op.iLike;
+      const cleanSenderEmail = (email || '').trim().toLowerCase();
+
+      let targetOpenLead: any = null;
+      if (cleanSenderEmail) {
+        targetOpenLead = await Lead.findOne({
+          where: {
+            email: { [likeOp]: cleanSenderEmail },
+            status: {
+              [Op.notIn]: ['Won', 'Lost', 'Closed', 'Closed Won', 'Closed Lost', 'Not Converted', 'Archived']
+            }
+          },
+          order: [['updatedAt', 'DESC'], ['createdAt', 'DESC']]
+        });
+      }
+
+      const openLeadId = targetOpenLead ? targetOpenLead.id : null;
+      if (openLeadId) {
         const { attachEmailToLeadActivity } = require('../lead-security-layer/intentFilter/attachActivity');
         await attachEmailToLeadActivity({
-          leadId: senderCtx.openLeadId,
+          leadId: openLeadId,
           subject,
           body: message,
           createdById: userId,
@@ -214,7 +231,7 @@ export const promoteHeldEmail = async (req: Request, res: Response) => {
         await FlaggedLead.update(
           {
             disposition: 'promoted',
-            promotedLeadId: senderCtx.openLeadId,
+            promotedLeadId: openLeadId,
             reviewedById: userId,
             reviewedAt: new Date(),
             reviewed: true,
@@ -237,7 +254,7 @@ export const promoteHeldEmail = async (req: Request, res: Response) => {
 
         return res.json({
           success: true,
-          leadId: senderCtx.openLeadId,
+          leadId: openLeadId,
           message: 'Held email attached to existing open lead',
         });
       }

@@ -203,6 +203,52 @@ export const receiveInboundEmail = async (req: Request, res: Response) => {
     const { firstName, lastName, email } = parseSender(rawFrom);
     const recipientEmail = rawTo ? parseSender(rawTo).email : null;
 
+    // Fast-path: If an open lead already exists for this sender, customer is replying to ongoing conversation!
+    // In ALL environments and filter modes (enforce/shadow/off), customer replies must attach directly
+    // to the open lead timeline instead of creating duplicate leads or being quarantined.
+    const cleanSenderEmail = (email || "").trim().toLowerCase();
+    if (cleanSenderEmail) {
+      try {
+        const { Lead } = sequelize.models;
+        const isSqlite = typeof (sequelize as any).getDialect === "function" && (sequelize as any).getDialect() === "sqlite";
+        const likeOp = isSqlite ? Op.like : Op.iLike;
+        const openLead = await Lead.findOne({
+          where: {
+            email: { [likeOp]: cleanSenderEmail },
+            status: {
+              [Op.notIn]: ["Won", "Lost", "Closed", "Closed Won", "Closed Lost", "Not Converted", "Archived"]
+            }
+          },
+          order: [["updatedAt", "DESC"], ["createdAt", "DESC"]]
+        });
+
+        if (openLead) {
+          const targetLeadId = (openLead as any).id;
+          await attachEmailToLeadActivity({
+            leadId: targetLeadId,
+            subject: emailSubject || "Re: Inquiry",
+            body: emailBody || "",
+            createdById: (openLead as any).assignedToId || null,
+            channelSource: "email"
+          });
+
+          await openLead.update({
+            lastInboundAt: new Date(),
+            updatedAt: new Date()
+          }).catch(() => {});
+
+          return res.status(202).json({
+            status: "attached",
+            message: "Email attached to existing open lead",
+            leadId: targetLeadId,
+            action: "ATTACH_EXISTING"
+          });
+        }
+      } catch (openLeadErr: any) {
+        console.warn("[emailController] Fast-path open lead lookup notice:", openLeadErr.message);
+      }
+    }
+
     const routingResult = await routeChannelLead({
       channel: "email",
       subject: emailSubject,
