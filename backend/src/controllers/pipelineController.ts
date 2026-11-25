@@ -99,7 +99,8 @@ export const getPipeline = async (req: Request, res: Response) => {
 export const moveDealStage = async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
-    const { toStageId, reason, lossReasonCategory, recontactDate, forceBypass } = req.body;
+    const { reason, lossReasonCategory, recontactDate, forceBypass } = req.body;
+    const toStageId = req.body.toStageId || req.body.stageId;
     const userId = (req as any).user?.id || "mock-user";
     const userRole = (req as any).user?.role || "sales_rep";
 
@@ -115,8 +116,25 @@ export const moveDealStage = async (req: Request, res: Response) => {
     }
 
     const fromStageId = deal.stageId;
-    const fromStageObj: any = await PipelineStage.findByPk(fromStageId);
-    const toStageObj: any = await PipelineStage.findByPk(toStageId);
+    let fromStageObj: any = fromStageId ? await PipelineStage.findByPk(fromStageId) : null;
+    if (!fromStageObj) {
+      fromStageObj = await PipelineStage.findOne({ where: { name: "Discovery" } });
+    }
+
+    let toStageObj: any = toStageId ? await PipelineStage.findByPk(toStageId) : null;
+    if (!toStageObj && toStageId) {
+      const cleanName = toStageId.trim().toLowerCase();
+      const allStages = await PipelineStage.findAll();
+      toStageObj = allStages.find((s: any) => {
+        const sName = s.name.toLowerCase();
+        return sName === cleanName ||
+          (cleanName === "won deal" && sName === "won") ||
+          (cleanName === "proposal prep" && (sName === "quote preparation" || sName === "quote sent" || sName === "solution/scope"));
+      });
+      if (!toStageObj) {
+        toStageObj = await PipelineStage.findOne({ where: { name: toStageId } });
+      }
+    }
 
     const fromStageName = fromStageObj ? fromStageObj.name : "Unknown";
     const toStageName = toStageObj ? toStageObj.name : "Unknown";
@@ -184,7 +202,18 @@ export const moveDealStage = async (req: Request, res: Response) => {
     });
 
     // Update Deal fields
-    if (toStageId) deal.stageId = toStageId;
+    if (toStageObj) {
+      deal.stageId = toStageObj.id;
+      if (isWonStage(toStageObj.name)) {
+        deal.status = "WON";
+      } else if (isLostStage(toStageObj.name)) {
+        deal.status = "LOST";
+      } else {
+        deal.status = "OPEN";
+      }
+    } else if (toStageId) {
+      deal.stageId = toStageId;
+    }
     deal.enteredStageAt = new Date();
     deal.stageVerificationStatus = validation.verificationStatus;
     deal.stageEvidence = JSON.stringify(validation.evidence);
@@ -945,7 +974,24 @@ export const moveOpportunityStage = moveDealStage;
 
 export const getPipelineStages = async (req: Request, res: Response) => {
   try {
-    const stages = await PipelineStage.findAll({ order: [["order", "ASC"]] });
+    let stages = await PipelineStage.findAll({ order: [["order", "ASC"]] });
+    if (stages.length === 0) {
+      const canonical = [
+        { name: "Discovery", order: 1, probability: 10 },
+        { name: "Requirements", order: 2, probability: 20 },
+        { name: "Solution/Scope", order: 3, probability: 40 },
+        { name: "Quote Preparation", order: 4, probability: 60 },
+        { name: "Quote Sent", order: 5, probability: 70 },
+        { name: "Negotiation", order: 6, probability: 80 },
+        { name: "Agreed", order: 7, probability: 90 },
+        { name: "Won", order: 8, probability: 100 },
+        { name: "Lost", order: 9, probability: 0 }
+      ];
+      for (const c of canonical) {
+        await PipelineStage.create(c);
+      }
+      stages = await PipelineStage.findAll({ order: [["order", "ASC"]] });
+    }
     res.json(stages);
   } catch (error: any) {
     res.status(500).json({ error: error.message });

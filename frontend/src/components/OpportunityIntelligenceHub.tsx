@@ -15,11 +15,14 @@ import {
   AlertCircle,
   Bot,
   Send,
-  Plus
+  Plus,
+  ShieldCheck,
+  Wrench,
+  Truck
 } from "lucide-react";
 import { apiClient } from "../lib/apiClient";
 
-export type OpportunityIntelligenceTab = "scope" | "discovery" | "playbook";
+export type OpportunityIntelligenceTab = "scope" | "sow" | "playbook";
 
 interface OpportunityIntelligenceHubProps {
   oppId: string;
@@ -49,12 +52,14 @@ export const OpportunityIntelligenceHub: React.FC<OpportunityIntelligenceHubProp
   const [internalTab, setInternalTab] = useState<OpportunityIntelligenceTab>("scope");
   const currentTab = externalTab !== undefined ? externalTab : internalTab;
 
-  // 5-Min Discovery checklist state
-  const [discoveryService, setDiscoveryService] = useState("UHP Hydrojetting 40k PSI");
-  const [discoveryFacility, setDiscoveryFacility] = useState("Saudi Aramco Restricted Area");
-  const [discoveryUrgency, setDiscoveryUrgency] = useState("Scheduled Turnaround (Within 14-30 Days)");
-  const [discoverySowCheck, setDiscoverySowCheck] = useState(true);
-  const [discoveryUtilitiesCheck, setDiscoveryUtilitiesCheck] = useState(false);
+  // Technical SOW & Site Readiness execution state
+  const [executionDivision, setExecutionDivision] = useState("UHP Hydrojetting 40k PSI");
+  const [plantAccessGate, setPlantAccessGate] = useState("Saudi Aramco Restricted Area");
+  const [mobilizationSchedule, setMobilizationSchedule] = useState("Scheduled Turnaround (Within 14-30 Days)");
+  const [sowMsdsVerified, setSowMsdsVerified] = useState(true);
+  const [securityPermitsVerified, setSecurityPermitsVerified] = useState(true);
+  const [jsaPermitVerified, setJsaPermitVerified] = useState(false);
+  const [utilitiesHookupVerified, setUtilitiesHookupVerified] = useState(false);
 
   const handleTabSelect = (tab: OpportunityIntelligenceTab) => {
     if (onTabChange) {
@@ -82,7 +87,7 @@ export const OpportunityIntelligenceHub: React.FC<OpportunityIntelligenceHubProp
     data?.budgetAndCommercials ||
     data?.budgetBenchmark ||
     (opp?.amount ? `SAR ${Number(opp.amount).toLocaleString()}` : "SAR 120,000 (Target Commercial Scope)");
-  const deliveryTimeline = data?.timelineAndConstraints || data?.deliveryTimeline || "Standard 30-day quote validity and standard commercial timeline";
+  const deliveryTimeline = data?.timelineAndConstraints || data?.deliveryTimeline || "Standard 30-day quote validity & turnaround schedule";
   const specTier = specs[0] || "Standard Commercial Tier Specifications (Industrial Grade)";
   const scopeVolume = deliverables[0] || opp?.name || "Standard General Industry Commercial Equipment";
   const rawQuote =
@@ -115,11 +120,11 @@ export const OpportunityIntelligenceHub: React.FC<OpportunityIntelligenceHubProp
                 Opportunity Intelligence &amp; Playbook Hub
               </h3>
               <span className="text-[9px] font-black uppercase tracking-wider bg-emerald-50 dark:bg-emerald-950 text-[#059669] dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-900/60 px-2 py-0.5 rounded-full font-mono">
-                AI Copilot
+                Deal Copilot
               </span>
             </div>
             <p className="text-[10px] text-slate-400 hidden sm:block">
-              Synthesized commercial scope, 5-minute technical discovery &amp; proposal guidance.
+              Synthesized commercial scope, contractor execution SOW &amp; deal closing guidance.
             </p>
           </div>
         </div>
@@ -138,21 +143,21 @@ export const OpportunityIntelligenceHub: React.FC<OpportunityIntelligenceHubProp
               }`}
             >
               <Package className="w-3.5 h-3.5" />
-              <span>Scope &amp; Specs</span>
+              <span>Scope &amp; Commercials</span>
             </button>
 
             <button
               type="button"
-              onClick={() => handleTabSelect("discovery")}
+              onClick={() => handleTabSelect("sow")}
               className={`flex items-center gap-1.5 py-1 px-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                currentTab === "discovery"
+                currentTab === "sow"
                   ? "bg-gradient-to-r from-[#1D4ED8] via-[#0D9488] to-[#10B981] text-white shadow-xs font-black"
                   : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60"
               }`}
             >
-              <Phone className="w-3.5 h-3.5" />
-              <span>5-Min Discovery Call</span>
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse ml-0.5" />
+              <Layers className="w-3.5 h-3.5" />
+              <span>Technical SOW &amp; Execution</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse ml-0.5" />
             </button>
 
             <button
@@ -165,7 +170,7 @@ export const OpportunityIntelligenceHub: React.FC<OpportunityIntelligenceHubProp
               }`}
             >
               <Bot className="w-3.5 h-3.5" />
-              <span>AI Copilot &amp; Playbook</span>
+              <span>Deal Strategy &amp; Closing</span>
             </button>
           </div>
 
@@ -194,7 +199,7 @@ export const OpportunityIntelligenceHub: React.FC<OpportunityIntelligenceHubProp
         </div>
       </div>
 
-      {/* ── Active Tab View 1: Customer Scope & Requirements Insight ── */}
+      {/* ── Active Tab View 1: Customer Scope & Commercials ── */}
       {currentTab === "scope" && (
         <div className="space-y-3.5 animate-fade-in">
           {/* Main Inbound Quote Callout */}
@@ -233,7 +238,7 @@ export const OpportunityIntelligenceHub: React.FC<OpportunityIntelligenceHubProp
 
             <div className="p-2.5 bg-slate-50/70 dark:bg-slate-800/50 border border-slate-200/70 dark:border-slate-700/70 rounded-xl space-y-0.5">
               <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1">
-                <Clock className="w-3 h-3 text-[#059669]" /> Requested Delivery Timeline
+                <Clock className="w-3 h-3 text-[#059669]" /> Delivery &amp; Staging Schedule
               </span>
               <div className="font-bold text-xs text-slate-900 dark:text-white line-clamp-1" title={deliveryTimeline}>
                 {deliveryTimeline}
@@ -245,7 +250,7 @@ export const OpportunityIntelligenceHub: React.FC<OpportunityIntelligenceHubProp
 
             <div className="p-2.5 bg-slate-50/70 dark:bg-slate-800/50 border border-slate-200/70 dark:border-slate-700/70 rounded-xl space-y-0.5">
               <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1">
-                <DollarSign className="w-3 h-3 text-[#059669]" /> Budget Target / Benchmark
+                <DollarSign className="w-3 h-3 text-[#059669]" /> Commercial Target Benchmark
               </span>
               <div className="font-bold text-xs text-slate-900 dark:text-white line-clamp-1" title={budgetBenchmark}>
                 {budgetBenchmark}
@@ -258,30 +263,30 @@ export const OpportunityIntelligenceHub: React.FC<OpportunityIntelligenceHubProp
         </div>
       )}
 
-      {/* ── Active Tab View 2: 5-Minute Consultative Discovery Call Guide (FACE Contractor Services) ── */}
-      {currentTab === "discovery" && (
-        <div className="p-3.5 bg-amber-50/40 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-900/60 rounded-xl space-y-3 animate-fade-in">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-amber-200/60 dark:border-amber-900/40 pb-2">
+      {/* ── Active Tab View 2: Technical SOW & Site Readiness (FACE Contractor Services) ── */}
+      {currentTab === "sow" && (
+        <div className="p-3.5 bg-emerald-50/40 dark:bg-emerald-950/20 border border-emerald-200/80 dark:border-emerald-900/60 rounded-xl space-y-3 animate-fade-in">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-200/60 dark:border-emerald-900/40 pb-2">
             <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
-              <h4 className="text-xs font-black uppercase tracking-wider text-amber-950 dark:text-amber-200">
-                5-Minute Technical Discovery Call Guide (FACE Contractor Services)
+              <Wrench className="w-4 h-4 text-[#059669]" />
+              <h4 className="text-xs font-black uppercase tracking-wider text-emerald-950 dark:text-emerald-200">
+                Technical Execution Scope &amp; SOW Verification
               </h4>
             </div>
-            <span className="text-[10px] text-amber-700 dark:text-amber-300 font-semibold">
-              Verify scope &amp; plant access before final commercial dispatch
+            <span className="text-[10px] text-[#059669] dark:text-emerald-300 font-semibold flex items-center gap-1">
+              <ShieldCheck className="w-3 h-3" /> Execution Readiness &amp; Plant Clearances
             </span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {/* 1. Service Division */}
-            <div className="bg-white dark:bg-slate-900 p-2.5 rounded-xl border border-amber-200/70 dark:border-slate-800 space-y-1.5">
-              <label className="text-[10px] font-black uppercase tracking-wider text-amber-900 dark:text-amber-200 block">
+            {/* 1. Service Division & Equipment Staging */}
+            <div className="bg-white dark:bg-slate-900 p-2.5 rounded-xl border border-emerald-200/70 dark:border-slate-800 space-y-1.5">
+              <label className="text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-200 block">
                 1. Service Division &amp; Equipment
               </label>
               <select
-                value={discoveryService}
-                onChange={(e) => setDiscoveryService(e.target.value)}
+                value={executionDivision}
+                onChange={(e) => setExecutionDivision(e.target.value)}
                 className="w-full text-xs font-semibold p-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-hidden focus:ring-1 focus:ring-emerald-500"
               >
                 <option value="UHP Hydrojetting 40k PSI">UHP Hydrojetting (40,000 PSI)</option>
@@ -291,18 +296,18 @@ export const OpportunityIntelligenceHub: React.FC<OpportunityIntelligenceHubProp
                 <option value="Heavy Equipment Rental">Heavy Construction Equipment Rental</option>
               </select>
               <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                Confirm operating pressure, flow rate (GPM), and required chemical compatibility.
+                Operating pressure, flow rate (GPM), and required chemical compatibility verified.
               </p>
             </div>
 
-            {/* 2. Plant Access & Gate Permits */}
-            <div className="bg-white dark:bg-slate-900 p-2.5 rounded-xl border border-amber-200/70 dark:border-slate-800 space-y-1.5">
-              <label className="text-[10px] font-black uppercase tracking-wider text-amber-900 dark:text-amber-200 block">
-                2. Plant Access &amp; Gate Permits
+            {/* 2. Plant Access & Gate Clearance */}
+            <div className="bg-white dark:bg-slate-900 p-2.5 rounded-xl border border-emerald-200/70 dark:border-slate-800 space-y-1.5">
+              <label className="text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-200 block">
+                2. Plant Access &amp; Gate Clearance
               </label>
               <select
-                value={discoveryFacility}
-                onChange={(e) => setDiscoveryFacility(e.target.value)}
+                value={plantAccessGate}
+                onChange={(e) => setPlantAccessGate(e.target.value)}
                 className="w-full text-xs font-semibold p-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-hidden focus:ring-1 focus:ring-emerald-500"
               >
                 <option value="Saudi Aramco Restricted Area">Saudi Aramco Restricted Area (Plant ID / Sticker)</option>
@@ -310,22 +315,22 @@ export const OpportunityIntelligenceHub: React.FC<OpportunityIntelligenceHubProp
                 <option value="MODON Industrial City">MODON Industrial City (Standard Gate Access)</option>
                 <option value="Remote Greenfield / NEOM">Remote Greenfield / NEOM Utilities Grid</option>
               </select>
-              <p className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
-                Verify driver Aramco ID, medical fit-to-work, and vehicle safety stickers before dispatch.
+              <p className="text-[10px] text-emerald-700 dark:text-emerald-400 font-medium">
+                Driver Aramco ID, medical fit-to-work, and vehicle safety stickers verified for dispatch.
               </p>
             </div>
 
-            {/* 3. Mobilization Window */}
-            <div className="bg-white dark:bg-slate-900 p-2.5 rounded-xl border border-amber-200/70 dark:border-slate-800 space-y-1.5">
-              <label className="text-[10px] font-black uppercase tracking-wider text-amber-900 dark:text-amber-200 block">
-                3. Mobilization Window &amp; Execution
+            {/* 3. Mobilization & Compliance Checklist */}
+            <div className="bg-white dark:bg-slate-900 p-2.5 rounded-xl border border-emerald-200/70 dark:border-slate-800 space-y-1.5">
+              <label className="text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-200 block">
+                3. Mobilization &amp; Site Readiness
               </label>
               <select
-                value={discoveryUrgency}
-                onChange={(e) => setDiscoveryUrgency(e.target.value)}
+                value={mobilizationSchedule}
+                onChange={(e) => setMobilizationSchedule(e.target.value)}
                 className="w-full text-xs font-semibold p-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-hidden focus:ring-1 focus:ring-emerald-500"
               >
-                <option value="Emergency Shutdown (<24h)">Emergency Shutdown (&lt;24 hrs - Expedited Mob)</option>
+                <option value="Emergency Shutdown (<24h)">Emergency Mobilization (&lt;24 hrs - Priority)</option>
                 <option value="Scheduled Turnaround (Within 14-30 Days)">Scheduled Turnaround (14-30 Days)</option>
                 <option value="Annual Maintenance Contract (AMC)">Annual Maintenance Framework (AMC)</option>
                 <option value="Capital Project Expansion">Capital Project Expansion Scope</option>
@@ -335,8 +340,8 @@ export const OpportunityIntelligenceHub: React.FC<OpportunityIntelligenceHubProp
                 <label className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-700 dark:text-slate-300 cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={discoverySowCheck}
-                    onChange={(e) => setDiscoverySowCheck(e.target.checked)}
+                    checked={sowMsdsVerified}
+                    onChange={(e) => setSowMsdsVerified(e.target.checked)}
                     className="rounded text-emerald-600 focus:ring-emerald-500"
                   />
                   <span>Verified detailed SOW &amp; MSDS sheets</span>
@@ -344,11 +349,29 @@ export const OpportunityIntelligenceHub: React.FC<OpportunityIntelligenceHubProp
                 <label className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-700 dark:text-slate-300 cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={discoveryUtilitiesCheck}
-                    onChange={(e) => setDiscoveryUtilitiesCheck(e.target.checked)}
+                    checked={securityPermitsVerified}
+                    onChange={(e) => setSecurityPermitsVerified(e.target.checked)}
                     className="rounded text-emerald-600 focus:ring-emerald-500"
                   />
-                  <span>Site water &amp; power hookups confirmed</span>
+                  <span>Gate security passes &amp; stickers cleared</span>
+                </label>
+                <label className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-700 dark:text-slate-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={jsaPermitVerified}
+                    onChange={(e) => setJsaPermitVerified(e.target.checked)}
+                    className="rounded text-emerald-600 focus:ring-emerald-500"
+                  />
+                  <span>JSA (Job Safety Analysis) &amp; Work Permits ready</span>
+                </label>
+                <label className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-700 dark:text-slate-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={utilitiesHookupVerified}
+                    onChange={(e) => setUtilitiesHookupVerified(e.target.checked)}
+                    className="rounded text-emerald-600 focus:ring-emerald-500"
+                  />
+                  <span>Water &amp; electrical hookup locations confirmed</span>
                 </label>
               </div>
             </div>
@@ -356,7 +379,7 @@ export const OpportunityIntelligenceHub: React.FC<OpportunityIntelligenceHubProp
         </div>
       )}
 
-      {/* ── Active Tab View 3: AI Copilot & Playbook Guidance ── */}
+      {/* ── Active Tab View 3: Deal Strategy & Closing Guidance ── */}
       {currentTab === "playbook" && (
         <div className="space-y-3 animate-fade-in">
           {/* AI Sales Copilot Card Contents */}
@@ -424,7 +447,7 @@ export const OpportunityIntelligenceHub: React.FC<OpportunityIntelligenceHubProp
             <div className="p-3 bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-xl space-y-2 flex flex-col justify-between">
               <div>
                 <span className="font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5 text-[11px] uppercase tracking-wider mb-1">
-                  <CheckCircle2 className="w-4 h-4 text-[#059669]" /> Primary Recommended Action
+                  <CheckCircle2 className="w-4 h-4 text-[#059669]" /> Primary Closing Action
                 </span>
                 <p className="text-emerald-950 dark:text-emerald-100 font-medium leading-relaxed">
                   {recommendedAction}

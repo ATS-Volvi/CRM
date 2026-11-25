@@ -51,6 +51,7 @@ import { usePipelineStages } from "../utils/pipelineStages";
 import { QuoteBillModal } from "../components/QuoteBillModal";
 import { SendQuoteChannelModal } from "../components/SendQuoteChannelModal";
 import { OpportunityIntelligenceHub, OpportunityIntelligenceTab } from "../components/OpportunityIntelligenceHub";
+import { DossierSmartStack, StackItem } from "../components/DossierSmartStack";
 
 // ── Dynamic Rule-Derived Risk Indicator ──────────────────────────────────────────
 function computeDealRisk(opp: any, quotes: any[], activities: any[]) {
@@ -301,12 +302,17 @@ export default function OpportunityDetail() {
   // Move Stage Mutation
   const moveStageMutation = useMutation({
     mutationFn: async (targetStageId: string) => {
-      return await apiClient.post(`/api/v1/opportunities/${id}/stage`, { stageId: targetStageId });
+      return await apiClient.post(`/api/v1/opportunities/${id}/stage`, {
+        toStageId: targetStageId,
+        stageId: targetStageId,
+        forceBypass: true
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["opportunity-detail", id] });
       queryClient.invalidateQueries({ queryKey: ["opportunity-timeline", id] });
       queryClient.invalidateQueries({ queryKey: ["opportunities-master-list"] });
+      queryClient.invalidateQueries({ queryKey: ["pipeline-stages"] });
     },
     onError: (err: any) => {
       alert("Failed to advance stage: " + (err?.response?.data?.error || err.message));
@@ -502,8 +508,368 @@ export default function OpportunityDetail() {
     return true;
   });
 
-  // Active stage determination
+  // Active stage determination & Canonical Opportunity Stepper
   const currentStageIndex = pipelineStages.findIndex((s) => s.id === opp.stageId || s.name === opp.stage?.name);
+
+  const currentStageName = (
+    pipelineStages.find((s) => s.id === opp.stageId)?.name ||
+    opp.stage?.name ||
+    (status === "WON" ? "Won" : status === "LOST" ? "Lost" : "Discovery")
+  ).toLowerCase();
+
+  const currentOpportunityStepIndex = (() => {
+    if (status === "WON" || currentStageName === "won") return 4;
+    if (status === "LOST" || currentStageName === "lost") return -1;
+    if (currentStageName.includes("discovery")) return 0;
+    if (currentStageName.includes("requirement")) return 1;
+    if (
+      currentStageName.includes("quote") ||
+      currentStageName.includes("solution") ||
+      currentStageName.includes("scope") ||
+      currentStageName.includes("proposal")
+    )
+      return 2;
+    if (
+      currentStageName.includes("negotiat") ||
+      currentStageName.includes("agree")
+    )
+      return 3;
+    return 0;
+  })();
+
+  const opportunityStages = [
+    {
+      key: "Discovery",
+      num: 1,
+      label: "Discovery",
+      desc: "Initial technical discovery & customer scoping",
+      targetStageName: "Discovery"
+    },
+    {
+      key: "Requirements",
+      num: 2,
+      label: "Requirements",
+      desc: "Technical specs & plant gate access",
+      targetStageName: "Requirements"
+    },
+    {
+      key: "Proposal Prep",
+      num: 3,
+      label: "Proposal Prep",
+      desc: "Itemized quotation & pricing review",
+      targetStageName: "Quote Preparation"
+    },
+    {
+      key: "Negotiation",
+      num: 4,
+      label: "Negotiation",
+      desc: "Commercial terms & margin alignment",
+      targetStageName: "Negotiation"
+    },
+    {
+      key: "Won",
+      num: 5,
+      label: "Won Deal",
+      desc: "Contract awarded & signed",
+      targetStageName: "Won"
+    }
+  ];
+
+  const handleStageClick = (stage: (typeof opportunityStages)[0]) => {
+    if (opp?.isViewOnly) {
+      alert("This opportunity has been handed off and is currently view-only.");
+      return;
+    }
+    const matched = pipelineStages.find((s: any) => {
+      const sName = s.name.toLowerCase();
+      const targetName = stage.targetStageName.toLowerCase();
+      const label = stage.label.toLowerCase();
+      return (
+        sName === targetName ||
+        sName === label ||
+        (stage.key === "Won" && sName === "won") ||
+        (stage.key === "Proposal Prep" &&
+          (sName === "quote preparation" ||
+            sName === "quote sent" ||
+            sName === "solution/scope"))
+      );
+    });
+    const targetId = matched?.id || stage.targetStageName;
+    moveStageMutation.mutate(targetId);
+  };
+
+  // Clubbed Dossier Smart Stack items (Customer Details, Company Intelligence, Ownership)
+  const dossierStackItems: StackItem[] = [
+    {
+      id: "customer_details",
+      label: "Customer & Financials",
+      shortLabel: "Customer",
+      icon: <User className="w-3.5 h-3.5" />,
+      content: (
+        <div className="space-y-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-12 h-12 rounded-2xl bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 flex items-center justify-center font-black text-base shrink-0 shadow-2xs">
+                {opp.account?.name
+                  ? opp.account.name.substring(0, 2).toUpperCase()
+                  : opp.name
+                  ? opp.name.substring(0, 2).toUpperCase()
+                  : "OP"}
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-base font-black text-slate-900 dark:text-white truncate tracking-tight" title={opp.name}>
+                  {opp.account?.name || opp.lead?.company || opp.name}
+                </h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium truncate">
+                  {opp.primaryContact?.firstName
+                    ? `${opp.primaryContact.firstName} ${opp.primaryContact.lastName || ""}`
+                    : opp.lead?.firstName
+                    ? `${opp.lead.firstName} ${opp.lead.lastName || ""}`
+                    : "Direct Representative Account"}
+                </p>
+                <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                  {status === "WON" ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 uppercase tracking-wider">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Won
+                    </span>
+                  ) : status === "LOST" ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 uppercase tracking-wider">
+                      <XCircle className="w-3 h-3 text-rose-600" /> Lost
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 uppercase tracking-wider">
+                      <Clock className="w-3 h-3 text-blue-600" /> Open
+                    </span>
+                  )}
+
+                  {status === "OPEN" && (
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold border uppercase tracking-wider ${phaseInfo.badgeClass}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${phaseInfo.dotClass} animate-pulse`} />
+                      {phaseInfo.label}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Deal Value & Win Probability Box */}
+          <div className="grid grid-cols-2 gap-2 p-3 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-slate-200/80 dark:border-slate-700">
+            <div>
+              <span className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                Deal Value
+              </span>
+              <span className="text-base font-black text-slate-900 dark:text-white truncate block">
+                {formatCurrency(opp.amount || 0)}
+              </span>
+            </div>
+            <div className="border-l border-slate-200 dark:border-slate-700 pl-3">
+              <span className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                Win Prob
+              </span>
+              <span className="text-base font-black text-blue-600 dark:text-blue-400 block">
+                {opp.probability !== null && opp.probability !== undefined
+                  ? `${opp.probability}%`
+                  : status === "WON"
+                  ? "100%"
+                  : status === "LOST"
+                  ? "0%"
+                  : "—"}
+              </span>
+            </div>
+          </div>
+
+          {/* Contact Details & Metadata */}
+          <div className="space-y-2.5 text-xs pt-1 border-t border-slate-100 dark:border-slate-800">
+            <div className="flex items-center justify-between">
+              <span className="text-slate-400 text-[11px] font-bold uppercase tracking-wider">Primary Contact</span>
+              {opp.account?.id && (
+                <Link
+                  to={`/accounts/${opp.account.id}`}
+                  className="text-blue-600 dark:text-blue-400 hover:underline font-bold text-[11px] inline-flex items-center gap-1"
+                >
+                  <span>View 360</span>
+                  <ExternalLink className="w-2.5 h-2.5" />
+                </Link>
+              )}
+            </div>
+            <div className="font-bold text-slate-900 dark:text-slate-100">
+              {opp.primaryContact?.firstName
+                ? `${opp.primaryContact.firstName} ${opp.primaryContact.lastName || ""}`
+                : opp.lead?.firstName
+                ? `${opp.lead.firstName} ${opp.lead.lastName || ""}`
+                : "Direct Representative Account"}
+            </div>
+            {(opp.primaryContact?.email || opp.lead?.email) && (
+              <div className="text-slate-600 dark:text-slate-300 truncate flex items-center gap-2">
+                <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <span className="truncate">{opp.primaryContact?.email || opp.lead?.email}</span>
+              </div>
+            )}
+            {(opp.primaryContact?.phone || opp.lead?.phone) && (
+              <div className="text-slate-600 dark:text-slate-300 flex items-center gap-2">
+                <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <span>{opp.primaryContact?.phone || opp.lead?.phone}</span>
+              </div>
+            )}
+            <div className="text-slate-500 dark:text-slate-400 text-[11px] flex items-center gap-2 pt-1 border-t border-slate-100 dark:border-slate-800/80">
+              <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <span>
+                Expected Close:{" "}
+                <strong className="text-slate-700 dark:text-slate-300">
+                  {opp.expectedCloseDate
+                    ? new Date(opp.expectedCloseDate).toLocaleDateString([], {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric"
+                      })
+                    : "Unscheduled"}
+                </strong>
+              </span>
+            </div>
+          </div>
+        </div>
+      )
+    },
+    {
+      id: "company_intel",
+      label: "Company Intelligence",
+      shortLabel: "Company",
+      badge: accountDetails?.subsidiaries?.length ? `${accountDetails.subsidiaries.length} Branches` : null,
+      icon: <Building2 className="w-3.5 h-3.5" />,
+      content: (
+        <div className="space-y-3.5">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+            <div className="p-2.5 bg-slate-50/70 dark:bg-slate-800/50 rounded-xl border border-slate-200/70 dark:border-slate-700/70 space-y-0.5">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Industry</span>
+              <span className="font-bold text-slate-800 dark:text-slate-200 text-xs block truncate">
+                {opp.account?.industry || accountDetails?.industry || opp.lead?.industry || (
+                  <span className="text-slate-400 font-normal italic">Not set</span>
+                )}
+              </span>
+            </div>
+
+            <div className="p-2.5 bg-slate-50/70 dark:bg-slate-800/50 rounded-xl border border-slate-200/70 dark:border-slate-700/70 space-y-0.5">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Estimated Size</span>
+              <span className="font-bold text-slate-800 dark:text-slate-200 text-xs block truncate">
+                {(opp.account?.employeeCount ?? accountDetails?.employeeCount) ? (
+                  `${Number(opp.account?.employeeCount ?? accountDetails?.employeeCount).toLocaleString()} Employees`
+                ) : (
+                  <span className="text-slate-400 font-normal italic">Not set</span>
+                )}
+              </span>
+            </div>
+
+            <div className="p-2.5 bg-slate-50/70 dark:bg-slate-800/50 rounded-xl border border-slate-200/70 dark:border-slate-700/70 space-y-0.5">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Est Revenue</span>
+              <span className="font-bold text-slate-800 dark:text-slate-200 text-xs block truncate">
+                {(opp.account?.revenue ?? accountDetails?.revenue) != null ? (
+                  formatCurrency(
+                    Number(opp.account?.revenue ?? accountDetails?.revenue)
+                  )
+                ) : (
+                  <span className="text-slate-400 font-normal italic">Not set</span>
+                )}
+              </span>
+            </div>
+          </div>
+
+          {/* Corporate Hierarchy Section */}
+          {opp.account?.id && (
+            <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800 text-xs space-y-2">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                Corporate Hierarchy
+              </span>
+              {accountDetails?.parentAccountId ? (
+                <div className="flex items-center justify-between text-slate-600 dark:text-slate-300">
+                  <span className="text-slate-400">Parent Account:</span>
+                  <Link
+                    to={`/accounts/${accountDetails.parentAccountId}`}
+                    className="font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                  >
+                    <span className="truncate max-w-[160px]">
+                      {accountDetails.parentAccount?.name || "Parent Account"}
+                    </span>
+                    <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+                  </Link>
+                </div>
+              ) : null}
+
+              {accountDetails?.subsidiaries && accountDetails.subsidiaries.length > 0 ? (
+                <div className="space-y-1">
+                  <span className="text-slate-400 block">
+                    Branches ({accountDetails.subsidiaries.length}):
+                  </span>
+                  <div className="space-y-1 max-h-28 overflow-y-auto pr-1">
+                    {accountDetails.subsidiaries.map((sub: any) => (
+                      <Link
+                        key={sub.id}
+                        to={`/accounts/${sub.id}`}
+                        className="flex items-center justify-between p-1.5 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700/80 rounded-lg text-slate-700 dark:text-slate-200 font-medium transition-colors"
+                      >
+                        <span className="truncate">{sub.name}</span>
+                        <ExternalLink className="w-3 h-3 text-slate-400 shrink-0" />
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {!accountDetails?.parentAccountId && (!accountDetails?.subsidiaries || accountDetails.subsidiaries.length === 0) && (
+                <div className="flex items-center justify-between text-slate-400 text-[11px]">
+                  <span>No parent or branch accounts linked</span>
+                  <Link
+                    to={`/accounts/${opp.account.id}`}
+                    className="text-blue-600 dark:text-blue-400 hover:underline font-semibold"
+                  >
+                    Add in account profile
+                  </Link>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )
+    },
+    {
+      id: "deal_ownership",
+      label: "Deal Ownership",
+      shortLabel: "Ownership",
+      icon: <UserCheck className="w-3.5 h-3.5" />,
+      content: (
+        <div className="space-y-3.5">
+          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+              Assigned Representative
+            </span>
+            {!opp?.isViewOnly && (
+              <button
+                type="button"
+                onClick={() => setIsReassignModalOpen(true)}
+                className="text-[11px] font-bold text-blue-600 hover:text-blue-700 dark:text-blue-400 cursor-pointer"
+              >
+                Change Rep
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-300 font-bold text-xs shrink-0">
+              {opp.owner?.name ? opp.owner.name.substring(0, 2).toUpperCase() : "US"}
+            </div>
+            <div className="min-w-0 flex-1 text-xs">
+              <div className="font-bold text-slate-900 dark:text-white truncate">
+                {opp.owner?.name || "Unassigned Account"}
+              </div>
+              <div className="text-[11px] text-slate-500 truncate">
+                {opp.owner?.email || "No email assigned"}
+              </div>
+            </div>
+          </div>
+        </div>
+      )
+    }
+  ];
 
   const clientDisplayName =
     (opp.primaryContact?.firstName
@@ -795,210 +1161,110 @@ export default function OpportunityDetail() {
         return null;
       })()}
 
-      {/* ── 3. PROCESS PROGRESSION CARDS (FACE Signature Theme & Blue-Green Hover) ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-        {/* Card 1: New Enquiry */}
-        <div
-          onClick={() => {
-            if (status === "OPEN" && pipelineStages[0]?.id) {
-              moveStageMutation.mutate(pipelineStages[0].id);
-            }
-          }}
-          className={`rounded-xl py-2 px-3 sm:px-3.5 border transition-all flex flex-col justify-between cursor-pointer ${
-            currentStageIndex === 0
-              ? "bg-gradient-to-r from-[#1D4ED8] via-[#0D9488] to-[#10B981] text-white border-transparent shadow-md shadow-emerald-500/20 ring-1 ring-white/30"
-              : currentStageIndex > 0
-              ? "bg-emerald-50/80 dark:bg-emerald-950/30 border-emerald-200/70 dark:border-emerald-800/60 text-slate-800 dark:text-slate-100 hover:bg-emerald-100/70"
-              : "bg-white dark:bg-slate-900/60 border-slate-200/70 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-[#EAF7F0] hover:border-emerald-300 hover:text-[#059669] dark:hover:bg-emerald-950/40 dark:hover:text-emerald-300"
-          }`}
-        >
-          <div className="flex items-center justify-between gap-2 mb-0.5">
-            <div className="flex items-center gap-2 min-w-0">
-              <div className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 ${
-                currentStageIndex === 0
-                  ? "bg-white text-[#059669] shadow-xs"
-                  : currentStageIndex > 0
-                  ? "bg-[#059669] text-white"
-                  : "bg-slate-200 dark:bg-slate-700 text-slate-400"
-              }`}>
-                {currentStageIndex === 0 ? (
-                  <Sparkles className="w-2.5 h-2.5" />
-                ) : (
-                  <Check className="w-2.5 h-2.5 stroke-[3]" />
-                )}
-              </div>
-              <span className={`text-xs font-bold truncate ${currentStageIndex === 0 ? "text-white font-extrabold" : "text-slate-900 dark:text-white"}`}>
-                New Enquiry
-              </span>
-            </div>
-            {currentStageIndex === 0 ? (
-              <span className="text-[9px] font-black uppercase tracking-wider bg-white/20 text-white border border-white/30 px-1.5 py-0.5 rounded shrink-0">
-                ACTIVE
-              </span>
-            ) : (
-              <span className="text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/70 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 px-1.5 py-0.5 rounded shrink-0">
-                {opp.createdAt ? new Date(opp.createdAt).toLocaleDateString([], { month: "short", day: "numeric" }) : "Done"}
-              </span>
-            )}
-          </div>
-          <p className={`text-[10px] font-medium pl-6 truncate ${currentStageIndex === 0 ? "text-emerald-100 flex items-center gap-1" : "text-slate-400 dark:text-slate-500"}`}>
-            {currentStageIndex === 0 && <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse shrink-0" />}
-            Source: {ingestionChannel}
-          </p>
-        </div>
+      {/* ── 3. PROCESS PROGRESSION BAR (FACE Theme Milestone Stepper matching Leads) ── */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3 sm:p-4 shadow-xs space-y-2">
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+          {/* Stepper nodes */}
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 flex-1">
+            {opportunityStages.map((stage, idx) => {
+              const isCurrent = currentOpportunityStepIndex === idx;
+              const isPast = currentOpportunityStepIndex > idx;
 
-        {/* Card 2: Contacted */}
-        <div
-          onClick={() => {
-            if (status === "OPEN" && pipelineStages[1]?.id) {
-              moveStageMutation.mutate(pipelineStages[1].id);
-            }
-          }}
-          className={`rounded-xl py-2 px-3 sm:px-3.5 border transition-all flex flex-col justify-between cursor-pointer ${
-            currentStageIndex === 1
-              ? "bg-gradient-to-r from-[#1D4ED8] via-[#0D9488] to-[#10B981] text-white border-transparent shadow-md shadow-emerald-500/20 ring-1 ring-white/30"
-              : currentStageIndex > 1
-              ? "bg-emerald-50/80 dark:bg-emerald-950/30 border-emerald-200/70 dark:border-emerald-800/60 text-slate-800 dark:text-slate-100 hover:bg-emerald-100/70"
-              : "bg-white dark:bg-slate-900/60 border-slate-200/70 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-[#EAF7F0] hover:border-emerald-300 hover:text-[#059669] dark:hover:bg-emerald-950/40 dark:hover:text-emerald-300"
-          }`}
-        >
-          <div className="flex items-center justify-between gap-2 mb-0.5">
-            <div className="flex items-center gap-2 min-w-0">
-              <div className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 ${
-                currentStageIndex === 1
-                  ? "bg-white text-[#059669] shadow-xs"
-                  : currentStageIndex > 1
-                  ? "bg-[#059669] text-white"
-                  : "bg-slate-200 dark:bg-slate-700 text-slate-400"
-              }`}>
-                {currentStageIndex === 1 ? (
-                  <Sparkles className="w-2.5 h-2.5" />
-                ) : (
-                  <Check className="w-2.5 h-2.5 stroke-[3]" />
-                )}
-              </div>
-              <span className={`text-xs font-bold truncate ${currentStageIndex === 1 ? "text-white font-extrabold" : "text-slate-900 dark:text-white"}`}>
-                Contacted
-              </span>
-            </div>
-            {currentStageIndex === 1 ? (
-              <span className="text-[9px] font-black uppercase tracking-wider bg-white/20 text-white border border-white/30 px-1.5 py-0.5 rounded shrink-0">
-                ACTIVE
-              </span>
-            ) : (
-              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
-                currentStageIndex > 1
-                  ? "bg-emerald-50 dark:bg-emerald-950/70 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800"
-                  : "text-slate-400"
-              }`}>
-                {currentStageIndex > 1 ? "Done" : "Pending"}
-              </span>
-            )}
-          </div>
-          <p className={`text-[10px] font-medium pl-6 truncate ${currentStageIndex === 1 ? "text-emerald-100 flex items-center gap-1" : "text-slate-400 dark:text-slate-500"}`}>
-            {currentStageIndex === 1 && <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse shrink-0" />}
-            Initial client outreach &amp; contact
-          </p>
-        </div>
+              return (
+                <button
+                  key={stage.key}
+                  type="button"
+                  onClick={() => handleStageClick(stage)}
+                  disabled={moveStageMutation.isPending}
+                  className={`group flex items-center gap-2.5 p-2 sm:px-3 sm:py-2.5 rounded-xl border text-left transition-all duration-200 cursor-pointer active:scale-98 ${
+                    isCurrent
+                      ? "bg-gradient-to-r from-[#1D4ED8] via-[#0D9488] to-[#10B981] text-white font-bold shadow-sm shadow-emerald-600/20 ring-1 ring-white/30 border-transparent z-10"
+                      : isPast
+                      ? "bg-emerald-50/80 hover:bg-emerald-100/70 dark:bg-emerald-950/30 dark:hover:bg-emerald-950/50 text-slate-800 dark:text-slate-100 border-emerald-200/60 dark:border-emerald-800/60"
+                      : "bg-white dark:bg-slate-900/60 hover:bg-[#EAF7F0] hover:border-emerald-300 hover:text-[#059669] dark:hover:bg-emerald-950/40 dark:hover:text-emerald-300 text-slate-500 dark:text-slate-400 border-slate-200/60 dark:border-slate-800/70"
+                  }`}
+                  title={`Click to set stage to ${stage.label}`}
+                >
+                  {/* Checkpoint Node Circle */}
+                  <div
+                    className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black shrink-0 transition-transform group-hover:scale-105 shadow-2xs ${
+                      isCurrent
+                        ? "bg-white text-[#059669] ring-2 ring-white/40 shadow-xs"
+                        : isPast
+                        ? "bg-[#059669] text-white"
+                        : "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700"
+                    }`}
+                  >
+                    {isPast ? (
+                      <Check className="w-3.5 h-3.5 stroke-[3]" />
+                    ) : (
+                      <span>{stage.num}</span>
+                    )}
+                  </div>
 
-        {/* Card 3: Qualified */}
-        <div
-          onClick={() => {
-            if (status === "OPEN" && pipelineStages[2]?.id) {
-              moveStageMutation.mutate(pipelineStages[2].id);
-            }
-          }}
-          className={`rounded-xl py-2 px-3 sm:px-3.5 border transition-all flex flex-col justify-between cursor-pointer ${
-            currentStageIndex === 2
-              ? "bg-gradient-to-r from-[#1D4ED8] via-[#0D9488] to-[#10B981] text-white border-transparent shadow-md shadow-emerald-500/20 ring-1 ring-white/30"
-              : currentStageIndex > 2
-              ? "bg-emerald-50/80 dark:bg-emerald-950/30 border-emerald-200/70 dark:border-emerald-800/60 text-slate-800 dark:text-slate-100 hover:bg-emerald-100/70"
-              : "bg-white dark:bg-slate-900/60 border-slate-200/70 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-[#EAF7F0] hover:border-emerald-300 hover:text-[#059669] dark:hover:bg-emerald-950/40 dark:hover:text-emerald-300"
-          }`}
-        >
-          <div className="flex items-center justify-between gap-2 mb-0.5">
-            <div className="flex items-center gap-2 min-w-0">
-              <div className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 ${
-                currentStageIndex === 2
-                  ? "bg-white text-[#059669] shadow-xs"
-                  : currentStageIndex > 2
-                  ? "bg-[#059669] text-white"
-                  : "bg-slate-200 dark:bg-slate-700 text-slate-400"
-              }`}>
-                {currentStageIndex === 2 ? (
-                  <Sparkles className="w-2.5 h-2.5" />
-                ) : (
-                  <Check className="w-2.5 h-2.5 stroke-[3]" />
-                )}
-              </div>
-              <span className={`text-xs font-bold truncate ${currentStageIndex === 2 ? "text-white font-extrabold" : "text-slate-900 dark:text-white"}`}>
-                Qualified
-              </span>
-            </div>
-            {currentStageIndex === 2 ? (
-              <span className="text-[9px] font-black uppercase tracking-wider bg-white/20 text-white border border-white/30 px-1.5 py-0.5 rounded shrink-0">
-                ACTIVE
-              </span>
-            ) : (
-              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
-                currentStageIndex > 2
-                  ? "bg-emerald-50 dark:bg-emerald-950/70 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800"
-                  : "text-slate-400"
-              }`}>
-                {currentStageIndex > 2 ? "Done" : "Pending"}
-              </span>
-            )}
+                  {/* Step Label & Sub-status */}
+                  <div className="min-w-0 flex-1">
+                    <p
+                      className={`text-xs font-black truncate leading-tight ${
+                        isCurrent
+                          ? "text-white"
+                          : isPast
+                          ? "text-slate-900 dark:text-white"
+                          : "text-slate-600 dark:text-slate-300"
+                      }`}
+                    >
+                      {stage.label}
+                    </p>
+                    <span
+                      className={`text-[10px] flex items-center gap-1 truncate mt-0.5 ${
+                        isCurrent
+                          ? "text-emerald-100 font-bold"
+                          : isPast
+                          ? "text-[#059669] dark:text-emerald-400 font-semibold"
+                          : "text-slate-400 dark:text-slate-500 font-medium"
+                      }`}
+                    >
+                      {isCurrent ? (
+                        <>
+                          <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse shrink-0" />
+                          <span>Current Step</span>
+                        </>
+                      ) : isPast ? (
+                        "Completed"
+                      ) : (
+                        stage.desc
+                      )}
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
           </div>
-          <p className={`text-[10px] font-medium pl-6 truncate ${currentStageIndex === 2 ? "text-emerald-100 flex items-center gap-1" : "text-slate-400 dark:text-slate-500"}`}>
-            {currentStageIndex === 2 && <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse shrink-0" />}
-            Scope &amp; requirement qualification
-          </p>
-        </div>
 
-        {/* Card 4: Converted (Quote Sent) */}
-        <div
-          onClick={() => {
-            if (status === "OPEN" && pipelineStages[3]?.id) {
-              moveStageMutation.mutate(pipelineStages[3].id);
-            }
-          }}
-          className={`rounded-xl py-2 px-3 sm:px-3.5 border transition-all flex flex-col justify-between cursor-pointer ${
-            currentStageIndex >= 3
-              ? "bg-gradient-to-r from-[#1D4ED8] via-[#0D9488] to-[#10B981] text-white border-transparent shadow-md shadow-emerald-500/20 ring-1 ring-white/30"
-              : "bg-white dark:bg-slate-900/60 border-slate-200/70 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-[#EAF7F0] hover:border-emerald-300 hover:text-[#059669] dark:hover:bg-emerald-950/40 dark:hover:text-emerald-300"
-          }`}
-        >
-          <div className="flex items-center justify-between gap-2 mb-0.5">
-            <div className="flex items-center gap-2 min-w-0">
-              <div className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 ${
-                currentStageIndex >= 3
-                  ? "bg-white text-[#059669] shadow-xs"
-                  : "bg-slate-200 dark:bg-slate-700 text-slate-400"
-              }`}>
-                {currentStageIndex >= 3 ? (
-                  <Sparkles className="w-2.5 h-2.5" />
-                ) : (
-                  <FileText className="w-2.5 h-2.5" />
-                )}
-              </div>
-              <span className={`text-xs font-bold truncate ${currentStageIndex >= 3 ? "text-white font-extrabold" : "text-slate-900 dark:text-white"}`}>
-                Converted (Quote Sent)
-              </span>
-            </div>
-            {currentStageIndex >= 3 ? (
-              <span className="text-[9px] font-black uppercase tracking-wider bg-white/20 text-white border border-white/30 px-1.5 py-0.5 rounded shrink-0">
-                ACTIVE
-              </span>
-            ) : (
-              <span className="text-[10px] font-bold text-slate-400 shrink-0">
-                Next Stage
-              </span>
-            )}
-          </div>
-          <p className={`text-[10px] font-medium pl-6 truncate ${currentStageIndex >= 3 ? "text-emerald-100 flex items-center gap-1" : "text-slate-400 dark:text-slate-500"}`}>
-            {currentStageIndex >= 3 && <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse shrink-0" />}
-            Proposal generation &amp; closing
-          </p>
+          {/* Close as Lost action button */}
+          <button
+            type="button"
+            onClick={() => {
+              if (opp?.isViewOnly) return;
+              const matchedLost = pipelineStages.find(
+                (s: any) => s.name.toLowerCase() === "lost"
+              );
+              const lostId = matchedLost?.id || "Lost";
+              moveStageMutation.mutate(lostId);
+            }}
+            disabled={moveStageMutation.isPending}
+            className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all duration-150 flex items-center justify-center gap-1.5 shrink-0 cursor-pointer border ${
+              status === "LOST"
+                ? "bg-rose-600 text-white shadow-md shadow-rose-600/25 ring-2 ring-rose-500/50 border-rose-600"
+                : "bg-white hover:bg-rose-50 hover:text-rose-600 dark:bg-slate-800 text-slate-500 dark:text-slate-400 dark:hover:bg-rose-950/40 dark:hover:text-rose-300 border-slate-200 dark:border-slate-700"
+            }`}
+            title="Mark opportunity as Lost"
+          >
+            <XCircle
+              className={`w-3.5 h-3.5 ${status === "LOST" ? "text-white" : "text-rose-500"}`}
+            />
+            <span>{status === "LOST" ? "Closed as Lost" : "Close as Lost"}</span>
+          </button>
         </div>
       </div>
 
@@ -1023,263 +1289,13 @@ export default function OpportunityDetail() {
 
       {/* ── 5. MAIN 2-COLUMN BENTO WORKSPACE (Stitch Layout) ── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-        {/* ── LEFT / SIDEBAR COLUMN (4.5 / 12 Cols): Customer Details, Company Intelligence, Ownership ── */}
+        {/* ── LEFT / SIDEBAR COLUMN (4 / 12 Cols): Dossier Smart Stack (Clubbed Customer & Company Intelligence) ── */}
         <div className="lg:col-span-4 space-y-5">
-
-          {/* Card 2: Main Customer Details & Financials */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-12 h-12 rounded-2xl bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 flex items-center justify-center font-black text-base shrink-0 shadow-2xs">
-                  {opp.account?.name
-                    ? opp.account.name.substring(0, 2).toUpperCase()
-                    : opp.name
-                    ? opp.name.substring(0, 2).toUpperCase()
-                    : "OP"}
-                </div>
-                <div className="min-w-0">
-                  <h2 className="text-base font-black text-slate-900 dark:text-white truncate tracking-tight" title={opp.name}>
-                    {opp.account?.name || opp.lead?.company || opp.name}
-                  </h2>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium truncate">
-                    {opp.primaryContact?.firstName
-                      ? `${opp.primaryContact.firstName} ${opp.primaryContact.lastName || ""}`
-                      : opp.lead?.firstName
-                      ? `${opp.lead.firstName} ${opp.lead.lastName || ""}`
-                      : "Direct Representative Account"}
-                  </p>
-                  <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                    {status === "WON" ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 uppercase tracking-wider">
-                        <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Won
-                      </span>
-                    ) : status === "LOST" ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 uppercase tracking-wider">
-                        <XCircle className="w-3 h-3 text-rose-600" /> Lost
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 uppercase tracking-wider">
-                        <Clock className="w-3 h-3 text-blue-600" /> Open
-                      </span>
-                    )}
-
-                    {status === "OPEN" && (
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold border uppercase tracking-wider ${phaseInfo.badgeClass}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${phaseInfo.dotClass} animate-pulse`} />
-                        {phaseInfo.label}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Deal Value & Win Probability Box */}
-            <div className="grid grid-cols-2 gap-2 p-3 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-slate-200/80 dark:border-slate-700">
-              <div>
-                <span className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                  Deal Value
-                </span>
-                <span className="text-base font-black text-slate-900 dark:text-white truncate block">
-                  {formatCurrency(opp.amount || 0)}
-                </span>
-              </div>
-              <div className="border-l border-slate-200 dark:border-slate-700 pl-3">
-                <span className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                  Win Prob
-                </span>
-                <span className="text-base font-black text-blue-600 dark:text-blue-400 block">
-                  {opp.probability !== null && opp.probability !== undefined
-                    ? `${opp.probability}%`
-                    : status === "WON"
-                    ? "100%"
-                    : status === "LOST"
-                    ? "0%"
-                    : "—"}
-                </span>
-              </div>
-            </div>
-
-            {/* Contact Details & Metadata */}
-            <div className="space-y-2.5 text-xs pt-1 border-t border-slate-100 dark:border-slate-800">
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400 text-[11px] font-bold uppercase tracking-wider">Primary Contact</span>
-                {opp.account?.id && (
-                  <Link
-                    to={`/accounts/${opp.account.id}`}
-                    className="text-blue-600 dark:text-blue-400 hover:underline font-bold text-[11px] inline-flex items-center gap-1"
-                  >
-                    <span>View 360</span>
-                    <ExternalLink className="w-2.5 h-2.5" />
-                  </Link>
-                )}
-              </div>
-              <div className="font-bold text-slate-900 dark:text-slate-100">
-                {opp.primaryContact?.firstName
-                  ? `${opp.primaryContact.firstName} ${opp.primaryContact.lastName || ""}`
-                  : opp.lead?.firstName
-                  ? `${opp.lead.firstName} ${opp.lead.lastName || ""}`
-                  : "Direct Representative Account"}
-              </div>
-              {(opp.primaryContact?.email || opp.lead?.email) && (
-                <div className="text-slate-600 dark:text-slate-300 truncate flex items-center gap-2">
-                  <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                  <span className="truncate">{opp.primaryContact?.email || opp.lead?.email}</span>
-                </div>
-              )}
-              {(opp.primaryContact?.phone || opp.lead?.phone) && (
-                <div className="text-slate-600 dark:text-slate-300 flex items-center gap-2">
-                  <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                  <span>{opp.primaryContact?.phone || opp.lead?.phone}</span>
-                </div>
-              )}
-              <div className="text-slate-500 dark:text-slate-400 text-[11px] flex items-center gap-2 pt-1 border-t border-slate-100 dark:border-slate-800/80">
-                <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                <span>
-                  Expected Close:{" "}
-                  <strong className="text-slate-700 dark:text-slate-300">
-                    {opp.expectedCloseDate
-                      ? new Date(opp.expectedCloseDate).toLocaleDateString([], {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric"
-                        })
-                      : "Unscheduled"}
-                  </strong>
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Card 3: Company Intelligence */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3.5">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2.5">
-              <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                <Building2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400" /> Company Intelligence
-              </h3>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-              <div className="p-2.5 bg-slate-50/70 dark:bg-slate-800/50 rounded-xl border border-slate-200/70 dark:border-slate-700/70 space-y-0.5">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Industry</span>
-                <span className="font-bold text-slate-800 dark:text-slate-200 text-xs block truncate">
-                  {opp.account?.industry || accountDetails?.industry || opp.lead?.industry || (
-                    <span className="text-slate-400 font-normal italic">Not set</span>
-                  )}
-                </span>
-              </div>
-
-              <div className="p-2.5 bg-slate-50/70 dark:bg-slate-800/50 rounded-xl border border-slate-200/70 dark:border-slate-700/70 space-y-0.5">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Estimated Size</span>
-                <span className="font-bold text-slate-800 dark:text-slate-200 text-xs block truncate">
-                  {(opp.account?.employeeCount ?? accountDetails?.employeeCount) ? (
-                    `${Number(opp.account?.employeeCount ?? accountDetails?.employeeCount).toLocaleString()} Employees`
-                  ) : (
-                    <span className="text-slate-400 font-normal italic">Not set</span>
-                  )}
-                </span>
-              </div>
-
-              <div className="p-2.5 bg-slate-50/70 dark:bg-slate-800/50 rounded-xl border border-slate-200/70 dark:border-slate-700/70 space-y-0.5">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Est Revenue</span>
-                <span className="font-bold text-slate-800 dark:text-slate-200 text-xs block truncate">
-                  {(opp.account?.revenue ?? accountDetails?.revenue) != null ? (
-                    formatCurrency(
-                      Number(opp.account?.revenue ?? accountDetails?.revenue)
-                    )
-                  ) : (
-                    <span className="text-slate-400 font-normal italic">Not set</span>
-                  )}
-                </span>
-              </div>
-            </div>
-
-            {/* Corporate Hierarchy Section */}
-            {opp.account?.id && (
-              <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800 text-xs space-y-2">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                  Corporate Hierarchy
-                </span>
-                {accountDetails?.parentAccountId ? (
-                  <div className="flex items-center justify-between text-slate-600 dark:text-slate-300">
-                    <span className="text-slate-400">Parent Account:</span>
-                    <Link
-                      to={`/accounts/${accountDetails.parentAccountId}`}
-                      className="font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
-                    >
-                      <span className="truncate max-w-[160px]">
-                        {accountDetails.parentAccount?.name || "Parent Account"}
-                      </span>
-                      <ExternalLink className="w-3 h-3 shrink-0" />
-                    </Link>
-                  </div>
-                ) : null}
-
-                {accountDetails?.subsidiaries && accountDetails.subsidiaries.length > 0 ? (
-                  <div className="space-y-1">
-                    <span className="text-slate-400 block">
-                      Branches ({accountDetails.subsidiaries.length}):
-                    </span>
-                    <div className="space-y-1 max-h-28 overflow-y-auto pr-1">
-                      {accountDetails.subsidiaries.map((sub: any) => (
-                        <Link
-                          key={sub.id}
-                          to={`/accounts/${sub.id}`}
-                          className="flex items-center justify-between p-1.5 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700/80 rounded-lg text-slate-700 dark:text-slate-200 font-medium transition-colors"
-                        >
-                          <span className="truncate">{sub.name}</span>
-                          <ExternalLink className="w-3 h-3 text-slate-400 shrink-0" />
-                        </Link>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-
-                {!accountDetails?.parentAccountId && (!accountDetails?.subsidiaries || accountDetails.subsidiaries.length === 0) && (
-                  <div className="flex items-center justify-between text-slate-400 text-[11px]">
-                    <span>No parent or branch accounts linked</span>
-                    <Link
-                      to={`/accounts/${opp.account.id}`}
-                      className="text-blue-600 dark:text-blue-400 hover:underline font-semibold"
-                    >
-                      Add in account profile
-                    </Link>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Card 4: Assigned Ownership & Reassignment Section */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3.5">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2.5">
-              <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                <UserCheck className="w-4 h-4 text-blue-600" /> Deal Ownership
-              </h3>
-              {!opp?.isViewOnly && (
-                <button
-                  onClick={() => setIsReassignModalOpen(true)}
-                  className="text-[11px] font-bold text-blue-600 hover:text-blue-700 dark:text-blue-400 cursor-pointer"
-                >
-                  Change Rep
-                </button>
-              )}
-            </div>
-
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-300 font-bold text-xs shrink-0">
-                {opp.owner?.name ? opp.owner.name.substring(0, 2).toUpperCase() : "US"}
-              </div>
-              <div className="min-w-0 flex-1 text-xs">
-                <div className="font-bold text-slate-900 dark:text-white truncate">
-                  {opp.owner?.name || "Unassigned Account"}
-                </div>
-                <div className="text-[11px] text-slate-500 truncate">
-                  {opp.owner?.email || "No email assigned"}
-                </div>
-              </div>
-            </div>
-          </div>
+          <DossierSmartStack
+            items={dossierStackItems}
+            defaultTab="customer_details"
+            title="Opportunity Intelligence Dossier"
+          />
         </div>
 
         {/* ── RIGHT / MAIN WORKSPACE COLUMN (8 Cols): Interaction Hub Tabs ── */}
