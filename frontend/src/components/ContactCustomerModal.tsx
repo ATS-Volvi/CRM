@@ -12,8 +12,12 @@ import {
   ShieldAlert,
   Sparkles,
   ArrowRight,
-  ExternalLink
+  ExternalLink,
+  MapPin,
+  Compass,
+  Navigation
 } from "lucide-react";
+import { parseLocationInput, ParsedLocationResult } from "../utils/siteLocationParser";
 
 interface ContactCustomerModalProps {
   isOpen: boolean;
@@ -22,6 +26,12 @@ interface ContactCustomerModalProps {
   onConfirm: (options: {
     notes: string;
     requiresSiteInspection: boolean;
+    siteAddress?: string;
+    locationInput?: string;
+    siteAreaName?: string;
+    siteLatitudeHint?: number | null;
+    siteLongitudeHint?: number | null;
+    gateAccessNotes?: string;
   }) => Promise<void>;
   isSubmitting?: boolean;
 }
@@ -39,6 +49,25 @@ export const ContactCustomerModal: React.FC<ContactCustomerModalProps> = ({
     if (lead?.status === "NEW") return false;
     return lead?.requiresSiteInspection === true;
   });
+
+  const [locationInput, setLocationInput] = useState(() => {
+    return lead?.city || lead?.territory || lead?.state || "";
+  });
+  const [parsedLocation, setParsedLocation] = useState<ParsedLocationResult | null>(() => {
+    const initial = lead?.city || lead?.territory || lead?.state || "";
+    return initial ? parseLocationInput(initial) : null;
+  });
+  const [gateAccessNotes, setGateAccessNotes] = useState("");
+
+  const handleLocationChange = (val: string) => {
+    setLocationInput(val);
+    if (!val.trim()) {
+      setParsedLocation(null);
+      return;
+    }
+    const res = parseLocationInput(val);
+    setParsedLocation(res);
+  };
 
   if (!isOpen || !lead) return null;
 
@@ -63,6 +92,12 @@ export const ContactCustomerModal: React.FC<ContactCustomerModalProps> = ({
     await onConfirm({
       notes: notes.trim() || "Spoke with client regarding project scope & site access.",
       requiresSiteInspection,
+      siteAddress: locationInput.trim() || parsedLocation?.areaName || lead?.city || "Client Site",
+      locationInput: locationInput.trim(),
+      siteAreaName: parsedLocation?.areaName || locationInput.trim() || lead?.city || "",
+      siteLatitudeHint: parsedLocation?.latitude ?? null,
+      siteLongitudeHint: parsedLocation?.longitude ?? null,
+      gateAccessNotes: gateAccessNotes.trim(),
     });
   };
 
@@ -271,10 +306,84 @@ export const ContactCustomerModal: React.FC<ContactCustomerModalProps> = ({
             </div>
 
             {requiresSiteInspection && (
-              <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2">
-                <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                <div className="leading-snug">
-                  <strong>Approval Rule:</strong> Once Site Inspection is added, advancing this lead to <em>Qualified</em> will require the site inspector's audit report to be reviewed and accepted by a <strong>Team Lead or Higher Authority</strong>.
+              <div className="space-y-3 pt-1">
+                {/* Expandable Location Capture Box */}
+                <div className="p-4 bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-300 dark:border-emerald-800 rounded-2xl space-y-3 shadow-2xs animate-in fade-in slide-in-from-top-2 duration-150">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
+                      <MapPin className="w-4 h-4 text-emerald-600" />
+                      Client Site Location &amp; Gate Address
+                    </label>
+                    <span className="text-[10px] font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/60 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800">
+                      Syncs to Inspector Phone
+                    </span>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={locationInput}
+                        onChange={(e) => handleLocationChange(e.target.value)}
+                        placeholder="Paste Google Maps link OR type location (e.g. Jubail Ind 2 Gate #3, SABIC tank farm)"
+                        className="w-full text-xs p-3 pr-24 rounded-xl border border-emerald-400 dark:border-emerald-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-emerald-500 font-medium"
+                      />
+                      {parsedLocation?.latitude != null && parsedLocation?.longitude != null ? (
+                        <span className="absolute right-2.5 top-2.5 text-[10px] font-bold text-emerald-700 bg-emerald-100 dark:bg-emerald-950 px-2 py-1 rounded-md border border-emerald-300 flex items-center gap-1">
+                          ✓ GPS Parsed
+                        </span>
+                      ) : parsedLocation?.areaName ? (
+                        <span className="absolute right-2.5 top-2.5 text-[10px] font-bold text-blue-700 bg-blue-100 dark:bg-blue-950 px-2 py-1 rounded-md border border-blue-300 flex items-center gap-1">
+                          {parsedLocation.areaName}
+                        </span>
+                      ) : null}
+                    </div>
+
+                    {/* Quick Location Chips */}
+                    <div className="flex flex-wrap gap-1 pt-1">
+                      {[
+                        "Jubail Industrial City 2",
+                        "Yanbu Industrial Complex",
+                        "MODON Dammam 2nd Ind",
+                        "Ras Tanura Plant Gate",
+                        "Riyadh Industrial Zone"
+                      ].map((zone) => (
+                        <button
+                          key={zone}
+                          type="button"
+                          onClick={() => handleLocationChange(zone)}
+                          className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-emerald-400 transition cursor-pointer"
+                        >
+                          + {zone}
+                        </button>
+                      ))}
+                    </div>
+
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
+                      If the client sends a link, paste it. If not, type the plant or gate name in words. The field inspector gets <strong>1-tap Google Maps directions</strong> on their phone!
+                    </p>
+                  </div>
+
+                  {/* Optional Gate Pass Instructions */}
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                      Gate Access / Security Permit Instructions (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={gateAccessNotes}
+                      onChange={(e) => setGateAccessNotes(e.target.value)}
+                      placeholder="E.g. Meet Eng. Mansoor at Gate #3 security, Aramco passport & H2S monitor required"
+                      className="w-full text-xs p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2">
+                  <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="leading-snug">
+                    <strong>Approval Rule:</strong> Once Site Inspection is added, advancing this lead to <em>Qualified</em> will require the site inspector's audit report to be reviewed and accepted by a <strong>Team Lead or Higher Authority</strong>.
+                  </div>
                 </div>
               </div>
             )}

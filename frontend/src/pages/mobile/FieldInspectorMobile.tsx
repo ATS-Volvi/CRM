@@ -1502,10 +1502,22 @@ export default function FieldInspectorMobile() {
                           >
                             <Navigation className="w-4 h-4" />
                           </a>
+                        ) : (ins.siteAddress || ins.siteAreaName || ins.siteName) ? (
+                          <a
+                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                              ins.siteAddress || ins.siteAreaName || ins.siteName || ""
+                            )}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-2 text-blue-600 bg-blue-50 border border-blue-200 rounded-xl transition-all shadow-2xs hover:bg-blue-100"
+                            title={`Search "${ins.siteAddress || ins.siteAreaName || ins.siteName}" in Google Maps`}
+                          >
+                            <Navigation className="w-4 h-4" />
+                          </a>
                         ) : (
                           <span
                             className="p-2 text-slate-300 bg-slate-50 border border-slate-200/50 rounded-xl cursor-not-allowed"
-                            title="No coordinates set"
+                            title="No location or address set"
                           >
                             <Navigation className="w-4 h-4" />
                           </span>

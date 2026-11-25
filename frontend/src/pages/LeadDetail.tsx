@@ -66,6 +66,12 @@ export default function LeadDetail() {
   const handleContactConfirm = async (options: {
     notes: string;
     requiresSiteInspection: boolean;
+    siteAddress?: string;
+    locationInput?: string;
+    siteAreaName?: string;
+    siteLatitudeHint?: number | null;
+    siteLongitudeHint?: number | null;
+    gateAccessNotes?: string;
   }) => {
     setIsSubmittingContact(true);
     try {
@@ -75,7 +81,8 @@ export default function LeadDetail() {
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
         body: JSON.stringify({
           status: "CONTACTED",
-          requiresSiteInspection: options.requiresSiteInspection
+          requiresSiteInspection: options.requiresSiteInspection,
+          city: options.siteAreaName || options.siteAddress || lead?.city
         })
       });
       if (!res.ok) {
@@ -89,7 +96,14 @@ export default function LeadDetail() {
           if (requestInspection) {
             await requestInspection({
               notes: options.notes,
-              siteAddress: lead?.city || lead?.state || "Client Site"
+              siteAddress: options.siteAddress || options.locationInput || lead?.city || "Client Site",
+              locationInput: options.locationInput,
+              siteAreaName: options.siteAreaName,
+              siteLatitudeHint: options.siteLatitudeHint,
+              siteLongitudeHint: options.siteLongitudeHint,
+              requestNote: options.gateAccessNotes
+                ? `${options.notes} | Gate Access: ${options.gateAccessNotes}`
+                : options.notes
             });
           }
         } catch (inspErr) {
