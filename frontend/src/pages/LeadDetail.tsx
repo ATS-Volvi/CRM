@@ -995,7 +995,29 @@ export default function LeadDetail() {
         {/* SIDEBAR (Right/Left): AI Copilot + Customer Metadata + Tasks */}
         <div className="col-span-12 lg:col-span-4 flex flex-col gap-5">
           {/* Site Inspection Card */}
-          <SiteInspectionCard leadId={id!} leadStatus={lead?.status} />
+          <SiteInspectionCard
+            leadId={id!}
+            leadStatus={lead?.status}
+            suggestedLocation={(() => {
+              if (!lead) return "";
+              try {
+                const raw = typeof lead.rawPayload === "string" ? JSON.parse(lead.rawPayload) : lead.rawPayload;
+                if (raw?.operationalBase || raw?.stationLocation || raw?.territory) {
+                  return raw.operationalBase || raw.stationLocation || raw.territory;
+                }
+              } catch {}
+              const body = lead.body || lead.message || "";
+              const baseMatch =
+                body.match(/Target Operational Base:\s*([^\n\r]+)/i) ||
+                body.match(/Station Location:\s*([^\n\r]+)/i) ||
+                body.match(/Location:\s*([^\n\r]+)/i);
+              if (baseMatch && baseMatch[1]) {
+                return baseMatch[1].trim();
+              }
+              if (lead.territory) return lead.territory;
+              return "";
+            })()}
+          />
 
           {/* AI Sales Copilot Card */}
           <div className="bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-900/60 rounded-2xl p-5 shadow-xs space-y-3 relative overflow-hidden">

@@ -1095,6 +1095,7 @@ import {
   getAutomationHealthHandler,
   optimizeSiteInspectionRouteHandler,
   updateSiteInspectionLocationHandler,
+  cancelInspectionEndpoint,
 } from "../controllers/siteInspectionController";
 
 router.get("/site-inspections/master", authMiddleware, getMasterData);
@@ -1133,6 +1134,8 @@ router.get("/site-inspections/:id/completeness", authMiddleware, checkCompletene
 router.post("/site-inspections/:id/submit", authMiddleware, submitSiteInspection);
 router.post("/site-inspections/:id/review", authMiddleware, reviewSiteInspection);
 router.post("/site-inspections/:id/reassign", authMiddleware, reassignSiteInspection);
+router.post("/site-inspections/:id/cancel", authMiddleware, cancelInspectionEndpoint);
+router.delete("/site-inspections/:id", authMiddleware, cancelInspectionEndpoint);
 
 // Stage B Inspector State Machine & Timelines
 router.post("/site-inspections/:id/accept", authMiddleware, acceptInspectionHandler);

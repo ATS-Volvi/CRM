@@ -827,7 +827,10 @@ export const getLeadSiteInspection = async (req: Request, res: Response) => {
     const gate = await getSiteInspectionGate(leadId);
 
     const inspection = await SiteInspection.findOne({
-      where: { leadId },
+      where: {
+        leadId,
+        status: { [Op.ne]: "CANCELLED" },
+      },
       include: [
         { model: SiteInspectionService, as: "services" },
         { model: SiteInspectionAttachment, as: "attachments" },
@@ -842,6 +845,31 @@ export const getLeadSiteInspection = async (req: Request, res: Response) => {
       gate,
       inspection,
     });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const cancelInspectionEndpoint = async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const inspection: any = await SiteInspection.findByPk(id);
+    if (!inspection) return res.status(404).json({ error: "Site inspection not found" });
+
+    inspection.status = "CANCELLED";
+    await inspection.save();
+
+    if (inspection.leadId) {
+      await Lead.update(
+        {
+          siteInspectionStatus: "NOT_REQUESTED",
+          siteInspectionId: null,
+        },
+        { where: { id: inspection.leadId } }
+      );
+    }
+
+    res.json({ success: true, message: "Site inspection cancelled successfully" });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

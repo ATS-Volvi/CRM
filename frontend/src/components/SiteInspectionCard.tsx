@@ -45,26 +45,46 @@ export function useLeadSiteInspection(leadId?: string) {
     },
   });
 
+  const cancelMutation = useMutation({
+    mutationFn: (inspectionId: string) => siteInspectionApi.cancelInspection(inspectionId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["lead-site-inspection", leadId] });
+      queryClient.invalidateQueries({ queryKey: ["lead", leadId] });
+    },
+  });
+
   return {
     ...query,
     gate: query.data?.gate as SiteInspectionGateResult | undefined,
     inspection: query.data?.inspection as SiteInspectionRecord | null | undefined,
     requestInspection: requestMutation.mutateAsync,
     isRequesting: requestMutation.isPending,
+    cancelInspection: cancelMutation.mutateAsync,
+    isCancelling: cancelMutation.isPending,
   };
 }
 
 export function SiteInspectionCard({
   leadId,
   leadStatus,
+  suggestedLocation,
 }: {
   leadId: string;
   leadStatus?: string;
+  suggestedLocation?: string;
 }) {
   const { user } = useAuth();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const { gate, inspection, isLoading, isError, requestInspection, isRequesting } =
-    useLeadSiteInspection(leadId);
+  const {
+    gate,
+    inspection,
+    isLoading,
+    isError,
+    requestInspection,
+    isRequesting,
+    cancelInspection,
+    isCancelling,
+  } = useLeadSiteInspection(leadId);
 
   const userRole = (user?.role || "").toLowerCase();
   const isApprover = APPROVER_ROLES.includes(userRole);
@@ -300,10 +320,51 @@ export function SiteInspectionCard({
               <span>{isAssignedInspector ? "Open Inspection Portal" : "View Inspection (Read-only)"}</span>
               <ExternalLink className="w-3.5 h-3.5" />
             </Link>
+
+            {/* Cancel / Reset Inspection for Managers & Admins */}
+            {isApprover && (
+              <button
+                type="button"
+                onClick={async () => {
+                  if (
+                    window.confirm(
+                      "Are you sure you want to cancel / reset this site inspection? The lead will return to pending pre-sales review."
+                    )
+                  ) {
+                    await cancelInspection(inspection.id);
+                  }
+                }}
+                disabled={isCancelling}
+                className="w-full text-center text-[11px] font-semibold text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 pt-1 cursor-pointer transition-colors disabled:opacity-50"
+              >
+                {isCancelling ? "Cancelling Inspection..." : "Cancel / Reset Inspection"}
+              </button>
+            )}
           </div>
         ) : (
           /* Empty / Request CTA */
           <div className="space-y-3 pt-1">
+            {/* Inbound Customer Stated Location Banner */}
+            {suggestedLocation && (
+              <div className="p-3 bg-blue-50/90 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/80 rounded-xl space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-blue-700 dark:text-blue-300 font-bold text-xs">
+                    <MapPin className="w-3.5 h-3.5" />
+                    <span>Customer Stated Location</span>
+                  </div>
+                  <span className="text-[9px] uppercase tracking-wider font-extrabold bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-2 py-0.5 rounded-full">
+                    Pre-Sales Confirm
+                  </span>
+                </div>
+                <div className="text-xs font-bold text-slate-900 dark:text-slate-100 pl-5">
+                  📍 {suggestedLocation}
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 pl-5 leading-relaxed">
+                  Suggested from website map. Pre-sales must verify site readiness & plant coordinates with client before dispatch.
+                </p>
+              </div>
+            )}
+
             <p className="text-xs text-face-muted leading-relaxed">
               No inspection has been requested yet. Requesting an inspection will dispatch a Site
               Manager to assess distance, site access, and waste logistics.
@@ -315,7 +376,13 @@ export function SiteInspectionCard({
               className="w-full flex items-center justify-center gap-2 px-3.5 py-2.5 bg-face-green hover:bg-face-green-dark text-white text-xs font-bold rounded-xl transition-all shadow-sm shadow-face-green/20 disabled:opacity-50 cursor-pointer"
             >
               <PlusCircle className="w-4 h-4" />
-              <span>{isRequesting ? "Dispatching..." : "Request Site Inspection"}</span>
+              <span>
+                {isRequesting
+                  ? "Dispatching..."
+                  : suggestedLocation
+                  ? "Confirm Location & Request Inspection"
+                  : "Request Site Inspection"}
+              </span>
             </button>
           </div>
         )}
@@ -324,6 +391,7 @@ export function SiteInspectionCard({
       <SiteInspectionRequestModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
+        defaultAreaName={suggestedLocation || ""}
         onSubmit={async (payload) => {
           await requestInspection(payload);
         }}

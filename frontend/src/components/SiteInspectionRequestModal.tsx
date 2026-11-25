@@ -63,12 +63,16 @@ export function SiteInspectionRequestModal({
 
   useEffect(() => {
     if (isOpen) {
+      if (defaultAreaName) {
+        setSiteAreaName(defaultAreaName);
+        setLocationInput(defaultAreaName);
+      }
       siteInspectionApi
         .getSiteManagers()
         .then((data) => setInspectors(data || []))
         .catch(() => {});
     }
-  }, [isOpen]);
+  }, [isOpen, defaultAreaName]);
 
   if (!isOpen) return null;
 

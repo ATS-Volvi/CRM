@@ -159,6 +159,10 @@ export const siteInspectionApi = {
     return apiClient.post<SiteInspectionRecord>(`/api/v1/leads/${leadId}/site-inspection/request`, payload);
   },
 
+  async cancelInspection(id: string): Promise<{ success: boolean; message: string }> {
+    return apiClient.post<{ success: boolean; message: string }>(`/api/v1/site-inspections/${id}/cancel`, {});
+  },
+
   // ─── Phase 2 Stage A: Settings, Holidays, Profiles, Audits ───────────────────
   async getSettings(): Promise<any> {
     return apiClient.get<any>("/api/v1/site-inspections/settings");
