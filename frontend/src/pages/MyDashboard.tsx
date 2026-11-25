@@ -462,25 +462,35 @@ export default function MyDashboard() {
             </div>
           </div>
 
-          {/* KPI 4: Win Rate & Avg Deal Size */}
-          <div className="space-y-3 pt-4 lg:pt-0 lg:pl-6 cursor-pointer group" onClick={() => navigate("/activities")}>
+          {/* KPI 4: Customer Engagement & Inbound Replies */}
+          <div
+            className="space-y-3 pt-4 lg:pt-0 lg:pl-6 cursor-pointer group"
+            onClick={handleOpenNotificationDrawer}
+            title="Click to view all customer replies and engagement alerts in the Notification Drawer"
+          >
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                Win Rate
+                Customer Replies
               </span>
-              <div className="w-8 h-8 rounded-xl bg-purple-50 dark:bg-purple-950/40 text-purple-600 flex items-center justify-center font-bold">
-                <Award className="w-4 h-4" />
+              <div className="w-8 h-8 rounded-xl bg-purple-50 dark:bg-purple-950/40 text-purple-600 flex items-center justify-center font-bold relative">
+                <MessageSquare className="w-4 h-4" />
+                {unreadRepliesCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white dark:border-slate-900" />
+                )}
               </div>
             </div>
             <div>
               <div className="text-2xl font-black text-slate-900 dark:text-white tracking-tight group-hover:text-purple-600 transition-colors">
-                {winRate}%
+                {unreadRepliesCount} {unreadRepliesCount === 1 ? "Inbound Reply" : "Inbound Replies"}
               </div>
               <div className="flex items-center gap-1.5 mt-1.5">
-                <span className="inline-flex items-center gap-0.5 text-[11px] font-bold text-purple-700 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/60 px-2 py-0.5 rounded-full">
-                  {formatCurrencyCompact(avgDealSize)}
+                <span className="inline-flex items-center gap-0.5 text-[11px] font-bold text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/60 px-2 py-0.5 rounded-full">
+                  <Zap className="w-3 h-3" />
+                  {urgentWaitingCount > 0 ? `${urgentWaitingCount} Urgent Action` : "Active Buying Signals"}
                 </span>
-                <span className="text-[11px] font-medium text-slate-400">Avg deal size</span>
+                <span className="text-[11px] font-medium text-slate-400 truncate">
+                  Open Drawer →
+                </span>
               </div>
             </div>
           </div>
