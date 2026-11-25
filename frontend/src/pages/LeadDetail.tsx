@@ -157,6 +157,7 @@ export default function LeadDetail() {
   const [discoveryUrgency, setDiscoveryUrgency] = useState<string>("emergency_shutdown");
   const [discoverySowCheck, setDiscoverySowCheck] = useState(false);
   const [discoveryUtilitiesCheck, setDiscoveryUtilitiesCheck] = useState(false);
+  const [discoveryLocation, setDiscoveryLocation] = useState<string>("");
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -214,6 +215,12 @@ export default function LeadDetail() {
     },
     enabled: !!id && !!token
   });
+
+  useEffect(() => {
+    if (lead?.city || lead?.territory) {
+      setDiscoveryLocation((prev) => prev || lead.city || lead.territory || "");
+    }
+  }, [lead?.city, lead?.territory]);
 
   const requiresSiteInspection = lead?.requiresSiteInspection === true;
   // Site inspection stage is only active after the contact step if selected or if inspection already exists
@@ -1191,6 +1198,8 @@ export default function LeadDetail() {
         setDiscoverySowCheck={setDiscoverySowCheck}
         discoveryUtilitiesCheck={discoveryUtilitiesCheck}
         setDiscoveryUtilitiesCheck={setDiscoveryUtilitiesCheck}
+        discoveryLocation={discoveryLocation}
+        setDiscoveryLocation={setDiscoveryLocation}
         onLogCallClick={() => setActiveModal("call")}
         onActionClick={() => {
           if (lead.status === "QUALIFIED" || lead.status === "Qualified") {
@@ -2646,6 +2655,7 @@ export default function LeadDetail() {
           isOpen={isContactModalOpen}
           onClose={() => setIsContactModalOpen(false)}
           lead={lead}
+          initialLocation={discoveryLocation || lead?.city || lead?.territory || ""}
           onConfirm={handleContactConfirm}
           isSubmitting={isSubmittingContact}
         />

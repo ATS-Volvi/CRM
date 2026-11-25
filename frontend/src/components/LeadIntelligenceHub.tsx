@@ -45,6 +45,8 @@ interface LeadIntelligenceHubProps {
   setDiscoverySowCheck: (val: boolean) => void;
   discoveryUtilitiesCheck: boolean;
   setDiscoveryUtilitiesCheck: (val: boolean) => void;
+  discoveryLocation?: string;
+  setDiscoveryLocation?: (val: string) => void;
   // Action callbacks
   onActionClick?: (actionText: string) => void;
   onLogCallClick?: () => void;
@@ -69,6 +71,8 @@ export const LeadIntelligenceHub: React.FC<LeadIntelligenceHubProps> = ({
   setDiscoverySowCheck,
   discoveryUtilitiesCheck,
   setDiscoveryUtilitiesCheck,
+  discoveryLocation,
+  setDiscoveryLocation,
   onActionClick,
   onLogCallClick,
   className = ""
@@ -76,6 +80,22 @@ export const LeadIntelligenceHub: React.FC<LeadIntelligenceHubProps> = ({
   const queryClient = useQueryClient();
   const [internalTab, setInternalTab] = useState<IntelligenceTab>("scope");
   const currentTab = externalTab !== undefined ? externalTab : internalTab;
+
+  const currentLocation = discoveryLocation !== undefined ? discoveryLocation : (lead?.city || lead?.territory || "");
+
+  const handleLocationUpdate = async (newLoc: string) => {
+    if (setDiscoveryLocation) {
+      setDiscoveryLocation(newLoc);
+    }
+    if (leadId) {
+      try {
+        await apiClient.put(`/api/v1/leads/${leadId}`, { city: newLoc });
+        queryClient.invalidateQueries({ queryKey: ["lead", leadId] });
+      } catch (err) {
+        console.warn("Could not auto-save location to lead:", err);
+      }
+    }
+  };
 
   // Selected technical scoping chips for zero-callback discovery
   const [selectedSpecs, setSelectedSpecs] = useState<string[]>([]);
@@ -123,6 +143,7 @@ export const LeadIntelligenceHub: React.FC<LeadIntelligenceHubProps> = ({
       const lines = [
         `📋 **5-MIN DISCOVERY CALL TECHNICAL SPECIFICATIONS**`,
         `• **Service Division:** ${divisionName}`,
+        `• **Project Site Location:** ${currentLocation || "Not specified / To be confirmed"}`,
         `• **Plant Access & Permits:** ${facilityName}`,
         `• **Mobilization Window:** ${urgencyName}`,
         `• **Verified Protocols:** SOW/MSDS Verified: ${discoverySowCheck ? "YES" : "NO"} | Site Utilities Verified: ${discoveryUtilitiesCheck ? "YES" : "NO"}`,
@@ -351,8 +372,8 @@ export const LeadIntelligenceHub: React.FC<LeadIntelligenceHubProps> = ({
             </span>
           </div>
 
-          {/* 3 Top-Level Gatekeeping Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {/* 4 Top-Level Gatekeeping & Location Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {/* Question 1: Service Division */}
             <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-amber-200/70 dark:border-amber-800/50 space-y-1.5 shadow-2xs">
               <label className="text-[10px] font-bold text-amber-900 dark:text-amber-300 uppercase tracking-wider block">
@@ -378,10 +399,51 @@ export const LeadIntelligenceHub: React.FC<LeadIntelligenceHubProps> = ({
               </p>
             </div>
 
-            {/* Question 2: Plant Access & Gate Permits */}
+            {/* Question 2: Project Site Location */}
+            <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-amber-200/70 dark:border-amber-800/50 space-y-1.5 shadow-2xs">
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] font-bold text-amber-900 dark:text-amber-300 uppercase tracking-wider block">
+                  2. Project Site Location
+                </label>
+                <span className="text-[9px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950 px-1.5 py-0.2 rounded border border-emerald-200 dark:border-emerald-800">
+                  Mob/Demob
+                </span>
+              </div>
+
+              {/* 1-Click Industrial Zone Chips */}
+              <div className="flex flex-wrap gap-1">
+                {["Jubail", "Dammam", "Ras Al-Khair", "Yanbu", "Remote Site"].map((area) => (
+                  <button
+                    key={area}
+                    type="button"
+                    onClick={() => handleLocationUpdate(area)}
+                    className={`text-[9px] px-1.5 py-0.5 rounded font-bold transition cursor-pointer border ${
+                      currentLocation === area
+                        ? "bg-emerald-600 text-white border-emerald-600 shadow-2xs"
+                        : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-emerald-400"
+                    }`}
+                  >
+                    {area}
+                  </button>
+                ))}
+              </div>
+
+              <input
+                type="text"
+                value={currentLocation}
+                onChange={(e) => handleLocationUpdate(e.target.value)}
+                placeholder="Type gate or paste map link..."
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-1.5 text-xs text-slate-900 dark:text-white font-medium placeholder:text-slate-400 focus:outline-hidden focus:ring-1 focus:ring-emerald-500"
+              />
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
+                ➔ Auto-syncs to Contacted outreach popup &amp; calculates travel distance.
+              </p>
+            </div>
+
+            {/* Question 3: Plant Access & Gate Permits */}
             <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-amber-200/70 dark:border-amber-800/50 space-y-1.5 shadow-2xs">
               <label className="text-[10px] font-bold text-amber-900 dark:text-amber-300 uppercase tracking-wider block">
-                2. Plant Access &amp; Permits (PTW)
+                3. Plant Access &amp; Permits (PTW)
               </label>
               <select
                 value={discoveryFacility}
@@ -418,10 +480,10 @@ export const LeadIntelligenceHub: React.FC<LeadIntelligenceHubProps> = ({
               </p>
             </div>
 
-            {/* Question 3: Mobilization Window */}
+            {/* Question 4: Mobilization Window */}
             <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-amber-200/70 dark:border-amber-800/50 space-y-1.5 shadow-2xs">
               <label className="text-[10px] font-bold text-amber-900 dark:text-amber-300 uppercase tracking-wider block">
-                3. Mobilization Window &amp; Readiness
+                4. Mobilization Window &amp; Readiness
               </label>
               <select
                 value={discoveryUrgency}

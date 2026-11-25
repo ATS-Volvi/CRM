@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Phone,
   PhoneCall,
@@ -15,7 +15,8 @@ import {
   ExternalLink,
   MapPin,
   Compass,
-  Navigation
+  Navigation,
+  AlertTriangle
 } from "lucide-react";
 import { parseLocationInput, ParsedLocationResult } from "../utils/siteLocationParser";
 
@@ -23,6 +24,7 @@ interface ContactCustomerModalProps {
   isOpen: boolean;
   onClose: () => void;
   lead: any;
+  initialLocation?: string;
   onConfirm: (options: {
     notes: string;
     requiresSiteInspection: boolean;
@@ -40,6 +42,7 @@ export const ContactCustomerModal: React.FC<ContactCustomerModalProps> = ({
   isOpen,
   onClose,
   lead,
+  initialLocation,
   onConfirm,
   isSubmitting = false,
 }) => {
@@ -51,13 +54,29 @@ export const ContactCustomerModal: React.FC<ContactCustomerModalProps> = ({
   });
 
   const [locationInput, setLocationInput] = useState(() => {
-    return lead?.city || lead?.territory || lead?.state || "";
+    return initialLocation || lead?.city || lead?.territory || lead?.state || "";
+  });
+  const [originalLocation, setOriginalLocation] = useState<string>(() => {
+    return initialLocation || lead?.city || lead?.territory || lead?.state || "";
   });
   const [parsedLocation, setParsedLocation] = useState<ParsedLocationResult | null>(() => {
-    const initial = lead?.city || lead?.territory || lead?.state || "";
+    const initial = initialLocation || lead?.city || lead?.territory || lead?.state || "";
     return initial ? parseLocationInput(initial) : null;
   });
   const [gateAccessNotes, setGateAccessNotes] = useState("");
+  const [showLocationConfirmModal, setShowLocationConfirmModal] = useState(false);
+  const [locationConfirmed, setLocationConfirmed] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      const loc = initialLocation || lead?.city || lead?.territory || lead?.state || "";
+      setLocationInput(loc);
+      setOriginalLocation(loc);
+      setParsedLocation(loc ? parseLocationInput(loc) : null);
+      setShowLocationConfirmModal(false);
+      setLocationConfirmed(false);
+    }
+  }, [isOpen, initialLocation, lead?.city, lead?.territory]);
 
   const handleLocationChange = (val: string) => {
     setLocationInput(val);
@@ -87,18 +106,31 @@ export const ContactCustomerModal: React.FC<ContactCustomerModalProps> = ({
     setNotes((prev) => (prev ? `${prev} • ${chipText}` : chipText));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const executeConfirm = async (finalLoc?: string) => {
+    const locToUse = finalLoc !== undefined ? finalLoc : locationInput.trim();
+    const finalParsed = locToUse ? parseLocationInput(locToUse) : parsedLocation;
+
     await onConfirm({
       notes: notes.trim() || "Spoke with client regarding project scope & site access.",
       requiresSiteInspection,
-      siteAddress: locationInput.trim() || parsedLocation?.areaName || lead?.city || "Client Site",
-      locationInput: locationInput.trim(),
-      siteAreaName: parsedLocation?.areaName || locationInput.trim() || lead?.city || "",
-      siteLatitudeHint: parsedLocation?.latitude ?? null,
-      siteLongitudeHint: parsedLocation?.longitude ?? null,
+      siteAddress: locToUse || finalParsed?.areaName || lead?.city || "Client Site",
+      locationInput: locToUse,
+      siteAreaName: finalParsed?.areaName || locToUse || lead?.city || "",
+      siteLatitudeHint: finalParsed?.latitude ?? null,
+      siteLongitudeHint: finalParsed?.longitude ?? null,
       gateAccessNotes: gateAccessNotes.trim(),
     });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    // If the salesman changed location from what was entered in the 5-min call / initial location, prompt confirmation
+    const isChanged = originalLocation.trim() !== "" && locationInput.trim() !== originalLocation.trim();
+    if (isChanged && !locationConfirmed) {
+      setShowLocationConfirmModal(true);
+      return;
+    }
+    await executeConfirm();
   };
 
   return (
@@ -305,67 +337,79 @@ export const ContactCustomerModal: React.FC<ContactCustomerModalProps> = ({
               </div>
             </div>
 
-            {requiresSiteInspection && (
-              <div className="space-y-3 pt-1">
-                {/* Expandable Location Capture Box */}
-                <div className="p-4 bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-300 dark:border-emerald-800 rounded-2xl space-y-3 shadow-2xs animate-in fade-in slide-in-from-top-2 duration-150">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
-                      <MapPin className="w-4 h-4 text-emerald-600" />
-                      Client Site Location &amp; Gate Address
-                    </label>
-                    <span className="text-[10px] font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/60 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800">
-                      Syncs to Inspector Phone
-                    </span>
+            {/* Location Capture Box (Always available to record site for Mob/Demob and Inspection) */}
+            <div className="space-y-3 pt-1">
+              <div className={`p-4 rounded-2xl space-y-3 shadow-2xs transition-all ${
+                requiresSiteInspection
+                  ? "bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-300 dark:border-emerald-800"
+                  : "bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700"
+              }`}>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
+                    <MapPin className={`w-4 h-4 ${requiresSiteInspection ? "text-emerald-600" : "text-blue-600"}`} />
+                    {requiresSiteInspection
+                      ? "Client Site Location & Gate Address"
+                      : "Client Project Location (Mob/Demob Logistics)"}
+                  </label>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
+                    requiresSiteInspection
+                      ? "text-emerald-800 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/60 border-emerald-200 dark:border-emerald-800"
+                      : "text-blue-800 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/60 border-blue-200 dark:border-blue-800"
+                  }`}>
+                    {requiresSiteInspection ? "Syncs to Inspector Phone" : "Quotation Logistics"}
+                  </span>
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={locationInput}
+                      onChange={(e) => handleLocationChange(e.target.value)}
+                      placeholder="Paste Google Maps link OR type location (e.g. Jubail Ind 2 Gate #3, SABIC tank farm)"
+                      className="w-full text-xs p-3 pr-24 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-emerald-500 font-medium"
+                    />
+                    {parsedLocation?.latitude != null && parsedLocation?.longitude != null ? (
+                      <span className="absolute right-2.5 top-2.5 text-[10px] font-bold text-emerald-700 bg-emerald-100 dark:bg-emerald-950 px-2 py-1 rounded-md border border-emerald-300 flex items-center gap-1">
+                        ✓ GPS Parsed
+                      </span>
+                    ) : parsedLocation?.areaName ? (
+                      <span className="absolute right-2.5 top-2.5 text-[10px] font-bold text-blue-700 bg-blue-100 dark:bg-blue-950 px-2 py-1 rounded-md border border-blue-300 flex items-center gap-1">
+                        {parsedLocation.areaName}
+                      </span>
+                    ) : null}
                   </div>
 
-                  <div className="space-y-1.5">
-                    <div className="relative">
-                      <input
-                        type="text"
-                        value={locationInput}
-                        onChange={(e) => handleLocationChange(e.target.value)}
-                        placeholder="Paste Google Maps link OR type location (e.g. Jubail Ind 2 Gate #3, SABIC tank farm)"
-                        className="w-full text-xs p-3 pr-24 rounded-xl border border-emerald-400 dark:border-emerald-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-emerald-500 font-medium"
-                      />
-                      {parsedLocation?.latitude != null && parsedLocation?.longitude != null ? (
-                        <span className="absolute right-2.5 top-2.5 text-[10px] font-bold text-emerald-700 bg-emerald-100 dark:bg-emerald-950 px-2 py-1 rounded-md border border-emerald-300 flex items-center gap-1">
-                          ✓ GPS Parsed
-                        </span>
-                      ) : parsedLocation?.areaName ? (
-                        <span className="absolute right-2.5 top-2.5 text-[10px] font-bold text-blue-700 bg-blue-100 dark:bg-blue-950 px-2 py-1 rounded-md border border-blue-300 flex items-center gap-1">
-                          {parsedLocation.areaName}
-                        </span>
-                      ) : null}
-                    </div>
-
-                    {/* Quick Location Chips */}
-                    <div className="flex flex-wrap gap-1 pt-1">
-                      {[
-                        "Jubail Industrial City 2",
-                        "Yanbu Industrial Complex",
-                        "MODON Dammam 2nd Ind",
-                        "Ras Tanura Plant Gate",
-                        "Riyadh Industrial Zone"
-                      ].map((zone) => (
-                        <button
-                          key={zone}
-                          type="button"
-                          onClick={() => handleLocationChange(zone)}
-                          className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-emerald-400 transition cursor-pointer"
-                        >
-                          + {zone}
-                        </button>
-                      ))}
-                    </div>
-
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
-                      If the client sends a link, paste it. If not, type the plant or gate name in words. The field inspector gets <strong>1-tap Google Maps directions</strong> on their phone!
-                    </p>
+                  {/* Quick Location Chips */}
+                  <div className="flex flex-wrap gap-1 pt-1">
+                    {[
+                      "Jubail Industrial City 2",
+                      "Yanbu Industrial Complex",
+                      "MODON Dammam 2nd Ind",
+                      "Ras Tanura Plant Gate",
+                      "Riyadh Industrial Zone"
+                    ].map((zone) => (
+                      <button
+                        key={zone}
+                        type="button"
+                        onClick={() => handleLocationChange(zone)}
+                        className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-emerald-400 transition cursor-pointer"
+                      >
+                        + {zone}
+                      </button>
+                    ))}
                   </div>
 
-                  {/* Optional Gate Pass Instructions */}
-                  <div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
+                    {requiresSiteInspection
+                      ? "If the client sends a link, paste it. If not, type the plant or gate name in words. The field inspector gets 1-tap Google Maps directions on their phone!"
+                      : "Used by commercial estimators to calculate truck/crew mobilization fees (Mob/Demob) from operations base."}
+                  </p>
+                </div>
+
+                {/* Optional Gate Pass Instructions */}
+                {requiresSiteInspection && (
+                  <div className="pt-2 border-t border-emerald-200/50 dark:border-emerald-900/40">
                     <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block mb-1">
                       Gate Access / Security Permit Instructions (Optional)
                     </label>
@@ -377,16 +421,18 @@ export const ContactCustomerModal: React.FC<ContactCustomerModalProps> = ({
                       className="w-full text-xs p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
                     />
                   </div>
-                </div>
+                )}
+              </div>
 
+              {requiresSiteInspection && (
                 <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2">
                   <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                   <div className="leading-snug">
                     <strong>Approval Rule:</strong> Once Site Inspection is added, advancing this lead to <em>Qualified</em> will require the site inspector's audit report to be reviewed and accepted by a <strong>Team Lead or Higher Authority</strong>.
                   </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
           {/* 3. Call Notes & Outcome */}
@@ -456,6 +502,75 @@ export const ContactCustomerModal: React.FC<ContactCustomerModalProps> = ({
             </button>
           </div>
         </form>
+
+        {/* ── Salesman Confirmation Dialog when Changing Discovery Location ── */}
+        {showLocationConfirmModal && (
+          <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-150">
+            <div 
+              className="bg-white dark:bg-slate-900 border-2 border-amber-400 dark:border-amber-600 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 animate-in zoom-in-95 duration-150"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-300 flex items-center justify-center shrink-0 shadow-xs">
+                  <AlertTriangle className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                    Confirm Location Change
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    You modified the location captured during 5-min discovery.
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-2.5 text-xs">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-slate-500 font-medium">Discovery Location:</span>
+                  <span className="font-bold text-slate-700 dark:text-slate-300 bg-slate-200/80 dark:bg-slate-700 px-2.5 py-1 rounded-lg line-clamp-1">
+                    {originalLocation}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-slate-500 font-medium">New Outreach Location:</span>
+                  <span className="font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950 px-2.5 py-1 rounded-lg border border-emerald-300 dark:border-emerald-800 line-clamp-1">
+                    {locationInput}
+                  </span>
+                </div>
+              </div>
+
+              <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
+                Confirming will update logistics Mob/Demob calculations and GPS navigation for the field inspector. Are you sure you want to proceed with this updated location?
+              </p>
+
+              <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLocationInput(originalLocation);
+                    handleLocationChange(originalLocation);
+                    setShowLocationConfirmModal(false);
+                  }}
+                  className="px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                >
+                  Keep Original ({originalLocation})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLocationConfirmed(true);
+                    setShowLocationConfirmModal(false);
+                    executeConfirm(locationInput);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-xs cursor-pointer flex items-center gap-1.5"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Yes, Confirm Change</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
