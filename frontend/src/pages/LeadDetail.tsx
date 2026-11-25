@@ -18,6 +18,7 @@ import { LeadConversionModal } from "../components/LeadConversionModal";
 import { HandoffChatWidget } from "../components/HandoffChatWidget";
 import { AiRequirementSummaryCard } from "../components/AiRequirementSummaryCard";
 import { LeadAttributionCard } from "../components/LeadAttributionCard";
+import { DossierSmartStack } from "../components/DossierSmartStack";
 import { LeadCampaignBadge } from "../components/LeadCampaignBadge";
 import { SiteInspectionCard, useLeadSiteInspection } from "../components/SiteInspectionCard";
 import { getStatusStyle } from "../lib/siteInspection";
@@ -1260,467 +1261,498 @@ export default function LeadDetail() {
             </div>
           </div>
 
-          {/* Customer Metadata Card */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
-            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white">Customer Details</h3>
-              <button 
-                onClick={() => setIsEditingDetails(!isEditingDetails)}
-                className="p-1 text-slate-400 hover:text-blue-600 rounded-lg transition-colors"
-                title="Edit Details"
-              >
-                {isEditingDetails ? <X className="w-4 h-4" /> : <Pencil className="w-4 h-4" />}
-              </button>
-            </div>
-
-            {isEditingDetails ? (
-              <div className="space-y-3 text-xs">
-                <div>
-                  <label className="block font-bold text-slate-600 dark:text-slate-400 mb-1">Project Name</label>
-                  <input 
-                    type="text" 
-                    value={editProjectName}
-                    onChange={e => setEditProjectName(e.target.value)}
-                    className="enterprise-input w-full"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-600 dark:text-slate-400 mb-1">Expected Value ($)</label>
-                  <input 
-                    type="number" 
-                    value={editExpectedValue}
-                    onChange={e => setEditExpectedValue(e.target.value)}
-                    className="enterprise-input w-full"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-600 dark:text-slate-400 mb-1">Email Address</label>
-                  <input 
-                    type="email" 
-                    placeholder="e.g. client@company.com"
-                    value={editEmail}
-                    onChange={e => setEditEmail(e.target.value)}
-                    className="enterprise-input w-full"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-600 dark:text-slate-400 mb-1">Phone Number</label>
-                  <input 
-                    type="text" 
-                    placeholder="e.g. +919876543210"
-                    value={editPhone}
-                    onChange={e => setEditPhone(e.target.value)}
-                    className="enterprise-input w-full"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-600 dark:text-slate-400 mb-1">Notes</label>
-                  <textarea 
-                    rows={3}
-                    value={editNotes}
-                    onChange={e => setEditNotes(e.target.value)}
-                    className="enterprise-input w-full"
-                  />
-                </div>
-                {/* Site Inspection Required Toggle */}
-                <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
-                  <div>
-                    <p className="text-xs font-bold text-slate-800 dark:text-slate-200">Site Inspection Required</p>
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                      Enable for Waste Management / Disposal services. Disable for Equipment Rental, Procurement, etc.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      toggleSiteInspectionMutation.mutate(!lead.requiresSiteInspection)
-                    }
-                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                      lead.requiresSiteInspection
-                        ? "bg-blue-600"
-                        : "bg-slate-300 dark:bg-slate-600"
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
-                        lead.requiresSiteInspection ? "translate-x-4" : "translate-x-1"
-                      }`}
-                    />
-                  </button>
-                </div>
-                <div className="flex gap-2 justify-end pt-1">
-                  <button 
-                    onClick={() => setIsEditingDetails(false)}
-                    className="enterprise-btn-secondary text-xs"
-                  >
-                    Cancel
-                  </button>
-                  <button 
-                    onClick={() => updateDetailsMutation.mutate()}
-                    className="enterprise-btn-primary text-xs"
-                  >
-                    Save
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-3 text-xs">
-                <div>
-                  <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Company</span>
-                  <span className="font-bold text-slate-900 dark:text-white text-sm">{lead.company || "N/A"}</span>
-                </div>
-                <div>
-                  <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Contact Person</span>
-                  <span className="font-semibold text-slate-800 dark:text-slate-200">{lead.firstName} {lead.lastName}</span>
-                </div>
-                <div>
-                  <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Email</span>
-                  <span className="font-medium text-blue-600 break-all flex items-center gap-1">
-                    {lead.email || "N/A"}
-                  </span>
-                </div>
-                <div>
-                  <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Phone</span>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-medium text-slate-800 dark:text-slate-200">
-                      {lead.phone || lead.whatsappPhone || "N/A"}
-                    </span>
-                    {lead.optedOutWhatsapp && (
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800 flex items-center gap-1">
-                        <AlertTriangle className="w-3 h-3 text-red-600" /> WhatsApp Opted Out
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1.5">
-                  <div className="flex items-center justify-between gap-1 flex-wrap">
-                    <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">WhatsApp Consent</span>
-                    {(() => {
-                      const status = (lead.whatsappConsentStatus || "UNSPECIFIED").toUpperCase();
-                      if (status === "OPTED_IN" && !lead.optedOutWhatsapp) {
-                        return (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300">
-                            Opted in {lead.whatsappConsentSource ? `(${lead.whatsappConsentSource})` : ""}
-                          </span>
-                        );
-                      }
-                      if (status === "OPTED_OUT" || lead.optedOutWhatsapp) {
-                        return (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300 border border-red-300">
-                            Opted out
-                          </span>
-                        );
-                      }
-                      return (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border border-slate-300">
-                          Not specified
-                        </span>
-                      );
-                    })()}
-                  </div>
-
-                  {!isRecordingConsent ? (
-                    <div className="flex items-center justify-between pt-0.5">
-                      <span className="text-[11px] text-slate-500">
-                        {lead.whatsappConsentStatus === "OPTED_IN" && lead.whatsappOptInAt
-                          ? `Recorded ${formatDistanceToNow(new Date(lead.whatsappOptInAt), { addSuffix: true })}`
-                          : "No verified consent on record"}
-                      </span>
+          {/* ── BUNDLED DOSSIER SMART STACK (Swipeable Card Bundle) ── */}
+          {/* Bundles Customer Details, Campaign Attribution, and Company Intelligence into an expandable, swipeable stack */}
+          <DossierSmartStack
+            title="Dossier & Company Intel"
+            defaultTab="customer"
+            items={[
+              {
+                id: "customer",
+                label: "Customer Details",
+                shortLabel: "Customer",
+                icon: <User className="w-3.5 h-3.5" />,
+                badge: lead.source || "Inbound",
+                content: (
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-2">
+                      <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                        Contact & Account Information
+                      </h4>
                       <button
-                        onClick={() => setIsRecordingConsent(true)}
-                        className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 underline cursor-pointer"
+                        onClick={() => setIsEditingDetails(!isEditingDetails)}
+                        className="p-1 text-slate-400 hover:text-blue-600 rounded-lg transition-colors cursor-pointer"
+                        title="Edit Details"
                       >
-                        Record consent
+                        {isEditingDetails ? <X className="w-4 h-4" /> : <Pencil className="w-4 h-4" />}
                       </button>
                     </div>
-                  ) : (
-                    <div className="p-2.5 bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-xl space-y-2 text-xs">
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-emerald-900 dark:text-emerald-200 text-[11px]">Record WhatsApp Consent</span>
-                        <button
-                          onClick={() => setIsRecordingConsent(false)}
-                          className="text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-                          Consent Source <span className="text-red-500">*</span>
-                        </label>
-                        <select
-                          value={consentSource}
-                          onChange={(e: any) => setConsentSource(e.target.value)}
-                          className="w-full text-xs bg-white dark:bg-slate-900 border border-emerald-300 dark:border-emerald-700 rounded-lg p-1.5 focus:outline-none"
-                        >
-                          <option value="verbal">Verbal (Call / In-Person)</option>
-                          <option value="written">Written (Email / Chat / Letter)</option>
-                          <option value="form">Form (Online / Offline Form)</option>
-                          <option value="other">Other</option>
-                        </select>
-                      </div>
-                      <div className="flex gap-2 justify-end pt-1">
-                        <button
-                          type="button"
-                          onClick={() => setIsRecordingConsent(false)}
-                          className="px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:text-slate-800 cursor-pointer"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          type="button"
-                          disabled={recordConsentMutation.isPending}
-                          onClick={() => recordConsentMutation.mutate(consentSource)}
-                          className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 shadow-2xs cursor-pointer"
-                        >
-                          {recordConsentMutation.isPending ? (
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                          ) : (
-                            <Check className="w-3 h-3" />
-                          )}
-                          Save Consent
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <div className="grid grid-cols-2 gap-2 border-t border-slate-100 dark:border-slate-800 pt-3">
-                  <div>
-                    <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Source</span>
-                    <span className="font-semibold text-slate-700 dark:text-slate-300">{lead.source || "Inbound"}</span>
-                  </div>
-                  <div>
-                    <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Estimated Value</span>
-                    {(() => {
-                      const realVal =
-                        lead.estimatedValue ??
-                        lead.expectedValue ??
-                        lead.opportunity?.amount ??
-                        lead.deal?.amount;
-                      if (
-                        realVal !== undefined &&
-                        realVal !== null &&
-                        realVal !== "" &&
-                        !isNaN(Number(realVal)) &&
-                        Number(realVal) > 0
-                      ) {
-                        return (
-                          <span className="font-bold text-emerald-600">
-                            {formatCurrency(Number(realVal))}
-                          </span>
-                        );
-                      }
-                      if (lead.budgetRange) {
-                        return (
-                          <span className="font-semibold text-slate-700 dark:text-slate-300">
-                            {lead.budgetRange}
-                          </span>
-                        );
-                      }
-                      return (
-                        <span className="text-slate-400 dark:text-slate-500 font-medium">
-                          Not estimated
-                        </span>
-                      );
-                    })()}
-                  </div>
-                </div>
-              </div>
-            )}
 
-            {/* Owner Assignee */}
-            <div className="border-t border-slate-100 dark:border-slate-800 pt-3 space-y-2">
-              <div className="flex justify-between items-center">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Assigned Representative</span>
-                <button 
-                  onClick={() => setIsReassigning(!isReassigning)} 
-                  className="text-xs text-blue-600 font-bold hover:underline"
-                >
-                  {isReassigning ? "Cancel" : "Reassign"}
-                </button>
-              </div>
-
-              {isReassigning ? (
-                <div className="space-y-2 text-xs">
-                  <select 
-                    value={newAssigneeId}
-                    onChange={(e) => setNewAssigneeId(e.target.value)}
-                    className="enterprise-input w-full"
-                  >
-                    <option value="">Select Salesperson</option>
-                    {salespersons?.map((sp: any) => (
-                      <option key={sp.id} value={sp.id}>{sp.name}</option>
-                    ))}
-                  </select>
-                  <button 
-                    onClick={() => reassignMutation.mutate()}
-                    className="w-full py-1.5 enterprise-btn-primary text-xs font-bold"
-                  >
-                    Confirm Reassign
-                  </button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2.5 bg-slate-50 dark:bg-slate-800 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-700">
-                  {(() => {
-                    const repName = lead.assignedTo?.name || salespersons?.find((s: any) => s.id === (lead.assignedToId || lead.assignedTo))?.name || (typeof lead.assignedTo === "string" ? lead.assignedTo : null);
-                    return (
-                      <>
-                        <div className="w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-xs">
-                          {repName ? repName.substring(0, 2).toUpperCase() : "UN"}
+                    {isEditingDetails ? (
+                      <div className="space-y-3 text-xs">
+                        <div>
+                          <label className="block font-bold text-slate-600 dark:text-slate-400 mb-1">Project Name</label>
+                          <input
+                            type="text"
+                            value={editProjectName}
+                            onChange={e => setEditProjectName(e.target.value)}
+                            className="enterprise-input w-full"
+                          />
                         </div>
-                        <span className="font-semibold text-slate-800 dark:text-slate-200">{repName || "Unassigned"}</span>
-                      </>
+                        <div>
+                          <label className="block font-bold text-slate-600 dark:text-slate-400 mb-1">Expected Value ($)</label>
+                          <input
+                            type="number"
+                            value={editExpectedValue}
+                            onChange={e => setEditExpectedValue(e.target.value)}
+                            className="enterprise-input w-full"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-bold text-slate-600 dark:text-slate-400 mb-1">Email Address</label>
+                          <input
+                            type="email"
+                            placeholder="e.g. client@company.com"
+                            value={editEmail}
+                            onChange={e => setEditEmail(e.target.value)}
+                            className="enterprise-input w-full"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-bold text-slate-600 dark:text-slate-400 mb-1">Phone Number</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. +919876543210"
+                            value={editPhone}
+                            onChange={e => setEditPhone(e.target.value)}
+                            className="enterprise-input w-full"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-bold text-slate-600 dark:text-slate-400 mb-1">Notes</label>
+                          <textarea
+                            rows={3}
+                            value={editNotes}
+                            onChange={e => setEditNotes(e.target.value)}
+                            className="enterprise-input w-full"
+                          />
+                        </div>
+                        {/* Site Inspection Required Toggle */}
+                        <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                          <div>
+                            <p className="text-xs font-bold text-slate-800 dark:text-slate-200">Site Inspection Required</p>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                              Enable for Waste Management / Disposal services. Disable for Equipment Rental, Procurement, etc.
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              toggleSiteInspectionMutation.mutate(!lead.requiresSiteInspection)
+                            }
+                            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                              lead.requiresSiteInspection
+                                ? "bg-blue-600"
+                                : "bg-slate-300 dark:bg-slate-600"
+                            }`}
+                          >
+                            <span
+                              className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
+                                lead.requiresSiteInspection ? "translate-x-4" : "translate-x-1"
+                              }`}
+                            />
+                          </button>
+                        </div>
+                        <div className="flex gap-2 justify-end pt-1">
+                          <button
+                            onClick={() => setIsEditingDetails(false)}
+                            className="enterprise-btn-secondary text-xs"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={() => updateDetailsMutation.mutate()}
+                            className="enterprise-btn-primary text-xs"
+                          >
+                            Save
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-3 text-xs">
+                        <div>
+                          <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Company</span>
+                          <span className="font-bold text-slate-900 dark:text-white text-sm">{lead.company || "N/A"}</span>
+                        </div>
+                        <div>
+                          <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Contact Person</span>
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">{lead.firstName} {lead.lastName}</span>
+                        </div>
+                        <div>
+                          <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Email</span>
+                          <span className="font-medium text-blue-600 break-all flex items-center gap-1">
+                            {lead.email || "N/A"}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Phone</span>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-medium text-slate-800 dark:text-slate-200">
+                              {lead.phone || lead.whatsappPhone || "N/A"}
+                            </span>
+                            {lead.optedOutWhatsapp && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800 flex items-center gap-1">
+                                <AlertTriangle className="w-3 h-3 text-red-600" /> WhatsApp Opted Out
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1.5">
+                          <div className="flex items-center justify-between gap-1 flex-wrap">
+                            <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">WhatsApp Consent</span>
+                            {(() => {
+                              const status = (lead.whatsappConsentStatus || "UNSPECIFIED").toUpperCase();
+                              if (status === "OPTED_IN" && !lead.optedOutWhatsapp) {
+                                return (
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300">
+                                    Opted in {lead.whatsappConsentSource ? `(${lead.whatsappConsentSource})` : ""}
+                                  </span>
+                                );
+                              }
+                              if (status === "OPTED_OUT" || lead.optedOutWhatsapp) {
+                                return (
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300 border border-red-300">
+                                    Opted out
+                                  </span>
+                                );
+                              }
+                              return (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border border-slate-300">
+                                  Not specified
+                                </span>
+                              );
+                            })()}
+                          </div>
+
+                          {!isRecordingConsent ? (
+                            <div className="flex items-center justify-between pt-0.5">
+                              <span className="text-[11px] text-slate-500">
+                                {lead.whatsappConsentStatus === "OPTED_IN" && lead.whatsappOptInAt
+                                  ? `Recorded ${formatDistanceToNow(new Date(lead.whatsappOptInAt), { addSuffix: true })}`
+                                  : "No verified consent on record"}
+                              </span>
+                              <button
+                                onClick={() => setIsRecordingConsent(true)}
+                                className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 underline cursor-pointer"
+                              >
+                                Record consent
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="p-2.5 bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-xl space-y-2 text-xs">
+                              <div className="flex items-center justify-between">
+                                <span className="font-bold text-emerald-900 dark:text-emerald-200 text-[11px]">Record WhatsApp Consent</span>
+                                <button
+                                  onClick={() => setIsRecordingConsent(false)}
+                                  className="text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                              <div>
+                                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                                  Consent Source <span className="text-red-500">*</span>
+                                </label>
+                                <select
+                                  value={consentSource}
+                                  onChange={(e: any) => setConsentSource(e.target.value)}
+                                  className="w-full text-xs bg-white dark:bg-slate-900 border border-emerald-300 dark:border-emerald-700 rounded-lg p-1.5 focus:outline-none"
+                                >
+                                  <option value="verbal">Verbal (Call / In-Person)</option>
+                                  <option value="written">Written (Email / Chat / Letter)</option>
+                                  <option value="form">Form (Online / Offline Form)</option>
+                                  <option value="other">Other</option>
+                                </select>
+                              </div>
+                              <div className="flex gap-2 justify-end pt-1">
+                                <button
+                                  type="button"
+                                  onClick={() => setIsRecordingConsent(false)}
+                                  className="px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:text-slate-800 cursor-pointer"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={recordConsentMutation.isPending}
+                                  onClick={() => recordConsentMutation.mutate(consentSource)}
+                                  className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 shadow-2xs cursor-pointer"
+                                >
+                                  {recordConsentMutation.isPending ? (
+                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                  ) : (
+                                    <Check className="w-3 h-3" />
+                                  )}
+                                  Save Consent
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 border-t border-slate-100 dark:border-slate-800 pt-3">
+                          <div>
+                            <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Source</span>
+                            <span className="font-semibold text-slate-700 dark:text-slate-300">{lead.source || "Inbound"}</span>
+                          </div>
+                          <div>
+                            <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Estimated Value</span>
+                            {(() => {
+                              const realVal =
+                                lead.estimatedValue ??
+                                lead.expectedValue ??
+                                lead.opportunity?.amount ??
+                                lead.deal?.amount;
+                              if (
+                                realVal !== undefined &&
+                                realVal !== null &&
+                                realVal !== "" &&
+                                !isNaN(Number(realVal)) &&
+                                Number(realVal) > 0
+                              ) {
+                                return (
+                                  <span className="font-bold text-emerald-600">
+                                    {formatCurrency(Number(realVal))}
+                                  </span>
+                                );
+                              }
+                              if (lead.budgetRange) {
+                                return (
+                                  <span className="font-semibold text-slate-700 dark:text-slate-300">
+                                    {lead.budgetRange}
+                                  </span>
+                                );
+                              }
+                              return (
+                                <span className="text-slate-400 dark:text-slate-500 font-medium">
+                                  Not estimated
+                                </span>
+                              );
+                            })()}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Owner Assignee */}
+                    <div className="border-t border-slate-100 dark:border-slate-800 pt-3 space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Assigned Representative</span>
+                        <button
+                          onClick={() => setIsReassigning(!isReassigning)}
+                          className="text-xs text-blue-600 font-bold hover:underline cursor-pointer"
+                        >
+                          {isReassigning ? "Cancel" : "Reassign"}
+                        </button>
+                      </div>
+
+                      {isReassigning ? (
+                        <div className="space-y-2 text-xs">
+                          <select
+                            value={newAssigneeId}
+                            onChange={(e) => setNewAssigneeId(e.target.value)}
+                            className="enterprise-input w-full"
+                          >
+                            <option value="">Select Salesperson</option>
+                            {salespersons?.map((sp: any) => (
+                              <option key={sp.id} value={sp.id}>{sp.name}</option>
+                            ))}
+                          </select>
+                          <button
+                            onClick={() => reassignMutation.mutate()}
+                            className="w-full py-1.5 enterprise-btn-primary text-xs font-bold"
+                          >
+                            Confirm Reassign
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2.5 bg-slate-50 dark:bg-slate-800 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-700">
+                          {(() => {
+                            const repName = lead.assignedTo?.name || salespersons?.find((s: any) => s.id === (lead.assignedToId || lead.assignedTo))?.name || (typeof lead.assignedTo === "string" ? lead.assignedTo : null);
+                            return (
+                              <>
+                                <div className="w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-xs">
+                                  {repName ? repName.substring(0, 2).toUpperCase() : "UN"}
+                                </div>
+                                <span className="font-semibold text-slate-800 dark:text-slate-200">{repName || "Unassigned"}</span>
+                              </>
+                            );
+                          })()}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              },
+              {
+                id: "attribution",
+                label: "Campaign Attribution",
+                shortLabel: "Attribution",
+                icon: <Target className="w-3.5 h-3.5" />,
+                badge: "Touchpoints",
+                badgeColor: "bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300",
+                content: (
+                  <LeadAttributionCard leadId={id!} embedded={true} />
+                )
+              },
+              {
+                id: "intelligence",
+                label: "Company Intelligence",
+                shortLabel: "Company Intel",
+                icon: <Building2 className="w-3.5 h-3.5" />,
+                badge: (lead.enrichmentStatus === "enriched" ? "Enriched" : lead.enrichmentStatus === "pending" ? "Fetching" : null),
+                badgeColor: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300",
+                content: (() => {
+                  const status = lead.enrichmentStatus as string;
+
+                  if (status === "pending") {
+                    return (
+                      <div className="space-y-3 py-2">
+                        <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
+                          <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400">Enriching via Hunter.io…</span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-violet-50 text-violet-700 border-violet-200">Live</span>
+                        </div>
+                        <div className="space-y-2.5 animate-pulse pt-1">
+                          {[85, 60, 75, 50, 90].map((w, i) => (
+                            <div key={i} className="h-3 bg-slate-200 dark:bg-slate-700 rounded-full" style={{ width: `${w}%` }} />
+                          ))}
+                          <p className="text-[10px] text-slate-400 text-center pt-2">Fetching company data from Hunter.io…</p>
+                        </div>
+                      </div>
                     );
-                  })()}
-                </div>
-              )}
-            </div>
-          </div>
+                  }
 
-          {/* Marketing & Attribution Card */}
-          <LeadAttributionCard leadId={id!} />
+                  const enriched = lead.enrichmentData ? (() => { try { return JSON.parse(lead.enrichmentData); } catch { return null; } })() : null;
+                  const hasMeaningfulData = Boolean(
+                    enriched &&
+                    (enriched.industry || enriched.sector || enriched.sizeRange || enriched.employeeCount || enriched.foundedYear || enriched.country || enriched.city || enriched.companyType || enriched.description || enriched.linkedinHandle)
+                  );
 
-          {/* ── Company Intelligence Card (Hunter.io enrichment) ─────────────── */}
-          {(() => {
-            const status = lead.enrichmentStatus as string;
-            if (!status || status === "skipped" || status === "not_found" || status === "failed") {
-              return null;
-            }
+                  if (!hasMeaningfulData || status !== "enriched") {
+                    return (
+                      <div className="py-6 text-center space-y-3">
+                        <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center mx-auto">
+                          <Building2 className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-slate-700 dark:text-slate-300">No enriched data available</p>
+                          <p className="text-[11px] text-slate-400 mt-0.5">Enrich domain with Hunter.io intelligence</p>
+                        </div>
+                        <button
+                          id="btn-reenrich-lead-empty"
+                          onClick={() => reEnrichMutation.mutate()}
+                          disabled={reEnrichMutation.isPending}
+                          className="px-3 py-1.5 rounded-xl bg-violet-50 dark:bg-violet-950/60 hover:bg-violet-100 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800 text-xs font-bold inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+                        >
+                          <RefreshCw className={`w-3.5 h-3.5 ${reEnrichMutation.isPending ? "animate-spin" : ""}`} />
+                          <span>{reEnrichMutation.isPending ? "Enriching…" : "Enrich Company"}</span>
+                        </button>
+                      </div>
+                    );
+                  }
 
-            if (status === "pending") {
-              return (
-                <div className="bg-white dark:bg-slate-900 border border-violet-200/80 dark:border-violet-900/40 rounded-2xl p-5 shadow-xs space-y-3 relative overflow-hidden">
-                  <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-2.5">
-                    <h3 className="text-xs font-black uppercase tracking-wider text-violet-600 dark:text-violet-400 flex items-center gap-1.5">
-                      <Building2 className="w-4 h-4" /> Company Intelligence
-                    </h3>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950 dark:text-violet-300 dark:border-violet-800">
-                      Enriching…
-                    </span>
-                  </div>
-                  <div className="space-y-2.5 animate-pulse">
-                    {[85, 60, 75, 50, 90].map((w, i) => (
-                      <div key={i} className="h-3 bg-slate-200 dark:bg-slate-700 rounded-full" style={{ width: `${w}%` }} />
-                    ))}
-                    <p className="text-[10px] text-slate-400 text-center pt-1">Fetching company data from Hunter.io…</p>
-                  </div>
-                </div>
-              );
-            }
-
-            const enriched = lead.enrichmentData ? (() => { try { return JSON.parse(lead.enrichmentData); } catch { return null; } })() : null;
-
-            const hasMeaningfulData = Boolean(
-              enriched &&
-              (enriched.industry || enriched.sector || enriched.sizeRange || enriched.employeeCount || enriched.foundedYear || enriched.country || enriched.city || enriched.companyType || enriched.description || enriched.linkedinHandle)
-            );
-
-            if (!hasMeaningfulData || status !== "enriched") {
-              return null;
-            }
-
-            return (
-              <div className="bg-white dark:bg-slate-900 border border-violet-200/80 dark:border-violet-900/40 rounded-2xl p-5 shadow-xs space-y-3 relative overflow-hidden">
-                {/* Header */}
-                <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-2.5">
-                  <h3 className="text-xs font-black uppercase tracking-wider text-violet-600 dark:text-violet-400 flex items-center gap-1.5">
-                    <Building2 className="w-4 h-4" /> Company Intelligence
-                  </h3>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800">
-                    Enriched
-                  </span>
-                </div>
-
-                {/* ENRICHED — populated grid */}
-                <div className="space-y-3 text-xs">
-                  {enriched.industry && (
-                    <div className="flex justify-between items-start gap-2">
-                      <span className="text-slate-400 font-medium shrink-0">Industry</span>
-                      <span className="font-semibold text-slate-800 dark:text-slate-200 text-right">{enriched.industry}</span>
-                    </div>
-                  )}
-                  {enriched.sector && enriched.sector !== enriched.industry && (
-                    <div className="flex justify-between items-start gap-2">
-                      <span className="text-slate-400 font-medium shrink-0">Sector</span>
-                      <span className="font-semibold text-slate-800 dark:text-slate-200 text-right">{enriched.sector}</span>
-                    </div>
-                  )}
-                  {(enriched.sizeRange || enriched.employeeCount) && (
-                    <div className="flex justify-between items-start gap-2">
-                      <span className="text-slate-400 font-medium shrink-0">Headcount</span>
-                      <span className="font-semibold text-slate-800 dark:text-slate-200 text-right">
-                        {enriched.employeeCount ? enriched.employeeCount.toLocaleString() : enriched.sizeRange}
-                        {enriched.sizeRange && enriched.employeeCount && <span className="text-slate-400 ml-1">({enriched.sizeRange})</span>}
-                      </span>
-                    </div>
-                  )}
-                  {enriched.foundedYear && (
-                    <div className="flex justify-between items-start gap-2">
-                      <span className="text-slate-400 font-medium shrink-0">Founded</span>
-                      <span className="font-semibold text-slate-800 dark:text-slate-200">{enriched.foundedYear}</span>
-                    </div>
-                  )}
-                  {enriched.country && (
-                    <div className="flex justify-between items-start gap-2">
-                      <span className="text-slate-400 font-medium shrink-0">HQ</span>
-                      <span className="font-semibold text-slate-800 dark:text-slate-200 text-right">
-                        {[enriched.city, enriched.country].filter(Boolean).join(", ")}
-                      </span>
-                    </div>
-                  )}
-                  {enriched.companyType && (
-                    <div className="flex justify-between items-start gap-2">
-                      <span className="text-slate-400 font-medium shrink-0">Type</span>
-                      <span className="font-semibold text-slate-800 dark:text-slate-200 capitalize text-right">{enriched.companyType}</span>
-                    </div>
-                  )}
-                  {enriched.linkedinHandle && (
-                    <div className="flex justify-between items-center gap-2">
-                      <span className="text-slate-400 font-medium shrink-0">LinkedIn</span>
-                      <a
-                        href={`https://linkedin.com/${enriched.linkedinHandle}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1 text-right"
-                      >
-                        View profile <ExternalLink className="w-3 h-3" />
-                      </a>
-                    </div>
-                  )}
-                  {enriched.description && (
-                    <div className="pt-1 border-t border-slate-100 dark:border-slate-800">
-                      <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed line-clamp-3">{enriched.description}</p>
-                    </div>
-                  )}
-                  {enriched.tags && enriched.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-1 pt-1">
-                      {enriched.tags.slice(0, 5).map((tag: string) => (
-                        <span key={tag} className="text-[10px] bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800 px-2 py-0.5 rounded-full font-medium">
-                          {tag}
+                  return (
+                    <div className="space-y-3 text-xs pt-1">
+                      {enriched.industry && (
+                        <div className="flex justify-between items-start gap-2">
+                          <span className="text-slate-400 font-medium shrink-0">Industry</span>
+                          <span className="font-semibold text-slate-800 dark:text-slate-200 text-right">{enriched.industry}</span>
+                        </div>
+                      )}
+                      {enriched.sector && enriched.sector !== enriched.industry && (
+                        <div className="flex justify-between items-start gap-2">
+                          <span className="text-slate-400 font-medium shrink-0">Sector</span>
+                          <span className="font-semibold text-slate-800 dark:text-slate-200 text-right">{enriched.sector}</span>
+                        </div>
+                      )}
+                      {(enriched.sizeRange || enriched.employeeCount) && (
+                        <div className="flex justify-between items-start gap-2">
+                          <span className="text-slate-400 font-medium shrink-0">Headcount</span>
+                          <span className="font-semibold text-slate-800 dark:text-slate-200 text-right">
+                            {enriched.employeeCount ? enriched.employeeCount.toLocaleString() : enriched.sizeRange}
+                            {enriched.sizeRange && enriched.employeeCount && <span className="text-slate-400 ml-1">({enriched.sizeRange})</span>}
+                          </span>
+                        </div>
+                      )}
+                      {enriched.foundedYear && (
+                        <div className="flex justify-between items-start gap-2">
+                          <span className="text-slate-400 font-medium shrink-0">Founded</span>
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">{enriched.foundedYear}</span>
+                        </div>
+                      )}
+                      {enriched.country && (
+                        <div className="flex justify-between items-start gap-2">
+                          <span className="text-slate-400 font-medium shrink-0">HQ</span>
+                          <span className="font-semibold text-slate-800 dark:text-slate-200 text-right">
+                            {[enriched.city, enriched.country].filter(Boolean).join(", ")}
+                          </span>
+                        </div>
+                      )}
+                      {enriched.companyType && (
+                        <div className="flex justify-between items-start gap-2">
+                          <span className="text-slate-400 font-medium shrink-0">Type</span>
+                          <span className="font-semibold text-slate-800 dark:text-slate-200 capitalize text-right">{enriched.companyType}</span>
+                        </div>
+                      )}
+                      {enriched.linkedinHandle && (
+                        <div className="flex justify-between items-center gap-2">
+                          <span className="text-slate-400 font-medium shrink-0">LinkedIn</span>
+                          <a
+                            href={`https://linkedin.com/${enriched.linkedinHandle}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1 text-right"
+                          >
+                            View profile <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </div>
+                      )}
+                      {enriched.description && (
+                        <div className="pt-1 border-t border-slate-100 dark:border-slate-800">
+                          <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed line-clamp-3">{enriched.description}</p>
+                        </div>
+                      )}
+                      {enriched.tags && enriched.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1 pt-1">
+                          {enriched.tags.slice(0, 5).map((tag: string) => (
+                            <span key={tag} className="text-[10px] bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800 px-2 py-0.5 rounded-full font-medium">
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {/* Re-enrich button */}
+                      <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                        <span className="text-[10px] text-slate-400">
+                          {lead.enrichedAt ? `Updated ${new Date(lead.enrichedAt).toLocaleDateString()}` : "via Hunter.io"}
                         </span>
-                      ))}
+                        <button
+                          id="btn-reenrich-lead"
+                          onClick={() => reEnrichMutation.mutate()}
+                          disabled={reEnrichMutation.isPending}
+                          className="text-[11px] font-bold text-violet-600 dark:text-violet-400 hover:underline flex items-center gap-1 cursor-pointer"
+                        >
+                          <RefreshCw className={`w-3 h-3 ${reEnrichMutation.isPending ? "animate-spin" : ""}`} />
+                          <span>{reEnrichMutation.isPending ? "Enriching…" : "Re-enrich"}</span>
+                        </button>
+                      </div>
                     </div>
-                  )}
-                  {/* Re-enrich button */}
-                  <div className="pt-1 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                    <span className="text-[10px] text-slate-400">
-                      {lead.enrichedAt ? `Updated ${new Date(lead.enrichedAt).toLocaleDateString()}` : "via Hunter.io"}
-                    </span>
-                    <button
-                      id="btn-reenrich-lead"
-                      onClick={() => reEnrichMutation.mutate()}
-                      disabled={reEnrichMutation.isPending}
-                      className="text-[11px] font-bold text-violet-600 dark:text-violet-400 hover:underline flex items-center gap-1 cursor-pointer"
-                    >
-                      <RefreshCw className={`w-3 h-3 ${reEnrichMutation.isPending ? "animate-spin" : ""}`} />
-                      <span>{reEnrichMutation.isPending ? "Enriching…" : "Re-enrich"}</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
+                  );
+                })()
+              }
+            ]}
+          />
 
           {/* Quick Tasks Widget */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3">

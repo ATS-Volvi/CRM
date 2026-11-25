@@ -21,11 +21,12 @@ import {
 } from "lucide-react";
 import { attributionApi, campaignsApi } from "../api/marketing";
 
-interface LeadAttributionCardProps {
+export interface LeadAttributionCardProps {
   leadId: string;
+  embedded?: boolean;
 }
 
-export const LeadAttributionCard: React.FC<LeadAttributionCardProps> = ({ leadId }) => {
+export const LeadAttributionCard: React.FC<LeadAttributionCardProps> = ({ leadId, embedded = false }) => {
   const queryClient = useQueryClient();
   const [showHistory, setShowHistory] = useState(false);
   const [showManualTouchModal, setShowManualTouchModal] = useState(false);
@@ -118,7 +119,7 @@ export const LeadAttributionCard: React.FC<LeadAttributionCardProps> = ({ leadId
   const touches = attribution?.touches || [];
 
   return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
+    <div className={embedded ? "space-y-4" : "bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4"}>
       {/* Header */}
       <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
         <div className="flex items-center gap-2">
