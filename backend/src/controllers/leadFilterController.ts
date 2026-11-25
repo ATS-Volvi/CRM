@@ -198,6 +198,50 @@ export const promoteHeldEmail = async (req: Request, res: Response) => {
 
     let newLeadId: string | null = null;
     try {
+      // If sender has an existing open lead, attach directly as activity instead of creating a duplicate lead!
+      const { getSenderContext } = require('../lead-security-layer/intentFilter/senderContext');
+      const senderCtx = await getSenderContext(email);
+      if (senderCtx.openLeadId) {
+        const { attachEmailToLeadActivity } = require('../lead-security-layer/intentFilter/attachActivity');
+        await attachEmailToLeadActivity({
+          leadId: senderCtx.openLeadId,
+          subject,
+          body: message,
+          createdById: userId,
+          channelSource: 'email'
+        });
+
+        await FlaggedLead.update(
+          {
+            disposition: 'promoted',
+            promotedLeadId: senderCtx.openLeadId,
+            reviewedById: userId,
+            reviewedAt: new Date(),
+            reviewed: true,
+          },
+          { where: { id: heldId } }
+        );
+
+        if (addSenderToAllowlist && email) {
+          try {
+            await (SenderRule as any).create({
+              id: require('crypto').randomUUID(),
+              type: 'allow',
+              matchType: 'email',
+              value: email,
+              reason: 'Promoted by user to allowlist',
+              createdById: userId
+            });
+          } catch (ruleErr) {}
+        }
+
+        return res.json({
+          success: true,
+          leadId: senderCtx.openLeadId,
+          message: 'Held email attached to existing open lead',
+        });
+      }
+
       // Ingest as genuine Lead with bypass flag so it is not re-filtered
       newLeadId = await ingestLead({
         firstName: firstName || 'Inbound',

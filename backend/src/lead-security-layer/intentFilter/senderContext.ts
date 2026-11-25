@@ -83,18 +83,21 @@ export async function getSenderContext(
 
   if (Lead && senderEmail) {
     try {
+      const isSqlite = typeof (sequelize as any).getDialect === 'function' && (sequelize as any).getDialect() === 'sqlite';
+      const likeOp = isSqlite ? Op.like : Op.iLike;
       const openLead = await Lead.findOne({
         where: {
-          email: { [Op.like]: senderEmail },
+          email: { [likeOp]: senderEmail },
           status: {
             [Op.notIn]: TERMINAL_LEAD_STATUSES,
           },
           [Op.or]: [
             { createdAt: { [Op.gte]: attachWindowDate } },
             { lastInboundAt: { [Op.gte]: attachWindowDate } },
+            { updatedAt: { [Op.gte]: attachWindowDate } },
           ],
         },
-        order: [['createdAt', 'DESC']],
+        order: [['updatedAt', 'DESC'], ['createdAt', 'DESC']],
       });
 
       if (openLead) {

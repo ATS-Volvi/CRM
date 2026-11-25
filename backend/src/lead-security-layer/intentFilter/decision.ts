@@ -103,6 +103,21 @@ export function decide(
     };
   }
 
+  // 3b. Open lead exists for sender -> Always attach customer replies to the open lead
+  // Customer replies to ongoing dialogues (even 1-word confirmations like "cool", "approved", "ok", "yes")
+  // belong on the sales rep's lead timeline and must NEVER be held or quarantined.
+  if (senderContext?.openLeadId) {
+    return {
+      action: 'ATTACH_EXISTING',
+      label: 'existing_contact_reply',
+      score: 85,
+      confidence: 'high',
+      language: classifierResult?.language || 'en',
+      reason: `Customer follow-up message attached to open lead (${senderContext.openLeadId})`,
+      openLeadId: senderContext.openLeadId,
+    };
+  }
+
   // 4. No content from a real human (greetings only, filler only, keyboard mash)
   if (noContentResult?.isNoContent) {
     return {

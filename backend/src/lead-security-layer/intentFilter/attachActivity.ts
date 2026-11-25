@@ -14,7 +14,7 @@ export interface AttachEmailActivityParams {
  * Used identically by emailController (Mailgun) and gmailController (Gmail sync).
  */
 export async function attachEmailToLeadActivity(params: AttachEmailActivityParams) {
-  const { Activity, Lead } = sequelize.models;
+  const { Activity, Lead, EmailMessage } = sequelize.models;
   const { handleDealInboundActivity } = require('../../services/leadTemperatureService');
 
   const cleaned = cleanEmailText(params.body);
@@ -40,6 +40,37 @@ export async function attachEmailToLeadActivity(params: AttachEmailActivityParam
   if (openLead) {
     (openLead as any).lastInboundAt = new Date();
     await openLead.save();
+
+    if (EmailMessage) {
+      try {
+        await (EmailMessage as any).create({
+          id: require('crypto').randomUUID(),
+          leadId: params.leadId,
+          toEmail: (openLead as any).email || 'customer@inbound',
+          subject: params.subject || 'Inbound Email',
+          body: cleaned || params.body,
+          status: 'Received',
+          openedAt: new Date()
+        });
+      } catch (emErr) {
+        console.warn('[attachEmailToLeadActivity] EmailMessage creation notice:', emErr);
+      }
+    }
+
+    if ((openLead as any).assignedToId) {
+      try {
+        const { createNotification } = require('../../services/notificationService');
+        await createNotification(
+          (openLead as any).assignedToId,
+          'lead_activity',
+          '💬 New Inbound Email Reply',
+          `Customer ${(openLead as any).firstName || ''} ${(openLead as any).lastName || ''} replied: "${(cleaned || params.body).substring(0, 100)}"`,
+          `/leads/${(openLead as any).id}`
+        );
+      } catch (notifErr) {
+        console.warn('[attachEmailToLeadActivity] Rep notification notice:', notifErr);
+      }
+    }
   }
 
   try {
