@@ -142,12 +142,12 @@ export function Sidebar({
 
   return (
     <aside
-      className={`bg-[var(--crm-sidebar-bg,#F3F5F8)] border-r border-[var(--crm-sidebar-border,#E3E8F0)] flex flex-col justify-between transition-all duration-300 z-20 shrink-0 select-none ${
+      className={`bg-[#EFF7F2] dark:bg-slate-900 border-r border-[#D8EEE1] dark:border-slate-800 flex flex-col justify-between transition-all duration-300 z-20 shrink-0 select-none ${
         isCollapsed ? "w-16" : "w-64"
       }`}
     >
       {/* Sidebar Header */}
-      <div className="p-4 border-b border-slate-100 dark:border-slate-800 space-y-3">
+      <div className="p-4 border-b border-[#D8EEE1] dark:border-slate-800 space-y-3 bg-[#EFF7F2] dark:bg-slate-900">
         <div className="flex items-center justify-between">
           {!isCollapsed && <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-xl text-white flex items-center justify-center font-black text-xs shadow-md bg-gradient-to-r from-[#1D4ED8] via-[#0D9488] to-[#10B981] shadow-emerald-500/20">
@@ -232,7 +232,7 @@ export function Sidebar({
       </div>
 
       {/* 5 Core Pillars Navigation List */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-2 no-scrollbar">
+      <div className="flex-1 overflow-y-auto p-3 space-y-2 no-scrollbar bg-[#EFF7F2] dark:bg-slate-900">
         {primaryNavItems.map((item) => {
           const Icon = item.icon;
           const hasSubItems = item.subItems && item.subItems.length > 0;
@@ -363,7 +363,7 @@ export function Sidebar({
       </div>
 
       {/* Sidebar Footer User Info & Shift Status */}
-      <div className="p-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 space-y-2">
+      <div className="p-3 border-t border-[#D8EEE1] dark:border-slate-800 bg-[#EFF7F2] dark:bg-slate-900 space-y-2">
         {!isCollapsed && (
           <div className="flex items-center justify-between p-1 bg-[var(--crm-sidebar-toggle-bg,#E8ECF2)] rounded-xl text-[11px] font-bold">
             <button
