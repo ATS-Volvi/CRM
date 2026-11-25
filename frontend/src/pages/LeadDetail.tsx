@@ -17,6 +17,7 @@ import { QualificationDrawer } from "../components/QualificationDrawer";
 import { LeadConversionModal } from "../components/LeadConversionModal";
 import { HandoffChatWidget } from "../components/HandoffChatWidget";
 import { AiRequirementSummaryCard } from "../components/AiRequirementSummaryCard";
+import { LeadIntelligenceHub, IntelligenceTab } from "../components/LeadIntelligenceHub";
 import { LeadAttributionCard } from "../components/LeadAttributionCard";
 import { DossierSmartStack } from "../components/DossierSmartStack";
 import { LeadCampaignBadge } from "../components/LeadCampaignBadge";
@@ -66,6 +67,7 @@ export default function LeadDetail() {
 
   // Consultative Discovery Call Guide State (Tailored for FACE Services)
   const [showDiscoveryGuide, setShowDiscoveryGuide] = useState(false);
+  const [intelligenceTab, setIntelligenceTab] = useState<IntelligenceTab>("scope");
   const [discoveryService, setDiscoveryService] = useState<string>("industrial_hydrojetting");
   const [discoveryFacility, setDiscoveryFacility] = useState<string>("aramco_restricted");
   const [discoveryUrgency, setDiscoveryUrgency] = useState<string>("emergency_shutdown");
@@ -994,19 +996,19 @@ export default function LeadDetail() {
             );
           })()}
 
-          {/* 5-Min Discovery Call Toggle Button */}
+          {/* 5-Min Discovery Call Hub Switcher Button */}
           <button
             type="button"
-            onClick={() => setShowDiscoveryGuide(!showDiscoveryGuide)}
+            onClick={() => setIntelligenceTab(intelligenceTab === "discovery" ? "scope" : "discovery")}
             className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shrink-0 border active:scale-95 cursor-pointer ${
-              showDiscoveryGuide
-                ? "bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 border-amber-300 dark:border-amber-700 shadow-xs"
+              intelligenceTab === "discovery"
+                ? "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-900 dark:text-emerald-200 border-emerald-300 dark:border-emerald-700 shadow-xs"
                 : "bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700"
             }`}
-            title="Open 5-Minute Technical Discovery Call Checklist"
+            title="Open 5-Minute Technical Discovery Call Checklist in Hub"
           >
-            <Phone className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-            <span>5-Min Discovery Call {showDiscoveryGuide ? "▲" : "▼"}</span>
+            <Phone className="w-4 h-4 text-[#059669] dark:text-emerald-400" />
+            <span>5-Min Discovery Call {intelligenceTab === "discovery" ? "▲" : "▼"}</span>
           </button>
 
           {/* Separate Disqualified / Lost Step Action */}
@@ -1033,145 +1035,24 @@ export default function LeadDetail() {
         </div>
       </div>
 
-      {/* Interactive 5-Minute Discovery Call Checklist */}
-      {showDiscoveryGuide && (
-        <div className="p-4 rounded-2xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-800/60 space-y-3.5 text-xs animate-fade-in shadow-xs">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-amber-200/60 dark:border-amber-900/50 pb-2.5">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
-              <span className="font-black text-amber-900 dark:text-amber-300 uppercase tracking-wider text-[11px]">
-                5-Minute Consultative Discovery Call Guide ({user?.name || "Pre-Sales"} ➔ {lead.firstName || "Client"})
-              </span>
-            </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[10px] text-amber-700 dark:text-amber-400 font-medium">
-                FACE Scope, Safety Clearances &amp; Mobilization Verification
-              </span>
-              <button
-                type="button"
-                onClick={() => setActiveModal("call")}
-                className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95 transition-all"
-              >
-                <Phone className="w-3.5 h-3.5" />
-                <span>Log Call Log</span>
-              </button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-            {/* Question 1: Service Division & Technical Scope */}
-            <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-amber-200/70 dark:border-amber-800/50 space-y-2 shadow-2xs">
-              <label className="text-[10px] font-bold text-amber-900 dark:text-amber-300 uppercase tracking-wider block">
-                1. Service Division &amp; Technical Scope
-              </label>
-              <select
-                value={discoveryService}
-                onChange={(e: any) => setDiscoveryService(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs text-slate-900 dark:text-white font-medium"
-              >
-                <option value="industrial_hydrojetting">Industrial Services • UHP Hydrojetting (15k–40k PSI)</option>
-                <option value="industrial_chem_tank">Industrial Services • Chemical Cleaning &amp; Tank Decon</option>
-                <option value="wms_waste_management">Waste Management • Hazardous &amp; Vacuum Sludge (WMS)</option>
-                <option value="tcf_modular_camp">Modular Facilities • Camp Cabins &amp; Toilets (TCF)</option>
-                <option value="heavy_equipment">Heavy Equipment • Cranes, SPMT &amp; Vacuum Fleet</option>
-              </select>
-              <p className="text-[10px] text-slate-600 dark:text-slate-400 leading-snug">
-                {discoveryService === "industrial_hydrojetting" && "➔ UHP Hydrojetting: Confirm line diameter, scale hardness, bundle type & on-site water point. Requires 40k PSI certified lance crew."}
-                {discoveryService === "industrial_chem_tank" && "➔ Chemical / Decon: Verify metallurgy compatibility, vessel volume, and H₂S / Pyrophoric gas purge standards."}
-                {discoveryService === "wms_waste_management" && "➔ WMS Sludge/Waste: Confirm waste classification (Hazardous/RCJY), tanker capacity (3k–5k Gal), and NCEC/RCJY disposal manifest."}
-                {discoveryService === "tcf_modular_camp" && "➔ Modular / TCF: Confirm workforce headcount, ablution layout, and scheduled vacuum sewage & servicing frequency."}
-                {discoveryService === "heavy_equipment" && "➔ Heavy Equipment: Confirm load tonnage chart, boom clearance, and Aramco / TUV operator certification requirements."}
-              </p>
-            </div>
-
-            {/* Question 2: Facility Access & Safety Gate Permits */}
-            <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-amber-200/70 dark:border-amber-800/50 space-y-2 shadow-2xs">
-              <label className="text-[10px] font-bold text-amber-900 dark:text-amber-300 uppercase tracking-wider block">
-                2. Plant Access &amp; Gate Permits (PTW)
-              </label>
-              <select
-                value={discoveryFacility}
-                onChange={(e: any) => setDiscoveryFacility(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs text-slate-900 dark:text-white font-medium"
-              >
-                <option value="aramco_restricted">Saudi Aramco Operational Facility (Restricted Zone)</option>
-                <option value="sabic_rcjy">SABIC / Royal Commission (Jubail / Yanbu Industrial)</option>
-                <option value="modon_industrial">MODON Industrial City / Secondary Zone</option>
-                <option value="neom_remote">NEOM / Red Sea / Remote Project Site</option>
-                <option value="commercial_open">Commercial / Municipal Infrastructure (General)</option>
-              </select>
-              <p className="text-[10px] leading-snug">
-                {discoveryFacility === "aramco_restricted" && (
-                  <span className="text-amber-700 dark:text-amber-400 font-medium">
-                    ⚠️ Aramco Protocol: Mandates 48h advance gate pass, Aramco-approved PTW (Cold/Hot), and valid 3rd-party certified equipment stickers.
-                  </span>
-                )}
-                {discoveryFacility === "sabic_rcjy" && (
-                  <span className="text-blue-700 dark:text-blue-400 font-medium">
-                    ⚠️ SABIC / RCJY Protocol: Requires contractor EHS badge, environmental work permit, and industrial security clearance.
-                  </span>
-                )}
-                {discoveryFacility === "neom_remote" && (
-                  <span className="text-purple-700 dark:text-purple-400 font-medium">
-                    ⚠️ Remote Site Protocol: Mobilize self-sustained fuel tanker escort, mobile maintenance unit &amp; satellite dispatch.
-                  </span>
-                )}
-                {(discoveryFacility === "modon_industrial" || discoveryFacility === "commercial_open") && (
-                  <span className="text-emerald-700 dark:text-emerald-400 font-medium">
-                    ✓ Standard Access: Requires standard contractor PPE, site safety induction, and supervisor presence.
-                  </span>
-                )}
-              </p>
-            </div>
-
-            {/* Question 3: Mobilization Window & Readiness Checklist */}
-            <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-amber-200/70 dark:border-amber-800/50 space-y-2 shadow-2xs">
-              <label className="text-[10px] font-bold text-amber-900 dark:text-amber-300 uppercase tracking-wider block">
-                3. Mobilization Window &amp; Readiness
-              </label>
-              <select
-                value={discoveryUrgency}
-                onChange={(e: any) => setDiscoveryUrgency(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs text-slate-900 dark:text-white font-medium"
-              >
-                <option value="emergency_shutdown">Emergency Outage / Shutdown (&lt; 24h Rapid Mobilization)</option>
-                <option value="scheduled_tam">Scheduled Turnaround / TAM (2–4 Weeks Notice)</option>
-                <option value="recurring_contract">Ongoing Operations (Monthly / Annual Framework)</option>
-                <option value="spot_project">Spot Job / Pre-Commissioning Phase</option>
-              </select>
-              <div className="space-y-1.5 pt-1">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={discoverySowCheck}
-                    onChange={(e) => setDiscoverySowCheck(e.target.checked)}
-                    className="rounded accent-blue-600"
-                  />
-                  <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-bold">
-                    ✓ Technical SOW / MSDS / Drawing received
-                  </span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={discoveryUtilitiesCheck}
-                    onChange={(e) => setDiscoveryUtilitiesCheck(e.target.checked)}
-                    className="rounded accent-blue-600"
-                  />
-                  <span className="text-[10px] text-slate-700 dark:text-slate-300 font-bold">
-                    ✓ Water &amp; power point verified at site limit
-                  </span>
-                </label>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 4. AI Requirement Synthesis Card */}
-      <AiRequirementSummaryCard
-        type="lead"
-        id={id!}
+      {/* 4. Unified Lead Intelligence & Playbook Hub (Option 1) */}
+      <LeadIntelligenceHub
+        leadId={id!}
+        lead={lead}
+        user={user}
+        activeTab={intelligenceTab}
+        onTabChange={setIntelligenceTab}
+        discoveryService={discoveryService}
+        setDiscoveryService={setDiscoveryService}
+        discoveryFacility={discoveryFacility}
+        setDiscoveryFacility={setDiscoveryFacility}
+        discoveryUrgency={discoveryUrgency}
+        setDiscoveryUrgency={setDiscoveryUrgency}
+        discoverySowCheck={discoverySowCheck}
+        setDiscoverySowCheck={setDiscoverySowCheck}
+        discoveryUtilitiesCheck={discoveryUtilitiesCheck}
+        setDiscoveryUtilitiesCheck={setDiscoveryUtilitiesCheck}
+        onLogCallClick={() => setActiveModal("call")}
         onActionClick={() => {
           if (lead.status === "QUALIFIED" || lead.status === "Qualified") {
             handleOpenConversionModal();
@@ -2205,38 +2086,6 @@ export default function LeadDetail() {
                     </div>
                   )
                 )}
-              </div>
-
-              {/* Next Best Step & Sales Playbook Card */}
-              <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                    <Sparkles className="w-4 h-4 text-indigo-600" /> Next Best Step & Sales Playbook
-                  </h3>
-                  <span className="text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 px-2 py-0.5 rounded">
-                    Active Guide
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                  <div className="p-3 bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-xl space-y-1">
-                    <span className="font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Primary Recommended Action
-                    </span>
-                    <p className="text-emerald-950 dark:text-emerald-200 font-medium leading-relaxed">
-                      Send technical specification sheet for <strong>{lead?.body?.slice(0, 45) || lead?.subject || "Requested Items"}</strong> and schedule discovery call.
-                    </p>
-                  </div>
-
-                  <div className="p-3 bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 rounded-xl space-y-1">
-                    <span className="font-bold text-indigo-800 dark:text-indigo-300 flex items-center gap-1">
-                      <FileText className="w-3.5 h-3.5 text-indigo-600" /> Quote Readiness
-                    </span>
-                    <p className="text-indigo-950 dark:text-indigo-200 font-medium leading-relaxed">
-                      Inbound request captured via {lead.source || "form"}. Review specs and prepare initial pricing.
-                    </p>
-                  </div>
-                </div>
               </div>
             </div>
           )}

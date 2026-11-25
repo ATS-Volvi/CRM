@@ -1,6 +1,6 @@
 /* ==========================================================================
-   ENERGIA FLEET CORE CRM - UNIFIED THEME TOKENS
-   Light, clean & airy CSS variables for Light Blue & Velvet Maroon themes
+   FACE CONTRACTORS CRM - UNIFIED THEME TOKENS
+   Light, clean & airy CSS variables for Sky Blue & FACE Light Green themes
    ========================================================================== */
 
 :root,
@@ -69,25 +69,27 @@
   --crm-sidebar-user-role: #64748B;
 }
 
+/* FACE LIGHT GREEN THEME (Fresh Emerald / Mint Green for FACE Contractor Services) */
+:root.theme-emerald,
 :root.theme-velvet {
-  /* Page & Surfaces (Velvet Maroon Light Theme) */
-  --crm-bg-page: #FDF7F8;
+  /* Page & Surfaces (FACE Fresh Mint/Light Green) */
+  --crm-bg-page: #F4FAF6;
   --crm-card-bg: #FFFFFF;
-  --crm-card-border: #F1DDE1;
-  --crm-row-divider: #F7EBEE;
-  --crm-card-shadow: 0 1px 3px rgba(69, 20, 43, 0.06);
+  --crm-card-border: #D8EEE1;
+  --crm-row-divider: #E9F6EE;
+  --crm-card-shadow: 0 1px 4px rgba(5, 150, 105, 0.05);
 
-  /* Primary Brand Colors */
-  --crm-primary: #9F1239;
-  --crm-primary-hover: #881337;
-  --crm-primary-soft: #FDF2F4;
-  --crm-chip-light: #FBE4E9;
-  --crm-primary-shadow: 0 2px 6px rgba(159, 18, 57, 0.25);
-  --crm-popup-shadow: 0 8px 24px rgba(159, 18, 57, 0.18);
+  /* Primary Brand Colors - FACE Emerald Green */
+  --crm-primary: #059669;
+  --crm-primary-hover: #047857;
+  --crm-primary-soft: #ECFDF5;
+  --crm-chip-light: #D1FAE5;
+  --crm-primary-shadow: 0 2px 6px rgba(5, 150, 105, 0.25);
+  --crm-popup-shadow: 0 8px 24px rgba(5, 150, 105, 0.18);
 
   /* Performance Card */
-  --crm-perf-gradient: linear-gradient(135deg, #FDF2F4, #FBE4E9);
-  --crm-perf-border: #F1DDE1;
+  --crm-perf-gradient: linear-gradient(135deg, #ECFDF5, #D1FAE5);
+  --crm-perf-border: #A7F3D0;
 
   /* Typography */
   --crm-text-heading: #0F172A;
@@ -102,34 +104,34 @@
   --crm-status-warning-bg: #FEF3C7;
   --crm-status-critical-text: #DC2626;
   --crm-status-critical-bg: #FEE2E2;
-  --crm-status-info-text: #9F1239;
-  --crm-status-info-bg: #FBE4E9;
+  --crm-status-info-text: #059669;
+  --crm-status-info-bg: #D1FAE5;
 
-  /* Sidebar Tokens - Velvet Maroon Light Theme */
-  --crm-sidebar-bg: #F8F4F5;
-  --crm-sidebar-border: #F1DDE1;
+  /* Sidebar Tokens - FACE Light Green Theme */
+  --crm-sidebar-bg: #EFF7F2;
+  --crm-sidebar-border: #D8EEE1;
   --crm-sidebar-panel-bg: #FFFFFF;
-  --crm-sidebar-panel-border: #F1DDE1;
+  --crm-sidebar-panel-border: #D8EEE1;
   --crm-sidebar-heading: #0F172A;
   --crm-sidebar-text: #334155;
   --crm-sidebar-icon: #64748B;
-  --crm-sidebar-hover: #E8ECF2;
-  --crm-sidebar-active-bg: #9F1239;
+  --crm-sidebar-hover: #E3F1E8;
+  --crm-sidebar-active-bg: #059669;
   --crm-sidebar-active-text: #FFFFFF;
   --crm-sidebar-box-bg: #FFFFFF;
-  --crm-sidebar-box-border: #F1DDE1;
-  --crm-sidebar-toggle-bg: #E8ECF2;
+  --crm-sidebar-box-border: #D8EEE1;
+  --crm-sidebar-toggle-bg: #E1EFE7;
   --crm-sidebar-toggle-active-bg: #FFFFFF;
-  --crm-sidebar-toggle-active-text: #9F1239;
+  --crm-sidebar-toggle-active-text: #059669;
   --crm-sidebar-ratio-bg: #FFFFFF;
-  --crm-sidebar-ratio-border: #F1DDE1;
-  --crm-sidebar-progress-track: #F1DDE1;
-  --crm-sidebar-progress-fill: #9F1239;
-  --crm-sidebar-pill-bg: #EFF4FF;
-  --crm-sidebar-pill-text: #9F1239;
-  --crm-sidebar-dot: #22C55E;
-  --crm-sidebar-punch-bg: #16A34A;
-  --crm-sidebar-punch-hover: #15803D;
+  --crm-sidebar-ratio-border: #D8EEE1;
+  --crm-sidebar-progress-track: #D8EEE1;
+  --crm-sidebar-progress-fill: #059669;
+  --crm-sidebar-pill-bg: #ECFDF5;
+  --crm-sidebar-pill-text: #059669;
+  --crm-sidebar-dot: #10B981;
+  --crm-sidebar-punch-bg: #059669;
+  --crm-sidebar-punch-hover: #047857;
   --crm-sidebar-user-name: #0F172A;
   --crm-sidebar-user-role: #64748B;
 }

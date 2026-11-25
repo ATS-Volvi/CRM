@@ -370,14 +370,14 @@ export function Sidebar({
             </button>
             <button
               type="button"
-              onClick={() => setThemeColor("velvet")}
+              onClick={() => setThemeColor("emerald")}
               className={`flex-1 py-1 rounded-lg text-center transition cursor-pointer ${
-                themeColor === "velvet"
-                  ? "bg-white text-[var(--crm-primary,#9F1239)] shadow-2xs font-black"
+                themeColor === "emerald" || themeColor === "velvet"
+                  ? "bg-white text-[var(--crm-primary,#059669)] shadow-2xs font-black"
                   : "text-slate-500 hover:text-slate-800"
               }`}
             >
-              Velvet Light
+              FACE Green
             </button>
           </div>
         )}

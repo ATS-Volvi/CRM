@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 
 export type BrandMode = "nexus";
-export type ThemeColor = "sky" | "velvet";
+export type ThemeColor = "sky" | "emerald" | "velvet";
 
 export interface BrandConfig {
   mode: BrandMode;
@@ -28,7 +28,8 @@ const BrandContext = createContext<BrandContextType | undefined>(undefined);
 export const BrandProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [themeColor, setThemeColorState] = useState<ThemeColor>(() => {
     const saved = localStorage.getItem("sidebar_theme");
-    return saved === "velvet" ? "velvet" : "sky";
+    if (saved === "sky") return "sky";
+    return "emerald"; // Default to FACE Light Green
   });
 
   const setThemeColor = (theme: ThemeColor) => {
@@ -44,14 +45,16 @@ export const BrandProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, []);
 
   useEffect(() => {
-    if (themeColor === "velvet") {
-      document.documentElement.classList.add("theme-velvet");
+    if (themeColor === "emerald" || themeColor === "velvet") {
+      document.documentElement.classList.add("theme-emerald");
       document.documentElement.classList.remove("theme-sky");
     } else {
       document.documentElement.classList.add("theme-sky");
-      document.documentElement.classList.remove("theme-velvet");
+      document.documentElement.classList.remove("theme-emerald");
     }
   }, [themeColor]);
+
+  const isGreen = themeColor === "emerald" || themeColor === "velvet";
 
   const brand: BrandConfig = {
     mode: "nexus",
@@ -60,9 +63,11 @@ export const BrandProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     appName: "NEXUS CRM",
     tagline: "Workspace OS",
     logoUrl: null,
-    primaryColor: themeColor === "velvet" ? "#9F1239" : "#2563EB",
+    primaryColor: isGreen ? "#059669" : "#2563EB",
     badgeText: "NX",
-    badgeGradient: "bg-gradient-to-tr from-blue-600 to-indigo-600 shadow-blue-500/20",
+    badgeGradient: isGreen
+      ? "bg-gradient-to-tr from-emerald-600 to-teal-600 shadow-emerald-500/20"
+      : "bg-gradient-to-tr from-blue-600 to-indigo-600 shadow-blue-500/20",
   };
 
   return (
