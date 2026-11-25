@@ -1,5 +1,6 @@
 import FormData from "form-data";
 import Mailgun from "mailgun.js";
+import nodemailer from "nodemailer";
 import { sequelize } from "@nexus-crm/database";
 
 export const cleanEnv = (key: string, defaultVal: string): string => {
@@ -124,6 +125,24 @@ export const getBaseHtmlTemplate = (bodyContent: string, leadId?: string): strin
   `;
 };
 
+export const getSmtpTransporter = () => {
+  const host = cleanEnv("SMTP_HOST", "smtp.gmail.com");
+  const user = cleanEnv("SMTP_USER", "sheiksaud671@gmail.com");
+  const pass = cleanEnv("SMTP_PASS", "yeyimuafvriwliod");
+  const port = parseInt(cleanEnv("SMTP_PORT", "587"), 10);
+  const secure = cleanEnv("SMTP_SECURE", "false") === "true" || port === 465;
+
+  if (host && user && pass && pass !== "test_pass" && user !== "test_user") {
+    return nodemailer.createTransport({
+      host,
+      port,
+      secure,
+      auth: { user, pass }
+    });
+  }
+  return null;
+};
+
 export const sendEmail = async (
   to: string,
   subject: string,
@@ -131,14 +150,71 @@ export const sendEmail = async (
   cc?: string[],
   replyToOrHeaders?: string | Record<string, string>
 ) => {
-  const apiKey = cleanEnv("MAILGUN_API_KEY", "dummy-key");
-  const isDummyKey = !apiKey || apiKey === "dummy-key" || apiKey.startsWith("your_");
-
   const ccSuffix = cc && cc.length > 0 ? `, cc: [${cc.join(", ")}]` : "";
   const replyTo = typeof replyToOrHeaders === "string" ? replyToOrHeaders : replyToOrHeaders?.["Reply-To"];
   const replyToSuffix = replyTo ? `, reply-to: "${replyTo}"` : "";
 
-  if (isDummyKey) {
+  // 1. Primary: Deliver via real verified SMTP (e.g. Gmail SMTP)
+  const smtpTransporter = getSmtpTransporter();
+  if (smtpTransporter) {
+    const rawFrom = process.env.SMTP_FROM || `"Nexus CRM" <${cleanEnv("SMTP_USER", "sheiksaud671@gmail.com")}>`;
+    const from = buildFromHeader(rawFrom);
+    try {
+      const info = await smtpTransporter.sendMail({
+        from,
+        to,
+        subject,
+        html: htmlContent,
+        cc: cc && cc.length > 0 ? cc : undefined,
+        replyTo: replyTo || undefined
+      });
+      console.log(`[Email Service - SMTP] Delivered email to ${to}: messageId=${info.messageId}`);
+      return {
+        id: info.messageId,
+        message: "Sent via SMTP",
+        status: 200,
+        provider: "smtp"
+      };
+    } catch (smtpErr: any) {
+      console.warn("[Email Service - SMTP] Send notice:", smtpErr.message || smtpErr);
+    }
+  }
+
+  // 2. Secondary: Deliver via Mailgun API if API key is provided and not dummy
+  const apiKey = cleanEnv("MAILGUN_API_KEY", "dummy-key");
+  const isDummyKey = !apiKey || apiKey === "dummy-key" || apiKey.startsWith("your_");
+
+  if (!isDummyKey) {
+    try {
+      const domain = cleanEnv("MAILGUN_DOMAIN", "inbound.volvitech.com");
+      const rawFrom = process.env.MAILGUN_FROM || '"Nexus CRM" <no-reply@inbound.volvitech.com>';
+      const from = buildFromHeader(rawFrom);
+      const payload: any = {
+        from,
+        to: [to],
+        subject,
+        html: htmlContent,
+      };
+      if (cc && cc.length > 0) payload.cc = cc;
+      if (typeof replyToOrHeaders === "string") {
+        if (replyToOrHeaders.trim()) {
+          payload["h:Reply-To"] = replyToOrHeaders.trim();
+        }
+      } else if (replyToOrHeaders && typeof replyToOrHeaders === "object") {
+        for (const [k, v] of Object.entries(replyToOrHeaders)) {
+          payload[`h:${k}`] = v;
+        }
+      }
+      const info = await mg.messages.create(domain, payload);
+      console.log("Message sent via Mailgun:", info);
+      return info;
+    } catch (error: any) {
+      console.warn("Mailgun API send notice:", error.message || error);
+    }
+  }
+
+  // 3. Fallback (Only in local test/dev when neither real SMTP nor Mailgun is reachable)
+  if (process.env.NODE_ENV !== "production") {
     const rawFrom = process.env.MAILGUN_FROM || '"Nexus CRM" <no-reply@inbound.volvitech.com>';
     const from = buildFromHeader(rawFrom);
     console.log(`[Email Service - Simulated] Dispatching email to: ${to}${ccSuffix}${replyToSuffix}, from: "${from}", subject: "${subject}"`);
@@ -150,42 +226,7 @@ export const sendEmail = async (
     };
   }
 
-  try {
-    const domain = cleanEnv("MAILGUN_DOMAIN", "inbound.volvitech.com");
-    const rawFrom = process.env.MAILGUN_FROM || '"Nexus CRM" <no-reply@inbound.volvitech.com>';
-    const from = buildFromHeader(rawFrom);
-    const payload: any = {
-      from,
-      to: [to],
-      subject,
-      html: htmlContent,
-    };
-    if (cc && cc.length > 0) payload.cc = cc;
-    if (typeof replyToOrHeaders === "string") {
-      if (replyToOrHeaders.trim()) {
-        payload["h:Reply-To"] = replyToOrHeaders.trim();
-      }
-    } else if (replyToOrHeaders && typeof replyToOrHeaders === "object") {
-      for (const [k, v] of Object.entries(replyToOrHeaders)) {
-        payload[`h:${k}`] = v;
-      }
-    }
-    const info = await mg.messages.create(domain, payload);
-    console.log("Message sent:", info);
-    return info;
-  } catch (error: any) {
-    console.warn("Mailgun API send notice:", error.message || error);
-    if (process.env.NODE_ENV !== "production" || error.status === 401) {
-      console.log(`[Email Service - Dev Fallback] Simulated successful delivery to ${to}${ccSuffix}`);
-      return {
-        id: `<dev_fallback_${Date.now()}@nexus-crm.local>`,
-        message: "Queued (fallback simulation)",
-        status: 200,
-        simulated: true
-      };
-    }
-    throw error;
-  }
+  throw new Error("Failed to deliver email: No active SMTP or Mailgun transporter connection available.");
 };
 
 export const sendCustomEmail = async (to: string, subject: string, bodyContent: string, leadId?: string) => {
