@@ -296,11 +296,22 @@ const upload = multer();
 
 const { leadSecurityPipeline } = require("../lead-security-layer");
 
-router.options("/public/leads", cors());
+router.options("/public/leads", (req, res) => {
+  const origin = req.headers.origin || "*";
+  res.setHeader("Access-Control-Allow-Origin", origin);
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept");
+  res.setHeader("Access-Control-Max-Age", "86400");
+  return res.status(204).end();
+});
+
 router.post(
   "/public/leads",
-  cors(),
   (req, res, next) => {
+    const origin = req.headers.origin || "*";
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept");
     (req as any).leadSource = req.body?.source || "Website";
     next();
   },

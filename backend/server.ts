@@ -58,7 +58,10 @@ export function createServer(): Express {
     const origin = req.headers.origin;
     if (origin) {
       res.setHeader("Access-Control-Allow-Origin", origin);
-      res.setHeader("Access-Control-Allow-Credentials", "true");
+      // Only set credentials for authenticated CRM API routes, NOT public lead ingestion
+      if (!req.path.includes("/public/leads")) {
+        res.setHeader("Access-Control-Allow-Credentials", "true");
+      }
       res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
       res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin");
     }
