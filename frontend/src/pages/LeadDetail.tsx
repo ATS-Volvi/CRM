@@ -1833,11 +1833,11 @@ export default function LeadDetail() {
         {/* CENTER / MAIN PANEL: Organized into Clean Horizontal Tabs */}
         <div id="activity-timeline" className="col-span-12 lg:col-span-8 flex flex-col gap-4">
 
-          {/* Clean Horizontal Tabs Header (matching user design) */}
+          {/* Clean Horizontal Tabs Header: 2 Core Workspace Tabs */}
           <div className="flex items-center gap-1 border-b border-slate-200 dark:border-slate-800 text-xs font-semibold overflow-x-auto no-scrollbar bg-white dark:bg-slate-900 px-4 pt-1 rounded-t-2xl border-t border-x border-slate-200/90 dark:border-slate-800">
             <button
               onClick={() => setActiveTab("timeline")}
-              className={`px-3.5 py-3 border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+              className={`px-4 py-3 border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
                 activeTab === "timeline"
                   ? "border-emerald-600 text-emerald-700 dark:text-emerald-400 font-bold"
                   : "border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
@@ -1850,42 +1850,15 @@ export default function LeadDetail() {
               </span>
             </button>
             <button
-              onClick={() => setActiveTab("tasks")}
-              className={`px-3.5 py-3 border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                activeTab === "tasks"
-                  ? "border-blue-600 text-blue-600 font-bold"
-                  : "border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
-              }`}
-            >
-              <CheckSquare className="w-3.5 h-3.5 text-blue-600" />
-              <span>Tasks & Meetings ({tasks.length + meetings.length})</span>
-            </button>
-            <button
-              onClick={() => setActiveTab("history")}
-              className={`px-3.5 py-3 border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                activeTab === "history"
-                  ? "border-blue-600 text-blue-600 font-bold"
-                  : "border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
-              }`}
-            >
-              <History className="w-3.5 h-3.5" />
-              <span>Audit History</span>
-              {systemAuditActivities.length > 0 && (
-                <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-1.5 py-0.2 rounded-full font-bold">
-                  {systemAuditActivities.length} logs
-                </span>
-              )}
-            </button>
-            <button
               onClick={() => setActiveTab("handoff_chat")}
-              className={`px-3.5 py-3 border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+              className={`px-4 py-3 border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
                 activeTab === "handoff_chat"
                   ? "border-blue-600 text-blue-600 font-bold"
                   : "border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
               }`}
             >
               <Users className="w-3.5 h-3.5" />
-              <span>Handoff Chat (Internal)</span>
+              <span>Internal Team Chat</span>
             </button>
           </div>
 
@@ -2245,183 +2218,71 @@ export default function LeadDetail() {
                     </div>
                   </div>
                 )}
-              </div>
-            </div>
-          )}
 
-          {/* TAB 2: TASKS & MEETINGS */}
-          {activeTab === "tasks" && (
-            <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-b-2xl p-5 space-y-6 shadow-xs border-t-0 text-xs">
-              {/* Tasks section */}
-              <div className="space-y-3">
-                <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-2">
-                  <h4 className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                    <CheckSquare className="w-4 h-4 text-blue-600" /> Action Items & Tasks ({tasks.length})
-                  </h4>
-                  <button onClick={() => setActiveModal("task")} className="text-blue-600 font-bold hover:underline flex items-center gap-1 cursor-pointer">
-                    <Plus className="w-3.5 h-3.5" /> Add Task
-                  </button>
-                </div>
-                {tasks.length === 0 ? (
-                  <p className="text-slate-400 italic py-2">No pending tasks.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {tasks.map((task: any) => (
-                      <div key={task.id} className="p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl flex justify-between items-start">
-                        <div>
-                          <p className="font-bold text-slate-900 dark:text-white">{task.title}</p>
-                          <p className="text-[11px] text-slate-400 mt-0.5">Priority: {task.priority} · Status: {task.status}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+                {/* Collapsible System Audit Trail for Admins / Compliance */}
+                {systemAuditActivities.length > 0 && (
+                  <details className="pt-2 border-t border-slate-100 dark:border-slate-800 text-xs group">
+                    <summary className="list-none flex items-center justify-between text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer py-1 px-1 rounded transition-colors select-none text-[11px] font-semibold">
+                      <span className="flex items-center gap-1.5">
+                        <History className="w-3.5 h-3.5 text-slate-400 group-open:text-blue-600" />
+                        <span>System Audit Trail & Stage Logs ({systemAuditActivities.length})</span>
+                      </span>
+                      <span className="text-[10px] text-slate-400 group-open:rotate-180 transition-transform">▼</span>
+                    </summary>
+                    <div className="mt-2.5 space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                      {systemAuditActivities.map((act: any) => {
+                        const isDup = (act.outcome || "").toLowerCase().includes("duplicate") || (act.notes || "").toLowerCase().includes("duplicate");
+                        const timeAgo = formatDistanceToNow(new Date(act.createdAt), { addSuffix: true });
+                        const dateStr = act.createdAt ? new Date(act.createdAt).toLocaleString() : "";
+                        const content = cleanHtmlEntities(act.notes || act.outcome || "");
+                        const author = act.createdBy?.name || act.createdByUser?.name || "System Automation";
 
-              {/* Meetings section */}
-              <div className="space-y-3">
-                <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-2">
-                  <h4 className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                    <Calendar className="w-4 h-4 text-indigo-600" /> Scheduled Meetings ({meetings.length})
-                  </h4>
-                  <button onClick={() => setActiveModal("meeting")} className="text-blue-600 font-bold hover:underline flex items-center gap-1 cursor-pointer">
-                    <Plus className="w-3.5 h-3.5" /> Schedule
-                  </button>
-                </div>
-                {meetings.length === 0 ? (
-                  <p className="text-slate-400 italic py-2">No meetings scheduled.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {meetings.map((m: any) => (
-                      <div key={m.id} className="p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl flex justify-between items-start">
-                        <div>
-                          <p className="font-bold text-slate-900 dark:text-white">{m.title}</p>
-                          <p className="text-[11px] text-slate-400 mt-0.5">{m.meetingDate} at {m.meetingTime}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+                        let badgeColor = "bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 border-purple-200";
+                        let badgeText = "STAGE CHANGE";
+                        let dotColor = "bg-purple-500";
 
-              {/* Documents section */}
-              <div className="space-y-3">
-                <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-2">
-                  <h4 className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                    <FileText className="w-4 h-4 text-emerald-600" /> Attached Documents ({documents.length})
-                  </h4>
-                  <button onClick={() => setActiveModal("document")} className="text-blue-600 font-bold hover:underline flex items-center gap-1 cursor-pointer">
-                    <Plus className="w-3.5 h-3.5" /> Upload
-                  </button>
-                </div>
-                {documents.length === 0 ? (
-                  <p className="text-slate-400 italic py-2">No documents attached.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {documents.map((d: any) => (
-                      <div key={d.id} className="p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl flex justify-between items-center">
-                        <span className="font-medium text-slate-800 dark:text-slate-200">{d.name}</span>
-                        <span className="text-[10px] font-bold text-slate-400 uppercase">{d.type}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+                        if (isDup) {
+                          badgeColor = "bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border-amber-200";
+                          badgeText = "DUPLICATION CHECK";
+                          dotColor = "bg-amber-500";
+                        } else if (content.includes("Inbound Inquiry")) {
+                          badgeColor = "bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300 border-sky-200";
+                          badgeText = "RFQ INGESTION";
+                          dotColor = "bg-sky-500";
+                        } else if (content.includes("Outbound email sent") || content.includes("[AUTOMATED]")) {
+                          badgeColor = "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200";
+                          badgeText = "AUTOMATED RECEIPT";
+                          dotColor = "bg-slate-400";
+                        }
 
-          {/* TAB 3: AUDIT HISTORY & SYSTEM TRANSITION TRAIL */}
-          {activeTab === "history" && (
-            <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-b-2xl p-5 space-y-4 shadow-xs border-t-0 text-xs">
-              <div className="border-b border-slate-100 dark:border-slate-800 pb-3 flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                    <History className="w-4 h-4 text-blue-600" /> Lead Audit & System History
-                  </h3>
-                  <p className="text-xs text-slate-500">Tamper-proof chronological trail of system events, stage updates, and compliance records</p>
-                </div>
-                <span className="text-[11px] font-bold px-2.5 py-1 bg-slate-100 dark:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-300">
-                  {systemAuditActivities.length + 2} recorded events
-                </span>
-              </div>
-
-              <div className="space-y-3">
-                {/* Current Status Card */}
-                <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl flex items-start gap-3">
-                  <div className="w-2.5 h-2.5 rounded-full bg-blue-600 mt-1 shrink-0" />
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-slate-800 dark:text-slate-200">Current Lead Status: {lead.status || "NEW"}</span>
-                      <span className="text-[11px] text-slate-400">{lead.updatedAt ? new Date(lead.updatedAt).toLocaleString() : "Recent"}</span>
-                    </div>
-                    <p className="text-slate-600 dark:text-slate-400 mt-0.5">Assigned Owner: {lead.assignedTo?.name || "System Round Robin"}</p>
-                  </div>
-                </div>
-
-                {/* System Audit Events (Stage Changes, Deduplication, Automated Emails) */}
-                {systemAuditActivities.map((act: any) => {
-                  const isStageChange = act.type === "stage_change";
-                  const isDup = (act.outcome || "").toLowerCase().includes("duplicate") || (act.notes || "").toLowerCase().includes("duplicate");
-                  const timeAgo = formatDistanceToNow(new Date(act.createdAt), { addSuffix: true });
-                  const dateStr = act.createdAt ? new Date(act.createdAt).toLocaleString() : "";
-                  const content = cleanHtmlEntities(act.notes || act.outcome || "");
-                  const author = act.createdBy?.name || act.createdByUser?.name || "System Automation";
-
-                  let badgeColor = "bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 border-purple-200";
-                  let badgeText = "STAGE CHANGE";
-                  let dotColor = "bg-purple-500";
-
-                  if (isDup) {
-                    badgeColor = "bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border-amber-200";
-                    badgeText = "DUPLICATION CHECK";
-                    dotColor = "bg-amber-500";
-                  } else if (content.includes("Inbound Inquiry")) {
-                    badgeColor = "bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300 border-sky-200";
-                    badgeText = "RFQ INGESTION";
-                    dotColor = "bg-sky-500";
-                  } else if (content.includes("Outbound email sent") || content.includes("[AUTOMATED]")) {
-                    badgeColor = "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200";
-                    badgeText = "AUTOMATED RECEIPT";
-                    dotColor = "bg-slate-400";
-                  }
-
-                  return (
-                    <div key={act.id} className="p-3.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl flex items-start gap-3">
-                      <div className={`w-2.5 h-2.5 rounded-full ${dotColor} mt-1 shrink-0`} />
-                      <div className="flex-1 space-y-1">
-                        <div className="flex items-center justify-between flex-wrap gap-2">
-                          <div className="flex items-center gap-2">
-                            <span className={`text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded border ${badgeColor}`}>
-                              {badgeText}
-                            </span>
-                            <span className="font-bold text-slate-800 dark:text-slate-200">{author}</span>
+                        return (
+                          <div key={act.id} className="p-2.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-lg flex items-start gap-2.5 text-xs">
+                            <div className={`w-2 h-2 rounded-full ${dotColor} mt-1 shrink-0`} />
+                            <div className="flex-1 space-y-0.5">
+                              <div className="flex items-center justify-between flex-wrap gap-1">
+                                <div className="flex items-center gap-1.5">
+                                  <span className={`text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded border ${badgeColor}`}>
+                                    {badgeText}
+                                  </span>
+                                  <span className="font-bold text-slate-800 dark:text-slate-200 text-[11px]">{author}</span>
+                                </div>
+                                <span className="text-[10px] text-slate-400" title={dateStr}>{timeAgo}</span>
+                              </div>
+                              <p className="text-slate-600 dark:text-slate-300 font-medium text-[11px] leading-relaxed whitespace-pre-line">
+                                {content}
+                              </p>
+                            </div>
                           </div>
-                          <span className="text-[11px] text-slate-400" title={dateStr}>{timeAgo}</span>
-                        </div>
-                        <p className="text-slate-700 dark:text-slate-300 font-medium text-xs leading-relaxed whitespace-pre-line">
-                          {content}
-                        </p>
-                      </div>
+                        );
+                      })}
                     </div>
-                  );
-                })}
-
-                {/* Lead Captured & Ingested Origin Card */}
-                <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl flex items-start gap-3">
-                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-600 mt-1 shrink-0" />
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-slate-800 dark:text-slate-200">Lead Ingested & Captured</span>
-                      <span className="text-[11px] text-slate-400">{lead.createdAt ? new Date(lead.createdAt).toLocaleString() : "Initial"}</span>
-                    </div>
-                    <p className="text-slate-600 dark:text-slate-400 mt-0.5">Channel: {lead.source || "Inbound Form"} {lead.sourceDetail ? `(${lead.sourceDetail})` : ""}</p>
-                  </div>
-                </div>
+                  </details>
+                )}
               </div>
             </div>
           )}
 
-          {/* TAB 5: HANDOFF CHAT & TEAM DISCUSSIONS */}
+          {/* TAB 2: HANDOFF CHAT & TEAM DISCUSSIONS */}
           {activeTab === "handoff_chat" && (
             <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-b-2xl p-5 space-y-6 shadow-xs border-t-0">
               <CommentThreadSection leadId={id} />
