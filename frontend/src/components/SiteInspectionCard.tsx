@@ -103,12 +103,12 @@ export function SiteInspectionCard({
 
   return (
     <>
-      <div className="bg-white dark:bg-slate-900 border border-face-line dark:border-slate-800 rounded-2xl p-5 shadow-[0_2px_16px_rgba(40,50,120,0.06)] space-y-3.5 relative overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 border border-face-line dark:border-slate-800 rounded-2xl p-3.5 shadow-sm space-y-2.5 relative overflow-hidden">
         {/* Card Header */}
-        <div className="flex items-center justify-between border-b border-face-line dark:border-slate-800 pb-3">
+        <div className="flex items-center justify-between border-b border-face-line dark:border-slate-800 pb-2">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-face-green-light dark:bg-face-green-dark/40 text-face-green dark:text-face-green-mint flex items-center justify-center">
-              <ClipboardCheck className="w-4 h-4" />
+            <div className="w-6 h-6 rounded-lg bg-face-green-light dark:bg-face-green-dark/40 text-face-green dark:text-face-green-mint flex items-center justify-center">
+              <ClipboardCheck className="w-3.5 h-3.5" />
             </div>
             <div>
               <div className="flex items-center gap-1.5">
@@ -117,7 +117,7 @@ export function SiteInspectionCard({
                 </h3>
                 {inspection?.priority && inspection.priority !== "NORMAL" && (
                   <span
-                    className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${
+                    className={`px-1.5 py-0.2 rounded text-[8px] font-black uppercase tracking-wider ${
                       inspection.priority === "URGENT"
                         ? "bg-face-red-light text-face-red dark:bg-rose-950/60 dark:text-rose-300"
                         : "bg-face-field text-face-muted dark:bg-slate-800 dark:text-slate-400"
@@ -127,7 +127,7 @@ export function SiteInspectionCard({
                   </span>
                 )}
               </div>
-              <span className="text-[10px] text-face-muted font-medium block">
+              <span className="text-[9px] text-face-muted font-medium block">
                 Required for Qualification
               </span>
             </div>
@@ -135,7 +135,7 @@ export function SiteInspectionCard({
 
           <div className="flex items-center gap-1.5">
             <span
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold border ${statusInfo.badgeBg}`}
+              className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-bold border ${statusInfo.badgeBg}`}
             >
               <span className={`w-1.5 h-1.5 rounded-full ${statusInfo.dotColor}`} />
               {assignmentDisplay?.headerStatusOverride || statusInfo.label}
@@ -145,15 +145,13 @@ export function SiteInspectionCard({
 
         {/* Lock Notice when gate is active & not approved */}
         {isGateLocked && (
-          <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 rounded-xl flex items-start gap-2.5">
-            <Lock className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-            <div className="text-[11px] leading-snug">
-              <p className="font-bold text-amber-900 dark:text-amber-200">
-                Lead Qualification Gate Locked
-              </p>
-              <p className="text-amber-700 dark:text-amber-300/80 mt-0.5">
-                {gate?.message || "Requires site manager audit and supervisor approval."}
-              </p>
+          <div className="p-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 rounded-xl flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <Lock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+              <div className="text-[10px] leading-tight truncate">
+                <span className="font-bold text-amber-900 dark:text-amber-200">Gate Locked: </span>
+                <span className="text-amber-700 dark:text-amber-300/80">{gate?.message || "Requires audit & approval"}</span>
+              </div>
             </div>
           </div>
         )}
@@ -343,39 +341,28 @@ export function SiteInspectionCard({
           </div>
         ) : (
           /* Empty / Request CTA */
-          <div className="space-y-3 pt-1">
-            {/* Inbound Customer Stated Location Banner */}
+          <div className="space-y-2 pt-0.5">
+            {/* Inbound Customer Stated Location Strip */}
             {suggestedLocation && (
-              <div className="p-3 bg-blue-50/90 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/80 rounded-xl space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 text-blue-700 dark:text-blue-300 font-bold text-xs">
-                    <MapPin className="w-3.5 h-3.5" />
-                    <span>Customer Stated Location</span>
-                  </div>
-                  <span className="text-[9px] uppercase tracking-wider font-extrabold bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-2 py-0.5 rounded-full">
-                    Pre-Sales Confirm
+              <div className="p-2 px-2.5 bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200/70 dark:border-blue-800/60 rounded-xl flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <MapPin className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                  <span className="text-[11px] font-bold text-slate-900 dark:text-slate-100 truncate">
+                    {suggestedLocation}
                   </span>
                 </div>
-                <div className="text-xs font-bold text-slate-900 dark:text-slate-100 pl-5">
-                  📍 {suggestedLocation}
-                </div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 pl-5 leading-relaxed">
-                  Suggested from website map. Pre-sales must verify site readiness & plant coordinates with client before dispatch.
-                </p>
+                <span className="text-[8px] uppercase tracking-wider font-extrabold bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-1.5 py-0.2 rounded-full shrink-0">
+                  Pre-Sales
+                </span>
               </div>
             )}
-
-            <p className="text-xs text-face-muted leading-relaxed">
-              No inspection has been requested yet. Requesting an inspection will dispatch a Site
-              Manager to assess distance, site access, and waste logistics.
-            </p>
 
             <button
               onClick={() => setIsModalOpen(true)}
               disabled={isRequesting}
-              className="w-full flex items-center justify-center gap-2 px-3.5 py-2.5 bg-face-green hover:bg-face-green-dark text-white text-xs font-bold rounded-xl transition-all shadow-sm shadow-face-green/20 disabled:opacity-50 cursor-pointer"
+              className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-face-green hover:bg-face-green-dark text-white text-xs font-bold rounded-xl transition-all shadow-xs disabled:opacity-50 cursor-pointer"
             >
-              <PlusCircle className="w-4 h-4" />
+              <PlusCircle className="w-3.5 h-3.5" />
               <span>
                 {isRequesting
                   ? "Dispatching..."

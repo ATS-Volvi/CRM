@@ -878,11 +878,11 @@ export default function LeadDetail() {
         </div>
       )}
 
-      {/* 3. Modern Chevron Arrow & Checkpoint Milestone Stepper */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-2 shadow-xs">
+      {/* 3. Modern Segmented Milestone Stepper (FACE Signature Theme) */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-2 sm:p-2.5 shadow-sm">
         <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-2">
           
-          {/* Linked Chevron Arrow Path */}
+          {/* Linked Stage Nodes */}
           {(() => {
             const workflowStages = requiresSiteInspection
               ? [
@@ -901,8 +901,8 @@ export default function LeadDetail() {
             const totalStages = workflowStages.length;
             const gridCols = totalStages === 5 ? "grid-cols-2 sm:grid-cols-5" : "grid-cols-2 sm:grid-cols-4";
             return (
-          <div className={`flex-1 grid ${gridCols} gap-1 sm:gap-0 bg-slate-100/80 dark:bg-slate-800/80 rounded-xl overflow-hidden p-1 border border-slate-200/60 dark:border-slate-700/60`}>
-            {workflowStages.map((stage, idx) => {
+          <div className={`flex-1 grid ${gridCols} gap-1.5 bg-slate-50/90 dark:bg-slate-950/50 rounded-xl p-1.5 border border-slate-200/70 dark:border-slate-800`}>
+            {workflowStages.map((stage) => {
               const currentStatus = (lead.status || "NEW").toUpperCase();
               const isNotConverted = currentStatus === "NOT_CONVERTED" || currentStatus === "LOST";
               const isApproved = inspection?.status === "APPROVED";
@@ -943,53 +943,60 @@ export default function LeadDetail() {
               };
 
               return (
-                <div key={stage.key} className="relative flex items-center flex-1">
-                  <button
-                    onClick={handleStageClick}
-                    className={`w-full group relative flex items-center gap-2.5 py-2.5 px-3 rounded-lg sm:rounded-none transition-all duration-150 cursor-pointer select-none ${
+                <button
+                  key={stage.key}
+                  onClick={handleStageClick}
+                  className={`group relative flex items-center gap-2.5 py-2 px-3 rounded-xl transition-all duration-200 cursor-pointer select-none text-left border ${
+                    isCurrent
+                      ? "bg-gradient-to-r from-[#1D4ED8] via-[#0D9488] to-[#10B981] text-white font-bold shadow-sm shadow-emerald-600/20 ring-1 ring-white/30 border-transparent z-10"
+                      : isPast
+                      ? "bg-emerald-50/80 hover:bg-emerald-100/70 dark:bg-emerald-950/30 dark:hover:bg-emerald-950/50 text-slate-800 dark:text-slate-100 border-emerald-200/60 dark:border-emerald-800/60"
+                      : "bg-white dark:bg-slate-900/60 hover:bg-slate-50 dark:hover:bg-slate-800/60 text-slate-500 dark:text-slate-400 border-slate-200/60 dark:border-slate-800/70"
+                  }`}
+                  title={`Click to set stage to ${stage.label}`}
+                >
+                  {/* Checkpoint Node Circle */}
+                  <div
+                    className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black shrink-0 transition-transform group-hover:scale-105 shadow-2xs ${
                       isCurrent
-                        ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold shadow-md shadow-blue-600/30 z-20 rounded-lg sm:rounded-lg"
+                        ? "bg-white text-[#059669] ring-2 ring-white/40 shadow-xs"
                         : isPast
-                        ? "bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-900 dark:text-emerald-300 z-10"
-                        : "bg-transparent hover:bg-white/60 dark:hover:bg-slate-700/60 text-slate-500 dark:text-slate-400"
+                        ? "bg-[#059669] text-white"
+                        : "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700"
                     }`}
-                    title={`Click to set stage to ${stage.label}`}
                   >
-                    {/* Checkpoint Node Circle */}
-                    <div
-                      className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black shrink-0 transition-transform group-hover:scale-110 shadow-2xs ${
-                        isCurrent
-                          ? "bg-white text-blue-600 ring-4 ring-white/30"
-                          : isPast
-                          ? "bg-emerald-600 text-white"
-                          : "bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-600"
-                      }`}
-                    >
-                      {isPast ? (
-                        <Check className="w-3.5 h-3.5 stroke-[3]" />
+                    {isPast ? (
+                      <Check className="w-3.5 h-3.5 stroke-[3]" />
+                    ) : (
+                      <span>{stage.num}</span>
+                    )}
+                  </div>
+
+                  {/* Step Label & Sub-status */}
+                  <div className="min-w-0 flex-1">
+                    <p className={`text-xs font-black truncate leading-tight ${isCurrent ? "text-white" : isPast ? "text-slate-900 dark:text-white" : "text-slate-600 dark:text-slate-300"}`}>
+                      {stage.label}
+                    </p>
+                    <span className={`text-[10px] flex items-center gap-1 truncate mt-0.5 ${
+                      isCurrent 
+                        ? "text-emerald-100 font-bold" 
+                        : isPast 
+                        ? "text-[#059669] dark:text-emerald-400 font-semibold" 
+                        : "text-slate-400 dark:text-slate-500 font-medium"
+                    }`}>
+                      {isCurrent ? (
+                        <>
+                          <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse shrink-0" />
+                          <span>Current Step</span>
+                        </>
+                      ) : isPast ? (
+                        "Completed"
                       ) : (
-                        <span>{stage.num}</span>
+                        stage.desc
                       )}
-                    </div>
-
-                    {/* Step Label & Sub-status */}
-                    <div className="min-w-0 flex-1 text-left">
-                      <p className={`text-xs font-black truncate leading-tight ${isCurrent ? "text-white" : isPast ? "text-slate-900 dark:text-white" : "text-slate-600 dark:text-slate-400"}`}>
-                        {stage.label}
-                      </p>
-                      <span className={`text-[10px] block truncate mt-0.5 ${isCurrent ? "text-blue-100" : isPast ? "text-emerald-700 dark:text-emerald-400 font-medium" : "text-slate-400 dark:text-slate-500"}`}>
-                        {isCurrent ? "Current Step" : isPast ? "Completed" : stage.desc}
-                      </span>
-                    </div>
-                  </button>
-
-                  {/* Arrowhead Divider between steps on desktop */}
-                  {idx < totalStages - 1 && (
-                    <div className="hidden sm:flex items-center absolute -right-2 z-30 pointer-events-none">
-                      <ChevronRight className={`w-4 h-4 stroke-[3] ${isPast ? "text-emerald-500" : isCurrent ? "text-indigo-400" : "text-slate-300 dark:text-slate-600"}`} />
-                    </div>
-                  )}
-                </div>
+                    </span>
+                  </div>
+                </button>
               );
             })}
           </div>
@@ -1002,12 +1009,12 @@ export default function LeadDetail() {
             onClick={() => setIntelligenceTab(intelligenceTab === "discovery" ? "scope" : "discovery")}
             className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shrink-0 border active:scale-95 cursor-pointer ${
               intelligenceTab === "discovery"
-                ? "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-900 dark:text-emerald-200 border-emerald-300 dark:border-emerald-700 shadow-xs"
-                : "bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700"
+                ? "bg-gradient-to-r from-[#1D4ED8] via-[#0D9488] to-[#10B981] text-white border-transparent shadow-sm shadow-emerald-500/20"
+                : "bg-emerald-50/80 hover:bg-emerald-100 text-[#059669] dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200/80 dark:border-emerald-800"
             }`}
             title="Open 5-Minute Technical Discovery Call Checklist in Hub"
           >
-            <Phone className="w-4 h-4 text-[#059669] dark:text-emerald-400" />
+            <Phone className={`w-3.5 h-3.5 ${intelligenceTab === "discovery" ? "text-white" : "text-[#059669]"}`} />
             <span>5-Min Discovery Call {intelligenceTab === "discovery" ? "▲" : "▼"}</span>
           </button>
 
@@ -1019,14 +1026,14 @@ export default function LeadDetail() {
             return (
               <button
                 onClick={() => updateStatusMutation.mutate("NOT_CONVERTED")}
-                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all duration-150 flex items-center justify-center gap-1.5 shrink-0 cursor-pointer ${
+                className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all duration-150 flex items-center justify-center gap-1.5 shrink-0 cursor-pointer border ${
                   isNotConverted
-                    ? "bg-rose-600 text-white shadow-md shadow-rose-600/25 ring-2 ring-rose-500/50"
-                    : "bg-slate-100 hover:bg-rose-50 hover:text-rose-600 dark:bg-slate-800 text-slate-500 dark:text-slate-400 dark:hover:bg-rose-950/40 dark:hover:text-rose-300 border border-slate-200 dark:border-slate-700"
+                    ? "bg-rose-600 text-white shadow-md shadow-rose-600/25 ring-2 ring-rose-500/50 border-rose-600"
+                    : "bg-white hover:bg-rose-50 hover:text-rose-600 dark:bg-slate-800 text-slate-500 dark:text-slate-400 dark:hover:bg-rose-950/40 dark:hover:text-rose-300 border-slate-200 dark:border-slate-700"
                 }`}
                 title="Mark lead as Not Converted / Lost"
               >
-                <XCircle className={`w-4 h-4 ${isNotConverted ? "text-white" : "text-rose-500"}`} />
+                <XCircle className={`w-3.5 h-3.5 ${isNotConverted ? "text-white" : "text-rose-500"}`} />
                 <span>{isNotConverted ? "Not Converted (Lost)" : "Close as Lost"}</span>
               </button>
             );
@@ -1632,31 +1639,6 @@ export default function LeadDetail() {
 
         {/* CENTER / MAIN PANEL: Organized into Clean Horizontal Tabs */}
         <div id="activity-timeline" className="col-span-12 lg:col-span-8 flex flex-col gap-4">
-
-          {/* Prominent Inbound Inquiry / Form Summary Banner */}
-          {(lead.body || lead.subject) && (
-            <div className="bg-white dark:bg-slate-900 border border-blue-200/80 dark:border-blue-900/60 rounded-2xl p-5 shadow-xs space-y-2.5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-xs font-bold text-blue-900 dark:text-blue-200">
-                  <FileText className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                  <span>Submitted Inbound Inquiry & Requirements</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 uppercase">
-                    {lead.source || "Inbound"}
-                  </span>
-                  {lead.sourceDetail && (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-                      {lead.sourceDetail}
-                    </span>
-                  )}
-                </div>
-              </div>
-              <p className="text-xs text-slate-800 dark:text-slate-200 leading-relaxed font-medium bg-slate-50 dark:bg-slate-800/70 p-3.5 rounded-xl border border-slate-100 dark:border-slate-700/80 whitespace-pre-line">
-                {lead.body || lead.subject}
-              </p>
-            </div>
-          )}
 
           {/* Clean Horizontal Tabs Header (matching user design) */}
           <div className="flex items-center gap-1 border-b border-slate-200 dark:border-slate-800 text-xs font-semibold overflow-x-auto no-scrollbar bg-white dark:bg-slate-900 px-4 pt-1 rounded-t-2xl border-t border-x border-slate-200/90 dark:border-slate-800">

@@ -98,7 +98,7 @@ export const LeadIntelligenceHub: React.FC<LeadIntelligenceHubProps> = ({
   const recommendedAction = data?.recommendedAction || (lead?.firstName ? `Schedule product demo & confirm quote parameters with ${lead.firstName}.` : "Prepare and review quotation package based on customer scope.");
 
   return (
-    <div className={`bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-[20px] p-4 sm:p-5 shadow-[0_8px_24px_-4px_rgba(5,150,105,0.06)] text-slate-900 dark:text-slate-100 relative overflow-hidden transition-all duration-200 ${className}`}>
+    <div className={`bg-white dark:bg-slate-900 border-2 border-emerald-400/60 dark:border-emerald-600/50 ring-4 ring-emerald-500/10 rounded-[22px] p-4 sm:p-5 shadow-[0_8px_28px_-6px_rgba(5,150,105,0.12)] text-slate-900 dark:text-slate-100 relative overflow-hidden transition-all duration-200 ${className}`}>
       {/* ── Top Header Bar: Title + Segmented Switcher + Intent & Win Prob Pills ── */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 mb-3.5 border-b border-slate-100 dark:border-slate-800">
         <div className="flex items-center gap-2.5">
