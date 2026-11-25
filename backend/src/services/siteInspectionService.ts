@@ -896,8 +896,8 @@ export async function reassignInspection(
   actorId?: string,
   ip?: string
 ): Promise<any> {
-  if (!APPROVER_ROLES.includes(callerRole)) {
-    throw new Error("Only managers or approvers may reassign site inspections.");
+  if (!APPROVER_ROLES.includes(callerRole) && callerRole !== "sales_rep" && callerRole !== "senior_ae") {
+    throw new Error("Only authorized users may assign site inspections.");
   }
 
   const { isPhase2SchemaReady } = require("@nexus-crm/database");

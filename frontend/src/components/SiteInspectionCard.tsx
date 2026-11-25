@@ -15,6 +15,7 @@ import {
   ExternalLink,
   ShieldAlert,
   User,
+  UserPlus,
 } from "lucide-react";
 import { siteInspectionApi } from "../api/siteInspection";
 import {
@@ -85,6 +86,32 @@ export function SiteInspectionCard({
     cancelInspection,
     isCancelling,
   } = useLeadSiteInspection(leadId);
+
+  const queryClient = useQueryClient();
+  const [isAssigning, setIsAssigning] = useState(false);
+  const [selectedInspectorId, setSelectedInspectorId] = useState("");
+  const [assignError, setAssignError] = useState("");
+
+  const { data: siteManagers = [] } = useQuery({
+    queryKey: ["site-managers"],
+    queryFn: () => siteInspectionApi.getSiteManagers(),
+    enabled: Boolean(inspection),
+  });
+
+  const reassignMutation = useMutation({
+    mutationFn: ({ inspectorId, reason }: { inspectorId: string; reason: string }) =>
+      siteInspectionApi.reassignInspection(inspection!.id, inspectorId, reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["lead-site-inspection", leadId] });
+      queryClient.invalidateQueries({ queryKey: ["lead", leadId] });
+      setIsAssigning(false);
+      setSelectedInspectorId("");
+      setAssignError("");
+    },
+    onError: (err: any) => {
+      setAssignError(err.message || "Failed to assign inspector");
+    },
+  });
 
   const userRole = (user?.role || "").toLowerCase();
   const isApprover = APPROVER_ROLES.includes(userRole);
@@ -206,6 +233,69 @@ export function SiteInspectionCard({
                       <p className="text-[10px] text-face-green dark:text-face-green-mint font-semibold mt-1">
                         {assignmentDisplay.approverHint}
                       </p>
+                    )}
+
+                    {/* Quick Manual Inspector Assignment */}
+                    {!isAssigning ? (
+                      <button
+                        type="button"
+                        onClick={() => setIsAssigning(true)}
+                        className="mt-2.5 inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-bold rounded-lg transition-all shadow-xs cursor-pointer"
+                      >
+                        <UserPlus className="w-3 h-3" />
+                        <span>Manually Assign Inspector</span>
+                      </button>
+                    ) : (
+                      <div className="mt-2.5 p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-amber-300 dark:border-amber-800 shadow-sm space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                            Choose Inspector
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsAssigning(false);
+                              setAssignError("");
+                            }}
+                            className="text-[10px] font-semibold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+
+                        <select
+                          value={selectedInspectorId}
+                          onChange={(e) => setSelectedInspectorId(e.target.value)}
+                          className="w-full text-xs font-semibold px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white outline-none"
+                        >
+                          <option value="">-- Choose Inspector --</option>
+                          {siteManagers.map((mgr: any) => (
+                            <option key={mgr.id} value={mgr.id}>
+                              {mgr.name} ({mgr.role.replace("_", " ")} · {mgr.email})
+                            </option>
+                          ))}
+                        </select>
+
+                        {assignError && (
+                          <p className="text-[10px] text-rose-600 dark:text-rose-400 font-medium">
+                            {assignError}
+                          </p>
+                        )}
+
+                        <button
+                          type="button"
+                          disabled={!selectedInspectorId || reassignMutation.isPending}
+                          onClick={() =>
+                            reassignMutation.mutate({
+                              inspectorId: selectedInspectorId,
+                              reason: "Manual assignment: location override",
+                            })
+                          }
+                          className="w-full py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition-colors disabled:opacity-50 cursor-pointer shadow-xs"
+                        >
+                          {reassignMutation.isPending ? "Assigning..." : "Confirm Inspector Assignment"}
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>

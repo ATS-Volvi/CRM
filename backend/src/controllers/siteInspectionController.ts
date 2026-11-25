@@ -107,7 +107,11 @@ export const getMasterData = async (req: Request, res: Response) => {
 export const getSiteManagers = async (req: Request, res: Response) => {
   try {
     const siteManagers = await User.findAll({
-      where: { role: "site_manager" },
+      where: {
+        role: {
+          [Op.in]: ["site_manager", "ops_manager", "manager", "admin"]
+        }
+      },
       attributes: ["id", "name", "email", "role", "status", "phone"],
       order: [["name", "ASC"]],
     });
@@ -344,15 +348,14 @@ export const reassignSiteInspection = async (req: Request, res: Response) => {
     const id = req.params.id as string;
     const { assignedToId, reason } = req.body;
 
-    if (!user || !APPROVER_ROLES.includes(user.role)) {
-      return res.status(403).json({ error: "Only managers may reassign site inspections." });
+    const isApprover = APPROVER_ROLES.includes(user?.role);
+    const isAllowed = isApprover || user?.role === "sales_rep" || user?.role === "senior_ae";
+    if (!user || !isAllowed) {
+      return res.status(403).json({ error: "Access denied: unauthorized to assign site inspections." });
     }
 
-    if (!reason || !String(reason).trim()) {
-      return res.status(400).json({ error: "A reason is required when reassigning a site inspection." });
-    }
-
-    const reassigned = await reassignInspection(id, assignedToId, user.role, String(reason).trim(), user.id, req.ip);
+    const resolvedReason = (reason && String(reason).trim()) || "Manual assignment by representative";
+    const reassigned = await reassignInspection(id, assignedToId, user.role, resolvedReason, user.id, req.ip);
     res.json(reassigned);
   } catch (error: any) {
     res.status(400).json({ error: error.message });
