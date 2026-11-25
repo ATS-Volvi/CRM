@@ -186,16 +186,14 @@ export const listSiteInspections = async (req: Request, res: Response) => {
 
     const where: any = {};
 
-    // Site Managers see only their own inspections (or unassigned if not strictly filtering for mine)
+    // Site Managers see their assigned inspections + unassigned / requested orders so new CRM requests instantly reflect on mobile app
     if (user?.role === "site_manager") {
-      if (mine === "true") {
-        where.assignedToId = user?.id;
-      } else {
-        where[Op.or] = [
-          { assignedToId: user?.id },
-          { assignedToId: null }
-        ];
-      }
+      where[Op.or] = [
+        { assignedToId: user?.id },
+        { assignedToId: null },
+        { status: "REQUESTED" },
+        { assignmentState: "PENDING_CONFIRMATION" }
+      ];
     } else if (mine === "true") {
       where.assignedToId = user?.id;
     }

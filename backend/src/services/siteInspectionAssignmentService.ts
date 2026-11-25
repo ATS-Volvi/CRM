@@ -130,10 +130,17 @@ export function resolveLocation(
  * Loads all active site managers with their profiles and current workload.
  */
 async function loadEngineCandidates(transaction?: Transaction): Promise<EngineCandidate[]> {
-  const users = await User.findAll({
+  let users = await User.findAll({
     where: {
       role: "site_manager",
       [Op.or]: [{ status: { [Op.ne]: "Inactive" } }, { status: null }],
+      email: {
+        [Op.and]: [
+          { [Op.notLike]: "%zz-test%" },
+          { [Op.notLike]: "%example.com%" },
+          { [Op.notLike]: "%example.test%" },
+        ],
+      },
     },
     include: [
       {
@@ -143,6 +150,22 @@ async function loadEngineCandidates(transaction?: Transaction): Promise<EngineCa
     ],
     transaction,
   });
+
+  if (users.length === 0) {
+    users = await User.findAll({
+      where: {
+        role: "site_manager",
+        [Op.or]: [{ status: { [Op.ne]: "Inactive" } }, { status: null }],
+      },
+      include: [
+        {
+          model: SiteInspectorProfile,
+          as: "inspectorProfile",
+        },
+      ],
+      transaction,
+    });
+  }
 
   const openStatuses = ["REQUESTED", "DRAFT", "CHANGES_REQUESTED", "SUBMITTED"];
   const todayStart = new Date();

@@ -407,12 +407,28 @@ export async function requestSiteInspection(
     // Pure Legacy Pre-Phase 2 Assignment: fewest open inspections, fair round-robin
     // Does NOT query SiteInspectorProfiles, SiteInspectionSettings, or write SiteInspectionAuditLogs
     try {
-      const siteManagers = await User.findAll({
+      let siteManagers = await User.findAll({
         where: {
           role: "site_manager",
           [Op.or]: [{ status: { [Op.ne]: "Inactive" } }, { status: null }],
+          email: {
+            [Op.and]: [
+              { [Op.notLike]: "%zz-test%" },
+              { [Op.notLike]: "%example.com%" },
+              { [Op.notLike]: "%example.test%" },
+            ],
+          },
         },
       });
+
+      if (siteManagers.length === 0) {
+        siteManagers = await User.findAll({
+          where: {
+            role: "site_manager",
+            [Op.or]: [{ status: { [Op.ne]: "Inactive" } }, { status: null }],
+          },
+        });
+      }
 
       let assignedManagerId: string | null = null;
       if (siteManagers.length > 0) {

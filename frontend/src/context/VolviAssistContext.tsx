@@ -199,7 +199,7 @@ export function VolviAssistProvider({ children }: { children: ReactNode }) {
   const { themeColor } = useBrand();
   const navigate = useNavigate();
   const location = useLocation();
-  const { isAuthenticated, token } = useAuth();
+  const { isAuthenticated, token, user } = useAuth();
 
   const isPublicRoute =
     location.pathname === "/login" ||
@@ -208,7 +208,13 @@ export function VolviAssistProvider({ children }: { children: ReactNode }) {
     location.pathname.startsWith("/kyc/") ||
     location.pathname.startsWith("/feedback/");
 
-  const shouldShowGuide = Boolean(isAuthenticated && token && !isPublicRoute);
+  const isMobileOrInspectorView =
+    location.pathname.startsWith("/inspector") ||
+    location.pathname.startsWith("/field-inspector") ||
+    location.pathname.includes("/mobile") ||
+    (user?.role || "").toLowerCase() === "site_manager";
+
+  const shouldShowGuide = Boolean(isAuthenticated && token && !isPublicRoute && !isMobileOrInspectorView);
 
   const [isAssistOpen, setIsAssistOpen] = useState(false);
   const [activeAssistTab, setActiveAssistTab] = useState<VolviTab>("copilot");
