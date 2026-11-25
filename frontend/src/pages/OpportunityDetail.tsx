@@ -518,59 +518,59 @@ export default function OpportunityDetail() {
   ).toLowerCase();
 
   const currentOpportunityStepIndex = (() => {
-    if (status === "WON" || currentStageName === "won") return 4;
-    if (status === "LOST" || currentStageName === "lost") return -1;
-    if (currentStageName.includes("discovery")) return 0;
-    if (currentStageName.includes("requirement")) return 1;
+    if (status === "WON" || currentStageName === "won" || currentStageName === "deal won") return 3;
+    if (status === "LOST" || currentStageName === "lost" || currentStageName === "deal lost") return -1;
+    if (
+      currentStageName.includes("negotiat") ||
+      currentStageName.includes("agree") ||
+      currentStageName.includes("po negotiation")
+    )
+      return 2;
     if (
       currentStageName.includes("quote") ||
       currentStageName.includes("solution") ||
       currentStageName.includes("scope") ||
-      currentStageName.includes("proposal")
+      currentStageName.includes("proposal") ||
+      currentStageName.includes("po") ||
+      currentStageName.includes("1st")
     )
-      return 2;
+      return 1;
     if (
-      currentStageName.includes("negotiat") ||
-      currentStageName.includes("agree")
+      currentStageName.includes("discovery") ||
+      currentStageName.includes("requirement") ||
+      currentStageName.includes("confirm")
     )
-      return 3;
+      return 0;
     return 0;
   })();
 
   const opportunityStages = [
     {
-      key: "Discovery",
+      key: "CONFIRM_REQUIREMENTS",
       num: 1,
-      label: "Discovery",
-      desc: "Initial technical discovery & customer scoping",
-      targetStageName: "Discovery"
-    },
-    {
-      key: "Requirements",
-      num: 2,
-      label: "Requirements",
+      label: "Confirm Requirements",
       desc: "Technical specs & plant gate access",
       targetStageName: "Requirements"
     },
     {
-      key: "Proposal Prep",
-      num: 3,
-      label: "Proposal Prep",
-      desc: "Itemized quotation & pricing review",
+      key: "FIRST_PO",
+      num: 2,
+      label: "1st PO",
+      desc: "Initial PO & quotation preparation",
       targetStageName: "Quote Preparation"
     },
     {
-      key: "Negotiation",
-      num: 4,
-      label: "Negotiation",
-      desc: "Commercial terms & margin alignment",
+      key: "PO_NEGOTIATION",
+      num: 3,
+      label: "PO Negotiation",
+      desc: "Commercial terms & pricing review",
       targetStageName: "Negotiation"
     },
     {
-      key: "Won",
-      num: 5,
-      label: "Won Deal",
-      desc: "Contract awarded & signed",
+      key: "DEAL_WON",
+      num: 4,
+      label: "Deal Won",
+      desc: "PO finalized & contract awarded",
       targetStageName: "Won"
     }
   ];
@@ -587,11 +587,13 @@ export default function OpportunityDetail() {
       return (
         sName === targetName ||
         sName === label ||
-        (stage.key === "Won" && sName === "won") ||
-        (stage.key === "Proposal Prep" &&
+        (stage.key === "DEAL_WON" && (sName === "won" || sName === "agreed")) ||
+        (stage.key === "CONFIRM_REQUIREMENTS" && (sName === "requirements" || sName === "discovery")) ||
+        (stage.key === "FIRST_PO" &&
           (sName === "quote preparation" ||
             sName === "quote sent" ||
-            sName === "solution/scope"))
+            sName === "solution/scope")) ||
+        (stage.key === "PO_NEGOTIATION" && (sName === "negotiation" || sName === "agreed"))
       );
     });
     const targetId = matched?.id || stage.targetStageName;
@@ -1165,7 +1167,7 @@ export default function OpportunityDetail() {
       <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3 sm:p-4 shadow-xs space-y-2">
         <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
           {/* Stepper nodes */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 flex-1">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 flex-1">
             {opportunityStages.map((stage, idx) => {
               const isCurrent = currentOpportunityStepIndex === idx;
               const isPast = currentOpportunityStepIndex > idx;
@@ -1263,7 +1265,7 @@ export default function OpportunityDetail() {
             <XCircle
               className={`w-3.5 h-3.5 ${status === "LOST" ? "text-white" : "text-rose-500"}`}
             />
-            <span>{status === "LOST" ? "Closed as Lost" : "Close as Lost"}</span>
+            <span>{status === "LOST" ? "Deal Lost (Closed)" : "Deal Lost"}</span>
           </button>
         </div>
       </div>

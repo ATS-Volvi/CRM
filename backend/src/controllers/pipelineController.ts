@@ -129,6 +129,11 @@ export const moveDealStage = async (req: Request, res: Response) => {
         const sName = s.name.toLowerCase();
         return sName === cleanName ||
           (cleanName === "won deal" && sName === "won") ||
+          (cleanName === "deal won" && sName === "won") ||
+          (cleanName === "confirm requirements" && (sName === "requirements" || sName === "discovery")) ||
+          (cleanName === "1st po" && (sName === "quote preparation" || sName === "quote sent" || sName === "solution/scope")) ||
+          (cleanName === "po negotiation" && (sName === "negotiation" || sName === "agreed")) ||
+          (cleanName === "deal lost" && sName === "lost") ||
           (cleanName === "proposal prep" && (sName === "quote preparation" || sName === "quote sent" || sName === "solution/scope"));
       });
       if (!toStageObj) {
