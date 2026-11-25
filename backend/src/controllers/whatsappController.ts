@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import twilio from "twilio";
 import { sequelize } from "@nexus-crm/database";
-import { sendWhatsAppMessage, sendWhatsAppTemplateMessage } from "../services/whatsappService";
+import { sendWhatsAppMessage, sendWhatsAppTemplateMessage, syncInboundWhatsAppMessages } from "../services/whatsappService";
 import { checkRecordAccess } from "../services/handoffAccessService";
 import { assignLead } from "../services/assignmentEngine";
 import { extractLeadDetailsFromText } from "../services/aiLeadExtraction";
@@ -394,11 +394,17 @@ export const getConversations = async (req: Request, res: Response) => {
 
 export const getMessages = async (req: Request, res: Response) => {
   try {
-    const targetId = req.params.targetId || (req.query.leadId as string) || (req.query.targetId as string) || (req.query.customerId as string);
+    const rawTarget = req.params.targetId || (req.query.leadId as string) || (req.query.targetId as string) || (req.query.customerId as string);
+    const targetId = Array.isArray(rawTarget) ? rawTarget[0] : rawTarget;
 
     if (!targetId) {
       return res.status(200).json([]);
     }
+
+    // On-demand reconciliation: Auto-sync recent inbound Twilio messages for this target
+    await syncInboundWhatsAppMessages(targetId).catch((syncErr: any) => {
+      console.warn("[whatsappController] Inbound WhatsApp sync notice:", syncErr?.message);
+    });
 
     const activities = await sequelize.models.Activity.findAll({
       where: {

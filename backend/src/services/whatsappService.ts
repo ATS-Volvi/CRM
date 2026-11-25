@@ -1,5 +1,7 @@
 import twilio from "twilio";
 import dotenv from "dotenv";
+import crypto from "crypto";
+import { sequelize } from "@nexus-crm/database";
 import { logWhatsAppEvent, getRemediationTip } from "./whatsappLogger";
 dotenv.config();
 
@@ -195,5 +197,89 @@ export const sendWhatsAppTemplateMessage = async (
     }, formattedPhone);
 
     throw new Error(`Twilio Template API Error (${err.code ? `Code ${err.code}` : "Failure"}): ${err.message}`);
+  }
+};
+
+/**
+ * On-demand Twilio WhatsApp Inbound Sync.
+ * Polls Twilio Messages API for any unrecorded customer replies and ingests them into Activity.
+ * Provides a foolproof fallback when Twilio webhooks are delayed, unconfigured, or failing.
+ */
+export const syncInboundWhatsAppMessages = async (leadId?: string, customerPhone?: string) => {
+  const accountSid = (process.env.TWILIO_ACCOUNT_SID || "").trim();
+  const authToken = (process.env.TWILIO_AUTH_TOKEN || "").trim();
+  const twilioNumber = (process.env.TWILIO_WHATSAPP_NUMBER || process.env.TWILIO_PHONE_NUMBER || "whatsapp:+14155238886").trim();
+
+  if (!accountSid || !authToken) return [];
+
+  const { Activity, Lead } = sequelize.models;
+  let targetLead: any = null;
+  if (leadId) {
+    targetLead = await Lead.findByPk(leadId);
+  }
+
+  const phoneRaw = customerPhone || targetLead?.whatsappPhone || targetLead?.phone;
+  if (!phoneRaw) return [];
+
+  const cleanDigits = phoneRaw.replace(/\D/g, "");
+  if (cleanDigits.length < 7) return [];
+
+  const twilioFrom = cleanDigits.startsWith("91")
+    ? `whatsapp:+${cleanDigits}`
+    : cleanDigits.length === 10
+    ? `whatsapp:+91${cleanDigits}`
+    : `whatsapp:+${cleanDigits}`;
+  const twilioTo = twilioNumber.startsWith("whatsapp:") ? twilioNumber : `whatsapp:${twilioNumber}`;
+
+  try {
+    const client = twilio(accountSid, authToken);
+    const messages = await client.messages.list({
+      to: twilioTo,
+      from: twilioFrom,
+      limit: 10,
+    });
+
+    const newActivities = [];
+    for (const msg of messages) {
+      if (!msg.body || !msg.body.trim()) continue;
+      // Skip system opt-in keywords from customer conversation timeline
+      const lower = msg.body.trim().toLowerCase();
+      if (lower.startsWith("join ") || lower === "join" || lower === "stop" || lower === "start") {
+        continue;
+      }
+
+      const existing = await Activity.findOne({
+        where: { messageId: msg.sid },
+      });
+
+      if (!existing && targetLead) {
+        const adminId = targetLead.assignedToId || null;
+        const created = await Activity.create({
+          id: crypto.randomUUID(),
+          leadId: targetLead.id,
+          customerId: targetLead.customerId || null,
+          type: "whatsapp_sms",
+          notes: msg.body,
+          outcome: "message received",
+          messageId: msg.sid,
+          direction: "inbound",
+          pinned: false,
+          createdById: adminId,
+          createdAt: msg.dateCreated || new Date(),
+          updatedAt: msg.dateCreated || new Date(),
+        } as any);
+        newActivities.push(created);
+
+        await targetLead.update({
+          lastInboundAt: new Date(),
+          updatedAt: new Date(),
+        }).catch(() => {});
+      }
+    }
+
+    return newActivities;
+  } catch (err: any) {
+    console.warn("[whatsappService] Error syncing inbound messages from Twilio:", err.message);
+    return [];
   }
 };

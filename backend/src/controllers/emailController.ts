@@ -209,10 +209,10 @@ export const receiveInboundEmail = async (req: Request, res: Response) => {
     const cleanSenderEmail = (email || "").trim().toLowerCase();
     if (cleanSenderEmail) {
       try {
-        const { Lead } = sequelize.models;
+        const { Lead, Activity } = sequelize.models;
         const isSqlite = typeof (sequelize as any).getDialect === "function" && (sequelize as any).getDialect() === "sqlite";
         const likeOp = isSqlite ? Op.like : Op.iLike;
-        const openLead = await Lead.findOne({
+        const candidateLeads = await Lead.findAll({
           where: {
             email: { [likeOp]: cleanSenderEmail },
             status: {
@@ -222,20 +222,69 @@ export const receiveInboundEmail = async (req: Request, res: Response) => {
           order: [["updatedAt", "DESC"], ["createdAt", "DESC"]]
         });
 
-        if (openLead) {
-          const targetLeadId = (openLead as any).id;
+        if (candidateLeads.length > 0) {
+          // 1. Thread & Entity Matching: Check if subject or body references company (e.g. hbjn), subject, or leadNumber
+          const subjectLower = (emailSubject || "").toLowerCase();
+          const bodyLower = (emailBody || "").toLowerCase();
+
+          let primaryLead = candidateLeads.find((l: any) => {
+            const comp = (l.company || "").trim().toLowerCase();
+            const subj = (l.subject || "").trim().toLowerCase();
+            const num = (l.leadNumber || "").trim().toLowerCase();
+            if (comp && comp.length >= 3 && (subjectLower.includes(comp) || bodyLower.includes(comp))) return true;
+            if (subj && subj.length >= 4 && subjectLower.includes(subj)) return true;
+            if (num && subjectLower.includes(num)) return true;
+            return false;
+          });
+
+          // 2. Outbound activity matching: Find lead that actually has outbound emails sent by a sales rep
+          if (!primaryLead && Activity) {
+            for (const cand of candidateLeads) {
+              const hasOutbound = await Activity.findOne({
+                where: {
+                  leadId: (cand as any).id,
+                  type: "email",
+                  direction: "outbound"
+                }
+              });
+              if (hasOutbound) {
+                primaryLead = cand;
+                break;
+              }
+            }
+          }
+
+          // 3. Fallback: Prefer lead with active stage over raw NEW stub
+          if (!primaryLead) {
+            primaryLead = candidateLeads.find((l: any) => l.status && l.status !== "NEW") || candidateLeads[0];
+          }
+
+          const targetLeadId = (primaryLead as any).id;
           await attachEmailToLeadActivity({
             leadId: targetLeadId,
             subject: emailSubject || "Re: Inquiry",
             body: emailBody || "",
-            createdById: (openLead as any).assignedToId || null,
+            createdById: (primaryLead as any).assignedToId || null,
             channelSource: "email"
           });
 
-          await openLead.update({
+          await primaryLead.update({
             lastInboundAt: new Date(),
             updatedAt: new Date()
           }).catch(() => {});
+
+          // Mirror to all candidate open leads for this customer so all rep views stay in sync
+          for (const sibling of candidateLeads) {
+            if ((sibling as any).id !== targetLeadId) {
+              await attachEmailToLeadActivity({
+                leadId: (sibling as any).id,
+                subject: emailSubject || "Re: Inquiry",
+                body: emailBody || "",
+                createdById: (sibling as any).assignedToId || null,
+                channelSource: "email"
+              }).catch(() => {});
+            }
+          }
 
           return res.status(202).json({
             status: "attached",

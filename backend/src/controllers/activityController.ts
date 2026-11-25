@@ -11,6 +11,10 @@ export const getLeadActivities = async (req: Request, res: Response) => {
 
     if (leadId && leadId !== "all") {
       where.leadId = leadId;
+      try {
+        const { syncInboundWhatsAppMessages } = require("../services/whatsappService");
+        await syncInboundWhatsAppMessages(leadId);
+      } catch (syncErr: any) {}
     } else if (accountId) {
       where.customerId = accountId;
     } else if (dealId) {
