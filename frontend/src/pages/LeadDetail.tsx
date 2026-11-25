@@ -63,12 +63,13 @@ export default function LeadDetail() {
   const [callOutcome, setCallOutcome] = useState("Connected");
   const [callNotes, setCallNotes] = useState("");
 
-  // Consultative Discovery Call Guide State
+  // Consultative Discovery Call Guide State (Tailored for FACE Services)
   const [showDiscoveryGuide, setShowDiscoveryGuide] = useState(false);
-  const [discoveryDuty, setDiscoveryDuty] = useState<"continuous" | "intermittent">("continuous");
-  const [discoveryHz, setDiscoveryHz] = useState<"400V_50Hz" | "480V_60Hz" | "220_380V_60Hz">("400V_50Hz");
-  const [discoveryMethod, setDiscoveryMethod] = useState<"DOL" | "SOFT_STARTER" | "VFD">("DOL");
-  const [discoveryNameplateCheck, setDiscoveryNameplateCheck] = useState(false);
+  const [discoveryService, setDiscoveryService] = useState<string>("industrial_hydrojetting");
+  const [discoveryFacility, setDiscoveryFacility] = useState<string>("aramco_restricted");
+  const [discoveryUrgency, setDiscoveryUrgency] = useState<string>("emergency_shutdown");
+  const [discoverySowCheck, setDiscoverySowCheck] = useState(false);
+  const [discoveryUtilitiesCheck, setDiscoveryUtilitiesCheck] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -128,6 +129,32 @@ export default function LeadDetail() {
   });
 
   const requiresSiteInspection = lead?.requiresSiteInspection === true;
+
+  useEffect(() => {
+    if (!lead) return;
+    const text = `${lead.body || ""} ${lead.message || ""} ${lead.sourceDetail || ""}`.toLowerCase();
+    if (text.includes("waste") || text.includes("sewage") || text.includes("sludge") || text.includes("wms") || text.includes("vacuum")) {
+      setDiscoveryService("wms_waste_management");
+    } else if (text.includes("toilet") || text.includes("cabin") || text.includes("modular") || text.includes("tcf") || text.includes("porta")) {
+      setDiscoveryService("tcf_modular_camp");
+    } else if (text.includes("chemical") || text.includes("decon") || text.includes("flush") || text.includes("steam")) {
+      setDiscoveryService("industrial_chem_tank");
+    } else if (text.includes("crane") || text.includes("equipment") || text.includes("spmt") || text.includes("lift")) {
+      setDiscoveryService("heavy_equipment");
+    } else if (text.includes("hydrojet") || text.includes("jetting") || text.includes("psi")) {
+      setDiscoveryService("industrial_hydrojetting");
+    }
+
+    if (text.includes("sabic") || text.includes("royal commission") || text.includes("rcjy")) {
+      setDiscoveryFacility("sabic_rcjy");
+    } else if (text.includes("neom") || text.includes("red sea") || text.includes("desert")) {
+      setDiscoveryFacility("neom_remote");
+    } else if (text.includes("modon")) {
+      setDiscoveryFacility("modon_industrial");
+    } else if (text.includes("aramco")) {
+      setDiscoveryFacility("aramco_restricted");
+    }
+  }, [lead]);
 
   const { data: pipelineStages } = useQuery<any[]>({
     queryKey: ["pipelineStages"],
@@ -1017,7 +1044,7 @@ export default function LeadDetail() {
             </div>
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-[10px] text-amber-700 dark:text-amber-400 font-medium">
-                Verify parameters before technical dispatch or quotation
+                FACE Scope, Safety Clearances &amp; Mobilization Verification
               </span>
               <button
                 type="button"
@@ -1031,70 +1058,110 @@ export default function LeadDetail() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-            {/* Question 1: Duty Cycle */}
+            {/* Question 1: Service Division & Technical Scope */}
             <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-amber-200/70 dark:border-amber-800/50 space-y-2 shadow-2xs">
               <label className="text-[10px] font-bold text-amber-900 dark:text-amber-300 uppercase tracking-wider block">
-                1. Duty Cycle (Continuous vs Cycling)
+                1. Service Division &amp; Technical Scope
               </label>
               <select
-                value={discoveryDuty}
-                onChange={(e: any) => setDiscoveryDuty(e.target.value)}
+                value={discoveryService}
+                onChange={(e: any) => setDiscoveryService(e.target.value)}
                 className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs text-slate-900 dark:text-white font-medium"
               >
-                <option value="continuous">Continuous 24/7 Heavy Load</option>
-                <option value="intermittent">Intermittent / Cycling / Night Noise Limit</option>
+                <option value="industrial_hydrojetting">Industrial Services • UHP Hydrojetting (15k–40k PSI)</option>
+                <option value="industrial_chem_tank">Industrial Services • Chemical Cleaning &amp; Tank Decon</option>
+                <option value="wms_waste_management">Waste Management • Hazardous &amp; Vacuum Sludge (WMS)</option>
+                <option value="tcf_modular_camp">Modular Facilities • Camp Cabins &amp; Toilets (TCF)</option>
+                <option value="heavy_equipment">Heavy Equipment • Cranes, SPMT &amp; Vacuum Fleet</option>
               </select>
               <p className="text-[10px] text-slate-600 dark:text-slate-400 leading-snug">
-                {discoveryDuty === "continuous"
-                  ? "➔ Heavy industrial duty cycle: require minimum 25% continuous headroom and verified fuel logistics."
-                  : "➔ Cycling duty: evaluate standby vs prime rating to prevent engine wet-stacking."}
+                {discoveryService === "industrial_hydrojetting" && "➔ UHP Hydrojetting: Confirm line diameter, scale hardness, bundle type & on-site water point. Requires 40k PSI certified lance crew."}
+                {discoveryService === "industrial_chem_tank" && "➔ Chemical / Decon: Verify metallurgy compatibility, vessel volume, and H₂S / Pyrophoric gas purge standards."}
+                {discoveryService === "wms_waste_management" && "➔ WMS Sludge/Waste: Confirm waste classification (Hazardous/RCJY), tanker capacity (3k–5k Gal), and NCEC/RCJY disposal manifest."}
+                {discoveryService === "tcf_modular_camp" && "➔ Modular / TCF: Confirm workforce headcount, ablution layout, and scheduled vacuum sewage & servicing frequency."}
+                {discoveryService === "heavy_equipment" && "➔ Heavy Equipment: Confirm load tonnage chart, boom clearance, and Aramco / TUV operator certification requirements."}
               </p>
             </div>
 
-            {/* Question 2: Grid Voltage & Frequency */}
+            {/* Question 2: Facility Access & Safety Gate Permits */}
             <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-amber-200/70 dark:border-amber-800/50 space-y-2 shadow-2xs">
               <label className="text-[10px] font-bold text-amber-900 dark:text-amber-300 uppercase tracking-wider block">
-                2. Frequency & Voltage Standard
+                2. Plant Access &amp; Gate Permits (PTW)
               </label>
               <select
-                value={discoveryHz}
-                onChange={(e: any) => setDiscoveryHz(e.target.value)}
+                value={discoveryFacility}
+                onChange={(e: any) => setDiscoveryFacility(e.target.value)}
                 className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs text-slate-900 dark:text-white font-medium"
               >
-                <option value="400V_50Hz">400V / 230V @ 50 Hz (Standard KSA)</option>
-                <option value="480V_60Hz">480V @ 60 Hz (Saudi Aramco / US Spec)</option>
-                <option value="220_380V_60Hz">380V / 220V @ 60 Hz (SEC Grid)</option>
+                <option value="aramco_restricted">Saudi Aramco Operational Facility (Restricted Zone)</option>
+                <option value="sabic_rcjy">SABIC / Royal Commission (Jubail / Yanbu Industrial)</option>
+                <option value="modon_industrial">MODON Industrial City / Secondary Zone</option>
+                <option value="neom_remote">NEOM / Red Sea / Remote Project Site</option>
+                <option value="commercial_open">Commercial / Municipal Infrastructure (General)</option>
               </select>
-              <p className="text-[10px] text-rose-600 dark:text-rose-400 font-medium leading-snug">
-                ⚠️ Frequency check: Verify client equipment rating before confirming quotation!
+              <p className="text-[10px] leading-snug">
+                {discoveryFacility === "aramco_restricted" && (
+                  <span className="text-amber-700 dark:text-amber-400 font-medium">
+                    ⚠️ Aramco Protocol: Mandates 48h advance gate pass, Aramco-approved PTW (Cold/Hot), and valid 3rd-party certified equipment stickers.
+                  </span>
+                )}
+                {discoveryFacility === "sabic_rcjy" && (
+                  <span className="text-blue-700 dark:text-blue-400 font-medium">
+                    ⚠️ SABIC / RCJY Protocol: Requires contractor EHS badge, environmental work permit, and industrial security clearance.
+                  </span>
+                )}
+                {discoveryFacility === "neom_remote" && (
+                  <span className="text-purple-700 dark:text-purple-400 font-medium">
+                    ⚠️ Remote Site Protocol: Mobilize self-sustained fuel tanker escort, mobile maintenance unit &amp; satellite dispatch.
+                  </span>
+                )}
+                {(discoveryFacility === "modon_industrial" || discoveryFacility === "commercial_open") && (
+                  <span className="text-emerald-700 dark:text-emerald-400 font-medium">
+                    ✓ Standard Access: Requires standard contractor PPE, site safety induction, and supervisor presence.
+                  </span>
+                )}
               </p>
             </div>
 
-            {/* Question 3: Starting Method */}
+            {/* Question 3: Mobilization Window & Readiness Checklist */}
             <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-amber-200/70 dark:border-amber-800/50 space-y-2 shadow-2xs">
               <label className="text-[10px] font-bold text-amber-900 dark:text-amber-300 uppercase tracking-wider block">
-                3. Starting Inrush & Method
+                3. Mobilization Window &amp; Readiness
               </label>
               <select
-                value={discoveryMethod}
-                onChange={(e: any) => setDiscoveryMethod(e.target.value)}
+                value={discoveryUrgency}
+                onChange={(e: any) => setDiscoveryUrgency(e.target.value)}
                 className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs text-slate-900 dark:text-white font-medium"
               >
-                <option value="DOL">Direct-On-Line (DOL, 3x–6x Inrush Surge)</option>
-                <option value="SOFT_STARTER">Soft Starter (2.5x Surge)</option>
-                <option value="VFD">Variable Frequency Drive (VFD, 1.2x Smooth)</option>
+                <option value="emergency_shutdown">Emergency Outage / Shutdown (&lt; 24h Rapid Mobilization)</option>
+                <option value="scheduled_tam">Scheduled Turnaround / TAM (2–4 Weeks Notice)</option>
+                <option value="recurring_contract">Ongoing Operations (Monthly / Annual Framework)</option>
+                <option value="spot_project">Spot Job / Pre-Commissioning Phase</option>
               </select>
-              <label className="flex items-center gap-2 pt-1 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={discoveryNameplateCheck}
-                  onChange={(e) => setDiscoveryNameplateCheck(e.target.checked)}
-                  className="rounded accent-blue-600"
-                />
-                <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-bold">
-                  ✓ Verified electrical nameplate photo
-                </span>
-              </label>
+              <div className="space-y-1.5 pt-1">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={discoverySowCheck}
+                    onChange={(e) => setDiscoverySowCheck(e.target.checked)}
+                    className="rounded accent-blue-600"
+                  />
+                  <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-bold">
+                    ✓ Technical SOW / MSDS / Drawing received
+                  </span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={discoveryUtilitiesCheck}
+                    onChange={(e) => setDiscoveryUtilitiesCheck(e.target.checked)}
+                    className="rounded accent-blue-600"
+                  />
+                  <span className="text-[10px] text-slate-700 dark:text-slate-300 font-bold">
+                    ✓ Water &amp; power point verified at site limit
+                  </span>
+                </label>
+              </div>
             </div>
           </div>
         </div>
