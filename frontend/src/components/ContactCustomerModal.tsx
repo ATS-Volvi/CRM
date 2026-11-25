@@ -36,6 +36,7 @@ export const ContactCustomerModal: React.FC<ContactCustomerModalProps> = ({
   const [copiedPhone, setCopiedPhone] = useState(false);
   const [notes, setNotes] = useState("");
   const [requiresSiteInspection, setRequiresSiteInspection] = useState<boolean>(() => {
+    if (lead?.status === "NEW") return false;
     return lead?.requiresSiteInspection === true;
   });
 

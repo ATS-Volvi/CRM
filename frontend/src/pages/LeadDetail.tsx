@@ -202,6 +202,10 @@ export default function LeadDetail() {
   });
 
   const requiresSiteInspection = lead?.requiresSiteInspection === true;
+  // Site inspection stage is only active after the contact step if selected or if inspection already exists
+  const showSiteInspectionStage =
+    lead?.status !== "NEW" &&
+    (requiresSiteInspection || Boolean(inspection?.id));
 
   useEffect(() => {
     if (!lead) return;
@@ -954,7 +958,7 @@ export default function LeadDetail() {
           
           {/* Linked Stage Nodes */}
           {(() => {
-            const workflowStages = requiresSiteInspection
+            const workflowStages = showSiteInspectionStage
               ? [
                   { key: "NEW",             num: "1", label: "New Enquiry",     desc: "Ingested & Assigned" },
                   { key: "CONTACTED",       num: "2", label: "Contacted",       desc: "Client Outreach & CX Call" },
@@ -995,7 +999,7 @@ export default function LeadDetail() {
                 isCurrent = currentStatus === "NEW";
                 isPast = currentStatus !== "NEW" && !isNotConverted;
               } else if (stage.key === "CONTACTED") {
-                if (requiresSiteInspection) {
+                if (showSiteInspectionStage) {
                   isCurrent = currentStatus === "CONTACTED" && !inspection?.id && !isApproved;
                   isPast = currentStatus !== "NEW" && !isNotConverted && (Boolean(inspection?.id) || isApproved || ["QUALIFIED", "CONVERTED"].includes(currentStatus));
                 } else {
@@ -1027,11 +1031,11 @@ export default function LeadDetail() {
                   return;
                 }
                 if (stage.key === "QUALIFIED") {
-                  if (requiresSiteInspection && (!inspection || inspection.status !== "APPROVED")) {
+                  if (showSiteInspectionStage && (!inspection || inspection.status !== "APPROVED")) {
                     setIsGateModalOpen(true);
                     return;
                   }
-                  if (gate && !gate.allowed) {
+                  if (gate && !gate.allowed && showSiteInspectionStage) {
                     setGateBlockedBanner(gate.message);
                     setIsGateModalOpen(true);
                     return;
@@ -1188,31 +1192,33 @@ export default function LeadDetail() {
 
         {/* SIDEBAR (Right/Left): AI Copilot + Customer Metadata + Tasks */}
         <div className="col-span-12 lg:col-span-4 flex flex-col gap-5">
-          {/* Site Inspection Card */}
-          <SiteInspectionCard
-            leadId={id!}
-            leadStatus={lead?.status}
-            suggestedLocation={(() => {
-              if (!lead) return "";
-              try {
-                const raw = typeof lead.rawPayload === "string" ? JSON.parse(lead.rawPayload) : lead.rawPayload;
-                if (raw?.operationalBase || raw?.stationLocation || raw?.territory) {
-                  return raw.operationalBase || raw.stationLocation || raw.territory;
+          {/* Site Inspection Card - only displayed once site inspection is determined/requested */}
+          {(showSiteInspectionStage || Boolean(inspection?.id)) && (
+            <SiteInspectionCard
+              leadId={id!}
+              leadStatus={lead?.status}
+              suggestedLocation={(() => {
+                if (!lead) return "";
+                try {
+                  const raw = typeof lead.rawPayload === "string" ? JSON.parse(lead.rawPayload) : lead.rawPayload;
+                  if (raw?.operationalBase || raw?.stationLocation || raw?.territory) {
+                    return raw.operationalBase || raw.stationLocation || raw.territory;
+                  }
+                } catch {}
+                const body = lead.body || lead.message || "";
+                const baseMatch =
+                  body.match(/Target (?:Operational Base|Station\/Base|Station Location|Station|Base):\s*([^\n\r]+)/i) ||
+                  body.match(/Target Operational Base:\s*([^\n\r]+)/i) ||
+                  body.match(/Station Location:\s*([^\n\r]+)/i) ||
+                  body.match(/Location:\s*([^\n\r]+)/i);
+                if (baseMatch && baseMatch[1]) {
+                  return baseMatch[1].trim();
                 }
-              } catch {}
-              const body = lead.body || lead.message || "";
-              const baseMatch =
-                body.match(/Target (?:Operational Base|Station\/Base|Station Location|Station|Base):\s*([^\n\r]+)/i) ||
-                body.match(/Target Operational Base:\s*([^\n\r]+)/i) ||
-                body.match(/Station Location:\s*([^\n\r]+)/i) ||
-                body.match(/Location:\s*([^\n\r]+)/i);
-              if (baseMatch && baseMatch[1]) {
-                return baseMatch[1].trim();
-              }
-              if (lead.territory) return lead.territory;
-              return "";
-            })()}
-          />
+                if (lead.territory) return lead.territory;
+                return "";
+              })()}
+            />
+          )}
 
           {/* ── BUNDLED DOSSIER SMART STACK (Swipeable Card Bundle) ── */}
           {/* Bundles Customer Details, Campaign Attribution, and Company Intelligence into an expandable, swipeable stack */}

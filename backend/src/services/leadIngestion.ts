@@ -212,12 +212,8 @@ export async function ingestLead(rawPayload: LeadPayload) {
     let attempts = 0;
     const maxAttempts = 5;
 
-    // Auto-detect if this lead needs site inspection (waste management keywords)
-    const bodyText = `${payload.message || ""} ${payload.industry || ""}`.toLowerCase();
-    const wasteKeywords = ["sewage", "waste", "garbage", "disposal", "hazardous", "general waste", "sanitation", "toilet cabin", "septic"];
-    const autoRequiresSiteInspection = wasteKeywords.some(kw => bodyText.includes(kw));
-    // payload.requiresSiteInspection can be explicitly set by internal forms
-    const requiresSiteInspection = payload.requiresSiteInspection ?? autoRequiresSiteInspection;
+    // Inbound leads start without site inspection; the sales rep determines whether survey is needed upon contacting the customer
+    const requiresSiteInspection = payload.requiresSiteInspection === true;
 
     while (!newLead && attempts < maxAttempts) {
       attempts++;
