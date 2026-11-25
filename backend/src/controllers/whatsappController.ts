@@ -82,7 +82,8 @@ async function createWhatsAppNotification(
   leadId: string,
   leadName: string,
   messagePreview: string,
-  isNewLead: boolean
+  isNewLead: boolean,
+  customLink?: string
 ): Promise<void> {
   try {
     await sequelize.models.Notification.create({
@@ -91,9 +92,10 @@ async function createWhatsAppNotification(
       type: "whatsapp_inbound",
       title: isNewLead
         ? `📲 New WhatsApp Lead: ${leadName}`
-        : `💬 New WhatsApp Message from ${leadName}`,
+        : `💬 WhatsApp Reply from ${leadName}`,
       message: messagePreview.length > 120 ? messagePreview.slice(0, 117) + "…" : messagePreview,
-      link: `/leads/${leadId}`,
+      link: customLink || `/leads/${leadId}`,
+      actionUrl: customLink || `/leads/${leadId}`,
       isRead: false,
     } as any);
   } catch (err) {
@@ -574,6 +576,7 @@ export const handleIncomingWebhook = async (req: Request, res: Response) => {
     let targetDealId: string | null = null;
     let matchingLead: any = null;
     let matchingContact: any = null;
+    let matchingDeal: any = null;
 
     if (cleanDigits.length >= 7) {
       // 1. Search existing Lead by phone or whatsappPhone
@@ -611,7 +614,7 @@ export const handleIncomingWebhook = async (req: Request, res: Response) => {
 
       // 3. Search existing Deal linked to Lead or Customer
       if (sequelize.models.Deal && targetLeadId) {
-        const matchingDeal = await sequelize.models.Deal.findOne({
+        matchingDeal = await sequelize.models.Deal.findOne({
           where: { leadId: targetLeadId }
         }) as any;
         if (matchingDeal) {
@@ -880,6 +883,34 @@ export const handleIncomingWebhook = async (req: Request, res: Response) => {
       createdById: adminId,
       direction: "inbound"
     } as any);
+
+    // ── DISPATCH REAL-TIME IN-APP NOTIFICATION TO ASSIGNED SALES REP ───────────
+    try {
+      const repId = (matchingDeal as any)?.assignedToId || 
+                    (matchingLead as any)?.assignedToId || 
+                    (matchingContact as any)?.account?.assignedToId || 
+                    null;
+
+      if (repId) {
+        const leadLabel = (matchingLead as any)?.company || 
+                          ((matchingLead as any)?.firstName ? `${(matchingLead as any).firstName} ${(matchingLead as any).lastName || ''}`.trim() : '') || 
+                          senderName || 
+                          from;
+
+        const directLink = targetLeadId ? `/leads/${targetLeadId}` : (targetDealId ? `/deals/${targetDealId}` : "/leads");
+
+        await createWhatsAppNotification(
+          repId,
+          targetLeadId || targetDealId || "",
+          leadLabel,
+          msgBody,
+          false,
+          directLink
+        );
+      }
+    } catch (repNotifErr: any) {
+      console.warn("[WhatsApp Inbound] Non-blocking rep notification alert warning:", repNotifErr?.message);
+    }
 
     // ── INBOUND LOCATION PIN & MAPS LINK PROCESSING ─────────────────────────
     try {
