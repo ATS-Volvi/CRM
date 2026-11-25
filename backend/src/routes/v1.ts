@@ -1,4 +1,5 @@
 import { Router } from "express";
+import cors from "cors";
 import { register, login } from "../controllers/auth";
 import { createPublicLead } from "../controllers/publicLeads";
 import { authMiddleware, requireAdminOrManager, requireAdmin, requireInspectionApprover } from "../middleware/auth";
@@ -295,8 +296,10 @@ const upload = multer();
 
 const { leadSecurityPipeline } = require("../lead-security-layer");
 
+router.options("/public/leads", cors());
 router.post(
   "/public/leads",
+  cors(),
   (req, res, next) => {
     (req as any).leadSource = req.body?.source || "Website";
     next();
