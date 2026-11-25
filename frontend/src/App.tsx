@@ -2,6 +2,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { SalesLayout } from "./components/SalesLayout";
+import { BrandProvider } from "./context/BrandContext";
+import { VolviAssistProvider } from "./context/VolviAssistContext";
 
 // Page Imports
 import ManagementDashboard from "./pages/ManagementDashboard";
@@ -108,8 +110,10 @@ const queryClient = new QueryClient();
 function App() {
   return (
     <BrowserRouter>
-      <AuthProvider>
-        <Routes>
+      <BrandProvider>
+        <AuthProvider>
+          <VolviAssistProvider>
+            <Routes>
           <Route path="/quote" element={<PublicQuoteRequest />} />
           <Route path="/q/:token" element={<PublicQuoteReview />} />
           <Route path="/feedback/:token" element={<PublicFeedback />} />
@@ -218,7 +222,9 @@ function App() {
             </Route>
           </Route>
         </Routes>
-      </AuthProvider>
+          </VolviAssistProvider>
+        </AuthProvider>
+      </BrandProvider>
     </BrowserRouter>
   );
 }

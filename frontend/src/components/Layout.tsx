@@ -16,15 +16,18 @@ import { TopWorkspaceNav } from "./TopWorkspaceNav";
 import { Sidebar } from "./Sidebar";
 import { WorkspaceTransition } from "./WorkspaceTransition";
 import { OrbitProvider } from "../context/OrbitContext";
+import { useVolviAssist } from "../context/VolviAssistContext";
+import { useBrand } from "../context/BrandContext";
 
 export function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout, token } = useAuth();
+  const { brand } = useBrand();
+  const { isAssistOpen, openAssist, closeAssist } = useVolviAssist();
 
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
-  const [isAiCopilotOpen, setIsAiCopilotOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(() => {
     return localStorage.getItem("theme") === "dark" || document.documentElement.classList.contains("dark");
   });
@@ -123,12 +126,12 @@ export function Layout() {
 
   return (
     <OrbitProvider>
-      <div className="flex flex-col h-screen w-full bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans overflow-hidden transition-colors duration-300">
+      <div className="flex flex-col h-screen w-full bg-[var(--crm-bg-page,#F4F7FC)] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans overflow-hidden transition-colors duration-300">
         {/* MAIN CONTENT AREA CONTAINER WITH PERSISTENT SIDEBAR */}
         <div className="flex-1 flex overflow-hidden relative">
           <Sidebar
             onOpenSearch={() => setIsCommandPaletteOpen(true)}
-            onOpenAi={() => setIsAiCopilotOpen(true)}
+            onOpenAi={() => openAssist()}
             onOpenNotifications={() => setIsNotificationsOpen(true)}
           />
           <main className="flex-1 overflow-y-auto relative">
@@ -141,7 +144,7 @@ export function Layout() {
         {/* MODALS & DRAWERS */}
         <GlobalSearchModal isOpen={isCommandPaletteOpen} onClose={() => setIsCommandPaletteOpen(false)} />
         <NotificationDrawer isOpen={isNotificationsOpen} onClose={() => setIsNotificationsOpen(false)} />
-        <AiCopilotDrawer isOpen={isAiCopilotOpen} onClose={() => setIsAiCopilotOpen(false)} />
+        <AiCopilotDrawer isOpen={isAssistOpen} onClose={closeAssist} />
       </div>
     </OrbitProvider>
   );

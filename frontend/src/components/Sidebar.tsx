@@ -4,10 +4,12 @@ import {
   ClipboardCheck, LayoutDashboard, Home, Inbox, Trello, FileText, Receipt,
   Users, BarChart, Settings, Clock, ChevronLeft, 
   ChevronRight, MessageSquare, CheckSquare, Search, Bell, Sparkles, LogOut, ChevronDown, Layers, Package, Building2, LifeBuoy, Target,
-  UserCheck, Shield, Briefcase, Megaphone, Wrench, ShieldAlert
+  UserCheck, Shield, Briefcase, Megaphone, Wrench, ShieldAlert, Bot, Palette
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
+import { useBrand } from "../context/BrandContext";
+import { useVolviAssist } from "../context/VolviAssistContext";
 import { leadFilterApi } from "../api";
 import { AttendanceClockWidget } from "./AttendanceClockWidget";
 
@@ -38,6 +40,8 @@ export function Sidebar({
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const { brand, themeColor, setThemeColor } = useBrand();
+  const { unreadCount } = useVolviAssist();
 
   const [isCollapsed, setIsCollapsed] = useState(() => {
     return localStorage.getItem("sidebar_collapsed") === "true";
@@ -138,7 +142,7 @@ export function Sidebar({
 
   return (
     <aside
-      className={`bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col justify-between transition-all duration-300 z-20 shrink-0 select-none ${
+      className={`bg-[var(--crm-sidebar-bg,#F3F5F8)] border-r border-[var(--crm-sidebar-border,#E3E8F0)] flex flex-col justify-between transition-all duration-300 z-20 shrink-0 select-none ${
         isCollapsed ? "w-16" : "w-64"
       }`}
     >
@@ -207,20 +211,27 @@ export function Sidebar({
             {onOpenAi && (
               <button
                 onClick={onOpenAi}
-                className={`flex-1 flex items-center gap-2 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-xl px-2.5 py-1.5 text-xs font-bold transition-all ${
+                className={`flex-1 flex items-center justify-between bg-[var(--crm-sidebar-box-bg,#FFFFFF)] hover:bg-[var(--crm-sidebar-hover,#E8ECF2)] border border-[var(--crm-sidebar-box-border,#E3E8F0)] text-[var(--crm-sidebar-text,#334155)] shadow-2xs rounded-xl px-2.5 py-1.5 text-xs font-bold transition-all ${
                   isCollapsed ? "justify-center" : ""
                 }`}
-                title="AI Copilot"
+                title="Volvi Copilot (Industrial RAG & Alerts)"
               >
-                <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0 animate-pulse" />
-                {!isCollapsed && <span>AI Copilot</span>}
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <Bot className="w-3.5 h-3.5 text-[var(--crm-primary,#2563EB)] shrink-0" />
+                  {!isCollapsed && <span className="truncate font-extrabold text-[var(--crm-sidebar-heading,#0F172A)]">Volvi Copilot</span>}
+                </div>
+                {!isCollapsed && unreadCount > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full text-white text-[9px] font-black shadow-xs bg-[var(--crm-sidebar-active-bg,#2563EB)]">
+                    {unreadCount}
+                  </span>
+                )}
               </button>
             )}
 
             {onOpenNotifications && (
               <button
                 onClick={onOpenNotifications}
-                className="p-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-300 rounded-xl transition-colors shrink-0"
+                className="p-1.5 bg-[var(--crm-sidebar-box-bg,#FFFFFF)] hover:bg-[var(--crm-sidebar-hover,#E8ECF2)] border border-[var(--crm-sidebar-box-border,#E3E8F0)] text-slate-600 rounded-xl transition-colors shrink-0"
                 title="Notifications"
               >
                 <Bell className="w-4 h-4" />
@@ -344,6 +355,32 @@ export function Sidebar({
 
       {/* Sidebar Footer User Info & Shift Status */}
       <div className="p-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 space-y-2">
+        {!isCollapsed && (
+          <div className="flex items-center justify-between p-1 bg-[var(--crm-sidebar-toggle-bg,#E8ECF2)] rounded-xl text-[11px] font-bold">
+            <button
+              type="button"
+              onClick={() => setThemeColor("sky")}
+              className={`flex-1 py-1 rounded-lg text-center transition cursor-pointer ${
+                themeColor === "sky"
+                  ? "bg-white text-[var(--crm-primary,#2563EB)] shadow-2xs font-black"
+                  : "text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              Sky Light
+            </button>
+            <button
+              type="button"
+              onClick={() => setThemeColor("velvet")}
+              className={`flex-1 py-1 rounded-lg text-center transition cursor-pointer ${
+                themeColor === "velvet"
+                  ? "bg-white text-[var(--crm-primary,#9F1239)] shadow-2xs font-black"
+                  : "text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              Velvet Light
+            </button>
+          </div>
+        )}
         {!isCollapsed && (
           <div className="pb-1">
             <AttendanceClockWidget variant="sidebar" />

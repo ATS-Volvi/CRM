@@ -1,0 +1,168 @@
+/* ==========================================================================
+   ENERGIA FLEET CORE CRM - UNIFIED THEME TOKENS
+   Light, clean & airy CSS variables for Light Blue & Velvet Maroon themes
+   ========================================================================== */
+
+:root,
+:root.theme-sky {
+  /* Page & Surfaces */
+  --crm-bg-page: #F4F7FC;
+  --crm-card-bg: #FFFFFF;
+  --crm-card-border: #E3E8F0;
+  --crm-row-divider: #EEF2F7;
+  --crm-card-shadow: 0 1px 3px rgba(15, 37, 64, 0.06);
+
+  /* Primary Brand Colors */
+  --crm-primary: #2563EB;
+  --crm-primary-hover: #1D4ED8;
+  --crm-primary-soft: #EFF4FF;
+  --crm-chip-light: #DBEAFE;
+  --crm-primary-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);
+  --crm-popup-shadow: 0 8px 24px rgba(37, 99, 235, 0.18);
+
+  /* Performance Card */
+  --crm-perf-gradient: linear-gradient(135deg, #EAF2FF, #DCE9FF);
+  --crm-perf-border: #D5E3FA;
+
+  /* Typography */
+  --crm-text-heading: #0F172A;
+  --crm-text-body: #334155;
+  --crm-text-muted: #64748B;
+  --crm-amber: #F59E0B;
+
+  /* Status Colors */
+  --crm-status-success-text: #16A34A;
+  --crm-status-success-bg: #DCFCE7;
+  --crm-status-warning-text: #D97706;
+  --crm-status-warning-bg: #FEF3C7;
+  --crm-status-critical-text: #DC2626;
+  --crm-status-critical-bg: #FEE2E2;
+  --crm-status-info-text: #2563EB;
+  --crm-status-info-bg: #DBEAFE;
+
+  /* Sidebar Tokens - Light Grey Theme */
+  --crm-sidebar-bg: #F3F5F8;
+  --crm-sidebar-border: #E3E8F0;
+  --crm-sidebar-panel-bg: #FFFFFF;
+  --crm-sidebar-panel-border: #E3E8F0;
+  --crm-sidebar-heading: #0F172A;
+  --crm-sidebar-text: #334155;
+  --crm-sidebar-icon: #64748B;
+  --crm-sidebar-hover: #E8ECF2;
+  --crm-sidebar-active-bg: #2563EB;
+  --crm-sidebar-active-text: #FFFFFF;
+  --crm-sidebar-box-bg: #FFFFFF;
+  --crm-sidebar-box-border: #E3E8F0;
+  --crm-sidebar-toggle-bg: #E8ECF2;
+  --crm-sidebar-toggle-active-bg: #FFFFFF;
+  --crm-sidebar-toggle-active-text: #2563EB;
+  --crm-sidebar-ratio-bg: #FFFFFF;
+  --crm-sidebar-ratio-border: #E3E8F0;
+  --crm-sidebar-progress-track: #E3E8F0;
+  --crm-sidebar-progress-fill: #2563EB;
+  --crm-sidebar-pill-bg: #EFF4FF;
+  --crm-sidebar-pill-text: #2563EB;
+  --crm-sidebar-dot: #22C55E;
+  --crm-sidebar-punch-bg: #16A34A;
+  --crm-sidebar-punch-hover: #15803D;
+  --crm-sidebar-user-name: #0F172A;
+  --crm-sidebar-user-role: #64748B;
+}
+
+:root.theme-velvet {
+  /* Page & Surfaces (Velvet Maroon Light Theme) */
+  --crm-bg-page: #FDF7F8;
+  --crm-card-bg: #FFFFFF;
+  --crm-card-border: #F1DDE1;
+  --crm-row-divider: #F7EBEE;
+  --crm-card-shadow: 0 1px 3px rgba(69, 20, 43, 0.06);
+
+  /* Primary Brand Colors */
+  --crm-primary: #9F1239;
+  --crm-primary-hover: #881337;
+  --crm-primary-soft: #FDF2F4;
+  --crm-chip-light: #FBE4E9;
+  --crm-primary-shadow: 0 2px 6px rgba(159, 18, 57, 0.25);
+  --crm-popup-shadow: 0 8px 24px rgba(159, 18, 57, 0.18);
+
+  /* Performance Card */
+  --crm-perf-gradient: linear-gradient(135deg, #FDF2F4, #FBE4E9);
+  --crm-perf-border: #F1DDE1;
+
+  /* Typography */
+  --crm-text-heading: #0F172A;
+  --crm-text-body: #334155;
+  --crm-text-muted: #64748B;
+  --crm-amber: #F59E0B;
+
+  /* Status Colors */
+  --crm-status-success-text: #16A34A;
+  --crm-status-success-bg: #DCFCE7;
+  --crm-status-warning-text: #D97706;
+  --crm-status-warning-bg: #FEF3C7;
+  --crm-status-critical-text: #DC2626;
+  --crm-status-critical-bg: #FEE2E2;
+  --crm-status-info-text: #9F1239;
+  --crm-status-info-bg: #FBE4E9;
+
+  /* Sidebar Tokens - Velvet Maroon Light Theme */
+  --crm-sidebar-bg: #F8F4F5;
+  --crm-sidebar-border: #F1DDE1;
+  --crm-sidebar-panel-bg: #FFFFFF;
+  --crm-sidebar-panel-border: #F1DDE1;
+  --crm-sidebar-heading: #0F172A;
+  --crm-sidebar-text: #334155;
+  --crm-sidebar-icon: #64748B;
+  --crm-sidebar-hover: #E8ECF2;
+  --crm-sidebar-active-bg: #9F1239;
+  --crm-sidebar-active-text: #FFFFFF;
+  --crm-sidebar-box-bg: #FFFFFF;
+  --crm-sidebar-box-border: #F1DDE1;
+  --crm-sidebar-toggle-bg: #E8ECF2;
+  --crm-sidebar-toggle-active-bg: #FFFFFF;
+  --crm-sidebar-toggle-active-text: #9F1239;
+  --crm-sidebar-ratio-bg: #FFFFFF;
+  --crm-sidebar-ratio-border: #F1DDE1;
+  --crm-sidebar-progress-track: #F1DDE1;
+  --crm-sidebar-progress-fill: #9F1239;
+  --crm-sidebar-pill-bg: #EFF4FF;
+  --crm-sidebar-pill-text: #9F1239;
+  --crm-sidebar-dot: #22C55E;
+  --crm-sidebar-punch-bg: #16A34A;
+  --crm-sidebar-punch-hover: #15803D;
+  --crm-sidebar-user-name: #0F172A;
+  --crm-sidebar-user-role: #64748B;
+}
+
+/* Helper Utilities */
+.crm-page-bg {
+  background-color: var(--crm-bg-page) !important;
+}
+
+.crm-card-surface {
+  background-color: var(--crm-card-bg);
+  border: 1px solid var(--crm-card-border);
+  box-shadow: var(--crm-card-shadow);
+}
+
+.crm-icon-tile {
+  background-color: var(--crm-primary-soft);
+  color: var(--crm-primary);
+  border: 1px solid var(--crm-chip-light);
+}
+
+.crm-divider {
+  border-color: var(--crm-row-divider);
+}
+
+.crm-heading {
+  color: var(--crm-text-heading);
+}
+
+.crm-body {
+  color: var(--crm-text-body);
+}
+
+.crm-muted {
+  color: var(--crm-text-muted);
+}

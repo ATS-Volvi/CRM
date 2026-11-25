@@ -20,7 +20,8 @@ import {
   Target,
   CheckCircle2,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Phone
 } from "lucide-react";
 import { apiClient } from "../lib/apiClient";
 import { LeadStatus } from "../types";
@@ -130,7 +131,7 @@ export default function Leads() {
   };
 
   return (
-    <div className="w-full px-6 md:px-8 py-6 space-y-5">
+    <div className="w-full px-6 md:px-8 py-6 space-y-5 bg-[var(--crm-bg-page,#F4F7FC)] min-h-screen">
       {/* 1. Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -326,10 +327,10 @@ export default function Leads() {
         </div>
       ) : viewMode === "list" ? (
         /* TABLE VIEW */
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-xs overflow-hidden">
+        <div className="bg-[var(--crm-card-bg,#FFFFFF)] rounded-2xl border border-[var(--crm-card-border,#E3E8F0)] shadow-xs overflow-hidden">
           <table className="enterprise-table">
             <thead>
-              <tr className="bg-slate-50/70 dark:bg-slate-800/50 border-b border-slate-200/80 dark:border-slate-800">
+              <tr className="bg-[var(--crm-sidebar-bg,#F3F5F8)] border-b border-[var(--crm-row-divider,#EEF2F7)]">
                 <th className="py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Lead / Company</th>
                 <th className="py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Contact Person</th>
                 <th className="py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
@@ -442,10 +443,30 @@ export default function Leads() {
                       )}
                     </td>
                     <td className="py-3.5 px-4">
-                      <div className="text-xs font-medium text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
-                        <Clock className="w-3 h-3 text-slate-400" />
-                        <span>{l.nextAction || (isConverted ? "Converted" : "Qualify Lead")}</span>
-                      </div>
+                      {isConverted ? (
+                        <div className="text-xs font-medium text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
+                          <Clock className="w-3 h-3 text-slate-400" />
+                          <span>Converted</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/leads/${l.id}?openCallGuide=true`);
+                            }}
+                            className="px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-700 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs group-hover:border-amber-300 active:scale-95"
+                            title="Open 5-Minute Technical Discovery Call Guide"
+                          >
+                            <Phone className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0" />
+                            <span>5-Min Call</span>
+                          </button>
+                          <span className="text-xs font-medium text-slate-500 dark:text-slate-400 hidden xl:inline">
+                            {l.nextAction || "Qualify"}
+                          </span>
+                        </div>
+                      )}
                     </td>
                     <td className="py-3.5 px-4 text-right">
                       <button

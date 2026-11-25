@@ -25,7 +25,7 @@ import { getStatusStyle } from "../lib/siteInspection";
 export default function LeadDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const queryClient = useQueryClient();
 
   // Mode states for inline edit
@@ -62,6 +62,20 @@ export default function LeadDetail() {
   const [callDuration, setCallDuration] = useState("120");
   const [callOutcome, setCallOutcome] = useState("Connected");
   const [callNotes, setCallNotes] = useState("");
+
+  // Consultative Discovery Call Guide State
+  const [showDiscoveryGuide, setShowDiscoveryGuide] = useState(false);
+  const [discoveryDuty, setDiscoveryDuty] = useState<"continuous" | "intermittent">("continuous");
+  const [discoveryHz, setDiscoveryHz] = useState<"400V_50Hz" | "480V_60Hz" | "220_380V_60Hz">("400V_50Hz");
+  const [discoveryMethod, setDiscoveryMethod] = useState<"DOL" | "SOFT_STARTER" | "VFD">("DOL");
+  const [discoveryNameplateCheck, setDiscoveryNameplateCheck] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get("openCallGuide") === "true") {
+      setShowDiscoveryGuide(true);
+    }
+  }, [location.search]);
 
   const [emailTo, setEmailTo] = useState("");
   const [emailSubject, setEmailSubject] = useState("");
@@ -952,6 +966,21 @@ export default function LeadDetail() {
             );
           })()}
 
+          {/* 5-Min Discovery Call Toggle Button */}
+          <button
+            type="button"
+            onClick={() => setShowDiscoveryGuide(!showDiscoveryGuide)}
+            className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shrink-0 border active:scale-95 cursor-pointer ${
+              showDiscoveryGuide
+                ? "bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 border-amber-300 dark:border-amber-700 shadow-xs"
+                : "bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700"
+            }`}
+            title="Open 5-Minute Technical Discovery Call Checklist"
+          >
+            <Phone className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+            <span>5-Min Discovery Call {showDiscoveryGuide ? "▲" : "▼"}</span>
+          </button>
+
           {/* Separate Disqualified / Lost Step Action */}
           {(() => {
             const currentStatus = (lead.status || "NEW").toUpperCase();
@@ -975,6 +1004,101 @@ export default function LeadDetail() {
 
         </div>
       </div>
+
+      {/* Interactive 5-Minute Discovery Call Checklist */}
+      {showDiscoveryGuide && (
+        <div className="p-4 rounded-2xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-800/60 space-y-3.5 text-xs animate-fade-in shadow-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-amber-200/60 dark:border-amber-900/50 pb-2.5">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
+              <span className="font-black text-amber-900 dark:text-amber-300 uppercase tracking-wider text-[11px]">
+                5-Minute Consultative Discovery Call Guide ({user?.name || "Pre-Sales"} ➔ {lead.firstName || "Client"})
+              </span>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[10px] text-amber-700 dark:text-amber-400 font-medium">
+                Verify parameters before technical dispatch or quotation
+              </span>
+              <button
+                type="button"
+                onClick={() => setActiveModal("call")}
+                className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95 transition-all"
+              >
+                <Phone className="w-3.5 h-3.5" />
+                <span>Log Call Log</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+            {/* Question 1: Duty Cycle */}
+            <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-amber-200/70 dark:border-amber-800/50 space-y-2 shadow-2xs">
+              <label className="text-[10px] font-bold text-amber-900 dark:text-amber-300 uppercase tracking-wider block">
+                1. Duty Cycle (Continuous vs Cycling)
+              </label>
+              <select
+                value={discoveryDuty}
+                onChange={(e: any) => setDiscoveryDuty(e.target.value)}
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs text-slate-900 dark:text-white font-medium"
+              >
+                <option value="continuous">Continuous 24/7 Heavy Load</option>
+                <option value="intermittent">Intermittent / Cycling / Night Noise Limit</option>
+              </select>
+              <p className="text-[10px] text-slate-600 dark:text-slate-400 leading-snug">
+                {discoveryDuty === "continuous"
+                  ? "➔ Heavy industrial duty cycle: require minimum 25% continuous headroom and verified fuel logistics."
+                  : "➔ Cycling duty: evaluate standby vs prime rating to prevent engine wet-stacking."}
+              </p>
+            </div>
+
+            {/* Question 2: Grid Voltage & Frequency */}
+            <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-amber-200/70 dark:border-amber-800/50 space-y-2 shadow-2xs">
+              <label className="text-[10px] font-bold text-amber-900 dark:text-amber-300 uppercase tracking-wider block">
+                2. Frequency & Voltage Standard
+              </label>
+              <select
+                value={discoveryHz}
+                onChange={(e: any) => setDiscoveryHz(e.target.value)}
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs text-slate-900 dark:text-white font-medium"
+              >
+                <option value="400V_50Hz">400V / 230V @ 50 Hz (Standard KSA)</option>
+                <option value="480V_60Hz">480V @ 60 Hz (Saudi Aramco / US Spec)</option>
+                <option value="220_380V_60Hz">380V / 220V @ 60 Hz (SEC Grid)</option>
+              </select>
+              <p className="text-[10px] text-rose-600 dark:text-rose-400 font-medium leading-snug">
+                ⚠️ Frequency check: Verify client equipment rating before confirming quotation!
+              </p>
+            </div>
+
+            {/* Question 3: Starting Method */}
+            <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-amber-200/70 dark:border-amber-800/50 space-y-2 shadow-2xs">
+              <label className="text-[10px] font-bold text-amber-900 dark:text-amber-300 uppercase tracking-wider block">
+                3. Starting Inrush & Method
+              </label>
+              <select
+                value={discoveryMethod}
+                onChange={(e: any) => setDiscoveryMethod(e.target.value)}
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs text-slate-900 dark:text-white font-medium"
+              >
+                <option value="DOL">Direct-On-Line (DOL, 3x–6x Inrush Surge)</option>
+                <option value="SOFT_STARTER">Soft Starter (2.5x Surge)</option>
+                <option value="VFD">Variable Frequency Drive (VFD, 1.2x Smooth)</option>
+              </select>
+              <label className="flex items-center gap-2 pt-1 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={discoveryNameplateCheck}
+                  onChange={(e) => setDiscoveryNameplateCheck(e.target.checked)}
+                  className="rounded accent-blue-600"
+                />
+                <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-bold">
+                  ✓ Verified electrical nameplate photo
+                </span>
+              </label>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 4. AI Requirement Synthesis Card */}
       <AiRequirementSummaryCard
