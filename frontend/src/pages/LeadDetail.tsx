@@ -61,6 +61,7 @@ export default function LeadDetail() {
   const [isGateModalOpen, setIsGateModalOpen] = useState(false);
   const [isRequirementModalOpen, setIsRequirementModalOpen] = useState(false);
   const [isSubmittingContact, setIsSubmittingContact] = useState(false);
+  const [toastMessage, setToastMessage] = useState<{ type: "ok" | "info" | "err"; msg: string } | null>(null);
   const { gate, inspection, requestInspection } = useLeadSiteInspection(id);
 
   const handleContactConfirm = async (options: {
@@ -624,12 +625,19 @@ export default function LeadDetail() {
       if (!res.ok) throw new Error(await res.text());
       return res.json();
     },
+    onMutate: () => {
+      // Optimistic instant close: user never has to wait on the modal
+      setActiveModal(null);
+      setToastMessage({ type: "info", msg: `Sending email to ${emailTo}...` });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["leadActivities", id] });
-      setActiveModal(null);
       setEmailSubject("");
       setEmailBody("");
-      alert("Email sent successfully!");
+      setToastMessage({ type: "ok", msg: `Email dispatched to ${emailTo}!` });
+      setTimeout(() => {
+        setToastMessage((prev) => (prev?.msg.includes(emailTo) ? null : prev));
+      }, 4000);
     },
     onError: (error: any) => {
       let msg = error.message;
@@ -637,7 +645,7 @@ export default function LeadDetail() {
         const parsed = JSON.parse(error.message);
         if (parsed.error) msg = parsed.error + (parsed.details ? `: ${parsed.details}` : "");
       } catch (e) {}
-      alert(`Failed to send email:\n${msg}`);
+      setToastMessage({ type: "err", msg: `Failed to dispatch email: ${msg}` });
     }
   });
 
@@ -2592,12 +2600,12 @@ export default function LeadDetail() {
                   Cancel
                 </button>
                 <button
-                  disabled={!emailTo.trim() || !emailSubject.trim() || !emailBody.trim() || sendEmailMutation.isPending}
+                  disabled={!emailTo.trim() || !emailSubject.trim() || !emailBody.trim()}
                   onClick={() => sendEmailMutation.mutate()}
                   className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 disabled:opacity-30 transition-all shadow-2xs cursor-pointer"
                 >
-                  {sendEmailMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                  <span>{sendEmailMutation.isPending ? "Sending..." : "Send Email"}</span>
+                  <Send className="w-3.5 h-3.5" />
+                  <span>Send Email</span>
                 </button>
               </div>
             </div>
@@ -2787,6 +2795,33 @@ export default function LeadDetail() {
             queryClient.invalidateQueries({ queryKey: ["leads"] });
           }}
         />
+      )}
+      {/* Toast Alert */}
+      {toastMessage && (
+        <div
+          className={`fixed bottom-6 right-6 z-50 flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-2xl border text-xs font-semibold animate-fade-in ${
+            toastMessage.type === "ok"
+              ? "bg-emerald-50 dark:bg-emerald-950/90 text-emerald-800 dark:text-emerald-200 border-emerald-300 dark:border-emerald-800"
+              : toastMessage.type === "info"
+              ? "bg-sky-50 dark:bg-sky-950/90 text-sky-800 dark:text-sky-200 border-sky-300 dark:border-sky-800"
+              : "bg-red-50 dark:bg-red-950/90 text-red-800 dark:text-red-200 border-red-300 dark:border-red-800"
+          }`}
+        >
+          {toastMessage.type === "ok" ? (
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+          ) : toastMessage.type === "info" ? (
+            <Loader2 className="w-4 h-4 text-sky-600 animate-spin shrink-0" />
+          ) : (
+            <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+          )}
+          <span>{toastMessage.msg}</span>
+          <button
+            onClick={() => setToastMessage(null)}
+            className="ml-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded cursor-pointer"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
       )}
     </div>
   );

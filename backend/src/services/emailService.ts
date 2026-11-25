@@ -125,7 +125,17 @@ export const getBaseHtmlTemplate = (bodyContent: string, leadId?: string): strin
   `;
 };
 
+let cachedSmtpTransporter: nodemailer.Transporter | null = null;
+
+export const resetSmtpTransporter = () => {
+  cachedSmtpTransporter = null;
+};
+
 export const getSmtpTransporter = () => {
+  if (cachedSmtpTransporter) {
+    return cachedSmtpTransporter;
+  }
+
   const host = cleanEnv("SMTP_HOST", "smtp.gmail.com");
   const user = cleanEnv("SMTP_USER", "sheiksaud671@gmail.com");
   const pass = cleanEnv("SMTP_PASS", "yeyimuafvriwliod");
@@ -133,12 +143,18 @@ export const getSmtpTransporter = () => {
   const secure = cleanEnv("SMTP_SECURE", "false") === "true" || port === 465;
 
   if (host && user && pass && pass !== "test_pass" && user !== "test_user") {
-    return nodemailer.createTransport({
+    cachedSmtpTransporter = nodemailer.createTransport({
+      pool: true,
+      maxConnections: 5,
+      maxMessages: 100,
+      rateDelta: 1000,
+      rateLimit: 5,
       host,
       port,
       secure,
       auth: { user, pass }
     });
+    return cachedSmtpTransporter;
   }
   return null;
 };
