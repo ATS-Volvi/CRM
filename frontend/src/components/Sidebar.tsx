@@ -142,15 +142,15 @@ export function Sidebar({
 
   return (
     <aside
-      style={{ backgroundColor: "#EFF7F2" }}
-      className={`border-r border-[#C2E4D1] dark:border-slate-800 flex flex-col justify-between transition-all duration-300 z-20 shrink-0 select-none ${
+      style={{ backgroundColor: "#F5F7FD" }}
+      className={`border-r border-[#E2E8F4] dark:border-slate-800 flex flex-col justify-between transition-all duration-300 z-20 shrink-0 select-none ${
         isCollapsed ? "w-16" : "w-64"
       }`}
     >
       {/* Sidebar Header */}
       <div 
-        style={{ backgroundColor: "#EFF7F2" }}
-        className="p-4 border-b border-[#C2E4D1] dark:border-slate-800 space-y-3"
+        style={{ backgroundColor: "#F5F7FD" }}
+        className="p-4 border-b border-[#E2E8F4] dark:border-slate-800 space-y-3"
       >
         <div className="flex items-center justify-between">
           {!isCollapsed && <div className="flex items-center gap-2.5">
@@ -237,7 +237,7 @@ export function Sidebar({
 
       {/* 5 Core Pillars Navigation List */}
       <div 
-        style={{ backgroundColor: "#EFF7F2" }}
+        style={{ backgroundColor: "#F5F7FD" }}
         className="flex-1 overflow-y-auto p-3 space-y-2 no-scrollbar"
       >
         {primaryNavItems.map((item) => {
@@ -371,8 +371,8 @@ export function Sidebar({
 
       {/* Sidebar Footer User Info & Shift Status */}
       <div 
-        style={{ backgroundColor: "#EFF7F2" }}
-        className="p-3 border-t border-[#C2E4D1] dark:border-slate-800 space-y-2"
+        style={{ backgroundColor: "#F5F7FD" }}
+        className="p-3 border-t border-[#E2E8F4] dark:border-slate-800 space-y-2"
       >
         {!isCollapsed && (
           <div className="flex items-center justify-between p-1 bg-[var(--crm-sidebar-toggle-bg,#E8ECF2)] rounded-xl text-[11px] font-bold">
