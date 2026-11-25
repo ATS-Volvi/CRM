@@ -50,7 +50,7 @@ import { deriveOpportunityPhase } from "../utils/opportunityPhases";
 import { usePipelineStages } from "../utils/pipelineStages";
 import { QuoteBillModal } from "../components/QuoteBillModal";
 import { SendQuoteChannelModal } from "../components/SendQuoteChannelModal";
-import { AiRequirementSummaryCard } from "../components/AiRequirementSummaryCard";
+import { OpportunityIntelligenceHub, OpportunityIntelligenceTab } from "../components/OpportunityIntelligenceHub";
 
 // ── Dynamic Rule-Derived Risk Indicator ──────────────────────────────────────────
 function computeDealRisk(opp: any, quotes: any[], activities: any[]) {
@@ -282,6 +282,7 @@ export default function OpportunityDetail() {
     enabled: !!id
   });
   const activities: any[] = Array.isArray(timelineData) ? timelineData : [];
+  const [intelligenceTab, setIntelligenceTab] = useState<OpportunityIntelligenceTab>("scope");
 
   // Fetch Approvals related to this Opportunity / Quotes
   const { data: approvalsData } = useQuery({
@@ -794,7 +795,7 @@ export default function OpportunityDetail() {
         return null;
       })()}
 
-      {/* ── 3. THIN 1:1 STITCH PROCESS PROGRESSION CARDS (New Enquiry, Contacted, Qualified, Converted) ── */}
+      {/* ── 3. PROCESS PROGRESSION CARDS (FACE Signature Theme & Blue-Green Hover) ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
         {/* Card 1: New Enquiry */}
         <div
@@ -805,19 +806,19 @@ export default function OpportunityDetail() {
           }}
           className={`rounded-xl py-2 px-3 sm:px-3.5 border transition-all flex flex-col justify-between cursor-pointer ${
             currentStageIndex === 0
-              ? "bg-[#5842eb] dark:bg-[#5842eb] text-white border-[#4833dd] shadow-sm shadow-indigo-500/25"
+              ? "bg-gradient-to-r from-[#1D4ED8] via-[#0D9488] to-[#10B981] text-white border-transparent shadow-md shadow-emerald-500/20 ring-1 ring-white/30"
               : currentStageIndex > 0
-              ? "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-emerald-300"
-              : "bg-slate-50/80 dark:bg-slate-800/40 border-slate-200/70 dark:border-slate-800 opacity-65"
+              ? "bg-emerald-50/80 dark:bg-emerald-950/30 border-emerald-200/70 dark:border-emerald-800/60 text-slate-800 dark:text-slate-100 hover:bg-emerald-100/70"
+              : "bg-white dark:bg-slate-900/60 border-slate-200/70 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-[#EAF7F0] hover:border-emerald-300 hover:text-[#059669] dark:hover:bg-emerald-950/40 dark:hover:text-emerald-300"
           }`}
         >
           <div className="flex items-center justify-between gap-2 mb-0.5">
             <div className="flex items-center gap-2 min-w-0">
               <div className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 ${
                 currentStageIndex === 0
-                  ? "bg-white/20 text-white"
+                  ? "bg-white text-[#059669] shadow-xs"
                   : currentStageIndex > 0
-                  ? "bg-emerald-500 text-white"
+                  ? "bg-[#059669] text-white"
                   : "bg-slate-200 dark:bg-slate-700 text-slate-400"
               }`}>
                 {currentStageIndex === 0 ? (
@@ -840,7 +841,8 @@ export default function OpportunityDetail() {
               </span>
             )}
           </div>
-          <p className={`text-[10px] font-medium pl-6 truncate ${currentStageIndex === 0 ? "text-indigo-100" : "text-slate-400 dark:text-slate-500"}`}>
+          <p className={`text-[10px] font-medium pl-6 truncate ${currentStageIndex === 0 ? "text-emerald-100 flex items-center gap-1" : "text-slate-400 dark:text-slate-500"}`}>
+            {currentStageIndex === 0 && <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse shrink-0" />}
             Source: {ingestionChannel}
           </p>
         </div>
@@ -854,20 +856,20 @@ export default function OpportunityDetail() {
           }}
           className={`rounded-xl py-2 px-3 sm:px-3.5 border transition-all flex flex-col justify-between cursor-pointer ${
             currentStageIndex === 1
-              ? "bg-[#5842eb] dark:bg-[#5842eb] text-white border-[#4833dd] shadow-sm shadow-indigo-500/25"
+              ? "bg-gradient-to-r from-[#1D4ED8] via-[#0D9488] to-[#10B981] text-white border-transparent shadow-md shadow-emerald-500/20 ring-1 ring-white/30"
               : currentStageIndex > 1
-              ? "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-emerald-300"
-              : "bg-slate-50/80 dark:bg-slate-800/40 border-slate-200/70 dark:border-slate-800 opacity-65"
+              ? "bg-emerald-50/80 dark:bg-emerald-950/30 border-emerald-200/70 dark:border-emerald-800/60 text-slate-800 dark:text-slate-100 hover:bg-emerald-100/70"
+              : "bg-white dark:bg-slate-900/60 border-slate-200/70 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-[#EAF7F0] hover:border-emerald-300 hover:text-[#059669] dark:hover:bg-emerald-950/40 dark:hover:text-emerald-300"
           }`}
         >
           <div className="flex items-center justify-between gap-2 mb-0.5">
             <div className="flex items-center gap-2 min-w-0">
               <div className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 ${
                 currentStageIndex === 1
-                  ? "bg-white/20 text-white"
+                  ? "bg-white text-[#059669] shadow-xs"
                   : currentStageIndex > 1
-                  ? "bg-emerald-500 text-white"
-                  : "bg-emerald-500 text-white"
+                  ? "bg-[#059669] text-white"
+                  : "bg-slate-200 dark:bg-slate-700 text-slate-400"
               }`}>
                 {currentStageIndex === 1 ? (
                   <Sparkles className="w-2.5 h-2.5" />
@@ -893,8 +895,9 @@ export default function OpportunityDetail() {
               </span>
             )}
           </div>
-          <p className={`text-[10px] font-medium pl-6 truncate ${currentStageIndex === 1 ? "text-indigo-100" : "text-slate-400 dark:text-slate-500"}`}>
-            Initial client outreach & contact
+          <p className={`text-[10px] font-medium pl-6 truncate ${currentStageIndex === 1 ? "text-emerald-100 flex items-center gap-1" : "text-slate-400 dark:text-slate-500"}`}>
+            {currentStageIndex === 1 && <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse shrink-0" />}
+            Initial client outreach &amp; contact
           </p>
         </div>
 
@@ -907,18 +910,20 @@ export default function OpportunityDetail() {
           }}
           className={`rounded-xl py-2 px-3 sm:px-3.5 border transition-all flex flex-col justify-between cursor-pointer ${
             currentStageIndex === 2
-              ? "bg-[#5842eb] dark:bg-[#5842eb] text-white border-[#4833dd] shadow-sm shadow-indigo-500/25"
+              ? "bg-gradient-to-r from-[#1D4ED8] via-[#0D9488] to-[#10B981] text-white border-transparent shadow-md shadow-emerald-500/20 ring-1 ring-white/30"
               : currentStageIndex > 2
-              ? "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-emerald-300"
-              : "bg-slate-50/80 dark:bg-slate-800/40 border-slate-200/70 dark:border-slate-800 opacity-65"
+              ? "bg-emerald-50/80 dark:bg-emerald-950/30 border-emerald-200/70 dark:border-emerald-800/60 text-slate-800 dark:text-slate-100 hover:bg-emerald-100/70"
+              : "bg-white dark:bg-slate-900/60 border-slate-200/70 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-[#EAF7F0] hover:border-emerald-300 hover:text-[#059669] dark:hover:bg-emerald-950/40 dark:hover:text-emerald-300"
           }`}
         >
           <div className="flex items-center justify-between gap-2 mb-0.5">
             <div className="flex items-center gap-2 min-w-0">
               <div className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 ${
                 currentStageIndex === 2
-                  ? "bg-white/20 text-white"
-                  : "bg-emerald-500 text-white"
+                  ? "bg-white text-[#059669] shadow-xs"
+                  : currentStageIndex > 2
+                  ? "bg-[#059669] text-white"
+                  : "bg-slate-200 dark:bg-slate-700 text-slate-400"
               }`}>
                 {currentStageIndex === 2 ? (
                   <Sparkles className="w-2.5 h-2.5" />
@@ -944,8 +949,9 @@ export default function OpportunityDetail() {
               </span>
             )}
           </div>
-          <p className={`text-[10px] font-medium pl-6 truncate ${currentStageIndex === 2 ? "text-indigo-100" : "text-slate-400 dark:text-slate-500"}`}>
-            Scope & requirement qualification
+          <p className={`text-[10px] font-medium pl-6 truncate ${currentStageIndex === 2 ? "text-emerald-100 flex items-center gap-1" : "text-slate-400 dark:text-slate-500"}`}>
+            {currentStageIndex === 2 && <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse shrink-0" />}
+            Scope &amp; requirement qualification
           </p>
         </div>
 
@@ -958,16 +964,16 @@ export default function OpportunityDetail() {
           }}
           className={`rounded-xl py-2 px-3 sm:px-3.5 border transition-all flex flex-col justify-between cursor-pointer ${
             currentStageIndex >= 3
-              ? "bg-[#5842eb] dark:bg-[#5842eb] text-white border-[#4833dd] shadow-sm shadow-indigo-500/25"
-              : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800"
+              ? "bg-gradient-to-r from-[#1D4ED8] via-[#0D9488] to-[#10B981] text-white border-transparent shadow-md shadow-emerald-500/20 ring-1 ring-white/30"
+              : "bg-white dark:bg-slate-900/60 border-slate-200/70 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-[#EAF7F0] hover:border-emerald-300 hover:text-[#059669] dark:hover:bg-emerald-950/40 dark:hover:text-emerald-300"
           }`}
         >
           <div className="flex items-center justify-between gap-2 mb-0.5">
             <div className="flex items-center gap-2 min-w-0">
               <div className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 ${
                 currentStageIndex >= 3
-                  ? "bg-white/20 text-white"
-                  : "bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400"
+                  ? "bg-white text-[#059669] shadow-xs"
+                  : "bg-slate-200 dark:bg-slate-700 text-slate-400"
               }`}>
                 {currentStageIndex >= 3 ? (
                   <Sparkles className="w-2.5 h-2.5" />
@@ -989,82 +995,36 @@ export default function OpportunityDetail() {
               </span>
             )}
           </div>
-          <p className={`text-[10px] font-medium pl-6 truncate ${currentStageIndex >= 3 ? "text-indigo-100" : "text-slate-400 dark:text-slate-500"}`}>
-            Proposal generation & closing
+          <p className={`text-[10px] font-medium pl-6 truncate ${currentStageIndex >= 3 ? "text-emerald-100 flex items-center gap-1" : "text-slate-400 dark:text-slate-500"}`}>
+            {currentStageIndex >= 3 && <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse shrink-0" />}
+            Proposal generation &amp; closing
           </p>
         </div>
       </div>
 
-      {/* ── 4. FULL-WIDTH CUSTOMER SCOPE & REQUIREMENTS INSIGHT (AI Extraction Hero) ── */}
-      <AiRequirementSummaryCard
-        type="opportunity"
-        id={id!}
-        onActionClick={() => {
-          navigate(`/quotes/new?dealId=${opp.id}`);
+      {/* ── 4. FULL-WIDTH OPPORTUNITY INTELLIGENCE & PLAYBOOK HUB (Clubbed) ── */}
+      <OpportunityIntelligenceHub
+        oppId={id!}
+        opp={opp}
+        quotes={quotes}
+        dealRisk={dealRisk}
+        activeTab={intelligenceTab}
+        onTabChange={setIntelligenceTab}
+        onActionClick={() => navigate(`/quotes/new?dealId=${opp.id}`)}
+        onSendEmailClick={() => {
+          setActiveTab("timeline");
+          setNoteText(`Follow-up outreach conducted regarding schedule & procurement timing with client.`);
+        }}
+        onLogCallClick={() => {
+          setActiveTab("timeline");
+          setNoteText(`Call logged regarding scope, plant access, and quote parameters.`);
         }}
       />
 
       {/* ── 5. MAIN 2-COLUMN BENTO WORKSPACE (Stitch Layout) ── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-        {/* ── LEFT / SIDEBAR COLUMN (4.5 / 12 Cols): Copilot Insights, Customer Details, Company Intelligence, Ownership ── */}
+        {/* ── LEFT / SIDEBAR COLUMN (4.5 / 12 Cols): Customer Details, Company Intelligence, Ownership ── */}
         <div className="lg:col-span-4 space-y-5">
-          {/* Card 1: AI Sales Copilot & Smart Insights */}
-          <div className="bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-900/60 rounded-2xl p-5 shadow-xs space-y-3.5 relative overflow-hidden">
-            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-2.5">
-              <h3 className="text-xs font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400" /> Sales Copilot &amp; Smart Insights
-              </h3>
-              <span className="text-[10px] font-bold bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 px-2 py-0.5 rounded-full">
-                Live Insights
-              </span>
-            </div>
-
-            <div className="space-y-3 text-xs">
-              {/* Win Probability Pill */}
-              <div className="flex items-center justify-between p-2.5 bg-blue-50/50 dark:bg-blue-950/30 rounded-xl border border-blue-100 dark:border-blue-900/40">
-                <span className="text-slate-600 dark:text-slate-300 font-bold">Win Probability:</span>
-                <span className="font-extrabold text-blue-700 dark:text-blue-300 text-xs">
-                  {opp.probability !== null && opp.probability !== undefined
-                    ? `${opp.probability}%`
-                    : status === "WON"
-                    ? "100%"
-                    : status === "LOST"
-                    ? "0%"
-                    : "—"}
-                </span>
-              </div>
-
-              {/* Smart Recommendation */}
-              <div>
-                <span className="text-slate-500 dark:text-slate-400 font-bold block mb-1 text-[11px] uppercase tracking-wider">
-                  Recommended Action:
-                </span>
-                <p className="font-medium text-slate-800 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/80 p-3 rounded-xl border border-slate-200/80 dark:border-slate-700 leading-relaxed">
-                  {recommendedAction}
-                </p>
-              </div>
-
-              {/* Dynamic Rule-Derived Risk Indicator */}
-              <div>
-                <span className="text-slate-500 dark:text-slate-400 font-bold block mb-1 text-[11px] uppercase tracking-wider">
-                  Risk Indicator ({dealRisk.label}):
-                </span>
-                <div className={`p-3 rounded-xl border text-[11px] font-medium leading-relaxed ${dealRisk.bgClass}`}>
-                  <div className="flex items-center gap-1.5 font-bold mb-1">
-                    {dealRisk.level === "HIGH" ? (
-                      <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
-                    ) : dealRisk.level === "MEDIUM" ? (
-                      <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                    ) : (
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                    )}
-                    <span>{dealRisk.label}</span>
-                  </div>
-                  <p>{dealRisk.reason}</p>
-                </div>
-              </div>
-            </div>
-          </div>
 
           {/* Card 2: Main Customer Details & Financials */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
@@ -1322,26 +1282,8 @@ export default function OpportunityDetail() {
           </div>
         </div>
 
-        {/* ── RIGHT / MAIN WORKSPACE COLUMN (8 Cols): Inbound Inquiry, Interaction Hub Tabs, Playbook Dock ── */}
+        {/* ── RIGHT / MAIN WORKSPACE COLUMN (8 Cols): Interaction Hub Tabs ── */}
         <div className="lg:col-span-8 space-y-5">
-          {/* Card 1: Submitted Inbound Inquiry & Requirements (If lead body/subject exists) */}
-          {(opp.lead?.body || opp.lead?.subject) && (
-            <div className="bg-white dark:bg-slate-900 border border-blue-200/90 dark:border-blue-900/60 rounded-2xl p-5 shadow-xs space-y-2.5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-xs font-bold text-blue-900 dark:text-blue-200">
-                  <FileText className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                  <span>Submitted Inbound Inquiry &amp; Requirements</span>
-                </div>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 uppercase">
-                  {opp.sourceChannel || "Inbound Lead"}
-                </span>
-              </div>
-              <p className="text-xs text-slate-800 dark:text-slate-200 leading-relaxed font-medium bg-slate-50 dark:bg-slate-800/70 p-3.5 rounded-xl border border-slate-100 dark:border-slate-700/80 whitespace-pre-line">
-                {opp.lead?.body || opp.lead?.subject}
-              </p>
-            </div>
-          )}
-
           {/* Card 2: Workspace Tabbed Interaction Hub */}
           <div className="space-y-4">
             <div className="flex items-center gap-1 border-b border-slate-200 dark:border-slate-800 text-xs font-semibold overflow-x-auto no-scrollbar bg-white dark:bg-slate-900 px-3 pt-1 rounded-t-2xl border-t border-x border-slate-200/90 dark:border-slate-800">
@@ -1750,65 +1692,6 @@ export default function OpportunityDetail() {
                 />
               </div>
             )}
-          </div>
-
-          {/* Card 3: Next Best Step & Sales Playbook Dock (Stitch Bottom Module) */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3.5">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
-              <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-indigo-600 dark:text-indigo-400" /> Next Best Step &amp; Sales Playbook
-              </h3>
-              <span className="text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 px-2.5 py-0.5 rounded-full">
-                Active Playbook
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-              <div className="p-4 bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-xl space-y-2 flex flex-col justify-between">
-                <div>
-                  <span className="font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-1 text-[11px] uppercase tracking-wider mb-1">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Primary Recommended Action
-                  </span>
-                  <p className="text-emerald-950 dark:text-emerald-100 font-medium leading-relaxed">
-                    {recommendedAction}
-                  </p>
-                </div>
-                <div className="pt-2">
-                  <button
-                    onClick={() => {
-                      setActiveTab("timeline");
-                      setNoteText(`Follow-up outreach conducted regarding schedule & procurement timing with client.`);
-                    }}
-                    className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <Send className="w-3 h-3" />
-                    <span>Send Follow-Up via Email</span>
-                  </button>
-                </div>
-              </div>
-
-              <div className="p-4 bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 rounded-xl space-y-2 flex flex-col justify-between">
-                <div>
-                  <span className="font-bold text-indigo-800 dark:text-indigo-300 flex items-center gap-1 text-[11px] uppercase tracking-wider mb-1">
-                    <FileText className="w-3.5 h-3.5 text-indigo-600" /> Proposal Readiness
-                  </span>
-                  <p className="text-indigo-950 dark:text-indigo-100 font-medium leading-relaxed">
-                    {quotes.length > 0
-                      ? `${quotes.length} proposal version${quotes.length === 1 ? "" : "s"} on file. Most recent: Quote #${quotes[0].quoteNumber || quotes[0].id.slice(0, 8)} (${quotes[0].status}).`
-                      : "No quotation generated yet. Click 'New Quote' to configure line items from catalog."}
-                  </p>
-                </div>
-                <div className="pt-2">
-                  <button
-                    onClick={() => navigate(`/quotes/new?dealId=${opp.id}`)}
-                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <Plus className="w-3 h-3" />
-                    <span>Launch Proposal Builder</span>
-                  </button>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </div>
