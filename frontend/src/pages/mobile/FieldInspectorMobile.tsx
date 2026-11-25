@@ -290,6 +290,12 @@ export default function FieldInspectorMobile() {
     clientOrganization: string;
   } | null>(null);
 
+  // Duty Accepted Confirmation Pop-up
+  const [dutyAcceptedToast, setDutyAcceptedToast] = useState<{
+    inspectionNumber: string;
+    clientName: string;
+  } | null>(null);
+
   // Full Screen Mobile Survey Stepper State
   const [activeSurveyInspection, setActiveSurveyInspection] = useState<SiteInspectionRecord | null>(null);
   const [surveyStep, setSurveyStep] = useState<number>(1);
@@ -579,9 +585,13 @@ export default function FieldInspectorMobile() {
   // Mutations
   const acceptMutation = useMutation({
     mutationFn: (id: string) => siteInspectionApi.acceptInspection(id),
-    onSuccess: () => {
+    onSuccess: (updated) => {
       queryClient.invalidateQueries({ queryKey: ["site-inspections"] });
       queryClient.invalidateQueries({ queryKey: ["lead-site-inspection"] });
+      setDutyAcceptedToast({
+        inspectionNumber: updated?.inspectionNumber || "Inspection",
+        clientName: updated?.clientOrganization || updated?.siteName || "Client Site",
+      });
       setActiveTab("today");
     },
     onError: (err: any) => {
@@ -1552,9 +1562,11 @@ export default function FieldInspectorMobile() {
                               onClick={() => startVisitMutation.mutate(ins.id)}
                               disabled={startVisitMutation.isPending}
                               className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-700 to-teal-800 hover:from-emerald-800 hover:to-teal-900 text-white text-xs font-black shadow-md shadow-emerald-900/20 flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+                              title="Start Technical Survey at Client Site"
                             >
                               <MapPin className="w-3.5 h-3.5" />
-                              <span>{startVisitMutation.isPending ? "Checking in..." : "Gate Check-In"}</span>
+                              <span>{startVisitMutation.isPending ? "Starting Survey..." : "Start Survey"}</span>
+                              <ArrowRight className="w-3.5 h-3.5" />
                             </button>
                           </>
                         ) : (
@@ -1746,6 +1758,54 @@ export default function FieldInspectorMobile() {
                 {scheduleMutation.isPending ? "Saving..." : "Confirm Schedule"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Duty Accepted Confirmation Pop-up Modal ──────────────────────── */}
+      {dutyAcceptedToast && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-sm p-6 space-y-4 shadow-2xl text-center">
+            {/* Success Icon */}
+            <div className="w-16 h-16 rounded-3xl bg-emerald-50 border-2 border-emerald-200 text-emerald-600 flex items-center justify-center mx-auto shadow-sm">
+              <CheckCircle2 className="w-9 h-9 text-emerald-600" />
+            </div>
+
+            {/* Title & Badge */}
+            <div className="space-y-1">
+              <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200">
+                Duty Accepted
+              </span>
+              <h3 className="text-base font-black text-slate-900">
+                Inspection Added to To-Do
+              </h3>
+              <p className="font-mono text-xs font-bold text-[#17614A]">
+                {dutyAcceptedToast.inspectionNumber}
+              </p>
+            </div>
+
+            {/* Explanatory Notice */}
+            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-left space-y-2">
+              <div className="flex items-center gap-2 text-xs font-black text-emerald-800">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>Assigned to You</span>
+              </div>
+              <p className="text-[11px] text-slate-600 leading-relaxed font-medium">
+                You have accepted <strong className="text-slate-800 font-bold">{dutyAcceptedToast.clientName}</strong>. Tap <strong>Start Survey</strong> when you are ready to begin the on-site technical audit.
+              </p>
+            </div>
+
+            {/* Action */}
+            <button
+              onClick={() => {
+                setDutyAcceptedToast(null);
+                setActiveTab("today");
+              }}
+              className="w-full py-3 bg-[#17614A] hover:bg-[#0F4A38] text-white text-xs font-black rounded-xl shadow-md transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
+            >
+              <span>View in Active Tasks</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
       )}
