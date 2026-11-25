@@ -950,12 +950,9 @@ export async function acceptInspection(
   const inspection: any = await SiteInspection.findByPk(inspectionId);
   if (!inspection) throw new Error("Site inspection not found");
 
-  if (inspection.assignedToId && inspection.assignedToId !== userId && !APPROVER_ROLES.includes(callerRole)) {
-    throw new Error("Only the assigned inspector or a manager may accept this site inspection.");
-  }
-
   const now = new Date();
   await inspection.update({
+    assignedToId: userId,
     status: "DRAFT",
     acceptedAt: now,
     assignmentState: "ASSIGNED",

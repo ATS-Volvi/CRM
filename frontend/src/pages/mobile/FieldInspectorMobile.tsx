@@ -581,6 +581,11 @@ export default function FieldInspectorMobile() {
     mutationFn: (id: string) => siteInspectionApi.acceptInspection(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["site-inspections"] });
+      queryClient.invalidateQueries({ queryKey: ["lead-site-inspection"] });
+      setActiveTab("today");
+    },
+    onError: (err: any) => {
+      alert("Unable to accept inspection: " + (err.message || "Unknown error"));
     },
   });
 

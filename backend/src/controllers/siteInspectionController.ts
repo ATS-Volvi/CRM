@@ -1084,8 +1084,9 @@ export const acceptInspectionHandler = async (req: Request, res: Response) => {
     const inspection: any = await SiteInspection.findByPk(req.params.id as string);
     if (!inspection) return res.status(404).json({ error: "Site inspection not found" });
 
-    if (!canWriteInspection(user, inspection)) {
-      return res.status(403).json({ error: READ_ONLY_INSPECTION_MESSAGE });
+    // Allow site managers and approvers to accept requested or unassigned inspections
+    if (user.role !== "site_manager" && !APPROVER_ROLES.includes(user.role)) {
+      return res.status(403).json({ error: "Only site inspectors or managers may accept site inspections." });
     }
 
     const { acceptInspection } = require("../services/siteInspectionService");
