@@ -75,10 +75,20 @@ export async function spamRules(lead: Record<string, any>, meta?: Record<string,
     }
 
     if (!skipDuplicateWindowCheck) {
+      const sourceStr = `${meta?.source || ''} ${lead.source || ''} ${lead.sourceChannel || ''}`.toLowerCase();
+      const isWebForm = sourceStr.includes('web') || sourceStr.includes('form') || sourceStr.includes('faceweb') || sourceStr.includes('rfq');
+      
+      // For public website forms, allow multiple plant quotes and testing while suppressing accidental double-clicks (5-second debounce).
+      // For general non-form channels, throttle duplicates within 30 seconds.
+      const duplicateWindowMs = isWebForm ? 5 * 1000 : 30 * 1000;
+
+      const normalizedEmail = String(lead.email).toLowerCase().trim();
       const recentDuplicate = await Lead.findOne({
         where: {
-          email: lead.email,
-          createdAt: { [Op.gte]: new Date(Date.now() - 5 * 60 * 1000) },
+          [Op.and]: [
+            sequelize.where(sequelize.fn('LOWER', sequelize.col('email')), normalizedEmail),
+            { createdAt: { [Op.gte]: new Date(Date.now() - duplicateWindowMs) } },
+          ],
         },
       });
       if (recentDuplicate) {

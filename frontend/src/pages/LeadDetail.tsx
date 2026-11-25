@@ -1008,6 +1008,7 @@ export default function LeadDetail() {
               } catch {}
               const body = lead.body || lead.message || "";
               const baseMatch =
+                body.match(/Target (?:Operational Base|Station\/Base|Station Location|Station|Base):\s*([^\n\r]+)/i) ||
                 body.match(/Target Operational Base:\s*([^\n\r]+)/i) ||
                 body.match(/Station Location:\s*([^\n\r]+)/i) ||
                 body.match(/Location:\s*([^\n\r]+)/i);
