@@ -861,6 +861,7 @@ export default function LeadDetail() {
     if (content.toLowerCase().includes("possible duplicate of lead") || content.toLowerCase().includes("duplicate lead")) return true;
     if (content.includes("Customer business requirements documented")) return true;
     if (content.includes("Outbound email sent to customer")) return true;
+    if (content.toLowerCase().includes("intake complete") || content.toLowerCase().includes("customer completed intake details")) return true;
     if (content.includes("[AUTOMATED]") || content.toLowerCase().includes("[automated]")) return true;
     if (act.type === "note" && (content.startsWith("Inbound Inquiry Captured via") || content.startsWith("Lead captured from"))) return true;
     return false;
@@ -1905,14 +1906,29 @@ export default function LeadDetail() {
                     })}
                   </div>
 
-                  {activityFilter === "call" && (
-                    <button
-                      onClick={() => setActiveModal("call")}
-                      className="text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-lg flex items-center gap-1 transition-all"
-                    >
-                      <Plus className="w-3.5 h-3.5" /> Log Call
-                    </button>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {activityFilter === "call" && (
+                      <button
+                        onClick={() => setActiveModal("call")}
+                        className="text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-lg flex items-center gap-1 transition-all cursor-pointer"
+                      >
+                        <Plus className="w-3.5 h-3.5" /> Log Call
+                      </button>
+                    )}
+
+                    {activityFilter === "email" && (
+                      <button
+                        onClick={() => {
+                          setEmailTo(lead.email || "");
+                          setEmailSubject(`Inquiry: ${lead.projectName || lead.company || "Project Follow-up"}`);
+                          setActiveModal("email");
+                        }}
+                        className="text-xs font-bold text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/40 hover:bg-sky-100 dark:hover:bg-sky-900/60 border border-sky-200 dark:border-sky-800 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                      >
+                        <Plus className="w-3.5 h-3.5" /> Compose Email
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Internal Note Composer (when on Note or All tab) */}
@@ -2016,6 +2032,26 @@ export default function LeadDetail() {
                       <p className="text-[11px] text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
                         Send a message directly via WhatsApp, or click <strong className="text-slate-700 dark:text-slate-200">Log Sent Text / SMS</strong> after texting the customer from your phone.
                       </p>
+                    </div>
+                  ) : activityFilter === "email" && humanActivities.filter((a: any) => (a.type || "").toLowerCase().includes("email")).length === 0 ? (
+                    <div className="text-center py-10 px-4 bg-slate-50/60 dark:bg-slate-800/40 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 space-y-2">
+                      <Mail className="w-8 h-8 text-sky-500/80 mx-auto" />
+                      <p className="font-bold text-slate-800 dark:text-slate-200 text-xs">No email correspondence logged yet</p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
+                        Send an official quote, service brochure, or technical confirmation to <strong className="text-slate-700 dark:text-slate-200">{lead.email || "this customer"}</strong>.
+                      </p>
+                      {lead.email && (
+                        <button
+                          onClick={() => {
+                            setEmailTo(lead.email || "");
+                            setEmailSubject(`Inquiry: ${lead.projectName || lead.company || "Project Follow-up"}`);
+                            setActiveModal("email");
+                          }}
+                          className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer"
+                        >
+                          <Plus className="w-3.5 h-3.5" /> Compose Email
+                        </button>
+                      )}
                     </div>
                   ) : humanActivities.length === 0 ? (
                     <div className="text-center py-10 text-muted-foreground text-xs space-y-1">
@@ -2472,29 +2508,97 @@ export default function LeadDetail() {
       {/* Send Email Modal */}
       {activeModal === "email" && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-6 max-w-lg w-full space-y-4 shadow-xl">
-            <div className="flex justify-between items-center border-b border-outline-variant pb-3">
-              <h3 className="text-lg font-bold text-on-surface flex items-center gap-2">
-                <Mail className="w-5 h-5 text-blue-600" /> Compose Email
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-lg w-full space-y-4 shadow-2xl">
+            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Mail className="w-5 h-5 text-sky-600" /> Compose Email to Customer
               </h3>
-              <button onClick={() => setActiveModal(null)}><X className="w-5 h-5 text-on-surface-variant" /></button>
+              <button onClick={() => setActiveModal(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg">
+                <X className="w-5 h-5" />
+              </button>
             </div>
+
+            {/* Quick Templates */}
+            <div className="space-y-1.5">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Quick Subject & Body:</span>
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-[11px]">
+                {[
+                  {
+                    label: "Quotation & Specs",
+                    subj: `Quotation & Technical Specifications — ${lead.projectName || lead.company || "Your Inquiry"}`,
+                    body: `Dear ${lead.firstName || "Customer"},\n\nThank you for reaching out to us. We have reviewed your project requirements and prepared the official commercial quotation along with complete technical specifications.\n\nPlease find the details outlined above. Feel free to reply directly to this email or call us if you have any questions.\n\nBest regards,\n${user?.name || "Salaan Technical Sales Team"}`
+                  },
+                  {
+                    label: "5-Min Discovery Call",
+                    subj: `Follow-up: 5-Minute Technical Review — ${lead.company || ""}`,
+                    body: `Hi ${lead.firstName || "there"},\n\nI hope this email finds you well. I'm following up on your recent service inquiry. Would you have 5 minutes today or tomorrow for a brief scoping call to confirm site access details?\n\nBest regards,\n${user?.name || "Salaan Technical Sales Team"}`
+                  },
+                  {
+                    label: "Site Inspection Confirmation",
+                    subj: `Site Inspection Scheduled — ${lead.projectName || lead.company || ""}`,
+                    body: `Dear ${lead.firstName || "Customer"},\n\nThis is to confirm that our Site Inspection team has been dispatched to coordinate field verification. Our inspector will be in contact with your site gate representative.\n\nBest regards,\n${user?.name || "Salaan Operations"}`
+                  }
+                ].map((tpl, i) => (
+                  <button
+                    key={i}
+                    onClick={() => {
+                      setEmailSubject(tpl.subj);
+                      setEmailBody(tpl.body);
+                    }}
+                    className="px-2.5 py-1 rounded-full border border-sky-200 dark:border-sky-800 text-sky-800 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/40 hover:bg-sky-100 transition-colors shrink-0 text-[11px] font-semibold cursor-pointer"
+                  >
+                    {tpl.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="space-y-3 text-xs">
               <div>
-                <label className="block font-bold text-on-surface-variant mb-1">Recipient</label>
-                <input type="email" value={emailTo} onChange={e => setEmailTo(e.target.value)} className="w-full bg-surface border border-outline rounded p-2 text-xs" />
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Recipient Email</label>
+                <input
+                  type="email"
+                  value={emailTo}
+                  onChange={e => setEmailTo(e.target.value)}
+                  placeholder="client@company.com"
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500/20"
+                />
               </div>
               <div>
-                <label className="block font-bold text-on-surface-variant mb-1">Subject</label>
-                <input type="text" value={emailSubject} onChange={e => setEmailSubject(e.target.value)} placeholder="Project Proposal / Follow-up..." className="w-full bg-surface border border-outline rounded p-2 text-xs" />
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Subject</label>
+                <input
+                  type="text"
+                  value={emailSubject}
+                  onChange={e => setEmailSubject(e.target.value)}
+                  placeholder="Project Proposal / Follow-up..."
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500/20"
+                />
               </div>
               <div>
-                <label className="block font-bold text-on-surface-variant mb-1">Message Body</label>
-                <textarea rows={5} value={emailBody} onChange={e => setEmailBody(e.target.value)} placeholder="Dear Customer..." className="w-full bg-surface border border-outline rounded p-2 text-xs" />
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Message Body</label>
+                <textarea
+                  rows={6}
+                  value={emailBody}
+                  onChange={e => setEmailBody(e.target.value)}
+                  placeholder="Dear Customer..."
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 leading-relaxed font-sans"
+                />
               </div>
-              <div className="flex justify-end gap-2 pt-2">
-                <button onClick={() => setActiveModal(null)} className="px-4 py-2 border border-outline rounded font-bold text-xs">Cancel</button>
-                <button onClick={() => sendEmailMutation.mutate()} className="px-4 py-2 bg-blue-600 text-white rounded font-bold text-xs">Send Email</button>
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  onClick={() => setActiveModal(null)}
+                  className="px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  disabled={!emailTo.trim() || !emailSubject.trim() || !emailBody.trim() || sendEmailMutation.isPending}
+                  onClick={() => sendEmailMutation.mutate()}
+                  className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 disabled:opacity-30 transition-all shadow-2xs cursor-pointer"
+                >
+                  {sendEmailMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                  <span>{sendEmailMutation.isPending ? "Sending..." : "Send Email"}</span>
+                </button>
               </div>
             </div>
           </div>
