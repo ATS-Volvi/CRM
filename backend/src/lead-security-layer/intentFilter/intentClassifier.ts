@@ -143,10 +143,28 @@ export async function classifyIntent(
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
       let rawVerdict: any;
-      if (provider === 'anthropic') {
+      const anthropicKey = process.env.ANTHROPIC_API_KEY;
+      const hasValidAnthropicKey = !!(anthropicKey && !anthropicKey.startsWith('your_') && !anthropicKey.includes('your_anthropic'));
+      const openRouterKey = process.env.OPENROUTER_API_KEY;
+      const hasValidOpenRouterKey = !!(openRouterKey && !openRouterKey.startsWith('your_') && !openRouterKey.includes('your_openrouter'));
+
+      if (provider === 'anthropic' && hasValidAnthropicKey) {
+        rawVerdict = await callAnthropicWithTimeout(textToAnalyze, timeoutMs);
+      } else if (hasValidOpenRouterKey) {
+        rawVerdict = await callOpenRouterWithTimeout(textToAnalyze, timeoutMs);
+      } else if (hasValidAnthropicKey) {
         rawVerdict = await callAnthropicWithTimeout(textToAnalyze, timeoutMs);
       } else {
-        rawVerdict = await callOpenRouterWithTimeout(textToAnalyze, timeoutMs);
+        // Deterministic fallback when no external AI API key is configured or available:
+        const lowerText = textToAnalyze.toLowerCase();
+        const hasCommercialKeyword = /quote|quotation|pricing|cost|rate|inquiry|enquiry|service|order|supply|spec|proposal|request|toilet|clean/i.test(lowerText);
+        return {
+          label: hasCommercialKeyword ? 'new_enquiry' : 'too_vague',
+          leadScore: hasCommercialKeyword ? 75 : 40,
+          confidence: 'medium',
+          language: 'en',
+          reason: hasCommercialKeyword ? 'Deterministic commercial keyword match (AI fallback)' : 'Heuristic intent evaluation (no active LLM key)',
+        };
       }
 
       const normalized = normalizeVerdict(rawVerdict);

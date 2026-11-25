@@ -66,6 +66,13 @@ export function Layout() {
     localStorage.setItem("use_orbit_nav", String(useOrbitNav));
   }, [useOrbitNav]);
 
+  // Global event listener to open Notification Drawer from any page or KPI card
+  useEffect(() => {
+    const handleOpen = () => setIsNotificationsOpen(true);
+    window.addEventListener("open-notifications", handleOpen);
+    return () => window.removeEventListener("open-notifications", handleOpen);
+  }, []);
+
   // Keyboard shortcuts listener
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

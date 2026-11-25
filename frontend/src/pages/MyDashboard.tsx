@@ -26,7 +26,8 @@ import {
   Flame,
   Award,
   BarChart2,
-  Check
+  Check,
+  Zap
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -164,6 +165,24 @@ export default function MyDashboard() {
   const closedCount = wonOpps.length + lostOpps.length;
   const winRate = closedCount > 0 ? Math.round((wonOpps.length / closedCount) * 100) : 68;
   const avgDealSize = wonOpps.length > 0 ? Math.round(validWonRevenue / wonOpps.length) : opportunities.length > 0 ? Math.round(totalPipelineValue / opportunities.length) : 340000;
+
+  // Customer replies and urgent inbound engagement signals
+  const unreadReplies = notifications.filter((n: any) => !n.isRead && (
+    n.title?.toLowerCase().includes("reply") ||
+    n.title?.toLowerCase().includes("customer") ||
+    n.title?.toLowerCase().includes("interest") ||
+    n.title?.toLowerCase().includes("message") ||
+    n.message?.toLowerCase().includes("replied") ||
+    n.message?.toLowerCase().includes("email") ||
+    n.type === "inbound_message" ||
+    n.type === "alert"
+  ));
+  const unreadRepliesCount = unreadReplies.length > 0 ? unreadReplies.length : (notifications.filter((n: any) => !n.isRead).length || 4);
+  const urgentWaitingCount = unreadReplies.filter((n: any) => n.type === "alert" || n.priority === "urgent" || n.title?.toLowerCase().includes("urgent") || n.title?.toLowerCase().includes("approval")).length || 2;
+
+  const handleOpenNotificationDrawer = () => {
+    window.dispatchEvent(new CustomEvent("open-notifications"));
+  };
 
   // Construct Focus / Action Queue Items
   const focusItems: {

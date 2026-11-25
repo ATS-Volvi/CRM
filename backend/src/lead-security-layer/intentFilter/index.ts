@@ -82,6 +82,7 @@ export async function evaluateInboundEmail(
   const needsAiClassification =
     !senderContext.isBlocklisted &&
     !senderContext.isAllowlisted &&
+    !senderContext.openLeadId &&
     !headerResult.isBulkOrAuto &&
     !noContentResult.isNoContent;
 
