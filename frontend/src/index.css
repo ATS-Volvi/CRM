@@ -143,3 +143,65 @@
   }
 }
 
+/* ==============================================================================
+   FACE THEME SNAKE BORDER ANIMATION (Slow Glowing Border Beam)
+   ============================================================================== */
+@keyframes snakeBorderRotate {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.face-snake-border {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.5rem; /* rounded-3xl */
+  padding: 2px;
+  background-color: #D8EEE1;
+  box-shadow: 0 4px 20px -2px rgba(5, 150, 105, 0.08);
+  transition: box-shadow 0.3s ease;
+}
+
+.dark .face-snake-border {
+  background-color: #1E293B;
+  box-shadow: 0 4px 20px -2px rgba(5, 150, 105, 0.15);
+}
+
+.face-snake-border::before {
+  content: "";
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0%,
+    transparent 70%,
+    rgba(168, 230, 200, 0.35) 82%,
+    rgba(16, 185, 129, 0.75) 91%,
+    #059669 97%,
+    transparent 100%
+  );
+  animation: snakeBorderRotate 8s linear infinite;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.face-snake-inner {
+  position: relative;
+  z-index: 1;
+  background-color: #FFFFFF;
+  border-radius: calc(1.5rem - 2px);
+  width: 100%;
+  height: 100%;
+}
+
+.dark .face-snake-inner {
+  background-color: #0F172A;
+}
+
+

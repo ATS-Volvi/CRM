@@ -380,9 +380,10 @@ export default function MyDashboard() {
         </div>
       </div>
 
-      {/* 2. TOP UNIFIED KPI STRIP & TARGET GAUGE (Exact Card & Indicator Style) */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-6 shadow-xs">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 divide-y lg:divide-y-0 lg:divide-x divide-slate-100 dark:divide-slate-800">
+      {/* 2. TOP UNIFIED KPI STRIP & TARGET GAUGE (Animated FACE Snake Border) */}
+      <div className="face-snake-border shadow-xs">
+        <div className="face-snake-inner p-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 divide-y lg:divide-y-0 lg:divide-x divide-slate-100 dark:divide-slate-800">
           
           {/* KPI 1: Closed Revenue */}
           <div className="space-y-3 cursor-pointer group" onClick={() => navigate("/opportunities")}>
@@ -537,6 +538,7 @@ export default function MyDashboard() {
 
         </div>
       </div>
+    </div>
 
       {/* 3. MIDDLE ROW: REVENUE SPLINE GRAPH (WITH FACE GREEN FILL) + PIPELINE DISTRIBUTION */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
