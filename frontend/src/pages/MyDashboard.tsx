@@ -380,161 +380,169 @@ export default function MyDashboard() {
         </div>
       </div>
 
-      {/* 2. TOP UNIFIED KPI STRIP & TARGET GAUGE (Animated FACE Snake Border) */}
+      {/* 2. TOP UNIFIED KPI STRIP & TARGET GAUGE (Animated FACE Snake Border Frame with Distinct Sub-Cards) */}
       <div className="face-snake-border shadow-xs">
-        <div className="face-snake-inner p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 divide-y lg:divide-y-0 lg:divide-x divide-slate-100 dark:divide-slate-800">
-          
-          {/* KPI 1: Closed Revenue */}
-          <div className="space-y-3 cursor-pointer group" onClick={() => navigate("/opportunities")}>
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                Revenue Closed
-              </span>
-              <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 flex items-center justify-center font-bold">
-                <DollarSign className="w-4 h-4" />
-              </div>
-            </div>
-            <div>
-              <div className="text-2xl font-black text-slate-900 dark:text-white tracking-tight group-hover:text-emerald-600 transition-colors">
-                {formatCurrency(totalWonRevenue > 0 ? totalWonRevenue : 1845000)}
-              </div>
-              <div className="flex items-center gap-1.5 mt-1.5">
-                <span className="inline-flex items-center gap-0.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full">
-                  <TrendingUp className="w-3 h-3" />
-                  +14.2%
+        <div className="face-snake-inner p-3 sm:p-4 bg-slate-50/60 dark:bg-slate-950/40">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-3.5">
+            
+            {/* KPI 1: Closed Revenue */}
+            <div
+              onClick={() => navigate("/opportunities")}
+              className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/80 hover:border-emerald-400/80 dark:hover:border-emerald-600 hover:bg-[#F4FAF6] dark:hover:bg-emerald-950/20 hover:shadow-xs transition-all duration-200 cursor-pointer group flex flex-col justify-between"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                  Revenue Closed
                 </span>
-                <span className="text-[11px] font-medium text-slate-400">vs target</span>
+                <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 flex items-center justify-center font-bold group-hover:scale-105 transition-transform">
+                  <DollarSign className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="mt-2.5">
+                <div className="text-2xl font-black text-slate-900 dark:text-white tracking-tight group-hover:text-emerald-600 transition-colors">
+                  {formatCurrency(totalWonRevenue > 0 ? totalWonRevenue : 1845000)}
+                </div>
+                <div className="flex items-center gap-1.5 mt-1.5">
+                  <span className="inline-flex items-center gap-0.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full">
+                    <TrendingUp className="w-3 h-3" />
+                    +14.2%
+                  </span>
+                  <span className="text-[11px] font-medium text-slate-400">vs target</span>
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* KPI 2: Active Pipeline Opportunities */}
-          <div className="space-y-3 pt-4 lg:pt-0 lg:pl-6 cursor-pointer group" onClick={() => navigate("/pipeline")}>
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                Active Pipeline
-              </span>
-              <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 flex items-center justify-center font-bold">
-                <Target className="w-4 h-4" />
+            {/* KPI 2: Active Pipeline Opportunities */}
+            <div
+              onClick={() => navigate("/pipeline")}
+              className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/80 hover:border-blue-400/80 dark:hover:border-blue-600 hover:bg-blue-50/30 dark:hover:bg-blue-950/20 hover:shadow-xs transition-all duration-200 cursor-pointer group flex flex-col justify-between"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                  Active Pipeline
+                </span>
+                <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 flex items-center justify-center font-bold group-hover:scale-105 transition-transform">
+                  <Target className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="mt-2.5">
+                <div className="text-2xl font-black text-slate-900 dark:text-white tracking-tight group-hover:text-blue-600 transition-colors">
+                  {formatCurrency(totalPipelineValue > 0 ? totalPipelineValue : 4850000)}
+                </div>
+                <div className="flex items-center gap-1.5 mt-1.5">
+                  <span className="inline-flex items-center gap-0.5 text-[11px] font-bold text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded-full">
+                    {opportunities.length || 14} Deals
+                  </span>
+                  <span className="text-[11px] font-medium text-slate-400 truncate">
+                    Weighted: {formatCurrencyCompact(weightedPipelineValue || 3120000)}
+                  </span>
+                </div>
               </div>
             </div>
-            <div>
-              <div className="text-2xl font-black text-slate-900 dark:text-white tracking-tight group-hover:text-blue-600 transition-colors">
-                {formatCurrency(totalPipelineValue > 0 ? totalPipelineValue : 4850000)}
-              </div>
-              <div className="flex items-center gap-1.5 mt-1.5">
-                <span className="inline-flex items-center gap-0.5 text-[11px] font-bold text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded-full">
-                  {opportunities.length || 14} Deals
-                </span>
-                <span className="text-[11px] font-medium text-slate-400 truncate">
-                  Weighted: {formatCurrencyCompact(weightedPipelineValue || 3120000)}
-                </span>
-              </div>
-            </div>
-          </div>
 
-          {/* KPI 3: Action Queue & Due Follow-ups */}
-          <div className="space-y-3 pt-4 lg:pt-0 lg:pl-6 cursor-pointer group" onClick={() => navigate("/inbox")}>
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                Action Queue
-              </span>
-              <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 flex items-center justify-center font-bold">
-                <Flame className="w-4 h-4" />
+            {/* KPI 3: Action Queue & Due Follow-ups */}
+            <div
+              onClick={() => navigate("/inbox")}
+              className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/80 hover:border-amber-400/80 dark:hover:border-amber-600 hover:bg-amber-50/30 dark:hover:bg-amber-950/20 hover:shadow-xs transition-all duration-200 cursor-pointer group flex flex-col justify-between"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                  Action Queue
+                </span>
+                <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 flex items-center justify-center font-bold group-hover:scale-105 transition-transform">
+                  <Flame className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="mt-2.5">
+                <div className="text-2xl font-black text-slate-900 dark:text-white tracking-tight group-hover:text-amber-600 transition-colors">
+                  {urgentActionsCount || 8} Actions
+                </div>
+                <div className="flex items-center gap-1.5 mt-1.5">
+                  <span className={`inline-flex items-center gap-0.5 text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                    overdueTasks.length > 0
+                      ? "bg-red-50 text-red-600 dark:bg-red-950/50"
+                      : "bg-amber-50 text-amber-700 dark:bg-amber-950/50"
+                  }`}>
+                    {overdueTasks.length > 0 ? `${overdueTasks.length} Overdue SLA` : "SLA On Track"}
+                  </span>
+                  <span className="text-[11px] font-medium text-slate-400">
+                    {contactedLeads.length || 5} follow-up
+                  </span>
+                </div>
               </div>
             </div>
-            <div>
-              <div className="text-2xl font-black text-slate-900 dark:text-white tracking-tight group-hover:text-amber-600 transition-colors">
-                {urgentActionsCount || 8} Actions
-              </div>
-              <div className="flex items-center gap-1.5 mt-1.5">
-                <span className={`inline-flex items-center gap-0.5 text-[11px] font-bold px-2 py-0.5 rounded-full ${
-                  overdueTasks.length > 0
-                    ? "bg-red-50 text-red-600 dark:bg-red-950/50"
-                    : "bg-amber-50 text-amber-700 dark:bg-amber-950/50"
-                }`}>
-                  {overdueTasks.length > 0 ? `${overdueTasks.length} Overdue SLA` : "SLA On Track"}
-                </span>
-                <span className="text-[11px] font-medium text-slate-400">
-                  {contactedLeads.length || 5} in follow-up
-                </span>
-              </div>
-            </div>
-          </div>
 
-          {/* KPI 4: Customer Engagement & Inbound Replies */}
-          <div
-            className="space-y-3 pt-4 lg:pt-0 lg:pl-6 cursor-pointer group"
-            onClick={handleOpenNotificationDrawer}
-            title="Click to view all customer replies and engagement alerts in the Notification Drawer"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                Customer Replies
-              </span>
-              <div className="w-8 h-8 rounded-xl bg-purple-50 dark:bg-purple-950/40 text-purple-600 flex items-center justify-center font-bold relative">
-                <MessageSquare className="w-4 h-4" />
-                {unreadRepliesCount > 0 && (
-                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white dark:border-slate-900" />
-                )}
+            {/* KPI 4: Customer Engagement & Inbound Replies */}
+            <div
+              onClick={handleOpenNotificationDrawer}
+              className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/80 hover:border-purple-400/80 dark:hover:border-purple-600 hover:bg-purple-50/30 dark:hover:bg-purple-950/20 hover:shadow-xs transition-all duration-200 cursor-pointer group flex flex-col justify-between"
+              title="Click to view all customer replies and engagement alerts in the Notification Drawer"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                  Customer Replies
+                </span>
+                <div className="w-8 h-8 rounded-xl bg-purple-50 dark:bg-purple-950/40 text-purple-600 flex items-center justify-center font-bold relative group-hover:scale-105 transition-transform">
+                  <MessageSquare className="w-4 h-4" />
+                  {unreadRepliesCount > 0 && (
+                    <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white dark:border-slate-900" />
+                  )}
+                </div>
+              </div>
+              <div className="mt-2.5">
+                <div className="text-2xl font-black text-slate-900 dark:text-white tracking-tight group-hover:text-purple-600 transition-colors">
+                  {unreadRepliesCount} {unreadRepliesCount === 1 ? "Inbound Reply" : "Inbound Replies"}
+                </div>
+                <div className="flex items-center gap-1.5 mt-1.5">
+                  <span className="inline-flex items-center gap-0.5 text-[11px] font-bold text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/60 px-2 py-0.5 rounded-full">
+                    <Zap className="w-3 h-3" />
+                    {urgentWaitingCount > 0 ? `${urgentWaitingCount} Urgent Action` : "Active Buying Signals"}
+                  </span>
+                  <span className="text-[11px] font-medium text-slate-400 truncate">
+                    Open Drawer →
+                  </span>
+                </div>
               </div>
             </div>
-            <div>
-              <div className="text-2xl font-black text-slate-900 dark:text-white tracking-tight group-hover:text-purple-600 transition-colors">
-                {unreadRepliesCount} {unreadRepliesCount === 1 ? "Inbound Reply" : "Inbound Replies"}
-              </div>
-              <div className="flex items-center gap-1.5 mt-1.5">
-                <span className="inline-flex items-center gap-0.5 text-[11px] font-bold text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/60 px-2 py-0.5 rounded-full">
-                  <Zap className="w-3 h-3" />
-                  {urgentWaitingCount > 0 ? `${urgentWaitingCount} Urgent Action` : "Active Buying Signals"}
-                </span>
-                <span className="text-[11px] font-medium text-slate-400 truncate">
-                  Open Drawer →
-                </span>
-              </div>
-            </div>
-          </div>
 
-          {/* KPI 5: Sales Target Semi-Circle Gauge */}
-          <div className="pt-4 lg:pt-0 lg:pl-6 flex flex-col items-center justify-center text-center">
-            <div className="relative w-36 h-20 flex items-end justify-center overflow-hidden">
-              {/* Semi-circular background track */}
-              <svg viewBox="0 0 100 55" className="w-36 h-20">
-                <path
-                  d="M 10 50 A 40 40 0 0 1 90 50"
-                  fill="none"
-                  stroke="#E2E8F0"
-                  strokeWidth="8"
-                  strokeLinecap="round"
-                  className="dark:stroke-slate-800"
-                />
-                <path
-                  d="M 10 50 A 40 40 0 0 1 90 50"
-                  fill="none"
-                  stroke="#059669"
-                  strokeWidth="8"
-                  strokeLinecap="round"
-                  strokeDasharray="125.66"
-                  strokeDashoffset={strokeOffset}
-                  className="transition-all duration-1000 ease-out"
-                />
-              </svg>
-              <div className="absolute bottom-1 text-center">
-                <span className="text-2xl font-black text-slate-900 dark:text-white leading-none">
-                  {targetPct}%
+            {/* KPI 5: Sales Target Semi-Circle Gauge */}
+            <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/80 hover:border-emerald-400/80 dark:hover:border-emerald-600 hover:bg-[#F4FAF6] dark:hover:bg-emerald-950/20 hover:shadow-xs transition-all duration-200 flex flex-col items-center justify-center text-center">
+              <div className="relative w-36 h-20 flex items-end justify-center overflow-hidden">
+                <svg viewBox="0 0 100 55" className="w-36 h-20">
+                  <path
+                    d="M 10 50 A 40 40 0 0 1 90 50"
+                    fill="none"
+                    stroke="#E2E8F0"
+                    strokeWidth="8"
+                    strokeLinecap="round"
+                    className="dark:stroke-slate-800"
+                  />
+                  <path
+                    d="M 10 50 A 40 40 0 0 1 90 50"
+                    fill="none"
+                    stroke="#059669"
+                    strokeWidth="8"
+                    strokeLinecap="round"
+                    strokeDasharray="125.66"
+                    strokeDashoffset={strokeOffset}
+                    className="transition-all duration-1000 ease-out"
+                  />
+                </svg>
+                <div className="absolute bottom-1 text-center">
+                  <span className="text-2xl font-black text-slate-900 dark:text-white leading-none">
+                    {targetPct}%
+                  </span>
+                </div>
+              </div>
+              <div className="mt-1">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                  Sales Target
+                </span>
+                <span className="text-[10px] text-slate-400 font-medium">
+                  {formatCurrencyCompact(totalWonRevenue > 0 ? totalWonRevenue : 1845000)} of {formatCurrencyCompact(targetQuota)}
                 </span>
               </div>
             </div>
-            <div className="mt-1">
-              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-                Sales Target
-              </span>
-              <span className="text-[10px] text-slate-400 font-medium">
-                {formatCurrencyCompact(totalWonRevenue > 0 ? totalWonRevenue : 1845000)} of {formatCurrencyCompact(targetQuota)}
-              </span>
-            </div>
-          </div>
 
         </div>
       </div>
