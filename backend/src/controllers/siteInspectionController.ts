@@ -1092,6 +1092,10 @@ export const acceptInspectionHandler = async (req: Request, res: Response) => {
       return res.status(403).json({ error: "Only site inspectors or managers may accept site inspections." });
     }
 
+    if (inspection.assignedToId && inspection.assignedToId !== user.id && !APPROVER_ROLES.includes(user.role)) {
+      return res.status(403).json({ error: "Access denied: only the assigned site inspector may accept this inspection." });
+    }
+
     const { acceptInspection } = require("../services/siteInspectionService");
     const result = await acceptInspection(req.params.id as string, user.id, user.role, req.ip);
     res.json(result);

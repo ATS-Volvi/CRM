@@ -116,6 +116,12 @@ describe("Full Commercial Lifecycle: Lead to Quote E2E", () => {
     const leadId = leadRes.body.leadId || leadRes.body.data?.id || leadRes.body.id;
     expect(leadId).toBeDefined();
 
+    // Ensure lead is assigned to qualifyingRep
+    await sequelize.models.Lead.update(
+      { assignedToId: qualifyingRep.id },
+      { where: { id: leadId } }
+    );
+
     // Step 2: Qualification Activity Prerequisite Enforcement
     // Attempt qualification without logging activity -> MUST BE BLOCKED (Status 400)
     const unactiveQualifyRes = await request(app)

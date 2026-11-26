@@ -616,7 +616,7 @@ export async function submitQuoteForApprovalWorkflow(quoteId: string, userId: st
   const totalAmount = Number(q.totalAmount || 0);
 
   // Evaluate Approval Limits using centralized AdminApprovalPolicy & Rep limits
-  const evalResult = await evaluateQuoteApproval(quoteId);
+  const evalResult = await evaluateQuoteApproval(quoteId, userId ? { salesRepId: userId } : undefined);
   const requiresApproval = evalResult.approvalRequired;
   const requiredRole = evalResult.approvalLevel === "ADMIN" ? "admin" : evalResult.approvalLevel === "TEAM_LEAD" ? "manager" : "rep";
 
