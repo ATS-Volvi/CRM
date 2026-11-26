@@ -21,7 +21,17 @@ export const getEmailMessages = async (req: Request, res: Response) => {
 
 export const sendEmailMessage = async (req: Request, res: Response) => {
   try {
-    const { leadId, customerId, toEmail, subject, body, scheduledAt } = req.body;
+    let { leadId, customerId, opportunityId, dealId, toEmail, subject, body, scheduledAt } = req.body;
+    const targetDealId = opportunityId || dealId;
+
+    if (targetDealId && (!leadId || !customerId)) {
+      const d: any = await sequelize.models.Deal.findByPk(targetDealId);
+      if (d) {
+        if (!leadId) leadId = d.leadId;
+        if (!customerId) customerId = d.accountId || d.customerId;
+      }
+    }
+
     const initialStatus = scheduledAt ? "Scheduled" : "Sent";
     const senderId = (req as any).user?.id || null;
 
@@ -39,13 +49,14 @@ export const sendEmailMessage = async (req: Request, res: Response) => {
     });
 
     let activityRecord: any = null;
-    if (leadId) {
+    if (leadId || customerId || targetDealId) {
       activityRecord = await sequelize.models.Activity.create({
         id: require("crypto").randomUUID(),
-        leadId,
+        leadId: leadId || null,
+        customerId: customerId || null,
         type: "email",
         outcome: `Email Sent: ${subject}`,
-        notes: body.substring(0, 150),
+        notes: body.substring(0, 500),
         createdById: senderId,
         direction: "outbound"
       });

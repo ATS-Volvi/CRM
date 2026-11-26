@@ -200,16 +200,22 @@ export default function OpportunityDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
 
   const [activeTab, setActiveTab] = useState<"timeline" | "quotes" | "splits" | "history" | "handoff_chat">("timeline");
-  const [timelineFilter, setTimelineFilter] = useState<"all" | "note" | "communication" | "quote">("all");
+  const [timelineFilter, setTimelineFilter] = useState<"all" | "email" | "note" | "communication" | "quote">("all");
   const [showSystemAudit, setShowSystemAudit] = useState(false);
   const [noteText, setNoteText] = useState("");
   const [viewQuoteId, setViewQuoteId] = useState<string | null>(null);
   const [rejectModalQuoteId, setRejectModalQuoteId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("Price too high / Commercial terms");
   const [sendQuoteId, setSendQuoteId] = useState<string | null>(null);
+
+  // Email & Communication Composer State
+  const [composerMode, setComposerMode] = useState<"email" | "note">("email");
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailBody, setEmailBody] = useState("");
+  const [emailTo, setEmailTo] = useState("");
 
   // Record Purchase Order (PO) State
   const [poModalQuote, setPoModalQuote] = useState<any | null>(null);
@@ -253,6 +259,13 @@ export default function OpportunityDetail() {
     },
     enabled: !!id
   });
+
+  React.useEffect(() => {
+    if (opp) {
+      const em = opp.primaryContact?.email || opp.lead?.email || opp.account?.email;
+      if (em) setEmailTo(em);
+    }
+  }, [opp]);
 
   // Fetch Account for Corporate Hierarchy & Details
   const { data: accountDetails } = useQuery<any>({
@@ -434,6 +447,44 @@ export default function OpportunityDetail() {
     }
   });
 
+  // Send Email Mutation
+  const sendEmailMutation = useMutation({
+    mutationFn: async () => {
+      const targetTo = emailTo || opp?.primaryContact?.email || opp?.lead?.email || opp?.account?.email || "";
+      if (!targetTo) throw new Error("No recipient email address available for this deal.");
+      if (!emailSubject.trim()) throw new Error("Subject line is required.");
+      if (!emailBody.trim()) throw new Error("Email body cannot be empty.");
+
+      const res = await fetch("/api/v1/email-messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          opportunityId: id,
+          dealId: id,
+          leadId: opp?.leadId || undefined,
+          customerId: opp?.accountId || opp?.customerId || undefined,
+          toEmail: targetTo,
+          subject: emailSubject.trim(),
+          body: emailBody.trim()
+        })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Failed to dispatch email" }));
+        throw new Error(err.error || "Failed to dispatch email");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      setEmailSubject("");
+      setEmailBody("");
+      queryClient.invalidateQueries({ queryKey: ["opportunity-timeline", id] });
+      alert("Email dispatched successfully to customer and logged to timeline!");
+    },
+    onError: (err: any) => {
+      alert("Failed to send email: " + err.message);
+    }
+  });
+
   // Record Purchase Order Mutation
   const recordPoMutation = useMutation({
     mutationFn: async ({ quoteId, amount, poNumber }: { quoteId?: string; amount: number; poNumber: string }) => {
@@ -572,8 +623,13 @@ export default function OpportunityDetail() {
   const baseActivities = showSystemAudit ? activities : humanActivities;
   const filteredActivities = baseActivities.filter((act) => {
     if (timelineFilter === "all") return true;
+    if (timelineFilter === "email") {
+      const t = (act.type || "").toLowerCase();
+      const content = `${act.outcome || ""} ${act.notes || ""}`.toLowerCase();
+      return t.includes("email") || content.includes("email");
+    }
     if (timelineFilter === "note") return act.type === "note" || !act.type;
-    if (timelineFilter === "communication") return ["call", "email", "whatsapp", "meeting"].includes(act.type);
+    if (timelineFilter === "communication") return ["call", "email", "whatsapp", "meeting"].includes((act.type || "").toLowerCase());
     if (timelineFilter === "quote") return act.type?.includes("quote");
     return true;
   });
@@ -1455,65 +1511,201 @@ export default function OpportunityDetail() {
             {/* TAB 1: TIMELINE & NOTE COMPOSER */}
             {activeTab === "timeline" && (
               <div className="space-y-4">
-                {/* Commercial Quick Actions: Send Quote & Record PO */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-xs text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="font-extrabold text-slate-800 dark:text-slate-200">
-                      Commercial Actions:
-                    </span>
-                    <span className="text-[11px] text-slate-400">
-                      Send quote proposals or capture client POs directly
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {quotes.length > 0 && (
-                      <button
-                        onClick={() => setSendQuoteId(quotes[0].id)}
-                        className="px-3 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-800 dark:bg-sky-950/50 dark:text-sky-300 border border-sky-300 dark:border-sky-800 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
-                        title="Send quotation via Email or WhatsApp"
-                      >
-                        <Send className="w-3.5 h-3.5 text-sky-600" />
-                        <span>Send Quote (Email/WhatsApp)</span>
-                      </button>
-                    )}
-                    <button
-                      onClick={() => {
-                        const q = quotes.find((x) => x.isFinalAgreed) || quotes[0];
-                        setPoModalQuote(q || { totalAmount: opp.amount || 500000 });
-                        setPoAmountInput(String(q?.totalAmount || opp.amount || 500000));
-                        setPoNumberInput(`PO-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`);
-                      }}
-                      className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
-                      title="Record customer purchase order"
-                    >
-                      <FileText className="w-3.5 h-3.5" />
-                      <span>Record PO</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Note Composer */}
+                {/* Communication & Commercial Hub Composer */}
                 <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-xs space-y-3">
-                  <textarea
-                    rows={2}
-                    placeholder="Log a commercial note, client requirement update, or meeting outcome..."
-                    value={noteText}
-                    onChange={(e) => setNoteText(e.target.value)}
-                    className="w-full px-3.5 py-2.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-1 focus:ring-blue-500 focus:bg-white resize-none text-slate-900 dark:text-white"
-                  />
-                  <div className="flex justify-between items-center pt-1">
-                    <span className="text-[11px] text-slate-400">
-                      Notes are recorded in real-time onto the deal history.
-                    </span>
-                    <button
-                      onClick={() => noteText.trim() && addNoteMutation.mutate(noteText.trim())}
-                      disabled={!noteText.trim() || addNoteMutation.isPending}
-                      className="px-4 py-2 bg-slate-900 hover:bg-slate-800 dark:bg-blue-600 dark:hover:bg-blue-700 disabled:opacity-40 text-white rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs active:scale-95"
-                    >
-                      <Send className="w-3.5 h-3.5" />
-                      <span>{addNoteMutation.isPending ? "Posting..." : "Post Note"}</span>
-                    </button>
+                  {/* Mode Selector */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-slate-100 dark:border-slate-800 pb-2.5">
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setComposerMode("email")}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                          composerMode === "email"
+                            ? "bg-blue-600 text-white shadow-2xs"
+                            : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200"
+                        }`}
+                      >
+                        <Mail className="w-3.5 h-3.5" />
+                        <span>Send Email to Customer</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setComposerMode("note")}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                          composerMode === "note"
+                            ? "bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 shadow-2xs"
+                            : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200"
+                        }`}
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                        <span>Internal Note</span>
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {quotes.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setSendQuoteId(quotes[0].id)}
+                          className="px-2.5 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-800 dark:bg-sky-950/50 dark:text-sky-300 border border-sky-300 dark:border-sky-800 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
+                          title="Send quote proposal dialog"
+                        >
+                          <Send className="w-3 h-3 text-sky-600" />
+                          <span>Send Quote (Channel)</span>
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const q = quotes.find((x) => x.isFinalAgreed) || quotes[0];
+                          setPoModalQuote(q || { totalAmount: opp.amount || 500000 });
+                          setPoAmountInput(String(q?.totalAmount || opp.amount || 500000));
+                          setPoNumberInput(`PO-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`);
+                        }}
+                        className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
+                        title="Record customer purchase order"
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                        <span>Record Customer PO</span>
+                      </button>
+                    </div>
                   </div>
+
+                  {composerMode === "email" ? (
+                    <div className="space-y-3 pt-1">
+                      {/* Recipient Bar */}
+                      <div className="flex items-center justify-between text-xs bg-slate-50 dark:bg-slate-800/60 px-3 py-2 rounded-xl border border-slate-200/80 dark:border-slate-700/80">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="font-extrabold text-slate-500">To:</span>
+                          <input
+                            type="email"
+                            value={emailTo}
+                            onChange={(e) => setEmailTo(e.target.value)}
+                            placeholder="customer@company.com"
+                            className="bg-transparent font-mono text-xs text-slate-900 dark:text-white font-bold focus:outline-none min-w-[220px]"
+                          />
+                        </div>
+                        <span className="text-[10px] text-slate-400 font-medium">Direct Corporate SMTP</span>
+                      </div>
+
+                      {/* Quick Templates: Send Quote & Request PO */}
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Quick Email Templates:</span>
+                        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-[11px]">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const q = quotes.find((x) => x.isFinalAgreed) || quotes[0];
+                              const qNum = q?.quoteNumber || "QT-2026-00159";
+                              const qVal = formatCurrency(q?.totalAmount || opp.amount || 500000);
+                              setEmailSubject(`Commercial Quotation #${qNum} & Purchase Order (PO) Request — ${opp.name}`);
+                              setEmailBody(
+                                `Dear ${opp.primaryContact?.firstName || opp.lead?.firstName || "Customer"},\n\n` +
+                                `Thank you for your business. Please find our official commercial quotation for ${opp.name} outlined below:\n\n` +
+                                `• Quotation Ref: ${qNum}\n` +
+                                `• Project Scope: ${opp.name}\n` +
+                                `• Total Value: ${qVal}\n` +
+                                `• Payment Terms: NET 30 upon approved Purchase Order (PO)\n\n` +
+                                `Kindly reply to this email with your official Purchase Order (PO) or signed acceptance to confirm order and initiate site mobilization.\n\n` +
+                                `Best regards,\n${user?.name || "Nexus Automation Systems Ltd"}`
+                              );
+                            }}
+                            className="px-2.5 py-1 rounded-full border border-sky-300 text-sky-800 bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800 transition-colors shrink-0 text-[11px] font-semibold cursor-pointer flex items-center gap-1 shadow-2xs"
+                          >
+                            <FileText className="w-3 h-3 text-sky-600" />
+                            <span>📄 Send Quote &amp; Request PO</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEmailSubject(`Purchase Order Received & Acknowledged — ${opp.name}`);
+                              setEmailBody(
+                                `Dear ${opp.primaryContact?.firstName || opp.lead?.firstName || "Customer"},\n\n` +
+                                `We acknowledge receipt of your official Purchase Order (PO) for ${opp.name}.\n\n` +
+                                `Our engineering, logistics, and site operations teams have scheduled the mobilization accordingly. We will keep you updated on delivery milestones.\n\n` +
+                                `Best regards,\n${user?.name || "Nexus Automation Systems Ltd"}`
+                              );
+                            }}
+                            className="px-2.5 py-1 rounded-full border border-emerald-300 text-emerald-800 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 transition-colors shrink-0 text-[11px] font-semibold cursor-pointer flex items-center gap-1 shadow-2xs"
+                          >
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                            <span>✅ Confirm PO Received</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEmailSubject(`Follow-up: Commercial Requirements & Schedule — ${opp.name}`);
+                              setEmailBody(
+                                `Dear ${opp.primaryContact?.firstName || opp.lead?.firstName || "Customer"},\n\n` +
+                                `I am following up on our recent commercial discussion regarding ${opp.name}. Please let us know if your procurement team requires any vendor clearances or additional technical documentation to issue the Purchase Order.\n\n` +
+                                `Best regards,\n${user?.name || "Nexus Automation Systems Ltd"}`
+                              );
+                            }}
+                            className="px-2.5 py-1 rounded-full border border-slate-300 text-slate-700 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300 transition-colors shrink-0 text-[11px] font-semibold cursor-pointer shadow-2xs"
+                          >
+                            <span>Commercial Follow-up</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Subject input */}
+                      <input
+                        type="text"
+                        placeholder="Email subject (e.g. Quotation & PO Request)..."
+                        value={emailSubject}
+                        onChange={(e) => setEmailSubject(e.target.value)}
+                        className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-1 focus:ring-blue-500 font-semibold text-slate-900 dark:text-white"
+                      />
+
+                      {/* Body textarea */}
+                      <textarea
+                        rows={4}
+                        placeholder="Write your email to the customer (or select a template above)..."
+                        value={emailBody}
+                        onChange={(e) => setEmailBody(e.target.value)}
+                        className="w-full px-3.5 py-2.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-1 focus:ring-blue-500 focus:bg-white resize-y text-slate-900 dark:text-white"
+                      />
+
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1">
+                        <span className="text-[11px] text-slate-400">
+                          Dispatched via corporate mail server and recorded to timeline.
+                        </span>
+                        <button
+                          onClick={() => sendEmailMutation.mutate()}
+                          disabled={sendEmailMutation.isPending || !emailSubject.trim() || !emailBody.trim()}
+                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-xs active:scale-95"
+                        >
+                          <Send className="w-3.5 h-3.5" />
+                          <span>{sendEmailMutation.isPending ? "Sending..." : "Send Email"}</span>
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3 pt-1">
+                      <textarea
+                        rows={3}
+                        placeholder="Log an internal commercial note, client requirement update, or meeting outcome..."
+                        value={noteText}
+                        onChange={(e) => setNoteText(e.target.value)}
+                        className="w-full px-3.5 py-2.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-1 focus:ring-blue-500 focus:bg-white resize-none text-slate-900 dark:text-white"
+                      />
+                      <div className="flex justify-between items-center pt-1">
+                        <span className="text-[11px] text-slate-400">
+                          Internal notes are visible only to the sales team on this deal.
+                        </span>
+                        <button
+                          onClick={() => noteText.trim() && addNoteMutation.mutate(noteText.trim())}
+                          disabled={!noteText.trim() || addNoteMutation.isPending}
+                          className="px-4 py-2 bg-slate-900 hover:bg-slate-800 dark:bg-blue-600 dark:hover:bg-blue-700 disabled:opacity-40 text-white rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs active:scale-95"
+                        >
+                          <Send className="w-3.5 h-3.5" />
+                          <span>{addNoteMutation.isPending ? "Posting..." : "Post Note"}</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Timeline Filters & Feed */}
@@ -1532,6 +1724,16 @@ export default function OpportunityDetail() {
                         }`}
                       >
                         All Activity
+                      </button>
+                      <button
+                        onClick={() => setTimelineFilter("email")}
+                        className={`text-[11px] font-bold px-3 py-1 rounded-full transition-all cursor-pointer ${
+                          timelineFilter === "email"
+                            ? "bg-slate-900 text-white dark:bg-blue-600"
+                            : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200"
+                        }`}
+                      >
+                        Emails
                       </button>
                       <button
                         onClick={() => setTimelineFilter("note")}
@@ -1588,6 +1790,40 @@ export default function OpportunityDetail() {
                             <p className="text-slate-800 dark:text-slate-200 whitespace-pre-wrap leading-relaxed">
                               {(act.outcome || act.notes || "Activity recorded.").replace(/₹/g, "SAR ")}
                             </p>
+
+                            {/* Quick Context Action on Email Cards */}
+                            {((act.type || "").toLowerCase().includes("email") || (act.outcome || "").toLowerCase().includes("email")) && (
+                              <div className="flex items-center gap-2 pt-2 border-t border-slate-200/50 dark:border-slate-700/50">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setComposerMode("email");
+                                    setEmailSubject(`Re: ${(act.outcome || act.notes || opp.name).replace(/^Email (Sent|attached to lead):\s*/i, "")}`);
+                                    window.scrollTo({ top: 400, behavior: "smooth" });
+                                  }}
+                                  className="text-[10px] font-bold text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/40 hover:bg-sky-100 px-2 py-0.5 rounded border border-sky-200 dark:border-sky-800 flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                                >
+                                  <Mail className="w-3 h-3 text-sky-600" />
+                                  <span>Reply via Email</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const match = (act.notes || act.outcome || "").match(/PO[-\s]?([A-Za-z0-9_-]+)/i);
+                                    const extracted = match ? `PO-${match[1]}` : `PO-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+                                    const q = quotes.find((x) => x.isFinalAgreed) || quotes[0];
+                                    setPoModalQuote(q || { totalAmount: opp.amount || 500000 });
+                                    setPoAmountInput(String(q?.totalAmount || opp.amount || 500000));
+                                    setPoNumberInput(extracted);
+                                  }}
+                                  className="text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 px-2 py-0.5 rounded border border-amber-300 dark:border-amber-800 flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                                >
+                                  <FileText className="w-3 h-3 text-amber-600" />
+                                  <span>Record as PO</span>
+                                </button>
+                              </div>
+                            )}
                           </div>
                         </div>
                       ))}
