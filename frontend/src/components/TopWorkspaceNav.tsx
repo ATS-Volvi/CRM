@@ -198,7 +198,6 @@ export function TopWorkspaceNav({
 
         {/* Omnibar Global Search (Ctrl + K) & Profile */}
         <div className="flex items-center gap-3 shrink-0">
-          <AttendanceClockWidget />
 
           <button
             onClick={onOpenSearch}

@@ -400,11 +400,7 @@ export function Sidebar({
             </button>
           </div>
         )}
-        {!isCollapsed && (
-          <div className="pb-1">
-            <AttendanceClockWidget variant="sidebar" />
-          </div>
-        )}
+        {/* Punch in hidden from UI for now */}
         {!isCollapsed ? (
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2.5 min-w-0">
