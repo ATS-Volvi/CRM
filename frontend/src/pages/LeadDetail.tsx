@@ -1652,21 +1652,35 @@ export default function LeadDetail() {
                 badge: tasks.filter((t: any) => t.status !== "Completed").length,
                 badgeColor: "bg-emerald-100 text-[#059669] dark:bg-emerald-950 dark:text-emerald-300",
                 content: (
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-2">
-                      <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                        <CheckSquare className="w-4 h-4 text-[#059669]" /> Open Tasks ({tasks.filter((t: any) => t.status !== "Completed").length})
+                  <div className="space-y-3.5">
+                    <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-2.5">
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                        <CheckSquare className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> Open Tasks ({tasks.filter((t: any) => t.status !== "Completed").length})
                       </span>
-                      <button onClick={() => setActiveModal("task")} className="text-[#059669] font-bold text-xs hover:underline flex items-center gap-1 cursor-pointer">
+                      <button
+                        onClick={() => setActiveModal("task")}
+                        className="px-2.5 py-1 rounded-lg text-xs font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 border border-emerald-200/70 dark:border-emerald-800 flex items-center gap-1 transition-all shadow-2xs cursor-pointer active:scale-95"
+                      >
                         <Plus className="w-3.5 h-3.5" /> Add Task
                       </button>
                     </div>
                     {tasks.length === 0 ? (
-                      <p className="text-xs text-slate-400 italic py-4 text-center">No pending tasks for this lead.</p>
+                      <div className="p-8 text-center flex flex-col items-center justify-center space-y-2 rounded-xl bg-slate-50/60 dark:bg-slate-800/40 border border-dashed border-slate-200/80 dark:border-slate-700/80 my-2">
+                        <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-100 dark:border-emerald-800/60 shadow-2xs">
+                          <CheckSquare className="w-4 h-4" />
+                        </div>
+                        <p className="text-xs font-medium text-slate-500 dark:text-slate-400">No pending tasks for this lead.</p>
+                        <button
+                          onClick={() => setActiveModal("task")}
+                          className="text-xs font-bold text-emerald-700 dark:text-emerald-400 hover:text-emerald-800 inline-flex items-center gap-1 pt-0.5 cursor-pointer"
+                        >
+                          <Plus className="w-3.5 h-3.5" /> Add First Task
+                        </button>
+                      </div>
                     ) : (
-                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                      <div className="space-y-2 max-h-48 overflow-y-auto pr-0.5">
                         {tasks.map((task: any) => (
-                          <div key={task.id} className="p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 rounded-xl flex justify-between items-start text-xs">
+                          <div key={task.id} className="p-3 bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700 rounded-xl flex justify-between items-start text-xs hover:border-emerald-300 dark:hover:border-emerald-700 transition-colors shadow-2xs">
                             <div>
                               <p className="font-bold text-slate-900 dark:text-white">{task.title}</p>
                               <p className="text-[10px] text-slate-400 mt-0.5">Priority: {task.priority} | Status: {task.status}</p>
