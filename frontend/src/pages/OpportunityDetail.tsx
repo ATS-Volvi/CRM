@@ -299,7 +299,9 @@ export default function OpportunityDetail() {
       const res = await apiClient.get<any>(`/api/v1/opportunities/${id}/timeline`);
       return Array.isArray(res) ? res : res?.data || [];
     },
-    enabled: !!id
+    enabled: !!id,
+    refetchInterval: 5000,
+    refetchIntervalInBackground: false
   });
   const activities: any[] = Array.isArray(timelineData) ? timelineData : [];
   const [intelligenceTab, setIntelligenceTab] = useState<OpportunityIntelligenceTab>("scope");
@@ -1787,9 +1789,16 @@ export default function OpportunityDetail() {
                                 })}
                               </span>
                             </div>
-                            <p className="text-slate-800 dark:text-slate-200 whitespace-pre-wrap leading-relaxed">
-                              {(act.outcome || act.notes || "Activity recorded.").replace(/₹/g, "SAR ")}
-                            </p>
+                            <div className="space-y-1.5">
+                              <p className="text-slate-800 dark:text-slate-200 font-semibold leading-relaxed">
+                                {(act.outcome || "Activity recorded.").replace(/₹/g, "SAR ")}
+                              </p>
+                              {act.notes && act.notes.trim() !== (act.outcome || "").trim() && (
+                                <div className="p-3 bg-white dark:bg-slate-900/90 rounded-lg border border-slate-200/90 dark:border-slate-700/80 text-slate-700 dark:text-slate-200 text-xs font-normal whitespace-pre-wrap shadow-2xs">
+                                  {act.notes}
+                                </div>
+                              )}
+                            </div>
 
                             {/* Quick Context Action on Email Cards */}
                             {((act.type || "").toLowerCase().includes("email") || (act.outcome || "").toLowerCase().includes("email")) && (
@@ -2144,9 +2153,16 @@ export default function OpportunityDetail() {
                                 })}
                               </span>
                             </div>
-                            <p className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">
-                              {(act.outcome || act.notes || "Audit event recorded.").replace(/₹/g, "SAR ")}
-                            </p>
+                            <div className="space-y-1">
+                              <p className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">
+                                {(act.outcome || "Audit event recorded.").replace(/₹/g, "SAR ")}
+                              </p>
+                              {act.notes && act.notes.trim() !== (act.outcome || "").trim() && (
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono bg-slate-100 dark:bg-slate-800 p-2 rounded whitespace-pre-wrap">
+                                  {act.notes}
+                                </p>
+                              )}
+                            </div>
                           </div>
                         </div>
                       ))}
