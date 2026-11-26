@@ -2107,7 +2107,7 @@ export default function LeadDetail() {
                                   <p className="whitespace-pre-line text-xs font-medium">{cleanHtmlEntities(act.notes || act.outcome || "")}</p>
                                 </div>
                                 <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-medium px-1">
-                                  <span>{isIncoming ? `${lead.firstName}` : authorName}</span>
+                                  <span>{isIncoming ? ([lead.firstName, lead.lastName].filter(Boolean).join(" ") || lead.firstName || "Customer") : authorName}</span>
                                   <span>·</span>
                                   <span>{timeAgo}</span>
                                   {!isIncoming && (
@@ -2123,7 +2123,21 @@ export default function LeadDetail() {
 
                         // Standard Human Activity Cards (Notes, Calls, Emails)
                         const isPinned = act.pinned;
-                        const authorName = act.createdBy?.name || act.createdByUser?.name || "Sales Rep";
+                        const isIncoming =
+                          act.direction === "inbound" ||
+                          Boolean(
+                            act.outcome &&
+                              (act.outcome.toLowerCase().includes("email attached") ||
+                                act.outcome.toLowerCase().includes("gmail sync email attached") ||
+                                act.outcome.toLowerCase().includes("message received"))
+                          );
+                        const customerName =
+                          [lead.firstName, lead.lastName].filter(Boolean).join(" ") ||
+                          lead.company ||
+                          lead.email ||
+                          "Customer";
+                        const repName = act.createdBy?.name || act.createdByUser?.name || "Sales Rep";
+                        const authorName = isIncoming ? customerName : repName;
                         const titleText = act.title || (act.type ? act.type.replace(/_/g, ' ') : "Activity");
                         const timeAgo = formatDistanceToNow(new Date(act.createdAt), { addSuffix: true });
                         const rawContent = act.notes || act.outcome || "";
@@ -2161,7 +2175,11 @@ export default function LeadDetail() {
                                   {titleText}
                                 </span>
                                 {act.direction && (
-                                  <span className="text-[9px] font-bold text-sky-700 dark:text-sky-300 bg-sky-100 dark:bg-sky-950/60 px-1.5 py-0.5 rounded border border-sky-200 dark:border-sky-800 uppercase tracking-wider">
+                                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wider ${
+                                    isIncoming
+                                      ? "text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800"
+                                      : "text-sky-700 dark:text-sky-300 bg-sky-100 dark:bg-sky-950/60 border-sky-200 dark:border-sky-800"
+                                  }`}>
                                     {act.direction}
                                   </span>
                                 )}
