@@ -88,17 +88,17 @@ export function Sidebar({
       icon: Briefcase,
       subItems: [
         { label: "Leads", path: "/leads", icon: Users },
-        { label: "Campaigns", path: "/campaigns", icon: Megaphone },
+        { label: "Opportunities", path: "/opportunities", icon: Target },
         { label: "Site Inspections", path: "/site-inspections", icon: ClipboardCheck },
+        { label: "Pipeline", path: "/pipeline", icon: Trello },
+        { label: "Quotes", path: "/quotes", icon: FileText },
         ...(isFilterRoleAllowed ? [{ 
           label: "Held Emails", 
           path: "/held-emails", 
           icon: ShieldAlert, 
           badge: needsReviewCount > 0 ? String(needsReviewCount) : undefined 
         }] : []),
-        { label: "Opportunities", path: "/opportunities", icon: Target },
-        { label: "Pipeline", path: "/pipeline", icon: Trello },
-        { label: "Quotes", path: "/quotes", icon: FileText },
+        { label: "Campaigns", path: "/campaigns", icon: Megaphone },
       ]
     },
     { label: "Approval Queue & Limits", path: "/approvals", icon: Shield },
