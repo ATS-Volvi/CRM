@@ -211,6 +211,11 @@ export default function OpportunityDetail() {
   const [rejectReason, setRejectReason] = useState("Price too high / Commercial terms");
   const [sendQuoteId, setSendQuoteId] = useState<string | null>(null);
 
+  // Record Purchase Order (PO) State
+  const [poModalQuote, setPoModalQuote] = useState<any | null>(null);
+  const [poNumberInput, setPoNumberInput] = useState("");
+  const [poAmountInput, setPoAmountInput] = useState<string>("");
+
   // Modals for actions
   const [showLossModal, setShowLossModal] = useState(false);
   const [lossReason, setLossReason] = useState<string>("PRICE");
@@ -426,6 +431,51 @@ export default function OpportunityDetail() {
     onSuccess: () => {
       setNoteText("");
       queryClient.invalidateQueries({ queryKey: ["opportunity-timeline", id] });
+    }
+  });
+
+  // Record Purchase Order Mutation
+  const recordPoMutation = useMutation({
+    mutationFn: async ({ quoteId, amount, poNumber }: { quoteId?: string; amount: number; poNumber: string }) => {
+      const res = await fetch("/api/v1/purchase-orders", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          dealId: id,
+          leadId: opp?.leadId || undefined,
+          quoteId: quoteId || undefined,
+          amount,
+          poNumber
+        })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Failed to record PO" }));
+        throw new Error(err.error || "Failed to record Purchase Order");
+      }
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      setPoModalQuote(null);
+      const savedNum = poNumberInput;
+      setPoNumberInput("");
+      setPoAmountInput("");
+      queryClient.invalidateQueries({ queryKey: ["opportunity-detail", id] });
+      queryClient.invalidateQueries({ queryKey: ["opportunity-quotes", id] });
+      queryClient.invalidateQueries({ queryKey: ["opportunity-approvals", id] });
+      queryClient.invalidateQueries({ queryKey: ["opportunity-timeline", id] });
+      queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["opportunities-master-list"] });
+      alert(
+        data?.mismatch
+          ? `PO #${savedNum || data?.purchaseOrder?.poNumber} recorded with an amount mismatch flag. Manager notified for reconciliation.`
+          : `PO #${savedNum || data?.purchaseOrder?.poNumber} recorded successfully! Order queued for fulfillment.`
+      );
+    },
+    onError: (err: any) => {
+      alert("Failed to record PO: " + err.message);
     }
   });
 
@@ -1263,30 +1313,48 @@ export default function OpportunityDetail() {
             })}
           </div>
 
-          {/* Close as Lost action button */}
-          <button
-            type="button"
-            onClick={() => {
-              if (opp?.isViewOnly) return;
-              const matchedLost = pipelineStages.find(
-                (s: any) => s.name.toLowerCase() === "lost"
-              );
-              const lostId = matchedLost?.id || "Lost";
-              moveStageMutation.mutate(lostId);
-            }}
-            disabled={moveStageMutation.isPending}
-            className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all duration-150 flex items-center justify-center gap-1.5 shrink-0 cursor-pointer border ${
-              status === "LOST"
-                ? "bg-rose-600 text-white shadow-md shadow-rose-600/25 ring-2 ring-rose-500/50 border-rose-600"
-                : "bg-white hover:bg-rose-50 hover:text-rose-600 dark:bg-slate-800 text-slate-500 dark:text-slate-400 dark:hover:bg-rose-950/40 dark:hover:text-rose-300 border-slate-200 dark:border-slate-700"
-            }`}
-            title="Mark opportunity as Lost"
-          >
-            <XCircle
-              className={`w-3.5 h-3.5 ${status === "LOST" ? "text-white" : "text-rose-500"}`}
-            />
-            <span>{status === "LOST" ? "Deal Lost (Closed)" : "Deal Lost"}</span>
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Record Purchase Order Action */}
+            <button
+              type="button"
+              onClick={() => {
+                const q = quotes.find((x) => x.isFinalAgreed) || quotes[0];
+                setPoModalQuote(q || { totalAmount: opp.amount || 500000 });
+                setPoAmountInput(String(q?.totalAmount || opp.amount || 500000));
+                setPoNumberInput(`PO-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`);
+              }}
+              className="px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all duration-150 flex items-center justify-center gap-1.5 shrink-0 cursor-pointer border bg-amber-500 hover:bg-amber-600 text-white shadow-xs active:scale-95"
+              title="Record client purchase order against this deal"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>Record PO</span>
+            </button>
+
+            {/* Close as Lost action button */}
+            <button
+              type="button"
+              onClick={() => {
+                if (opp?.isViewOnly) return;
+                const matchedLost = pipelineStages.find(
+                  (s: any) => s.name.toLowerCase() === "lost"
+                );
+                const lostId = matchedLost?.id || "Lost";
+                moveStageMutation.mutate(lostId);
+              }}
+              disabled={moveStageMutation.isPending}
+              className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all duration-150 flex items-center justify-center gap-1.5 shrink-0 cursor-pointer border ${
+                status === "LOST"
+                  ? "bg-rose-600 text-white shadow-md shadow-rose-600/25 ring-2 ring-rose-500/50 border-rose-600"
+                  : "bg-white hover:bg-rose-50 hover:text-rose-600 dark:bg-slate-800 text-slate-500 dark:text-slate-400 dark:hover:bg-rose-950/40 dark:hover:text-rose-300 border-slate-200 dark:border-slate-700"
+              }`}
+              title="Mark opportunity as Lost"
+            >
+              <XCircle
+                className={`w-3.5 h-3.5 ${status === "LOST" ? "text-white" : "text-rose-500"}`}
+              />
+              <span>{status === "LOST" ? "Deal Lost (Closed)" : "Deal Lost"}</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1299,6 +1367,13 @@ export default function OpportunityDetail() {
         activeTab={intelligenceTab}
         onTabChange={setIntelligenceTab}
         onActionClick={() => navigate(`/quotes/new?dealId=${opp.id}`)}
+        onRecordPoClick={() => {
+          const q = quotes.find((x) => x.isFinalAgreed) || quotes[0];
+          setPoModalQuote(q || { totalAmount: opp.amount || 500000 });
+          setPoAmountInput(String(q?.totalAmount || opp.amount || 500000));
+          setPoNumberInput(`PO-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`);
+        }}
+        onSendQuoteClick={(qId) => setSendQuoteId(qId)}
         onSendEmailClick={() => {
           setActiveTab("timeline");
           setNoteText(`Follow-up outreach conducted regarding schedule & procurement timing with client.`);
@@ -1380,6 +1455,43 @@ export default function OpportunityDetail() {
             {/* TAB 1: TIMELINE & NOTE COMPOSER */}
             {activeTab === "timeline" && (
               <div className="space-y-4">
+                {/* Commercial Quick Actions: Send Quote & Record PO */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-xs text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="font-extrabold text-slate-800 dark:text-slate-200">
+                      Commercial Actions:
+                    </span>
+                    <span className="text-[11px] text-slate-400">
+                      Send quote proposals or capture client POs directly
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {quotes.length > 0 && (
+                      <button
+                        onClick={() => setSendQuoteId(quotes[0].id)}
+                        className="px-3 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-800 dark:bg-sky-950/50 dark:text-sky-300 border border-sky-300 dark:border-sky-800 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
+                        title="Send quotation via Email or WhatsApp"
+                      >
+                        <Send className="w-3.5 h-3.5 text-sky-600" />
+                        <span>Send Quote (Email/WhatsApp)</span>
+                      </button>
+                    )}
+                    <button
+                      onClick={() => {
+                        const q = quotes.find((x) => x.isFinalAgreed) || quotes[0];
+                        setPoModalQuote(q || { totalAmount: opp.amount || 500000 });
+                        setPoAmountInput(String(q?.totalAmount || opp.amount || 500000));
+                        setPoNumberInput(`PO-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`);
+                      }}
+                      className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
+                      title="Record customer purchase order"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      <span>Record PO</span>
+                    </button>
+                  </div>
+                </div>
+
                 {/* Note Composer */}
                 <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-xs space-y-3">
                   <textarea
@@ -1511,17 +1623,32 @@ export default function OpportunityDetail() {
             {/* TAB 2: QUOTATIONS */}
             {activeTab === "quotes" && (
               <div className="space-y-4">
-                <div className="flex justify-between items-center bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/90 dark:border-slate-800">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/90 dark:border-slate-800">
                   <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold">
                     {quotes.length} quotation revision{quotes.length === 1 ? "" : "s"} on file
                   </span>
-                  <button
-                    onClick={() => navigate(`/quotes/new?dealId=${opp.id}`)}
-                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95 shadow-2xs"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>New Quote</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        const q = quotes.find((x) => x.isFinalAgreed) || quotes[0];
+                        setPoModalQuote(q || { totalAmount: opp.amount || 500000 });
+                        setPoAmountInput(String(q?.totalAmount || opp.amount || 500000));
+                        setPoNumberInput(`PO-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`);
+                      }}
+                      className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95 shadow-2xs"
+                      title="Record customer purchase order against this opportunity"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      <span>Record PO</span>
+                    </button>
+                    <button
+                      onClick={() => navigate(`/quotes/new?dealId=${opp.id}`)}
+                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95 shadow-2xs"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>New Quote</span>
+                    </button>
+                  </div>
                 </div>
 
                 {statusMessage && (
@@ -1697,6 +1824,21 @@ export default function OpportunityDetail() {
                                 >
                                   <Send className="w-3 h-3" />
                                   <span>{q.status === "Sent" ? "Re-send" : "Send"}</span>
+                                </button>
+                              )}
+
+                              {!isSuperseded && !isRejected && (
+                                <button
+                                  onClick={() => {
+                                    setPoModalQuote(q);
+                                    setPoAmountInput(String(q.totalAmount || opp.amount || 500000));
+                                    setPoNumberInput(`PO-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`);
+                                  }}
+                                  className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-xs font-bold transition-colors cursor-pointer flex items-center gap-1 shadow-2xs active:scale-95"
+                                  title="Record customer purchase order for this quote"
+                                >
+                                  <FileText className="w-3 h-3" />
+                                  <span>Record PO</span>
                                 </button>
                               )}
                             </div>
@@ -2041,6 +2183,104 @@ export default function OpportunityDetail() {
           isOpen={!!sendQuoteId}
           onClose={() => setSendQuoteId(null)}
         />
+      )}
+
+      {/* Record Purchase Order (PO) Modal */}
+      {poModalQuote && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl animate-in fade-in zoom-in duration-150 space-y-4">
+            <div className="flex justify-between items-center pb-3 border-b border-slate-100 dark:border-slate-800">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <FileText className="w-4 h-4 text-amber-600" /> Record Purchase Order (PO)
+              </h3>
+              <button
+                onClick={() => setPoModalQuote(null)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3.5">
+              <div className="bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-300 space-y-2">
+                <div className="flex justify-between">
+                  <span className="font-semibold text-slate-500">Deal:</span>
+                  <span className="font-bold text-slate-900 dark:text-white">{opp.name}</span>
+                </div>
+                {poModalQuote.quoteNumber && (
+                  <div className="flex justify-between">
+                    <span className="font-semibold text-slate-500">Quote Ref:</span>
+                    <span className="font-mono font-bold text-slate-900 dark:text-white">
+                      {poModalQuote.quoteNumber}
+                    </span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="font-semibold text-slate-500">Expected Value:</span>
+                  <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                    SAR {Number(poModalQuote.totalAmount || opp.amount || 0).toLocaleString()}
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                  Enter Purchase Order (PO) Number *
+                </label>
+                <input
+                  type="text"
+                  value={poNumberInput}
+                  onChange={(e) => setPoNumberInput(e.target.value)}
+                  placeholder="e.g. PO-2026-ARAMCO-9941"
+                  className="w-full px-3.5 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 font-mono shadow-2xs"
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                  PO Value / Amount (SAR) *
+                </label>
+                <input
+                  type="number"
+                  value={poAmountInput}
+                  onChange={(e) => setPoAmountInput(e.target.value)}
+                  placeholder="500000"
+                  className="w-full px-3.5 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 font-mono shadow-2xs"
+                />
+                <span className="text-[10px] text-slate-400 mt-1 block">
+                  Automatically reconciled against quotation. Matches will automatically queue order for fulfillment.
+                </span>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+              <button
+                onClick={() => setPoModalQuote(null)}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 rounded-lg transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  if (poNumberInput.trim()) {
+                    const numAmount = parseFloat(poAmountInput) || Number(poModalQuote.totalAmount || opp.amount || 0);
+                    recordPoMutation.mutate({
+                      quoteId: poModalQuote.id,
+                      amount: numAmount,
+                      poNumber: poNumberInput.trim()
+                    });
+                  }
+                }}
+                disabled={recordPoMutation.isPending || !poNumberInput.trim()}
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-40 text-white text-xs font-bold rounded-lg shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>{recordPoMutation.isPending ? "Recording PO..." : "Confirm & Record PO"}</span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

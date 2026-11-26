@@ -34,6 +34,8 @@ interface OpportunityIntelligenceHubProps {
   onActionClick?: (actionText: string) => void;
   onSendEmailClick?: () => void;
   onLogCallClick?: () => void;
+  onRecordPoClick?: () => void;
+  onSendQuoteClick?: (quoteId: string) => void;
   className?: string;
 }
 
@@ -47,6 +49,8 @@ export const OpportunityIntelligenceHub: React.FC<OpportunityIntelligenceHubProp
   onActionClick,
   onSendEmailClick,
   onLogCallClick,
+  onRecordPoClick,
+  onSendQuoteClick,
   className = ""
 }) => {
   const [internalTab, setInternalTab] = useState<OpportunityIntelligenceTab>("scope");
@@ -523,6 +527,30 @@ export const OpportunityIntelligenceHub: React.FC<OpportunityIntelligenceHubProp
             <Phone className="w-3.5 h-3.5 text-[#059669]" />
             <span>Log Call</span>
           </button>
+
+          {quotes.length > 0 && onSendQuoteClick && (
+            <button
+              type="button"
+              onClick={() => onSendQuoteClick(quotes[0].id)}
+              className="px-3 py-1 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-800 dark:bg-sky-950/50 dark:text-sky-300 text-xs font-bold transition-all border border-sky-300 dark:border-sky-800 flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-2xs"
+              title="Send quote via Email or WhatsApp"
+            >
+              <Send className="w-3.5 h-3.5 text-sky-600" />
+              <span>Send Quote (Email/WhatsApp)</span>
+            </button>
+          )}
+
+          {onRecordPoClick && (
+            <button
+              type="button"
+              onClick={onRecordPoClick}
+              className="px-3 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-2xs"
+              title="Record client purchase order"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>Record PO</span>
+            </button>
+          )}
 
           <button
             type="button"

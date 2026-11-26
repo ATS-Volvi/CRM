@@ -92,28 +92,110 @@ export const getPurchaseOrders = async (req: Request, res: Response) => {
 
 export const createPurchaseOrder = async (req: Request, res: Response) => {
   try {
-    const { quoteId, amount, poNumber } = req.body;
+    let { quoteId, amount, poNumber, leadId } = req.body;
 
-    if (!quoteId || !amount || !poNumber) {
-      return res.status(400).json({ error: "quoteId, amount, and poNumber are required." });
+    if (!poNumber) {
+      return res.status(400).json({ error: "poNumber is required." });
     }
 
-    // Reconciliation Check: Compare PO value with the accepted Quote value
-    const quote = await sequelize.models.Quote.findByPk(quoteId, {
-      include: [{ 
-        model: sequelize.models.Deal, 
-        as: "deal",
+    if (!quoteId && !leadId) {
+      return res.status(400).json({ error: "quoteId or leadId is required." });
+    }
+
+    let quote: any = null;
+    if (quoteId) {
+      quote = await sequelize.models.Quote.findByPk(quoteId, {
+        include: [{ 
+          model: sequelize.models.Deal, 
+          as: "deal",
+          include: [
+            { model: sequelize.models.Lead, as: "lead" },
+            { model: sequelize.models.User, as: "owner", attributes: ["id", "name", "email", "role"] }
+          ]
+        }]
+      });
+    }
+
+    if (!quote && leadId) {
+      // Find quote by lead
+      const deal: any = await sequelize.models.Deal.findOne({
+        where: { leadId },
+        order: [["createdAt", "DESC"]],
         include: [
           { model: sequelize.models.Lead, as: "lead" },
           { model: sequelize.models.User, as: "owner", attributes: ["id", "name", "email", "role"] }
         ]
-      }]
-    });
+      });
+
+      if (deal) {
+        quote = await sequelize.models.Quote.findOne({
+          where: { dealId: deal.id },
+          order: [["createdAt", "DESC"]],
+          include: [{ 
+            model: sequelize.models.Deal, 
+            as: "deal",
+            include: [
+              { model: sequelize.models.Lead, as: "lead" },
+              { model: sequelize.models.User, as: "owner", attributes: ["id", "name", "email", "role"] }
+            ]
+          }]
+        });
+        if (!quote) {
+          const num = `QT-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+          const createdQuote: any = await sequelize.models.Quote.create({
+            id: require('crypto').randomUUID(),
+            dealId: deal.id,
+            quoteNumber: num,
+            totalAmount: amount || deal.amount || 500000,
+            status: "Accepted"
+          });
+          quote = await sequelize.models.Quote.findByPk(createdQuote.id, {
+            include: [{ 
+              model: sequelize.models.Deal, 
+              as: "deal",
+              include: [
+                { model: sequelize.models.Lead, as: "lead" },
+                { model: sequelize.models.User, as: "owner", attributes: ["id", "name", "email", "role"] }
+              ]
+            }]
+          });
+        }
+      } else {
+        const leadRecord: any = await sequelize.models.Lead.findByPk(leadId);
+        const newDeal: any = await sequelize.models.Deal.create({
+          id: require('crypto').randomUUID(),
+          leadId,
+          name: leadRecord ? `${leadRecord.company || `${leadRecord.firstName} ${leadRecord.lastName}`} Opportunity` : "New Opportunity",
+          amount: amount || (leadRecord ? Number(leadRecord.estimatedValue || 500000) : 500000),
+          status: "OPEN",
+          ownerId: leadRecord?.assignedToId || (req as any).user?.id || null
+        });
+        const num = `QT-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+        const createdQuote: any = await sequelize.models.Quote.create({
+          id: require('crypto').randomUUID(),
+          dealId: newDeal.id,
+          quoteNumber: num,
+          totalAmount: amount || newDeal.amount || 500000,
+          status: "Accepted"
+        });
+        quote = await sequelize.models.Quote.findByPk(createdQuote.id, {
+          include: [{ 
+            model: sequelize.models.Deal, 
+            as: "deal",
+            include: [
+              { model: sequelize.models.Lead, as: "lead" },
+              { model: sequelize.models.User, as: "owner", attributes: ["id", "name", "email", "role"] }
+            ]
+          }]
+        });
+      }
+      quoteId = quote?.id;
+    }
 
     if (!quote) return res.status(404).json({ error: "Quote not found." });
 
     const quotedTotal = Number((quote as any).totalAmount || 0);
-    const receivedAmount = Number(amount);
+    const receivedAmount = amount !== undefined && amount !== null && amount !== "" ? Number(amount) : quotedTotal;
     const mismatch = quotedTotal !== receivedAmount;
 
     // Create PO with Pending Approval status
