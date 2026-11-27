@@ -2033,7 +2033,7 @@ export default function LeadDetail() {
                             {lead.firstName} {lead.lastName} {lead.company ? `(${lead.company})` : ""}
                           </p>
                           <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-mono">
-                            {lead.whatsappPhone || lead.phone || "No direct phone"}
+                            {lead.phone || lead.whatsappPhone || "No direct phone"}
                           </p>
                         </div>
                       </div>
@@ -2049,9 +2049,9 @@ export default function LeadDetail() {
                           <RefreshCw className={`w-3 h-3 ${isFetchingActivities ? "animate-spin text-emerald-600" : ""}`} />
                           <span>Sync</span>
                         </button>
-                        {(lead.whatsappPhone || lead.phone) && (
+                        {(lead.phone || lead.whatsappPhone) && (
                           <a
-                            href={`https://wa.me/${formatPhoneForWhatsAppWeb(lead.whatsappPhone || lead.phone)}${whatsAppText ? `?text=${encodeURIComponent(whatsAppText)}` : ""}`}
+                            href={`https://wa.me/${formatPhoneForWhatsAppWeb(lead.phone || lead.whatsappPhone)}${whatsAppText ? `?text=${encodeURIComponent(whatsAppText)}` : ""}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 hover:underline flex items-center gap-1 bg-white dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-emerald-200 dark:border-emerald-800"
@@ -2307,10 +2307,10 @@ export default function LeadDetail() {
                           <div className="text-[11px] leading-relaxed">
                             <span className="font-bold">WhatsApp Notice: </span>
                             {whatsAppTemplateError}
-                            {(lead.whatsappPhone || lead.phone) && (
+                            {(lead.phone || lead.whatsappPhone) && (
                               <div className="mt-1.5">
                                 <a
-                                  href={`https://wa.me/${formatPhoneForWhatsAppWeb(lead.whatsappPhone || lead.phone)}${whatsAppText ? `?text=${encodeURIComponent(whatsAppText)}` : ""}`}
+                                  href={`https://wa.me/${formatPhoneForWhatsAppWeb(lead.phone || lead.whatsappPhone)}${whatsAppText ? `?text=${encodeURIComponent(whatsAppText)}` : ""}`}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="inline-flex items-center gap-1 font-bold text-emerald-800 dark:text-emerald-300 underline hover:no-underline text-[11px]"

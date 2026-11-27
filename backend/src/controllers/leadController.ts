@@ -514,6 +514,8 @@ export const updateLead = async (req: Request, res: Response) => {
       if (!updateData.phone || updateData.phone === "N/A" || !String(updateData.phone).trim()) {
         updateData.phone = null;
         updateData.whatsappPhone = null;
+      } else {
+        updateData.whatsappPhone = updateData.phone;
       }
     }
 
