@@ -672,6 +672,10 @@ export default function LeadDetail() {
       setActiveModal(null);
       setWhatsAppText("");
       setWhatsAppTemplateError(null);
+      setToastMessage({ type: "ok", msg: "WhatsApp message dispatched successfully!" });
+      setTimeout(() => {
+        setToastMessage((prev) => (prev?.msg.includes("WhatsApp") ? null : prev));
+      }, 4000);
     },
     onError: (err: any) => {
       let errorMsg = err.message || "Failed to send WhatsApp message";
@@ -685,6 +689,7 @@ export default function LeadDetail() {
         }
       } catch (e) {}
       setWhatsAppTemplateError(errorMsg);
+      setToastMessage({ type: "err", msg: errorMsg });
     }
   });
 
@@ -884,6 +889,16 @@ export default function LeadDetail() {
       .replace(/&quot;/g, '"')
       .replace(/&#039;/g, "'")
       .replace(/&nbsp;/g, " ");
+  };
+
+  const formatPhoneForWhatsAppWeb = (rawPhone?: string | null): string => {
+    if (!rawPhone) return "";
+    let digits = rawPhone.replace(/\D/g, "");
+    if (digits.startsWith("00")) digits = digits.slice(2);
+    if (digits.length === 10 && /^[6-9]/.test(digits)) digits = `91${digits}`;
+    if (digits.length === 9 && digits.startsWith("5")) digits = `966${digits}`;
+    if (digits.length === 10 && digits.startsWith("05")) digits = `966${digits.slice(1)}`;
+    return digits;
   };
 
   const humanActivities = activities.filter((act: any) => !isSystemAuditLog(act));
@@ -2001,7 +2016,7 @@ export default function LeadDetail() {
                       <div className="flex items-center gap-2 shrink-0">
                         {(lead.whatsappPhone || lead.phone) && (
                           <a
-                            href={`https://wa.me/${(lead.whatsappPhone || lead.phone || "").replace(/[^0-9]/g, "")}`}
+                            href={`https://wa.me/${formatPhoneForWhatsAppWeb(lead.whatsappPhone || lead.phone)}${whatsAppText ? `?text=${encodeURIComponent(whatsAppText)}` : ""}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 hover:underline flex items-center gap-1 bg-white dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-emerald-200 dark:border-emerald-800"
@@ -2249,6 +2264,26 @@ export default function LeadDetail() {
                         </button>
                       ))}
                     </div>
+
+                    {whatsAppTemplateError && (
+                      <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 rounded-xl text-xs text-amber-900 dark:text-amber-200 flex items-start justify-between gap-2 shadow-xs">
+                        <div className="flex items-start gap-2">
+                          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                          <div className="text-[11px] leading-relaxed">
+                            <span className="font-bold">WhatsApp Notice: </span>
+                            {whatsAppTemplateError}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setWhatsAppTemplateError(null)}
+                          className="text-amber-700 dark:text-amber-300 hover:text-amber-900 font-bold text-xs shrink-0 px-1 cursor-pointer"
+                          aria-label="Dismiss notice"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    )}
 
                     {/* Composer Input & Action Buttons */}
                     <div className="flex gap-2 items-center flex-wrap sm:flex-nowrap">

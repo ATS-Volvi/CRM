@@ -7,7 +7,12 @@ dotenv.config();
 
 export const normalizeWhatsAppRecipient = (rawPhone: string): string => {
   let cleaned = (rawPhone || "").replace(/\D/g, "");
-  if ((rawPhone || "").trim().startsWith("+")) {
+  // Strip international exit code 00 (e.g. 0091... -> 91... or 00966... -> 966...)
+  if (cleaned.startsWith("00")) {
+    cleaned = cleaned.slice(2);
+  }
+  const trimmed = (rawPhone || "").trim();
+  if (trimmed.startsWith("+") && !trimmed.startsWith("+00")) {
     return `+${cleaned}`;
   }
   // India mobile (10 digits starting with 6, 7, 8, 9)
@@ -101,7 +106,7 @@ export const sendWhatsAppMessage = async (toPhone: string, text: string, mediaUr
       remediationTip: "Check TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_WHATSAPP_NUMBER in backend .env.",
     }, recipientE164);
 
-    if (err.code === 63015) {
+    if (err.code === 63015 || err.code === 21614 || err.code === 21608) {
       throw new Error(`WhatsApp Sandbox Opt-In Required: Recipient (${recipientE164}) has not joined the Twilio WhatsApp Sandbox. To receive messages, send "join typical-ball" to +1 415 523 8886 on WhatsApp.`);
     }
 
@@ -143,11 +148,10 @@ export const sendWhatsAppTemplateMessage = async (
 
   // ── TWILIO CONTENT API DISPATCH ─────────────────────────────────────────────
   const client = twilio(accountSid, authToken);
+  const recipientE164 = normalizeWhatsAppRecipient(toPhone);
   const twilioTo = toPhone.startsWith("whatsapp:")
     ? toPhone
-    : toPhone.startsWith("+")
-    ? `whatsapp:${toPhone}`
-    : `whatsapp:+${formattedPhone}`;
+    : `whatsapp:${recipientE164}`;
   const twilioFrom = twilioNumber.startsWith("whatsapp:") ? twilioNumber : `whatsapp:${twilioNumber}`;
 
   const messageOptions: any = {
