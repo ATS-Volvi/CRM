@@ -510,6 +510,13 @@ export const updateLead = async (req: Request, res: Response) => {
       delete updateData.notes;
     }
 
+    if (updateData.phone !== undefined) {
+      if (!updateData.phone || updateData.phone === "N/A" || !String(updateData.phone).trim()) {
+        updateData.phone = null;
+        updateData.whatsappPhone = null;
+      }
+    }
+
     await lead.update(updateData);
 
     const { checkAndAutoAdvanceLead } = require("../services/leadStageAutomationService");
@@ -1295,12 +1302,27 @@ export const getLeadMissingInfo = async (req: Request, res: Response) => {
   try {
     const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const { getMissingLeadInformation } = require("../services/leadIntakeAutomationEngine");
-    const result = await getMissingLeadInformation(id);
     const lead = await sequelize.models.Lead.findByPk(id);
+    if (!lead) return res.status(404).json({ error: "Lead not found" });
+
+    const result = await getMissingLeadInformation(lead);
+    
+    // Explicitly verify lead's own phone & email fields
+    const cleanLeadPhone = String((lead as any).phone || (lead as any).whatsappPhone || "").replace(/\D/g, "");
+    const hasLeadPhone = cleanLeadPhone.length >= 7;
+    const rawEmail = (lead as any).email || "";
+    const hasLeadEmail = Boolean(rawEmail && !rawEmail.includes("@nexus-temp.com") && !rawEmail.includes("unknown_wa_") && rawEmail.includes("@"));
+
+    const missing = [...(result.missing || [])];
+    if (!hasLeadPhone && !missing.includes("phone")) missing.push("phone");
+    if (!hasLeadEmail && !missing.includes("email")) missing.push("email");
+
     return res.status(200).json({
       ...result,
-      intakeStatus: lead ? (lead as any).intakeStatus : "INCOMPLETE",
-      intakeMessageCount: lead ? (lead as any).intakeMessageCount : 0
+      isComplete: missing.length === 0,
+      missing,
+      intakeStatus: (lead as any).intakeStatus || "INCOMPLETE",
+      intakeMessageCount: (lead as any).intakeMessageCount || 0
     });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
@@ -1321,17 +1343,44 @@ export const requestMissingDetails = async (req: Request, res: Response) => {
     }
 
     const missingInfo = await getMissingLeadInformation(lead);
+    
+    const cleanLeadPhone = String(lead.phone || lead.whatsappPhone || "").replace(/\D/g, "");
+    const hasLeadPhone = cleanLeadPhone.length >= 7;
+    const rawEmail = lead.email || "";
+    const hasLeadEmail = Boolean(rawEmail && !rawEmail.includes("@nexus-temp.com") && !rawEmail.includes("unknown_wa_") && rawEmail.includes("@"));
+
+    const missing = [...(missingInfo.missing || [])];
+    if (!hasLeadPhone && !missing.includes("phone")) missing.push("phone");
+    if (!hasLeadEmail && !missing.includes("email")) missing.push("email");
+    missingInfo.missing = missing;
+    missingInfo.isComplete = missing.length === 0;
+
     if (missingInfo.isComplete) {
       return res.status(200).json({ message: "Lead profile is already complete", isComplete: true });
     }
 
-    const targetChannel = channel || (lead.communicationChannel === "whatsapp" ? "whatsapp" : "email");
-    const message = generateCollectionMessage(missingInfo.missing, targetChannel, missingInfo.known.name);
+    // Determine target channel: if phone is missing, route request via email
+    let targetChannel = channel || (hasLeadPhone && lead.communicationChannel === "whatsapp" ? "whatsapp" : "email");
+    if (!hasLeadPhone || targetChannel !== "whatsapp") {
+      targetChannel = "email";
+    }
 
-    if (targetChannel === "whatsapp" && lead.phone) {
-      await sendWhatsAppMessage(lead.phone, message);
-    } else if (lead.email && !lead.email.includes("@nexus-temp.com")) {
-      await sendCustomEmail(lead.email, "Regarding your enquiry - Additional Details", message, lead.id);
+    const message = generateCollectionMessage(missingInfo.missing, targetChannel as any, missingInfo.known?.name || lead.firstName);
+
+    let sent = false;
+    if (targetChannel === "whatsapp" && hasLeadPhone) {
+      await sendWhatsAppMessage(lead.phone || lead.whatsappPhone, message);
+      sent = true;
+    } else if (hasLeadEmail) {
+      const emailSubject = missing.includes("phone") 
+        ? "Regarding your enquiry - Contact phone number needed" 
+        : "Regarding your enquiry - Additional details needed";
+      await sendCustomEmail(lead.email, emailSubject, message, lead.id);
+      sent = true;
+    } else {
+      return res.status(400).json({ 
+        error: "Cannot request details: customer has neither a valid phone number for WhatsApp nor an email address." 
+      });
     }
 
     await lead.update({
@@ -1345,7 +1394,7 @@ export const requestMissingDetails = async (req: Request, res: Response) => {
         id: crypto.randomUUID(),
         leadId: lead.id,
         type: targetChannel === "whatsapp" ? "whatsapp_sms" : "email",
-        outcome: `Missing Details Requested (${missingInfo.missing.join(", ")})`,
+        outcome: `Missing Details Requested via ${targetChannel === "whatsapp" ? "WhatsApp" : "Email"} (${missingInfo.missing.join(", ")})`,
         notes: message,
         direction: "outbound",
         isCompleted: true,
@@ -1353,7 +1402,12 @@ export const requestMissingDetails = async (req: Request, res: Response) => {
       });
     }
 
-    return res.status(200).json({ success: true, message, intakeStatus: "COLLECTING_DETAILS" });
+    return res.status(200).json({ 
+      success: true, 
+      message, 
+      intakeStatus: "COLLECTING_DETAILS",
+      channel: targetChannel 
+    });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }

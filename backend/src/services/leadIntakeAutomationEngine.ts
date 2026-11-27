@@ -135,7 +135,9 @@ export async function getMissingLeadInformation(leadOrId: any): Promise<MissingI
   }
 
   // 4. Phone / WhatsApp Check
-  const phone = lead?.phone || lead?.whatsappPhone || contact?.phone || contact?.whatsappNumber || "";
+  // If evaluating an existing lead, check the lead's own phone fields first
+  const leadPhone = lead?.phone || lead?.whatsappPhone || "";
+  const phone = leadPhone || (!lead?.id ? (contact?.phone || contact?.whatsappNumber || "") : "");
   const cleanPhone = phone.replace(/\D/g, "");
   if (cleanPhone.length >= 7) {
     known.phone = phone.trim();
