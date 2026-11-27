@@ -225,14 +225,8 @@ export const syncInboundWhatsAppMessages = async (leadId?: string, customerPhone
   const phoneRaw = customerPhone || targetLead?.whatsappPhone || targetLead?.phone;
   if (!phoneRaw) return [];
 
-  const cleanDigits = phoneRaw.replace(/\D/g, "");
-  if (cleanDigits.length < 7) return [];
-
-  const twilioFrom = cleanDigits.startsWith("91")
-    ? `whatsapp:+${cleanDigits}`
-    : cleanDigits.length === 10
-    ? `whatsapp:+91${cleanDigits}`
-    : `whatsapp:+${cleanDigits}`;
+  const recipientE164 = normalizeWhatsAppRecipient(phoneRaw);
+  const twilioFrom = recipientE164.startsWith("whatsapp:") ? recipientE164 : `whatsapp:${recipientE164}`;
   const twilioTo = twilioNumber.startsWith("whatsapp:") ? twilioNumber : `whatsapp:${twilioNumber}`;
 
   try {

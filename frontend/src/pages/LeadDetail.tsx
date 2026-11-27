@@ -275,7 +275,7 @@ export default function LeadDetail() {
     enabled: !!token
   });
 
-  const { data: activities = [] } = useQuery<any[]>({
+  const { data: activities = [], isFetching: isFetchingActivities, refetch: refetchActivities } = useQuery<any[]>({
     queryKey: ["leadActivities", id],
     queryFn: async () => {
       const res = await fetch(`/api/v1/leads/${id}/activities`, {
@@ -285,7 +285,7 @@ export default function LeadDetail() {
       return res.json();
     },
     enabled: !!id && !!token,
-    refetchInterval: 60000, // Poll every 60s
+    refetchInterval: 4000, // Poll every 4s so incoming WhatsApp & SMS replies appear live in cockpit
     refetchOnWindowFocus: true,
   });
 
@@ -2014,6 +2014,16 @@ export default function LeadDetail() {
                       </div>
 
                       <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => refetchActivities()}
+                          disabled={isFetchingActivities}
+                          title="Sync recent WhatsApp messages"
+                          className="text-[11px] font-bold text-slate-700 dark:text-slate-300 hover:text-emerald-700 dark:hover:text-emerald-300 flex items-center gap-1 bg-white dark:bg-slate-800 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer transition-colors"
+                        >
+                          <RefreshCw className={`w-3 h-3 ${isFetchingActivities ? "animate-spin text-emerald-600" : ""}`} />
+                          <span>Sync</span>
+                        </button>
                         {(lead.whatsappPhone || lead.phone) && (
                           <a
                             href={`https://wa.me/${formatPhoneForWhatsAppWeb(lead.whatsappPhone || lead.phone)}${whatsAppText ? `?text=${encodeURIComponent(whatsAppText)}` : ""}`}

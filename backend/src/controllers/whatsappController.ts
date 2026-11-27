@@ -596,6 +596,19 @@ export const handleIncomingWebhook = async (req: Request, res: Response) => {
           }
         }) as any;
 
+        // Fallback: If phone has formatting (spaces, dashes), match by normalized digits
+        if (!matchingLead) {
+          const recentLeads = await sequelize.models.Lead.findAll({
+            limit: 200,
+            order: [["updatedAt", "DESC"]]
+          }) as any[];
+          matchingLead = recentLeads.find(l => {
+            const d1 = extractDigits(l.phone || "");
+            const d2 = extractDigits(l.whatsappPhone || "");
+            return (d1.length >= 7 && d1.slice(-10) === cleanDigits) || (d2.length >= 7 && d2.slice(-10) === cleanDigits);
+          }) || null;
+        }
+
         if (matchingLead) {
           targetLeadId = matchingLead.id;
           targetCustomerId = matchingLead.customerId || null;
