@@ -615,14 +615,21 @@ export async function processInboundIntakeEvent(event: IntakeEvent): Promise<{
   // 7. Branch Logic: Complete vs Incomplete
   if (completeness.isComplete) {
     // ── CASE A: COMPLETE INFORMATION ──────────────────────────────────────────
-    // Send acknowledgement
-    const ack = generateAcknowledgementMessage(event.channel, completeness.known.name);
-    messageSent = ack.body;
+    // Send acknowledgement ONLY on initial intake, never repeatedly during active conversation
+    const isAlreadyAssignedOrHandled = lead.intakeStatus === "ASSIGNED" || 
+                                       lead.status === "CONTACTED" || 
+                                       lead.status === "QUALIFIED" || 
+                                       Boolean(lead.assignedToId);
 
-    if (event.channel === "whatsapp" && effectivePhone) {
-      await sendWhatsAppMessage(effectivePhone, ack.body);
-    } else if (event.channel === "email" && effectiveEmail && !effectiveEmail.includes("@nexus-temp.com")) {
-      await sendCustomEmail(effectiveEmail, ack.subject || "We've received your enquiry", ack.body, lead.id);
+    if (!isAlreadyAssignedOrHandled) {
+      const ack = generateAcknowledgementMessage(event.channel, completeness.known.name);
+      messageSent = ack.body;
+
+      if (event.channel === "whatsapp" && effectivePhone) {
+        await sendWhatsAppMessage(effectivePhone, ack.body);
+      } else if (event.channel === "email" && effectiveEmail && !effectiveEmail.includes("@nexus-temp.com")) {
+        await sendCustomEmail(effectiveEmail, ack.subject || "We've received your enquiry", ack.body, lead.id);
+      }
     }
 
     // If company was not provided, set fallback to "Not provided" so sales rep sees it clearly in CRM

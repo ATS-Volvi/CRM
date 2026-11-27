@@ -593,7 +593,8 @@ export const handleIncomingWebhook = async (req: Request, res: Response) => {
               { phone: { [Op.like]: `%${cleanDigits}%` } },
               { whatsappPhone: { [Op.like]: `%${cleanDigits}%` } }
             ]
-          }
+          },
+          order: [["updatedAt", "DESC"]]
         }) as any;
 
         // Fallback: If phone has formatting (spaces, dashes), match by normalized digits

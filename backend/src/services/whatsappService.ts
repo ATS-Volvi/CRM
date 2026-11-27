@@ -246,7 +246,7 @@ export const syncInboundWhatsAppMessages = async (leadId?: string, customerPhone
         continue;
       }
 
-      const existing = await Activity.findOne({
+      const existing: any = await Activity.findOne({
         where: { messageId: msg.sid },
       });
 
@@ -272,6 +272,11 @@ export const syncInboundWhatsAppMessages = async (leadId?: string, customerPhone
           lastInboundAt: new Date(),
           updatedAt: new Date(),
         }).catch(() => {});
+      } else if (existing && targetLead && existing.leadId !== targetLead.id) {
+        // If an inbound message was logged to a different duplicate lead sharing this phone number,
+        // re-attribute it to the active lead the user is currently viewing so it renders immediately!
+        await existing.update({ leadId: targetLead.id, customerId: targetLead.customerId || existing.customerId });
+        newActivities.push(existing);
       }
     }
 
