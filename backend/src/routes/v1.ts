@@ -40,6 +40,13 @@ import {
 } from "../controllers/leadController";
 import { getPriceBookEntries, createPriceBookEntry, updatePriceBookEntry, deletePriceBookEntry, importPriceBookEntries, getPriceSuggestion, importPriceBookEntriesPreview, getCatalogCategories, getCatalogUoms } from '../controllers/priceBookController';
 import {
+  getProjectSiteLocations,
+  getProjectSiteLocationById,
+  createProjectSiteLocation,
+  updateProjectSiteLocation,
+  deleteProjectSiteLocation
+} from "../controllers/projectLocationController";
+import {
   getQuotes, getQuoteById, createQuote, updateQuote, getQuoteRecommendations, sendQuote, acceptQuote, rejectQuote, createQuoteRevision,
   getOpportunityQuotes, createOpportunityQuote, getPublicQuote, generateQuotePdf, signQuote, getQuoteHistoryByClient,
   getSimilarQuotesStats, getSimilarClientQuotes, markQuoteFinalAgreed, getQuoteDeliveryPreview, getQuoteDeliveries, recordDeliveryStatus,
@@ -760,6 +767,12 @@ router.get("/activities/overdue", authMiddleware, getOverdueTasks);
 // ==========================================
 // MASTER DATA
 // ==========================================
+router.get("/master-data/locations", authMiddleware, getProjectSiteLocations);
+router.get("/master-data/locations/:id", authMiddleware, getProjectSiteLocationById);
+router.post("/master-data/locations", authMiddleware, createProjectSiteLocation);
+router.put("/master-data/locations/:id", authMiddleware, updateProjectSiteLocation);
+router.delete("/master-data/locations/:id", authMiddleware, deleteProjectSiteLocation);
+
 router.get("/master-data/requirements", authMiddleware, getRequirements);
 router.post("/master-data/requirements", authMiddleware, createRequirement);
 router.put("/master-data/requirements/:id", authMiddleware, updateRequirement);

@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "../context/AuthContext";
 import {
   Phone,
   PhoneCall,
@@ -46,11 +48,25 @@ export const ContactCustomerModal: React.FC<ContactCustomerModalProps> = ({
   onConfirm,
   isSubmitting = false,
 }) => {
+  const { token } = useAuth();
   const [copiedPhone, setCopiedPhone] = useState(false);
   const [notes, setNotes] = useState("");
   const [requiresSiteInspection, setRequiresSiteInspection] = useState<boolean>(() => {
     if (lead?.status === "NEW") return false;
     return lead?.requiresSiteInspection === true;
+  });
+
+  const { data: masterLocations = [] } = useQuery<any[]>({
+    queryKey: ["quickProjectLocations"],
+    queryFn: async () => {
+      const res = await fetch("/api/v1/master-data/locations?isActive=true&isQuickChip=true", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: isOpen && !!token,
+    staleTime: 5 * 60 * 1000
   });
 
   const [locationInput, setLocationInput] = useState(() => {
@@ -380,22 +396,30 @@ export const ContactCustomerModal: React.FC<ContactCustomerModalProps> = ({
                     ) : null}
                   </div>
 
-                  {/* Quick Location Chips */}
+                  {/* Quick Location Chips from Project Site Master */}
                   <div className="flex flex-wrap gap-1 pt-1">
-                    {[
-                      "Jubail Industrial City 2",
-                      "Yanbu Industrial Complex",
-                      "MODON Dammam 2nd Ind",
-                      "Ras Tanura Plant Gate",
-                      "Riyadh Industrial Zone"
-                    ].map((zone) => (
+                    {(masterLocations.length > 0
+                      ? masterLocations.map((l: any) => ({ name: l.name, protocol: l.gateAccessProtocol }))
+                      : [
+                          { name: "Jubail Industrial City 2", protocol: "RCJY Gate 2 Pass & Contractor Registration" },
+                          { name: "Yanbu Industrial Complex", protocol: "RCJY Yanbu Gate Pass & Work Clearance" },
+                          { name: "MODON Dammam 2nd Ind", protocol: "Standard Commercial Gate Clearance" },
+                          { name: "Ras Tanura Plant Gate", protocol: "Aramco 48h Advance Gate Pass & Aramco PTW" },
+                          { name: "Riyadh Industrial Zone", protocol: "MODON Industrial Gate Entry Pass" }
+                        ]
+                    ).map((zone: any) => (
                       <button
-                        key={zone}
+                        key={zone.name}
                         type="button"
-                        onClick={() => handleLocationChange(zone)}
+                        onClick={() => {
+                          handleLocationChange(zone.name);
+                          if (!gateAccessNotes && zone.protocol) {
+                            setGateAccessNotes(zone.protocol);
+                          }
+                        }}
                         className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-emerald-400 transition cursor-pointer"
                       >
-                        + {zone}
+                        + {zone.name}
                       </button>
                     ))}
                   </div>

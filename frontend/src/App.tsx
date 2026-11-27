@@ -33,6 +33,7 @@ import Kpis from "./pages/master-data/Kpis";
 import KpiAssignments from "./pages/master-data/KpiAssignments";
 import MessageTemplates from "./pages/master-data/MessageTemplates";
 import LineItemCatalog from "./pages/master-data/LineItemCatalog";
+import ProjectSiteLocations from "./pages/master-data/ProjectSiteLocations";
 import DiscountRules from "./pages/master-data/DiscountRules";
 import Accounts from "./pages/Accounts";
 import Contacts from "./pages/Contacts";
@@ -208,6 +209,7 @@ function App() {
                 {/* Master Data Routing */}
                 <Route path="/master-data" element={<Navigate to="/master-data/catalog" replace />} />
                 <Route path="/master-data/catalog" element={<LineItemCatalog />} />
+                <Route path="/master-data/locations" element={<ProjectSiteLocations />} />
                 <Route path="/master-data/requirements" element={<Requirements />} />
                 <Route path="/master-data/line-items" element={<LineItems />} />
                 <Route path="/master-data/construction-items" element={<ConstructionItems />} />

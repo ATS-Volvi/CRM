@@ -3881,6 +3881,50 @@ TeamBreakPolicy.init(
   }
 );
 
+export class ProjectSiteLocation extends Model {
+  public id!: string;
+  public name!: string;
+  public code!: string | null;
+  public region!: string;
+  public zoneType!: string;
+  public zoneLabel!: string | null;
+  public baseDistanceKm!: number;
+  public travelTimeHours!: number | null;
+  public gateAccessProtocol!: string | null;
+  public securityRequirements!: string | null;
+  public mapLinkOrCoordinates!: string | null;
+  public isQuickChip!: boolean;
+  public sortOrder!: number;
+  public isActive!: boolean;
+  public createdAt!: Date;
+  public updatedAt!: Date;
+}
+
+ProjectSiteLocation.init(
+  {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    name: { type: DataTypes.STRING, allowNull: false, unique: true },
+    code: { type: DataTypes.STRING, allowNull: true },
+    region: { type: DataTypes.STRING, allowNull: false, defaultValue: "Eastern Province" },
+    zoneType: { type: DataTypes.STRING, allowNull: false, defaultValue: "modon_industrial" },
+    zoneLabel: { type: DataTypes.STRING, allowNull: true },
+    baseDistanceKm: { type: DataTypes.FLOAT, allowNull: false, defaultValue: 0 },
+    travelTimeHours: { type: DataTypes.FLOAT, allowNull: true },
+    gateAccessProtocol: { type: DataTypes.STRING, allowNull: true },
+    securityRequirements: { type: DataTypes.TEXT, allowNull: true },
+    mapLinkOrCoordinates: { type: DataTypes.TEXT, allowNull: true },
+    isQuickChip: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
+    sortOrder: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+    isActive: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
+  },
+  {
+    sequelize,
+    modelName: "ProjectSiteLocation",
+    tableName: "ProjectSiteLocations",
+  }
+);
+
 export { sequelize };
+
 
 

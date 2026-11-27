@@ -121,6 +121,13 @@ export const LeadIntelligenceHub: React.FC<LeadIntelligenceHubProps> = ({
         industrial_chem_tank: "Chemical Cleaning & Industrial Tank Decon"
       };
 
+      masterRequirements.forEach((r: any) => {
+        if (r.id && r.name) {
+          divisionLabels[r.id] = r.name;
+          divisionLabels[r.name] = r.name;
+        }
+      });
+
       const facilityLabels: Record<string, string> = {
         aramco_restricted: "Saudi Aramco Facility (Restricted Zone - 48h Advance Pass)",
         sabic_rcjy: "SABIC / Royal Commission (Jubail / Yanbu - EHS Badge Mandated)",
@@ -192,6 +199,25 @@ export const LeadIntelligenceHub: React.FC<LeadIntelligenceHubProps> = ({
       return await apiClient.get<any>(endpoint);
     },
     enabled: !!leadId,
+    staleTime: 5 * 60 * 1000
+  });
+
+  // Query Project Site Location Master & Category Masters dynamically
+  const { data: dynamicLocations = [] } = useQuery<any[]>({
+    queryKey: ["playbookProjectLocations"],
+    queryFn: async () => {
+      const res = await apiClient.get<any[]>("/api/v1/master-data/locations?isActive=true");
+      return res || [];
+    },
+    staleTime: 5 * 60 * 1000
+  });
+
+  const { data: masterRequirements = [] } = useQuery<any[]>({
+    queryKey: ["playbookRequirements"],
+    queryFn: async () => {
+      const res = await apiClient.get<any[]>("/api/v1/master-data/requirements");
+      return res || [];
+    },
     staleTime: 5 * 60 * 1000
   });
 
@@ -384,11 +410,22 @@ export const LeadIntelligenceHub: React.FC<LeadIntelligenceHubProps> = ({
                 onChange={(e: any) => setDiscoveryService(e.target.value)}
                 className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-1.5 text-xs text-slate-900 dark:text-white font-medium"
               >
-                <option value="industrial_hydrojetting">Industrial Services &amp; High-Pressure Hydrojetting (40,000 PSI)</option>
-                <option value="wms_waste_management">Waste Management Solutions (WMS - NCEC HazMat &amp; Recycling)</option>
-                <option value="heavy_equipment">Heavy &amp; Light Equipment Rental (Cranes, Super Suckers, Rig Fleet)</option>
-                <option value="tcf_modular_camp">Temporary Construction Facilities (TCF &amp; Modular Units)</option>
-                <option value="industrial_chem_tank">Chemical Cleaning &amp; Industrial Tank Decon</option>
+                <optgroup label="Core Industrial Divisions">
+                  <option value="industrial_hydrojetting">Industrial Services &amp; High-Pressure Hydrojetting (40,000 PSI)</option>
+                  <option value="wms_waste_management">Waste Management Solutions (WMS - NCEC HazMat &amp; Recycling)</option>
+                  <option value="heavy_equipment">Heavy &amp; Light Equipment Rental (Cranes, Super Suckers, Rig Fleet)</option>
+                  <option value="tcf_modular_camp">Temporary Construction Facilities (TCF &amp; Modular Units)</option>
+                  <option value="industrial_chem_tank">Chemical Cleaning &amp; Industrial Tank Decon</option>
+                </optgroup>
+                {masterRequirements.length > 0 && (
+                  <optgroup label="Commercial Category Masters (11 Categories)">
+                    {masterRequirements.map((r: any) => (
+                      <option key={r.id} value={r.name}>
+                        {r.name} ({r.category || "FACEC"})
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
               </select>
               <p className="text-[10px] text-slate-600 dark:text-slate-400 leading-tight">
                 {discoveryService === "industrial_hydrojetting" && "➔ Hydrojetting: Confirm line diameter, scale hardness & water point (40k PSI certified lance)."}
@@ -396,6 +433,8 @@ export const LeadIntelligenceHub: React.FC<LeadIntelligenceHubProps> = ({
                 {discoveryService === "heavy_equipment" && "➔ Heavy Equipment: Confirm load tonnage chart, boom radius & Aramco/TUV operator certs."}
                 {discoveryService === "tcf_modular_camp" && "➔ Modular / TCF: Confirm workforce headcount & sewage pumping schedule."}
                 {discoveryService === "industrial_chem_tank" && "➔ Chemical / Decon: Verify metallurgy, volume & H₂S purge standards."}
+                {!["industrial_hydrojetting", "wms_waste_management", "heavy_equipment", "tcf_modular_camp", "industrial_chem_tank"].includes(discoveryService) &&
+                  "➔ Master Division: Commercial scoping & line-item rates mapped from quotation catalog."}
               </p>
             </div>
 
@@ -410,22 +449,36 @@ export const LeadIntelligenceHub: React.FC<LeadIntelligenceHubProps> = ({
                 </span>
               </div>
 
-              {/* 1-Click Industrial Zone Chips */}
+              {/* Dynamic 1-Click Industrial Zone Chips from Project Site Master */}
               <div className="flex flex-wrap gap-1">
-                {["Jubail", "Dammam", "Ras Al-Khair", "Yanbu", "Remote Site"].map((area) => (
-                  <button
-                    key={area}
-                    type="button"
-                    onClick={() => handleLocationUpdate(area)}
-                    className={`text-[9px] px-1.5 py-0.5 rounded font-bold transition cursor-pointer border ${
-                      currentLocation === area
-                        ? "bg-emerald-600 text-white border-emerald-600 shadow-2xs"
-                        : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-emerald-400"
-                    }`}
-                  >
-                    {area}
-                  </button>
-                ))}
+                {(dynamicLocations.filter((l: any) => l.isQuickChip).length > 0
+                  ? dynamicLocations.filter((l: any) => l.isQuickChip)
+                  : [
+                      { name: "Jubail", baseDistanceKm: 15 },
+                      { name: "Dammam", baseDistanceKm: 85 },
+                      { name: "Ras Al-Khair", baseDistanceKm: 90 },
+                      { name: "Yanbu", baseDistanceKm: 1420 },
+                      { name: "Remote Site", baseDistanceKm: 250 }
+                    ]
+                ).map((locItem: any) => {
+                  const areaName = locItem.name || locItem;
+                  const isSelected = currentLocation === areaName;
+                  return (
+                    <button
+                      key={areaName}
+                      type="button"
+                      onClick={() => handleLocationUpdate(areaName)}
+                      className={`text-[9px] px-1.5 py-0.5 rounded font-bold transition cursor-pointer border ${
+                        isSelected
+                          ? "bg-emerald-600 text-white border-emerald-600 shadow-2xs"
+                          : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-emerald-400"
+                      }`}
+                      title={locItem.gateAccessProtocol ? `${locItem.gateAccessProtocol} (${locItem.baseDistanceKm} km)` : undefined}
+                    >
+                      {areaName}
+                    </button>
+                  );
+                })}
               </div>
 
               <input
@@ -435,9 +488,26 @@ export const LeadIntelligenceHub: React.FC<LeadIntelligenceHubProps> = ({
                 placeholder="Type gate or paste map link..."
                 className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-1.5 text-xs text-slate-900 dark:text-white font-medium placeholder:text-slate-400 focus:outline-hidden focus:ring-1 focus:ring-emerald-500"
               />
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
-                ➔ Auto-syncs to Contacted outreach popup &amp; calculates travel distance.
-              </p>
+
+              {/* Matched Site Location Distance & Security Helper */}
+              {(() => {
+                const matched = dynamicLocations.find(
+                  (l: any) => l.name === currentLocation || (currentLocation && currentLocation.toLowerCase().includes(l.name.toLowerCase()))
+                );
+                if (matched) {
+                  return (
+                    <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-md p-1.5 text-[9px] text-emerald-900 dark:text-emerald-300 flex items-center justify-between">
+                      <span><strong>{matched.baseDistanceKm} km</strong> from operations yard ({matched.travelTimeHours || 1}h transit)</span>
+                      <span className="font-semibold text-slate-600 dark:text-slate-400">{matched.zoneLabel || matched.zoneType}</span>
+                    </div>
+                  );
+                }
+                return (
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
+                    ➔ Auto-syncs to Contacted outreach popup &amp; calculates travel distance.
+                  </p>
+                );
+              })()}
             </div>
 
             {/* Question 3: Plant Access & Gate Permits */}

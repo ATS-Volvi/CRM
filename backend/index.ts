@@ -43,6 +43,9 @@ const startServer = async () => {
     if (sequelize.models.TeamBreakPolicy) {
       await sequelize.models.TeamBreakPolicy.sync().catch(err => console.warn("TeamBreakPolicy sync warning:", err));
     }
+    if (sequelize.models.ProjectSiteLocation) {
+      await sequelize.models.ProjectSiteLocation.sync().catch(err => console.warn("ProjectSiteLocation sync warning:", err));
+    }
     await sequelize.query('ALTER TABLE "UserAttendances" ADD COLUMN IF NOT EXISTS "currentBreakStart" TIMESTAMP;').catch(() => {});
     await sequelize.query('ALTER TABLE "UserAttendances" ADD COLUMN IF NOT EXISTS "totalBreakMinutes" INTEGER DEFAULT 0;').catch(() => {});
     await sequelize.query('ALTER TABLE "UserAttendances" ADD COLUMN IF NOT EXISTS "netDurationMinutes" INTEGER;').catch(() => {});

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   Package, Tag, Ruler, BookOpen, FileText, CreditCard, Truck, ShieldCheck,
-  LayoutTemplate, UserPlus, GitBranch, Globe, Target, Settings, ChevronRight, MessageSquare, Database
+  LayoutTemplate, UserPlus, GitBranch, Globe, Target, Settings, ChevronRight, MessageSquare, Database, MapPin
 } from "lucide-react";
 
 interface NavGroup {
@@ -29,6 +29,7 @@ const masterDataGroups: NavGroup[] = [
     label: "Commercial Catalog",
     items: [
       { name: "Line Item Catalog", path: "/master-data/catalog", icon: Package, badge: "Primary" },
+      { name: "Project Site Locations", path: "/master-data/locations", icon: MapPin, badge: "Mob/Demob" },
       { name: "Categories", path: "/master-data/categories", icon: Tag },
       { name: "Units of Measure", path: "/master-data/uoms", icon: Ruler },
       { name: "Price Lists", path: "/price-book", icon: BookOpen },
