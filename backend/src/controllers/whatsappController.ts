@@ -214,6 +214,7 @@ export const sendMessage = async (req: Request, res: Response) => {
             ...(targetLeadId ? [{ leadId: targetLeadId }] : []),
             ...(targetCustomerId ? [{ customerId: targetCustomerId }] : [])
           ],
+          type: "whatsapp_sms",
           direction: "inbound"
         },
         order: [["createdAt", "DESC"]]

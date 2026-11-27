@@ -684,7 +684,7 @@ export default function LeadDetail() {
         if (parsed.error) {
           errorMsg = parsed.error;
           if (parsed.requiresTemplate) {
-            errorMsg = `No approved WhatsApp template configured for language '${summaryLanguage.toUpperCase()}' — contact your system administrator to configure Twilio Content SID.`;
+            errorMsg = "Outside 24h session: WhatsApp Business requires an approved template for business-initiated outreach. Use 'Open Web' to chat directly with this customer.";
           }
         }
       } catch (e) {}
@@ -2282,6 +2282,18 @@ export default function LeadDetail() {
                           <div className="text-[11px] leading-relaxed">
                             <span className="font-bold">WhatsApp Notice: </span>
                             {whatsAppTemplateError}
+                            {(lead.whatsappPhone || lead.phone) && (
+                              <div className="mt-1.5">
+                                <a
+                                  href={`https://wa.me/${formatPhoneForWhatsAppWeb(lead.whatsappPhone || lead.phone)}${whatsAppText ? `?text=${encodeURIComponent(whatsAppText)}` : ""}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 font-bold text-emerald-800 dark:text-emerald-300 underline hover:no-underline text-[11px]"
+                                >
+                                  <ExternalLink className="w-3 h-3" /> Chat directly via WhatsApp Web &rarr;
+                                </a>
+                              </div>
+                            )}
                           </div>
                         </div>
                         <button
